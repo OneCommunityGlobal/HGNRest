@@ -1,0 +1,15 @@
+{
+  "name": "hgnrest",
+  "version": "1.0.0",
+  "description": "This module is the RESt module built on NodeJS to support MongoDB activities, Since EmberData has no direct adapters for MongoDB. This module will later be intergrated with EmberJS HGN project to maintain singularity.",
+  "main": "restapp",
+  "scripts": {
+    "test": "test"
+  },
+  "author": "AK",
+  "license": "ISC",
+  "devDependencies": {
+    "express": "^4.15.2",
+    "mongoose": "^4.9.5"
+  }
+}
