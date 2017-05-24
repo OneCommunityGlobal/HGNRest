@@ -4,10 +4,16 @@ var {Schema} = mongoose;
 
 var app = express();
 
+var bodyParser = require('body-parser')
+app.use( bodyParser.json() );       // to support JSON-encoded bodies
+app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
+  extended: true
+}));
+
 //Initial Configuration for the Server.
 app.use(function(req, res, next) {
 	// For testing purpose I'm Commenting the below line, but later somepoint we can just make sure to allow traffic only from particular port.
-	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
+	//res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
 	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   	res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
     	next();
@@ -53,7 +59,7 @@ var Timelog = mongoose.model('timelog', timelogSchema);
 insertDummyData();
 
 app.get('/api/',function(req,res) {
-	res.send('Working');
+	res.send('Success');
 });
 
 app.get('/api/profiles', function(req,res) {
@@ -79,8 +85,23 @@ app.get('/api/timelogs', function(req,res) {
 });
 
 
-app.get('api/timelog', function(req, res){
+app.get('/api/timelog', function(req, res){
 	console.log('timelog get: ', res.body)
+})
+
+app.post('/api/timelog', function(req, res) {
+	console.log('timelog POST... ', req.body)
+
+	let t = new Timelog(req.body)
+	t.save((err) => {
+    if (err) {
+      console.log('Timelog POST error ', err);
+      res.send(err)
+    } else {
+      res.send('ok')
+    }
+  })
+
 })
 
 
@@ -135,5 +156,12 @@ function insertDummyData() {
 	})
 }
 
+
+app.all('*', function (req, res, next) {
+    return res.status(404).json({success: false, message: 'Route \'' + req.url + '\' is invalid.'});
+});
+app.use(function(err, req, res, next) {
+    return res.status(500).json(err);
+});
 
 app.listen('4500');
