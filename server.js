@@ -30,11 +30,6 @@ var profileSchema = new Schema({
 	created: {type : Date, default : Date.now},
 });
 
-var noteSchema = new Schema({
-	title: 'string',
-	content: 'string',
-	author: 'string'
-});
 
 var timelogSchema = new Schema({
 	//profile: { type: Schema.Types.ObjectID, ref: 'profiles' },
@@ -46,10 +41,22 @@ var timelogSchema = new Schema({
   workCompleted: String,
   project: String,
   task: String
-})
+});
+
+//sow:Added for UserManagement
+var userSchema = new Schema({
+	userName: String,
+	firstName: String,
+	lastName: String,
+	email: String,
+	contact: String,
+	role: String,
+});
 
 var Profile = mongoose.model('profile', profileSchema);
 var Timelog = mongoose.model('timelog', timelogSchema);
+var user = mongoose.model('user', userSchema);
+
 insertDummyData();
 
 app.get('/api/',function(req,res) {
@@ -78,7 +85,16 @@ app.get('/api/timelogs', function(req,res) {
 	});
 });
 
-
+app.get('/api/users', function(req,res) {
+	user.find({},function(err,docs) {
+		if(err) {
+			res.send(err);
+		}
+		else {
+			res.send(docs);
+		}
+	});
+});
 app.get('api/timelog', function(req, res){
 	console.log('timelog get: ', res.body)
 })
