@@ -69,6 +69,13 @@ var user = mongoose.model('user', userSchema);
 
 insertDummyData();
 
+app.post('/api/token', function(req, res) {
+	console.log(req.body)
+	if (req.body.username === 'test' && req.body.password === 'test') {
+		res.send({access_token: "12345"});
+	}
+});
+
 app.get('/api/',function(req,res) {
 	res.send('Success');
 });
@@ -177,9 +184,11 @@ function insertDummyData() {
 
 
 app.all('*', function (req, res, next) {
-    return res.status(404).json({success: false, message: 'Route \'' + req.url + '\' is invalid.'});
+		console.log('Error 404', req.url);
+		return res.status(404).json({success: false, message: 'Route \'' + req.url + '\' is invalid.'});
 });
 app.use(function(err, req, res, next) {
+	 	console.log('Error 500');
     return res.status(500).json(err);
 });
 
