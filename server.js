@@ -6,12 +6,14 @@ var app = express();
 
 app.use(function(req, res, next) {
 	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
-	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
+	//res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+	//added the content-Type to authorization after ESA implementation.
+	res.setHeader("Access-Control-Allow-Headers", "Content-Type, authorization");
+  	res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
   // intercept OPTIONS method
   // this allows cross domain requests to come from Ember, as Ember first sends an OPTIONS request
   if ('OPTIONS' == req.method) {
-    res.send(200);
+    res.sendStatus(200);
   }
   else {
     next();
