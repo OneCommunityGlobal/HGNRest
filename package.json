@@ -11,5 +11,8 @@
   "devDependencies": {
     "express": "^4.15.2",
     "mongoose": "^4.9.5"
+  },
+  "dependencies": {
+    "mongodb": "^2.2.33"
   }
 }
