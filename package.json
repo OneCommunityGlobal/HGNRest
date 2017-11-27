@@ -13,6 +13,7 @@
     "mongoose": "^4.9.5"
   },
   "dependencies": {
-    "mongodb": "^2.2.33"
+    "mongodb": "^2.2.33",
+    "node-datetime": "^2.0.3"
   }
 }

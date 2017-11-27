@@ -148,7 +148,7 @@ var url = 'mongodb://localhost/hgnData';
 
 app.get('/api/dashboard', function (req, res) {
 	dashboard.getdahsboardData(function (items) {
-		res.send(items);
+		res.json(items[0]);
 	});
 })
 
