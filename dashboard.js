@@ -1,5 +1,5 @@
-module.exports = {
-    getdahsboardData: function (callback) {
+
+   var getdahsboardData= function (callback) {
 
         var now = new Date();
         var mongoClient = require('mongodb').MongoClient,
@@ -15,4 +15,6 @@ module.exports = {
             });
         });
     }
-}
+
+    exports.getdahsboardData = getdahsboardData;
+    

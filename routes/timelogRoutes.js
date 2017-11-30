@@ -1,4 +1,4 @@
-
+var HttpStatus = require('http-status-codes');
 
 var express = require('express')
 
@@ -16,7 +16,7 @@ TimeLogRouter.route('/TimeLogs')
             res.status(404).send("Error!!")
         }
         else {
-            res.status(205);
+            res.status(HttpStatus.OK);
             res.json(timelogs);
         }
     })
@@ -34,11 +34,9 @@ TimeLogRouter.route('/TimeLogs')
     timelog.project = req.body.project;
     timelog.task = req.body.task;
 
-timelog.save();
+    timelog.save();  
 
-  
-
-    res.send("New timelog saves").status(201);
+    res.status(200).send("Timelog saved");
 
 })
 

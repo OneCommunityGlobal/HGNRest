@@ -40,16 +40,6 @@ var ProfileRouter = express.Router();
 
 
 
-var timelogSchema = new Schema({
-	//profile: { type: Schema.Types.ObjectID, ref: 'profile' },
-	createDate: { type: Date, default: Date.now },
-	lastModifyDate: { type: Date, default: Date.now },
-	totalSeconds: Number,
-	tangible: Boolean,
-	workCompleted: String,
-	project: String,
-	task: String
-});
 
 //sow:Added for UserManagement
 var userSchema = new Schema({
@@ -128,24 +118,7 @@ app.get('/api/users', function (req, res) {
 		}
 	});
 });
-app.get('api/timelog', function (req, res) {
-	console.log('timelog get: ', res.body)
-})
 
-app.post('/api/timelogs', function (req, res) {
-	console.log('timelogs POST... ', req.body)
-
-	let t = new Timelog(req.body)
-	t.save((err) => {
-		if (err) {
-			console.log('Timelogs POST error ', err);
-			res.send(err)
-		} else {
-			res.send('ok')
-		}
-	})
-
-})
 
 var MongoClient = require('mongodb').MongoClient;
 var url = 'mongodb://localhost/hgnData';
