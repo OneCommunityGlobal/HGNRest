@@ -9,7 +9,7 @@ app.use(function(req, res, next) {
 	//res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
 	//added the content-Type to authorization after ESA implementation.
 	res.setHeader("Access-Control-Allow-Headers", "Content-Type, authorization");
-  	res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
+  	res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, PATCH, OPTIONS');
   // intercept OPTIONS method
   // this allows cross domain requests to come from Ember, as Ember first sends an OPTIONS request
   if ('OPTIONS' == req.method) {
@@ -22,7 +22,7 @@ app.use(function(req, res, next) {
 
 var bodyParser = require('body-parser')
 
-app.use( bodyParser.json() );       // to support JSON-encoded bodies
+app.use( bodyParser.json({type:'application/vnd.api+json'}) );       // to support JSON-encoded bodies
 app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
   extended: true
 }));
@@ -62,7 +62,7 @@ var userSchema = new Schema({
 	lastName: String,
 	email: String,
 	contact: String,
-	role: String,
+	role: String
 });
 
 var Profile = mongoose.model('profile', profileSchema);
@@ -130,9 +130,45 @@ app.post('/api/timelogs', function(req, res) {
       res.send('ok')
     }
   })
-
 })
 
+app.post('/api/users', function(req, res) {
+	console.log('users POST... ', req.body)
+
+	let u = new user(req.body)
+	u.save((err) => {
+    if (err) {
+      console.log('users POST error ', err);
+      res.send(err)
+    } else {
+      res.send(u)
+    }
+  })
+})
+
+//added to get users based on id
+app.get('/api/users/:id', function(req, res) {
+	console.log('users getbyid... ', req.body)
+	user.findById(req.params.id,function(err,response){
+		if (err){
+		res.send({message:"error in getting the record for" +req.params.id});
+	}
+	else{
+	res.json(response);
+	}
+	})
+})
+
+//put operation: find by id and update
+app.put('/api/users/:id',function(req,res){
+console.log('users updateByID...',req.body)
+user.findByIdAndUpdate(req.params.id,{$set: req.body},function(err,response){
+	if(err)
+		res.send({message: "Error in updating person with id " + req.params.id});
+		res.json(response);
+	
+})
+})
 
 function insertDummyData() {
 	const errFunc = (collectionName) => { return (err) => {if (err) throw err; else console.log(`${collectionName} inserted...`)} }
