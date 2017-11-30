@@ -13,7 +13,9 @@
     "mongoose": "^4.9.5"
   },
   "dependencies": {
+    "gulp": "^3.9.1",
     "mongodb": "^2.2.33",
-    "node-datetime": "^2.0.3"
+    "node-datetime": "^2.0.3",
+    "nodemon": "^1.12.1"
   }
 }
