@@ -2,8 +2,10 @@ var express = require('express');
 var mongoose = require('mongoose');
 var Profile = require('./models/profile');
 var TimeLog = require('./models/timelog');
+var TimeEntry = require('./models/timeentry');
 var bodyParser = require('body-parser');
 var dashboard = require('./dashboard');
+
 
 var app = express();
 app.use(bodyParser.json());       
@@ -13,9 +15,12 @@ var db = mongoose.connect('mongodb://localhost/hgnData');
 
 var ProfileRouter = require('./routes/profileRoutes')(Profile);
 var TimeLogRouter = require('./routes/timelogRoutes')(TimeLog);
+var DashboardRouter = require('./routes/dashboardRouter')(TimeEntry, Profile);
 
 app.use('/api',TimeLogRouter);
 app.use('/api', ProfileRouter);
+app.use('/api', DashboardRouter);
+
 app.use(function (req, res, next) {
 	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
 	res.setHeader("Access-Control-Allow-Headers", "Content-Type, authorization");

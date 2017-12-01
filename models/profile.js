@@ -16,4 +16,4 @@ var profileSchema = new Schema({
         created: { type: Date, default: Date.now },
     });
 
-module.exports = mongoose.model('Profile', profileSchema);
+module.exports = mongoose.model('Profile', profileSchema, 'profiles');
