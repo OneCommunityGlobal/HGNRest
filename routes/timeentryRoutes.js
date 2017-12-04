@@ -24,12 +24,14 @@ TimeEntryRouter.route('/TimeEntry')
     var timeentry = new TimeEntry();
     var dateofWork = req.body.dateofWork;
     var date = new Date();
+    var timeSpent = req.body.timeSpent;
+   
     
     timeentry.personId   = req.body.personId;
 	timeentry.projectId = req.body.projectId;
 	timeentry.taskId = req.body.taskId;
 	timeentry.dateofwork = moment(dateofWork);
-	timeentry.totalSeconds = req.body.totalSeconds;
+	timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
 	timeentry.notes = req.body.notes;
 	timeentry.tangible = req.body.tangible;
 	timeentry.createdDateTime = moment.utc();
