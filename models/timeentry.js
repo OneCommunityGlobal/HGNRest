@@ -2,17 +2,18 @@ var mongoose = require('mongoose'),
 Schema = mongoose.Schema;
 
 var TimeEntry = new Schema({
-    PersonId : {type: Schema.Types.ObjectId, required: true},
-	ProjectId: {type: Schema.Types.ObjectId, required: true},
-	TaskId : {type: String, required: true},
-	createdDate: { type: Date, default: Date.now },
-	lastModifiedDate: { type: Date, default: Date.now },
+    personId : {type: Schema.Types.ObjectId, required: true},
+	projectId: {type: Schema.Types.ObjectId, required: true},
+	taskId : {type: String, required: true},
+	dateofwork : {type : Date, required: true},
 	totalSeconds: Number,
-	tangible: Boolean,
-	workDescription: String,
-	rollupweek : {type: String, required: true},
-	rollupmonth : {type: String, required: true},
-	rollupyear : {type: String, required: true}
+	notes : {type: String},
+	tangible : {required: true, type: Boolean },
+	createdDateTime: { type: Date },
+	lastModifiedDateTime: { type: Date, default: Date.now },	
+	rollupWeek : {type: String, required: true},
+	rollupMonth : {type: String, required: true},
+	rollupYear : {type: String, required: true}
 });
 
-module.exports = mongoose.model("TimeEntry", TimeEntry, 'TimeEntry');
+module.exports = mongoose.model("TimeEntry", TimeEntry, 'timeEntry');

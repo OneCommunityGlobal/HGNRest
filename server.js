@@ -16,10 +16,12 @@ var db = mongoose.connect('mongodb://localhost/hgnData');
 var ProfileRouter = require('./routes/profileRoutes')(Profile);
 var TimeLogRouter = require('./routes/timelogRoutes')(TimeLog);
 var DashboardRouter = require('./routes/dashboardRouter')(TimeEntry, Profile);
+var TimeEntryRouter = require('./routes/timeentryRoutes')(TimeEntry);
 
 app.use('/api',TimeLogRouter);
 app.use('/api', ProfileRouter);
 app.use('/api', DashboardRouter);
+app.use('/api', TimeEntryRouter);
 
 app.use(function (req, res, next) {
 	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
