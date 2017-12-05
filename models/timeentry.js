@@ -5,7 +5,7 @@ var TimeEntry = new Schema({
     personId : {type: Schema.Types.ObjectId, required: true},
 	projectId: {type: Schema.Types.ObjectId, required: true},
 	taskId : {type: String, required: true},
-	dateofwork : {type : Date, required: true},
+	dateofWork : {type : Date, required: true},
 	totalSeconds: Number,
 	notes : {type: String},
 	tangible : {required: true, type: Boolean },

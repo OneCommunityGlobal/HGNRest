@@ -11,7 +11,9 @@ var app = express();
 app.use(bodyParser.json());       
 app.use(bodyParser.urlencoded({extended: true}));
 
-var db = mongoose.connect('mongodb://localhost/hgnData');
+var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
+
+var db = mongoose.connect(uri);
 
 var ProfileRouter = require('./routes/profileRoutes')(Profile);
 var TimeLogRouter = require('./routes/timelogRoutes')(TimeLog);

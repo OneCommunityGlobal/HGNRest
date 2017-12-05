@@ -15,7 +15,23 @@ TimeEntryRouter.route('/TimeEntry')
         }
         else {
             res.status(200);
-            res.json(records);
+             console.log(records);
+             var items = [];
+             records.forEach(element => {
+
+                var timeentry = new Object();
+                
+                timeentry.personId   = element.personId;
+                timeentry.projectId = element.projectId;
+                timeentry.taskId = element.taskId;
+                timeentry.dateofWork = element.dateofWork;
+                timeentry.timeSpent = moment("1900-01-01 00:00:00").add(element.totalSeconds, 'seconds').format("HH:mm:ss");
+                timeentry.notes = element.notes;
+                timeentry.tangible = element.tangible;
+              
+                items.push(timeentry);
+             });
+            res.json(items);
         }
     })
 })
@@ -30,7 +46,7 @@ TimeEntryRouter.route('/TimeEntry')
     timeentry.personId   = req.body.personId;
 	timeentry.projectId = req.body.projectId;
 	timeentry.taskId = req.body.taskId;
-	timeentry.dateofwork = moment(dateofWork);
+	timeentry.dateofWork = moment(dateofWork);
 	timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
 	timeentry.notes = req.body.notes;
 	timeentry.tangible = req.body.tangible;
