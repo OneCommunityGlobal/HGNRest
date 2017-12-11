@@ -16,4 +16,4 @@ var TimeEntry = new Schema({
 	rollupYear : {type: String, required: true}
 });
 
-module.exports = mongoose.model("TimeEntry", TimeEntry, 'timeEntry');
+module.exports = mongoose.model("TimeEntry", TimeEntry, 'timeEntries');

@@ -1,7 +1,7 @@
 var express = require('express');
 var mongoose = require('mongoose');
-var Profile = require('./models/profile');
-var TimeLog = require('./models/timelog');
+var userProfile = require('./models/userProfile');
+
 var TimeEntry = require('./models/timeentry');
 var bodyParser = require('body-parser');
 var dashboard = require('./dashboard');
@@ -15,13 +15,12 @@ var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:2701
 
 var db = mongoose.connect(uri);
 
-var ProfileRouter = require('./routes/profileRoutes')(Profile);
-var TimeLogRouter = require('./routes/timelogRoutes')(TimeLog);
-var DashboardRouter = require('./routes/dashboardRouter')(TimeEntry, Profile);
+var userProfileRouter = require('./routes/userProfileRoutes')(userProfile);
+var DashboardRouter = require('./routes/dashboardRouter')(TimeEntry, userProfile);
 var TimeEntryRouter = require('./routes/timeentryRoutes')(TimeEntry);
 
-app.use('/api',TimeLogRouter);
-app.use('/api', ProfileRouter);
+//app.use('/api',TimeLogRouter);
+app.use('/api', userProfileRouter);
 app.use('/api', DashboardRouter);
 app.use('/api', TimeEntryRouter);
 
