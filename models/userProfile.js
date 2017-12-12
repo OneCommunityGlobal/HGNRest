@@ -10,7 +10,7 @@ var userProfileSchema = new Schema({
   role : {type: String, required: true, enum : ['Volunteer', 'Manager', 'Administrator', 'Core Team']},
   firstName: {type: String, required: true, trim: true, minlength: 2},
   lastName: {type: String, required: true, minlength: 2},
-  phoneNumber : [{Type: String, phoneNumber : String}],
+  phoneNumber : [{type: String, phoneNumber : String}],
   bio: {type: String},
   email: { type: mongoose.SchemaTypes.Email, required: true },
   weeklyComittedHours : {type: Number, default: 10},
@@ -19,7 +19,9 @@ var userProfileSchema = new Schema({
   professionalLinks : [{Name :String, Link : String}],
   socialLinks : [{Name :String, Link : String}],
   otherLinks : [{Name :String, Link: String}],
-  TeamId : [{type: String}]
+  teamId : {type: String},
+  badgeCollection: [{badgeName: String, quantity: Number, lastModifiedDate: Date}]
+  
 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

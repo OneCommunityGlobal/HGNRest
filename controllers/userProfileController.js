@@ -24,7 +24,7 @@ var userProfileController = function (userProfile) {
     up.professionalLinks = req.body.professionalLinks;
     up.socialLinks = req.body.socialLinks;
     up.otherLinks = req.body.otherLinks;
-    up.TeamId = req.body.TeamId;
+    up.TeamId = req.body.TeamId;    
     up.createdDate = Date.now();
 
     up.save(function (err) {
