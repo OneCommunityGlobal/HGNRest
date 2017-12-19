@@ -11,7 +11,7 @@ TimeEntryRouter.route('/TimeEntry')
 
         if (err)  {
             console.log("Error encountered during get operation of timelog. Error is "+ err);
-            res.status(404).send("Error!!")
+            res.status(404).send("Error!!");
         }
         else {
             res.status(200);
@@ -19,7 +19,7 @@ TimeEntryRouter.route('/TimeEntry')
              var items = [];
              records.forEach(element => {
 
-                var timeentry = new Object();
+                var timeentry = new TimeEntry();
                 
                 timeentry.personId   = element.personId;
                 timeentry.projectId = element.projectId;

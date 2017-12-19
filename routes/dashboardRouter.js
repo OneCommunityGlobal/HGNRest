@@ -1,11 +1,40 @@
 var express = require('express');
 
-var route = function(TimeEntry, Profile){
+var route = function(TimeEntry, userProfile){
 
-    Dashboardrouter = express.Router();
+    var controller = require('../controllers/dashBoardController')();
 
-    Dashboardrouter.route('/dashboard1')
-    .get(function (req, res){
+
+    var Dashboardrouter = express.Router();
+
+    Dashboardrouter.route('/dashboard1/:userId')
+    .get(controller.dashboarddata);
+
+    return Dashboardrouter;
+
+}
+
+module.exports = route;
+
+/*
+
+db.TimeEntry.aggregate([{$lookup : {
+    
+    "from": "Person",
+    "localField": "PersonId",
+    foreignField : "_id",
+    as: "persondata"      
+    }}
+    ,{$project : {
+        TimeLogid: "$_id",PersonId : {$arrayElemAt: ["$persondata._id",0]}, LoggedDate: "$createdDate", _id:0,
+        rollupweek:1, rollupmonth:1, rollupyear:1, totalseconds:1, 
+        Name : {$concat : [{$arrayElemAt: ["$persondata.FirstName",0]}, " " , {$arrayElemAt: ["$persondata.LastName",0]}]}
+      }}
+        
+    ])
+*/
+
+/*
 
         TimeEntry.aggregate([{$lookup : {
             
@@ -35,34 +64,5 @@ var route = function(TimeEntry, Profile){
 
                 }
             })
-
-       
-    })
-
-    return Dashboardrouter;
-
-}
-
-module.exports = route;
-
-/*
-
-db.TimeEntry.aggregate([{$lookup : {
-    
-    "from": "Person",
-    "localField": "PersonId",
-    foreignField : "_id",
-    as: "persondata"      
-    }}
-    ,{$project : {
-        TimeLogid: "$_id",PersonId : {$arrayElemAt: ["$persondata._id",0]}, LoggedDate: "$createdDate", _id:0,
-        rollupweek:1, rollupmonth:1, rollupyear:1, totalseconds:1, 
-        Name : {$concat : [{$arrayElemAt: ["$persondata.FirstName",0]}, " " , {$arrayElemAt: ["$persondata.LastName",0]}]}
-      }}
-        
-    ])
-*/
-
-/*
        
 */

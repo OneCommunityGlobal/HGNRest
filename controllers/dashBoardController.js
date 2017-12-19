@@ -1,44 +1,32 @@
-var userProfile = require('./models/userProfile');
-var TimeEntry = require('./models/timeentry');
+var userProfile = require('../models/userProfile');
+var TimeEntry = require('../models/timeentry');
+var dashboardhelper = require('../helpers/dashboardhelper')();
+var mongoose = require('mongoose');
+var dashboardcontroller = function () {
 
+  var output ;
+  var dashboarddata = function (req, res) {
 
-var dashboardcontroller = function(){
-
-    var teamid= ""
-    var personaldetails = function(){
-       
-       ;
-        var profiledata;
-
-        var userid = "5a2ede09f080621198106091"; /* TODO: Get user id so that details can be retrrived */
-        userProfile.findById(userid, function(err, record){
-            
-            this.profiledata = record;
-            this.teamid = record.teamid;
-          });
-          return profiledata;
-    }
-
-    var leaderBoardData = function(){
-
-       var query = userProfile.find({teamid :teamid, isActive: true})
-                        .select('_id, firstname, lastname')
-                        .exec();
-
-        console.log(query);
-        }
+    var teamid = "";
     
-    
-        return {
-            personaldetails: personaldetails,
-            leaderBoardData: leaderBoardData
+    var userid = req.params.userId; /* TODO: Get user id so that details can be retrrived */
+
+    dashboardhelper.personaldetails(userid)
+      .then(dashboardhelper.getTeamMembers)
+      .then(dashboardhelper.getTeamMembers)
+      .then( results => {console.log(results); res.send(results).status(200); } )
+      .catch(error => {res.send(error).status(404);});
+  };
 
 
-        }
+  return {
+    //personaldetails: _personaldetails,
+    dashboarddata: dashboarddata
 
 
-}();
+  }
+
+
+};
 
 module.exports = dashboardcontroller;
-
-dashboardcontroller.leaderBoardData;

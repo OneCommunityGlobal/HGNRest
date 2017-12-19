@@ -11,7 +11,7 @@ var userProfileController = function (userProfile) {
   };
   var postUserProfile = function (req, res) {
 
-    var up = new userProfile();
+    var up =  new userProfile();
     up.userName = req.body.userName;
     up.password = req.body.password;
     up.role = req.body.role;
@@ -24,7 +24,7 @@ var userProfileController = function (userProfile) {
     up.professionalLinks = req.body.professionalLinks;
     up.socialLinks = req.body.socialLinks;
     up.otherLinks = req.body.otherLinks;
-    up.TeamId = req.body.TeamId;    
+    up.teamId = req.body.teamId;    
     up.createdDate = Date.now();
 
     up.save(function (err) {
@@ -41,7 +41,7 @@ var userProfileController = function (userProfile) {
 
   var putUserProfile = function (req, res) {
 
-    userid = req.params.userId;
+    let userid = req.params.userId;
 
 
 

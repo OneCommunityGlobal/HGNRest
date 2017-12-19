@@ -2,8 +2,8 @@ var mongoose = require('mongoose'),
 Schema = mongoose.Schema;
 
 var TimeEntry = new Schema({
-    personId : {type: Schema.Types.ObjectId, required: true},
-	projectId: {type: Schema.Types.ObjectId, required: true},
+    personId : {type: Schema.Types.ObjectId, required: true, ref: 'userProfile'},
+	projectId: {type: Schema.Types.ObjectId, required: true, ref: 'Project'},
 	taskId : {type: String, required: true},
 	dateofWork : {type : Date, required: true},
 	totalSeconds: Number,
@@ -16,4 +16,4 @@ var TimeEntry = new Schema({
 	rollupYear : {type: String, required: true}
 });
 
-module.exports = mongoose.model("TimeEntry", TimeEntry, 'timeEntries');
+module.exports = mongoose.model('timeEntry', TimeEntry, 'timeEntries');

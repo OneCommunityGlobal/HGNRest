@@ -1,6 +1,6 @@
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
-require('mongoose-type-email');
+var validate = require('mongoose-validate');
 require('mongoose-type-url');
 
 var userProfileSchema = new Schema({
@@ -12,14 +12,14 @@ var userProfileSchema = new Schema({
   lastName: {type: String, required: true, minlength: 2},
   phoneNumber : [{type: String, phoneNumber : String}],
   bio: {type: String},
-  email: { type: mongoose.SchemaTypes.Email, required: true },
+  email: { type: String, required: true, validate: [validate.email, 'Please enter a valid email address'] },
   weeklyComittedHours : {type: Number, default: 10},
   createdDate: {type: Date, required: true},
   lastModifiedDate: {type: Date, required: true, default : Date.now()},
   professionalLinks : [{Name :String, Link : String}],
   socialLinks : [{Name :String, Link : String}],
   otherLinks : [{Name :String, Link: String}],
-  teamId : {type: String},
+  teamId : [{type: mongoose.SchemaTypes.ObjectId, ref: 'team'}],
   badgeCollection: [{badgeName: String, quantity: Number, lastModifiedDate: Date}]
   
 });
