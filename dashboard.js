@@ -12,6 +12,7 @@ var getdahsboardData = function (callback) {
     }).toArray(function (err, items) {
       if (err) throw err;
       console.log("Dashboard service hit at: " + now);
+      console.log(items);
       callback(items);
     });
   });
