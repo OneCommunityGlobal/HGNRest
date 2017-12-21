@@ -27,7 +27,7 @@ TimeEntryRouter.route('/TimeEntry')
                 timeentry.dateofWork = element.dateofWork;
                 timeentry.timeSpent = moment("1900-01-01 00:00:00").add(element.totalSeconds, 'seconds').format("HH:mm:ss");
                 timeentry.notes = element.notes;
-                timeentry.tangible = element.tangible;
+                timeentry.isTangible = element.isTangible;
               
                 items.push(timeentry);
              });
@@ -49,7 +49,7 @@ TimeEntryRouter.route('/TimeEntry')
 	timeentry.dateofWork = moment(dateofWork);
 	timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
 	timeentry.notes = req.body.notes;
-	timeentry.tangible = req.body.tangible;
+	timeentry.isTangible = req.body.isTangible;
 	timeentry.createdDateTime = moment.utc();
 	timeentry.lastModifiedDateTime =  moment.utc();
     timeentry.rollupYear = moment(dateofWork).get('year');
@@ -64,7 +64,7 @@ TimeEntryRouter.route('/TimeEntry')
     timeentry.save(function(err){ 
         
         if(err){ 
-        res.status("500").send(err);
+        res.status(500).send(err);
         }
 
         else {
@@ -76,7 +76,7 @@ TimeEntryRouter.route('/TimeEntry')
 
     
 
-})
+});
 
 return TimeEntryRouter;
 }

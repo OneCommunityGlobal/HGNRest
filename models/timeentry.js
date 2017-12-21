@@ -8,7 +8,7 @@ var TimeEntry = new Schema({
 	dateofWork : {type : Date, required: true},
 	totalSeconds: Number,
 	notes : {type: String},
-	tangible : {required: true, type: Boolean },
+	isTangible : {required: true, type: Boolean },
 	createdDateTime: { type: Date },
 	lastModifiedDateTime: { type: Date, default: Date.now },	
 	rollupWeek : {type: String, required: true},
