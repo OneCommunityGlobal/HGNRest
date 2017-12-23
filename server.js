@@ -1,7 +1,7 @@
 var express = require('express');
 var mongoose = require('mongoose');
+var cors = require('cors');
 
-var bluebird = require('bluebird');
 
 //Define models here
 var timeEntry = require('./models/timeentry');
@@ -20,23 +20,14 @@ var teamRouter = require('./routes/teamRouter')(team);
 
 var bodyParser = require('body-parser');
 var dashboard = require('./dashboard');
-mongoose.Promise = bluebird;
+mongoose.Promise = Promise;
 
 
 var app = express();
+app.use(cors());
 app.use(bodyParser.json());       
 app.use(bodyParser.urlencoded({extended: true}));
-app.use(function (req, res, next) {
-	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
-	res.setHeader("Access-Control-Allow-Headers", "Content-Type, authorization");
-	res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
-	if ('OPTIONS' == req.method) {
-		res.sendStatus(200);
-	}
-	else {
-		next();
-	}
-});
+
 
 var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
 
@@ -52,18 +43,6 @@ app.use('/api', dashboardRouter);
 app.use('/api', timeEntryRouter);
 app.use('/api', teamRouter);
 
-
-app.use(function (req, res, next) {
-	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
-	res.setHeader("Access-Control-Allow-Headers", "Content-Type, authorization");
-	res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
-	if ('OPTIONS' == req.method) {
-		res.sendStatus(200);
-	}
-	else {
-		next();
-	}
-});
 
 
 
