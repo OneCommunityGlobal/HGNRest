@@ -16,6 +16,6 @@ var getdahsboardData = function (callback) {
       callback(items);
     });
   });
-}
+};
 
 exports.getdahsboardData = getdahsboardData;
