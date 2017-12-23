@@ -33,7 +33,7 @@ var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:2701
 
 //var uri = 'localhost:27017/hgnData';
 
-var db = mongoose.connect(uri);
+var db = mongoose.connect(uri, {useMongoClient : true});
 
 
 
@@ -53,13 +53,13 @@ app.get('/api/dashboard', function (req, res) {
 	dashboard.getdahsboardData(function (items) {
 		res.json(items[0]);
 	});
-})
+});
 
 
 
 
 app.post('/api/token', function (req, res) {
-	console.log(req.body)
+	console.log(req.body);
 	if (req.body.username === 'test' && req.body.password === 'test') {
 		res.send({ access_token: "12345" });
 	}
