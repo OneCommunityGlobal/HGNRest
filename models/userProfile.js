@@ -31,27 +31,18 @@ userProfileSchema.pre('save', function(next){
   var user = this;
   if (!user.isModified('password')) return next();
 
-  bcrypt.genSalt(SALT_Rounds, function(err, salt){
-    if (err) {next (err)}
-    else
-    {
-
-      bcrypt.hash(user.password, salt, function(err, hash)
-    {
-      if (err)
-      {
-        next(err);
-      }
-      else
-      {
-        user.password = hash;
-        next();
-      }
-
-    } );
-
-    }
-  }); 
+   bcrypt.genSalt(SALT_Rounds)
+  .then(function(result){
+    return bcrypt.hash(user.password, result);
+    })
+    .then(function(hash){
+      user.password = hash;
+      next();
+    })
+  .catch(function(error){
+    next(error);
+  });
+  
 
 });
 
