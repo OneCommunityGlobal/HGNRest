@@ -16,6 +16,7 @@ var dashboardRouter = require('./routes/dashboardRouter')(timeEntry, userProfile
 var timeEntryRouter = require('./routes/timeentryRouter')(timeEntry);
 var projectRouter = require('./routes/projectRouter')(project);
 var teamRouter = require('./routes/teamRouter')(team);
+var loginRouter = require('./routes/loginRouter')();
 
 
 var bodyParser = require('body-parser');
@@ -43,6 +44,7 @@ app.use('/api', userProfileRouter);
 app.use('/api', dashboardRouter);
 app.use('/api', timeEntryRouter);
 app.use('/api', teamRouter);
+app.use('/api', loginRouter);
 
 
 
