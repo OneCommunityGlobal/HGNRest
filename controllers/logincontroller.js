@@ -17,9 +17,13 @@ let logincontroller = function () {
     let _userName = req.body.userName;
     let _password = req.body.password;
 
-    let user = await userprofile.findOne({
-      userName: _userName
+    _userName = _userName.toLowerCase();
+
+
+    let user = await userprofile.findOne({$or: [{userName: _userName}, {email: _userName}]     
     });
+
+    
 
     if (!user) {
       res.send({
