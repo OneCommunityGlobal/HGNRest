@@ -21,6 +21,11 @@ var userProfileController = function (userProfile) {
       {
         let errorMessage = "";
         
+        if(userbyusername && userbyemail)
+        {
+          errorMessage = "Username and email already exist. Please choose unique values for both.";
+        }
+        else{
         if(userbyusername)
         {
            errorMessage = "Username already exists. Please choose another username.";
@@ -30,6 +35,7 @@ var userProfileController = function (userProfile) {
          errorMessage = "Email already exists. Please choose another email.";
 
       }
+    }
       res.send({error: errorMessage}).status(400);
     }
  else{
