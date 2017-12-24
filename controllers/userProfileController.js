@@ -69,7 +69,7 @@ var userProfileController = function (userProfile) {
 
   });} 
         
-  };
+  }
 
   var putUserProfile = function (req, res) {
 

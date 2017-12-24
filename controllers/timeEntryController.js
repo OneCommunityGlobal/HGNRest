@@ -31,7 +31,7 @@ var timeEntrycontroller = function(TimeEntry){
                  });
                 res.json(items).status(200);
             }
-        })
+        });
     };
 
     var postTimeEntry = function(req, res){
