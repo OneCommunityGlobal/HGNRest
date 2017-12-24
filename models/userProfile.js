@@ -41,8 +41,7 @@ userProfileSchema.pre('save', function(next){
     })
   .catch(function(error){
     next(error);
-  });
-  
+  });  
 
 });
 
