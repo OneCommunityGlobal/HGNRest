@@ -14,6 +14,7 @@ let logincontroller = function () {
 
   let login = async function _login(req, res) {
 
+   
     let _userName = req.body.userName;
     let _password = req.body.password;
 
@@ -29,6 +30,8 @@ let logincontroller = function () {
       res.send({
         message: "Invalid username and/ or password."
       }).status(401);
+
+      return;
     }
 
     let isPasswordMatch = false;
@@ -43,6 +46,7 @@ let logincontroller = function () {
       };
 
       let token = jwt.sign(jwt_payload, JWT_SECRET);
+      
 
       res.send(token).status(200);
     } else {

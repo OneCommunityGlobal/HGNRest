@@ -150,6 +150,7 @@ var userProfileController = function (userProfile) {
 
     if (!isRequestorAuthorized()) {
       res.status(403).send("You are not authorized to view this user");
+      return;
     }
 
 
