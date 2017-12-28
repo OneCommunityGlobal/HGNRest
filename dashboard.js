@@ -10,9 +10,9 @@ var getdahsboardData = function (callback) {
     db.collection('dashboard').find({}, {
       _id: 0
     }).toArray(function (err, items) {
-      if (err) throw err;
+      if (err) {console.log(err)};
       console.log("Dashboard service hit at: " + now);
-      console.log(items);
+    
       callback(items);
     });
   });

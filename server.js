@@ -1,6 +1,8 @@
 var express = require('express');
 var mongoose = require('mongoose');
 var cors = require('cors');
+let jwt = require('jsonwebtoken');
+let config = require('./config');
 
 
 //Define models here
@@ -32,10 +34,42 @@ app.use(bodyParser.urlencoded({extended: true}));
 
 var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
 
-//var uri = 'localhost:27017/hgnData';
+//var uri = 'mongodb://localhost:27017/hgnData';
 
 
 var db = mongoose.connect(uri, {useMongoClient : true});
+
+app.all('*', function (req, res, next) {
+	// console.log('Error 404', req.url);
+	// return res.status(404).json({ success: false, message: 'Route \'' + req.url + '\' is invalid.' });
+ 
+	if(req.originalUrl == "/api/login") {next(); return;}
+	
+	if(!req.header("Authorization"))
+	{
+		res.status(401).send("Unauthorized request");
+		return;
+	}
+
+	let authToken = req.header("Authorization");
+	let payload = jwt.decode(authToken,  config.JWT_SECRET);
+	
+	if(!payload)
+	{
+		res.status(401).send("Unauthorized request");
+		return;
+	}
+
+	let requestor = {};
+	requestor.requestorId = payload.userid;
+	requestor.role = payload.role;
+	
+	req.body.requestor = requestor;
+
+	next();
+
+
+});
 
 
 
@@ -53,7 +87,9 @@ app.listen('4500');
 
 
 app.get('/api/dashboard', function (req, res) {
-	dashboard.getdahsboardData(function (items) {
+
+	console.log(req.body.requestor);
+	  dashboard.getdahsboardData(function (items) {
 		res.json(items[0]);
 	});
 });
@@ -72,10 +108,7 @@ app.get('/api/', function (req, res) {
 	res.send('Success');
 });
 
-app.all('*', function (req, res, next) {
-	console.log('Error 404', req.url);
-	return res.status(404).json({ success: false, message: 'Route \'' + req.url + '\' is invalid.' });
-});
+
 app.use(function (err, req, res, next) {
 	console.log('Error 500');
 	return res.status(500).json(err);

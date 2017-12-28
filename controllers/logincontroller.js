@@ -2,6 +2,7 @@ let express = require('express');
 let userprofile = require('../models/userProfile');
 let bcrypt = require('bcryptjs');
 let jwt = require('jsonwebtoken');
+let config = require('../config');
 
 let logincontroller = function () {
 
@@ -10,7 +11,7 @@ let logincontroller = function () {
     "typ": "JWT"
   };
 
-  const JWT_SECRET = "hgndata";
+  const JWT_SECRET = config.JWT_SECRET;
 
   let login = async function _login(req, res) {
 
@@ -27,11 +28,12 @@ let logincontroller = function () {
     
 
     if (!user) {
-      res.send({
+      res.status(403).send({
         message: "Invalid username and/ or password."
-      }).status(401);
-
+      });
       return;
+
+    
     }
 
     let isPasswordMatch = false;
@@ -50,9 +52,9 @@ let logincontroller = function () {
 
       res.send(token).status(200);
     } else {
-      res.send({
+      res.status(403).send({
         message: "Invalid username and/ or password."
-      }).status(401);
+      });
     }
 
   }
