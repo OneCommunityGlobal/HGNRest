@@ -19,21 +19,25 @@ let logincontroller = function () {
     let _userName = req.body.userName;
     let _password = req.body.password;
 
+    if(!_userName || !_password)
+    {
+      res.status(400).send("Invalid request");
+      return;
+    }
+    
     _userName = _userName.toLowerCase();
 
 
     let user = await userprofile.findOne({$or: [{userName: _userName}, {email: _userName}]     
-    });
+    })
+    .catch(error => res.status(400).send(error));
 
     
 
     if (!user) {
-      res.status(403).send({
-        message: "Invalid username and/ or password."
-      });
+      res.status(403).send("Invalid username and/ or password.");
       return;
-
-    
+  
     }
 
     let isPasswordMatch = false;
