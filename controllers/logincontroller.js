@@ -14,7 +14,6 @@ let logincontroller = function () {
   const JWT_SECRET = config.JWT_SECRET;
 
   let login = async function _login(req, res) {
-
    
     let _userName = req.body.userName;
     let _password = req.body.password;
@@ -63,9 +62,19 @@ let logincontroller = function () {
 
   }
 
+  let getUser = function(req, res)
+  {
+   
+    let requestor = req.body.requestor;
+
+    res.status(200).send(requestor);
+
+  };
+
   return {
 
-    login: login
+    login: login,
+    getUser : getUser
   };
 
 };

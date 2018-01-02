@@ -43,7 +43,7 @@ app.all('*', function (req, res, next) {
 	// console.log('Error 404', req.url);
 	// return res.status(404).json({ success: false, message: 'Route \'' + req.url + '\' is invalid.' });
  
-	if(req.originalUrl == "/api/login") {next(); return;}
+	if(req.originalUrl == "/api/login" && req.method == "POST") {next(); return;}
 	
 	if(!req.header("Authorization"))
 	{
@@ -53,7 +53,7 @@ app.all('*', function (req, res, next) {
 
 	let authToken = req.header("Authorization");
 	let payload = jwt.decode(authToken,  config.JWT_SECRET);
-	
+	 
 	if(!payload)
 	{
 		res.status(401).send("Unauthorized request");
