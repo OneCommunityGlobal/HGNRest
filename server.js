@@ -97,12 +97,6 @@ app.get('/api/dashboard', function (req, res) {
 
 
 
-app.post('/api/token', function (req, res) {
-	console.log(req.body);
-	if (req.body.username === 'test' && req.body.password === 'test') {
-		res.send({ access_token: "12345" });
-	}
-});
 
 app.get('/api/', function (req, res) {
 	res.send('Success');

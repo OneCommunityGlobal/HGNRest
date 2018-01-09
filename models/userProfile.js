@@ -2,7 +2,7 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var validate = require('mongoose-validate');
 var bcrypt = require('bcryptjs');
-require('mongoose-type-url');
+
 const SALT_Rounds = 10;
 
 var userProfileSchema = new Schema({

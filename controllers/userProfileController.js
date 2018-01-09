@@ -85,7 +85,7 @@ var userProfileController = function (userProfile) {
     }
 
 
-    userProfile.findById(userid, function (err, record) {
+    userProfile.findById(userid,  function (err, record) {
 
         if (err || record == null) {
 
@@ -94,7 +94,7 @@ var userProfileController = function (userProfile) {
           res.status(404).send(err);
         } else {
 
-          record.password = req.body.password;
+        
           record.firstName = req.body.firstName;
           record.lastName = req.body.lastName;
           record.phoneNumber = req.body.phoneNumber;
@@ -116,7 +116,7 @@ var userProfileController = function (userProfile) {
                 _id: record._id
               });
             })
-            .catch(error => res.status(501).send(error));
+            .catch(error => res.status(400).send(error));
 
 
         }});
@@ -139,7 +139,7 @@ var getUserById = function (req, res) {
     return;
   }
 
-  userProfile.findById(userid)
+  userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
   .then(results => res.status(200).send(results))
   .catch(error => res.status(404).send(error))
 
