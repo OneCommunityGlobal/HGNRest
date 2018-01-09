@@ -2,6 +2,19 @@ var userProfileController = function (userProfile) {
 
 
   var getUserProfiles = function (req, res) {
+  
+    var isRequestorAuthorized = function () {
+      /* TODO Perform check if logged in user is user himself or an administrator or core team member or manager*/
+  
+      let AuthorizedRolesToView = [ 'Manager', 'Administrator', 'Core Team'];
+      return (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid )? true: false;
+  
+    };
+  
+    if (!isRequestorAuthorized()) {
+      res.status(403).send("You are not authorized to view all users");
+      return;
+    }
 
     userProfile.find(function (err, profiles) {
       if (err) {
@@ -13,6 +26,12 @@ var userProfileController = function (userProfile) {
 
   };
   var postUserProfile = async function (req, res) {
+
+    if(req.body.requestor.role !== "Administrator")
+    {
+      res.status(403).send("You are not authorized to create new users");
+      return;
+    }
 
     let _userName = (req.body.userName).toLowerCase();
     let _email = (req.body.email).toLowerCase();
@@ -63,7 +82,7 @@ var userProfileController = function (userProfile) {
 
   }
 
-  var putUserProfile = function (req, res) {
+var putUserProfile = function (req, res) {
 
     let userid = req.params.userId;
 
@@ -125,26 +144,13 @@ var userProfileController = function (userProfile) {
     };
 
 
-   var getUserById = function (req, res) {
+var getUserById = function (req, res) {
 
   var userid = req.params.userId;
 
-  var isRequestorAuthorized = function () {
-    /* TODO Perform check if logged in user is user himself or an administrator or core team member or manager*/
-
-    let AuthorizedRolesToView = [ 'Manager', 'Administrator', 'Core Team'];
-    return (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid )? true: false;
-
-  };
-
-  if (!isRequestorAuthorized()) {
-    res.status(403).send("You are not authorized to view this user");
-    return;
-  }
-
   userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
   .then(results => res.status(200).send(results))
-  .catch(error => res.status(404).send(error))
+  .catch(error => res.status(404).send(error));
 
 };
 
