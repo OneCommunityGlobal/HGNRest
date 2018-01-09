@@ -42,6 +42,8 @@ var db = mongoose.connect(uri, {useMongoClient : true});
 app.all('*', function (req, res, next) {
 	// console.log('Error 404', req.url);
 	// return res.status(404).json({ success: false, message: 'Route \'' + req.url + '\' is invalid.' });
+
+	console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
  
 	if(req.originalUrl == "/api/login" && req.method == "POST") {next(); return;}
 	
