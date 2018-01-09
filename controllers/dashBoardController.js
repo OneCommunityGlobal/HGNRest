@@ -15,7 +15,7 @@ var dashboardcontroller = function () {
       .then(dashboardhelper.getTeamMembers)
       .then(dashboardhelper.getTimeEnteries)
     //  .then(dashboardhelper.sortTimeEnteries)
-      .then( results => {console.log(results); res.send(results).status(200); } )
+      .then( results => {res.send(results).status(200); } )
       .catch(error => {res.send(error).status(404);});
   };
 

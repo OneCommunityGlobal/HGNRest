@@ -71,17 +71,17 @@ var userProfileController = function (userProfile) {
 
     var isRequestorAuthorized = function () {
 
-      return true;
+     return (req.body.requestor.role === "Administrator" || req.body.requestor.requestorId === userid )? true: false;
 
     };
 
     var isRequestorAdmin = function () {
-      /* TODO Perform check if logged in user  administrator so that updates to admin speific fields ca be handled*/
-      return true;
+      return (req.body.requestor.role === "Administrator" )? true: false;
     };
 
     if (!isRequestorAuthorized()) {
       res.status(403).send("You are not authorized to update this user");
+      return;
     }
 
 
@@ -92,6 +92,7 @@ var userProfileController = function (userProfile) {
           if (record == null) err = " No valid records found";
 
           res.status(404).send(err);
+          return;
         } else {
 
         
@@ -124,13 +125,15 @@ var userProfileController = function (userProfile) {
     };
 
 
-var getUserById = function (req, res) {
+   var getUserById = function (req, res) {
 
   var userid = req.params.userId;
 
   var isRequestorAuthorized = function () {
     /* TODO Perform check if logged in user is user himself or an administrator or core team member or manager*/
-    return true;
+
+    let AuthorizedRolesToView = [ 'Manager', 'Administrator', 'Core Team'];
+    return (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid )? true: false;
 
   };
 
