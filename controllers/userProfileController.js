@@ -1,3 +1,6 @@
+var team = require('../models/team');
+var mongoose = require('mongoose');
+
 var userProfileController = function (userProfile) {
 
 
@@ -55,6 +58,7 @@ var userProfileController = function (userProfile) {
       res.status(400).send({error: errorMessage});
       return;
     }
+   
 
 
     var up = new userProfile();
@@ -70,7 +74,7 @@ var userProfileController = function (userProfile) {
     up.professionalLinks = req.body.professionalLinks;
     up.socialLinks = req.body.socialLinks;
     up.otherLinks = req.body.otherLinks;
-    up.teamId = req.body.teamId;
+    up.teamId = Array.from(new Set(req.body.teamId));
     up.createdDate = Date.now();
 
 
@@ -128,7 +132,7 @@ var putUserProfile = function (req, res) {
             record.role = req.body.role;
             record.weeklyComittedHours = req.body.weeklyComittedHours;
             record.otherLinks = req.body.otherLinks;
-            record.TeamId = req.body.TeamId;
+            record.TeamId = Array.from(new Set(req.body.teamId));
           }
           record.save()
             .then(function (results) {
@@ -146,11 +150,14 @@ var putUserProfile = function (req, res) {
 
 var getUserById = function (req, res) {
 
-  var userid = req.params.userId;
+  let userid = req.params.userId;
+  let user = {};
+  let teamid ="";
 
   userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
+  .populate('teamId', '_id teamName')
   .then(results => res.status(200).send(results))
-  .catch(error => res.status(404).send(error));
+   .catch(error => res.status(404).send(error));
 
 };
 
