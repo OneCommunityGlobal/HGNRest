@@ -18,9 +18,8 @@ var userProfileSchema = new Schema({
   weeklyComittedHours : {type: Number, default: 10},
   createdDate: {type: Date, required: true},
   lastModifiedDate: {type: Date, required: true, default : Date.now()},
-  professionalLinks : [{Name :String, Link: {type: String}}],
-  socialLinks : [{Name :String, Link : String}],
-  otherLinks : [{Name :String, Link: String}],
+  personalLinks : [{Name :String, Link: {type: String}}],
+  adminLinks : [{Name :String, Link: String}],
   teamId : [{type: mongoose.SchemaTypes.ObjectId, ref: 'team'}],
   badgeCollection: [{badgeName: String, quantity: Number, lastModifiedDate: Date}]
   
