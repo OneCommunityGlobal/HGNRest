@@ -10,7 +10,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/mongoose": "^4.7.32",
-    "express": "^4.15.2",
+    "express": "^4.16.2",
     "gulp": "^3.9.1",
     "jshint-esnext": "^2.7.0-3",
     "mongoose": "^4.9.5"
