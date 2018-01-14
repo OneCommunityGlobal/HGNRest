@@ -71,9 +71,8 @@ var userProfileController = function (userProfile) {
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
     up.weeklyComittedHours = req.body.weeklyComittedHours;
-    up.professionalLinks = req.body.professionalLinks;
-    up.socialLinks = req.body.socialLinks;
-    up.otherLinks = req.body.otherLinks;
+    up.personalLinks = req.body.personalLinks;
+    up.adminLinks = req.body.adminLinks;
     up.teamId = Array.from(new Set(req.body.teamId));
     up.createdDate = Date.now();
 
@@ -123,15 +122,14 @@ var putUserProfile = function (req, res) {
           record.lastName = req.body.lastName;
           record.phoneNumber = req.body.phoneNumber;
           record.bio = req.body.bio;
-          record.professionalLinks = req.body.professionalLinks;
-          record.socialLinks = req.body.socialLinks;
+          record.personalLinks = req.body.personalLinks;
           record.lastModifiedDate = Date.now();
 
 
           if (isRequestorAdmin()) {
             record.role = req.body.role;
             record.weeklyComittedHours = req.body.weeklyComittedHours;
-            record.otherLinks = req.body.otherLinks;
+            record.adminLinks = req.body.adminLinks;
             record.TeamId = Array.from(new Set(req.body.teamId));
           }
           record.save()
