@@ -21,7 +21,8 @@ var userProfileSchema = new Schema({
   personalLinks : [{Name :String, Link: {type: String}}],
   adminLinks : [{Name :String, Link: String}],
   teamId : [{type: mongoose.SchemaTypes.ObjectId, ref: 'team'}],
-  badgeCollection: [{badgeName: String, quantity: Number, lastModifiedDate: Date}]
+  badgeCollection: [{badgeName: String, quantity: Number, lastModifiedDate: Date}],
+  profilePic : {type: String}
   
 });
 

@@ -1,33 +1,55 @@
-var userProfile = require('../models/userProfile');
-var TimeEntry = require('../models/timeentry');
-var dashboardhelper = require('../helpers/dashboardhelper')();
-var mongoose = require('mongoose');
-var dashboardcontroller = function () {
+let userProfile = require('../models/userProfile');
+let TimeEntry = require('../models/timeentry');
+let dashboardhelper = require('../helpers/dashboardhelper')();
+let mongoose = require('mongoose');
 
-  var output ;
-  var dashboarddata = function (req, res) {
 
-    var teamid = "";
+let dashboardcontroller = function () {
+
+  let output ;
+  let dashboarddata = function (req, res) {
+
+    let teamid = "";
+    let details = {};
     
-    var userid = req.params.userId; /* TODO: Get user id so that details can be retrrived */
+    let userId = mongoose.Types.ObjectId(req.params.userId);
+    
 
-    dashboardhelper.personaldetails(userid)
-      .then(dashboardhelper.getTeamMembers)
-      .then(dashboardhelper.getTimeEnteries)
-    //  .then(dashboardhelper.sortTimeEnteries)
-      .then( results => {res.send(results).status(200); } )
-      .catch(error => {res.send(error).status(404);});
+    let snapshot = dashboardhelper.personaldetails(userId);    
+
+    let leaderboard =  
+    dashboardhelper.personaldetails(userId)
+    .then(dashboardhelper.getTeamMembers)
+    .then(dashboardhelper.getTimeEnteries);
+
+    let laborthismonth = dashboardhelper.laborthismonth(userId);
+    let laborthisweek = dashboardhelper.laborthisweek(userId);
+
+    let dashboardPromises = [snapshot,  laborthismonth, laborthisweek, leaderboard];
+
+    Promise.all(dashboardPromises)
+    .then(function(results)
+    {
+      let dashboard = {};
+      dashboard.userSnapshot = results[dashboardPromises.indexOf(snapshot)];    
+     dashboard.laborthismonth = results[dashboardPromises.indexOf(laborthismonth)];
+     dashboard.laborthisweek = results[dashboardPromises.indexOf(laborthisweek)];
+     dashboard.leaderboard = results[dashboardPromises.indexOf(leaderboard)];
+      res.status(200).send(dashboard);
+    }
+  )
+  .catch(error => {res.status(400).send(error);});
+
+        
+ 
   };
 
 
   return {
-    //personaldetails: _personaldetails,
+    
     dashboarddata: dashboarddata
 
-
   };
-
-
 };
 
 module.exports = dashboardcontroller;
