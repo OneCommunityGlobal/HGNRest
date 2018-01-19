@@ -15,26 +15,25 @@ let logincontroller = function () {
 
   let login = async function _login(req, res) {
    
-    let _userName = req.body.userName;
+    let _email = req.body.email;
     let _password = req.body.password;
 
-    if(!_userName || !_password)
+    if(!_email || !_password)
     {
       res.status(400).send("Invalid request");
       return;
     }
     
-    _userName = _userName.toLowerCase();
+    _email = _email.toLowerCase();
 
 
-    let user = await userprofile.findOne({$or: [{userName: _userName}, {email: _userName}]     
-    })
+    let user = await userprofile.findOne({email: _email})
     .catch(error => res.status(400).send(error));
 
     
 
     if (!user) {
-      res.status(403).send("Invalid username and/ or password.");
+      res.status(403).send("Invalid email and/ or password.");
       return;
   
     }
@@ -56,7 +55,7 @@ let logincontroller = function () {
       res.send(token).status(200);
     } else {
       res.status(403).send({
-        message: "Invalid username and/ or password."
+        message: "Invalid email and/ or password."
       });
     }
 

@@ -53,7 +53,7 @@ app.all('*', function (req, res, next) {
 		return;
 	}
 
-	let authToken = req.header("Authorization");
+	let authToken = req.header(config.REQUEST_AUTHKEY);
 	let payload = jwt.decode(authToken,  config.JWT_SECRET);
 	 
 	if(!payload)

@@ -36,25 +36,14 @@ var userProfileController = function (userProfile) {
       return;
     }
 
-    let _userName = (req.body.userName).toLowerCase();
+    
     let _email = (req.body.email).toLowerCase();
 
-    let userbyusername = await userProfile.findOne({  userName: _userName    });
+    
     let userbyemail = await userProfile.findOne({email: _email});
 
-    if (userbyusername || userbyemail) {
-      let errorMessage = "";
-
-      if (userbyusername && userbyemail) {
-        errorMessage = "Username and email already exist. Please choose unique values for both.";
-      } else {
-        if (userbyusername) {
-          errorMessage = "Username already exists. Please choose another username.";
-        } else {
-          errorMessage = "Email already exists. Please choose another email.";
-
-        }
-      }
+    if (userbyemail) {
+      let errorMessage =  "Email already exists. Please choose another email.";     
       res.status(400).send({error: errorMessage});
       return;
     }
@@ -62,7 +51,6 @@ var userProfileController = function (userProfile) {
 
 
     var up = new userProfile();
-    up.userName = _userName;
     up.password = req.body.password;
     up.role = req.body.role;
     up.firstName = req.body.firstName;
