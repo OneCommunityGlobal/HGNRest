@@ -112,6 +112,7 @@ var putUserProfile = function (req, res) {
           record.bio = req.body.bio;
           record.personalLinks = req.body.personalLinks;
           record.lastModifiedDate = Date.now();
+          record.profilePic = req.body.profilePic;
 
 
           if (isRequestorAdmin()) {
@@ -119,6 +120,7 @@ var putUserProfile = function (req, res) {
             record.weeklyComittedHours = req.body.weeklyComittedHours;
             record.adminLinks = req.body.adminLinks;
             record.TeamId = Array.from(new Set(req.body.teamId));
+            record.isActive = req.body.isActive;
           }
           record.save()
             .then(function (results) {
