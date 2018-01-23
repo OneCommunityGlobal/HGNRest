@@ -11,7 +11,10 @@ var routes = function (project) {
     .post(controller.postProject);
 
   projectRouter.route('/project/:projectId')
-    .get(controller.getProjectById);
+    .get(controller.getProjectById)
+    .post(controller.putProject);
+
+
 
   return projectRouter;
 

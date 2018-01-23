@@ -37,11 +37,12 @@ var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:2701
 //var uri = 'mongodb://localhost:27017/hgnData';
 
 
-var db = mongoose.connect(uri, {useMongoClient : true});
+var db = mongoose.connect(uri, {useMongoClient : true}).catch((error) => {console.log(error);});
 
 app.all('*', function (req, res, next) {
 	// console.log('Error 404', req.url);
 	// return res.status(404).json({ success: false, message: 'Route \'' + req.url + '\' is invalid.' });
+	console.log(req);
 
 	console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
  
