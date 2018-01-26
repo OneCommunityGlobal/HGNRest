@@ -9,10 +9,9 @@
   "author": "AK",
   "license": "ISC",
   "devDependencies": {
-    "@types/mongoose": "^4.7.32",    
+    "@types/mongoose": "^4.7.32",
     "gulp": "^3.9.1",
     "jshint-esnext": "^2.7.0-3"
-    
   },
   "dependencies": {
     "express": "^4.16.2",
