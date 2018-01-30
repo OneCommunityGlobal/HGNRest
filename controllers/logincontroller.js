@@ -3,6 +3,7 @@ let userprofile = require('../models/userProfile');
 let bcrypt = require('bcryptjs');
 let jwt = require('jsonwebtoken');
 let config = require('../config');
+let moment = require('moment');
 
 let logincontroller = function () {
 
@@ -34,8 +35,7 @@ let logincontroller = function () {
 
     if (!user) {
       res.status(403).send("Invalid email and/ or password.");
-      return;
-  
+      return;  
     }
 
     let isPasswordMatch = false;
@@ -46,8 +46,9 @@ let logincontroller = function () {
       let jwt_payload = {
         "userid": user._id,
         "role": user.role,
-        "loggedinDate": Date.now()
+        "expiryTimestamp": moment().add(config.TOKEN.Lifetime, config.TOKEN.Units)
       };
+    
 
       let token = jwt.sign(jwt_payload, JWT_SECRET);
       

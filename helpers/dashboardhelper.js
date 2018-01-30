@@ -127,8 +127,8 @@ var dashboardhelper = function () {
           _id: 0,
           personId: "$_id.personId",
           name: "$_id.personName",
-          totaltime: "$totaltime",
-          totaltangibletime: "$totaltangibletime",
+          "totaltime_hrs":{$divide:[ "$totaltime", 3600]},
+          "totaltangibletime_hrs": {$divide: ["$totaltangibletime", 3600]},
           percentagespentintangible: {
             $multiply: [100, {
               $divide: ["$totaltangibletime", "$totaltime"]
@@ -181,7 +181,7 @@ var dashboardhelper = function () {
               $arrayElemAt: ["$project.projectName", 0]
             }, "Undefined"]
           },
-          timeSpent: "$labor"
+          "timeSpent_hrs": {$divide: ["$labor",3600]}
         }
 
       }
@@ -212,7 +212,7 @@ var dashboardhelper = function () {
       {
         $project: {
           _id: 0,
-          timeSpent: "$labor"
+          "timeSpent_hrs": {$divide: ["$labor",3600]}
         }
       }
     ]);

@@ -7,7 +7,7 @@ var route = function(TimeEntry, userProfile){
 
     var Dashboardrouter = express.Router();
 
-    Dashboardrouter.route('/dashboard1/:userId')
+    Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);
 
     return Dashboardrouter;

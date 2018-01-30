@@ -3,6 +3,7 @@ var mongoose = require('mongoose');
 var cors = require('cors');
 let jwt = require('jsonwebtoken');
 let config = require('./config');
+let moment = require('moment');
 
 
 //Define models here
@@ -22,7 +23,6 @@ var loginRouter = require('./routes/loginRouter')();
 
 
 var bodyParser = require('body-parser');
-var dashboard = require('./dashboard');
 mongoose.Promise = Promise;
 
 
@@ -40,9 +40,6 @@ var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:2701
 var db = mongoose.connect(uri, {useMongoClient : true}).catch((error) => {console.log(error);});
 
 app.all('*', function (req, res, next) {
-	// console.log('Error 404', req.url);
-	// return res.status(404).json({ success: false, message: 'Route \'' + req.url + '\' is invalid.' });
-	console.log(req);
 
 	console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
  
@@ -55,14 +52,27 @@ app.all('*', function (req, res, next) {
 	}
 
 	let authToken = req.header(config.REQUEST_AUTHKEY);
-	let payload = jwt.decode(authToken,  config.JWT_SECRET);
-	 
-	if(!payload)
+
+	let payload = "";
+
+	try{
+		payload = jwt.verify(authToken, config.JWT_SECRET);
+		
+	}
+	catch(error)
+	{
+		res.status(401).send("Invalid token");
+		return;
+
+	}
+		 
+	if(!payload || !payload.expiryTimestamp || !payload.userid || !payload.role || 
+		moment().isAfter(payload.expiryTimestamp))
 	{
 		res.status(401).send("Unauthorized request");
 		return;
 	}
-
+	
 	let requestor = {};
 	requestor.requestorId = payload.userid;
 	requestor.role = payload.role;
@@ -87,19 +97,6 @@ app.use('/api', loginRouter);
 
 
 app.listen('4500');
-
-
-app.get('/api/dashboard', function (req, res) {
-
-	console.log(req.body.requestor);
-	  dashboard.getdahsboardData(function (items) {
-		res.json(items[0]);
-	});
-});
-
-
-
-
 
 app.get('/api/', function (req, res) {
 	res.send('Success');
