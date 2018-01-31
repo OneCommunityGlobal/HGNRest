@@ -37,7 +37,7 @@ var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:2701
 //var uri = 'mongodb://localhost:27017/hgnData';
 
 
-var db = mongoose.connect(uri, {useMongoClient : true}).catch((error) => {console.log(error);});
+var db = mongoose.connect(uri).catch((error) => {console.log(error);});
 
 app.all('*', function (req, res, next) {
 

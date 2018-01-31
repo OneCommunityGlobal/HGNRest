@@ -1,25 +1,22 @@
 var team = require('../models/team');
 var mongoose = require('mongoose');
 
+
 var userProfileController = function (userProfile) {
 
 
   var getUserProfiles = function (req, res) {
   
-    var isRequestorAuthorized = function () {
-      /* TODO Perform check if logged in user is user himself or an administrator or core team member or manager*/
-  
-      let AuthorizedRolesToView = [ 'Manager', 'Administrator', 'Core Team'];
-      return (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid )? true: false;
-  
-    };
-  
-    if (!isRequestorAuthorized()) {
+    let AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
+    var isRequestorAuthorized =  (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid) ? true : false;
+ 
+ 
+    if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to view all users");
       return;
     }
 
-    userProfile.find(function (err, profiles) {
+    userProfile.find({}, '_id firstName lastName role',function (err, profiles) {
       if (err) {
         res.status(404).send("Error finding user profiles");
         return;
@@ -30,8 +27,7 @@ var userProfileController = function (userProfile) {
   };
   var postUserProfile = async function (req, res) {
 
-    if(req.body.requestor.role !== "Administrator")
-    {
+    if (req.body.requestor.role !== "Administrator") {
       res.status(403).send("You are not authorized to create new users");
       return;
     }
@@ -40,11 +36,15 @@ var userProfileController = function (userProfile) {
     let _email = (req.body.email).toLowerCase();
 
     
-    let userbyemail = await userProfile.findOne({email: _email});
+    let userbyemail = await userProfile.findOne({
+      email: _email
+    });
 
     if (userbyemail) {
-      let errorMessage =  "Email already exists. Please choose another email.";     
-      res.status(400).send({error: errorMessage});
+      let errorMessage = "Email already exists. Please choose another email.";
+      res.status(400).send({
+        error: errorMessage
+      });
       return;
     }
    
@@ -67,7 +67,10 @@ var userProfileController = function (userProfile) {
 
     up.save()
       .then(function (results) {
-        res.status(200).send({_id: up._id}); })
+        res.status(200).send({
+          _id: up._id
+        });
+      })
       .catch(error => res.status(501).send(error));
 
 
@@ -77,25 +80,14 @@ var putUserProfile = function (req, res) {
 
     let userid = req.params.userId;
 
+    let isRequestorAuthorized = (req.body.requestor.role === "Administrator" || req.body.requestor.requestorId === userid) ? true : false;
+    let isRequestorAdmin = (req.body.requestor.role === "Administrator") ? true : false;
 
-
-    var isRequestorAuthorized = function () {
-
-     return (req.body.requestor.role === "Administrator" || req.body.requestor.requestorId === userid )? true: false;
-
-    };
-
-    var isRequestorAdmin = function () {
-      return (req.body.requestor.role === "Administrator" )? true: false;
-    };
-
-    if (!isRequestorAuthorized()) {
+    if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to update this user");
       return;
     }
-
-
-    userProfile.findById(userid,  function (err, record) {
+    userProfile.findById(userid, function (err, record) {
 
         if (err || record == null) {
 
@@ -103,9 +95,9 @@ var putUserProfile = function (req, res) {
 
           res.status(404).send(err);
           return;
-        } else {
-
-        
+      }
+    
+      record.profilePic = req.body.profilePic;
           record.firstName = req.body.firstName;
           record.lastName = req.body.lastName;
           record.phoneNumber = req.body.phoneNumber;
@@ -115,7 +107,7 @@ var putUserProfile = function (req, res) {
           record.profilePic = req.body.profilePic;
 
 
-          if (isRequestorAdmin()) {
+      if (isRequestorAdmin) {
             record.role = req.body.role;
             record.weeklyComittedHours = req.body.weeklyComittedHours;
             record.adminLinks = req.body.adminLinks;
@@ -131,7 +123,7 @@ var putUserProfile = function (req, res) {
             .catch(error => res.status(400).send(error));
 
 
-        }});
+    });
 
     };
 
@@ -140,7 +132,7 @@ var getUserById = function (req, res) {
 
   let userid = req.params.userId;
   let user = {};
-  let teamid ="";
+    let teamid = "";
 
   userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
   .populate('teamId', '_id teamName')
