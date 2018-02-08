@@ -7,7 +7,29 @@ var userhelper = function(){
 
         return true;
 
-    } 
+    } ;
+    var getTeamMembers = function (userdetails) {
+
+        var teamid = userdetails.teamId;
+        return userProfile
+          .find({
+            $and: [{
+              teamId: {
+                $in: teamid
+              }
+            }, {
+              isActive: true
+            }]
+          })
+          .select({
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            role:1
+          });
+        };
+
+    
 
     var getUserName = async function(userId)
     {
@@ -21,7 +43,8 @@ var userhelper = function(){
 
     return{
         isUserManagerof : isUserManagerof,
-        getUserName: getUserName
+        getUserName: getUserName,
+        getTeamMembers: getTeamMembers,
 
     }
 

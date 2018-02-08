@@ -10,12 +10,29 @@ let actionItemController = function (actionItem) {
     let userid = req.params.userId;
     actionItem.find({
         assignedTo: userid
-      })
+      }, ('-createdDateTime -__v' ))
+      .populate('createdBy', 'firstName lastName')
       .then(results => {
-        res.status(200).send(results)
+        let actionitems = [];
+
+        results.forEach(element => {
+
+         let name = (element.assignedTo === element.createdBy._id) ? "Self" : `${element.createdBy.firstName} ${element.createdBy.lastName}`;
+         let actionitem = {};
+
+         actionitem._id = element._id;
+         actionitem.description = element.description;
+         actionitem.createdBy = name;
+         actionitem.assignedTo = element.assignedTo;
+
+         actionitems.push(actionitem);
+          
+        });
+
+          res.status(200).send(actionitems);
       })
       .catch(error => {
-        res.status(400).send(error)
+        res.status(400).send("badd!!!")
       });
 
 
@@ -48,13 +65,28 @@ let actionItemController = function (actionItem) {
     _actionItem.save()
       .then(results => {
 
+        notificationsController.createUserNotification("created",_actionItem.description, _actionItem.assignedTo);
+
         if(requestorId != assignedTo)
         {
            
-            notificationsController.createUserNotification("created",_actionItem.description, _actionItem.assignedTo);
+            notificationsController.createUserNotification("created",_actionItem.description, _actionItem.requestorId);
         }
 
-        res.status(200).send(results._id)
+        let result = {};
+
+        if(results.createdBy.toString() === results.assignedTo.toString())
+        {
+          
+          result.name = "Self";
+          result.description = results.description;
+          result._id= results._id;
+          result.assignedTo = results.assignedTo
+        }
+
+
+
+        res.status(200).send(result)
       })
       .catch(error => {
         console.log(error);
@@ -109,10 +141,35 @@ let actionItemController = function (actionItem) {
       });
   };
 
+  let editactionItem = async function(req, res)
+  {
+    let actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);    
+
+    let _actionItem = await actionItem.findById(actionItemId)
+      .catch(error => {
+        res.status(400).send(error);
+        return;
+      })
+
+    if (!_actionItem) {
+      res.status(400).send({"message": "No valid records found"});
+    return;
+    };
+    _actionItem.description = req.body.description;
+    _actionItem.assignedTo = req.body.assignedTo;
+
+    _actionItem.save()
+    .then(res.status(200).send("Saved"))
+    .catch(error => res.status(400).send(error));
+
+  }
+
+
   return {
     getactionItem: getactionItem,
     postactionItem: postactionItem,
-    deleteactionItem: deleteactionItem
+    deleteactionItem: deleteactionItem,
+    editactionItem:editactionItem
 
   }
 };

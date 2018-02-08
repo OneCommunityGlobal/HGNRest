@@ -16,6 +16,7 @@ var routes = function (actionItem) {
 
     actionItemRouter.route('/actionItem/:actionItemId')
     .delete(controller.deleteactionItem)
+    .put(controller.editactionItem)
     
     return actionItemRouter;
 

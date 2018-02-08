@@ -9,12 +9,12 @@ var routes = function (notification) {
   // .post(controller.createUserNotifications)
 
 
-  notificationRouter.route('/notification/:userId')
+  notificationRouter.route('/notification/user/:userId')
     .get(controller.getUserNotifications)
       
 
-    notificationRouter.route('/notification/:userId/:notificationId')
-    .put(controller.putUserNotification)
+    notificationRouter.route('/notification/:notificationId')
+    .delete(controller.deleteUserNotification)
     
     return notificationRouter;
 
