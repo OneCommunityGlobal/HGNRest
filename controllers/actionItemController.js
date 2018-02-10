@@ -1,7 +1,6 @@
 var mongoose = require('mongoose');
 var notification = require('../models/notification');
-var notificationsController = require('../controllers/notificationController')(notification);
-
+var notificationhelper = require('../helpers/notificationhelper')();
 let userhelper = require('../helpers/userhelper')();
 
 let actionItemController = function (actionItem) {
@@ -10,29 +9,29 @@ let actionItemController = function (actionItem) {
     let userid = req.params.userId;
     actionItem.find({
         assignedTo: userid
-      }, ('-createdDateTime -__v' ))
+      }, ('-createdDateTime -__v'))
       .populate('createdBy', 'firstName lastName')
       .then(results => {
         let actionitems = [];
 
         results.forEach(element => {
 
-         let name = (element.assignedTo === element.createdBy._id) ? "Self" : `${element.createdBy.firstName} ${element.createdBy.lastName}`;
-         let actionitem = {};
+          let name = (element.assignedTo.toString() == element.createdBy._id.toString()) ? "Self" : `${element.createdBy.firstName} ${element.createdBy.lastName}`;
+          let actionitem = {};
 
-         actionitem._id = element._id;
-         actionitem.description = element.description;
-         actionitem.createdBy = name;
-         actionitem.assignedTo = element.assignedTo;
+          actionitem._id = element._id;
+          actionitem.description = element.description;
+          actionitem.createdBy = name;
+          actionitem.assignedTo = element.assignedTo;
 
-         actionitems.push(actionitem);
-          
+          actionitems.push(actionitem);
+
         });
 
-          res.status(200).send(actionitems);
+        res.status(200).send(actionitems);
       })
       .catch(error => {
-        res.status(400).send("badd!!!")
+        res.status(400).send(error);
       });
 
 
@@ -41,12 +40,10 @@ let actionItemController = function (actionItem) {
 
     let requestorId = req.body.requestor.requestorId;
     let assignedTo = req.body.assignedTo;
-   
+
     //Verify is requestor is assignee himself or requestor is his manager
 
     let isUserAuthroized = (requestorId === assignedTo || userhelper.isUserManagerof(assignedTo, requestorId)) ? true : false;
-
-   
 
 
     if (!isUserAuthroized) {
@@ -60,32 +57,24 @@ let actionItemController = function (actionItem) {
     _actionItem.assignedTo = req.body.assignedTo;
     _actionItem.createdBy = req.body.requestor.requestorId;
 
-    
+
 
     _actionItem.save()
       .then(results => {
 
-        notificationsController.createUserNotification("created",_actionItem.description, _actionItem.assignedTo);
-
-        if(requestorId != assignedTo)
-        {
-           
-            notificationsController.createUserNotification("created",_actionItem.description, _actionItem.requestorId);
-        }
+        notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
 
         let result = {};
 
-        if(results.createdBy.toString() === results.assignedTo.toString())
-        {
-          
-          result.name = "Self";
-          result.description = results.description;
-          result._id= results._id;
-          result.assignedTo = results.assignedTo
+        if (requestorId === assignedTo) {
+
+          result.createdBy = "Self";
+          result.description = _actionItem.description;
+          result._id = results._id;
+          result.assignedTo = _actionItem.assignedTo
         }
 
-
-
+        
         res.status(200).send(result)
       })
       .catch(error => {
@@ -97,7 +86,7 @@ let actionItemController = function (actionItem) {
   let deleteactionItem = async function (req, res) {
     let actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
-    
+
 
     let _actionItem = await actionItem.findById(actionItemId)
       .catch(error => {
@@ -124,26 +113,25 @@ let actionItemController = function (actionItem) {
       return;
     }
 
-    if(requestorId != assignedTo)
-    {
-        
-        notificationsController.createUserNotification("deleted",_actionItem.description, _actionItem.assignedTo);
-    }
+    notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
 
     _actionItem.remove()
       .then(results => {
-      
-        res.status(200).send({ "message": "removed"}) ;
-    }
-    )
+
+        res.status(200).send({
+          "message": "removed"
+        });
+      })
       .catch(error => {
         res.status(400).send(error)
       });
   };
 
-  let editactionItem = async function(req, res)
-  {
-    let actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);    
+  let editactionItem = async function (req, res) {
+    let actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
+
+    let requestorId = req.body.requestor.requestorId;
+    let assignedTo = req.body.assignedTo;
 
     let _actionItem = await actionItem.findById(actionItemId)
       .catch(error => {
@@ -152,15 +140,19 @@ let actionItemController = function (actionItem) {
       })
 
     if (!_actionItem) {
-      res.status(400).send({"message": "No valid records found"});
-    return;
+      res.status(400).send({
+        "message": "No valid records found"
+      });
+      return;
     };
+    notificationhelper.notificationedited(requestorId, assignedTo, _actionItem.description, req.body.description);
+
     _actionItem.description = req.body.description;
     _actionItem.assignedTo = req.body.assignedTo;
 
     _actionItem.save()
-    .then(res.status(200).send("Saved"))
-    .catch(error => res.status(400).send(error));
+      .then(res.status(200).send("Saved"))
+      .catch(error => res.status(400).send(error));
 
   }
 
@@ -169,7 +161,7 @@ let actionItemController = function (actionItem) {
     getactionItem: getactionItem,
     postactionItem: postactionItem,
     deleteactionItem: deleteactionItem,
-    editactionItem:editactionItem
+    editactionItem: editactionItem
 
   }
 };

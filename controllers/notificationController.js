@@ -13,22 +13,16 @@ var notificationController = function(notification){
         }
         userid = mongoose.Types.ObjectId(userid)
 
-        notification.find({recipient :userid }, '_id message')
+        notification.find({recipient :userid }, '_id message eventType')
         .then(results => {res.status(200).send(results)})
         .catch(errors => {res.status(400).send(error)});
 
 
     };
 
-    var createUserNotification = function(action, description, recipient){
+    var createUserNotification = function(notification){
 
-        var _notification = new notification();
-
-        _notification.message = `Action item ${description} was ${action}`;
-        _notification.recipient = recipient;
-        //_notification.eventType =  action;
-
-        _notification.save()
+        notification.save()
         .then(results => {console.log(` notification created with id ${results._id}`)})
         .catch(error => {console.log(error)});
 

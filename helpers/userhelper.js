@@ -31,14 +31,14 @@ var userhelper = function(){
 
     
 
-    var getUserName = async function(userId)
+    var getUserName =  async function(userId)
     {
         let userid = mongoose.Types.ObjectId(userId);
-        let user = await userProfile.findById(userid, 'firstName lastName -_id')
+      return userProfile.findById(userid, 'firstName lastName');
+        
        
-
-        return user.firstName+ user.lastName;
-
+       
+        
     }
 
     return{
