@@ -16,12 +16,12 @@ let actionItemController = function (actionItem) {
 
         results.forEach(element => {
 
-          let name = (element.assignedTo.toString() == element.createdBy._id.toString()) ? "Self" : `${element.createdBy.firstName} ${element.createdBy.lastName}`;
+          //let name = (element.assignedTo.toString() == element.createdBy._id.toString()) ? "Self" : `${element.createdBy.firstName} ${element.createdBy.lastName}`;
           let actionitem = {};
 
           actionitem._id = element._id;
           actionitem.description = element.description;
-          actionitem.createdBy = name;
+          actionitem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
           actionitem.assignedTo = element.assignedTo;
 
           actionitems.push(actionitem);
@@ -60,22 +60,20 @@ let actionItemController = function (actionItem) {
 
 
     _actionItem.save()
-      .then(results => {
+          .then(result => {
 
         notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
 
-        let result = {};
+         let actionitem = {}; 
 
-        if (requestorId === assignedTo) {
-
-          result.createdBy = "Self";
-          result.description = _actionItem.description;
-          result._id = results._id;
-          result.assignedTo = _actionItem.assignedTo
-        }
+         actionitem.createdBy = `You`;
+         actionitem.description = _actionItem.description;
+         actionitem._id = result._id;
+         actionitem.assignedTo = _actionItem.assignedTo
+        
 
         
-        res.status(200).send(result)
+        res.status(200).send(actionitem)
       })
       .catch(error => {
         console.log(error);
