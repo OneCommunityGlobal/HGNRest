@@ -1,4 +1,5 @@
 var userProfile = require('../models/userProfile');
+var myteam = require('../helpers/helperModels/myTeam');
 var mongoose = require('mongoose');
 
 var userhelper = function(){
@@ -8,29 +9,17 @@ var userhelper = function(){
         return true;
 
     } ;
-    var getTeamMembers = function (userdetails) {
+    var getTeamMembers = function (user) {
 
-        var teamid = userdetails.teamId;
-        return userProfile
-          .find({
-            $and: [{
-              teamId: {
-                $in: teamid
-              }
-            }, {
-              isActive: true
-            }]
-          })
-          .select({
-            _id: 1,
-            firstName: 1,
-            lastName: 1,
-            role:1
-          });
-        };
+      var userid =mongoose.Types.ObjectId(user._id );        
+     // var teamid = userdetails.teamId;
+    return myteam.findById(userid).select ({"myteam._id":1,"myteam.role":1, "myteam.fullName":1, _id:0 });
+   
+
+
+    }
 
     
-
     var getUserName =  async function(userId)
     {
         let userid = mongoose.Types.ObjectId(userId);

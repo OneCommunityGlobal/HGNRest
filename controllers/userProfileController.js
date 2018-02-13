@@ -154,18 +154,17 @@ var userProfileController = function (userProfile) {
     }
 
 
-    userProfile.findById(userid)
-      .then(userhelper.getTeamMembers)
+   userhelper.getTeamMembers({_id: userid})
       .then(results => {
         var teammembers = [];
 
-        results.forEach(element => {
+        results.myteam.forEach(element => {
 
          if(!validroles.includes(element.role)) return;
           
           var member = {};
 
-          let name = (element._id === userid) ? "Self" : `${element.firstName} ${element.lastName}`;
+          let name = (element._id === userid) ? "Self" : `${element.fullName}`;
 
           member._id = element._id;
           member.role = element.role;

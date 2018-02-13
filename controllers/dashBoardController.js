@@ -39,7 +39,8 @@ let dashboardcontroller = function () {
       res.status(200).send(dashboard);
     }
   )
-  .catch(error => {res.status(400).send(error);});
+  .catch(error => 
+    {res.status(400).send(error);});
 
         
  

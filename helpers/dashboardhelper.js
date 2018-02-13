@@ -26,7 +26,7 @@ var dashboardhelper = function () {
 
     var people = [];
 
-    members.forEach(element => {
+    members.myteam.forEach(element => {
       people.push(element._id);
 
     });
