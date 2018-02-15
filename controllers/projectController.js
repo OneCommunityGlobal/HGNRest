@@ -3,7 +3,7 @@ var projectController = function (project) {
 
   var getAllProjects = function (req, res) {
 
-    project.find({}, 'projectName isActive')
+    project.find({}, 'projectName isActive tasks')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 
@@ -15,7 +15,7 @@ var projectController = function (project) {
       res.status(403).send("You are not authorized to create new projects.");
       return;
     }
-    
+
     var _project = new project();
 
     _project.projectName = req.body.projectName;
@@ -41,7 +41,7 @@ var projectController = function (project) {
     }
 
     var projectId = req.params.projectId;
-    
+
     project.findById(projectId, function(error, record){
 
       if(error || record ==null )
@@ -52,22 +52,22 @@ var projectController = function (project) {
 
       record.projectName = req.body.projectName;
       record.isActive = req.body.isActive;
-  
+
       record.tasks = req.body.tasks;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
-  
+
       record.save()
         .then(results => res.status(201).send(results._id))
         .catch(error => res.status(400).send(error));
 
     }
-  
+
   );
 
 
 
-   
+
 
   };
 
@@ -75,7 +75,7 @@ var projectController = function (project) {
   var getProjectById = function (req, res) {
 
     var projectId = req.params.projectId;
-  
+
        project.findById(projectId, '-__v  -createdDatetime -modifiedDatetime')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
