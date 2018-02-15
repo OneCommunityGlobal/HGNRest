@@ -10,6 +10,9 @@ TimeEntryRouter.route('/TimeEntry')
 .get(controller.getAllTimeEnteries)
 .post(controller.postTimeEntry);
 
+TimeEntryRouter.route('/TimeEntry/user/projects/:userId')
+.get(controller.getUserProjects)
+
 return TimeEntryRouter;
 }
 

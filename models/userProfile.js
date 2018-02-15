@@ -45,4 +45,11 @@ userProfileSchema.pre('save', function(next){
 
 });
 
+userProfileSchema.virtual('fullName')
+.get(function(){
+  let fullname = this.firstName + ' ' + this.lastName;
+  return fullname.trim();
+}
+)
+
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

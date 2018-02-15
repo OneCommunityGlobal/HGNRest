@@ -1,6 +1,7 @@
 let userProfile = require('../models/userProfile');
 let TimeEntry = require('../models/timeentry');
 let dashboardhelper = require('../helpers/dashboardhelper')();
+let userhelper = require('../helpers/userhelper')();
 let mongoose = require('mongoose');
 
 
@@ -19,7 +20,7 @@ let dashboardcontroller = function () {
 
     let leaderboard =  
     dashboardhelper.personaldetails(userId)
-    .then(dashboardhelper.getTeamMembers)
+    .then(userhelper.getTeamMembers)
     .then(dashboardhelper.getTimeEnteries);
 
     let laborthismonth = dashboardhelper.laborthismonth(userId);
@@ -38,7 +39,8 @@ let dashboardcontroller = function () {
       res.status(200).send(dashboard);
     }
   )
-  .catch(error => {res.status(400).send(error);});
+  .catch(error => 
+    {res.status(400).send(error);});
 
         
  

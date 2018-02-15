@@ -15,6 +15,9 @@ var routes = function (userProfile) {
     .get(controller.getUserById)
     .put(controller.putUserProfile);
 
+    userProfileRouter.route('/userProfile/reportees/:userId')
+    .get(controller.getreportees);
+
 
   return userProfileRouter;
 

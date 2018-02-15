@@ -20,32 +20,13 @@ var dashboardhelper = function () {
   };
 
 
-  var getTeamMembers = function (userdetails) {
 
-    var teamid = userdetails.teamId;
-    return userProfile
-      .find({
-        $and: [{
-          teamId: {
-            $in: teamid
-          }
-        }, {
-          isActive: true
-        }]
-      })
-      .select({
-        _id: 1,
-        firstName: 1,
-        lastName: 1
-      });
-
-  };
 
   var getTimeEnteries = function (members) {
 
     var people = [];
 
-    members.forEach(element => {
+    members.myteam.forEach(element => {
       people.push(element._id);
 
     });
@@ -222,7 +203,7 @@ var dashboardhelper = function () {
 
   return {
     personaldetails: personaldetails,
-    getTeamMembers: getTeamMembers,
+   
     getTimeEnteries: getTimeEnteries,
     laborthismonth: laborthismonth,
     laborthisweek: laborthisweek
