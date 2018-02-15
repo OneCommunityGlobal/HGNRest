@@ -9,8 +9,7 @@ var timeEntrycontroller = function(TimeEntry){
         TimeEntry.find(function(err, records){
     
             if (err)  {
-                console.log("Error encountered during get operation of timelog. Error is "+ err);
-                res.status(404).send("Error!!");
+                   res.status(404).send(error);
             }
             else {
                                 
@@ -58,18 +57,9 @@ var timeEntrycontroller = function(TimeEntry){
         
     
     
-        timeentry.save(function(err){ 
-            
-            if(err){ 
-            res.status(500).send(err);
-            }
-    
-            else {
-                
-                res.status(200).send("Time Entry saved");
-            }
-        
-        });  
+        timeentry.save()
+        .then(results => {res.status(200).send({message :"Time Entry saved"})})
+        .catch(error =>res.status(400).send(error) ) ; 
     
         
     
