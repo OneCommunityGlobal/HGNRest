@@ -1,6 +1,6 @@
 var express = require('express');
 var moment = require('moment');
-
+var userProject = require('../helpers/helperModels/userProjects');
 
 var timeEntrycontroller = function(TimeEntry){
 
@@ -73,11 +73,22 @@ var timeEntrycontroller = function(TimeEntry){
     
         
     
+    }; 
+
+    var getUserProjects = function(req, res)
+    {
+        var userId =  req.params.userId;
+
+        userProject.findById(userId)
+        .then(results => res.status(200).send(results.projects))
+        .catch(error => res.status(400).send(error));
+
     };
 
     return{
         getAllTimeEnteries:getAllTimeEnteries,
-        postTimeEntry: postTimeEntry
+        postTimeEntry: postTimeEntry,
+        getUserProjects:getUserProjects
         
     };
 };
