@@ -1,6 +1,6 @@
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
-var validate = require('mongoose-validate');
+var validate = require('mongoose-validator');
 var bcrypt = require('bcryptjs');
 
 const SALT_Rounds = 10;
@@ -14,7 +14,7 @@ var userProfileSchema = new Schema({
   lastName: {type: String, required: true, minlength: 2},
   phoneNumber : [{type: String, phoneNumber : String}],
   bio: {type: String},
-  email: { type: String, required: true, unique: true, validate: [validate.email, 'Please enter a valid email address'] },
+  email: { type: String, required: true, unique: true, validate: [validate({validator: 'isEmail', message: 'Email address is invalid'})] },
   weeklyComittedHours : {type: Number, default: 10},
   createdDate: {type: Date, required: true},
   lastModifiedDate: {type: Date, required: true, default : Date.now()},

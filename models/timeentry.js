@@ -1,5 +1,6 @@
-var mongoose = require('mongoose'),
-Schema = mongoose.Schema;
+var mongoose = require('mongoose');
+var Schema = mongoose.Schema;
+
 
 var TimeEntry = new Schema({
     personId : {type: Schema.Types.ObjectId, required: [true, "Resource is a required field"], ref: 'userProfile'},

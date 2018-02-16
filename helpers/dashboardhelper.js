@@ -15,7 +15,7 @@ var dashboardhelper = function () {
 
   var personaldetails = function (userId) {
 
-    return userProfile.findById(userId, '_id firstName lastName role weeklycommitted teamId profilePic badgeCollection');
+    return userProfile.findById(userId, '_id firstName lastName role weeklyComittedHours teamId profilePic badgeCollection');
 
   };
 
