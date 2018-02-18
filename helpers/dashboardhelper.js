@@ -15,7 +15,7 @@ var dashboardhelper = function () {
 
   var personaldetails = function (userId) {
 
-    return userProfile.findById(userId, '_id firstName lastName role weeklyComittedHours teamId profilePic badgeCollection');
+    return userProfile.findById(userId, '_id firstName lastName role profilePic badgeCollection');
 
   };
 
@@ -182,18 +182,26 @@ var dashboardhelper = function () {
       },
       {
         $group: {
-          _id: {
-            userId: "$personId"
-          },
+          _id:  "$personId",
           labor: {
             $sum: "$totalSeconds"
           }
         }
       },
+        {
+        $lookup: {
+          from: "userProfiles",
+          localField: "_id",
+          foreignField: "_id",
+          as: "persondata"
+        }
+      },
       {
         $project: {
           _id: 0,
-          "timeSpent_hrs": {$divide: ["$labor",3600]}
+          "timeSpent_hrs": {$divide: ["$labor",3600]},
+          "weeklyComittedHours" : {$arrayElemAt: ["$persondata.weeklyComittedHours", 0]}
+         
         }
       }
     ]);

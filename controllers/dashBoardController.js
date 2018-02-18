@@ -23,19 +23,15 @@ let dashboardcontroller = function () {
     .then(userhelper.getTeamMembers)
     .then(dashboardhelper.getTimeEnteries);
 
-    let laborthismonth = dashboardhelper.laborthismonth(userId);
-    let laborthisweek = dashboardhelper.laborthisweek(userId);
-
-    let dashboardPromises = [snapshot,  laborthismonth, laborthisweek, leaderboard];
+   
+    let dashboardPromises = [snapshot,  leaderboard];
 
     Promise.all(dashboardPromises)
     .then(function(results)
     {
       let dashboard = {};
       dashboard.userSnapshot = results[dashboardPromises.indexOf(snapshot)];    
-     dashboard.laborthismonth = results[dashboardPromises.indexOf(laborthismonth)];
-     dashboard.laborthisweek = results[dashboardPromises.indexOf(laborthisweek)];
-     dashboard.leaderboard = results[dashboardPromises.indexOf(leaderboard)];
+      dashboard.leaderboard = results[dashboardPromises.indexOf(leaderboard)];
       res.status(200).send(dashboard);
     }
   )
@@ -46,10 +42,31 @@ let dashboardcontroller = function () {
  
   };
 
+  var monthlydata = function(req, res)
+  {
+    let userId = mongoose.Types.ObjectId(req.params.userId);
+    let laborthismonth = dashboardhelper.laborthismonth(userId);
+    laborthismonth.then( results => {res.send(results).status(200)});
+   
+
+  };
+
+  var weeklydata = function(req, res)
+  {
+    let userId = mongoose.Types.ObjectId(req.params.userId);
+    let laborthisweek = dashboardhelper.laborthisweek(userId);
+    laborthisweek.then( results => {res.send(results).status(200)});
+
+  };
+
+  
+
 
   return {
     
-    dashboarddata: dashboarddata
+    dashboarddata: dashboarddata,
+    monthlydata:monthlydata,
+    weeklydata: weeklydata
 
   };
 };

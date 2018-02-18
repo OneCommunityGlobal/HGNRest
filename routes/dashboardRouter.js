@@ -10,6 +10,12 @@ var route = function(TimeEntry, userProfile){
     Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);
 
+    Dashboardrouter.route('/dashboard/monthlydata/:userId')
+    .get(controller.monthlydata);
+
+    Dashboardrouter.route('/dashboard/weeklydata/:userId')
+    .get(controller.weeklydata);
+
     return Dashboardrouter;
 
 }
