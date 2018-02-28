@@ -4,6 +4,7 @@ var cors = require('cors');
 let jwt = require('jsonwebtoken');
 let config = require('./config');
 let moment = require('moment');
+let http = require('http');
 
 
 //Define models here
@@ -31,8 +32,8 @@ mongoose.Promise = Promise;
 
 var app = express();
 app.use(cors());
-app.use(bodyParser.json());       
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 
 var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
@@ -40,16 +41,15 @@ var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:2701
 //var uri = 'mongodb://localhost:27017/hgnData';
 
 
-var db = mongoose.connect(uri).catch((error) => {console.log(error);});
+var db = mongoose.connect(uri).catch((error) => { console.log(error); });
 
 app.all('*', function (req, res, next) {
 
 	console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
- 
-	if(req.originalUrl == "/api/login" && req.method == "POST") {next(); return;}
-	
-	if(!req.header("Authorization"))
-	{
+
+	if (req.originalUrl == "/api/login" && req.method == "POST") { next(); return; }
+
+	if (!req.header("Authorization")) {
 		res.status(401).send("Unauthorized request");
 		return;
 	}
@@ -58,28 +58,26 @@ app.all('*', function (req, res, next) {
 
 	let payload = "";
 
-	try{
+	try {
 		payload = jwt.verify(authToken, config.JWT_SECRET);
-		
+
 	}
-	catch(error)
-	{
+	catch (error) {
 		res.status(401).send("Invalid token");
 		return;
 
 	}
-		 
-	if(!payload || !payload.expiryTimestamp || !payload.userid || !payload.role || 
-		moment().isAfter(payload.expiryTimestamp))
-	{
+
+	if (!payload || !payload.expiryTimestamp || !payload.userid || !payload.role ||
+		moment().isAfter(payload.expiryTimestamp)) {
 		res.status(401).send("Unauthorized request");
 		return;
 	}
-	
+
 	let requestor = {};
 	requestor.requestorId = payload.userid;
 	requestor.role = payload.role;
-	
+
 	req.body.requestor = requestor;
 
 	next();
@@ -89,7 +87,7 @@ app.all('*', function (req, res, next) {
 
 
 
-app.use('/api',projectRouter);
+app.use('/api', projectRouter);
 app.use('/api', userProfileRouter);
 app.use('/api', dashboardRouter);
 app.use('/api', timeEntryRouter);
@@ -99,9 +97,13 @@ app.use('/api', actionItemRouter);
 app.use('/api', notificationRouter);
 
 
+var port = normalizePort(process.env.PORT || '4500');
+app.set('port', port);
 
+var server = http.createServer(app);
+server.listen(port)
 
-app.listen('4500');
+console.log(port);
 
 app.get('/api/', function (req, res) {
 	res.send('Success');
@@ -112,4 +114,18 @@ app.use(function (err, req, res, next) {
 	console.log('Error 500');
 	return res.status(500).json(err);
 });
+function normalizePort(val) {
+	var port = parseInt(val, 10);
 
+	if (isNaN(port)) {
+		// named pipe
+		return val;
+	}
+
+	if (port >= 0) {
+		// port number
+		return port;
+	}
+
+	return false;
+}
