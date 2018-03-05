@@ -8,6 +8,28 @@ var projectController = function (project) {
       .catch(error => res.status(404).send(error));
 
   };
+
+  var deleteProject = function (req, res) {
+
+    if (req.body.requestor.role !== "Administrator") {
+      res.status(403).send("You are not authorized to delete projects.");
+      return;
+    }
+    var projectId = req.params.projectId;
+    project.findById(projectId, function (error, record) {
+
+      if (error || record == null) {
+        res.status(400).send("No valid records found");
+        return;
+      }
+      record.remove()
+        .then(res.status(200).send("Removed"))
+        .catch(errors => { res.status(400).send(error) });
+    })
+      .catch(errors => { res.status(400).send(error) });
+
+  };
+
   var postProject = function (req, res) {
 
     if (req.body.requestor.role !== "Administrator") {
