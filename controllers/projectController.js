@@ -19,7 +19,6 @@ var projectController = function (project) {
 
     _project.projectName = req.body.projectName;
     _project.isActive = req.body.isActive;
-
     _project.tasks = req.body.tasks;
     _project.createdDatetime = Date.now();
     _project.modifiedDatetime = Date.now();
@@ -49,7 +48,6 @@ var projectController = function (project) {
 
       record.projectName = req.body.projectName;
       record.isActive = req.body.isActive;
-
       record.tasks = req.body.tasks;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
@@ -61,10 +59,6 @@ var projectController = function (project) {
     }
 
     );
-
-
-
-
 
   };
 
