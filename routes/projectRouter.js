@@ -13,7 +13,8 @@ var routes = function (project) {
 
   projectRouter.route('/project/:projectId')
     .get(controller.getProjectById)
-    .post(controller.putProject);
+    .post(controller.putProject)
+    .delete(controller.deleteproject);
 
 
 

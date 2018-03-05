@@ -10,8 +10,7 @@ var projectController = function (project) {
   };
   var postProject = function (req, res) {
 
-    if(req.body.requestor.role !== "Administrator")
-    {
+    if (req.body.requestor.role !== "Administrator") {
       res.status(403).send("You are not authorized to create new projects.");
       return;
     }
@@ -25,7 +24,7 @@ var projectController = function (project) {
     _project.createdDatetime = Date.now();
     _project.modifiedDatetime = Date.now();
 
-        _project.save()
+    _project.save()
       .then(results => res.status(201).send(results._id))
       .catch(error => res.status(404).send(error));
 
@@ -34,18 +33,16 @@ var projectController = function (project) {
 
   var putProject = function (req, res) {
 
-    if(req.body.requestor.role !== "Administrator")
-    {
+    if (req.body.requestor.role !== "Administrator") {
       res.status(403).send("You are not authorized to create new projects.");
       return;
     }
 
     var projectId = req.params.projectId;
 
-    project.findById(projectId, function(error, record){
+    project.findById(projectId, function (error, record) {
 
-      if(error || record ==null )
-      {
+      if (error || record == null) {
         res.status(400).send("No valid records found");
         return;
       }
@@ -63,7 +60,7 @@ var projectController = function (project) {
 
     }
 
-  );
+    );
 
 
 
@@ -76,7 +73,22 @@ var projectController = function (project) {
 
     var projectId = req.params.projectId;
 
-       project.findById(projectId, '-__v  -createdDatetime -modifiedDatetime')
+    project.findById(projectId, '-__v  -createdDatetime -modifiedDatetime')
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+
+  };
+
+  var deleteproject = function (req, res) {
+
+    if (req.body.requestor.role !== "Administrator") {
+      res.status(403).send({ message: "You are not authorized to delete projects." });
+      return;
+    }
+    var projectId = req.params.projectId;
+
+    project.findById(projectId, '_id')
+      .then(results => { results.remove() })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 
@@ -86,7 +98,8 @@ var projectController = function (project) {
     getAllProjects: getAllProjects,
     postProject: postProject,
     getProjectById: getProjectById,
-    putProject: putProject
+    putProject: putProject,
+    deleteproject: deleteproject
   };
 
 };
