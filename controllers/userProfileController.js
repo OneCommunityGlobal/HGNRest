@@ -110,6 +110,7 @@ var userProfileController = function (userProfile) {
 
       if (isRequestorAdmin) {
         record.role = req.body.role;
+        record.isActive = req.body.isActive;
         record.weeklyComittedHours = req.body.weeklyComittedHours;
         record.adminLinks = req.body.adminLinks;
         record.TeamId = Array.from(new Set(req.body.teamId));
@@ -149,19 +150,19 @@ var userProfileController = function (userProfile) {
 
     let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team'];
 
-    if(role === "Volunteer" || role === "Manager"){
+    if (role === "Volunteer" || role === "Manager") {
       validroles = ["Volunteer", "Manager"]
     }
 
 
-   userhelper.getTeamMembers({_id: userid})
+    userhelper.getTeamMembers({ _id: userid })
       .then(results => {
         var teammembers = [];
 
         results.myteam.forEach(element => {
 
-         if(!validroles.includes(element.role)) return;
-          
+          if (!validroles.includes(element.role)) return;
+
           var member = {};
 
           let name = (element._id === userid) ? "Self" : `${element.fullName}`;
