@@ -133,7 +133,7 @@ var dashboardhelper = function () {
     },
     {
       $sort: {
-        percentagespentintangible: -1
+        totaltangibletime_hrs: -1
       }
     }
 
