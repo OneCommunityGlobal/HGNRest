@@ -98,12 +98,12 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.notes = element.notes;
                     record.personId = element.personId;
                     record.projectName = element.projectId.projectName,
-                        record.taskName = projectId.tasks.forEach(task => {
+                        record.taskName = element.projectId.tasks.forEach(task => {
                             if (task.id === element.taskId)
                                 task.Description
 
                         });
-                    record.dateofWork = moment(element.dateofWork).format("YYYY/MM/DD");
+                    record.dateOfWork = moment(element.dateOfWork).format("YYYY/MM/DD");
                     record.totalSeconds = element.totalSeconds;
 
                     data.push(record);
