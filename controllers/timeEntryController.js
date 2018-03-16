@@ -92,6 +92,21 @@ var timeEntrycontroller = function (TimeEntry) {
             ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
             .populate('projectId')
             .then(results => {
+                let data = [];
+                results.forEach(element => {
+                    let record = {};
+
+                    record._id = element._id;
+                    record.personId = element.personId;
+                    record.projectName = element.projectId.projectName,
+                        record.taskName = projectId.tasks.forEach(task => {
+                            if (task.id === element.taskId)
+                                task.Description
+
+                        });
+                    record.dateofWork = moment(element.dateofWork).format("YYYY/MM/DD");
+                    record.effort = element.effort
+                });
                 res.status(200).send(results);
             })
             .catch(error => {
