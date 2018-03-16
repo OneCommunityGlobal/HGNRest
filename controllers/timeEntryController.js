@@ -97,6 +97,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     let record = {};
 
                     record._id = element._id;
+                    record.notes = element.notes;
                     record.personId = element.personId;
                     record.projectName = element.projectId.projectName,
                         record.taskName = projectId.tasks.forEach(task => {
@@ -105,9 +106,11 @@ var timeEntrycontroller = function (TimeEntry) {
 
                         });
                     record.dateofWork = moment(element.dateofWork).format("YYYY/MM/DD");
-                    record.totalSeconds = element.totalSeconds
+                    record.totalSeconds = element.totalSeconds;
+
+                    data.push(record);
                 });
-                res.status(200).send(results);
+                res.status(200).send(data);
             })
             .catch(error => {
                 console.log(error);
