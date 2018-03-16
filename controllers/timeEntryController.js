@@ -96,6 +96,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
                     record._id = element._id;
                     record.notes = element.notes;
+                    record.isTangible = element.isTangible;
                     record.personId = element.personId;
                     record.projectName = element.projectId.projectName,
                         record.taskName = element.projectId.tasks.forEach(task => {
