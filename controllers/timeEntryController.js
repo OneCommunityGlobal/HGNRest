@@ -77,11 +77,9 @@ var timeEntrycontroller = function (TimeEntry) {
             return;
         }
 
-        console.log(req.params.fromdate);
-        console.log(req.params.todate);
 
-        let fromdate = moment(req.params.fromdate).format('YYYY-MM-DD');
-        let todate = moment(req.params.todate).format('YYYY-MM-DD');
+        let fromdate = moment.unix(req.params.fromdate).format('YYYY-MM-DD');
+        let todate = moment.unix(req.params.todate).format('YYYY-MM-DD');
         let userId = req.params.userId;
 
 
