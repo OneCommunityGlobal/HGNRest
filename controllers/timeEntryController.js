@@ -105,7 +105,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
                         });
                     record.dateofWork = moment(element.dateofWork).format("YYYY/MM/DD");
-                    record.effort = element.effort
+                    record.totalSeconds = element.totalSeconds
                 });
                 res.status(200).send(results);
             })
