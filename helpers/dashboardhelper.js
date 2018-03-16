@@ -20,8 +20,6 @@ var dashboardhelper = function () {
   };
 
 
-
-
   var getTimeEnteries = function (members) {
 
     var people = [];

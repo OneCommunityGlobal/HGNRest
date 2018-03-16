@@ -104,7 +104,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
                         });
                     record.dateOfWork = moment(element.dateOfWork).format("YYYY/MM/DD");
-                    record.totalSeconds = element.totalSeconds;
+                    record.totalSeconds = formatseconds(element.totalSeconds);
 
                     data.push(record);
                 });
@@ -119,6 +119,12 @@ var timeEntrycontroller = function (TimeEntry) {
 
 
     };
+
+    var formatseconds = function (seconds) {
+        seconds = parseInt(seconds);
+        var format = Math.floor(moment.duration(seconds, 'seconds').asHours()) + ':' + moment.duration(seconds, 'seconds').minutes() + ':' + moment.duration(seconds, 'seconds').seconds();
+        return format;
+    }
 
     return {
         getAllTimeEnteries: getAllTimeEnteries,
