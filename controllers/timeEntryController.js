@@ -98,13 +98,13 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.notes = element.notes;
                     record.isTangible = element.isTangible;
                     record.personId = element.personId;
-                    record.projectName = element.projectId.projectName,
-                        record.taskName = element.projectId.tasks.forEach(task => {
-                            if (task.id === element.taskId)
-                                task.Description
+                    record.projectName = (element.projectId) ? element.projectId.projectName : "",
+                        record.taskName = (element.projectId) ? element.projectId.tasks.forEach(task => {
+                            if (task.id === element.taskId) { task.Description }
+                            else { "" }
 
-                        });
-                    record.dateOfWork = moment(element.dateOfWork).format("YYYY/MM/DD");
+                        }) : "";
+                    record.dateOfWork = moment(element.dateOfWork).format("MM/DD/YYYY");
                     record.totalSeconds = formatseconds(element.totalSeconds);
 
                     data.push(record);
