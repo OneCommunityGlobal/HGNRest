@@ -104,7 +104,7 @@ var timeEntrycontroller = function (TimeEntry) {
                             else { "" }
 
                         }) : "";
-                    record.dateOfWork = moment(element.dateOfWork).format("MM/DD/YYYY");
+                    record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
                     record.totalSeconds = formatseconds(element.totalSeconds);
 
                     data.push(record);
