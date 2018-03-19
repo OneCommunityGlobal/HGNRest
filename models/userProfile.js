@@ -10,7 +10,7 @@ var userProfileSchema = new Schema({
   password: {
     type: String, required: true, validate: {
       validator: function (v) {
-        let passwordregex = RegExp("(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$");
+        let passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
         return passwordregex.test(v);
       },
       message: '{VALUE} is not a valid password!password should be at least 8 charcaters long with uppercase, lowercase and number/special char.'
