@@ -7,10 +7,7 @@ let moment = require('moment');
 
 let logincontroller = function () {
 
-  const JWT_HEADER = {
-    "alg": "RS256",
-    "typ": "JWT"
-  };
+  const JWT_HEADER = config.JWT_HEADER;
 
   const JWT_SECRET = config.JWT_SECRET;
 

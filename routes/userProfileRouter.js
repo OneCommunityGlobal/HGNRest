@@ -11,12 +11,16 @@ var routes = function (userProfile) {
     .post(controller.postUserProfile);
 
 
-    userProfileRouter.route('/userProfile/:userId')
+  userProfileRouter.route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(controller.putUserProfile);
 
-    userProfileRouter.route('/userProfile/reportees/:userId')
+  userProfileRouter.route('/userProfile/reportees/:userId')
     .get(controller.getreportees);
+
+  userProfileRouter.route('/userProfile/:userId/updatePassword')
+    .patch(controller.updatepassword)
+
 
 
   return userProfileRouter;

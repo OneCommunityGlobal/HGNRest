@@ -1,6 +1,7 @@
 var team = require('../models/team');
 var mongoose = require('mongoose');
 var userhelper = require('../helpers/userhelper')();
+var bcrypt = require('bcryptjs');
 
 
 var userProfileController = function (userProfile) {
@@ -143,6 +144,62 @@ var userProfileController = function (userProfile) {
 
   };
 
+  var updatepassword = async function (req, res) {
+
+    let userId = req.params.userId;
+    let requestor = req.body.requestor;
+
+    //Verify correct params in body
+    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
+      res.status(400).send({ "error": "One of more required fields are missing" });
+      return;
+    }
+    // Verify request is authorized by self or adminsitrator
+    if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
+      res.status(403).send({ "error": "You are unauthorized to update this user's password" });
+      return;
+    }
+    //Verify new and confirm new password are correct
+
+    if (req.body.newpassword != req.body.confirmnewpassword) {
+      res.status(400).send({ "error": "New and confirm new passwords are not same" });
+    }
+
+    //Verify old and new passwords are not same
+    if (req.body.currentpassword === req.body.newpassword) {
+      res.status(400).send({ "error": "Old and confirm new passwords should not be same" });
+    }
+
+    userProfile.findById(userId, 'password')
+      .then(async function (user) {
+        let isPasswordmatch = true;
+        //isPasswordmatch = await bcrypt.compare(req.body.currentpassword, user.password);
+
+        if (isPasswordmatch) {
+          user.set({ password: req.body.newpassword });
+          user.save()
+            .then(results => {
+              res.status(200).send({ "message": "updated password" });
+              return;
+            })
+            .catch(error => {
+              res.status(500).send(error);
+              return;
+            })
+        }
+        else {
+          res.status(400).send({ "error": "Incorrect current password" });
+          return;
+        }
+      })
+      .catch(error => {
+        res.status(500).send(error);
+        return;
+      })
+
+
+  };
+
   var getreportees = function (req, res) {
 
     var userid = mongoose.Types.ObjectId(req.params.userId);
@@ -190,7 +247,8 @@ var userProfileController = function (userProfile) {
     getUserProfiles: getUserProfiles,
     putUserProfile: putUserProfile,
     getUserById: getUserById,
-    getreportees: getreportees
+    getreportees: getreportees,
+    updatepassword: updatepassword
   };
 
 };
