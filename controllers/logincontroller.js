@@ -48,8 +48,15 @@ let logincontroller = function () {
 
       let token = jwt.sign(jwt_payload, JWT_SECRET);
 
+      let result =
+        {
+          "token": "token",
+          "userId": user._id,
+          "userrole": user.role
+        }
 
-      res.send(token).status(200);
+
+      res.send(result).status(200);
     } else {
       res.status(403).send({
         message: "Invalid email and/ or password."
