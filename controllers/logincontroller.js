@@ -50,7 +50,7 @@ let logincontroller = function () {
 
       let result =
         {
-          "token": "token",
+          "token": token,
           "userId": user._id,
           "userrole": user.role
         }
