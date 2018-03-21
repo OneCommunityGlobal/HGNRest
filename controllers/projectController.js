@@ -1,4 +1,5 @@
-
+var timeentry = require('../models/timeentry');
+var mongoose = require("mongoose");
 
 var projectController = function (project) {
 
@@ -13,7 +14,7 @@ var projectController = function (project) {
 
   var deleteProject = function (req, res) {
 
-    var timeentry = require('../models/timeentry');
+
 
     if (req.body.requestor.role !== "Administrator") {
       res.status(403).send({ "error": "You are  not authorized to delete projects." });
@@ -90,16 +91,16 @@ var projectController = function (project) {
         return;
       }
 
+
       record.projectName = req.body.projectName;
       record.isActive = req.body.isActive;
       record.tasks = req.body.tasks;
-      record.createdDatetime = Date.now();
+
       record.modifiedDatetime = Date.now();
 
       record.save()
         .then(results => res.status(201).send(results._id))
         .catch(error => res.status(400).send(error));
-
     }
 
     );
@@ -117,6 +118,44 @@ var projectController = function (project) {
 
   };
 
+  var deletetask = function (req, res) {
+
+    if (!req.params.projectId || !req.params.taskId) {
+      res.status(400).send({ "error": "Invalid request" });
+      return;
+    }
+
+    if (req.body.requestor.role !== "Administrator") {
+      res.status(403).send("You are not authorized to delete tasks.");
+      return;
+    }
+
+    let projectId = mongoose.Types.ObjectId(req.params.projectId);
+    let taskId = req.params.taskId;
+
+    timeentry.find({ "projectId": projectId, "taskId": taskId }, "_id")
+      .then(timeentries => {
+
+        if (timeentries.length > 0) {
+          res.status(400).send({ "error": "This task cannot be deleted as it has associated time entries" });
+          return;
+        }
+        else {
+          project.update({ "_id": projectId }, { $pull: { "tasks": { "_id": mongoose.Types.ObjectId(taskId) } } })
+            .then(() => {
+              res.status(200).send({ "message": "Task successfully removed" })
+              return;
+            })
+            .catch((error) => {
+              res.status(500).send({ "error": error });
+              return;
+            })
+        }
+
+      })
+
+  }
+
 
 
   return {
@@ -124,7 +163,8 @@ var projectController = function (project) {
     postProject: postProject,
     getProjectById: getProjectById,
     putProject: putProject,
-    deleteProject: deleteProject
+    deleteProject: deleteProject,
+    deletetask: deletetask
   };
 
 };
