@@ -1,3 +1,5 @@
+
+
 var projectController = function (project) {
 
 
@@ -11,20 +13,40 @@ var projectController = function (project) {
 
   var deleteProject = function (req, res) {
 
+    var timeentry = require('../models/timeentry');
+
     if (req.body.requestor.role !== "Administrator") {
-      res.status(403).send("You are not authorized to delete projects.");
+      res.status(403).send({ "error": "You are  not authorized to delete projects." });
       return;
     }
     var projectId = req.params.projectId;
     project.findById(projectId, function (error, record) {
 
-      if (error || record == null) {
-        res.status(400).send("No valid records found");
+
+      if (error || !record || (record === null)) {
+        res.status(400).send({ "error": "No valid records found" });
         return;
       }
-      record.remove()
-        .then(res.status(200).send("Removed"))
-        .catch(errors => { res.status(400).send(error) });
+
+      //find if project has any time enteries associated with it
+
+      timeentry.find({ projectId: record._id }, "_id")
+        .then((timeentries) => {
+
+          if (timeentries.length > 0) {
+            res.status(400).send({ "error": "This project has associated time entries and cannot be deleted. Consider inactivaing it instead." });
+            return;
+          }
+          else {
+            record.remove()
+              .then(res.status(200).send({ "message": `${record._id} deleted` }))
+              .catch(errors => { res.status(400).send(error) });
+          }
+
+        })
+
+
+
     })
       .catch(errors => { res.status(400).send(error) });
 
@@ -95,27 +117,14 @@ var projectController = function (project) {
 
   };
 
-  var deleteproject = function (req, res) {
 
-    if (req.body.requestor.role !== "Administrator") {
-      res.status(403).send({ message: "You are not authorized to delete projects." });
-      return;
-    }
-    var projectId = req.params.projectId;
-
-    project.findById(projectId, '_id')
-      .then(results => { results.remove() })
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
-
-  };
 
   return {
     getAllProjects: getAllProjects,
     postProject: postProject,
     getProjectById: getProjectById,
     putProject: putProject,
-    deleteproject: deleteproject
+    deleteProject: deleteProject
   };
 
 };
