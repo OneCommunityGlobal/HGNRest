@@ -123,7 +123,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
     var formatseconds = function (seconds) {
         seconds = parseInt(seconds);
-        var format = Math.floor(moment.duration(seconds, 'seconds').asHours()) + ':' + moment.duration(seconds, 'seconds').minutes() + ':' + moment.duration(seconds, 'seconds').seconds();
+        var format = Math.floor(moment.duration(seconds, 'seconds').asHours()) + ':' + moment.duration(seconds, 'seconds').minutes();
         return format;
     }
 
