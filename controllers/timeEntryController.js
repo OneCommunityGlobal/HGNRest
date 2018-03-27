@@ -102,11 +102,19 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.projectId = (element.projectId) ? element.projectId._id : "";
                     record.taskId = element.taskId;
                     record.projectName = (element.projectId) ? element.projectId.projectName : "",
-                        record.taskName = (element.projectId) ? element.projectId.tasks.forEach(task => {
-                            if (task._id === element.taskId) { return task.Description }
-                            else { "" }
+                        record.taskName = function (tasklist, idtofind) {
+                            for (var i = 0; i < tasklist.length; i++) {
+                                let element = tasklist[i];
 
-                        }) : "";
+                                if (element._id.toString() === idtofind.toString()) {
+                                    return element.Description
+                                }
+
+                            }
+
+                        }(element.projectId.tasks, element.taskId)
+
+
                     record.dateOfWork = moment(element.dateofWork[0]).format("MM/DD/YYYY");
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
