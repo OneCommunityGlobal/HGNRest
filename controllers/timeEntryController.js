@@ -103,7 +103,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.taskId = element.taskId;
                     record.projectName = (element.projectId) ? element.projectId.projectName : "",
                         record.taskName = (element.projectId) ? element.projectId.tasks.forEach(task => {
-                            if (task.id === element.taskId) { return task.Description }
+                            if (task._id === element.taskId) { return task.Description }
                             else { "" }
 
                         }) : "";
