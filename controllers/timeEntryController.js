@@ -55,7 +55,7 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.rollupWeek = moment(dateofWork).startOf('week').format("MM/DD/YYYY");
 
         timeentry.save()
-            .then(results => { res.status(200).send({ message: "Time Entry saved" }) })
+            .then(results => { res.status(200).send({ message: `Time Entry saved with id as ${results._id}` }) })
             .catch(error => res.status(400).send(error));
 
 
