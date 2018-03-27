@@ -98,9 +98,11 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.notes = element.notes;
                     record.isTangible = element.isTangible;
                     record.personId = element.personId;
+                    record.projectId = (element.projectId) ? element.projectId._id : "";
+                    record.taskId = element.taskId;
                     record.projectName = (element.projectId) ? element.projectId.projectName : "",
                         record.taskName = (element.projectId) ? element.projectId.tasks.forEach(task => {
-                            if (task.id === element.taskId) { task.Description }
+                            if (task.id === element.taskId) { return task.Description }
                             else { "" }
 
                         }) : "";
