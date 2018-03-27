@@ -89,6 +89,7 @@ var timeEntrycontroller = function (TimeEntry) {
         },
             ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
             .populate('projectId')
+            .sort({ "dateofWork": -1 })
             .then(results => {
                 let data = [];
                 results.forEach(element => {
