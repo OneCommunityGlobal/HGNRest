@@ -5,7 +5,7 @@ var Schema = mongoose.Schema;
 var TimeEntry = new Schema({
 	personId: { type: Schema.Types.ObjectId, required: [true, "Resource is a required field"], ref: 'userProfile' },
 	projectId: { type: Schema.Types.ObjectId, required: [true, "Project is a required field"], ref: 'project' },
-	taskId: { type: String, required: [true, "Task is a required field"] },
+	taskId: { type: Schema.Types.ObjectId, required: [true, "Task is a required field"] },
 	dateofWork: { type: [Date, "Valid Date is required"], required: true },
 	totalSeconds: { type: Number },
 	notes: { type: String },
