@@ -150,9 +150,14 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
         //verify that requestor is owner of timeentry or an administrator
-        let timeEntryId = mongoose.Types.ObjectId(req.params.timeEntryId);
 
-        TimeEntry.findById(timeEntryId)
+
+        if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId)) {
+            res.status(400).send({ "error": `Bad request` });
+            return;
+        }
+
+        TimeEntry.findById(req.params.timeEntryId)
             .then(record => {
 
                 if (!record) {
