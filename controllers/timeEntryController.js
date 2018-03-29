@@ -137,13 +137,96 @@ var timeEntrycontroller = function (TimeEntry) {
         seconds = parseInt(seconds);
         var values = Math.floor(moment.duration(seconds, 'seconds').asHours()) + ':' + moment.duration(seconds, 'seconds').minutes();
         return values.split(":");
+    };
+
+    var editTimeEntry = function (req, res) {
+
+        //Verify request body
+
+        if (!req.params.timeEntryId) {
+            res.status(400).send({ "error": "Bad request" });
+            return;
+        }
+
+        //verify that requestor is owner of timeentry or an administrator
+
+        TimeEntry.findById(req.params.timeEntryId)
+            .then(record => {
+                if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
+
+                    record.notes = req.body.notes;
+                    record.hours = req.body.hours;
+                    record.minutes = req.body.minutes;
+                    record.isTangible = req.body.isTangible;
+                    record.projectId = req.body.projectId;
+                    record.taskId = req.body.taskId;
+
+                    record.save()
+                        .then(() => {
+                            res.status(200).send({ record })
+                            return;
+                        })
+                        .catch((error) => {
+                            res.status(500).send(error);
+                            return;
+                        }
+                        );
+
+                }
+                else {
+                    res.status(403).send({ "error": "Unauthorized request" });
+                    return;
+                }
+            })
+            .catch((error) => res.status(400).send({ "error": "No valid records" }));
+
+    };
+
+    var deleteTimeEntry = function (req, res) {
+        if (!req.params.timeEntryId) {
+            res.status(400).send({ "error": "Bad request" });
+            return;
+        }
+
+        TimeEntry.findById(req.params.timeEntryId)
+            .then((record) => {
+                if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
+
+                    record.remove()
+                        .then(() => {
+                            res.status(200).send({ "message": "Successfully deleted" })
+                            return;
+                        })
+                        .catch((error) => {
+                            res.status(500).send(error);
+                            return;
+                        }
+                        );
+
+                }
+                else {
+                    res.status(403).send({ "error": "Unauthorized request" });
+                    return;
+                }
+
+            })
+            .catch(error => {
+                res.status(400).send(error);
+                return;
+            })
+
+
+
     }
+
 
     return {
         getAllTimeEnteries: getAllTimeEnteries,
         postTimeEntry: postTimeEntry,
         getUserProjects: getUserProjects,
-        getTimeEntriesForSpecifiedPeriod: getTimeEntriesForSpecifiedPeriod
+        getTimeEntriesForSpecifiedPeriod: getTimeEntriesForSpecifiedPeriod,
+        editTimeEntry: editTimeEntry,
+        deleteTimeEntry: deleteTimeEntry
 
     };
 };

@@ -8,7 +8,11 @@ var routes = function (TimeEntry) {
 
     TimeEntryRouter.route('/TimeEntry')
         .get(controller.getAllTimeEnteries)
-        .post(controller.postTimeEntry);
+        .post(controller.postTimeEntry)
+
+    TimeEntryRouter.route('/TimeEntry/:timeEntryId')
+        .put(controller.editTimeEntry)
+        .delete(controller.deleteTimeEntry)
 
     TimeEntryRouter.route('/TimeEntry/user/projects/:userId')
         .get(controller.getUserProjects)
