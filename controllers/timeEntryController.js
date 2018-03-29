@@ -1,6 +1,7 @@
 var express = require('express');
 var moment = require('moment');
 var userProject = require('../helpers/helperModels/userProjects');
+var mongoose = require('mongoose');
 
 var timeEntrycontroller = function (TimeEntry) {
 
