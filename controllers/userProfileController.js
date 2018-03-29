@@ -237,6 +237,30 @@ var userProfileController = function (userProfile) {
       .catch(error => res.status(400).send(error));
 
 
+  };
+
+  var getUserName = function (req, res) {
+    var userId = req.params.userId;
+
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+
+      userProfile.findById(userId, 'firstName lastName')
+        .then(result => {
+          let name = result.firstName + " " + result.lastName;
+          res.status(200).send({ "name": name });
+          return;
+        })
+        .catch(error => {
+          res.status(404).send(error)
+          return;
+        });
+
+
+    }
+    else {
+      res.status(400).send({ "error": "Bad request" })
+    }
+
   }
 
 
@@ -248,7 +272,8 @@ var userProfileController = function (userProfile) {
     putUserProfile: putUserProfile,
     getUserById: getUserById,
     getreportees: getreportees,
-    updatepassword: updatepassword
+    updatepassword: updatepassword,
+    getUserName: getUserName
   };
 
 };

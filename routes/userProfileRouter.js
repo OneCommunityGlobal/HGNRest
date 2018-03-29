@@ -15,12 +15,15 @@ var routes = function (userProfile) {
     .get(controller.getUserById)
     .put(controller.putUserProfile);
 
+
   userProfileRouter.route('/userProfile/reportees/:userId')
     .get(controller.getreportees);
 
   userProfileRouter.route('/userProfile/:userId/updatePassword')
     .patch(controller.updatepassword)
 
+  userProfileRouter.route('/userProfile/name/:userId')
+    .get(controller.getUserName);
 
 
   return userProfileRouter;
