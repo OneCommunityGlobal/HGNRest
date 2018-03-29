@@ -149,8 +149,9 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
         //verify that requestor is owner of timeentry or an administrator
+        let timeEntryId = mongoose.Types.ObjectId(req.params.timeEntryId);
 
-        TimeEntry.findById(req.params.timeEntryId)
+        TimeEntry.findById(timeEntryId)
             .then(record => {
                 if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
 
