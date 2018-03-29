@@ -176,11 +176,11 @@ var timeEntrycontroller = function (TimeEntry) {
 
                     record.save()
                         .then(() => {
-                            res.status(200).send({ record })
+                            res.status(200).send({ "message": "Successfully updated time entry" })
                             return;
                         })
                         .catch((error) => {
-                            res.status(500).send(error);
+                            res.status(500).send({ "error": error });
                             return;
                         }
                         );
