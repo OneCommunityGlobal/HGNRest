@@ -153,6 +153,12 @@ var timeEntrycontroller = function (TimeEntry) {
 
         TimeEntry.findById(timeEntryId)
             .then(record => {
+
+                if (!record) {
+                    res.status(400).send({ "error": `No valid records found for ${timeEntryId}` });
+                    return;
+                }
+
                 if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
 
                     record.notes = req.body.notes;
@@ -179,7 +185,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     return;
                 }
             })
-            .catch((error) => res.status(400).send({ "error": "No valid records" }));
+            .catch((error) => res.status(400).send({ error }));
 
     };
 
