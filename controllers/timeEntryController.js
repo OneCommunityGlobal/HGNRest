@@ -145,7 +145,7 @@ var timeEntrycontroller = function (TimeEntry) {
         //Verify request body
 
         if (!req.params.timeEntryId) {
-            res.status(400).send({ "error": "Bad request" });
+            res.status(400).send({ "error": "ObjectId in request param is not in correct format" });
             return;
         }
 
@@ -154,9 +154,9 @@ var timeEntrycontroller = function (TimeEntry) {
 
         if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId) ||
             !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
-            !mongoose.Types.ObjectId.isValid(req.params.taskId)
+            !mongoose.Types.ObjectId.isValid(req.body.taskId)
         ) {
-            res.status(400).send({ "error": `Bad formed request` });
+            res.status(400).send({ "error": `ObjectIds are not correctly formed` });
             return;
         }
 
