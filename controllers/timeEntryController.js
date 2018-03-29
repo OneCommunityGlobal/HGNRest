@@ -152,8 +152,11 @@ var timeEntrycontroller = function (TimeEntry) {
         //verify that requestor is owner of timeentry or an administrator
 
 
-        if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId)) {
-            res.status(400).send({ "error": `Bad request` });
+        if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId) ||
+            !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
+            !mongoose.Types.ObjectId.isValid(req.params.taskId)
+        ) {
+            res.status(400).send({ "error": `Bad formed request` });
             return;
         }
 
@@ -171,8 +174,8 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.hours = req.body.hours;
                     record.minutes = req.body.minutes;
                     record.isTangible = req.body.isTangible;
-                    record.projectId = req.body.projectId;
-                    record.taskId = req.body.taskId;
+                    record.projectId = mongoose.Types.ObjectId(req.body.projectId);
+                    record.taskId = mongoose.Types.ObjectId(req.body.taskId);
 
                     record.save()
                         .then(() => {
