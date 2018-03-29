@@ -168,10 +168,10 @@ var timeEntrycontroller = function (TimeEntry) {
                     return;
                 }
 
-                if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
+                if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === "Administrator") {
 
                     record.notes = req.body.notes;
-                    record.timeSpent = moment.duration(req.body.timeSpent).asSeconds();
+                    record.totalSeconds = moment.duration(req.body.timeSpent).asSeconds();
                     record.isTangible = req.body.isTangible;
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
                     record.taskId = mongoose.Types.ObjectId(req.body.taskId);
@@ -213,7 +213,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     return;
                 }
 
-                if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
+                if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === "Administrator") {
 
                     record.remove()
                         .then(() => {
