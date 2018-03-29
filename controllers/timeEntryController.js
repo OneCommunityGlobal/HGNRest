@@ -190,6 +190,14 @@ var timeEntrycontroller = function (TimeEntry) {
 
         TimeEntry.findById(req.params.timeEntryId)
             .then((record) => {
+
+                console.log(`record is ${record}`)
+
+                if (!record) {
+                    res.status(400).send({ "message": "No valid record found" })
+                    return;
+                }
+
                 if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
 
                     record.remove()
