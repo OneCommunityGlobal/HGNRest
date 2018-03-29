@@ -171,7 +171,7 @@ var timeEntrycontroller = function (TimeEntry) {
                 if (record.personId === req.body.requestor || req.body.requestor.role === "Administrator") {
 
                     record.notes = req.body.notes;
-                    record.timeSpent = req.body.timeSpent;
+                    record.timeSpent = moment.duration(req.body.timeSpent).asSeconds();
                     record.isTangible = req.body.isTangible;
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
                     record.taskId = mongoose.Types.ObjectId(req.body.taskId);
