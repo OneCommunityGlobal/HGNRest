@@ -144,10 +144,15 @@ var userProfileController = function (userProfile) {
 
   };
 
-  var updatepassword = async function (req, res) {
+  var updatepassword = function (req, res) {
 
     let userId = req.params.userId;
     let requestor = req.body.requestor;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({ "error": "Bad Request" });
+      return;
+    }
 
     //Verify correct params in body
     if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
@@ -171,29 +176,36 @@ var userProfileController = function (userProfile) {
     }
 
     userProfile.findById(userId, 'password')
-      .then(async function (user) {
-        let isPasswordmatch = true;
-        //isPasswordmatch = await bcrypt.compare(req.body.currentpassword, user.password);
+      .then(user => {
+        bcrypt.compare(req.body.currentpassword, user.password)
+          .then((passwordMatch) => {
+            if (passwordMatch) {
+              user.set({ password: req.body.newpassword });
+              user.save()
+                .then(results => {
+                  res.status(200).send({ "message": "updated password" });
+                  return;
+                })
+                .catch(error => {
+                  res.status(500).send(error);
+                  return;
+                })
+            }
+            else {
+              res.status(400).send({ "error": "Incorrect current password" });
+              return;
+            }
 
-        if (isPasswordmatch) {
-          user.set({ password: req.body.newpassword });
-          user.save()
-            .then(results => {
-              res.status(200).send({ "message": "updated password" });
-              return;
-            })
-            .catch(error => {
-              res.status(500).send(error);
-              return;
-            })
-        }
-        else {
-          res.status(400).send({ "error": "Incorrect current password" });
-          return;
-        }
+          })
+          .catch(error => {
+            res.status(500).send(error);
+            return;
+
+          })
+
       })
       .catch(error => {
-        res.status(500).send(error);
+        res.status(400).send(error);
         return;
       })
 
@@ -230,7 +242,7 @@ var userProfileController = function (userProfile) {
       .catch(error => res.status(400).send(error));
   };
 
-  var getTeamMembers = function (req, res) {
+  var getTeamMembersofUser = function (req, res) {
 
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
       res.status(400).send({ "error": "Bad request" });
@@ -279,7 +291,7 @@ var userProfileController = function (userProfile) {
     getreportees: getreportees,
     updatepassword: updatepassword,
     getUserName: getUserName,
-    getTeamMembers: getTeamMembers
+    getTeamMembersofUser: getTeamMembersofUser
   };
 
 };

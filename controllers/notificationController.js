@@ -4,10 +4,11 @@ var notificationController = function (notification) {
     var getUserNotifications = function (req, res) {
 
         var userid = req.params.userId;
-        //verify requestor is same as userId
 
-
-        userid = mongoose.Types.ObjectId(userid)
+        if (!mongoose.Types.ObjectId.isValid(userid)) {
+            res.status(400).send({ "error": "Bad Request" });
+            return;
+        }
 
         notification.find({ recipient: userid }, '_id message eventType')
             .then(results => { res.status(200).send(results) })
@@ -19,24 +20,26 @@ var notificationController = function (notification) {
     var createUserNotification = function (notification) {
 
         notification.save()
-            .then(results => { console.log(` notification created with id ${results._id}`) })
-            .catch(error => { console.log(error) });
+        // .then(results => { console.log(` notification created with id ${results._id}`) })
+        // .catch(error => { console.log(error) });
 
     }
 
     var deleteUserNotification = function (req, res) {
 
-        let notificationId = mongoose.Types.ObjectId(req.params.notificationId);
+        if (!mongoose.Types.ObjectId.isValid(req.params.notificationId)) {
+            res.status(400).send({ "error": "Bad request" }); return;
+        }
 
-        notification.findById(notificationId)
+        notification.findById(req.params.notificationId)
             .then(result => {
                 //verify is requestor same as assignee
                 if (req.body.requestor.requestorId != result.recipient) {
-                    res.status(403).send("Unauthroized request");
+                    res.status(403).send({ "error": "Unauthroized request" });
                     return;
                 }
                 result.remove()
-                    .then(res.status(200).send("Removed"))
+                    .then(res.status(200).send({ "message": "Deleted notification" }))
                     .catch(errors => { res.status(400).send(error) });
             })
             .catch(errors => { res.status(400).send(error) });

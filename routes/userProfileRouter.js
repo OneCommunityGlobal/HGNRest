@@ -20,7 +20,7 @@ var routes = function (userProfile) {
     .get(controller.getreportees);
 
   userProfileRouter.route('/userProfile/teammembers/:userId')
-    .get(controller.getTeamMembers);
+    .get(controller.getTeamMembersofUser);
 
 
   userProfileRouter.route('/userProfile/:userId/updatePassword')
