@@ -19,6 +19,10 @@ var routes = function (userProfile) {
   userProfileRouter.route('/userProfile/reportees/:userId')
     .get(controller.getreportees);
 
+  userProfileRouter.route('/userProfile/teammembers/:userId')
+    .get(controller.getTeamMembers);
+
+
   userProfileRouter.route('/userProfile/:userId/updatePassword')
     .patch(controller.updatepassword)
 

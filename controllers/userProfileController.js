@@ -201,6 +201,10 @@ var userProfileController = function (userProfile) {
   };
 
   var getreportees = function (req, res) {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      res.status(400).send({ "error": "Bad request" });
+      return;
+    }
 
     var userid = mongoose.Types.ObjectId(req.params.userId);
     var role = req.body.requestor.role;
@@ -217,27 +221,28 @@ var userProfileController = function (userProfile) {
         var teammembers = [];
 
         results.myteam.forEach(element => {
-
           if (!validroles.includes(element.role)) return;
-
-          var member = {};
-
-          let name = (element._id === userid) ? "Self" : `${element.fullName}`;
-
-          member._id = element._id;
-          member.role = element.role;
-          member.name = name;
-
-          teammembers.push(member);
-
+          teammembers.push(element);
         });
         res.status(200).send(teammembers);
 
       })
       .catch(error => res.status(400).send(error));
-
-
   };
+
+  var getTeamMembers = function (req, res) {
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      res.status(400).send({ "error": "Bad request" });
+      return;
+    }
+    userhelper.getTeamMembers({ _id: req.params.userId })
+      .then(results => {
+        res.status(200).send(results);
+      })
+      .catch(error => res.status(400).send(error));
+  };
+
 
   var getUserName = function (req, res) {
     var userId = req.params.userId;
@@ -273,7 +278,8 @@ var userProfileController = function (userProfile) {
     getUserById: getUserById,
     getreportees: getreportees,
     updatepassword: updatepassword,
-    getUserName: getUserName
+    getUserName: getUserName,
+    getTeamMembers: getTeamMembers
   };
 
 };
