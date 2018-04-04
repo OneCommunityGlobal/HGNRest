@@ -3,6 +3,7 @@ var moment = require('moment');
 var userProject = require('../helpers/helperModels/userProjects');
 var mongoose = require('mongoose');
 
+
 var timeEntrycontroller = function (TimeEntry) {
 
     var getAllTimeEnteries = function (req, res) {
@@ -72,6 +73,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
     };
     var getTimeEntriesForSpecifiedPeriod = function (req, res) {
+      console.log('called3');
 
         if (!req.params || !req.params.fromdate || !req.params.todate || !req.params.userId) {
             res.status(400).send({ "error": "Invalid request" });
@@ -82,7 +84,6 @@ var timeEntrycontroller = function (TimeEntry) {
         let fromdate = moment.unix(req.params.fromdate).format('YYYY-MM-DD');
         let todate = moment.unix(req.params.todate).format('YYYY-MM-DD');
         let userId = req.params.userId;
-
 
         TimeEntry.find({
             "personId": userId,
@@ -133,6 +134,45 @@ var timeEntrycontroller = function (TimeEntry) {
 
 
     };
+
+//To get the timeentries for a specific project 
+    var getTimeEntriesForSpecifiedProject = function (req, res) {
+      /*console.log('called3');
+
+        if (!req.params || !req.params.fromdate || !req.params.todate || !req.params.projectId) {
+            res.status(400).send({ "error": "Invalid request" });
+            return;
+        }
+
+
+        let fromdate = moment.unix(req.params.fromdate).format('YYYY-MM-DD');
+        let todate = moment.unix(req.params.todate).format('YYYY-MM-DD');
+        let projectId = req.params.projectId;
+
+
+        TimeEntry.find({
+            "projectId": projectId,
+            "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
+        },
+            ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
+            .populate('userId')
+            .sort({ "dateofWork": -1 })
+            .then(results => {
+
+                res.status(200).send(results);
+            })
+            .catch(error => {
+                console.log(error);
+                res.status(400).send(error);
+            }
+
+            )
+*/
+results = 'reached';
+res.status(200).send(results);
+
+    };
+
 
     var formatseconds = function (seconds) {
         seconds = parseInt(seconds);
@@ -249,7 +289,8 @@ var timeEntrycontroller = function (TimeEntry) {
         getUserProjects: getUserProjects,
         getTimeEntriesForSpecifiedPeriod: getTimeEntriesForSpecifiedPeriod,
         editTimeEntry: editTimeEntry,
-        deleteTimeEntry: deleteTimeEntry
+        deleteTimeEntry: deleteTimeEntry,
+        getTimeEntriesForSpecifiedProject: getTimeEntriesForSpecifiedProject
 
     };
 };
