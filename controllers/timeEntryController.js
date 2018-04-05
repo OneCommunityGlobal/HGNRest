@@ -45,7 +45,7 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
         timeentry.taskId = req.body.taskId;
-        timeentry.dateofWork = moment(dateofWork).format('YYYY-MM-DD');
+        timeentry.dateofWork = moment(dateofWork);
         timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
         timeentry.notes = req.body.notes;
         timeentry.isTangible = req.body.isTangible;
@@ -58,9 +58,6 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.save()
             .then(results => { res.status(200).send({ message: `Time Entry saved with id as ${results._id}` }) })
             .catch(error => res.status(400).send(error));
-
-
-
     };
 
     var getUserProjects = function (req, res) {
@@ -116,7 +113,7 @@ var timeEntrycontroller = function (TimeEntry) {
                         }(element.projectId.tasks, element.taskId)
 
 
-                    record.dateOfWork = moment(element.dateofWork[0]).format("MM/DD/YYYY");
+                    record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
 

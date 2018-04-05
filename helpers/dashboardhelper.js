@@ -20,7 +20,7 @@ var dashboardhelper = function () {
   };
 
 
-  var getTimeEnteries = function (members) {
+  var getWeeklyTimeEntries = function (members) {
 
     var people = [];
 
@@ -35,12 +35,6 @@ var dashboardhelper = function () {
           personId: {
             $in: people
           }
-        },
-        {
-          rollupYear: rollupYear.toString()
-        },
-        {
-          rollupMonth: rollupMonth
         },
         {
           rollupWeek: rollupWeek
@@ -224,7 +218,7 @@ var dashboardhelper = function () {
   return {
     personaldetails: personaldetails,
 
-    getTimeEnteries: getTimeEnteries,
+    getWeeklyTimeEntries: getWeeklyTimeEntries,
     laborthismonth: laborthismonth,
     laborthisweek: laborthisweek
 

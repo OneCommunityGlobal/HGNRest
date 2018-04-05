@@ -45,7 +45,7 @@ let dashboardcontroller = function () {
     let leaderboard =
       dashboardhelper.personaldetails(userId)
         .then(userhelper.getTeamMembers)
-        .then(dashboardhelper.getTimeEnteries);
+        .then(dashboardhelper.getWeeklyTimeEntries);
 
     leaderboard.then(results => { res.send(results).status(200) });
 
