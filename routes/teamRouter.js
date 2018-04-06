@@ -10,10 +10,11 @@ var router = function(team){
     .post(controller.postTeam);
 
     teamRouter.route('/team/:teamId')
-    .get(controller.getTeamById);
+    .get(controller.getTeamById)
+    .put(controller.putTeam)
+    .delete(controller.deleteTeam);
 
     return teamRouter;
-
 };
 
 module.exports = router;
