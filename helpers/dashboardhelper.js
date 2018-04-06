@@ -217,7 +217,6 @@ var dashboardhelper = function () {
 
   return {
     personaldetails: personaldetails,
-
     getWeeklyTimeEntries: getWeeklyTimeEntries,
     laborthismonth: laborthismonth,
     laborthisweek: laborthisweek
