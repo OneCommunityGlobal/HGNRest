@@ -63,8 +63,8 @@ var userProfileController = function (userProfile) {
     up.weeklyComittedHours = req.body.weeklyComittedHours;
     up.personalLinks = req.body.personalLinks;
     up.adminLinks = req.body.adminLinks;
-    up.teams = Array.from(new Set(req.body.teamId));
-    up.projects = Array.from(new Set(req.body.projectId));
+    up.teams = Array.from(new Set(req.body.teams));
+    up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
 
 
@@ -115,8 +115,8 @@ var userProfileController = function (userProfile) {
         record.isActive = req.body.isActive;
         record.weeklyComittedHours = req.body.weeklyComittedHours;
         record.adminLinks = req.body.adminLinks;
-        record.teams = Array.from(new Set(req.body.teamId));
-        record.projects = Array.from(new Set(req.body.projectId));
+        record.teams = Array.from(new Set(req.body.teams));
+        record.projects = Array.from(new Set(req.body.projects));
         record.isActive = req.body.isActive;
       }
       record.save()
@@ -140,7 +140,8 @@ var userProfileController = function (userProfile) {
     let teamid = "";
 
     userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
-      .populate('teamId', '_id teamName')
+      .populate('teams', '_id teamName')
+      .populate("projects", '_id projectName')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 
