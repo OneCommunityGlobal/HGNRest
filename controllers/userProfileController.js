@@ -63,7 +63,8 @@ var userProfileController = function (userProfile) {
     up.weeklyComittedHours = req.body.weeklyComittedHours;
     up.personalLinks = req.body.personalLinks;
     up.adminLinks = req.body.adminLinks;
-    up.teamId = Array.from(new Set(req.body.teamId));
+    up.teams = Array.from(new Set(req.body.teamId));
+    up.projects = Array.from(new Set(req.body.projectId));
     up.createdDate = Date.now();
 
 
@@ -114,7 +115,8 @@ var userProfileController = function (userProfile) {
         record.isActive = req.body.isActive;
         record.weeklyComittedHours = req.body.weeklyComittedHours;
         record.adminLinks = req.body.adminLinks;
-        record.TeamId = Array.from(new Set(req.body.teamId));
+        record.teams = Array.from(new Set(req.body.teamId));
+        record.projects = Array.from(new Set(req.body.projectId));
         record.isActive = req.body.isActive;
       }
       record.save()
