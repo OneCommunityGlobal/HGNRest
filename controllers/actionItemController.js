@@ -8,8 +8,8 @@ let actionItemController = function (actionItem) {
 
     let userid = req.params.userId;
     actionItem.find({
-        assignedTo: userid
-      }, ('-createdDateTime -__v'))
+      assignedTo: userid
+    }, ('-createdDateTime -__v'))
       .populate('createdBy', 'firstName lastName')
       .then(results => {
         let actionitems = [];
@@ -41,15 +41,6 @@ let actionItemController = function (actionItem) {
     let requestorId = req.body.requestor.requestorId;
     let assignedTo = req.body.assignedTo;
 
-    //Verify is requestor is assignee himself or requestor is his manager
-
-    let isUserAuthroized = (requestorId === assignedTo || userhelper.isUserManagerof(assignedTo, requestorId)) ? true : false;
-
-
-    if (!isUserAuthroized) {
-      res.status(403).send("You are not authorized to create action items for this user");
-      return;
-    }
 
     let _actionItem = new actionItem();
 
@@ -60,19 +51,19 @@ let actionItemController = function (actionItem) {
 
 
     _actionItem.save()
-          .then(result => {
+      .then(result => {
 
         notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
 
-         let actionitem = {}; 
+        let actionitem = {};
 
-         actionitem.createdBy = `You`;
-         actionitem.description = _actionItem.description;
-         actionitem._id = result._id;
-         actionitem.assignedTo = _actionItem.assignedTo
-        
+        actionitem.createdBy = `You`;
+        actionitem.description = _actionItem.description;
+        actionitem._id = result._id;
+        actionitem.assignedTo = _actionItem.assignedTo
 
-        
+
+
         res.status(200).send(actionitem)
       })
       .catch(error => {
@@ -102,14 +93,6 @@ let actionItemController = function (actionItem) {
     let requestorId = req.body.requestor.requestorId;
     let assignedTo = _actionItem.assignedTo;
 
-    //Verify is requestor is assignee himself or requestor is his manager
-
-    let isUserAuthroized = (requestorId === assignedTo || userhelper.isUserManagerof(assignedTo, requestorId)) ? true : false;
-
-    if (!isUserAuthroized) {
-      res.status(403).send("You are not authorized to delete action items for this user");
-      return;
-    }
 
     notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
 

@@ -7,7 +7,15 @@ const SALT_Rounds = 10;
 
 var userProfileSchema = new Schema({
 
-  password: { type: String, required: true },
+  password: {
+    type: String, required: true, validate: {
+      validator: function (v) {
+        let passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        return passwordregex.test(v);
+      },
+      message: '{VALUE} is not a valid password!password should be at least 8 charcaters long with uppercase, lowercase and number/special char.'
+    },
+  },
   isActive: { type: Boolean, required: true, default: true },
   role: { type: String, required: true, enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team'] },
   firstName: { type: String, required: true, trim: true, minlength: 2 },
@@ -45,11 +53,5 @@ userProfileSchema.pre('save', function (next) {
 
 });
 
-userProfileSchema.virtual('fullName')
-  .get(function () {
-    let fullname = this.firstName + ' ' + this.lastName;
-    return fullname.trim();
-  }
-  )
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

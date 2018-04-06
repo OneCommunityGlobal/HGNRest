@@ -1,6 +1,6 @@
 var express = require('express');
 
-var route = function(TimeEntry, userProfile){
+var route = function (TimeEntry, userProfile) {
 
     var controller = require('../controllers/dashBoardController')();
 
@@ -8,13 +8,16 @@ var route = function(TimeEntry, userProfile){
     var Dashboardrouter = express.Router();
 
     Dashboardrouter.route('/dashboard/:userId')
-    .get(controller.dashboarddata);
+        .get(controller.dashboarddata);
 
     Dashboardrouter.route('/dashboard/monthlydata/:userId')
-    .get(controller.monthlydata);
+        .get(controller.monthlydata);
 
     Dashboardrouter.route('/dashboard/weeklydata/:userId')
-    .get(controller.weeklydata);
+        .get(controller.weeklydata);
+
+    Dashboardrouter.route('/dashboard/leaderboard/:userId')
+        .get(controller.leaderboarddata);
 
     return Dashboardrouter;
 

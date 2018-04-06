@@ -7,66 +7,59 @@ let mongoose = require('mongoose');
 
 let dashboardcontroller = function () {
 
-  let output ;
+  let output;
   let dashboarddata = function (req, res) {
 
     let teamid = "";
     let details = {};
-    
+
     let userId = mongoose.Types.ObjectId(req.params.userId);
-    
 
-    let snapshot = dashboardhelper.personaldetails(userId);    
 
-    let leaderboard =  
-    dashboardhelper.personaldetails(userId)
-    .then(userhelper.getTeamMembers)
-    .then(dashboardhelper.getTimeEnteries);
+    let snapshot = dashboardhelper.personaldetails(userId);
 
-   
-    let dashboardPromises = [snapshot,  leaderboard];
+    snapshot.then(results => { res.send(results).status(200) });
 
-    Promise.all(dashboardPromises)
-    .then(function(results)
-    {
-      let dashboard = {};
-      dashboard.userSnapshot = results[dashboardPromises.indexOf(snapshot)];    
-      dashboard.leaderboard = results[dashboardPromises.indexOf(leaderboard)];
-      res.status(200).send(dashboard);
-    }
-  )
-  .catch(error => 
-    {res.status(400).send(error);});
 
-        
- 
+
   };
 
-  var monthlydata = function(req, res)
-  {
+  var monthlydata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
     let laborthismonth = dashboardhelper.laborthismonth(userId);
-    laborthismonth.then( results => {res.send(results).status(200)});
-   
+    laborthismonth.then(results => { res.send(results).status(200) });
+
 
   };
 
-  var weeklydata = function(req, res)
-  {
+  var weeklydata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
     let laborthisweek = dashboardhelper.laborthisweek(userId);
-    laborthisweek.then( results => {res.send(results).status(200)});
+    laborthisweek.then(results => { res.send(results).status(200) });
 
   };
 
-  
+
+  var leaderboarddata = function (req, res) {
+    let userId = mongoose.Types.ObjectId(req.params.userId);
+    let leaderboard =
+      dashboardhelper.personaldetails(userId)
+        .then(userhelper.getTeamMembers)
+        .then(dashboardhelper.getWeeklyTimeEntries);
+
+    leaderboard.then(results => { res.send(results).status(200) });
+
+  };
+
+
 
 
   return {
-    
+
     dashboarddata: dashboarddata,
-    monthlydata:monthlydata,
-    weeklydata: weeklydata
+    monthlydata: monthlydata,
+    weeklydata: weeklydata,
+    leaderboarddata: leaderboarddata
 
   };
 };

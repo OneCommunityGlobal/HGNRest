@@ -103,7 +103,6 @@ app.set('port', port);
 var server = http.createServer(app);
 server.listen(port)
 
-console.log(port);
 
 app.get('/api/', function (req, res) {
 	res.send('Success');
@@ -111,7 +110,7 @@ app.get('/api/', function (req, res) {
 
 
 app.use(function (err, req, res, next) {
-	console.log('Error 500');
+	console.log(err);
 	return res.status(500).json(err);
 });
 function normalizePort(val) {
