@@ -9,7 +9,7 @@ var userhelper = function () {
 
         var userid = mongoose.Types.ObjectId(user._id);
         // var teamid = userdetails.teamId;
-        return myteam.findById(userid).select({ "myteam._id": 1, "myteam.role": 1, "myteam.fullname": 1, _id: 0 });
+        return myteam.findById(userid).select({ "myteam._id": 1, "myteam.role": 1, "myteam.fullName": 1, _id: 0 });
     }
 
 
