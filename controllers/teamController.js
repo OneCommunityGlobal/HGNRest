@@ -63,8 +63,6 @@ var teamcontroller = function (team) {
         res.status(400).send("No valid records found");
         return;
       }
-
-      record.projectId = req.body.projectId;
       record.teamName = req.body.teamName;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
@@ -76,10 +74,6 @@ var teamcontroller = function (team) {
     }
 
     );
-
-
-
-
 
   };
 
