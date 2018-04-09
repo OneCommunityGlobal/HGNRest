@@ -154,7 +154,7 @@ var dashboardhelper = function () {
     },
     {
       $lookup: {
-        from: "allProjects",
+        from: "projects",
         localField: "_id.projectId",
         foreignField: "_id",
         as: "project"
