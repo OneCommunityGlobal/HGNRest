@@ -76,14 +76,14 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
 
-        let fromdate = moment.unix(req.params.fromdate).format('YYYY-MM-DD');
-        let todate = moment.unix(req.params.todate).format('YYYY-MM-DD');
+        let fromdate = moment.unix(req.params.fromdate);
+        let todate = moment.unix(req.params.todate);
         let userId = req.params.userId;
 
 
         TimeEntry.find({
             "personId": userId,
-            "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
+            "dateofWork": { "$gte": fromdate.toISOString(), "$lte": todate.toISOString() }
         },
             ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
             .populate('projectId')
@@ -100,17 +100,19 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.projectId = (element.projectId) ? element.projectId._id : "";
                     record.taskId = element.taskId;
                     record.projectName = (element.projectId) ? element.projectId.projectName : "",
-                        record.taskName = function (tasklist, idtofind) {
+                        record.taskName = (element.projectId && element.projectId.tasks) ? function (tasklist, idtofind) {
+                            let description = "";
                             for (var i = 0; i < tasklist.length; i++) {
-                                let element = tasklist[i];
+                                let task = tasklist[i];
 
-                                if (element._id.toString() === idtofind.toString()) {
-                                    return element.Description
+                                if (task._id.toString() === idtofind.toString()) {
+                                    description = task.Description
                                 }
 
                             }
+                            return description;
 
-                        }(element.projectId.tasks, element.taskId)
+                        }(element.projectId.tasks, element.taskId) : "N/A"
 
 
                     record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
