@@ -46,7 +46,7 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
         timeentry.taskId = req.body.taskId;
-        timeentry.dateofWork = moment(dateofWork).format('YYYY-MM-DD');
+        timeentry.dateofWork = moment(dateofWork);
         timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
         timeentry.notes = req.body.notes;
         timeentry.isTangible = req.body.isTangible;
@@ -59,9 +59,6 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.save()
             .then(results => { res.status(200).send({ message: `Time Entry saved with id as ${results._id}` }) })
             .catch(error => res.status(400).send(error));
-
-
-
     };
 
     var getUserProjects = function (req, res) {
@@ -81,13 +78,13 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
 
-        let fromdate = moment.unix(req.params.fromdate).format('YYYY-MM-DD');
-        let todate = moment.unix(req.params.todate).format('YYYY-MM-DD');
+        let fromdate = moment.unix(req.params.fromdate);
+        let todate = moment.unix(req.params.todate);
         let userId = req.params.userId;
 
         TimeEntry.find({
             "personId": userId,
-            "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
+            "dateofWork": { "$gte": fromdate.toISOString(), "$lte": todate.toISOString() }
         },
             ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
             .populate('projectId')
@@ -104,20 +101,22 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.projectId = (element.projectId) ? element.projectId._id : "";
                     record.taskId = element.taskId;
                     record.projectName = (element.projectId) ? element.projectId.projectName : "",
-                        record.taskName = function (tasklist, idtofind) {
+                        record.taskName = (element.projectId && element.projectId.tasks) ? function (tasklist, idtofind) {
+                            let description = "";
                             for (var i = 0; i < tasklist.length; i++) {
-                                let element = tasklist[i];
+                                let task = tasklist[i];
 
-                                if (element._id.toString() === idtofind.toString()) {
-                                    return element.Description
+                                if (task._id.toString() === idtofind.toString()) {
+                                    description = task.Description
                                 }
 
                             }
+                            return description;
 
-                        }(element.projectId.tasks, element.taskId)
+                        }(element.projectId.tasks, element.taskId) : "N/A"
 
 
-                    record.dateOfWork = moment(element.dateofWork[0]).format("MM/DD/YYYY");
+                    record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
 

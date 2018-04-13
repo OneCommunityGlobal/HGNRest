@@ -28,7 +28,8 @@ var userProfileSchema = new Schema({
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
-  teamId: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [{ badgeName: String, quantity: Number, lastModifiedDate: Date }],
   profilePic: { type: String }
 
