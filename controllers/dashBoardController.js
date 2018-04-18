@@ -47,7 +47,8 @@ let dashboardcontroller = function () {
         .then(userhelper.getTeamMembers)
         .then(dashboardhelper.getWeeklyTimeEntries);
 
-    leaderboard.then(results => { res.send(results).status(200) });
+    leaderboard.then(results => { res.status(200).send(results) })
+      .catch(error => res.status(400).send(error));
 
   };
 
