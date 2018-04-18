@@ -6,7 +6,7 @@ var projectController = function (project) {
 
   var getAllProjects = function (req, res) {
 
-    project.find({}, 'projectName isActive tasks')
+    project.find({}, 'projectName isActive')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 
@@ -64,7 +64,6 @@ var projectController = function (project) {
 
     _project.projectName = req.body.projectName;
     _project.isActive = req.body.isActive;
-    _project.tasks = req.body.tasks;
     _project.createdDatetime = Date.now();
     _project.modifiedDatetime = Date.now();
 
@@ -77,8 +76,7 @@ var projectController = function (project) {
 
   var putProject = function (req, res) {
 
-    if(req.body.requestor.role !== "Administrator")
-    {
+    if (req.body.requestor.role !== "Administrator") {
       res.status(403).send("You are not authorized to make changes in the projects.");
       return;
     }
@@ -92,11 +90,8 @@ var projectController = function (project) {
         return;
       }
 
-
       record.projectName = req.body.projectName;
       record.isActive = req.body.isActive;
-      record.tasks = req.body.tasks;
-
       record.modifiedDatetime = Date.now();
 
       record.save()
@@ -119,53 +114,12 @@ var projectController = function (project) {
 
   };
 
-  var deletetask = function (req, res) {
-
-    if (!req.params.projectId || !req.params.taskId) {
-      res.status(400).send({ "error": "Invalid request" });
-      return;
-    }
-
-    if (req.body.requestor.role !== "Administrator") {
-      res.status(403).send("You are not authorized to delete tasks.");
-      return;
-    }
-
-    let projectId = mongoose.Types.ObjectId(req.params.projectId);
-    let taskId = req.params.taskId;
-
-    timeentry.find({ "projectId": projectId, "taskId": taskId }, "_id")
-      .then(timeentries => {
-
-        if (timeentries.length > 0) {
-          res.status(400).send({ "error": "This task cannot be deleted as it has associated time entries" });
-          return;
-        }
-        else {
-          project.update({ "_id": projectId }, { $pull: { "tasks": { "_id": mongoose.Types.ObjectId(taskId) } } })
-            .then(() => {
-              res.status(200).send({ "message": "Task successfully removed" })
-              return;
-            })
-            .catch((error) => {
-              res.status(500).send({ "error": error });
-              return;
-            })
-        }
-
-      })
-
-  }
-
-
-
   return {
     getAllProjects: getAllProjects,
     postProject: postProject,
     getProjectById: getProjectById,
     putProject: putProject,
-    deleteProject: deleteProject,
-    deletetask: deletetask
+    deleteProject: deleteProject
   };
 
 };

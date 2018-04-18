@@ -5,7 +5,6 @@ var projectschema = new Schema({
 
     projectName: { type: String, required: true },
     isActive: { type: Boolean, default: true },
-    tasks: [{ Description: { type: String, required: true } }],
     createdDatetime: { type: Date },
     modifiedDatetime: { type: Date, default: Date.now() }
 

@@ -21,7 +21,6 @@ var timeEntrycontroller = function (TimeEntry) {
 
                     timeentry.personId = element.personId;
                     timeentry.projectId = element.projectId;
-                    timeentry.taskId = element.taskId;
                     timeentry.dateofWork = element.dateofWork;
                     timeentry.timeSpent = moment("1900-01-01 00:00:00").add(element.totalSeconds, 'seconds').format("HH:mm:ss");
                     timeentry.notes = element.notes;
@@ -44,7 +43,6 @@ var timeEntrycontroller = function (TimeEntry) {
 
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
-        timeentry.taskId = req.body.taskId;
         timeentry.dateofWork = moment(dateofWork);
         timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
         timeentry.notes = req.body.notes;
@@ -98,24 +96,8 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.isTangible = element.isTangible;
                     record.personId = element.personId;
                     record.projectId = (element.projectId) ? element.projectId._id : "";
-                    record.taskId = element.taskId;
                     record.projectName = (element.projectId) ? element.projectId.projectName : "",
-                        record.taskName = (element.projectId && element.projectId.tasks) ? function (tasklist, idtofind) {
-                            let description = "";
-                            for (var i = 0; i < tasklist.length; i++) {
-                                let task = tasklist[i];
-
-                                if (task._id.toString() === idtofind.toString()) {
-                                    description = task.Description
-                                }
-
-                            }
-                            return description;
-
-                        }(element.projectId.tasks, element.taskId) : "N/A"
-
-
-                    record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
+                        record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
 
@@ -152,9 +134,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
 
         if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId) ||
-            !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
-            !mongoose.Types.ObjectId.isValid(req.body.taskId)
-        ) {
+            !mongoose.Types.ObjectId.isValid(req.body.projectId)) {
             res.status(400).send({ "error": `ObjectIds are not correctly formed` });
             return;
         }
@@ -173,8 +153,6 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.totalSeconds = moment.duration(req.body.timeSpent).asSeconds();
                     record.isTangible = req.body.isTangible;
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
-                    record.taskId = mongoose.Types.ObjectId(req.body.taskId);
-
                     record.save()
                         .then(() => {
                             res.status(200).send({ "message": "Successfully updated time entry" })

@@ -17,8 +17,7 @@ var routes = function (project) {
     .delete(controller.deleteProject)
     .put(controller.putProject);
 
-  projectRouter.route('/project/:projectId/task/:taskId')
-    .delete(controller.deletetask);
+
 
 
   return projectRouter;
