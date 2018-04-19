@@ -60,16 +60,25 @@ var projectController = function (project) {
       return;
     }
 
-    var _project = new project();
+    project.find({ projectName: req.body.projectName })
+      .then((results) => {
+        if (result) {
+          res.status(400).send({ "error": `Project Name must be unique. Another project with name ${req.body.projectName} already exists` });
+          return;
+        }
+        var _project = new project();
 
-    _project.projectName = req.body.projectName;
-    _project.isActive = req.body.isActive;
-    _project.createdDatetime = Date.now();
-    _project.modifiedDatetime = Date.now();
+        _project.projectName = req.body.projectName;
+        _project.isActive = req.body.isActive;
+        _project.createdDatetime = Date.now();
+        _project.modifiedDatetime = Date.now();
 
-    _project.save()
-      .then(results => res.status(201).send(results._id))
-      .catch(error => res.status(404).send(error));
+        _project.save()
+          .then(results => res.status(201).send(results._id))
+          .catch(error => res.status(500).send(error));
+      })
+
+
 
   };
 
