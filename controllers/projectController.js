@@ -79,7 +79,7 @@ var projectController = function (project) {
         _project.modifiedDatetime = Date.now();
 
         _project.save()
-          .then(results => res.status(201).send({ "message": "Project Successfully created" }))
+          .then(results => res.status(201).send(results))
           .catch(error => res.status(500).send({ "error": error }));
       })
 
