@@ -56,7 +56,7 @@ var projectController = function (project) {
   var postProject = function (req, res) {
 
     if (req.body.requestor.role !== "Administrator") {
-      res.status(403).send("You are not authorized to create new projects.");
+      res.status(403).send({ "error": "You are not authorized to create new projects." });
       return;
     }
 
