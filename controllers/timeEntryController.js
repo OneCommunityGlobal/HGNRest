@@ -150,7 +150,7 @@ var timeEntrycontroller = function (TimeEntry) {
                 let hours = (req.body.hours) ? req.body.hours : "00";
                 let minutes = (req.body.minutes) ? req.body.minutes : "00";
 
-                let timespent = hours + ":" + minutes;
+                let timeSpent = hours + ":" + minutes;
 
                 if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === "Administrator") {
 
