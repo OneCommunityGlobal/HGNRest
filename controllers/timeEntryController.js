@@ -147,10 +147,15 @@ var timeEntrycontroller = function (TimeEntry) {
                     return;
                 }
 
+                let hours = (req.body.hours) ? req.body.hours : "00";
+                let minutes = (req.body.minutes) ? req.body.minutes : "00";
+
+                let timespent = hours + ":" + minutes;
+
                 if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === "Administrator") {
 
                     record.notes = req.body.notes;
-                    record.totalSeconds = moment.duration(req.body.timeSpent).asSeconds();
+                    record.totalSeconds = moment.duration(timeSpent).asSeconds();
                     record.isTangible = req.body.isTangible;
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
                     record.save()
