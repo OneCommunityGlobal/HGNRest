@@ -60,10 +60,15 @@ var projectController = function (project) {
       return;
     }
 
-    project.find({ projectName: req.body.projectName })
-      .then((results) => {
-        if (result) {
-          res.status(400).send({ "error": `Project Name must be unique. Another project with name ${req.body.projectName} already exists` });
+    if (!req.body.projectName || !req.body.isActive) {
+      res.status(400).send({ "error": "Project Name and active status are mandatory fields" });
+      return;
+    }
+
+    project.find({ projectName: { $regex: req.body.projectName, $options: 'i' } })
+      .then((result) => {
+        if (result.length > 0) {
+          res.status(400).send({ "error": `Project Name must be unique. Another project with name ${result.projectName} already exists. Please note that project names are case insensitive` });
           return;
         }
         var _project = new project();
