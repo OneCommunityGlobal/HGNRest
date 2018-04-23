@@ -35,11 +35,16 @@ var timeEntrycontroller = function (TimeEntry) {
 
     var postTimeEntry = function (req, res) {
 
+
+        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || !mongoose.Types.ObjectId.isValid(req.body.projectId) || !req.body.dateofWork || !req.body.timeSpent || !req.body.isTangible) {
+            res.status(400).send({ "error": "Bad request" });
+            return;
+        }
         var timeentry = new TimeEntry();
-        var dateofWork = req.body.dateofWork;
+        var dateofWork = new Date(req.body.dateofWork);
+        dateofWork.setUTCHours(0, 0, 0, 0);
         var date = new Date();
         var timeSpent = req.body.timeSpent;
-
 
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
