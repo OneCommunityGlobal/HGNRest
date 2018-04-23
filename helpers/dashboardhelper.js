@@ -181,11 +181,10 @@ var dashboardhelper = function () {
   var laborthisweek = function (userId) {
     return timeentry.aggregate([{
       $match: {
-        $and: [{
-          personId: userId
-        }, {
-          rollupWeek: rollupWeek
-        }]
+        personId: userId,
+        isTangible: true,
+        rollupWeek: rollupWeek
+
       }
     },
     {
