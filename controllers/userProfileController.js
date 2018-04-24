@@ -18,7 +18,7 @@ var userProfileController = function (userProfile) {
       return;
     }
 
-    userProfile.find({}, '_id firstName lastName role', function (err, profiles) {
+    userProfile.find({}, '_id firstName lastName', function (err, profiles) {
       if (err) {
         res.status(404).send("Error finding user profiles");
         return;
@@ -27,6 +27,24 @@ var userProfileController = function (userProfile) {
     });
 
   };
+
+  var getProjectMembers = function (req, res) {
+    console.log(req.params.projectId);
+    let AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
+    var isRequestorAuthorized = (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid) ? true : false;
+    if (!isRequestorAuthorized) {
+      res.status(403).send("You are not authorized to view all users");
+      return;
+    }
+    userProfile.find({projects:{$in:[req.params.projectId]}}, '_id firstName email', function (err, profiles) {
+      if (err) {
+        res.status(404).send("Error finding user profiles");
+        return;
+      }
+      res.json(profiles);
+    });
+  };
+  
   var postUserProfile = async function (req, res) {
 
     if (req.body.requestor.role !== "Administrator") {
@@ -294,7 +312,8 @@ var userProfileController = function (userProfile) {
     getreportees: getreportees,
     updatepassword: updatepassword,
     getUserName: getUserName,
-    getTeamMembersofUser: getTeamMembersofUser
+    getTeamMembersofUser: getTeamMembersofUser,
+    getProjectMembers: getProjectMembers
   };
 
 };

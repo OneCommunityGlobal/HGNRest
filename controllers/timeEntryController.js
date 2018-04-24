@@ -134,18 +134,19 @@ var timeEntrycontroller = function (TimeEntry) {
 
     };
 
-//To get the timeentries for a specific project 
+//To get the timeentries for a specific project
     var getTimeEntriesForSpecifiedProject = function (req, res) {
-      /*console.log('called3');
+      console.log('called3');
 
-        if (!req.params || !req.params.fromdate || !req.params.todate || !req.params.projectId) {
+       if (!req.params || !req.params.fromDate || !req.params.toDate || !req.params.projectId) {
             res.status(400).send({ "error": "Invalid request" });
             return;
         }
 
+console.log(req.params);
 
-        let fromdate = moment.unix(req.params.fromdate).format('YYYY-MM-DD');
-        let todate = moment.unix(req.params.todate).format('YYYY-MM-DD');
+        let fromdate = moment.unix(req.params.fromDate).format('YYYY-MM-DD');
+        let todate = moment.unix(req.params.toDate).format('YYYY-MM-DD');
         let projectId = req.params.projectId;
 
 
@@ -166,9 +167,7 @@ var timeEntrycontroller = function (TimeEntry) {
             }
 
             )
-*/
-results = 'reached';
-res.status(200).send(results);
+
 
     };
 

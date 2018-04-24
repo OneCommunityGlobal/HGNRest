@@ -20,7 +20,7 @@ var routes = function (TimeEntry) {
     TimeEntryRouter.route('/TimeEntry/user/:userId/:fromdate/:todate')
         .get(controller.getTimeEntriesForSpecifiedPeriod)
 //Route to get time entries for a specific project for a specific period of time
-    TimeEntryRouter.route('/TimeEntry/projects/:projectId/:FromDate/:ToDate')
+    TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
         .get(controller.getTimeEntriesForSpecifiedProject)
 
 
