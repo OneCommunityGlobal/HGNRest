@@ -18,7 +18,9 @@ var userProfileController = function (userProfile) {
       return;
     }
 
-    userProfile.find({}, '_id firstName lastName', function (err, profiles) {
+
+    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email', function (err, profiles) {
+
       if (err) {
         res.status(404).send("Error finding user profiles");
         return;
@@ -44,7 +46,7 @@ var userProfileController = function (userProfile) {
       res.json(profiles);
     });
   };
-  
+
   var postUserProfile = async function (req, res) {
 
     if (req.body.requestor.role !== "Administrator") {

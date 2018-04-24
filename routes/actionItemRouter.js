@@ -11,14 +11,14 @@ var routes = function (actionItem) {
 
   actionItemRouter.route('/actionItem/user/:userId')
     .get(controller.getactionItem)
-  
-    
 
-    actionItemRouter.route('/actionItem/:actionItemId')
+
+
+  actionItemRouter.route('/actionItem/:actionItemId')
     .delete(controller.deleteactionItem)
     .put(controller.editactionItem)
-    
-    return actionItemRouter;
+
+  return actionItemRouter;
 
 };
 

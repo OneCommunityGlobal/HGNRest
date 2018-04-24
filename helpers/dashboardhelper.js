@@ -117,8 +117,10 @@ var dashboardhelper = function () {
         "totaltangibletime_hrs": { $divide: ["$totaltangibletime", 3600] },
         "totalintangibletime_hrs": { $divide: ["$totalintangibletime", 3600] },
         percentagespentintangible: {
-          $multiply: [100, {
-            $divide: ["$totaltangibletime", "$totaltime"]
+          $cond: [{ $eq: ["$totaltime", 0] }, 0, {
+            $multiply: [100, {
+              $divide: ["$totaltangibletime", "$totaltime"]
+            }]
           }]
         }
       }
@@ -179,11 +181,10 @@ var dashboardhelper = function () {
   var laborthisweek = function (userId) {
     return timeentry.aggregate([{
       $match: {
-        $and: [{
-          personId: userId
-        }, {
-          rollupWeek: rollupWeek
-        }]
+        personId: userId,
+        isTangible: true,
+        rollupWeek: rollupWeek
+
       }
     },
     {
