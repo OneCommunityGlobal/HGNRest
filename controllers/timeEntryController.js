@@ -79,8 +79,11 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
 
-        let fromdate = moment.unix(req.params.fromdate);
-        let todate = moment.unix(req.params.todate);
+        let fromdate = new Date(moment.unix(req.params.fromdate));
+        fromdate.setUTCHours(0, 0, 0, 1);
+
+        let todate = new Date(moment.unix(req.params.todate));
+        todate.setUTCHours(23, 59, 59, 59);
         let userId = req.params.userId;
 
 
