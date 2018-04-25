@@ -11,7 +11,7 @@ var dashboardhelper = function () {
 
   var rollupYear = moment(date).get('year');
   var rollupMonth = ("0" + (moment(date).get('month') + 1)).slice(-2) + moment(date).get('year');
-  var rollupWeek = moment(date).startOf('week').format("MM/DD/YYYY");
+  var rollupWeek = moment(date).startOf('isoWeek').format("MM/DD/YYYY");
 
   var personaldetails = function (userId) {
 

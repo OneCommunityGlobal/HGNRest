@@ -56,7 +56,7 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.lastModifiedDateTime = moment.utc();
         timeentry.rollupYear = moment(dateofWork).get('year');
         timeentry.rollupMonth = ("0" + (moment(dateofWork).get('month') + 1)).slice(-2) + moment(dateofWork).get('year');
-        timeentry.rollupWeek = moment(dateofWork).startOf('week').format("MM/DD/YYYY");
+        timeentry.rollupWeek = moment(dateofWork).startOf('isoWeek').format("MM/DD/YYYY");
 
         timeentry.save()
             .then(results => { res.status(200).send({ message: `Time Entry saved with id as ${results._id}` }) })
