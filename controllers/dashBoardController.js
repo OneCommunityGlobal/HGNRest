@@ -52,9 +52,6 @@ let dashboardcontroller = function () {
 
   };
 
-
-
-
   return {
 
     dashboarddata: dashboarddata,
