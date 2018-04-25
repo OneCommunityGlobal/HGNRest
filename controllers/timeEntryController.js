@@ -88,9 +88,9 @@ var timeEntrycontroller = function (TimeEntry) {
             "personId": userId,
             "dateofWork": { "$gte": fromdate.toISOString(), "$lte": todate.toISOString() }
         },
-            ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
+            ("-rollupYear -rollupMonth -rollupWeek  -createdDateTime"))
             .populate('projectId')
-            .sort({ "dateofWork": -1 })
+            .sort({ "dateofWork": -1, "lastModifiedDateTime": -1 })
             .then(results => {
                 let data = [];
                 results.forEach(element => {
