@@ -13,7 +13,6 @@ var timeEntrycontroller = function (TimeEntry) {
                 res.status(404).send(error);
             }
             else {
-
                 var items = [];
                 records.forEach(element => {
 
@@ -29,6 +28,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     items.push(timeentry);
                 });
                 res.json(items).status(200);
+
             }
         });
     };
@@ -42,7 +42,6 @@ var timeEntrycontroller = function (TimeEntry) {
         }
         var timeentry = new TimeEntry();
         var dateofWork = new Date(req.body.dateofWork);
-        dateofWork.setUTCHours(0, 0, 0, 0);
         var date = new Date();
         var timeSpent = req.body.timeSpent;
 
