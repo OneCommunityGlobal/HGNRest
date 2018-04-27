@@ -14,7 +14,6 @@ var timeEntrycontroller = function (TimeEntry) {
                 res.status(404).send(error);
             }
             else {
-
                 var items = [];
                 records.forEach(element => {
 
@@ -30,6 +29,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     items.push(timeentry);
                 });
                 res.json(items).status(200);
+
             }
         });
     };
@@ -43,7 +43,6 @@ var timeEntrycontroller = function (TimeEntry) {
         }
         var timeentry = new TimeEntry();
         var dateofWork = new Date(req.body.dateofWork);
-        dateofWork.setUTCHours(0, 0, 0, 0);
         var date = new Date();
         var timeSpent = req.body.timeSpent;
 
@@ -57,7 +56,7 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.lastModifiedDateTime = moment.utc();
         timeentry.rollupYear = moment(dateofWork).get('year');
         timeentry.rollupMonth = ("0" + (moment(dateofWork).get('month') + 1)).slice(-2) + moment(dateofWork).get('year');
-        timeentry.rollupWeek = moment(dateofWork).startOf('week').format("MM/DD/YYYY");
+        timeentry.rollupWeek = moment(dateofWork).startOf('isoWeek').format("MM/DD/YYYY");
 
         timeentry.save()
             .then(results => { res.status(200).send({ message: `Time Entry saved with id as ${results._id}` }) })
@@ -81,17 +80,20 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
 
-        let fromdate = moment.unix(req.params.fromdate);
-        let todate = moment.unix(req.params.todate);
+        let fromdate = new Date(moment.unix(req.params.fromdate));
+        fromdate.setUTCHours(0, 0, 0, 1);
+
+        let todate = new Date(moment.unix(req.params.todate));
+        todate.setUTCHours(23, 59, 59, 59);
         let userId = req.params.userId;
 
         TimeEntry.find({
             "personId": userId,
             "dateofWork": { "$gte": fromdate.toISOString(), "$lte": todate.toISOString() }
         },
-            ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
+            ("-rollupYear -rollupMonth -rollupWeek  -createdDateTime"))
             .populate('projectId')
-            .sort({ "dateofWork": -1 })
+            .sort({ "dateofWork": -1, "lastModifiedDateTime": -1 })
             .then(results => {
                 let data = [];
                 results.forEach(element => {
