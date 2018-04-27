@@ -19,6 +19,8 @@ var userProfileController = function (userProfile) {
     }
 
 
+  /*  userProfile.find({}, '_id firstName lastName', function (err, profiles) {*/
+
     userProfile.find({}, '_id firstName lastName role weeklyComittedHours email', function (err, profiles) {
 
       if (err) {
