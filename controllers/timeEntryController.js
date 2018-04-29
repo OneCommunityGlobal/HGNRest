@@ -72,6 +72,8 @@ var timeEntrycontroller = function (TimeEntry) {
 
     };
     var getTimeEntriesForSpecifiedPeriod = function (req, res) {
+      console.log('called3');
+
         if (!req.params || !req.params.fromdate || !req.params.todate || !req.params.userId) {
             res.status(400).send({ "error": "Invalid request" });
             return;
@@ -123,13 +125,20 @@ var timeEntrycontroller = function (TimeEntry) {
 
 //To get the timeentries for a specific project
     var getTimeEntriesForSpecifiedProject = function (req, res) {
+      console.log('called3');
+
        if (!req.params || !req.params.fromDate || !req.params.toDate || !req.params.projectId) {
             res.status(400).send({ "error": "Invalid request" });
             return;
         }
+
+console.log(req.params);
+
         let fromdate = moment.unix(req.params.fromDate).format('YYYY-MM-DD');
         let todate = moment.unix(req.params.toDate).format('YYYY-MM-DD');
         let projectId = req.params.projectId;
+
+
         TimeEntry.find({
             "projectId": projectId,
             "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
@@ -147,6 +156,8 @@ var timeEntrycontroller = function (TimeEntry) {
             }
 
             )
+
+
     };
 
 
