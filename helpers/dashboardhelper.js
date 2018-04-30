@@ -33,7 +33,7 @@ var dashboardhelper = function () {
     return timeentry.aggregate([
       {
         $match: {
-          personId: { $in: people }, rollupWeek: rollupWeek, dateofWork: { $lte: pdtmidnight }
+          personId: { $in: people }, rollupWeek: rollupWeek
         }
       },
       {
