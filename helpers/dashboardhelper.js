@@ -12,7 +12,6 @@ var dashboardhelper = function () {
   var rollupYear = moment(date).get('year');
   var rollupMonth = ("0" + (moment(date).get('month') + 1)).slice(-2) + moment(date).get('year');
   var rollupWeek = moment(date).startOf('isoWeek').format("MM/DD/YYYY");
-  var pdtmidnight = moment().tz("America/America/Los_Angeles").startOf("isoWeek").add(6, "days").hours(23).minutes(59).seconds(59).toISOString();
 
   var personaldetails = function (userId) {
 
@@ -24,6 +23,7 @@ var dashboardhelper = function () {
   var getWeeklyTimeEntries = function (members) {
 
     var people = [];
+    var pdtweek = moment().tz("America/America/Los_Angeles").startOf("isoWeek").format("MM/DD/YYYY");
 
     members.myteam.forEach(element => {
       people.push(element._id);
@@ -33,7 +33,7 @@ var dashboardhelper = function () {
     return timeentry.aggregate([
       {
         $match: {
-          personId: { $in: people }, rollupWeek: rollupWeek
+          personId: { $in: people }, rollupWeek: pdtweek
         }
       },
       {

@@ -1,5 +1,6 @@
 var timeentry = require('../models/timeentry');
 var mongoose = require("mongoose");
+var userProject = require('../helpers/helperModels/userProjects');
 
 var projectController = function (project) {
 
@@ -128,12 +129,22 @@ var projectController = function (project) {
 
   };
 
+  var getUserProjects = function (req, res) {
+    var userId = req.params.userId;
+
+    userProject.findById(userId)
+      .then(results => res.status(200).send(results.projects))
+      .catch(error => res.status(400).send(error));
+
+  }
+
   return {
     getAllProjects: getAllProjects,
     postProject: postProject,
     getProjectById: getProjectById,
     putProject: putProject,
-    deleteProject: deleteProject
+    deleteProject: deleteProject,
+    getUserProjects: getUserProjects,
   };
 
 };

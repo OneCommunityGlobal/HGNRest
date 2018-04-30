@@ -14,8 +14,7 @@ var routes = function (TimeEntry) {
         .put(controller.editTimeEntry)
         .delete(controller.deleteTimeEntry)
 
-    TimeEntryRouter.route('/TimeEntry/user/projects/:userId')
-        .get(controller.getUserProjects)
+
 
     TimeEntryRouter.route('/TimeEntry/user/:userId/:fromdate/:todate')
         .get(controller.getTimeEntriesForSpecifiedPeriod)

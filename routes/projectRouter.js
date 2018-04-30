@@ -6,7 +6,7 @@ var routes = function (project) {
   var projectRouter = express.Router();
 
 
-  projectRouter.route('/project')
+  projectRouter.route('/projects')
     .get(controller.getAllProjects)
     .post(controller.postProject)
 
@@ -17,7 +17,8 @@ var routes = function (project) {
     .delete(controller.deleteProject)
     .put(controller.putProject);
 
-
+  projectRouter.route('/projects/user/:userId')
+    .get(controller.getUserProjects)
 
 
   return projectRouter;
