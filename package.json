@@ -21,6 +21,7 @@
     "express": "^4.16.2",
     "jsonwebtoken": "^8.1.0",
     "moment": "^2.19.3",
+    "moment-timezone": "^0.5.16",
     "mongoose": "^5.0.2",
     "mongoose-validator": "2.0.1",
     "node-datetime": "^2.0.3",

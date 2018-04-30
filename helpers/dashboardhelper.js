@@ -2,7 +2,7 @@ var express = require('express');
 var userProfile = require('../models/userProfile');
 var timeentry = require('../models/timeentry');
 var ObjectId = require('mongodb').ObjectID;
-var moment = require('moment');
+var moment = require('moment-timezone');
 var mongoose = require('mongoose');
 
 var dashboardhelper = function () {
@@ -12,6 +12,7 @@ var dashboardhelper = function () {
   var rollupYear = moment(date).get('year');
   var rollupMonth = ("0" + (moment(date).get('month') + 1)).slice(-2) + moment(date).get('year');
   var rollupWeek = moment(date).startOf('isoWeek').format("MM/DD/YYYY");
+  var pdtmidnight = moment().tz("America/America/Los_Angeles").startOf("isoWeek").add(6, "days").hours(23).minutes(59).seconds(59).toISOString();
 
   var personaldetails = function (userId) {
 
@@ -32,7 +33,7 @@ var dashboardhelper = function () {
     return timeentry.aggregate([
       {
         $match: {
-          personId: { $in: people }, rollupWeek: rollupWeek
+          personId: { $in: people }, rollupWeek: rollupWeek, dateofWork: { $lte: pdtmidnight }
         }
       },
       {
