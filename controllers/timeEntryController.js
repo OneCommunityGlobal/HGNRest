@@ -68,8 +68,9 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
 
-        let fromdate = moment(req.params.fromdate).utc().startOf('day').format();
-        let todate = moment(req.params.todate).utc().endOf('day').format();
+
+        let fromdate = moment(req.params.fromdate).startOf('day').utc().format();
+        let todate = moment(req.params.todate).endOf('day').utc().format();
         let userId = req.params.userId;
 
 
@@ -91,7 +92,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.personId = element.personId;
                     record.projectId = (element.projectId) ? element.projectId._id : "";
                     record.projectName = (element.projectId) ? element.projectId.projectName : "";
-                    record.dateOfWork = moment(element.dateofWork).format();
+                    record.dateOfWork = element.dateofWork;
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
 
