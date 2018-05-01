@@ -79,7 +79,7 @@ var timeEntrycontroller = function (TimeEntry) {
         },
             ("-rollupYear -rollupMonth -rollupWeek  -createdDateTime"))
             .populate('projectId')
-            .sort({ "dateofWork": -1, "lastModifiedDateTime": -1 })
+            .sort({ "lastModifiedDateTime": -1 })
             .then(results => {
                 let data = [];
                 results.forEach(element => {
@@ -150,6 +150,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.notes = req.body.notes;
                     record.totalSeconds = moment.duration(timeSpent).asSeconds();
                     record.isTangible = req.body.isTangible;
+                    record.lastModifiedDateTime = moment().utc().toISOString();
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
                     record.save()
                         .then(() => {
