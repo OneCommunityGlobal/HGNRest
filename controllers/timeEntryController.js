@@ -45,7 +45,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
-        timeentry.dateofWork = moment(dateofWork).format();
+        timeentry.dateofWork = moment(dateofWork).utc().format();
         timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
         timeentry.notes = req.body.notes;
         timeentry.isTangible = req.body.isTangible;
@@ -68,8 +68,8 @@ var timeEntrycontroller = function (TimeEntry) {
         }
 
 
-        let fromdate = req.params.fromdate;
-        let todate = req.params.todate;
+        let fromdate = moment(req.params.fromdate).utc().startOf('day').format();
+        let todate = moment(req.params.todate).utc().endOf('day').format();
         let userId = req.params.userId;
 
 
@@ -90,8 +90,8 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.isTangible = element.isTangible;
                     record.personId = element.personId;
                     record.projectId = (element.projectId) ? element.projectId._id : "";
-                    record.projectName = (element.projectId) ? element.projectId.projectName : "",
-                        record.dateOfWork = moment(element.dateofWork).format("MM/DD/YYYY");
+                    record.projectName = (element.projectId) ? element.projectId.projectName : "";
+                    record.dateOfWork = moment(element.dateofWork).format();
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
 
