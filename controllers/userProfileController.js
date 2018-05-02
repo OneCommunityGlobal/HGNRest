@@ -29,7 +29,7 @@ var userProfileController = function (userProfile) {
   };
 
   var getProjectMembers = function (req, res) {
-    console.log(req.params.projectId);
+    //console.log(req.params.projectId);
     let AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
     var isRequestorAuthorized = (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid) ? true : false;
     if (!isRequestorAuthorized) {

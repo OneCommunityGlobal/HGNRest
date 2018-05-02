@@ -6,6 +6,8 @@ var routes = function (TimeEntry) {
 
     var controller = require('../controllers/timeEntryController')(TimeEntry);
 
+
+
     TimeEntryRouter.route('/TimeEntry')
         .get(controller.getAllTimeEnteries)
         .post(controller.postTimeEntry)
@@ -18,7 +20,8 @@ var routes = function (TimeEntry) {
         .get(controller.getTimeEntriesForSpecifiedPeriod)
 
     TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
-            .get(controller.getTimeEntriesForSpecifiedProject)
+        .get(controller.getTimeEntriesForSpecifiedProject)
+
 
 
     return TimeEntryRouter;
