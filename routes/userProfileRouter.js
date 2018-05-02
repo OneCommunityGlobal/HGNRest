@@ -29,6 +29,9 @@ var routes = function (userProfile) {
   userProfileRouter.route('/userProfile/name/:userId')
     .get(controller.getUserName);
 
+  userProfileRouter.route('/userProfile/:projectId')
+        .get(controller.getProjectMembers);
+
 
   return userProfileRouter;
 
