@@ -10,8 +10,6 @@ var routes = function (userProfile) {
     .get(controller.getUserProfiles)
     .post(controller.postUserProfile);
 
-  userProfileRouter.route('/userProfile/:projectId')
-    .get(controller.getProjectMembers);
 
   userProfileRouter.route('/userProfile/:userId')
     .get(controller.getUserById)

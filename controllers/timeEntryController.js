@@ -108,33 +108,6 @@ var timeEntrycontroller = function (TimeEntry) {
 
 
     };
-    var getTimeEntriesForSpecifiedProject = function (req, res) {
-       if (!req.params || !req.params.fromDate || !req.params.toDate || !req.params.projectId) {
-            res.status(400).send({ "error": "Invalid request" });
-            return;
-        }
-        let fromdate = moment.unix(req.params.fromDate).format('YYYY-MM-DD');
-        let todate = moment.unix(req.params.toDate).format('YYYY-MM-DD');
-        let projectId = req.params.projectId;
-        TimeEntry.find({
-            "projectId": projectId,
-            "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
-        },
-            ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
-            .populate('userId')
-            .sort({ "dateofWork": -1 })
-            .then(results => {
-
-                res.status(200).send(results);
-            })
-            .catch(error => {
-                console.log(error);
-                res.status(400).send(error);
-            }
-
-            )
-    };
-
 
     var formatseconds = function (seconds) {
         seconds = parseInt(seconds);
@@ -251,8 +224,7 @@ var timeEntrycontroller = function (TimeEntry) {
         postTimeEntry: postTimeEntry,
         getTimeEntriesForSpecifiedPeriod: getTimeEntriesForSpecifiedPeriod,
         editTimeEntry: editTimeEntry,
-        deleteTimeEntry: deleteTimeEntry,
-        getTimeEntriesForSpecifiedProject: getTimeEntriesForSpecifiedProject
+        deleteTimeEntry: deleteTimeEntry
 
     };
 };

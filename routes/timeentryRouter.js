@@ -19,11 +19,12 @@ var routes = function (TimeEntry) {
     TimeEntryRouter.route('/TimeEntry/user/:userId/:fromdate/:todate')
         .get(controller.getTimeEntriesForSpecifiedPeriod)
 
-    TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
-        .get(controller.getTimeEntriesForSpecifiedProject)
+
 
 
     return TimeEntryRouter;
 }
 
 module.exports = routes;
+
+
