@@ -18,7 +18,7 @@ var userProfileController = function (userProfile) {
       return;
     }
 
-    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email', function (err, profiles) {
+    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive', function (err, profiles) {
       if (err) {
         res.status(404).send("Error finding user profiles");
         return;
