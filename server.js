@@ -24,6 +24,7 @@ var teamRouter = require('./routes/teamRouter')(team);
 var actionItemRouter = require('./routes/actionItemRouter')(actionItem);
 var notificationRouter = require('./routes/notificationRouter')(notification);
 var loginRouter = require('./routes/loginRouter')();
+var forgotPwdRouter = require('./routes/forgotPwdRouter')(userProfile);
 
 
 var bodyParser = require('body-parser');
@@ -47,7 +48,7 @@ app.all('*', function (req, res, next) {
 
 	console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
 
-	if (req.originalUrl == "/api/login" && req.method == "POST") { next(); return; }
+	if ((req.originalUrl == "/api/login" || "/api/forgotpassword") && req.method == "POST") { next(); return; }
 
 	if (!req.header("Authorization")) {
 		res.status(401).send("Unauthorized request");
@@ -86,13 +87,13 @@ app.all('*', function (req, res, next) {
 });
 
 
-
+app.use('/api', forgotPwdRouter);
+app.use('/api', loginRouter);
 app.use('/api', projectRouter);
 app.use('/api', userProfileRouter);
 app.use('/api', dashboardRouter);
 app.use('/api', timeEntryRouter);
 app.use('/api', teamRouter);
-app.use('/api', loginRouter);
 app.use('/api', actionItemRouter);
 app.use('/api', notificationRouter);
 
