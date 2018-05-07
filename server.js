@@ -48,7 +48,7 @@ app.all('*', function (req, res, next) {
 
 	console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
 
-	if ((req.originalUrl == "/api/login" || "/api/forgotpassword") && req.method == "POST") { next(); return; }
+	if ((req.originalUrl == "/api/login" || req.originalUrl == "/api/forgotpassword") && req.method == "POST") { next(); return; }
 
 	if (!req.header("Authorization")) {
 		res.status(401).send("Unauthorized request");
