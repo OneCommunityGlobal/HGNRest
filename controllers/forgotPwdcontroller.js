@@ -2,10 +2,10 @@ var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs');
 
 var forgotPwdController = function (userProfile) {
+
     var forgotPwd = async function (req, res) {
         let _email = (req.body.email).toLowerCase();
         
-
         let user = await userProfile.findOne({ email: _email }).catch(error => res.status(400).send(error));
 
         if(user){
@@ -14,18 +14,18 @@ var forgotPwdController = function (userProfile) {
             
             if(user.firstName === _firstName && user.lastName === _lastName)
             {
-                user.set({ password: "Vol123456" });
+                var ranPwd ="Vol123456";
+                user.set({ password: ranPwd });
                 user.save()
                 .then(results => {
-                  res.status(200).send({ "message": "updated password" });
+                 var helper = require('../helpers/forgotPwdhelper')(user,ranPwd);
+                  res.status(200).send({ "message": "generated new password" });
                   return;
                 })
                 .catch(error => {
                   res.status(500).send(error);
                   return;
                 })
-                // console.log( user.password);
-                // res.send('success');
             }
   
         }
