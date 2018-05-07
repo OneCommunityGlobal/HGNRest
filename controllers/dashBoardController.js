@@ -42,10 +42,7 @@ let dashboardcontroller = function () {
 
   var leaderboarddata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
-    let leaderboard =
-      dashboardhelper.personaldetails(userId)
-        .then(userhelper.getTeamMembers)
-        .then(dashboardhelper.getWeeklyTimeEntries);
+    let leaderboard = dashboardhelper.getWeeklyTimeEntries(userId);
 
     leaderboard.then(results => { res.status(200).send(results) })
       .catch(error => res.status(400).send(error));

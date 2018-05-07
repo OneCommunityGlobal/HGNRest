@@ -4,6 +4,7 @@ var timeentry = require('../models/timeentry');
 var ObjectId = require('mongodb').ObjectID;
 var moment = require('moment-timezone');
 var mongoose = require('mongoose');
+var myTeam = require('../helpers/helperModels/myTeam');
 
 var dashboardhelper = function () {
 
@@ -20,112 +21,52 @@ var dashboardhelper = function () {
   };
 
 
-  var getWeeklyTimeEntries = function (members) {
+  var getWeeklyTimeEntries = function (userId) {
 
-    var people = [];
+    var userid = mongoose.Types.ObjectId(userId);
     var pdtweek = moment().tz("America/Los_Angeles").startOf("isoWeek").format("MM/DD/YYYY");
+    return myTeam.aggregate([
 
-    members.myteam.forEach(element => {
-      people.push(element._id);
-
-    });
-
-    return timeentry.aggregate([
+      { $match: { _id: userid } },
+      { $unwind: "$myteam" },
+      { $project: { _id: 0, personId: "$myteam._id", name: "$myteam.fullName" } },
+      { $lookup: { from: "userProfiles", localField: "personId", foreignField: "_id", as: "persondata" } },
+      { $project: { personId: 1, name: 1, weeklyComittedHours: { $arrayElemAt: ["$persondata.weeklyComittedHours", 0] } } },
+      { $lookup: { from: "timeEntries", localField: "personId", foreignField: "personId", as: "timeEntryData" } },
       {
-        $match: {
-          personId: { $in: people }, rollupWeek: pdtweek
+        $project: {
+          personId: 1, name: 1, weeklyComittedHours: 1, timeEntryData: { $filter: { input: "$timeEntryData", as: "thisweekString", cond: { $eq: ["$$thisweekString.rollupWeek", pdtweek] } } }
+        }
+      },
+      { $unwind: { path: "$timeEntryData", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          personId: 1, name: 1, weeklyComittedHours: 1,
+          totalSeconds: { $cond: [{ $gte: ["$timeEntryData.totalSeconds", 0] }, "$timeEntryData.totalSeconds", 0] },
+          isTangible: { $cond: [{ $gte: ["$timeEntryData.totalSeconds", 0] }, "$timeEntryData.isTangible", false] }
         }
       },
       {
-        $lookup: {
-          from: "userProfiles",
-          localField: "personId",
-          foreignField: "_id",
-          as: "persondata"
+        $addFields: {
+          tangibletime: { $cond: [{ $eq: ["$isTangible", true] }, "$totalSeconds", 0] },
+          intangibletime: { $cond: [{ $eq: ["$isTangible", false] }, "$totalSeconds", 0] }
         }
+      },
+      {
+        $group: { _id: { personId: "$personId", weeklyComittedHours: "$weeklyComittedHours", name: "$name" }, totalSeconds: { $sum: "$totalSeconds" }, tangibletime: { $sum: "$tangibletime" }, intangibletime: { $sum: "$intangibletime" } }
       },
       {
         $project: {
-          timelogid: "$_id",
-          personID: {
-            $arrayElemAt: ["$persondata._id", 0]
-          },
-          personName: {
-            $concat: [{
-              $arrayElemAt: ["$persondata.firstName", 0]
-            }, " ", {
-              $arrayElemAt: ["$persondata.lastName", 0]
-            }]
-          },
-          totalSeconds: 1,
-          weeklyComittedHours: {
-            $arrayElemAt: ["$persondata.weeklyComittedHours", 0]
-          },
-          isTangible: 1,
-          tangibletime: {
-            $cond: {
-              if: {
-                $eq: ["$isTangible", true]
-              },
-              then: "$totalSeconds",
-              else: 0
-            }
-          },
-          intangibletime: {
-            $cond: {
-              if: {
-                $eq: ["$isTangible", false]
-              },
-              then: "$totalSeconds",
-              else: 0
-            }
-          }
-
+          _id: 0, personId: "$_id.personId", name: "$_id.name", weeklyComittedHours: "$_id.weeklyComittedHours", totaltime_hrs: { $divide: ["$totalSeconds", 3600] },
+          totaltangibletime_hrs: { $divide: ["$tangibletime", 3600] }, totalintangibletime_hrs: { $divide: ["$intangibletime", 3600] },
+          percentagespentintangible: { $cond: [{ $eq: ["$totalSeconds", 0] }, 0, { $multiply: [{ $divide: ["$tangibletime", "$totalSeconds"] }, 100] }] }
         }
       },
-      {
-        $group: {
-          _id: {
-            personId: "$personID",
-            personName: "$personName",
-            weeklyComittedHours: "$weeklyComittedHours"
-          },
-          totaltime: {
-            $sum: "$totalSeconds"
-          },
-          totaltangibletime: {
-            $sum: "$tangibletime"
-          },
-          totalintangibletime: {
-            $sum: "$intangibletime"
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          personId: "$_id.personId",
-          name: "$_id.personName",
-          weeklyComittedHours: "$_id.weeklyComittedHours",
-          "totaltime_hrs": { $divide: ["$totaltime", 3600] },
-          "totaltangibletime_hrs": { $divide: ["$totaltangibletime", 3600] },
-          "totalintangibletime_hrs": { $divide: ["$totalintangibletime", 3600] },
-          percentagespentintangible: {
-            $cond: [{ $eq: ["$totaltime", 0] }, 0, {
-              $multiply: [100, {
-                $divide: ["$totaltangibletime", "$totaltime"]
-              }]
-            }]
-          }
-        }
-      },
-      {
-        $sort: {
-          totaltangibletime_hrs: -1
-        }
-      }
-
+      { $sort: { totaltangibletime_hrs: -1 } }
     ]);
+
+
+
   };
 
   var laborthismonth = function (userId) {
