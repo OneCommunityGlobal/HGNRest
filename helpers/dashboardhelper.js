@@ -23,7 +23,7 @@ var dashboardhelper = function () {
   var getWeeklyTimeEntries = function (members) {
 
     var people = [];
-    var pdtweek = moment().tz("America/America/Los_Angeles").startOf("isoWeek").format("MM/DD/YYYY");
+    var pdtweek = moment().tz("America/Los_Angeles").startOf("isoWeek").format("MM/DD/YYYY");
 
     members.myteam.forEach(element => {
       people.push(element._id);
