@@ -6,6 +6,8 @@ var routes = function (TimeEntry) {
 
     var controller = require('../controllers/timeEntryController')(TimeEntry);
 
+
+
     TimeEntryRouter.route('/TimeEntry')
         .get(controller.getAllTimeEnteries)
         .post(controller.postTimeEntry)
@@ -14,11 +16,11 @@ var routes = function (TimeEntry) {
         .put(controller.editTimeEntry)
         .delete(controller.deleteTimeEntry)
 
-
-
     TimeEntryRouter.route('/TimeEntry/user/:userId/:fromdate/:todate')
         .get(controller.getTimeEntriesForSpecifiedPeriod)
 
+    TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
+        .get(controller.getTimeEntriesForSpecifiedProject)
 
 
 
@@ -26,5 +28,3 @@ var routes = function (TimeEntry) {
 }
 
 module.exports = routes;
-
-
