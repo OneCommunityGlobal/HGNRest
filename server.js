@@ -37,6 +37,9 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 
+console.log(process.env['Foo']);
+
+
 var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
 
 //var uri = 'mongodb://localhost:27017/hgnData';
