@@ -8,6 +8,7 @@ var projectController = function (project) {
   var getAllProjects = function (req, res) {
 
     project.find({}, 'projectName isActive')
+      .sort({ projectName: 1 })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 

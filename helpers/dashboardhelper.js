@@ -62,7 +62,7 @@ var dashboardhelper = function () {
           percentagespentintangible: { $cond: [{ $eq: ["$totalSeconds", 0] }, 0, { $multiply: [{ $divide: ["$tangibletime", "$totalSeconds"] }, 100] }] }
         }
       },
-      { $sort: { totaltangibletime_hrs: -1 } }
+      { $sort: { totaltangibletime_hrs: -1, name: 1 } }
     ]);
 
 
