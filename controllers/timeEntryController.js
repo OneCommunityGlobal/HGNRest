@@ -69,8 +69,8 @@ var timeEntrycontroller = function (TimeEntry) {
 
 
 
-        let fromdate = moment(req.params.fromdate).startOf('day').utc().format();
-        let todate = moment(req.params.todate).endOf('day').utc().format();
+        let fromdate = moment(req.params.fromdate).utc().format();
+        let todate = moment(req.params.todate).utc().format();
         let userId = req.params.userId;
 
 
@@ -109,7 +109,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
     };
     var getTimeEntriesForSpecifiedProject = function (req, res) {
-       if (!req.params || !req.params.fromDate || !req.params.toDate || !req.params.projectId) {
+        if (!req.params || !req.params.fromDate || !req.params.toDate || !req.params.projectId) {
             res.status(400).send({ "error": "Invalid request" });
             return;
         }

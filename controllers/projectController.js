@@ -134,6 +134,7 @@ var projectController = function (project) {
     var userId = req.params.userId;
 
     userProject.findById(userId)
+      .sort({ projectName: -1 })
       .then(results => res.status(200).send(results.projects))
       .catch(error => res.status(400).send(error));
 
