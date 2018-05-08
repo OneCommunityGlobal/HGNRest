@@ -36,7 +36,7 @@ var userProfileController = function (userProfile) {
       res.status(403).send("You are not authorized to view all users");
       return;
     }
-    userProfile.find({projects:{$in:[req.params.projectId]}}, '_id firstName email', function (err, profiles) {
+    userProfile.find({ projects: { $in: [req.params.projectId] } }, '_id firstName email', function (err, profiles) {
       if (err) {
         res.status(404).send("Error finding user profiles");
         return;
@@ -158,8 +158,8 @@ var userProfileController = function (userProfile) {
     let teamid = "";
 
     userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
-      .populate('teams', '_id teamName')
-      .populate("projects", '_id projectName')
+      .populate({ path: 'teams', select: '_id teamName', options: { sort: { "teamName": 1 } } })
+      .populate({ path: "projects", select: '_id projectName', options: { sort: { "projectName": 1 } } })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 
