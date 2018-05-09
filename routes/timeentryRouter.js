@@ -12,6 +12,7 @@ var routes = function (TimeEntry) {
         .get(controller.getAllTimeEnteries)
         .post(controller.postTimeEntry)
 
+
     TimeEntryRouter.route('/TimeEntry/:timeEntryId')
         .put(controller.editTimeEntry)
         .delete(controller.deleteTimeEntry)

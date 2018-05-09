@@ -11,9 +11,7 @@ var TimeEntry = new Schema({
 	isTangible: { type: Boolean, default: false },
 	createdDateTime: { type: Date },
 	lastModifiedDateTime: { type: Date, default: Date.now },
-	rollupWeek: { type: String, required: true },
-	rollupMonth: { type: String, required: true },
-	rollupYear: { type: String, required: true }
+
 });
 
 module.exports = mongoose.model('timeEntry', TimeEntry, 'timeEntries');

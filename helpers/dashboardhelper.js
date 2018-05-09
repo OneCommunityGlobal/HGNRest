@@ -10,9 +10,7 @@ var dashboardhelper = function () {
 
   var date = Date.now();
 
-  var rollupYear = moment(date).get('year');
-  var rollupMonth = ("0" + (moment(date).get('month') + 1)).slice(-2) + moment(date).get('year');
-  var rollupWeek = moment(date).startOf('isoWeek').format("MM/DD/YYYY");
+
 
   var personaldetails = function (userId) {
 
@@ -21,10 +19,13 @@ var dashboardhelper = function () {
   };
 
 
-  var getWeeklyTimeEntries = function (userId) {
+  var getLeaderboard = function (userId, ) {
+
+
 
     var userid = mongoose.Types.ObjectId(userId);
-    var pdtweek = moment().tz("America/Los_Angeles").startOf("isoWeek").format("MM/DD/YYYY");
+    var pdtstart = moment().tz("America/Los_Angeles").startOf("isoWeek").format();
+    var pdtend = moment().tz("America/Los_Angeles").endOf("isoWeek").format();
     return myTeam.aggregate([
 
       { $match: { _id: userid } },
@@ -35,7 +36,11 @@ var dashboardhelper = function () {
       { $lookup: { from: "timeEntries", localField: "personId", foreignField: "personId", as: "timeEntryData" } },
       {
         $project: {
-          personId: 1, name: 1, weeklyComittedHours: 1, timeEntryData: { $filter: { input: "$timeEntryData", as: "thisweekString", cond: { $eq: ["$$thisweekString.rollupWeek", pdtweek] } } }
+          personId: 1, name: 1, weeklyComittedHours: 1, timeEntryData: {
+            $filter: {
+              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $gte: ["$$timeentry.dateofWork", new Date(pdtstart)] }, { $lte: ["$$timeentry.dateofWork", new Date(pdtend)] }] }
+            }
+          }
         }
       },
       { $unwind: { path: "$timeEntryData", preserveNullAndEmptyArrays: true } },
@@ -69,14 +74,16 @@ var dashboardhelper = function () {
 
   };
 
-  var laborthismonth = function (userId) {
+  var laborthismonth = function (userId, startDate, endDate) {
+    let fromdate = moment(startDate).utc().format();
+    let todate = moment(endDate).utc().format();
+
     return timeentry.aggregate([{
       $match: {
-        $and: [{
-          personId: userId
-        }, {
-          rollupMonth: rollupMonth
-        }]
+        personId: userId,
+        isTangible: true,
+        dateofWork: { "$gte": new Date(fromdate), "$lte": new Date(todate) }
+
       }
     },
     {
@@ -113,12 +120,15 @@ var dashboardhelper = function () {
 
   };
 
-  var laborthisweek = function (userId) {
+  var laborthisweek = function (userId, startDate, endDate) {
+    let fromdate = moment(startDate).utc().format();
+    let todate = moment(endDate).utc().format();
+
     return timeentry.aggregate([{
       $match: {
         personId: userId,
         isTangible: true,
-        rollupWeek: rollupWeek
+        dateofWork: { "$gte": new Date(fromdate), "$lte": new Date(todate) }
 
       }
     },
@@ -153,7 +163,7 @@ var dashboardhelper = function () {
 
   return {
     personaldetails: personaldetails,
-    getWeeklyTimeEntries: getWeeklyTimeEntries,
+    getLeaderboard: getLeaderboard,
     laborthismonth: laborthismonth,
     laborthisweek: laborthisweek
 

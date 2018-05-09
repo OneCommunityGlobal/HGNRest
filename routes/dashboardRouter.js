@@ -10,10 +10,10 @@ var route = function (TimeEntry, userProfile) {
     Dashboardrouter.route('/dashboard/:userId')
         .get(controller.dashboarddata);
 
-    Dashboardrouter.route('/dashboard/monthlydata/:userId')
+    Dashboardrouter.route('/dashboard/monthlydata/:userId/:fromDate/:toDate')
         .get(controller.monthlydata);
 
-    Dashboardrouter.route('/dashboard/weeklydata/:userId')
+    Dashboardrouter.route('/dashboard/weeklydata/:userId/:fromDate/:toDate')
         .get(controller.weeklydata);
 
     Dashboardrouter.route('/dashboard/leaderboard/:userId')

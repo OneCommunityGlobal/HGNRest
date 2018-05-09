@@ -51,14 +51,14 @@ var timeEntrycontroller = function (TimeEntry) {
         timeentry.isTangible = req.body.isTangible;
         timeentry.createdDateTime = moment().utc().toISOString();
         timeentry.lastModifiedDateTime = moment().utc().toISOString();
-        timeentry.rollupYear = moment(dateofWork).get('year');
-        timeentry.rollupMonth = ("0" + (moment(dateofWork).get('month') + 1)).slice(-2) + moment(dateofWork).get('year');
-        timeentry.rollupWeek = moment(dateofWork).startOf('isoWeek').format("MM/DD/YYYY");
+
 
         timeentry.save()
             .then(results => { res.status(200).send({ message: `Time Entry saved with id as ${results._id}` }) })
             .catch(error => res.status(400).send(error));
     };
+
+
 
     var getTimeEntriesForSpecifiedPeriod = function (req, res) {
 
@@ -66,8 +66,6 @@ var timeEntrycontroller = function (TimeEntry) {
             res.status(400).send({ "error": "Invalid request" });
             return;
         }
-
-
 
         let fromdate = moment(req.params.fromdate).utc().format();
         let todate = moment(req.params.todate).utc().format();
@@ -78,7 +76,7 @@ var timeEntrycontroller = function (TimeEntry) {
             "personId": userId,
             "dateofWork": { "$gte": fromdate, "$lte": todate }
         },
-            ("-rollupYear -rollupMonth -rollupWeek  -createdDateTime"))
+            (" -createdDateTime"))
             .populate('projectId')
             .sort({ "lastModifiedDateTime": -1 })
             .then(results => {
@@ -120,7 +118,7 @@ var timeEntrycontroller = function (TimeEntry) {
             "projectId": projectId,
             "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
         },
-            ("-rollupYear -rollupMonth -rollupWeek -createdDateTime -lastModifiedDateTime"))
+            ("-createdDateTime -lastModifiedDateTime"))
             .populate('userId')
             .sort({ "dateofWork": -1 })
             .then(results => {
@@ -251,7 +249,6 @@ var timeEntrycontroller = function (TimeEntry) {
         editTimeEntry: editTimeEntry,
         deleteTimeEntry: deleteTimeEntry,
         getTimeEntriesForSpecifiedProject: getTimeEntriesForSpecifiedProject
-
     };
 };
 

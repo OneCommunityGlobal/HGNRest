@@ -26,7 +26,7 @@ let dashboardcontroller = function () {
 
   var monthlydata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
-    let laborthismonth = dashboardhelper.laborthismonth(userId);
+    let laborthismonth = dashboardhelper.laborthismonth(userId, req.params.fromDate, req.params.toDate);
     laborthismonth.then(results => { res.send(results).status(200) });
 
 
@@ -34,7 +34,7 @@ let dashboardcontroller = function () {
 
   var weeklydata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
-    let laborthisweek = dashboardhelper.laborthisweek(userId);
+    let laborthisweek = dashboardhelper.laborthisweek(userId, req.params.fromDate, req.params.toDate);
     laborthisweek.then(results => { res.send(results).status(200) });
 
   };
@@ -42,7 +42,7 @@ let dashboardcontroller = function () {
 
   var leaderboarddata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
-    let leaderboard = dashboardhelper.getWeeklyTimeEntries(userId);
+    let leaderboard = dashboardhelper.getLeaderboard(userId);
 
     leaderboard.then(results => { res.status(200).send(results) })
       .catch(error => res.status(400).send(error));
