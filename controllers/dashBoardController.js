@@ -27,7 +27,16 @@ let dashboardcontroller = function () {
   var monthlydata = function (req, res) {
     let userId = mongoose.Types.ObjectId(req.params.userId);
     let laborthismonth = dashboardhelper.laborthismonth(userId, req.params.fromDate, req.params.toDate);
-    laborthismonth.then(results => { res.send(results).status(200) });
+    laborthismonth.then(results => {
+      if (!results || results.length == 0) {
+        let emptyresult = [{
+          "projectName": "",
+          "timeSpent_hrs": 0
+        }];
+        res.status(200).send(emptyresult)
+      }
+      res.status(200).send(results)
+    });
 
 
   };

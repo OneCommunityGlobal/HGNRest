@@ -5,6 +5,7 @@ var ObjectId = require('mongodb').ObjectID;
 var moment = require('moment-timezone');
 var mongoose = require('mongoose');
 var myTeam = require('../helpers/helperModels/myTeam');
+var userProfile = require('../models/userProfile');
 
 var dashboardhelper = function () {
 
@@ -124,38 +125,24 @@ var dashboardhelper = function () {
     let fromdate = moment(startDate).utc().format();
     let todate = moment(endDate).utc().format();
 
-    return timeentry.aggregate([{
-      $match: {
-        personId: userId,
-        isTangible: true,
-        dateofWork: { "$gte": new Date(fromdate), "$lte": new Date(todate) }
-
-      }
-    },
-    {
-      $group: {
-        _id: "$personId",
-        labor: {
-          $sum: "$totalSeconds"
+    return userProfile.aggregate([
+      { $match: { _id: userId } },
+      { $project: { weeklyComittedHours: 1, _id: 1 } },
+      { $lookup: { from: "timeEntries", localField: "_id", foreignField: "personId", as: "timeEntryData" } },
+      {
+        $project: {
+          weeklyComittedHours: 1, timeEntryData: {
+            $filter: {
+              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $gte: ["$$timeentry.dateofWork", new Date(fromdate)] }, { $lte: ["$$timeentry.dateofWork", new Date(todate)] }] }
+            }
+          }
         }
-      }
-    },
-    {
-      $lookup: {
-        from: "userProfiles",
-        localField: "_id",
-        foreignField: "_id",
-        as: "persondata"
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        "timeSpent_hrs": { $divide: ["$labor", 3600] },
-        "weeklyComittedHours": { $arrayElemAt: ["$persondata.weeklyComittedHours", 0] }
+      },
+      { $unwind: { path: "$timeEntryData", preserveNullAndEmptyArrays: true } },
+      { $group: { _id: { _id: "$_id", weeklyComittedHours: "$weeklyComittedHours" }, effort: { $sum: "$timeEntryData.totalSeconds" } } },
+      { $project: { _id: 0, weeklyComittedHours: "$_id.weeklyComittedHours", timeSpent_hrs: { $divide: ["$effort", 3600] } } }
 
-      }
-    }
+
     ]);
 
   };
