@@ -42,7 +42,7 @@ const options =
 		autoReconnect: true,
 		reconnectTries: Number.MAX_VALUE,
 		authSource: process.env.authSource,
-		user: process.env.username,
+		user: process.env.user,
 		pass: process.env.password,
 
 	}
