@@ -6,8 +6,6 @@ let config = require('./config');
 let moment = require('moment');
 let http = require('http');
 
-require('dotenv').load();
-
 
 //Define models here
 var timeEntry = require('./models/timeentry');
