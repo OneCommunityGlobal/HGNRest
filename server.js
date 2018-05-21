@@ -36,12 +36,23 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
+var url = (process.env.url) ? (process.env.url.toString()) : "";
+const options =
+	{
+		autoReconnect: true,
+		reconnectTries: Number.MAX_VALUE,
+		authSource: process.env.authSource,
+		user: process.env.username,
+		pass: process.env.password,
+
+	}
+
+//var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
 
 //var uri = 'mongodb://localhost:27017/hgnData';
 
 
-var db = mongoose.connect(uri).catch((error) => { console.log(error); });
+var db = mongoose.connect(url, options).catch((error) => { console.log(error); });
 
 app.all('*', function (req, res, next) {
 
