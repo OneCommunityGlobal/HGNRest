@@ -134,7 +134,14 @@ var projectController = function (project) {
     var userId = req.params.userId;
 
     userProject.findById(userId)
-      .then(results => res.status(200).send(results.projects))
+      .then(results => {
+        if (results.length == 0) {
+          let emptyproject = [];
+          res.status(200).send(emptyproject);
+
+        }
+        res.status(200).send(results.projects)
+      })
       .catch(error => res.status(400).send(error));
 
   }
