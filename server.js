@@ -52,7 +52,7 @@ const options =
 //var uri = 'mongodb://localhost:27017/hgnData';
 
 
-var db = mongoose.connect(url, options).catch((error) => { console.log(error); });
+var db = mongoose.connect(process.env.uri).catch((error) => { console.log(error); });
 
 app.all('*', function (req, res, next) {
 
