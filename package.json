@@ -20,6 +20,7 @@
     "@types/node": "^8.0.58",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.4",
+    "dotenv": "^5.0.1",
     "express": "^4.16.2",
     "jsonwebtoken": "^8.1.0",
     "moment": "^2.19.3",

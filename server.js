@@ -6,6 +6,8 @@ let config = require('./config');
 let moment = require('moment');
 let http = require('http');
 
+require('dotenv').load();
+
 
 //Define models here
 var timeEntry = require('./models/timeentry');
@@ -49,10 +51,9 @@ const options =
 
 //var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
 
-//var uri = 'mongodb://localhost:27017/hgnData';
+var uri = `mongodb://${process.env.user}:${process.env.password}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`
 
-
-var db = mongoose.connect(process.env.uri).catch((error) => { console.log(error); });
+var db = mongoose.connect(uri).catch((error) => { console.log(error); });
 
 app.all('*', function (req, res, next) {
 
@@ -88,14 +89,8 @@ app.all('*', function (req, res, next) {
 	let requestor = {};
 	requestor.requestorId = payload.userid;
 	requestor.role = payload.role;
-
 	req.body.requestor = requestor;
-
-	res.header("randomkey", process.env.randomkey);
-
 	next();
-
-
 });
 
 
