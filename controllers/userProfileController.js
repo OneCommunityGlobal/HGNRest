@@ -150,6 +150,40 @@ var userProfileController = function (userProfile) {
 
   };
 
+  var deleteUserProfile = function(req, res){
+
+    if (!req.params.userId) {
+      res.status(400).send({ "error": "Bad request" });
+      return;
+    }
+    userProfile.findById(req.params.userId)
+      .then((record) => {
+        if (!record) {
+          res.status(400).send({ "message": "No valid record found" })
+          return;
+        }
+        if (req.body.requestor.role === "Administrator") {
+          record.remove()
+            .then(() => {
+              res.status(200).send({ "message": "Successfully deleted" })
+              return;
+            })
+            .catch((error) => {
+              res.status(500).send(error);
+              return;
+            }
+            );
+
+        }
+        else {
+          res.status(403).send({ "error": "Unauthorized request" });
+          return;
+        }
+      })
+
+
+  };
+
 
   var getUserById = function (req, res) {
 
@@ -308,6 +342,7 @@ var userProfileController = function (userProfile) {
     postUserProfile: postUserProfile,
     getUserProfiles: getUserProfiles,
     putUserProfile: putUserProfile,
+    deleteUserProfile:deleteUserProfile,
     getUserById: getUserById,
     getreportees: getreportees,
     updatepassword: updatepassword,

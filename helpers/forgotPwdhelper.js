@@ -1,25 +1,26 @@
 'use strict';
 const nodemailer = require('nodemailer');
-
+const config = require('../config');
 var forgotPwdModule = function(user,ranPwd){
 
-    const message =`<b> hi ${user.firstName},</b>
-    <p>your 'forgot password' request was recieved and here is your new password.</p>
+    const message =`<b> Hi ${user.firstName},</b>
+    <p>Do not reply to this mail.</p>
+    <p>Your 'forgot password' request was recieved and here is your new password:</p>
     <blockquote> ${ranPwd}</blockquote>
-    <p>Please change the password after logging in using update password tab under your profile.Do not reply to this mail. </P>
-    <p> Regards,<p>
-    <p>One community</p>
+    <p>Please change this password the next time you log in. Do this by clicking the arrow in the top-right corner by your profile picture and then selecting the "Update Password" option. </P>
+    <p>Thank you,<p>
+    <p>One Community</p>
     `;
 
 nodemailer.createTestAccount((err, account) => {
    
     let transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false, // true for 465, false for other ports
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true, 
         auth: {
-            user: account.user, // generated ethereal user
-            pass: account.pass // generated ethereal password
+            user: config.SMTPUser, 
+            pass:  config.SMTPPass
         },
         tls: {
             rejectUnauthorized: false
@@ -28,7 +29,7 @@ nodemailer.createTestAccount((err, account) => {
 
 
     let mailOptions = {
-        from: '"One community" <foo@example.com>', 
+        from: '"One community"'+ config.SMTPUser, 
         to: user.email, 
         subject: 'Account Password change', 
         text: user.firstName, 
