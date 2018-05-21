@@ -80,7 +80,7 @@ app.all('*', function (req, res, next) {
 
 	req.body.requestor = requestor;
 
-	res.header("value of some randomkey", process.env.randomkey);
+	res.header("value of some randomkey", "process.env.randomkey");
 
 	next();
 
