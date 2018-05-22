@@ -11,8 +11,4 @@ config.JWT_HEADER = {
     "typ": "JWT"
 };
 
-config.SMTPUser ="highestgoodnetwork@gmail.com";
-config.SMTPPass ="123Sowmya!";
-
-
 module.exports = config;
