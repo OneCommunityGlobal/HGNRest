@@ -199,6 +199,18 @@ var projectController = function (project) {
 
   }
 
+  var getprojectMembership = function (req, res) {
+    var projectId = req.params.projectId;
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      res.status(400).send({ "error": "Invalid request" })
+      return;
+    }
+    userProfile.find({ projects: projectId }, '_id firstName lastName')
+      .sort({ firstName: 1, lastName: 1 })
+      .then(results => { res.status(200).send(results) })
+      .catch(error => { res.status(500).send(error) });
+  }
+
   return {
     getAllProjects: getAllProjects,
     postProject: postProject,
@@ -206,7 +218,8 @@ var projectController = function (project) {
     putProject: putProject,
     deleteProject: deleteProject,
     getUserProjects: getUserProjects,
-    assignProjectToUsers: assignProjectToUsers
+    assignProjectToUsers: assignProjectToUsers,
+    getprojectMembership: getprojectMembership
   };
 
 };
