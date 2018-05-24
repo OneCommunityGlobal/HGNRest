@@ -21,7 +21,7 @@ var routes = function (project) {
     .get(controller.getUserProjects)
 
 
-  projectRouter.route('/project/users/:projectId')
+  projectRouter.route('/project/:projectId/users/')
     .post(controller.assignProjectToUsers)
     .get(controller.getprojectMembership)
 
