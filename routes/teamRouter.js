@@ -1,18 +1,21 @@
 var express = require('express');
 
-var router = function(team){
+var router = function (team) {
     var controller = require('../controllers/teamController')(team);
 
     var teamRouter = express.Router();
 
     teamRouter.route('/team')
-    .get(controller.getAllTeams)
-    .post(controller.postTeam);
+        .get(controller.getAllTeams)
+        .post(controller.postTeam);
 
     teamRouter.route('/team/:teamId')
-    .get(controller.getTeamById)
-    .put(controller.putTeam)
-    .delete(controller.deleteTeam);
+        .get(controller.getTeamById)
+        .put(controller.putTeam)
+        .delete(controller.deleteTeam);
+
+    teamRouter.route('/team/users/:teamId')
+        .post(controller.assignTeamToUsers)
 
     return teamRouter;
 };

@@ -15,13 +15,9 @@ let dashboardcontroller = function () {
 
     let userId = mongoose.Types.ObjectId(req.params.userId);
 
-
     let snapshot = dashboardhelper.personaldetails(userId);
 
     snapshot.then(results => { res.send(results).status(200) });
-
-
-
   };
 
   var monthlydata = function (req, res) {
@@ -37,7 +33,6 @@ let dashboardcontroller = function () {
       }
       res.status(200).send(results)
     });
-
 
   };
 

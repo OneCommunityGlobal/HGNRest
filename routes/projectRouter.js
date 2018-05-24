@@ -21,6 +21,10 @@ var routes = function (project) {
     .get(controller.getUserProjects)
 
 
+  projectRouter.route('/project/users/:projectId')
+    .post(controller.assignProjectToUsers)
+
+
   return projectRouter;
 
 };

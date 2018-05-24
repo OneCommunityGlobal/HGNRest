@@ -1,3 +1,6 @@
+var userProfile = require("../models/userProfile");
+var mongoose = require("mongoose");
+
 var teamcontroller = function (team) {
 
   var getAllTeams = function (req, res) {
@@ -77,12 +80,67 @@ var teamcontroller = function (team) {
 
   };
 
+  var assignTeamToUsers = function (req, res) {
+
+    //verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
+
+    if (req.body.requestor.role != "Administrator") {
+      res.status(403).send({ "error": "You are not authorized to perform this operation" });
+      return;
+    }
+
+    if (!req.params.teamId || !mongoose.Types.ObjectId.isValid(req.params.teamId) || !req.body.users || (req.body.users.length == 0)) {
+      res.status(400).send({ "error": "Invalid request" });
+      return;
+    }
+
+    //verify project exists
+
+    team.findById(req.params.teamId)
+      .then(team => {
+        if (!team || (team.length == 0)) {
+          res.status(400).send({ "error": "Invalid team" });
+          return;
+        }
+        let users = req.body.users;
+        var assignlist = [];
+        var unassignlist = [];
+
+        users.forEach(element => {
+          let userId = element.userId;
+          let operation = element.operation;
+          (operation == "Assign") ? assignlist.push(userId) : ((operation == "Unassign") ? unassignlist.push(userId) : "");
+
+        })
+
+        let assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { team: team._id } }).exec();
+        let unassignPromise = userProfile.updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: team._id } }).exec()
+
+        Promise.all([assignPromise, unassignPromise])
+          .then((results) => {
+            res.status(200).send({ "result": "Done" });
+            return;
+          })
+          .catch(error => {
+            res.status(500).send({ "error": error });
+            return;
+          })
+
+      })
+      .catch(error => {
+        res.status(500).send({ "error": error });
+        return;
+      })
+
+  }
+
   return {
     getAllTeams: getAllTeams,
     getTeamById: getTeamById,
     postTeam: postTeam,
     deleteTeam: deleteTeam,
-    putTeam: putTeam
+    putTeam: putTeam,
+    assignTeamToUsers: assignTeamToUsers
   };
 
 };

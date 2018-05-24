@@ -48,8 +48,6 @@ const options =
 
 	}
 
-//var uri = 'mongodb://hgnData:Test123@cluster0-shard-00-00-gl12q.mongodb.net:27017/hgnData?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin';
-
 var uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`
 
 var db = mongoose.connect(uri).catch((error) => { console.log(error); });
@@ -66,7 +64,7 @@ app.all('*', function (req, res, next) {
 	if ((req.originalUrl == "/api/login" || req.originalUrl == "/api/forgotpassword") && req.method == "POST") { next(); return; }
 
 	if (!req.header("Authorization")) {
-		res.status(401).send("Unauthorized request");
+		res.status(401).send({ "error:": "Unauthorized request" });
 		return;
 	}
 

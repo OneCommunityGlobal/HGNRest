@@ -1,6 +1,7 @@
 var timeentry = require('../models/timeentry');
 var mongoose = require("mongoose");
 var userProject = require('../helpers/helperModels/userProjects');
+var userProfile = require("../models/userProfile");
 
 var projectController = function (project) {
 
@@ -16,14 +17,13 @@ var projectController = function (project) {
 
   var deleteProject = function (req, res) {
 
-
-
     if (req.body.requestor.role !== "Administrator") {
       res.status(403).send({ "error": "You are  not authorized to delete projects." });
       return;
     }
     var projectId = req.params.projectId;
     project.findById(projectId, function (error, record) {
+      alert("in here")
 
 
       if (error || !record || (record === null)) {
@@ -146,6 +146,59 @@ var projectController = function (project) {
 
   }
 
+  var assignProjectToUsers = function (req, res) {
+
+    //verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
+
+    if (req.body.requestor.role != "Administrator") {
+      res.status(403).send({ "error": "You are not authorized to perform this operation" });
+      return;
+    }
+
+    if (!req.params.projectId || !mongoose.Types.ObjectId.isValid(req.params.projectId) || !req.body.users || (req.body.users.length == 0)) {
+      res.status(400).send({ "error": "Invalid request" });
+      return;
+    }
+
+    //verify project exists
+
+    project.findById(req.params.projectId)
+      .then(project => {
+        if (!project || (project.length == 0)) {
+          res.status(400).send({ "error": "Invalid project" });
+          return;
+        }
+        let users = req.body.users;
+        var assignlist = [];
+        var unassignlist = [];
+
+        users.forEach(element => {
+          let userId = element.userId;
+          let operation = element.operation;
+          (operation == "Assign") ? assignlist.push(userId) : ((operation == "Unassign") ? unassignlist.push(userId) : "");
+        });
+
+        let assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { projects: project._id } }).exec();
+        let unassignPromise = userProfile.updateMany({ _id: { $in: unassignlist } }, { $pull: { projects: project._id } }).exec()
+
+        Promise.all([assignPromise, unassignPromise])
+          .then((results) => {
+            res.status(200).send({ "result": "Done" });
+            return;
+          })
+          .catch(error => {
+            res.status(500).send({ "error": error });
+            return;
+          })
+
+      })
+      .catch((error) => {
+        res.status(500).send({ "error": error });
+        return;
+      })
+
+  }
+
   return {
     getAllProjects: getAllProjects,
     postProject: postProject,
@@ -153,6 +206,7 @@ var projectController = function (project) {
     putProject: putProject,
     deleteProject: deleteProject,
     getUserProjects: getUserProjects,
+    assignProjectToUsers: assignProjectToUsers
   };
 
 };
