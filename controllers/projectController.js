@@ -44,9 +44,7 @@ var projectController = function (project) {
               .catch(errors => { res.status(400).send(error) });
           }
 
-        })
-
-
+        });
 
     })
       .catch(errors => { res.status(400).send(error) });
@@ -82,9 +80,6 @@ var projectController = function (project) {
           .then(results => res.status(201).send(results))
           .catch(error => res.status(500).send({ "error": error }));
       })
-
-
-
   };
 
 
