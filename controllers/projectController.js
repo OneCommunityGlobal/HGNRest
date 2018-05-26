@@ -23,10 +23,8 @@ var projectController = function (project) {
     }
     var projectId = req.params.projectId;
     project.findById(projectId, function (error, record) {
-      alert("in here")
 
-
-      if (error || !record || (record === null)) {
+      if (error || !record || (record === null) || (record.length == 0)) {
         res.status(400).send({ "error": "No valid records found" });
         return;
       }

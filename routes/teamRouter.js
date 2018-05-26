@@ -14,7 +14,7 @@ var router = function (team) {
         .put(controller.putTeam)
         .delete(controller.deleteTeam);
 
-    teamRouter.route('/team/users/:teamId')
+    teamRouter.route('/team/:teamId/users/')
         .post(controller.assignTeamToUsers)
 
     return teamRouter;
