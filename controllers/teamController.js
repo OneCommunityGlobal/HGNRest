@@ -34,18 +34,18 @@ var teamcontroller = function (team) {
   };
   var deleteTeam = function (req, res) {
     if (req.body.requestor.role !== "Administrator") {
-      res.status(403).send("You are not authorized to delete teams.");
+      res.status(403).send({ "error": "You are not authorized to delete teams." });
       return;
     }
     var teamId = req.params.teamId;
     team.findById(teamId, function (error, record) {
 
       if (error || record == null) {
-        res.status(400).send("No valid records found");
+        res.status(400).send({ "error": "No valid records found" });
         return;
       }
       record.remove()
-        .then(res.status(200).send("Removed"))
+        .then(res.status(200).send({ "message": "Removed" }))
         .catch(errors => { res.status(400).send(error) });
     })
       .catch(errors => { res.status(400).send(error) });
