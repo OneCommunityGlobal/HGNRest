@@ -24,6 +24,7 @@ var teamcontroller = function (team) {
     var _team = new team();
 
     _team.teamName = req.body.teamName;
+    _team.isACtive = req.body.isActive;
     _team.createdDatetime = Date.now();
     _team.modifiedDatetime = Date.now();
 
