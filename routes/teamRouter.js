@@ -16,6 +16,7 @@ var router = function (team) {
 
     teamRouter.route('/team/:teamId/users/')
         .post(controller.assignTeamToUsers)
+        .get(controller.getTeamMembership)
 
     return teamRouter;
 };

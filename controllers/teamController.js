@@ -139,13 +139,26 @@ var teamcontroller = function (team) {
 
   }
 
+  var getTeamMembership = function (req, res) {
+    var teamId = req.params.teamId;
+    if (!mongoose.Types.ObjectId.isValid(teamId)) {
+      res.status(400).send({ "error": "Invalid request" })
+      return;
+    }
+    userProfile.find({ teams: teamId }, '_id firstName lastName')
+      .sort({ firstName: 1, lastName: 1 })
+      .then(results => { res.status(200).send(results) })
+      .catch(error => { res.status(500).send(error) });
+  }
+
   return {
     getAllTeams: getAllTeams,
     getTeamById: getTeamById,
     postTeam: postTeam,
     deleteTeam: deleteTeam,
     putTeam: putTeam,
-    assignTeamToUsers: assignTeamToUsers
+    assignTeamToUsers: assignTeamToUsers,
+    getTeamMembership: getTeamMembership
   };
 
 };
