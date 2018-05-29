@@ -48,7 +48,7 @@ var teamcontroller = function (team) {
       let deleteteam = record.remove().exec();
 
       Promise.all([removeteamfromprofile, deleteteam])
-        .then(res.status(200).send({ "message": "Removed" }))
+        .then(res.status(200).send({ "message": " Team successfully deleted and user profiles updated" }))
         .catch(errors => { res.status(400).send(error) });
     })
       .catch(errors => { res.status(400).send(error) });
