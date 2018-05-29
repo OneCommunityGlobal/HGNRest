@@ -46,7 +46,7 @@ var teamcontroller = function (team) {
         return;
       }
       let removeteamfromprofile = userProfile.updateMany({}, { $pull: { teams: record._id } }).exec();
-      let deleteteam = record.remove().exec();
+      let deleteteam = record.remove();
 
       Promise.all([removeteamfromprofile, deleteteam])
         .then(res.status(200).send({ "message": " Team successfully deleted and user profiles updated" }))
