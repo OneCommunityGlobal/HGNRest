@@ -70,6 +70,7 @@ var teamcontroller = function (team) {
         return;
       }
       record.teamName = req.body.teamName;
+      record.isActive = req.body.isACtive;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
