@@ -44,7 +44,10 @@ var teamcontroller = function (team) {
         res.status(400).send({ "error": "No valid records found" });
         return;
       }
-      record.remove()
+      let removeteamfromprofile = userProfile.updateMany({}, { $pull: { teams: record._id } }).exec();
+      let deleteteam = record.remove().exec();
+
+      Promise.all([removeteamfromprofile, deleteteam])
         .then(res.status(200).send({ "message": "Removed" }))
         .catch(errors => { res.status(400).send(error) });
     })
