@@ -99,7 +99,7 @@ var teamcontroller = function (team) {
       return;
     }
 
-    //verify project exists
+    //verify team exists
 
     team.findById(req.params.teamId)
       .then(team => {
