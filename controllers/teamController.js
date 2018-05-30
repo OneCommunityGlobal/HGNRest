@@ -118,7 +118,7 @@ var teamcontroller = function (team) {
 
         })
 
-        let assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { team: team._id } }).exec();
+        let assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: team._id } }).exec();
         let unassignPromise = userProfile.updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: team._id } }).exec()
 
         Promise.all([assignPromise, unassignPromise])
