@@ -18,13 +18,18 @@ var userProfileController = function (userProfile) {
       return;
     }
 
-    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive', function (err, profiles) {
-      if (err) {
-        res.status(404).send("Error finding user profiles");
-        return;
-      }
-      res.json(profiles);
-    });
+    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive')
+      .sort({ lastName: 1 })
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+
+    // , function (err, profiles) {
+    //   if (err) {
+    //     res.status(404).send("Error finding user profiles");
+    //     return;
+    //   }
+    //   res.json(profiles);
+    // });
 
   };
 
@@ -150,7 +155,7 @@ var userProfileController = function (userProfile) {
 
   };
 
-  var deleteUserProfile = function(req, res){
+  var deleteUserProfile = function (req, res) {
 
     if (!req.params.userId) {
       res.status(400).send({ "error": "Bad request" });
@@ -335,22 +340,104 @@ var userProfileController = function (userProfile) {
 
   }
 
+  var changeUserStatus = function (req, res) {
+    let userId = req.params.userId;
+    let status = (req.body.status == "Active" ? true : false);
+    console.log(req.body.status +"and"+status);
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({ "error": "Bad Request" });
+      return;
+    }
+    userProfile.findById(userId, 'isActive')
+      .then(user => {
+        user.set({ isActive: status })
+        user.save()
+          .then(results => {
+            res.status(200).send({ "message": "status updated" });
+            return;
+          })
+          .catch(error => {
+            res.status(500).send(error);
+            return;
+          })
+      })
+      .catch(error => {
+        res.status(500).send(error);
+        return;
+      })
 
+  }
+  var resetPassword = function (req, res) {
+    ValidatePassword(req);
+    
+    userProfile.findById(req.params.userId, 'password')
+      .then(user => {
+        console.log(user.password);
+              user.set({ password: req.body.newpassword });
+              user.save()
+                .then(results => {
+                  res.status(200).send({ "message": " password Reset" });
+                  console.log(user.password);
+                  return;
+                })
+                .catch(error => {
+                  res.status(500).send(error);
+                  return;
+                })
+            }
+          )
+          .catch(error => {
+            res.status(500).send(error);
+            return;
+          })
+
+  };
+
+  
 
   return {
 
     postUserProfile: postUserProfile,
     getUserProfiles: getUserProfiles,
     putUserProfile: putUserProfile,
-    deleteUserProfile:deleteUserProfile,
+    deleteUserProfile: deleteUserProfile,
     getUserById: getUserById,
     getreportees: getreportees,
     updatepassword: updatepassword,
     getUserName: getUserName,
     getTeamMembersofUser: getTeamMembersofUser,
-    getProjectMembers: getProjectMembers
+    getProjectMembers: getProjectMembers,
+    changeUserStatus: changeUserStatus,
+    resetPassword: resetPassword
   };
 
 };
 
 module.exports = userProfileController;
+
+function ValidatePassword(req){
+  let userId = req.params.userId;
+    let requestor = req.body.requestor;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({ "error": "Bad Request" });
+      return;
+    }
+
+    //Verify correct params in body
+    if ( !req.body.newpassword || !req.body.confirmnewpassword) {
+      res.status(400).send({ "error": "One of more required fields are missing" });
+      return;
+    }
+    // Verify request is authorized by self or adminsitrator
+    if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
+      res.status(403).send({ "error": "You are unauthorized to update this user's password" });
+      return;
+    }
+
+    //Verify new and confirm new password are correct
+    if (req.body.newpassword != req.body.confirmnewpassword) {
+      res.status(400).send({ "error": "New and confirm new passwords are not same" });
+    }
+  
+}
