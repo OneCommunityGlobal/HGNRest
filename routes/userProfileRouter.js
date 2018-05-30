@@ -26,6 +26,9 @@ var routes = function (userProfile) {
   userProfileRouter.route('/userProfile/:userId/updatePassword')
     .patch(controller.updatepassword)
 
+  userProfileRouter.route('/userProfile/:userId/resetPassword')
+    .patch(controller.resetPassword)
+
   userProfileRouter.route('/userProfile/name/:userId')
     .get(controller.getUserName);
 

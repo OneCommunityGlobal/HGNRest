@@ -342,7 +342,7 @@ var userProfileController = function (userProfile) {
 
   var changeUserStatus = function (req, res) {
     let userId = req.params.userId;
-    let status = (req.body.status == "Active" ? false : true);
+    let status = (req.body.status == "Active" ? true : false);
     console.log(req.body.status +"and"+status);
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({ "error": "Bad Request" });
@@ -367,6 +367,33 @@ var userProfileController = function (userProfile) {
       })
 
   }
+  var resetPassword = function (req, res) {
+    ValidatePassword(req);
+    
+    userProfile.findById(req.params.userId, 'password')
+      .then(user => {
+        console.log(user.password);
+              user.set({ password: req.body.newpassword });
+              user.save()
+                .then(results => {
+                  res.status(200).send({ "message": " password Reset" });
+                  console.log(user.password);
+                  return;
+                })
+                .catch(error => {
+                  res.status(500).send(error);
+                  return;
+                })
+            }
+          )
+          .catch(error => {
+            res.status(500).send(error);
+            return;
+          })
+
+  };
+
+  
 
   return {
 
@@ -380,9 +407,37 @@ var userProfileController = function (userProfile) {
     getUserName: getUserName,
     getTeamMembersofUser: getTeamMembersofUser,
     getProjectMembers: getProjectMembers,
-    changeUserStatus: changeUserStatus
+    changeUserStatus: changeUserStatus,
+    resetPassword: resetPassword
   };
 
 };
 
 module.exports = userProfileController;
+
+function ValidatePassword(req){
+  let userId = req.params.userId;
+    let requestor = req.body.requestor;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({ "error": "Bad Request" });
+      return;
+    }
+
+    //Verify correct params in body
+    if ( !req.body.newpassword || !req.body.confirmnewpassword) {
+      res.status(400).send({ "error": "One of more required fields are missing" });
+      return;
+    }
+    // Verify request is authorized by self or adminsitrator
+    if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
+      res.status(403).send({ "error": "You are unauthorized to update this user's password" });
+      return;
+    }
+
+    //Verify new and confirm new password are correct
+    if (req.body.newpassword != req.body.confirmnewpassword) {
+      res.status(400).send({ "error": "New and confirm new passwords are not same" });
+    }
+  
+}
