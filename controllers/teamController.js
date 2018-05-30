@@ -6,6 +6,7 @@ var teamcontroller = function (team) {
   var getAllTeams = function (req, res) {
 
     team.find({})
+      .sort({ teamName: 1 })
       .then(results => res.send(results).status(200))
       .catch(error => res.send(error).status(404));
 
