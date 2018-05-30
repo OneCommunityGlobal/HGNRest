@@ -139,6 +139,7 @@ var dashboardhelper = function () {
         }
       },
       { $unwind: { path: "$timeEntryData", preserveNullAndEmptyArrays: true } },
+      { $match: { "timeEntryData.isTangible": true } },
       { $group: { _id: { _id: "$_id", weeklyComittedHours: "$weeklyComittedHours" }, effort: { $sum: "$timeEntryData.totalSeconds" } } },
       { $project: { _id: 0, weeklyComittedHours: "$_id.weeklyComittedHours", timeSpent_hrs: { $divide: ["$effort", 3600] } } }
 
