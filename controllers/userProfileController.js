@@ -18,13 +18,18 @@ var userProfileController = function (userProfile) {
       return;
     }
 
-    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive', function (err, profiles) {
-      if (err) {
-        res.status(404).send("Error finding user profiles");
-        return;
-      }
-      res.json(profiles);
-    });
+    userProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive')
+      .sort({ lastName: 1 })
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+
+    // , function (err, profiles) {
+    //   if (err) {
+    //     res.status(404).send("Error finding user profiles");
+    //     return;
+    //   }
+    //   res.json(profiles);
+    // });
 
   };
 
@@ -150,7 +155,7 @@ var userProfileController = function (userProfile) {
 
   };
 
-  var deleteUserProfile = function(req, res){
+  var deleteUserProfile = function (req, res) {
 
     if (!req.params.userId) {
       res.status(400).send({ "error": "Bad request" });
@@ -335,20 +340,47 @@ var userProfileController = function (userProfile) {
 
   }
 
+  var changeUserStatus = function (req, res) {
+    let userId = req.params.userId;
+    let status = (req.body.status == "Active" ? false : true);
+    console.log(req.body.status +"and"+status);
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({ "error": "Bad Request" });
+      return;
+    }
+    userProfile.findById(userId, 'isActive')
+      .then(user => {
+        user.set({ isActive: status })
+        user.save()
+          .then(results => {
+            res.status(200).send({ "message": "status updated" });
+            return;
+          })
+          .catch(error => {
+            res.status(500).send(error);
+            return;
+          })
+      })
+      .catch(error => {
+        res.status(500).send(error);
+        return;
+      })
 
+  }
 
   return {
 
     postUserProfile: postUserProfile,
     getUserProfiles: getUserProfiles,
     putUserProfile: putUserProfile,
-    deleteUserProfile:deleteUserProfile,
+    deleteUserProfile: deleteUserProfile,
     getUserById: getUserById,
     getreportees: getreportees,
     updatepassword: updatepassword,
     getUserName: getUserName,
     getTeamMembersofUser: getTeamMembersofUser,
-    getProjectMembers: getProjectMembers
+    getProjectMembers: getProjectMembers,
+    changeUserStatus: changeUserStatus
   };
 
 };

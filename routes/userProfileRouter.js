@@ -14,7 +14,8 @@ var routes = function (userProfile) {
   userProfileRouter.route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(controller.putUserProfile)
-    .delete(controller.deleteUserProfile);
+    .delete(controller.deleteUserProfile)
+    .patch(controller.changeUserStatus);
 
   userProfileRouter.route('/userProfile/reportees/:userId')
     .get(controller.getreportees);
