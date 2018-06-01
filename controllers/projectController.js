@@ -128,14 +128,10 @@ var projectController = function (project) {
 
     userProject.findById(userId)
       .then(results => {
-        if (results.length == 0) {
-          let emptyproject = [];
-          res.status(200).send(emptyproject);
-
-        }
-        res.status(200).send(results.projects)
+        res.status(200).send(results.projects);
+        return;
       })
-      .catch(error => res.status(400).send(error));
+      .catch(error => { res.status(400).send(error); return; });
 
   }
 
