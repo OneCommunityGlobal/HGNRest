@@ -41,9 +41,9 @@ var projectController = function (project) {
           else {
 
             let removeprojectfromprofile = userProfile.updateMany({}, { $pull: { projects: record._id } }).exec();
-            let removeprojectfromprofile = record.remove();
+            let removeproject = record.remove();
 
-            Promise.all([removeprojectfromprofile, removeprojectfromprofile])
+            Promise.all([removeprojectfromprofile, removeproject])
               .then(res.status(200).send({ "message": " Project successfully deleted and user profiles updated" }))
               .catch(errors => { res.status(400).send(error) });
 
