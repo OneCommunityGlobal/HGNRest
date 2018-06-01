@@ -133,13 +133,12 @@ var dashboardhelper = function () {
         $project: {
           weeklyComittedHours: 1, timeEntryData: {
             $filter: {
-              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $gte: ["$$timeentry.dateofWork", new Date(fromdate)] }, { $lte: ["$$timeentry.dateofWork", new Date(todate)] }] }
+              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $eq: ["$$timeentry.isTangible", true] }, { $gte: ["$$timeentry.dateofWork", new Date(fromdate)] }, { $lte: ["$$timeentry.dateofWork", new Date(todate)] }] }
             }
           }
         }
       },
       { $unwind: { path: "$timeEntryData", preserveNullAndEmptyArrays: true } },
-      { $match: { "timeEntryData.isTangible": true } },
       { $group: { _id: { _id: "$_id", weeklyComittedHours: "$weeklyComittedHours" }, effort: { $sum: "$timeEntryData.totalSeconds" } } },
       { $project: { _id: 0, weeklyComittedHours: "$_id.weeklyComittedHours", timeSpent_hrs: { $divide: ["$effort", 3600] } } }
 
