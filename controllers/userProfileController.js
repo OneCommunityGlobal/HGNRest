@@ -142,11 +142,11 @@ var userProfileController = function (userProfile) {
           return;
         }
 
-        if (Buffer(pic_parts[1], 'base64').toString('base64') != pic_parts[1]) {
-          res.status(400).send({ "message": "Image is corrupted" });
-          return;
+        // if (Buffer(pic_parts[1], 'base64').toString('base64') != pic_parts[1]) {
+        //   res.status(400).send({ "message": "Image is corrupted" });
+        //   return;
 
-        }
+        // }
       }
 
       record.profilePic = req.body.profilePic;
