@@ -124,33 +124,30 @@ var userProfileController = function (userProfile) {
       }
       //validate userprofile pic
 
-      let pic_parts = req.body.profilePic.split("base64.");
+      if (req.body.profilePic) {
+        let pic_parts = req.body.profilePic.split("base64.");
 
-      //validate size
-      let imagesize = pic_parts[1].length;
-      var sizeInBytes = 4 * Math.ceil(imagesize / 3) * 0.5624896334383812 / 1024;
+        //validate size
+        let imagesize = pic_parts[1].length;
+        var sizeInBytes = 4 * Math.ceil(imagesize / 3) * 0.5624896334383812 / 1024;
 
-      if (sizeInBytes > 50) {
-        res.status(400).send({ "message": "Image size should not exceed 50KB" });
-        return;
+        if (sizeInBytes > 50) {
+          res.status(400).send({ "message": "Image size should not exceed 50KB" });
+          return;
+        }
+
+        let imagetype = pic_parts[0].split("/")[1];
+        if (imagetype != "jpeg;" && imagetype != "png;") {
+          res.status(400).send({ "message": "Image type shoud be either jpeg or png." });
+          return;
+        }
+
+        if (Buffer(pic_parts[1], 'base64').toString('base64') != pic_parts[1]) {
+          res.status(400).send({ "message": "Image is corrupted" });
+          return;
+
+        }
       }
-
-      let imagetype = pic_parts[0].split("/")[1];
-      if (imagetype != "jpeg;" && imagetype != "png;") {
-        res.status(400).send({ "message": "Image type shoud be either jpeg or png." });
-        return;
-      }
-
-      if (Buffer(pic_parts[1], 'base64').toString('base64') != pic_parts[1]) {
-        res.status(400).send({ "message": "Image is corrupted" });
-        return;
-
-      }
-
-
-
-
-
 
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
