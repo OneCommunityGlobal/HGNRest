@@ -122,6 +122,35 @@ var userProfileController = function (userProfile) {
         res.status(404).send(err);
         return;
       }
+      //validate userprofile pic
+
+      let pic_parts = req.body.profilePic.split("base64.");
+
+      //validate size
+      let imagesize = pic_parts[1].length;
+      var sizeInBytes = 4 * Math.ceil(imagesize / 3) * 0.5624896334383812 / 1024;
+
+      if (sizeInBytes > 50) {
+        res.status(400).send({ "message": "Image size should not exceed 50KB" });
+        return;
+      }
+
+      let imagetype = pic_parts[0].split("/")[1];
+      if (imagetype != "jpeg;" && imagetype != "png;") {
+        res.status(400).send({ "message": "Image type shoud be either jpeg or png." });
+        return;
+      }
+
+      if (Buffer(pic_parts[1], 'base64').toString('base64') != pic_parts[1]) {
+        res.status(400).send({ "message": "Image is corrupted" });
+        return;
+
+      }
+
+
+
+
+
 
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
@@ -343,7 +372,7 @@ var userProfileController = function (userProfile) {
   var changeUserStatus = function (req, res) {
     let userId = req.params.userId;
     let status = (req.body.status == "Active" ? true : false);
-    console.log(req.body.status +"and"+status);
+    console.log(req.body.status + "and" + status);
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({ "error": "Bad Request" });
       return;
@@ -369,31 +398,31 @@ var userProfileController = function (userProfile) {
   }
   var resetPassword = function (req, res) {
     ValidatePassword(req);
-    
+
     userProfile.findById(req.params.userId, 'password')
       .then(user => {
         console.log(user.password);
-              user.set({ password: req.body.newpassword });
-              user.save()
-                .then(results => {
-                  res.status(200).send({ "message": " password Reset" });
-                  console.log(user.password);
-                  return;
-                })
-                .catch(error => {
-                  res.status(500).send(error);
-                  return;
-                })
-            }
-          )
+        user.set({ password: req.body.newpassword });
+        user.save()
+          .then(results => {
+            res.status(200).send({ "message": " password Reset" });
+            console.log(user.password);
+            return;
+          })
           .catch(error => {
             res.status(500).send(error);
             return;
           })
+      }
+      )
+      .catch(error => {
+        res.status(500).send(error);
+        return;
+      })
 
   };
 
-  
+
 
   return {
 
@@ -415,29 +444,29 @@ var userProfileController = function (userProfile) {
 
 module.exports = userProfileController;
 
-function ValidatePassword(req){
+function ValidatePassword(req) {
   let userId = req.params.userId;
-    let requestor = req.body.requestor;
+  let requestor = req.body.requestor;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      res.status(400).send({ "error": "Bad Request" });
-      return;
-    }
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    res.status(400).send({ "error": "Bad Request" });
+    return;
+  }
 
-    //Verify correct params in body
-    if ( !req.body.newpassword || !req.body.confirmnewpassword) {
-      res.status(400).send({ "error": "One of more required fields are missing" });
-      return;
-    }
-    // Verify request is authorized by self or adminsitrator
-    if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
-      res.status(403).send({ "error": "You are unauthorized to update this user's password" });
-      return;
-    }
+  //Verify correct params in body
+  if (!req.body.newpassword || !req.body.confirmnewpassword) {
+    res.status(400).send({ "error": "One of more required fields are missing" });
+    return;
+  }
+  // Verify request is authorized by self or adminsitrator
+  if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
+    res.status(403).send({ "error": "You are unauthorized to update this user's password" });
+    return;
+  }
 
-    //Verify new and confirm new password are correct
-    if (req.body.newpassword != req.body.confirmnewpassword) {
-      res.status(400).send({ "error": "New and confirm new passwords are not same" });
-    }
-  
+  //Verify new and confirm new password are correct
+  if (req.body.newpassword != req.body.confirmnewpassword) {
+    res.status(400).send({ "error": "New and confirm new passwords are not same" });
+  }
+
 }
