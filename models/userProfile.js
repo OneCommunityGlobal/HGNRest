@@ -31,7 +31,8 @@ var userProfileSchema = new Schema({
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [{ badgeName: String, quantity: Number, lastModifiedDate: Date }],
-  profilePic: { type: String }
+  profilePic: { type: String },
+  infringments : [{date: {type:String, required: true}, description : {type: String, required: true}}]
 
 });
 

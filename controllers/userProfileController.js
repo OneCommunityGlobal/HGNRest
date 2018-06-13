@@ -125,30 +125,22 @@ var userProfileController = function (userProfile) {
       //validate userprofile pic
 
       if (req.body.profilePic) {
-        let pic_parts = req.body.profilePic.split("base64.");
+       let results =  userhelper.validateprofilepic(req.body.profilePic);
 
-        //validate size
-        let imagesize = pic_parts[1].length;
-        var sizeInBytes = 4 * Math.ceil(imagesize / 3) * 0.5624896334383812 / 1024;
-
-        if (sizeInBytes > 50) {
-          res.status(400).send({ "message": "Image size should not exceed 50KB" });
-          return;
-        }
-
-        let imagetype = pic_parts[0].split("/")[1];
-        if (imagetype != "jpeg;" && imagetype != "png;") {
-          res.status(400).send({ "message": "Image type shoud be either jpeg or png." });
-          return;
-        }
-
-        // if (Buffer(pic_parts[1], 'base64').toString('base64') != pic_parts[1]) {
-        //   res.status(400).send({ "message": "Image is corrupted" });
-        //   return;
-
-        // }
+       if (!results.result)
+       {
+         res.status(400).json(results.errors)
+         return;
+         
+       }
+   
       }
 
+      let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
+      let original_infringments = (record.infringments)? record.infringments : [];
+      
+      let infringment_authorizer = (requested_infringments.length > original_infringments.length) ? "Manager" : "Administrator";
+      
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
       record.lastName = req.body.lastName;
@@ -168,9 +160,15 @@ var userProfileController = function (userProfile) {
         record.projects = Array.from(new Set(req.body.projects));
         record.isActive = req.body.isActive;
       }
+
+      if (req.body.requestor.role == infringment_authorizer)
+      {
+        record.infringments = req.body.infringments;
+      }
+      record.infringments = req.body.infringments;
       record.save()
         .then(function (results) {
-          res.status(200).send({
+          res.status(200).json({
             _id: record._id
           });
         })

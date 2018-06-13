@@ -3,10 +3,8 @@
   "version": "1.0.0",
   "description": "This module is the RESt module built on NodeJS to support MongoDB activities, Since EmberData has no direct adapters for MongoDB. This module will later be intergrated with EmberJS HGN project to maintain singularity.",
   "main": "restapp",
-  "run_dev": "authSource = admin user = hgnData password = Test123 url = mongodb://cluster0-shard-00-00-gl12q.mongodb.net:27017,cluster0-shard-00-01-gl12q.mongodb.net:27017, cluster0-shard-00-02-gl12q.mongodb.net:27017/?replicaSet=Cluster0-shard-0/hgnData npm start",
   "scripts": {
-    "test": "test",
-    "run_dev": "authSource = admin user = hgnData password = Test123 url = mongodb://cluster0-shard-00-00-gl12q.mongodb.net:27017,cluster0-shard-00-01-gl12q.mongodb.net:27017, cluster0-shard-00-02-gl12q.mongodb.net:27017/?replicaSet=Cluster0-shard-0/hgnData npm start"
+    "test": "test"
   },
   "author": "AK",
   "license": "ISC",
