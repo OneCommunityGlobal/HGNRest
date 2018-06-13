@@ -106,7 +106,7 @@ var userProfileController = function (userProfile) {
 
     let userid = req.params.userId;
 
-    let isRequestorAuthorized = (req.body.requestor.role === "Administrator" || req.body.requestor.requestorId === userid) ? true : false;
+    let isRequestorAuthorized = (req.body.requestor.role === "Administrator" || req.body.requestor.role === "Manager" || req.body.requestor.requestorId === userid) ? true : false;
     let isRequestorAdmin = (req.body.requestor.role === "Administrator") ? true : false;
 
     if (!isRequestorAuthorized) {
@@ -165,7 +165,7 @@ var userProfileController = function (userProfile) {
       {
         record.infringments = req.body.infringments;
       }
-      record.infringments = req.body.infringments;
+    
       record.save()
         .then(function (results) {
           res.status(200).json({
