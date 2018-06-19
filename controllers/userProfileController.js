@@ -139,7 +139,7 @@ var userProfileController = function (userProfile) {
       let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
       let original_infringments = (record.infringments)? record.infringments : [];
       
-      let infringment_authorizer = (requested_infringments.length > original_infringments.length) ? "Manager" : "Administrator";
+      let infringment_authorizers = ["Manager" , "Administrator"];
       
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
@@ -161,7 +161,7 @@ var userProfileController = function (userProfile) {
         record.isActive = req.body.isActive;
       }
 
-      if (req.body.requestor.role == infringment_authorizer)
+      if (infringment_authorizers.includes(req.body.requestor.role))
       {
         record.infringments = req.body.infringments;
       }
