@@ -48,7 +48,7 @@ const options =
 
 	}
 
-var uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`
+var uri = `mongodb://${process.env.MONGO_URI}`
 
 var db = mongoose.connect(uri).catch((error) => { console.log(error); });
 
@@ -111,7 +111,9 @@ var port = normalizePort(process.env.PORT || '4500');
 app.set('port', port);
 
 var server = http.createServer(app);
-server.listen(port)
+server.listen(port, () => {
+	console.log('Server running at', port);
+})
 
 
 app.get('/api/', function (req, res) {
