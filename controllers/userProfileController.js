@@ -178,7 +178,7 @@ var userProfileController = function (userProfile) {
     });
 
   };
-
+//delete user profile
   var deleteUserProfile = function (req, res) {
 
     if (!req.params.userId) {
@@ -439,6 +439,7 @@ var userProfileController = function (userProfile) {
 
 module.exports = userProfileController;
 
+//reusable funciton to be used to reset and update
 function ValidatePassword(req) {
   let userId = req.params.userId;
   let requestor = req.body.requestor;
