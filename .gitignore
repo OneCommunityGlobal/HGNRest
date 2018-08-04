@@ -22,4 +22,5 @@ testem.log
 #IDE specific
 
 /.vscode
-
+.DS_Store
+.idea/
