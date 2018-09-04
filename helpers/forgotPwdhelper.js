@@ -36,9 +36,9 @@ var forgotPwdModule = function (user, ranPwd) {
             html: message// html body
         };
 
-        transporter.sendMail(mailOptions, (error, info) => {
+       return transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
-                return console.log(error);
+                return error;
             }
             console.log('Message sent: %s', info.messageId);
             // Preview only available when sending through an Ethereal account
