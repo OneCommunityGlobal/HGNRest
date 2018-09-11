@@ -176,6 +176,11 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.isTangible = req.body.isTangible;
                     record.lastModifiedDateTime = moment().utc().toISOString();
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
+                   if(req.body.requestor.role === "Administrator")
+                   {
+                    record.dateofWork = moment(record.dateofWork).utc().format();
+                   } 
+
                     record.save()
                         .then(() => {
                             res.status(200).send({ "message": "Successfully updated time entry" })
