@@ -178,7 +178,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
                    if(req.body.requestor.role === "Administrator")
                    {
-                    record.dateOfWork = moment(req.body.dateOfWork).utc().format();
+                    record.dateofWork = moment(req.body.dateOfWork).utc().format();
                    } 
 
                     record.save()
