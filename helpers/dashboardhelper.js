@@ -124,6 +124,7 @@ var dashboardhelper = function () {
   var laborthisweek = function (userId, startDate, endDate) {
     let fromdate = moment(startDate).utc().format();
     let todate = moment(endDate).utc().format();
+    console.log(startDate, endDate)
 
     return userProfile.aggregate([
       { $match: { _id: userId } },
