@@ -6,7 +6,7 @@ var dashboardhelper = require("../helpers/dashboardhelper")()
 var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").startOf("day").format();
 var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").endOf("day").format();
 
-// run the job at 1 second after pdtendoflastweek... check recurrence.
+// run the job at 1 second after pdtendoflastweek...check recurrence.
 
 var runAt = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").endOf("day").add(1, "second").format();
 runAt = moment().add(5, "seconds").toDate();
