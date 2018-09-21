@@ -11,7 +11,7 @@ var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtr
 var eligibleForInfringmentRoles = ['Volunteer', 'Manager', 'Administrator', 'Core Team']
 
 var rule = new schedule.RecurrenceRule();
-rule.dayOfWeek = 5; // 0-6 for Sunday - Saturday
+rule.dayOfWeek = 4; // 0-6 for Sunday - Saturday
 rule.hour = 0;
 rule.minute = 0;
 rule.second = 1;
