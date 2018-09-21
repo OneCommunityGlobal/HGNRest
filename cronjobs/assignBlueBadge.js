@@ -33,7 +33,7 @@ var assignBlueBadge = function(userProfile){
             
             if (timeSpent < weeklyComittedHours)
             {
-                const description = `Sample run inititated at ${moment().tz("America/Los_Angeles").format()}. System assigned infringment for not meeting committed effort. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format("ddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("ddd YYYY-MM-DD")}`
+                const description = `Sample run inititated at ${moment().tz("America/Los_Angeles").format()}. System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format("dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}`
                 const infringment = {date: moment().utc().format("YYYY-MM-DD"), description :description }
                 userProfile.findByIdAndUpdate(personId,{$push: {infringments: infringment}} )
                 .then(status => console.log(`Assigned infringment to ${status._id} ${status.firstName} ${status.lastName}`))
