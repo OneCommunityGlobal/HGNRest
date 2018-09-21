@@ -33,7 +33,7 @@ mongoose.Promise = Promise;
 
 //Call jobs
 
-var j = require('./cronjobs/assignBlueBadge')();
+var j = require('./cronjobs/assignBlueBadge')(userProfile);
 
 
 var app = express();
