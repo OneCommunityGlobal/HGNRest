@@ -13,8 +13,8 @@ var eligibleForInfringmentRoles = ['Volunteer', 'Manager', 'Administrator', 'Cor
 
 var rule = new schedule.RecurrenceRule();
 rule.dayOfWeek = 1; // 0-6 for Sunday - Saturday
-rule.hour = 11;
-rule.minute = 40;
+rule.hour = 18;
+rule.minute = 50;
 rule.second = 1;
 rule.tz = "America/Los_Angeles";
 
