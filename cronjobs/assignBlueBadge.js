@@ -3,6 +3,7 @@ var moment = require('moment-timezone');
 var dashboardhelper = require("../helpers/dashboardhelper")()
 let mongoose = require('mongoose');
 var userProfile = require('../models/userProfile');
+const emailuser = require("./helpers/emailuser")
 
 //Set the job trigger time as end of iso week day.
 var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week");
@@ -12,8 +13,8 @@ var eligibleForInfringmentRoles = ['Volunteer', 'Manager', 'Administrator', 'Cor
 
 var rule = new schedule.RecurrenceRule();
 rule.dayOfWeek = 1; // 0-6 for Sunday - Saturday
-rule.hour = 10;
-rule.minute = 40;
+rule.hour = 11;
+rule.minute = 10;
 rule.second = 1;
 rule.tz = "America/Los_Angeles";
 
@@ -44,6 +45,7 @@ var assignBlueBadge = function(userProfile){
             });    
 
         })
+        .then(() => emailuser())
         .catch(error => console.log(error))
 
         
