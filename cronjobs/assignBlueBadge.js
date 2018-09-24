@@ -3,7 +3,7 @@ var moment = require('moment-timezone');
 var dashboardhelper = require("../helpers/dashboardhelper")()
 let mongoose = require('mongoose');
 var userProfile = require('../models/userProfile');
-const emailuser = require("./helpers/emailuser")
+const emailuser = require("../helpers/email")
 
 //Set the job trigger time as end of iso week day.
 var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week");
