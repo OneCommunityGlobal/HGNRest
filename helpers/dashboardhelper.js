@@ -39,7 +39,7 @@ var dashboardhelper = function () {
         $project: {
           personId: 1, name: 1, weeklyComittedHours: 1, timeEntryData: {
             $filter: {
-              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $gte: ["$$timeentry.dateofWork", new Date(pdtstart)] }, { $lte: ["$$timeentry.dateofWork", new Date(pdtend)] }] }
+              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $gte: ["$$timeentry.dateOfWork", new Date(pdtstart)] }, { $lte: ["$$timeentry.dateOfWork", new Date(pdtend)] }] }
             }
           }
         }
@@ -83,7 +83,7 @@ var dashboardhelper = function () {
       $match: {
         personId: userId,
         isTangible: true,
-        dateofWork: { "$gte": new Date(fromdate), "$lte": new Date(todate) }
+        dateOfWork: { "$gte": new Date(fromdate), "$lte": new Date(todate) }
 
       }
     },
@@ -133,7 +133,7 @@ var dashboardhelper = function () {
         $project: {
           weeklyComittedHours: 1, timeEntryData: {
             $filter: {
-              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $eq: ["$$timeentry.isTangible", true] }, { $gte: ["$$timeentry.dateofWork", new Date(fromdate)] }, { $lte: ["$$timeentry.dateofWork", new Date(todate)] }] }
+              input: "$timeEntryData", as: "timeentry", cond: { $and: [{ $eq: ["$$timeentry.isTangible", true] }, { $gte: ["$$timeentry.dateOfWork", new Date(fromdate)] }, { $lte: ["$$timeentry.dateOfWork", new Date(todate)] }] }
             }
           }
         }

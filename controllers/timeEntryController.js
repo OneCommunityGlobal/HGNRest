@@ -19,7 +19,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
                     timeentry.personId = element.personId;
                     timeentry.projectId = element.projectId;
-                    timeentry.dateofWork = element.dateofWork;
+                    timeentry.dateOfWork = element.dateOfWork;
                     timeentry.timeSpent = moment("1900-01-01 00:00:00").add(element.totalSeconds, 'seconds').format("HH:mm:ss");
                     timeentry.notes = element.notes;
                     timeentry.isTangible = element.isTangible;
@@ -35,17 +35,17 @@ var timeEntrycontroller = function (TimeEntry) {
     var postTimeEntry = function (req, res) {
 
 
-        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || !mongoose.Types.ObjectId.isValid(req.body.projectId) || !req.body.dateofWork || !moment(req.body.dateofWork).isValid() || !req.body.timeSpent || !req.body.isTangible) {
+        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || !mongoose.Types.ObjectId.isValid(req.body.projectId) || !req.body.dateOfWork || !moment(req.body.dateOfWork).isValid() || !req.body.timeSpent || !req.body.isTangible) {
             res.status(400).send({ "error": "Bad request" });
             return;
         }
         var timeentry = new TimeEntry();
-        var dateofWork = req.body.dateofWork;
+        var dateOfWork = req.body.dateOfWork;
         var timeSpent = req.body.timeSpent;
 
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
-        timeentry.dateofWork = moment(dateofWork).utc().format();
+        timeentry.dateOfWork = moment(dateOfWork).utc().format();
         timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
         timeentry.notes = req.body.notes;
         timeentry.isTangible = req.body.isTangible;
@@ -74,7 +74,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
         TimeEntry.find({
             "personId": userId,
-            "dateofWork": { "$gte": fromdate, "$lte": todate }
+            "dateOfWork": { "$gte": fromdate, "$lte": todate }
         },
             (" -createdDateTime"))
             .populate('projectId')
@@ -90,7 +90,7 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.personId = element.personId;
                     record.projectId = (element.projectId) ? element.projectId._id : "";
                     record.projectName = (element.projectId) ? element.projectId.projectName : "";
-                    record.dateOfWork = element.dateofWork;
+                    record.dateOfWork = element.dateOfWork;
                     record.hours = formatseconds(element.totalSeconds)[0];
                     record.minutes = formatseconds(element.totalSeconds)[1];
 
@@ -116,11 +116,11 @@ var timeEntrycontroller = function (TimeEntry) {
         let projectId = req.params.projectId;
         TimeEntry.find({
             "projectId": projectId,
-            "dateofWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
+            "dateOfWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
         },
             ("-createdDateTime -lastModifiedDateTime"))
             .populate('userId')
-            .sort({ "dateofWork": -1 })
+            .sort({ "dateOfWork": -1 })
             .then(results => {
 
                 res.status(200).send(results);
@@ -176,6 +176,11 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.isTangible = req.body.isTangible;
                     record.lastModifiedDateTime = moment().utc().toISOString();
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
+                   if(req.body.requestor.role === "Administrator")
+                   {
+                    record.dateOfWork = moment(req.body.dateOfWork).utc().format();
+                   } 
+
                     record.save()
                         .then(() => {
                             res.status(200).send({ "message": "Successfully updated time entry" })

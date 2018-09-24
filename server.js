@@ -31,6 +31,10 @@ var forgotPwdRouter = require('./routes/forgotPwdRouter')(userProfile);
 var bodyParser = require('body-parser');
 mongoose.Promise = Promise;
 
+//Call jobs
+
+var j = require('./cronjobs/assignBlueBadge')(userProfile);
+
 
 var app = express();
 app.use(cors());

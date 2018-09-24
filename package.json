@@ -26,6 +26,7 @@
     "mongoose": "^5.0.2",
     "mongoose-validator": "2.0.1",
     "node-datetime": "^2.0.3",
+    "node-schedule-tz": "^1.2.1-4",
     "nodemailer": "^4.6.4",
     "nodemon": "^1.12.1",
     "npm": "^5.8.0",
