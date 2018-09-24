@@ -37,9 +37,9 @@ let logincontroller = function () {
     let isPasswordMatch = false;
     let isNewUser =false;
     isNewUser = await bcrypt.compare("123Welcome!",user.password);
-    console.log(isNewUser +" isnew");
+   
     isPasswordMatch = await bcrypt.compare(_password, user.password);
-    console.log(isPasswordMatch +" ispaw");
+
     if (isNewUser){
       let result =
         {
