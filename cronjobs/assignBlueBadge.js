@@ -11,8 +11,8 @@ var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtr
 var eligibleForInfringmentRoles = ['Volunteer', 'Manager', 'Administrator', 'Core Team']
 
 var rule = new schedule.RecurrenceRule();
-rule.dayOfWeek = 4; // 0-6 for Sunday - Saturday
-rule.hour = 0;
+rule.dayOfWeek = 1; // 0-6 for Sunday - Saturday
+rule.hour = 11;
 rule.minute = 0;
 rule.second = 1;
 rule.tz = "America/Los_Angeles";
@@ -33,7 +33,7 @@ var assignBlueBadge = function(userProfile){
             
             if (timeSpent < weeklyComittedHours)
             {
-                const description = `Sample run inititated at ${moment().tz("America/Los_Angeles").format()}. System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format("dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}`
+                const description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format("dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}`
                 const infringment = {date: moment().utc().format("YYYY-MM-DD"), description :description }
                 userProfile.findByIdAndUpdate(personId,{$push: {infringments: infringment}} )
                 .then(status => console.log(`Assigned infringment to ${status._id} ${status.firstName} ${status.lastName}`))
