@@ -35,9 +35,19 @@ let logincontroller = function () {
     }
 
     let isPasswordMatch = false;
+    let isNewUser =false;
+    isNewUser = await bcrypt.compare("123Welcome!",user.password);
+    console.log(isNewUser +" isnew");
     isPasswordMatch = await bcrypt.compare(_password, user.password);
-
-    if (isPasswordMatch) {
+    console.log(isPasswordMatch +" ispaw");
+    if (isNewUser){
+      let result =
+        {
+          "new": true,
+        }
+      res.send(result).status(200);
+    }
+    else if (isPasswordMatch && !isNewUser) {
 
       let jwt_payload = {
         "userid": user._id,
