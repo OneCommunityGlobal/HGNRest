@@ -32,8 +32,9 @@ var bodyParser = require('body-parser');
 mongoose.Promise = Promise;
 
 //Call jobs
+var userProfileJobs = require('./cronjobs/userProfileJobs')();
 
-var j = require('./cronjobs/assignBlueBadge')(userProfile);
+
 
 
 var app = express();

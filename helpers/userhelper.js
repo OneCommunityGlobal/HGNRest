@@ -80,12 +80,25 @@ var userhelper = function () {
         .catch(error => console.log(error))
     }
 
+    var deleteBadgeAfterYear = function()
+    {
+       let cutOffDate = moment().subtract(1, "year").format("YYYY-MM-DD")
+        userProfile.updateMany({},
+            {$pull : {infringments : {date : {$lte :cutOffDate }}}}        
+        )
+        .then(results => console.log(results))
+        .catch(error => console.log(error))
+
+
+    }
+
     return {
 
         getUserName: getUserName,
         getTeamMembers: getTeamMembers,
         validateprofilepic : validateprofilepic,
-        assignBlueBadgeforTimeNotMet: assignBlueBadgeforTimeNotMet
+        assignBlueBadgeforTimeNotMet: assignBlueBadgeforTimeNotMet,
+        deleteBadgeAfterYear:deleteBadgeAfterYear
 
     }
 
