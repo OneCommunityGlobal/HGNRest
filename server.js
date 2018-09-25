@@ -26,7 +26,7 @@ var actionItemRouter = require('./routes/actionItemRouter')(actionItem);
 var notificationRouter = require('./routes/notificationRouter')(notification);
 var loginRouter = require('./routes/loginRouter')();
 var forgotPwdRouter = require('./routes/forgotPwdRouter')(userProfile);
-
+var forcePwdRouter = require('./routes/forcePwdRouter')(userProfile);
 
 var bodyParser = require('body-parser');
 mongoose.Promise = Promise;
@@ -52,7 +52,7 @@ const options =
 		pass: process.env.password,
 
 	}
-
+	
 var uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`
 
 var db = mongoose.connect(uri).catch((error) => { console.log(error); });
@@ -66,8 +66,8 @@ app.all('*', function (req, res, next) {
 		return;
 	}
 
-	if ((req.originalUrl == "/api/login" || req.originalUrl == "/api/forgotpassword") && req.method == "POST") { next(); return; }
-
+	if ((req.originalUrl == "/api/login" || req.originalUrl == "/api/forgotpassword" ) && req.method == "POST") { next(); return; }
+	if(req.originalUrl == "/api/forcepassword" && req.method == "PATCH" ){next(); return;}
 	if (!req.header("Authorization")) {
 		res.status(401).send({ "error:": "Unauthorized request" });
 		return;
@@ -103,6 +103,7 @@ app.all('*', function (req, res, next) {
 
 app.use('/api', forgotPwdRouter);
 app.use('/api', loginRouter);
+app.use('/api', forcePwdRouter);
 app.use('/api', projectRouter);
 app.use('/api', userProfileRouter);
 app.use('/api', dashboardRouter);

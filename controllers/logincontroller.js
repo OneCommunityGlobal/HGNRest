@@ -15,7 +15,7 @@ let logincontroller = function () {
 
     let _email = req.body.email;
     let _password = req.body.password;
-
+    let _defPwd="123Welcome!";
     if (!_email || !_password) {
       res.status(400).send({ "error": "Invalid request" });
       return;
@@ -33,17 +33,20 @@ let logincontroller = function () {
       res.status(403).send("Invalid email and/ or password.");
       return;
     }
-
+    
     let isPasswordMatch = false;
     let isNewUser =false;
-    isNewUser = await bcrypt.compare("123Welcome!",user.password);
+    if(_password === _defPwd){
+      isNewUser=true;
+    }
    
     isPasswordMatch = await bcrypt.compare(_password, user.password);
-
-    if (isNewUser){
+    
+    if (isNewUser && isPasswordMatch){
       let result =
         {
           "new": true,
+          "userId":user._id
         }
       res.send(result).status(200);
     }
