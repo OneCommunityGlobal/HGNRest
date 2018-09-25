@@ -1,4 +1,3 @@
-var schedule = require('node-schedule-tz');
 const CronJob = require('cron').CronJob;
 const userhelper = require("../helpers/userhelper")();
 const email = require("../helpers/email");
