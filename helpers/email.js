@@ -1,7 +1,7 @@
 'use strict';
 const nodemailer = require('nodemailer');
 const config = require('../config');
-var emailuser = function () {
+var emailuser = function() {
 
     const message = `Assign blue badge job is starting`;
 
@@ -41,4 +41,5 @@ var emailuser = function () {
 
 
 }
+
 module.exports = emailuser;
