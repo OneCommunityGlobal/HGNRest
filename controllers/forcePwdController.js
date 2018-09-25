@@ -5,7 +5,7 @@ let forcePwdcontroller = function (userProfile) {
   
     let forcePwd =  function forcePwd(req, res) {
         let userId = req.body.userId;
-        console.log(userId);
+     
         if (!mongoose.Types.ObjectId.isValid(userId)) {
           res.status(400).send({ "error": "Bad Request" });
           return;
@@ -13,12 +13,10 @@ let forcePwdcontroller = function (userProfile) {
 
         userProfile.findById(userId, 'password')
         .then(user => {
-          console.log(user.password);
           user.set({ password: req.body.newpassword });
           user.save()
             .then(results => {
               res.status(200).send({ "message": " password Reset" });
-              console.log(user.password);
               return;
             })
             .catch(error => {
