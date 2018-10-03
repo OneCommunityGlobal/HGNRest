@@ -138,6 +138,8 @@ var userProfileController = function (userProfile) {
 
       let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
       let original_infringments = (record.infringments)? record.infringments : [];
+
+      
       
       let infringment_authorizers = ["Manager" , "Administrator"];
       
@@ -168,8 +170,9 @@ var userProfileController = function (userProfile) {
     
       record.save()
         .then(function (results) {
+          userhelper.notifyInfringments(original_infringments, results.infringments, results.firstName, results.lastName, results.email)
           res.status(200).json({
-            _id: record._id
+            _id: record._id            
           });
         })
         .catch(error => res.status(400).send(error));
