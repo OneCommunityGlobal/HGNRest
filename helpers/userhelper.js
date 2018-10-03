@@ -123,7 +123,7 @@ var userhelper = function () {
   }
 
   var notifyInfringments = function (original, current, firstName, lastName, emailAddress) {
-    const newInfringments = current.filter(item => original.every(function (el) {
+    let newInfringments = current.filter(item => original.every(function (el) {
       return (!(String(el._id) === String(item._id)))
     }))
 
