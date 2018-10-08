@@ -64,7 +64,7 @@ var userhelper = function () {
   }
 
   var assignBlueBadgeforTimeNotMet = function () {
-    console.log("trigger job")
+    
     var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
     var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
     userProfile.find({
@@ -94,7 +94,7 @@ var userhelper = function () {
                     recipient = status.email,
                     subject = "New Infringment Assigned",
                     message = getInfringmentEmailBody(firstName, lastName, infringment),
-                    cc= null,
+                    cc = null,
                     bcc = "onecommunityglobal@gmail.com"))
                   .catch(error => console.log(error))
               }
@@ -125,23 +125,17 @@ var userhelper = function () {
 
   var notifyInfringments = function (original, current, firstName, lastName, emailAddress) {
     if (!current) return;
-   let newInfringments = [];
-   original.map(item => { item.id = String(item._id) ;return item})
-   current.map(item => { item.id = String(item._id); return item})
-
-   _.pull(current, original, "_id")
-   var ne111= _.differenceBy(current, original, "id")
-console.log(ne111)
-
-
-
+    original = original.toObject()
+    current = current.toObject()
+    let newInfringments = [];
+    newInfringments = _.differenceWith(current, original, (arrVal, othVal) => arrVal._id.equals(othVal._id))
     newInfringments.forEach(element => {
       emailSender(
         recipient = emailAddress,
         subject = "New Infringment Assigned",
         message = getInfringmentEmailBody(firstName, lastName, element),
         cc = null,
-        bcc = "sd@yopmail.com")
+        bcc = "onecommunityglobal@gmail.com")
 
     });
 
