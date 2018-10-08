@@ -4,6 +4,7 @@ var dashboardhelper = require("../helpers/dashboardhelper")()
 var mongoose = require('mongoose');
 var moment = require('moment-timezone');
 var emailSender = require("../utilities/emailSender");
+var _ = require("lodash")
 
 var userhelper = function () {
 
@@ -123,11 +124,16 @@ var userhelper = function () {
   }
 
   var notifyInfringments = function (original, current, firstName, lastName, emailAddress) {
-    let newInfringments = current.filter(item => original.every(function (el) {
-      return (!(String(el._id) === String(item._id)))
-    }))
+    if (!current) return;
+   let newInfringments = [];
+   original.map(item => { item.id = String(item._id) ;return item})
+   current.map(item => { item.id = String(item._id); return item})
 
-    if (!newInfringments) return;
+   _.pull(current, original, "_id")
+   var ne111= _.differenceBy(current, original, "id")
+console.log(ne111)
+
+
 
     newInfringments.forEach(element => {
       emailSender(
@@ -135,7 +141,7 @@ var userhelper = function () {
         subject = "New Infringment Assigned",
         message = getInfringmentEmailBody(firstName, lastName, element),
         cc = null,
-        bcc = "onecommunityglobal@gmail.com")
+        bcc = "sd@yopmail.com")
 
     });
 
