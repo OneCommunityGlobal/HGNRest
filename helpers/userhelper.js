@@ -64,8 +64,8 @@ var userhelper = function () {
 
   var assignBlueBadgeforTimeNotMet = function () {
     console.log("trigger job")
-    var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week");
-    var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week");
+    var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
+    var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
     userProfile.find({
         isActive: true
       }, '_id')

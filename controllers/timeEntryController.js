@@ -45,7 +45,7 @@ var timeEntrycontroller = function (TimeEntry) {
 
         timeentry.personId = req.body.personId;
         timeentry.projectId = req.body.projectId;
-        timeentry.dateOfWork = moment(dateOfWork).utc().format();
+        timeentry.dateOfWork = moment(dateOfWork).format("YYYY-MM-DD");
         timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
         timeentry.notes = req.body.notes;
         timeentry.isTangible = req.body.isTangible;
@@ -67,8 +67,8 @@ var timeEntrycontroller = function (TimeEntry) {
             return;
         }
 
-        let fromdate = moment(req.params.fromdate).utc().format();
-        let todate = moment(req.params.todate).utc().format();
+        let fromdate = moment(req.params.fromdate).format("YYYY-MM-DD");
+        let todate = moment(req.params.todate).format("YYYY-MM-DD");
         let userId = req.params.userId;
 
 
@@ -111,12 +111,12 @@ var timeEntrycontroller = function (TimeEntry) {
             res.status(400).send({ "error": "Invalid request" });
             return;
         }
-        let fromdate = moment.unix(req.params.fromDate).format('YYYY-MM-DD');
-        let todate = moment.unix(req.params.toDate).format('YYYY-MM-DD');
+        let fromdate = moment(req.params.fromDate).format('YYYY-MM-DD');
+        let todate = moment(req.params.toDate).format('YYYY-MM-DD');
         let projectId = req.params.projectId;
         TimeEntry.find({
             "projectId": projectId,
-            "dateOfWork": { "$gte": new Date(fromdate.toString()), "$lte": new Date(todate.toString()) }
+            "dateOfWork": { "$gte": fromDate, "$lte": todate }
         },
             ("-createdDateTime -lastModifiedDateTime"))
             .populate('userId')
@@ -147,7 +147,7 @@ var timeEntrycontroller = function (TimeEntry) {
             return;
         }
 
-        //verify that requestor is owner of timeentry or an administrator
+       
 
 
         if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId) ||
@@ -168,6 +168,7 @@ var timeEntrycontroller = function (TimeEntry) {
                 let minutes = (req.body.minutes) ? req.body.minutes : "00";
 
                 let timeSpent = hours + ":" + minutes;
+                 //verify that requestor is owner of timeentry or an administrator
 
                 if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === "Administrator") {
 
@@ -178,24 +179,24 @@ var timeEntrycontroller = function (TimeEntry) {
                     record.projectId = mongoose.Types.ObjectId(req.body.projectId);
                    if(req.body.requestor.role === "Administrator")
                    {
-                    record.dateOfWork = moment(req.body.dateOfWork).utc().format();
+                    record.dateOfWork = moment(req.body.dateOfWork).format("YYYY-MM-DD");
                    } 
 
                     record.save()
                         .then(() => {
-                            res.status(200).send({ "message": "Successfully updated time entry" })
-                            return;
+                            return res.status(200).send({ "message": "Successfully updated time entry" })
+                            
                         })
                         .catch((error) => {
-                            res.status(500).send({ "error": error });
-                            return;
+                            return res.status(500).send({ "error": error });
+                            
                         }
                         );
 
                 }
                 else {
-                    res.status(403).send({ "error": "Unauthorized request" });
-                    return;
+                    return res.status(403).send({ "error": "Unauthorized request" });
+                    
                 }
             })
             .catch((error) => res.status(400).send({ error }));
