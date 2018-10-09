@@ -153,7 +153,7 @@ var userhelper = function () {
         <p>        
         No worries though, life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.
         </p>
-        <p>Thankyou</p>
+        <p>Thank you,</p>
         <p><b> One Community </b></p>`
 
     return text;
