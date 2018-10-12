@@ -262,9 +262,9 @@ var dashboardhelper = function () {
                 $and: [{
                   $eq: ["$$timeentry.isTangible", true]
                 }, {
-                  $gte: ["$$timeentry.dateOfWork", new Date(fromdate)]
+                  $gte: ["$$timeentry.dateOfWork",fromdate]
                 }, {
-                  $lte: ["$$timeentry.dateOfWork", new Date(todate)]
+                  $lte: ["$$timeentry.dateOfWork", todate]
                 }]
               }
             }
