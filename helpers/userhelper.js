@@ -65,8 +65,8 @@ var userhelper = function () {
 
   var assignBlueBadgeforTimeNotMet = function () {
     
-    var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
-    var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
+    var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week");
+    var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week");
     userProfile.find({
         isActive: true
       }, '_id')
@@ -93,7 +93,7 @@ var userhelper = function () {
                   .then(status => emailSender(
                     recipient = status.email,
                     subject = "New Infringment Assigned",
-                    message = getInfringmentEmailBody(firstName, lastName, infringment),
+                    message = getInfringmentEmailBody(user.firstName, user.lastName, infringment),
                     cc = null,
                     bcc = "onecommunityglobal@gmail.com"))
                   .catch(error => console.log(error))
