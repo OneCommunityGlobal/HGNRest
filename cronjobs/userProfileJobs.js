@@ -6,7 +6,7 @@ const email = require("../helpers/email");
 var userProfileScheduledJobs = function(){
    
 var assignBlueBadge = new CronJob(
-       cronTime= '1 0 * * 1',onTick= userhelper.assignBlueBadgeforTimeNotMet,onComplete = email, start = false, timezone= 'America/Los_Angeles');
+       cronTime= '25 14 * * *',onTick= userhelper.assignBlueBadgeforTimeNotMet,onComplete = email, start = false, timezone= 'America/Los_Angeles');
    
 var deleteBlueBadgeOlderThanYear = new CronJob(
     cronTime= '0 0 * * *',onTick= userhelper.deleteBadgeAfterYear,onComplete = email, start = false, timezone= 'America/Los_Angeles');
