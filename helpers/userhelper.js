@@ -65,7 +65,7 @@ var userhelper = function () {
 
   var assignBlueBadgeforTimeNotMet = function () {
     
-    var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week").format("YYYY-MM-DD");
+    var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week");
     var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week");
     userProfile.find({
         isActive: true
@@ -73,6 +73,7 @@ var userhelper = function () {
       .then(users => {
         users.forEach(user => {
           const personId = mongoose.Types.ObjectId(user._id)
+                  
           dashboardhelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
             .then(results => {
               const weeklyComittedHours = results[0].weeklyComittedHours;
@@ -93,7 +94,7 @@ var userhelper = function () {
                   .then(status => emailSender(
                     recipient = status.email,
                     subject = "New Infringment Assigned",
-                    message = getInfringmentEmailBody(user.firstName, user.lastName, infringment),
+                    message = getInfringmentEmailBody(status.firstName, status.lastName, infringment),
                     cc = null,
                     bcc = "onecommunityglobal@gmail.com"))
                   .catch(error => console.log(error))
