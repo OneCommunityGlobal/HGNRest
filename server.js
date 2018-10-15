@@ -52,10 +52,14 @@ const options =
 		pass: process.env.password,
 
 	}
+
 	
 var uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`
 
 var db = mongoose.connect(uri).catch((error) => { console.log(error); });
+
+const Sentry = require('@sentry/node');
+Sentry.init({ dsn: 'https://f66df0ae5a924f568f365e53a1657b58@sentry.io/1301660' });
 
 app.all('*', function (req, res, next) {
 
