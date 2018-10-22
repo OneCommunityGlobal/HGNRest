@@ -11,7 +11,7 @@ let logincontroller = function () {
 
   const JWT_SECRET = config.JWT_SECRET;
 
-  let login = async function _login(req, res) {
+  let login = async function _login(req, res, next) {
 
     let _email = req.body.email;
     let _password = req.body.password;
@@ -71,8 +71,9 @@ let logincontroller = function () {
       res.send(result).status(200);
     } else {
       res.status(403).send({
-        message: "Invalid email and/ or password."
+        message: ""
       });
+      
     }
 
   }
