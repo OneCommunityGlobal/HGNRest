@@ -5,6 +5,7 @@ var mongoose = require('mongoose');
 var moment = require('moment-timezone');
 var emailSender = require("../utilities/emailSender");
 var _ = require("lodash")
+const logger = require("../startup/logger");
 
 var userhelper = function () {
 
@@ -64,7 +65,7 @@ var userhelper = function () {
   }
 
   var assignBlueBadgeforTimeNotMet = function () {
-    
+    logger.logInfo(`Job for assigning blue badge for commitment not met starting at ${moment().tz("America/Los_Angeles").format()}`)
     var pdtStartOfLastWeek = moment().tz("America/Los_Angeles").startOf("isoWeek").subtract(1, "week");
     var pdtEndOfLastWeek = moment().tz("America/Los_Angeles").endOf("isoWeek").subtract(1, "week");
     userProfile.find({
@@ -78,8 +79,6 @@ var userhelper = function () {
             .then(results => {
               const weeklyComittedHours = results[0].weeklyComittedHours;
               const timeSpent = results[0].timeSpent_hrs;
-              console.log(`Checking for user ${user._id} committed : ${weeklyComittedHours} logged : ${timeSpent}`)
-
               if (timeSpent < weeklyComittedHours) {
                 const description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format("dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}`
                 const infringment = {
@@ -97,7 +96,7 @@ var userhelper = function () {
                     message = getInfringmentEmailBody(status.firstName, status.lastName, infringment),
                     cc = null,
                     bcc = "onecommunityglobal@gmail.com"))
-                  .catch(error => console.log(error))
+                  .catch(error => logger.logException(error))
               }
             })
             .catch(error => console.log(error))
@@ -108,6 +107,7 @@ var userhelper = function () {
   }
 
   var deleteBadgeAfterYear = function () {
+    logger.logInfo(`Job for deleting badges older than 1 year starting at ${moment().tz("America/Los_Angeles").format()}`)
     let cutOffDate = moment().subtract(1, "year").format("YYYY-MM-DD")
     userProfile.updateMany({}, {
         $pull: {
@@ -118,8 +118,8 @@ var userhelper = function () {
           }
         }
       })
-      .then(results => console.log(results))
-      .catch(error => console.log(error))
+      .then(results => logger.logInfo(results))
+      .catch(error => logger.logException(error))
 
 
   }
