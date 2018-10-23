@@ -7,7 +7,8 @@ var forgotPwdController = function (userProfile) {
     var forgotPwd = async function (req, res) {
         let _email = (req.body.email).toLowerCase();
         
-        let user = await userProfile.findOne({ email: _email }).catch(error => res.status(400).send(error));
+        let user = await userProfile.findOne({ email: _email })
+        .catch(error => res.status(400).send(error));
 
         if(user){
             let _firstName = (req.body.firstName);
@@ -20,13 +21,13 @@ var forgotPwdController = function (userProfile) {
                 user.save()
                 .then(results => {
 
-                    emailSender({
+                    emailSender(
                         recipient = user.email,
                         subject = "Account Password change", 
                         message = getEmailMessageForForgotPassword(user, ranPwd) , 
                         cc =null, 
                         bcc=null
-                    })
+                    )
 
                  res.status(200).send({ "message": "generated new password" });
                   return;
