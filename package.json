@@ -29,7 +29,7 @@
     "mongoose": "^5.3.5",
     "mongoose-validator": "2.0.1",
     "node-datetime": "^2.0.3",
-    "nodemailer": "^4.6.4",
+    "nodemailer": "^4.6.8",
     "nodemon": "^1.18.4",
     "npm": "^5.8.0",
     "ts-types": "0.0.9"
