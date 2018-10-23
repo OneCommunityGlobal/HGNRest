@@ -35,10 +35,8 @@ var emailSender = function(recipient,subject, message, cc =null, bcc=null) {
                 logger.logException(error)
                 return error;
             }
-            logger.logInfo('Message sent: %s', info.messageId);
-            // Preview only available when sending through an Ethereal account
-            logger.logInfo('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-        });
+            logger.logInfo(info);
+                });
     });
 
 
