@@ -21,10 +21,8 @@ let logincontroller = function () {
       return;
     }
 
-    _email = _email.toLowerCase();
-
-
-    let user = await userprofile.findOne({ email: _email })
+    
+    let user = await userprofile.findOne({ email: { $regex:_email , $options: "i" } })
       .catch(error => res.status(400).send(error));
 
 
