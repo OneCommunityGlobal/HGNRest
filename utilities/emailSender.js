@@ -19,7 +19,7 @@ var emailSender = function(recipient,subject, message, cc =null, bcc=null) {
             }
         });
 
-        
+        logger.logInfo(transporter)
 
 
         let mailOptions = {
