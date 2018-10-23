@@ -161,7 +161,7 @@ var userProfileController = function (userProfile) {
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
         record.isActive = req.body.isActive;
-        record.email = req.body.email
+        record.email = req.body.email.toLowerCase()
       }
 
       if (infringment_authorizers.includes(req.body.requestor.role))
