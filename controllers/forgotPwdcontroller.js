@@ -7,9 +7,17 @@ var forgotPwdController = function (userProfile) {
         let _email = (req.body.email).toLowerCase();
         
         let user = await userProfile.findOne({ email: { $regex:_email , $options: "i" } })
-        .catch(error => res.status(400).send(error));
+        .catch(error => {-res.status(400).send(error)
+        return;
+        }
+        
+        );
 
-        if(user){
+        if(!user){
+            res.status(400).send({error: "No Valid user was found"});
+            return;
+
+        }
             let _firstName = (req.body.firstName);
             let _lastName =(req.body.lastName);
             
@@ -39,8 +47,13 @@ var forgotPwdController = function (userProfile) {
                   return;
                 })
             }
+            else
+            {
+                res.status(400).send({error: "Please check your details and enter them correctly"});
+                return;
+            }
   
-        }
+        
     }
     return {forgotPwd : forgotPwd};
 }
