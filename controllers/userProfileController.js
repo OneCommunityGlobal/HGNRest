@@ -58,12 +58,9 @@ var userProfileController = function (userProfile) {
     }
 
 
-    let _email = (req.body.email).toLowerCase();
+   
 
-
-    let userbyemail = await userProfile.findOne({
-      email: _email
-    });
+    let userbyemail = await userprofile.findOne({ email: { $regex:_email , $options: "i" } })
 
     if (userbyemail) {
       let errorMessage = "Email already exists. Please choose another email.";
