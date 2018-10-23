@@ -1,5 +1,3 @@
-var mongoose = require('mongoose');
-var bcrypt = require('bcryptjs');
 const emailSender = require("../utilities/emailSender")
 const logger = require("../startup/logger");
 
