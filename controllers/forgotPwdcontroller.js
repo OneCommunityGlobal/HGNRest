@@ -1,5 +1,6 @@
 var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs');
+const emailSender = require("../utilities/emailSender")
 
 var forgotPwdController = function (userProfile) {
 
@@ -18,8 +19,16 @@ var forgotPwdController = function (userProfile) {
                 user.set({ password: ranPwd });
                 user.save()
                 .then(results => {
-                 var helper = require('../helpers/forgotPwdhelper')(user,ranPwd);
-                  res.status(200).send({ "message": "generated new password" });
+
+                    emailSender({
+                        recipient = user.email,
+                        subject = "Account Password change", 
+                        message = getEmailMessageForForgotPassword(user, ranPwd) , 
+                        cc =null, 
+                        bcc=null
+                    })
+
+                 res.status(200).send({ "message": "generated new password" });
                   return;
                 })
                 .catch(error => {
@@ -44,3 +53,15 @@ function create_UUID(){
     });
     return uuid;
 };
+function getEmailMessageForForgotPassword(user, ranPwd)
+{
+    const message = `<b> Hello ${user.firstName} ${user.lastName},</b>
+    <p>Do not reply to this mail.</p> 
+    <p>Your 'forgot password' request was recieved and here is your new password:</p>
+    <blockquote> ${ranPwd}</blockquote>
+    <p>Please change this password the next time you log in. Do this by clicking the arrow in the top-right corner by your profile picture and then selecting the "Update Password" option. </P>
+    <p>Thank you,<p>
+    <p>One Community</p>
+    `;
+    return message;
+}
