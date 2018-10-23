@@ -12,7 +12,7 @@ var emailSender = function(recipient,subject, message, cc =null, bcc=null) {
             secure: true,
             auth: {
                 user: process.env.SMTPUser,
-                pass: provess.env.SMTPPass
+                pass: process.env.SMTPPass
             },
             tls: {
                 rejectUnauthorized: false
