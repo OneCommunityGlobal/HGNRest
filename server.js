@@ -13,7 +13,6 @@ require("./startup/middleware")(app)
 require('./cronjobs/userProfileJobs')();
 require("./startup/routes")(app)
 
-
 const port = process.env.PORT || 4500;
 
 const server = app.listen(port, () =>
