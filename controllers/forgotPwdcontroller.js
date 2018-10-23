@@ -13,7 +13,7 @@ var forgotPwdController = function (userProfile) {
             let _firstName = (req.body.firstName);
             let _lastName =(req.body.lastName);
             
-            if(user.firstName === _firstName && user.lastName === _lastName)
+            if(user.firstName.toLowerCase() === _firstName.toLowerCase() && user.lastName.toLowerCase() === _lastName.toLowerCase())
             {
               var ranPwd =  create_UUID().concat("TEMP");
                 user.set({ password: ranPwd });
