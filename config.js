@@ -1,10 +1,10 @@
 var config = {};
 
-config.JWT_SECRET = "hgndata";
+config.JWT_SECRET = process.env.JWT_SECRET;
 config.REQUEST_AUTHKEY = "Authorization";
 config.TOKEN = {
-    "Lifetime": 10,
-    "Units": "days"// Choose from years, quarters, months,weeks, days,hours, minutes,seconds, milliseconds
+    "Lifetime": process.env.TOKEN_LIFETIME,
+    "Units": process.env.TOKEN_LIFETIME_UNITS
 };
 config.JWT_HEADER = {
     "alg": "RS256",
