@@ -1,6 +1,7 @@
 var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs');
 const emailSender = require("../utilities/emailSender")
+const logger = require("../startup/logger");
 
 var forgotPwdController = function (userProfile) {
 
@@ -28,11 +29,14 @@ var forgotPwdController = function (userProfile) {
                         cc =null, 
                         bcc=null
                     )
+                    logger.logInfo(`New password ${ranPwd} was generated for user._id`)
 
                  res.status(200).send({ "message": "generated new password" });
+                 
                   return;
                 })
                 .catch(error => {
+                    logger.logException(error);
                   res.status(500).send(error);
                   return;
                 })
