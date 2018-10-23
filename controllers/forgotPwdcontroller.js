@@ -6,7 +6,7 @@ var forgotPwdController = function (userProfile) {
     var forgotPwd = async function (req, res) {
         let _email = (req.body.email).toLowerCase();
         
-        let user = await userprofile.findOne({ email: { $regex:_email , $options: "i" } })
+        let user = await userProfile.findOne({ email: { $regex:_email , $options: "i" } })
         .catch(error => res.status(400).send(error));
 
         if(user){

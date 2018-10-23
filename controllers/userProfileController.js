@@ -60,7 +60,7 @@ var userProfileController = function (userProfile) {
 
    
 
-    let userbyemail = await userprofile.findOne({ email: { $regex:_email , $options: "i" } })
+    let userbyemail = await userProfile.findOne({ email: { $regex:_email , $options: "i" } })
 
     if (userbyemail) {
       let errorMessage = "Email already exists. Please choose another email.";
