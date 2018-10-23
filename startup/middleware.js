@@ -25,7 +25,7 @@ module.exports = function(app)
         let payload = "";
     
         try {
-            payload = jwt.verify(authToken, config.JWT_SECRET);
+            payload = jwt.verify(authToken, process.env.JWT_SECRET);
     
         }
         catch (error) {

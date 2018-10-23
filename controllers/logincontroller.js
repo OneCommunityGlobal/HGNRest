@@ -9,7 +9,7 @@ let logincontroller = function () {
 
   const JWT_HEADER = config.JWT_HEADER;
 
-  const JWT_SECRET = config.JWT_SECRET;
+  const JWT_SECRET = process.env.JWT_SECRET;
 
   let login = async function _login(req, res, next) {
 

@@ -12,9 +12,10 @@ require("./startup/bodyParser")(app)
 require("./startup/middleware")(app)
 require('./cronjobs/userProfileJobs')();
 require("./startup/routes")(app)
-require("./config");
 
+var config = require("./config")
 logger.logInfo(process.env)
+logger.logInfo( config)
 
 
 const port = process.env.PORT || 4500;
