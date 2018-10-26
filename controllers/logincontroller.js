@@ -69,7 +69,7 @@ let logincontroller = function () {
       res.send(result).status(200);
     } else {
       res.status(403).send({
-        message: ""
+        message: "Invalid user credentials"
       });
       
     }
