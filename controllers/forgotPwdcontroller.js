@@ -5,9 +5,17 @@ var forgotPwdController = function (userProfile) {
 
     var forgotPwd = async function (req, res) {
         let _email = (req.body.email).toLowerCase();
+        let _firstName = (req.body.firstName);
+        let _lastName =(req.body.lastName);
         
-        let user = await userProfile.findOne({ email: { $regex:_email , $options: "i" } })
-        .catch(error => {-res.status(400).send(error)
+        let user = await userProfile.findOne({ 
+            email: { $regex:_email , $options: "i" },
+            firstName: { $regex:_firstName , $options: "i" },
+            lastName: { $regex:_lastName , $options: "i" }    
+    })
+        .catch(error => {
+            res.status(500).send(error);
+            logger.logException(error);
         return;
         }
         
@@ -18,11 +26,6 @@ var forgotPwdController = function (userProfile) {
             return;
 
         }
-            let _firstName = (req.body.firstName);
-            let _lastName =(req.body.lastName);
-            
-            if(user.firstName.toLowerCase() === _firstName.toLowerCase() && user.lastName.toLowerCase() === _lastName.toLowerCase())
-            {
               var ranPwd =  create_UUID().concat("TEMP");
                 user.set({ password: ranPwd });
                 user.save()
@@ -46,12 +49,7 @@ var forgotPwdController = function (userProfile) {
                   res.status(500).send(error);
                   return;
                 })
-            }
-            else
-            {
-                res.status(400).send({error: "Please check your details and enter them correctly"});
-                return;
-            }
+            
   
         
     }
