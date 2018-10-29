@@ -2,6 +2,7 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var validate = require('mongoose-validator');
 var bcrypt = require('bcryptjs');
+const logger = require("../startup/logger")
 
 const SALT_Rounds = 10;
 
@@ -24,7 +25,7 @@ var userProfileSchema = new Schema({
   bio: { type: String },
   email: { type: String, required: true, unique: true, validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })] },
   weeklyComittedHours: { type: Number, default: 10 },
-  createdDate: { type: Date, required: true },
+  createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],

@@ -2,6 +2,9 @@ var team = require('../models/team');
 var mongoose = require('mongoose');
 var userhelper = require('../helpers/userhelper')();
 var bcrypt = require('bcryptjs');
+const TimeEntry = require("../models/timeentry")
+const logger = require("../startup/logger");
+
 
 
 var userProfileController = function (userProfile) {
@@ -19,29 +22,26 @@ var userProfileController = function (userProfile) {
     }
 
     userProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive')
-      .sort({ lastName: 1 })
+      .sort({
+        lastName: 1
+      })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
-
-    // , function (err, profiles) {
-    //   if (err) {
-    //     res.status(404).send("Error finding user profiles");
-    //     return;
-    //   }
-    //   res.json(profiles);
-    // });
 
   };
 
   var getProjectMembers = function (req, res) {
-    //console.log(req.params.projectId);
     let AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
     var isRequestorAuthorized = (AuthorizedRolesToView.includes(req.body.requestor.role) || req.body.requestor.requestorId === userid) ? true : false;
     if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to view all users");
       return;
     }
-    userProfile.find({ projects: { $in: [req.params.projectId] } }, '_id firstName email', function (err, profiles) {
+    userProfile.find({
+      projects: {
+        $in: [req.params.projectId]
+      }
+    }, '_id firstName email', function (err, profiles) {
       if (err) {
         res.status(404).send("Error finding user profiles");
         return;
@@ -56,21 +56,20 @@ var userProfileController = function (userProfile) {
       res.status(403).send("You are not authorized to create new users");
       return;
     }
-
-
-   
-
-    let userbyemail = await userProfile.findOne({ email: { $regex:_email , $options: "i" } })
+    let userbyemail = await userProfile.findOne({
+      email: {
+        $regex: _email,
+        $options: "i"
+      }
+    })
 
     if (userbyemail) {
-      let errorMessage = "Email already exists. Please choose another email.";
+      let error = "Email already exists. Please choose another email.";
       res.status(400).send({
-        error: errorMessage
+        error
       });
       return;
     }
-
-
 
     var up = new userProfile();
     up.password = req.body.password;
@@ -89,11 +88,9 @@ var userProfileController = function (userProfile) {
 
 
     up.save()
-      .then(function (results) {
-        res.status(200).send({
-          _id: up._id
-        });
-      })
+      .then(() => res.status(200).send({
+        _id: up._id
+      }))
       .catch(error => res.status(501).send(error));
 
 
@@ -112,7 +109,7 @@ var userProfileController = function (userProfile) {
     }
     userProfile.findById(userid, function (err, record) {
 
-      if (err || record == null) {
+      if (err || !record) {
 
         if (record == null) err = " No valid records found";
 
@@ -122,24 +119,23 @@ var userProfileController = function (userProfile) {
       //validate userprofile pic
 
       if (req.body.profilePic) {
-       let results =  userhelper.validateprofilepic(req.body.profilePic);
+        let results = userhelper.validateprofilepic(req.body.profilePic);
 
-       if (!results.result)
-       {
-         res.status(400).json(results.errors)
-         return;
-         
-       }
-   
+        if (!results.result) {
+          res.status(400).json(results.errors)
+          return;
+
+        }
+
       }
 
-     // let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
-      let original_infringments = (record.infringments)? record.infringments : [];
+      // let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
+      let original_infringments = (record.infringments) ? record.infringments : [];
 
-      
-      
-      let infringment_authorizers = ["Manager" , "Administrator"];
-      
+
+
+      let infringment_authorizers = ["Manager", "Administrator"];
+
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
       record.lastName = req.body.lastName;
@@ -161,19 +157,18 @@ var userProfileController = function (userProfile) {
         record.email = req.body.email.toLowerCase()
       }
 
-      if (infringment_authorizers.includes(req.body.requestor.role))
-      {
+      if (infringment_authorizers.includes(req.body.requestor.role)) {
         record.infringments = req.body.infringments;
       }
-    
+
       record.save()
         .then(function (results) {
           userhelper.notifyInfringments(original_infringments, results.infringments, results.firstName, results.lastName, results.email)
           res.status(200).json({
-            _id: record._id            
+            _id: record._id
           });
         })
-        .catch(error => 
+        .catch(error =>
           res.status(400).send(error));
 
 
@@ -181,36 +176,63 @@ var userProfileController = function (userProfile) {
 
   };
 
-  var deleteUserProfile = function (req, res) {
+  var deleteUserProfile = async function (req, res) {
 
-    if (!req.params.userId) {
-      res.status(400).send({ "error": "Bad request" });
+    let option = req.body.option;
+    let userId = req.params.userId
+
+    if (!userId || ! option || (option !== "delete" && option !== "archive") || req.body.requestor.role !== "Administrator") {
+      res.status(400).send({
+        "error": "Bad request"
+      });
       return;
     }
-    userProfile.findById(req.params.userId)
-      .then((record) => {
-        if (!record) {
-          res.status(400).send({ "message": "No valid record found" })
+
+    let user = await userProfile.findById(userId)
+    
+      
+        if (!user) {
+          res.status(400).send({
+            "error": "Invalid user"
+          });
           return;
         }
-        if (req.body.requestor.role === "Administrator") {
-          record.remove()
-            .then(() => {
-              res.status(200).send({ "message": "Successfully deleted" })
-              return;
+
+        if (option == "archive")
+        {
+          const timeArchiveUser = await userProfile.findOne({
+            firstName: "TimeArchiveAccount",
+            lastName: "TimeArchiveAccount"
+          }, "_id")
+  
+          if (!timeArchiveUser) {
+            logger.logException("Time Archive user was not found. Please check the database")
+            res.status(500).send({
+             "error": "Time Archive User not found. Please contact your developement team on why that happened"
+            });
+            return;
+          } 
+  
+        await TimeEntry.updateMany({
+              personId: userId
+            }, {
+              $set: {
+                personId: mongoose.Types.ObjectId(timeArchiveUser._id)
+              }
             })
-            .catch((error) => {
-              res.status(500).send(error);
-              return;
-            }
-            );
+
+                       
 
         }
-        else {
-          res.status(403).send({ "error": "Unauthorized request" });
-          return;
-        }
-      })
+        
+        let result = await userProfile.deleteOne({
+          _id: userId
+        });
+        res.status(200).send({"message": "Executed Successfully"});
+
+        
+        
+
 
 
   };
@@ -223,8 +245,24 @@ var userProfileController = function (userProfile) {
     let teamid = "";
 
     userProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
-      .populate({ path: 'teams', select: '_id teamName', options: { sort: { "teamName": 1 } } })
-      .populate({ path: "projects", select: '_id projectName', options: { sort: { "projectName": 1 } } })
+      .populate({
+        path: 'teams',
+        select: '_id teamName',
+        options: {
+          sort: {
+            "teamName": 1
+          }
+        }
+      })
+      .populate({
+        path: "projects",
+        select: '_id projectName',
+        options: {
+          sort: {
+            "projectName": 1
+          }
+        }
+      })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
 
@@ -236,29 +274,39 @@ var userProfileController = function (userProfile) {
     let requestor = req.body.requestor;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      res.status(400).send({ "error": "Bad Request" });
+      res.status(400).send({
+        "error": "Bad Request"
+      });
       return;
     }
 
     //Verify correct params in body
     if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
-      res.status(400).send({ "error": "One of more required fields are missing" });
+      res.status(400).send({
+        "error": "One of more required fields are missing"
+      });
       return;
     }
     // Verify request is authorized by self or adminsitrator
     if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
-      res.status(403).send({ "error": "You are unauthorized to update this user's password" });
+      res.status(403).send({
+        "error": "You are unauthorized to update this user's password"
+      });
       return;
     }
     //Verify new and confirm new password are correct
 
     if (req.body.newpassword != req.body.confirmnewpassword) {
-      res.status(400).send({ "error": "New and confirm new passwords are not same" });
+      res.status(400).send({
+        "error": "New and confirm new passwords are not same"
+      });
     }
 
     //Verify old and new passwords are not same
     if (req.body.currentpassword === req.body.newpassword) {
-      res.status(400).send({ "error": "Old and confirm new passwords should not be same" });
+      res.status(400).send({
+        "error": "Old and confirm new passwords should not be same"
+      });
     }
 
     userProfile.findById(userId, 'password')
@@ -266,19 +314,24 @@ var userProfileController = function (userProfile) {
         bcrypt.compare(req.body.currentpassword, user.password)
           .then((passwordMatch) => {
             if (passwordMatch) {
-              user.set({ password: req.body.newpassword });
+              user.set({
+                password: req.body.newpassword
+              });
               user.save()
                 .then(results => {
-                  res.status(200).send({ "message": "updated password" });
+                  res.status(200).send({
+                    "message": "updated password"
+                  });
                   return;
                 })
                 .catch(error => {
                   res.status(500).send(error);
                   return;
                 })
-            }
-            else {
-              res.status(400).send({ "error": "Incorrect current password" });
+            } else {
+              res.status(400).send({
+                "error": "Incorrect current password"
+              });
               return;
             }
 
@@ -300,7 +353,9 @@ var userProfileController = function (userProfile) {
 
   var getreportees = function (req, res) {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
-      res.status(400).send({ "error": "Bad request" });
+      res.status(400).send({
+        "error": "Bad request"
+      });
       return;
     }
 
@@ -314,7 +369,9 @@ var userProfileController = function (userProfile) {
     }
 
 
-    userhelper.getTeamMembers({ _id: userid })
+    userhelper.getTeamMembers({
+        _id: userid
+      })
       .then(results => {
         var teammembers = [];
 
@@ -331,10 +388,14 @@ var userProfileController = function (userProfile) {
   var getTeamMembersofUser = function (req, res) {
 
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
-      res.status(400).send({ "error": "Bad request" });
+      res.status(400).send({
+        "error": "Bad request"
+      });
       return;
     }
-    userhelper.getTeamMembers({ _id: req.params.userId })
+    userhelper.getTeamMembers({
+        _id: req.params.userId
+      })
       .then(results => {
         res.status(200).send(results);
       })
@@ -350,7 +411,9 @@ var userProfileController = function (userProfile) {
       userProfile.findById(userId, 'firstName lastName')
         .then(result => {
           let name = result.firstName + " " + result.lastName;
-          res.status(200).send({ "name": name });
+          res.status(200).send({
+            "name": name
+          });
           return;
         })
         .catch(error => {
@@ -359,9 +422,10 @@ var userProfileController = function (userProfile) {
         });
 
 
-    }
-    else {
-      res.status(400).send({ "error": "Bad request" })
+    } else {
+      res.status(400).send({
+        "error": "Bad request"
+      })
     }
 
   }
@@ -371,15 +435,21 @@ var userProfileController = function (userProfile) {
     let status = (req.body.status == "Active" ? true : false);
     console.log(req.body.status + "and" + status);
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      res.status(400).send({ "error": "Bad Request" });
+      res.status(400).send({
+        "error": "Bad Request"
+      });
       return;
     }
     userProfile.findById(userId, 'isActive')
       .then(user => {
-        user.set({ isActive: status })
+        user.set({
+          isActive: status
+        })
         user.save()
           .then(results => {
-            res.status(200).send({ "message": "status updated" });
+            res.status(200).send({
+              "message": "status updated"
+            });
             return;
           })
           .catch(error => {
@@ -399,10 +469,14 @@ var userProfileController = function (userProfile) {
     userProfile.findById(req.params.userId, 'password')
       .then(user => {
         console.log(user.password);
-        user.set({ password: req.body.newpassword });
+        user.set({
+          password: req.body.newpassword
+        });
         user.save()
           .then(results => {
-            res.status(200).send({ "message": " password Reset" });
+            res.status(200).send({
+              "message": " password Reset"
+            });
             console.log(user.password);
             return;
           })
@@ -410,8 +484,7 @@ var userProfileController = function (userProfile) {
             res.status(500).send(error);
             return;
           })
-      }
-      )
+      })
       .catch(error => {
         res.status(500).send(error);
         return;
@@ -446,24 +519,32 @@ function ValidatePassword(req) {
   let requestor = req.body.requestor;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
-    res.status(400).send({ "error": "Bad Request" });
+    res.status(400).send({
+      "error": "Bad Request"
+    });
     return;
   }
 
   //Verify correct params in body
   if (!req.body.newpassword || !req.body.confirmnewpassword) {
-    res.status(400).send({ "error": "One of more required fields are missing" });
+    res.status(400).send({
+      "error": "One of more required fields are missing"
+    });
     return;
   }
   // Verify request is authorized by self or adminsitrator
   if (!userId === requestor.requestorId && !requestor.role === "Administrator") {
-    res.status(403).send({ "error": "You are unauthorized to update this user's password" });
+    res.status(403).send({
+      "error": "You are unauthorized to update this user's password"
+    });
     return;
   }
 
   //Verify new and confirm new password are correct
   if (req.body.newpassword != req.body.confirmnewpassword) {
-    res.status(400).send({ "error": "New and confirm new passwords are not same" });
+    res.status(400).send({
+      "error": "New and confirm new passwords are not same"
+    });
   }
 
 }

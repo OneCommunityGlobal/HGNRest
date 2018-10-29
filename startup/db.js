@@ -1,6 +1,7 @@
 
 const mongoose = require('mongoose');
 const logger = require("./logger")
+const userProfile = require("../models/userProfile");
 mongoose.Promise = Promise;
 
 
@@ -10,9 +11,35 @@ module.exports = function() {
         
     const db = mongoose.connect(uri, { 
         useCreateIndex: true,
-        useNewUrlParser: true }).catch((error) => { 
-
-        console.log(error);
+        useNewUrlParser: true }).catch((error) => {         
         logger.logException(error);
      });
+
+     userProfile.findOne(
+         { 
+             firstName: { $regex:"TimeArchiveAccount" , $options: "i" } ,
+             lastName: { $regex:"TimeArchiveAccount" , $options: "i" } 
+         }        
+         )
+    .then(user => 
+        {
+            if (!user)
+            {
+                userProfile.create({
+                    firstName: "TimeArchiveAccount",
+                    lastName: "TimeArchiveAccount",
+                    email : "TimeArchiveAccount@yopmail.com",
+                    role : "Volunteer",
+                    password: "123Welcome!"
+                })
+                .then(result => logger.logInfo(`TimeArchive account was created with id of ${result._id}`)
+                )
+                .catch(error => logger.logException(error))
+            }
+        })
+
+
+     
+
+
 }
