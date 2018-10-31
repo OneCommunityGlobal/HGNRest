@@ -263,7 +263,17 @@ var userProfileController = function (userProfile) {
           }
         }
       })
-      .then(results => res.status(200).send(results))
+      .then(results => 
+        
+        {
+          if (!results) 
+          {
+            res.status(400).send({"error": "This is not a valid user"});
+            return;
+          }
+          res.status(200).send(results);
+        })
+        
       .catch(error => res.status(404).send(error));
 
   };
