@@ -29,9 +29,11 @@ let dashboardcontroller = function () {
           "projectName": "",
           "timeSpent_hrs": 0
         }];
-        res.status(200).send(emptyresult)
+        res.status(200).send(emptyresult);
+        return;
       }
-      res.status(200).send(results)
+      res.status(200).send(results);
+      return;
     });
 
   };
