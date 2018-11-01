@@ -12,7 +12,7 @@ var assignBlueBadge = new CronJob(
        timeZone= 'America/Los_Angeles');
    
 var deleteBlueBadgeOlderThanYear = new CronJob(
-    cronTime= '46 * * * *',
+    cronTime= '0 0 * * *',
     onTick= userhelper.deleteBadgeAfterYear, 
     onComplete = null,
     start = false, 
