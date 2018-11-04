@@ -56,6 +56,7 @@ var userProfileController = function (userProfile) {
       res.status(403).send("You are not authorized to create new users");
       return;
     }
+    let _email = req.body.email;
     let userbyemail = await userProfile.findOne({
       email: {
         $regex: _email,
