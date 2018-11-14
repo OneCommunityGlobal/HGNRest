@@ -28,7 +28,7 @@ let logincontroller = function () {
 
 
     if (!user) {
-      res.status(403).send("Invalid email and/ or password.");
+      res.status(403).send({"message": "Invalid email and/ or password."});
       return;
     }
     
@@ -59,17 +59,10 @@ let logincontroller = function () {
 
       let token = jwt.sign(jwt_payload, JWT_SECRET);
 
-      let result =
-        {
-          "token": token,
-
-        }
-
-
-      res.send(result).status(200);
+      res.send({token}).status(200);
     } else {
       res.status(403).send({
-        message: "Invalid user credentials"
+        message: "Invalid email and/ or password."
       });
       
     }

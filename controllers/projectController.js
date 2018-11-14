@@ -52,7 +52,7 @@ var projectController = function (project) {
         });
 
     })
-      .catch(errors => { res.status(400).send(error) });
+      .catch(errors => { res.status(400).send(errors) });
 
   };
 
@@ -76,8 +76,7 @@ var projectController = function (project) {
         }
         var _project = new project();
 
-        _project.projectName = req.body.projectName;
-        _project.isActive = req.body.isActive;
+        _project = {...req.body};
         _project.createdDatetime = Date.now();
         _project.modifiedDatetime = Date.now();
 
@@ -104,9 +103,7 @@ var projectController = function (project) {
         return;
       }
 
-      record.projectName = req.body.projectName;
-      record.isActive = req.body.isActive;
-      record.modifiedDatetime = Date.now();
+      record = {...req.body};
 
       record.save()
         .then(results => res.status(201).send(results._id))
