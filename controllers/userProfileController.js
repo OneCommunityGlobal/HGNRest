@@ -79,6 +79,8 @@ var userProfileController = function (userProfile) {
     up.createdDate = Date.now();
     up.email = _email;
 
+    logger.logInfo(up)
+
 
     up.save()
       .then(() => res.status(200).send({
