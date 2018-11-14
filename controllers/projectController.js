@@ -103,7 +103,9 @@ var projectController = function (project) {
         return;
       }
 
-      record = {...req.body};
+      record.projectName = req.body.projectName;	 
+      record.isActive = req.body.isActive;	
+      record.modifiedDatetime = Date.now();
 
       record.save()
         .then(results => res.status(201).send(results._id))

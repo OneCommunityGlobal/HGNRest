@@ -73,15 +73,22 @@ var userProfileController = function (userProfile) {
     }
 
     var up = new userProfile();
-    up = {...req.body}
+    up.password = req.body.password;	
+    up.role = req.body.role;	
+    up.firstName = req.body.firstName;	
+    up.lastName = req.body.lastName;	
+    up.email = _email;	
+    up.phoneNumber = req.body.phoneNumber;	
+    up.bio = req.body.bio;	
+    up.weeklyComittedHours = req.body.weeklyComittedHours;	
+    up.personalLinks = req.body.personalLinks;	
+    up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
     up.email = _email;
 
-    logger.logInfo(up)
-
-
+    
     up.save()
       .then(() => res.status(200).send({
         _id: up._id
