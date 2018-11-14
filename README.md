@@ -34,6 +34,12 @@ Note: Once you check in the code in github, the application will be publsihed to
 Developement : https://hgn-rest-dev.herokuapp.com 
 Master: https://hgn-rest.azurewebsites.net/
 
+## BIG THANKS
+
+- Monitoring and logging provided by [Sentry.io](https://sentry.io/welcome/)
+- Hosting provided by [Microsoft Azure](https://azure.microsoft.com/en-us/) and [Heroku](https://www.heroku.com/)
+
+
 Other key touchpoints:
 
 Build and hosting: Azure  and Heroku
