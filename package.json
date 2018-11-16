@@ -7,7 +7,7 @@
     "test": "test",
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
-    "start": "npm run install && npm run build && node dist/server.js"
+    "start": "npm install && npm run build && node dist/server.js"
   },
   "author": "AK",
   "license": "ISC",
