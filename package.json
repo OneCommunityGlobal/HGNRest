@@ -12,8 +12,6 @@
   "author": "AK",
   "license": "ISC",
   "devDependencies": {
-    
-    
     "@types/express": ">4.0.39",
     "@types/mongoose": "^4.7.32",
     "@types/node": "^8.0.58",
@@ -21,8 +19,7 @@
     "eslint": "^5.9.0",
     "eslint-config-airbnb-base": "^13.1.0",
     "eslint-plugin-import": "^2.14.0",
-    "gulp": "^3.9.1",
-    "jshint-esnext": "^2.7.0-3"
+    "gulp": "^3.9.1"
   },
   "dependencies": {
     "@babel/cli": "^7.1.5",
