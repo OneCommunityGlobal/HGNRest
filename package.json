@@ -18,8 +18,7 @@
     "babel-eslint": "^10.0.1",
     "eslint": "^5.9.0",
     "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.14.0",
-    "gulp": "^3.9.1"
+    "eslint-plugin-import": "^2.14.0"
   },
   "dependencies": {
     "@babel/cli": "^7.1.5",
@@ -35,7 +34,7 @@
     "cron": "^1.4.1",
     "dotenv": "^5.0.1",
     "express": "^4.16.2",
-    "jsonwebtoken": "^8.1.0",
+    "jsonwebtoken": "^8.4.0",
     "lodash": "^4.17.11",
     "moment": "^2.19.3",
     "moment-timezone": "^0.5.16",
@@ -43,7 +42,6 @@
     "mongoose-validator": "2.0.1",
     "node-datetime": "^2.0.3",
     "nodemailer": "^4.6.8",
-    "nodemon": "^1.18.4",
     "uuid": "^3.3.2"
   }
 }
