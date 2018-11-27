@@ -276,9 +276,8 @@ const userProfileController = function (UserProfile) {
   };
 
   const updatepassword = function (req, res) {
-    const { userId, requestor } = req.params;
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(requestor));
+    const { userId } = req.params;
+    const { requestor } = req.body;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).send({
         error: 'Bad Request',
