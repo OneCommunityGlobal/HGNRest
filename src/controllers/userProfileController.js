@@ -277,27 +277,23 @@ const userProfileController = function (UserProfile) {
 
   const updatepassword = function (req, res) {
     const { userId, requestor } = req.params;
-
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      res.status(400).send({
+      return res.status(400).send({
         error: 'Bad Request',
       });
-      return;
     }
 
     // Verify correct params in body
     if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
-      res.status(400).send({
+      return res.status(400).send({
         error: 'One of more required fields are missing',
       });
-      return;
     }
     // Verify request is authorized by self or adminsitrator
     if (!userId === requestor.requestorId && !requestor.role === 'Administrator') {
-      res.status(403).send({
+      return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
-      return;
     }
     // Verify new and confirm new password are correct
 
@@ -310,40 +306,30 @@ const userProfileController = function (UserProfile) {
     // Verify old and new passwords are not same
     if (req.body.currentpassword === req.body.newpassword) {
       res.status(400).send({
-        error: 'Old and confirm new passwords should not be same',
+        error: 'Old and new passwords should not be same',
       });
     }
 
-    UserProfile.findById(userId, 'password')
+    return UserProfile.findById(userId, 'password')
       .then((user) => {
         bcrypt.compare(req.body.currentpassword, user.password)
           .then((passwordMatch) => {
-            if (passwordMatch) {
-              user.set({
-                password: req.body.newpassword,
-              });
-              user.save()
-                .then(() => {
-                  res.status(200).send({
-                    message: 'updated password',
-                  });
-                })
-                .catch((error) => {
-                  res.status(500).send(error);
-                });
-            } else {
-              res.status(400).send({
+            if (!passwordMatch) {
+              return res.status(400).send({
                 error: 'Incorrect current password',
               });
             }
+
+            user.set({
+              password: req.body.newpassword,
+            });
+            return user.save()
+              .then(() => res.status(200).send({ message: 'updated password' }))
+              .catch(error => res.status(500).send(error));
           })
-          .catch((error) => {
-            res.status(500).send(error);
-          });
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+      .catch(error => res.status(500).send(error));
   };
 
   const getreportees = function (req, res) {
