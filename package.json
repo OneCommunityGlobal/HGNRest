@@ -9,6 +9,9 @@
     "build": "babel src -d dist",
     "start": "npm install && npm run build && node dist/server.js"
   },
+  "pre-commit": [
+    "lint"
+  ],
   "author": "AK",
   "license": "ISC",
   "devDependencies": {
@@ -18,7 +21,8 @@
     "babel-eslint": "^10.0.1",
     "eslint": "^5.9.0",
     "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.14.0"
+    "eslint-plugin-import": "^2.14.0",
+    "pre-commit": "^1.2.2"
   },
   "dependencies": {
     "@babel/cli": "^7.1.5",
