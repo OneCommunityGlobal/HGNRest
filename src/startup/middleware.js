@@ -4,15 +4,23 @@ const config = require('../config');
 
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
-    console.log(` Service called Url: ${req.originalUrl}, Method : ${req.method}`);
-
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
       return;
     }
 
-    if ((req.originalUrl === '/api/login' || req.originalUrl === '/api/forgotpassword') && req.method === 'POST') { next(); return; }
-    if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') { next(); return; }
+    if (
+      (req.originalUrl === '/api/login'
+        || req.originalUrl === '/api/forgotpassword')
+      && req.method === 'POST'
+    ) {
+      next();
+      return;
+    }
+    if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') {
+      next();
+      return;
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
@@ -29,8 +37,13 @@ module.exports = function (app) {
       return;
     }
 
-    if (!payload || !payload.expiryTimestamp || !payload.userid || !payload.role
-            || moment().isAfter(payload.expiryTimestamp)) {
+    if (
+      !payload
+      || !payload.expiryTimestamp
+      || !payload.userid
+      || !payload.role
+      || moment().isAfter(payload.expiryTimestamp)
+    ) {
       res.status(401).send('Unauthorized request');
       return;
     }

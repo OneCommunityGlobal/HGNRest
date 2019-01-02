@@ -2,10 +2,9 @@ import { CronJob } from 'cron';
 
 const userhelper = require('../helpers/userhelper')();
 
-
 const userProfileScheduledJobs = function () {
   const assignBlueBadge = new CronJob(
-    '0 0 * * 1',
+    '0 0 * * 0',
     userhelper.assignBlueBadgeforTimeNotMet,
     null,
     false,
@@ -20,10 +19,8 @@ const userProfileScheduledJobs = function () {
     'America/Los_Angeles',
   );
 
-
   assignBlueBadge.start();
   deleteBlueBadgeOlderThanYear.start();
 };
-
 
 module.exports = userProfileScheduledJobs;
