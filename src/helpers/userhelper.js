@@ -78,8 +78,8 @@ const userhelper = function () {
 
   const assignBlueBadgeforTimeNotMet = function () {
     logger.logInfo(`Job for assigning blue badge for commitment not met starting at ${moment().tz('America/Los_Angeles').format()}`);
-    const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('isoWeek').subtract(1, 'week');
-    const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('isoWeek').subtract(1, 'week');
+    const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
+    const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
     userProfile.find({
       isActive: true,
     }, '_id')

@@ -13,8 +13,8 @@ const dashboardhelper = function () {
 
   const getLeaderboard = function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const pdtstart = moment().tz('America/Los_Angeles').startOf('isoWeek').format('YYYY-MM-DD');
-    const pdtend = moment().tz('America/Los_Angeles').endOf('isoWeek').format('YYYY-MM-DD');
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
     return myTeam.aggregate([
 
       {
