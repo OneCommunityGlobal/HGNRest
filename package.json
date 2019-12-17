@@ -39,7 +39,7 @@
     "dotenv": "^5.0.1",
     "express": "^4.16.2",
     "jsonwebtoken": "^8.4.0",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.13",
     "moment": "^2.19.3",
     "moment-timezone": "^0.5.16",
     "mongoose": "^5.7.5",
