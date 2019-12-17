@@ -42,7 +42,7 @@
     "lodash": "^4.17.11",
     "moment": "^2.19.3",
     "moment-timezone": "^0.5.16",
-    "mongoose": "^5.3.5",
+    "mongoose": "^5.7.5",
     "mongoose-validator": "2.0.1",
     "node-datetime": "^2.0.3",
     "nodemailer": "^4.6.8",
