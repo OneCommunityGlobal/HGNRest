@@ -7,7 +7,7 @@
     "test": "test",
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
-    "start": "npm install && npm run build && node dist/server.js"
+    "start": "node dist/server.js"
   },
   "pre-commit": [
     "lint"
