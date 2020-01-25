@@ -59,7 +59,7 @@ const projectController = function (Project) {
           res.status(400).send({ error: `Project Name must be unique. Another project with name ${result.projectName} already exists. Please note that project names are case insensitive` });
           return;
         }
-        let _project = new Project();
+        const _project = new Project();
 
         _project.projectName = req.body.projectName;
         _project.isActive = req.body.isActive;
