@@ -61,7 +61,8 @@ const projectController = function (Project) {
         }
         let _project = new Project();
 
-        _project = { ...req.body };
+        _project.projectName = req.body.projectName;
+        _project.isActive = req.body.isActive;
         _project.createdDatetime = Date.now();
         _project.modifiedDatetime = Date.now();
 
