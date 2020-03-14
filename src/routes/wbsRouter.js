@@ -6,7 +6,9 @@ const routes = function (wbs) {
   const wbsRouter = express.Router();
 
 
-  wbsRouter.route('/wbs').get(controller.getAllWBS);
+  wbsRouter.route('/wbs/:projectId')
+  .post(controller.postWBS)
+  .delete(controller.deleteWBS);
 
   return wbsRouter;
 };
