@@ -7,8 +7,8 @@ const routes = function (wbs) {
 
 
   wbsRouter.route('/wbs/:projectId')
-  .post(controller.postWBS)
-  .delete(controller.deleteWBS);
+    .post(controller.postWBS)
+    .delete(controller.deleteWBS);
 
   return wbsRouter;
 };
