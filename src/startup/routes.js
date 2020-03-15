@@ -35,5 +35,4 @@ module.exports = function (app) {
   app.use('/api', notificationRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
-
 };

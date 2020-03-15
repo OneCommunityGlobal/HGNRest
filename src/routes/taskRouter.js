@@ -7,8 +7,8 @@ const routes = function (task) {
 
 
   wbsRouter.route('/task/:wbsId')
-  .post(controller.postTask)
-  
+    .post(controller.postTask);
+
   return wbsRouter;
 };
 
