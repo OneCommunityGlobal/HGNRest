@@ -6,7 +6,7 @@ const team = require('../models/team');
 const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
-
+const task = require('../models/task');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const dashboardRouter = require('../routes/dashboardRouter')();
@@ -19,6 +19,8 @@ const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
 const wbsRouter = require('../routes/wbsRouter')(wbs);
+const taskRouter = require('../routes/taskRouter')(task);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -32,4 +34,6 @@ module.exports = function (app) {
   app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', wbsRouter);
+  app.use('/api', taskRouter);
+
 };
