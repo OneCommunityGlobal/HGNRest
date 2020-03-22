@@ -7,7 +7,8 @@
     "test": "test",
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "serve": "node src/server.js"
   },
   "pre-commit": [
     "lint"
@@ -35,7 +36,7 @@
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.18.3",
     "cors": "^2.8.4",
-    "cron": "^1.4.1",
+    "cron": "^1.8.2",
     "dotenv": "^5.0.1",
     "express": "^4.17.1",
     "jsonwebtoken": "^8.4.0",
