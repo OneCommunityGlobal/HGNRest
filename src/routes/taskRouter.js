@@ -11,7 +11,6 @@ const routes = function (task) {
   wbsRouter.route('/task/:wbsId')
     .post(controller.postTask);
 
-  
 
   return wbsRouter;
 };

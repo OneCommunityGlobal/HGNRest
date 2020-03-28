@@ -1,15 +1,12 @@
 // const mongoose = require('mongoose');
 
 const taskController = function (Task) {
-
-
-  const getTasks = (req, res) => 
-  {
+  const getTasks = (req, res) => {
     Task.find(
-      { 
-        "wbsId": {$in: [req.params.wbsId]}
-      }
-      )
+      {
+        wbsId: { $in: [req.params.wbsId] },
+      },
+    )
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
@@ -59,7 +56,7 @@ const taskController = function (Task) {
 
   return {
     postTask,
-    getTasks
+    getTasks,
   };
 };
 
