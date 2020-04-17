@@ -10,10 +10,11 @@ const taskschema = new Schema({
   level: { type: Number, required: true },
   priority: { type: String, default: 'Primary' },
   resources: [
-    { name: { type: String, required: true }, 
-    userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
-    profilePic: { type: String }
-  }],
+    {
+      name: { type: String, required: true },
+      userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
+      profilePic: { type: String },
+    }],
   isAssigned: { type: Boolean, default: true },
   status: { type: String, default: 'Not Started' },
   hoursBest: { type: Number, default: 0 },
