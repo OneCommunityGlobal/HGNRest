@@ -75,9 +75,9 @@ const userhelper = function () {
     return text;
   };
 
-  const assignBlueBadgeforTimeNotMet = function () {
+  const assignBlueSquareforTimeNotMet = function () {
     logger.logInfo(
-      `Job for assigning blue badge for commitment not met starting at ${moment()
+      `Job for assigning blue square for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
         .format()}`,
     );
@@ -141,9 +141,9 @@ const userhelper = function () {
       .catch(error => logger.logException(error));
   };
 
-  const deleteBadgeAfterYear = function () {
+  const deleteBlueSquareAfterYear = function () {
     logger.logInfo(
-      `Job for deleting badges older than 1 year starting at ${moment()
+      `Job for deleting blue squares older than 1 year starting at ${moment()
         .tz('America/Los_Angeles')
         .format()}`,
     );
@@ -198,8 +198,8 @@ const userhelper = function () {
     getUserName,
     getTeamMembers,
     validateprofilepic,
-    assignBlueBadgeforTimeNotMet,
-    deleteBadgeAfterYear,
+    assignBlueSquareforTimeNotMet,
+    deleteBlueSquareAfterYear,
     notifyInfringments,
     getInfringmentEmailBody,
   };
