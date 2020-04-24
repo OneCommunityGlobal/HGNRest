@@ -3,24 +3,24 @@ import { CronJob } from 'cron';
 const userhelper = require('../helpers/userhelper')();
 
 const userProfileScheduledJobs = function () {
-  const assignBlueBadge = new CronJob(
+  const assignBlueSquare = new CronJob(
     '0 0 * * 0',
-    userhelper.assignBlueBadgeforTimeNotMet,
+    userhelper.assignBlueSquareforTimeNotMet,
     null,
     false,
     'America/Los_Angeles',
   );
 
-  const deleteBlueBadgeOlderThanYear = new CronJob(
+  const deleteBlueSquareOlderThanYear = new CronJob(
     '0 0 * * *',
-    userhelper.deleteBadgeAfterYear,
+    userhelper.deleteBlueSquareAfterYear,
     null,
     false,
     'America/Los_Angeles',
   );
 
-  assignBlueBadge.start();
-  deleteBlueBadgeOlderThanYear.start();
+  assignBlueSquare.start();
+  deleteBlueSquareOlderThanYear.start();
 };
 
 module.exports = userProfileScheduledJobs;
