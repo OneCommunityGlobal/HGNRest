@@ -54,9 +54,91 @@ const taskController = function (Task) {
   };
 
 
+  const updateNum = function (req, res) {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to create new projects.' });
+      return;
+    }
+
+
+    if (!req.body.nums) {
+      res.status(400).send({ error: 'Nums is a mandatory fields' });
+      return;
+    }
+
+    const listOfNums = req.body.nums;
+    listOfNums.forEach((elm) => {
+      Task.findById(elm.id, (error, task) => {
+        task.num = elm.num;
+        task.save()
+          .then().catch(errors => res.status(400).send(errors));
+      });
+    });
+    res.status(200).send(true);
+  };
+
+  const swap = function (req, res) {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to create new projects.' });
+      return;
+    }
+
+    if (!req.body.taskId1 || !req.body.taskId2
+    ) {
+      res.status(400).send({ error: 'taskId1 and taskId2 are mandatory fields' });
+      return;
+    }
+
+
+    Task.findById(req.body.taskId1, (error1, task1) => {
+      if (error1 || task1 === null) {
+        res.status(400).send('No valid records found');
+        return;
+      }
+
+      Task.findById(req.body.taskId2, (error2, task2) => {
+        if (error2 || task2 === null) {
+          res.status(400).send('No valid records found');
+          return;
+        }
+
+
+        if (task1.parentId.toString() === task2.parentId.toString()) {
+          let tmpNum = '';
+          tmpNum = task1.num;
+          task1.num = task2.num;
+          task2.num = tmpNum;
+        } else {
+          let tmpName = '';
+          tmpName = task1.taskName;
+          task1.taskName = task2.taskName;
+          task2.taskName = tmpName;
+        }
+
+        task1.save()
+          .then().catch(errors => res.status(400).send(errors));
+
+        task2.save()
+          .then().catch(errors => res.status(400).send(errors));
+
+
+        Task.find(
+          {
+            wbsId: { $in: [task1.wbsId] },
+          },
+        )
+          .then(results => res.status(200).send(results))
+          .catch(error => res.status(404).send(error));
+      });
+    });
+  };
+
+
   return {
     postTask,
     getTasks,
+    swap,
+    updateNum,
   };
 };
 
