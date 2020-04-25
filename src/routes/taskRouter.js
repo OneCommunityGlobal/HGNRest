@@ -11,6 +11,12 @@ const routes = function (task) {
   wbsRouter.route('/task/:wbsId')
     .post(controller.postTask);
 
+  wbsRouter.route('/tasks/swap/')
+    .put(controller.swap);
+
+  wbsRouter.route('/tasks/update/num')
+    .put(controller.updateNum);
+
 
   return wbsRouter;
 };
