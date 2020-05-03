@@ -54,7 +54,7 @@ const taskController = function (Task) {
   };
 
 
-  const updateNum = function (req, res) {
+  const updateNum = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
@@ -73,8 +73,48 @@ const taskController = function (Task) {
         task.save()
           .then().catch(errors => res.status(400).send(errors));
       });
+
+      // level 2
+      Task.find({ parentId: { $in: [elm.id] } })
+        .then((childTasks1) => {
+          if (childTasks1.length > 0) {
+            childTasks1.forEach((childTask1) => {
+              childTask1.num = childTask1.num.replace(childTask1.num.substring(0, elm.num.length), elm.num);
+
+              childTask1.save()
+                .then().catch(errors => res.status(400).send(errors));
+
+              // level 3
+              Task.find({ parentId: { $in: [childTask1._id] } })
+                .then((childTasks2) => {
+                  if (childTasks2.length > 0) {
+                    childTasks2.forEach((childTask2) => {
+                      childTask2.num = childTask2.num.replace(childTask2.num.substring(0, childTask1.num.length), childTask1.num);
+
+                      childTask2.save()
+                        .then().catch(errors => res.status(400).send(errors));
+
+                      // level 4
+                      Task.find({ parentId: { $in: [childTask2._id] } })
+                        .then((childTasks3) => {
+                          if (childTasks3.length > 0) {
+                            childTasks3.forEach((childTask3) => {
+                              childTask3.num = childTask3.num.replace(childTask3.num.substring(0, childTask2.num.length), childTask2.num);
+
+                              childTask3.save()
+                                .then().catch(errors => res.status(400).send(errors));
+                            });
+                          }
+                        }).catch(error => res.status(404).send(error));
+                    });
+                  }
+                }).catch(error => res.status(404).send(error));
+            });
+          }
+        }).catch(error => res.status(404).send(error));
     });
-    res.status(200).send(true);
+
+    res.status(200).send(true).catch(error => res.status(404).send(error));
   };
 
   const swap = function (req, res) {
