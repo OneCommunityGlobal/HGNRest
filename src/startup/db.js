@@ -12,6 +12,7 @@ module.exports = function () {
   mongoose.connect(uri, {
     useCreateIndex: true,
     useNewUrlParser: true,
+    useFindAndModify: false
   }).catch((error) => {
     logger.logException(error);
   });
