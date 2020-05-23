@@ -11,6 +11,9 @@ const routes = function (task) {
   wbsRouter.route('/task/:wbsId')
     .post(controller.postTask);
 
+  wbsRouter.route('/task/del/:taskId')
+    .delete(controller.deleteTask);
+
   wbsRouter.route('/tasks/swap/')
     .put(controller.swap);
 
