@@ -11,6 +11,48 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
+  const updateHours = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours) => {
+    Task.findById(taskId, (error, task) => {
+      task.hoursBest = hoursBest;
+      task.hoursMost = hoursMost;
+      task.hoursWorst = hoursWorst;
+      task.estimatedHours = estimatedHours;
+      task.save();
+    });
+  };
+
+  const calculateSubTasks = (level, tasks) => {
+    const parentTasks = tasks.filter(task => task.level === level);
+    parentTasks.forEach((task) => {
+      const childTasks = tasks.filter(taskChild => taskChild.level === (level + 1));
+      let sumHoursBest = 0;
+      childTasks.forEach((childTask) => {
+        if (childTask.mother.equals(task._id)) {
+          sumHoursBest += childTask.hoursBest;
+        }
+      });
+
+      if (childTasks.length > 0) {
+        tasks.forEach((mainTask, i) => {
+          if (mainTask._id.equals(task._id)) {
+            tasks[i].hoursBest = sumHoursBest;
+          }
+        });
+        updateHours(task._id, sumHoursBest, 0, 0, 0);
+      }
+    });
+    return tasks;
+  };
+
+  const calculateHours = (wbsId) => {
+    Task.find({ wbsId: { $in: [wbsId] } })
+      .then((tasks) => {
+        for (let lv = 3; lv > 0; lv -= 1) {
+          calculateSubTasks(lv, tasks);
+        }
+      })
+      .catch(error => console.log(error));
+  };
 
   const postTask = function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
@@ -42,17 +84,21 @@ const taskController = function (Task) {
     _task.startedDatetime = req.body.startedDatetime;
     _task.dueDatetime = req.body.dueDatetime;
     _task.links = req.body.links;
-    _task.projectId = req.body.projectId;
-    _task.parentId = req.body.parentId;
+    _task.parentId1 = req.body.parentId1;
+    _task.parentId2 = req.body.parentId2;
+    _task.parentId3 = req.body.parentId3;
     _task.isActive = req.body.isActive;
+    _task.mother = req.body.mother;
     _task.createdDatetime = Date.now();
     _task.modifiedDatetime = Date.now();
 
     _task.save()
-      .then(results => res.status(201).send(results))
-      .catch(error => res.status(500).send({ error }));
+      .then((result) => {
+        calculateHours(_task.wbsId);
+        return res.status(201).send(result);
+      })
+      .catch((errors) => { res.status(400).send(errors); });
   };
-
 
   const updateNum = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
@@ -114,8 +160,37 @@ const taskController = function (Task) {
         }).catch(error => res.status(404).send(error));
     });
 
-    res.status(200).send(true).catch(error => res.status(404).send(error));
+    res.status(200).send(true);
   };
+
+  const deleteTask = (req, res) => {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are  not authorized to delete tasks.' });
+      return;
+    }
+    const { taskId } = req.params;
+
+    Task.find({ $or: [{ _id: taskId }, { parentId1: taskId }, { parentId2: taskId }, { parentId3: taskId }] }, (error, record) => {
+      if (error || !record || (record === null) || (record.length === 0)) {
+        res.status(400).send({ error: 'No valid records found' });
+        return;
+      }
+
+      const removeTasks = [];
+      record.forEach((rec) => {
+        removeTasks.push(rec.remove());
+      });
+
+
+      Promise.all([...removeTasks])
+        .then(() => {
+          calculateHours(record[0].wbsId);
+          return res.status(200).send({ message: ' WBS successfully deleted' });
+        })
+        .catch((errors) => { res.status(400).send(errors); });
+    }).catch((errors) => { res.status(400).send(errors); });
+  };
+
 
   const swap = function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
@@ -179,6 +254,7 @@ const taskController = function (Task) {
     getTasks,
     swap,
     updateNum,
+    deleteTask,
   };
 };
 
