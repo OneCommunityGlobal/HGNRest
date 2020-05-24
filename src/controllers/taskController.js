@@ -61,7 +61,7 @@ const taskController = function (Task) {
         for (let lv = 3; lv > 0; lv -= 1) {
           calculateSubTasks(lv, tasks);
         }
-      })
+      });
   };
 
   const updateTaskNums = (taskId, num) => {
@@ -87,18 +87,18 @@ const taskController = function (Task) {
         let lastLevel = 1;
         sortedTasks.forEach((task) => {
           if (task.level === lastLevel) {
-            numLvs[task.level - 1]+=1;
+            numLvs[task.level - 1] += 1;
           } else {
             lastLevel = task.level;
-            numLvs[task.level - 1]+=1;
-            for (let i = task.level; i < 4; i+=1) {
+            numLvs[task.level - 1] += 1;
+            for (let i = task.level; i < 4; i += 1) {
               numLvs[i] = 0;
             }
           }
 
           updateTaskNums(task._id, numLvs.join('.'));
         });
-      })
+      });
   };
 
 
