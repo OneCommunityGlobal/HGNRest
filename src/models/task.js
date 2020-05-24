@@ -28,6 +28,7 @@ const taskschema = new Schema({
   parentId2: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
   parentId3: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
   mother: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
+  position: { type: Number, required: true },
   isActive: { type: Boolean, default: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
