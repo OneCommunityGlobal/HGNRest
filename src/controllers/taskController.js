@@ -26,19 +26,30 @@ const taskController = function (Task) {
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(taskChild => taskChild.level === (level + 1));
       let sumHoursBest = 0;
+      let sumHoursWorst = 0;
+      let sumHoursMost = 0;
+      let sumEstimatedHours = 0;
+      let hasChild = false;
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task._id)) {
+          hasChild = true;
           sumHoursBest += childTask.hoursBest;
+          sumHoursWorst += childTask.hoursWorst;
+          sumHoursMost += childTask.hoursMost;
+          sumEstimatedHours += childTask.estimatedHours;
         }
       });
 
-      if (childTasks.length > 0) {
+      if (hasChild) {
         tasks.forEach((mainTask, i) => {
           if (mainTask._id.equals(task._id)) {
             tasks[i].hoursBest = sumHoursBest;
+            tasks[i].hoursMost = sumHoursMost;
+            tasks[i].hoursWorst = sumHoursWorst;
+            tasks[i].estimatedHours = sumEstimatedHours;
           }
         });
-        updateHours(task._id, sumHoursBest, 0, 0, 0);
+        updateHours(task._id, sumHoursBest, sumHoursWorst, sumHoursMost, sumEstimatedHours);
       }
     });
     return tasks;
@@ -51,10 +62,47 @@ const taskController = function (Task) {
           calculateSubTasks(lv, tasks);
         }
       })
-      .catch(error => console.log(error));
   };
 
-  const postTask = function (req, res) {
+  const updateTaskNums = (taskId, num) => {
+    Task.findById(taskId, (error, task) => {
+      task.num = num.replace(/.0/g, '');
+      task.save();
+    });
+  };
+
+  const resetNum = (wbsId) => {
+    Task.find({ wbsId: { $in: [wbsId] } })
+      .then((tasks) => {
+        const sortedTasks = tasks.sort((a, b) => {
+          if (a.num < b.num) {
+            return -1;
+          }
+          if (a.num > b.num) {
+            return 1;
+          }
+          return 0;
+        });
+        const numLvs = [0, 0, 0, 0];
+        let lastLevel = 1;
+        sortedTasks.forEach((task) => {
+          if (task.level === lastLevel) {
+            numLvs[task.level - 1]+=1;
+          } else {
+            lastLevel = task.level;
+            numLvs[task.level - 1]+=1;
+            for (let i = task.level; i < 4; i+=1) {
+              numLvs[i] = 0;
+            }
+          }
+
+          updateTaskNums(task._id, numLvs.join('.'));
+        });
+      })
+  };
+
+
+  const postTask = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
@@ -89,12 +137,14 @@ const taskController = function (Task) {
     _task.parentId3 = req.body.parentId3;
     _task.isActive = req.body.isActive;
     _task.mother = req.body.mother;
+    _task.position = req.body.position;
     _task.createdDatetime = Date.now();
     _task.modifiedDatetime = Date.now();
 
     _task.save()
       .then((result) => {
         calculateHours(_task.wbsId);
+        resetNum(_task.wbsId);
         return res.status(201).send(result);
       })
       .catch((errors) => { res.status(400).send(errors); });
@@ -185,6 +235,7 @@ const taskController = function (Task) {
       Promise.all([...removeTasks])
         .then(() => {
           calculateHours(record[0].wbsId);
+          resetNum(record[0].wbsId);
           return res.status(200).send({ message: ' WBS successfully deleted' });
         })
         .catch((errors) => { res.status(400).send(errors); });
