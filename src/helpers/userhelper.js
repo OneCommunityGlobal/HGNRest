@@ -58,15 +58,17 @@ const userhelper = function () {
       errors,
     };
   };
-  const getInfringmentEmailBody = function (firstName, lastName, infringment) {
-    const text = `Dear <b>${firstName} ${lastName}</b>, 
+
+  const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringments) {
+    const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>
         Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <b>
         <div>Date Assigned: ${infringment.date}</div>
         <div>Description : ${infringment.description}</div>
+        <div>Total Infringments : ${totalInfringments}</div>
         </b>
-        <p>        
+        <p>
         No worries though, life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.
         </p>
         <p>Thank you,</p>
@@ -75,7 +77,22 @@ const userhelper = function () {
     return text;
   };
 
-  const assignBlueBadgeforTimeNotMet = function () {
+  const processWeeklySummaryByUserId = function (personId) {
+    userProfile
+      .findByIdAndUpdate(personId, {
+        $push: {
+          weeklySummary: {
+            $each: [{ summary: '' }],
+            $position: 0,
+            $slice: 3,
+          },
+        },
+      }, { new: true })
+      .then(result => logger.logInfo(result.weeklySummary))
+      .catch(error => logger.logException(error));
+  };
+
+  const assignBlueBadges = function () {
     logger.logInfo(
       `Job for assigning blue badge for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
@@ -94,44 +111,70 @@ const userhelper = function () {
         {
           isActive: true,
         },
-        '_id',
+        '_id weeklySummary',
       )
       .then((users) => {
         users.forEach((user) => {
-          const personId = mongoose.Types.ObjectId(user._id);
+          const {
+            _id, weeklySummary,
+          } = user;
+          const personId = mongoose.Types.ObjectId(_id);
+
+          let hasWeeklySummary = false;
+          if (Array.isArray(weeklySummary) && weeklySummary.length) {
+            const { dueDate, summary } = weeklySummary[0];
+            const fromDate = moment(pdtStartOfLastWeek).toDate();
+            const toDate = moment(pdtEndOfLastWeek).toDate();
+            if (summary && moment(dueDate).isBetween(fromDate, toDate, undefined, '[]')) {
+              hasWeeklySummary = true;
+            }
+          }
+
+          processWeeklySummaryByUserId(personId);
 
           dashboardhelper
             .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
             .then((results) => {
-              const { weeklyComittedHours } = results[0];
-              const timeSpent = results[0].timeSpent_hrs;
-              if (timeSpent < weeklyComittedHours) {
-                const description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                  'dddd YYYY-MM-DD',
-                )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+              const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
+              const timeNotMet = (timeSpent < weeklyComittedHours);
+              let description;
+
+              if (timeNotMet || !hasWeeklySummary) {
+                if (timeNotMet && !hasWeeklySummary) {
+                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment as well as not submitting a weekly summary. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                } else if (timeNotMet) {
+                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                } else {
+                  description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                }
+
                 const infringment = {
                   date: moment()
                     .utc()
                     .format('YYYY-MM-DD'),
                   description,
                 };
+
                 userProfile
                   .findByIdAndUpdate(personId, {
                     $push: {
                       infringments: infringment,
                     },
                   })
-                  .then(status => emailSender(
-                    status.email,
-                    'New Infringment Assigned',
-                    getInfringmentEmailBody(
-                      status.firstName,
-                      status.lastName,
-                      infringment,
-                    ),
-                    null,
-                    'onecommunityglobal@gmail.com',
-                  ))
+                  .then((status) => {
+                    emailSender(
+                      status.email,
+                      'New Infringment Assigned',
+                      getInfringmentEmailBody(
+                        status.firstName,
+                        status.lastName,
+                        infringment,
+                        status.infringments.length,
+                      ),
+                      null,
+                      'onecommunityglobal@gmail.com',
+                    );
+                  })
                   .catch(error => logger.logException(error));
               }
             })
@@ -177,6 +220,7 @@ const userhelper = function () {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
+    const totalInfringments = newCurrent.length;
     let newInfringments = [];
     newInfringments = _.differenceWith(
       newCurrent,
@@ -187,7 +231,7 @@ const userhelper = function () {
       emailSender(
         emailAddress,
         'New Infringment Assigned',
-        getInfringmentEmailBody(firstName, lastName, element),
+        getInfringmentEmailBody(firstName, lastName, element, totalInfringments),
         null,
         'onecommunityglobal@gmail.com',
       );
@@ -198,7 +242,7 @@ const userhelper = function () {
     getUserName,
     getTeamMembers,
     validateprofilepic,
-    assignBlueBadgeforTimeNotMet,
+    assignBlueBadges,
     deleteBadgeAfterYear,
     notifyInfringments,
     getInfringmentEmailBody,

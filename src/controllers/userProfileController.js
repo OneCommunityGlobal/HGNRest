@@ -114,8 +114,8 @@ const userProfileController = function (UserProfile) {
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
     up.email = _email;
-    up.weeklySummary = req.body.weeklySummary;
-    up.mediaUrl = req.body.mediaUrl;
+    up.weeklySummary = req.body.weeklySummary || [{ summary: '' }];
+    up.mediaUrl = req.body.mediaUrl || '';
 
 
     up.save()
