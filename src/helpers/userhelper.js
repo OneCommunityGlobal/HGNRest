@@ -59,14 +59,14 @@ const userhelper = function () {
     };
   };
 
-  const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringments) {
+  const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringements) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>
         Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <b>
         <div>Date Assigned: ${infringment.date}</div>
         <div>Description : ${infringment.description}</div>
-        <div>Total Infringments : ${totalInfringments}</div>
+        <div>Total Infringments : ${totalInfringements}</div>
         </b>
         <p>
         No worries though, life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.
@@ -130,6 +130,7 @@ const userhelper = function () {
             }
           }
 
+          //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted to make room for a new summary for the new week.
           processWeeklySummaryByUserId(personId);
 
           dashboardhelper
@@ -220,7 +221,7 @@ const userhelper = function () {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
-    const totalInfringments = newCurrent.length;
+    const totalInfringements = newCurrent.length;
     let newInfringments = [];
     newInfringments = _.differenceWith(
       newCurrent,
@@ -231,7 +232,7 @@ const userhelper = function () {
       emailSender(
         emailAddress,
         'New Infringment Assigned',
-        getInfringmentEmailBody(firstName, lastName, element, totalInfringments),
+        getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
         null,
         'onecommunityglobal@gmail.com',
       );
