@@ -61,28 +61,103 @@ const userhelper = function () {
 
   const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringements) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
-        <p>
-        Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <b>
-        <div>Date Assigned: ${infringment.date}</div>
-        <div>Description : ${infringment.description}</div>
-        <div>Total Infringments : ${totalInfringements}</div>
-        </b>
-        <p>
-        No worries though, life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.
-        </p>
-        <p>Thank you,</p>
-        <p><b> One Community </b></p>`;
+        <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
+        <p><b>Date Assigned:</b> ${infringment.date}</p>
+        <p><b>Description:</b> ${infringment.description}</p>
+        <p><b>Total Infringements:</b> This is your <b>${moment.localeData().ordinal(totalInfringements)}</b> blue square of 5.</p>
+        <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
+        <p>Thank you,<br />
+        One Community</p>`;
 
     return text;
   };
+
+
+  /**
+   * This function will send out an email listing all users that have a summary provided for a specific week.
+   * A week is represented by a number weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest. The weekIndex represents
+   * the index of the weeklySummary array stored in the database, weeklySummary[0], weeklySummary[1] and weeklySummary[2].
+   * The checkDate parameter can also be used to check whether the dueDate of the summary belongs to the week being checked.
+   * There could be edge cases where a user's account has been inactive for a period of time then when activated again
+   * they'll have summaries stored in the database with much older dates. If checkDate is set to "false" those older summaries
+   * will also be counted based on the index of the week being checked, otherwise they will not be included in the email
+   * as the dates won't be matching.
+   *
+   * @param {int}     weekIndex Numbered representation of a week where 0 is the most recent and 2 the oldest.
+   * @param {boolean} checkDate Whether to check if the dueDate of the summary belongs to the week being checked.
+   *
+   * @return {void}
+   */
+  const emailWeeklySummaryForAllUsers = function (weekIndex, checkDate = false) {
+    weekIndex = (weekIndex !== null) ? weekIndex : 0;
+
+    const isDateBetween = (dueDate) => {
+      const pstStartOfWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(weekIndex, 'week');
+      const pstEndOfWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(weekIndex, 'week');
+      const fromDate = moment(pstStartOfWeek).toDate();
+      const toDate = moment(pstEndOfWeek).toDate();
+      return moment(dueDate).isBetween(fromDate, toDate, undefined, '[]');
+    };
+
+    userProfile
+      .find(
+        {
+          isActive: true,
+        },
+        '_id firstName lastName weeklySummary mediaUrl',
+      )
+      .then((users) => {
+        let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
+        const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> Not provided!</div>';
+
+        users.forEach((user) => {
+          const {
+            firstName, lastName, weeklySummary, mediaUrl,
+          } = user;
+
+          const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+          let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
+          if (Array.isArray(weeklySummary) && weeklySummary.length && weeklySummary[weekIndex]) {
+            const { dueDate, summary } = weeklySummary[weekIndex];
+            if (summary) {
+              weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).format('YYYY-MM-DD')}):</p>
+                                      <div style="padding: 0 20px;">${summary}</div>`;
+              if (checkDate && !isDateBetween(dueDate)) {
+                weeklySummaryMessage = weeklySummaryNotProvidedMessage;
+              }
+            }
+          }
+
+          emailBody += `\n
+            <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
+              <b>Name:</b> ${firstName} ${lastName}:
+              <p><b>Media URL:</b> ${mediaUrlLink}</p>
+              ${weeklySummaryMessage}
+            </div>`;
+        });
+
+        emailSender(
+          'onecommunityglobal@gmail.com',
+          'Weekly Summaries for all active users...',
+          emailBody,
+          null,
+        );
+      })
+      .catch(error => logger.logException(error));
+  };
+
 
   const processWeeklySummaryByUserId = function (personId) {
     userProfile
       .findByIdAndUpdate(personId, {
         $push: {
           weeklySummary: {
-            $each: [{ summary: '' }],
+            $each: [
+              {
+                dueDate: moment().tz('America/Los_Angeles').endOf('week'),
+                summary: '',
+              },
+            ],
             $position: 0,
             $slice: 3,
           },
@@ -142,11 +217,11 @@ const userhelper = function () {
 
               if (timeNotMet || !hasWeeklySummary) {
                 if (timeNotMet && !hasWeeklySummary) {
-                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment as well as not submitting a weekly summary. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                  description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
                 } else if (timeNotMet) {
-                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
                 } else {
-                  description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                  description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
                 }
 
                 const infringment = {
@@ -161,7 +236,7 @@ const userhelper = function () {
                     $push: {
                       infringments: infringment,
                     },
-                  })
+                  }, { new: true })
                   .then((status) => {
                     emailSender(
                       status.email,
@@ -247,6 +322,7 @@ const userhelper = function () {
     deleteBadgeAfterYear,
     notifyInfringments,
     getInfringmentEmailBody,
+    emailWeeklySummaryForAllUsers,
   };
 };
 
