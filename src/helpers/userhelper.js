@@ -89,6 +89,10 @@ const userhelper = function () {
    * @return {void}
    */
   const emailWeeklySummaryForAllUsers = function (weekIndex, checkDate = false) {
+    logger.logInfo(
+      `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
+    );
+
     weekIndex = (weekIndex !== null) ? weekIndex : 0;
 
     const isDateBetween = (dueDate) => {
@@ -147,6 +151,13 @@ const userhelper = function () {
   };
 
 
+  /**
+   * This function will process the weeklySummary array in the following way:
+   *  1 ) Push a new (blank) summary at the beginning of the array.
+   *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
+   *
+   * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
+   */
   const processWeeklySummaryByUserId = function (personId) {
     userProfile
       .findByIdAndUpdate(personId, {
@@ -167,6 +178,13 @@ const userhelper = function () {
       .catch(error => logger.logException(error));
   };
 
+
+  /**
+   * This function is called by a cron job to do 3 things to all active users:
+   *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
+   *  2 ) Determine whether there's been an infringement for the time not met for last week.
+   *  3 ) Call the processWeeklySummaryByUserId(personId) to process the weeklySummary array so it's ready for the current week.
+   */
   const assignBlueBadges = function () {
     logger.logInfo(
       `Job for assigning blue badge for commitment not met starting at ${moment()
@@ -205,7 +223,7 @@ const userhelper = function () {
             }
           }
 
-          //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted to make room for a new summary for the new week.
+          //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
           processWeeklySummaryByUserId(personId);
 
           dashboardhelper
