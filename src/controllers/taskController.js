@@ -11,12 +11,36 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
-  const updateHours = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours) => {
+
+  const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours, resources) => {
     Task.findById(taskId, (error, task) => {
       task.hoursBest = hoursBest;
       task.hoursMost = hoursMost;
       task.hoursWorst = hoursWorst;
       task.estimatedHours = estimatedHours;
+      task.resources = resources;
+      task.save();
+    });
+  };
+
+  const updateDateTime = (taskId, startedDatetime, dueDatetime) => {
+    Task.findById(taskId, (error, task) => {
+      task.startedDatetime = startedDatetime;
+      task.dueDatetime = dueDatetime;
+      task.save();
+    });
+  };
+
+  const updatePriority = (taskId, priority) => {
+    Task.findById(taskId, (error, task) => {
+      task.priority = priority;
+      task.save();
+    });
+  };
+
+  const updateAssigned = (taskId, isAssigned) => {
+    Task.findById(taskId, (error, task) => {
+      task.isAssigned = isAssigned;
       task.save();
     });
   };
@@ -29,6 +53,7 @@ const taskController = function (Task) {
       let sumHoursWorst = 0;
       let sumHoursMost = 0;
       let sumEstimatedHours = 0;
+      const resources = [];
       let hasChild = false;
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task._id)) {
@@ -37,6 +62,17 @@ const taskController = function (Task) {
           sumHoursWorst += childTask.hoursWorst;
           sumHoursMost += childTask.hoursMost;
           sumEstimatedHours += childTask.estimatedHours;
+          childTask.resources.forEach((member) => {
+            let isInResource = false;
+            resources.forEach((mem) => {
+              if (member.userID.equals(mem.userID)) {
+                isInResource = true;
+              }
+            });
+            if (!isInResource) {
+              resources.push(member);
+            }
+          });
         }
       });
 
@@ -47,19 +83,128 @@ const taskController = function (Task) {
             tasks[i].hoursMost = sumHoursMost;
             tasks[i].hoursWorst = sumHoursWorst;
             tasks[i].estimatedHours = sumEstimatedHours;
+            tasks[i].resources = resources;
           }
         });
-        updateHours(task._id, sumHoursBest, sumHoursWorst, sumHoursMost, sumEstimatedHours);
+        updateSumUp(task._id, sumHoursBest, sumHoursWorst, sumHoursMost, sumEstimatedHours, resources);
       }
     });
     return tasks;
   };
 
-  const calculateHours = (wbsId) => {
+  const setDatesSubTasks = (level, tasks) => {
+    const parentTasks = tasks.filter(task => task.level === level);
+    parentTasks.forEach((task) => {
+      const childTasks = tasks.filter(taskChild => taskChild.level === (level + 1));
+      let minStartedDate = task.startedDatetime;
+      let maxDueDatetime = task.dueDatetime;
+      let hasChild = false;
+      childTasks.forEach((childTask) => {
+        if (childTask.mother.equals(task._id)) {
+          hasChild = true;
+          if (minStartedDate > childTask.startedDatetime) {
+            minStartedDate = childTask.startedDatetime;
+          }
+          if (maxDueDatetime < childTask.dueDatetime) {
+            maxDueDatetime = childTask.dueDatetime;
+          }
+        }
+      });
+
+      if (hasChild) {
+        tasks.forEach((mainTask, i) => {
+          if (mainTask._id.equals(task._id)) {
+            tasks[i].startedDatetime = minStartedDate;
+            tasks[i].dueDatetime = maxDueDatetime;
+          }
+        });
+        updateDateTime(task._id, minStartedDate, maxDueDatetime);
+      }
+    });
+    return tasks;
+  };
+
+  const calculatePriority = (level, tasks) => {
+    const parentTasks = tasks.filter(task => task.level === level);
+    parentTasks.forEach((task) => {
+      const childTasks = tasks.filter(taskChild => taskChild.level === (level + 1));
+      let totalNumberPriority = 0;
+      let totalChild = 0;
+      let hasChild = false;
+      childTasks.forEach((childTask) => {
+        if (childTask.mother.equals(task._id)) {
+          hasChild = true;
+          totalChild += 1;
+          if (childTask.priority === 'Primary') {
+            totalNumberPriority += 3;
+          } else if (childTask.priority === 'Secondary') {
+            totalNumberPriority += 2;
+          } else if (childTask.priority === 'Tertiary') {
+            totalNumberPriority += 1;
+          }
+        }
+      });
+
+      if (hasChild) {
+        let { priority } = task;
+
+        tasks.forEach((mainTask) => {
+          if (mainTask._id.equals(task._id)) {
+            const avg = totalNumberPriority / totalChild;
+            if (avg <= 1.6) {
+              priority = 'Tertiary';
+            } else if (avg > 1.6 && avg < 2.5) {
+              priority = 'Secondary';
+            } else {
+              priority = 'Primary';
+            }
+          }
+        });
+        updatePriority(task._id, priority);
+      }
+    });
+    return tasks;
+  };
+
+  const setAssigned = (level, tasks) => {
+    const parentTasks = tasks.filter(task => task.level === level);
+    parentTasks.forEach((task) => {
+      const childTasks = tasks.filter(taskChild => taskChild.level === (level + 1));
+      let isAssigned = false;
+      let hasChild = false;
+      childTasks.forEach((childTask) => {
+        if (childTask.mother.equals(task._id)) {
+          hasChild = true;
+          if (childTask.isAssigned) {
+            isAssigned = true;
+          }
+        }
+      });
+
+      if (hasChild) {
+        tasks.forEach((mainTask, i) => {
+          if (mainTask._id.equals(task._id)) {
+            tasks[i].isAssigned = isAssigned;
+          }
+        });
+        updateAssigned(task._id, isAssigned);
+      }
+    });
+    return tasks;
+  };
+
+  const setStatus = (level, tasks) => tasks;
+
+
+  const updateParents = (wbsId) => {
     Task.find({ wbsId: { $in: [wbsId] } })
       .then((tasks) => {
         for (let lv = 3; lv > 0; lv -= 1) {
           calculateSubTasks(lv, tasks);
+          setDatesSubTasks(lv, tasks);
+          calculatePriority(lv, tasks);
+          setAssigned(lv, tasks);
+          setStatus(lv, tasks);
         }
       });
   };
@@ -143,7 +288,7 @@ const taskController = function (Task) {
 
     _task.save()
       .then((result) => {
-        calculateHours(_task.wbsId);
+        updateParents(_task.wbsId);
         resetNum(_task.wbsId);
         return res.status(201).send(result);
       })
@@ -234,7 +379,7 @@ const taskController = function (Task) {
 
       Promise.all([...removeTasks])
         .then(() => {
-          calculateHours(record[0].wbsId);
+          updateParents(record[0].wbsId);
           resetNum(record[0].wbsId);
           return res.status(200).send({ message: ' WBS successfully deleted' });
         })
