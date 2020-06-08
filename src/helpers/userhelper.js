@@ -88,12 +88,12 @@ const userhelper = function () {
    *
    * @return {void}
    */
-  const emailWeeklySummaryForAllUsers = function (weekIndex, checkDate = false) {
+  const emailWeeklySummaryForAllUsers = function (weekIndex, checkDate = true) {
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
     );
 
-    weekIndex = (weekIndex !== null) ? weekIndex : 0;
+    weekIndex = (weekIndex !== null) ? weekIndex : 1;
 
     const isDateBetween = (dueDate) => {
       const pstStartOfWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(weekIndex, 'week');
@@ -174,7 +174,7 @@ const userhelper = function () {
           },
         },
       }, { new: true })
-      .then(result => logger.logInfo(result.weeklySummary))
+      // .then(result => console.log('results', result))
       .catch(error => logger.logException(error));
   };
 
