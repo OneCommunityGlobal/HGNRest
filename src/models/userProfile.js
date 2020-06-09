@@ -42,7 +42,7 @@ const userProfileSchema = new Schema({
   badgeCollection: [{ badgeName: String, quantity: Number, lastModifiedDate: Date }],
   profilePic: { type: String },
   infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
-  weeklySummary: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
+  weeklySummaries: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
   mediaUrl: { type: String },
 });
 

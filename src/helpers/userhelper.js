@@ -76,7 +76,7 @@ const userhelper = function () {
   /**
    * This function will send out an email listing all users that have a summary provided for a specific week.
    * A week is represented by a number weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest. The weekIndex represents
-   * the index of the weeklySummary array stored in the database, weeklySummary[0], weeklySummary[1] and weeklySummary[2].
+   * the index of the weeklySummaries array stored in the database, weeklySummaries[0], weeklySummaries[1] and weeklySummaries[2].
    * The checkDate parameter can also be used to check whether the dueDate of the summary belongs to the week being checked.
    * There could be edge cases where a user's account has been inactive for a period of time then when activated again
    * they'll have summaries stored in the database with much older dates. If checkDate is set to "false" those older summaries
@@ -88,7 +88,7 @@ const userhelper = function () {
    *
    * @return {void}
    */
-  const emailWeeklySummaryForAllUsers = function (weekIndex, checkDate = true) {
+  const emailweeklySummariesForAllUsers = function (weekIndex, checkDate = true) {
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
     );
@@ -108,7 +108,7 @@ const userhelper = function () {
         {
           isActive: true,
         },
-        '_id firstName lastName weeklySummary mediaUrl',
+        '_id firstName lastName weeklySummaries mediaUrl',
       )
       .then((users) => {
         let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
@@ -116,13 +116,13 @@ const userhelper = function () {
 
         users.forEach((user) => {
           const {
-            firstName, lastName, weeklySummary, mediaUrl,
+            firstName, lastName, weeklySummaries, mediaUrl,
           } = user;
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-          if (Array.isArray(weeklySummary) && weeklySummary.length && weeklySummary[weekIndex]) {
-            const { dueDate, summary } = weeklySummary[weekIndex];
+          if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[weekIndex]) {
+            const { dueDate, summary } = weeklySummaries[weekIndex];
             if (summary) {
               weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).format('YYYY-MM-DD')}):</p>
                                       <div style="padding: 0 20px;">${summary}</div>`;
@@ -152,17 +152,17 @@ const userhelper = function () {
 
 
   /**
-   * This function will process the weeklySummary array in the following way:
+   * This function will process the weeklySummaries array in the following way:
    *  1 ) Push a new (blank) summary at the beginning of the array.
    *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
    *
    * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
    */
-  const processWeeklySummaryByUserId = function (personId) {
+  const processweeklySummariesByUserId = function (personId) {
     userProfile
       .findByIdAndUpdate(personId, {
         $push: {
-          weeklySummary: {
+          weeklySummaries: {
             $each: [
               {
                 dueDate: moment().tz('America/Los_Angeles').endOf('week'),
@@ -183,7 +183,7 @@ const userhelper = function () {
    * This function is called by a cron job to do 3 things to all active users:
    *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
-   *  3 ) Call the processWeeklySummaryByUserId(personId) to process the weeklySummary array so it's ready for the current week.
+   *  3 ) Call the processweeklySummariesByUserId(personId) to process the weeklySummaries array so it's ready for the current week.
    */
   const assignBlueBadges = function () {
     logger.logInfo(
@@ -204,18 +204,18 @@ const userhelper = function () {
         {
           isActive: true,
         },
-        '_id weeklySummary',
+        '_id weeklySummaries',
       )
       .then((users) => {
         users.forEach((user) => {
           const {
-            _id, weeklySummary,
+            _id, weeklySummaries,
           } = user;
           const personId = mongoose.Types.ObjectId(_id);
 
           let hasWeeklySummary = false;
-          if (Array.isArray(weeklySummary) && weeklySummary.length) {
-            const { dueDate, summary } = weeklySummary[0];
+          if (Array.isArray(weeklySummaries) && weeklySummaries.length) {
+            const { dueDate, summary } = weeklySummaries[0];
             const fromDate = moment(pdtStartOfLastWeek).toDate();
             const toDate = moment(pdtEndOfLastWeek).toDate();
             if (summary && moment(dueDate).isBetween(fromDate, toDate, undefined, '[]')) {
@@ -224,7 +224,7 @@ const userhelper = function () {
           }
 
           //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-          processWeeklySummaryByUserId(personId);
+          processweeklySummariesByUserId(personId);
 
           dashboardhelper
             .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
@@ -340,7 +340,7 @@ const userhelper = function () {
     deleteBadgeAfterYear,
     notifyInfringments,
     getInfringmentEmailBody,
-    emailWeeklySummaryForAllUsers,
+    emailweeklySummariesForAllUsers,
   };
 };
 

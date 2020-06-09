@@ -114,7 +114,7 @@ const userProfileController = function (UserProfile) {
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
     up.email = _email;
-    up.weeklySummary = req.body.weeklySummary || [{ summary: '' }];
+    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.mediaUrl = req.body.mediaUrl || '';
 
 
@@ -165,7 +165,7 @@ const userProfileController = function (UserProfile) {
       record.personalLinks = req.body.personalLinks;
       record.lastModifiedDate = Date.now();
       record.profilePic = req.body.profilePic;
-      record.weeklySummary = req.body.weeklySummary;
+      record.weeklySummaries = req.body.weeklySummaries;
       record.mediaUrl = req.body.mediaUrl;
 
 
@@ -178,7 +178,7 @@ const userProfileController = function (UserProfile) {
         record.projects = Array.from(new Set(req.body.projects));
         record.isActive = req.body.isActive;
         record.email = req.body.email.toLowerCase();
-        record.weeklySummary = req.body.weeklySummary;
+        record.weeklySummaries = req.body.weeklySummaries;
         record.mediaUrl = req.body.mediaUrl;
       }
 

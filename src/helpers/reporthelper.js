@@ -19,9 +19,9 @@ const reporthelper = function () {
         firstName: 1,
         lastName: 1,
         mediaUrl: 1,
-        weeklySummary: {
+        weeklySummaries: {
           $filter: {
-            input: '$weeklySummary',
+            input: '$weeklySummaries',
             as: 'ws',
             cond: {
               $and: [
