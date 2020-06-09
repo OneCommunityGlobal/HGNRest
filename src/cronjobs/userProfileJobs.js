@@ -11,9 +11,9 @@ const userProfileScheduledJobs = function () {
     'America/Los_Angeles',
   );
 
-  const emailWeeklySummary = new CronJob(
+  const emailWeeklySummaries = new CronJob(
     '5 0 * * 0', // Every Sunday, 5 minutes past midnight.
-    userhelper.emailWeeklySummaryForAllUsers,
+    userhelper.emailweeklySummariesForAllUsers,
     null,
     false,
     'America/Los_Angeles',
@@ -28,7 +28,7 @@ const userProfileScheduledJobs = function () {
   );
 
   assignBlueBadge.start();
-  emailWeeklySummary.start();
+  emailWeeklySummaries.start();
   deleteBlueBadgeOlderThanYear.start();
 };
 
