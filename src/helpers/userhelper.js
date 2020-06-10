@@ -99,10 +99,11 @@ const userhelper = function () {
 
         results.forEach((result) => {
           const {
-            firstName, lastName, weeklySummaries, mediaUrl,
+            firstName, lastName, weeklySummaries, mediaUrl, weeklySummariesCount,
           } = result;
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+          const totalValidWeeklySummaries = weeklySummariesCount || 'No valid submissions yet!';
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
           // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
           if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[0]) {
@@ -114,11 +115,12 @@ const userhelper = function () {
           }
 
           emailBody += `\n
-              <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
-                <b>Name:</b> ${firstName} ${lastName}
-                <p><b>Media URL:</b> ${mediaUrlLink}</p>
-                ${weeklySummaryMessage}
-              </div>`;
+          <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
+          <b>Name:</b> ${firstName} ${lastName}
+          <p><b>Media URL:</b> ${mediaUrlLink}</p>
+          <p><b>Total Valid Weekly Summaries:</b> ${totalValidWeeklySummaries}</p>
+          ${weeklySummaryMessage}
+          </div>`;
         });
 
         emailSender(
@@ -137,9 +139,12 @@ const userhelper = function () {
    *  1 ) Push a new (blank) summary at the beginning of the array.
    *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
    *
+   * This function will also increment the weeklySummariesCount by 1 if the user had provided a valid summary.
+   *
    * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
+   * @param {boolean} hasWeeklySummary Whether the user with personId has submitted a valid weekly summary.
    */
-  const processweeklySummariesByUserId = function (personId) {
+  const processweeklySummariesByUserId = function (personId, hasWeeklySummary) {
     userProfile
       .findByIdAndUpdate(personId, {
         $push: {
@@ -154,17 +159,26 @@ const userhelper = function () {
             $slice: 3,
           },
         },
-      }, { new: true })
-      // .then(result => console.log('results', result))
+      })
+      .then(() => {
+        if (hasWeeklySummary) {
+          userProfile
+            .findByIdAndUpdate(personId, {
+              $inc: { weeklySummariesCount: 1 },
+            }, { new: true })
+            // .then(result => console.log('result:', result))
+            .catch(error => logger.logException(error));
+        }
+      })
       .catch(error => logger.logException(error));
   };
-
 
   /**
    * This function is called by a cron job to do 3 things to all active users:
    *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
-   *  3 ) Call the processweeklySummariesByUserId(personId) to process the weeklySummaries array so it's ready for the current week.
+   *  3 ) Call the processweeklySummariesByUserId(personId) to process the weeklySummaries array
+   *      and increment the weeklySummariesCount for valud submissions.
    */
   const assignBlueBadges = function () {
     logger.logInfo(
@@ -205,7 +219,7 @@ const userhelper = function () {
           }
 
           //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-          processweeklySummariesByUserId(personId);
+          processweeklySummariesByUserId(personId, hasWeeklySummary);
 
           dashboardhelper
             .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
