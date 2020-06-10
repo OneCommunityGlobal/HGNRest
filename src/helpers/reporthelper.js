@@ -34,6 +34,7 @@ const reporthelper = function () {
             },
           },
         },
+        weeklySummariesCount: 1,
       },
     },
     ]);

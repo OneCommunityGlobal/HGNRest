@@ -115,6 +115,7 @@ const userProfileController = function (UserProfile) {
     up.createdDate = Date.now();
     up.email = _email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.mediaUrl = req.body.mediaUrl || '';
 
 
@@ -166,6 +167,7 @@ const userProfileController = function (UserProfile) {
       record.lastModifiedDate = Date.now();
       record.profilePic = req.body.profilePic;
       record.weeklySummaries = req.body.weeklySummaries;
+      record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
 
 
@@ -179,6 +181,7 @@ const userProfileController = function (UserProfile) {
         record.isActive = req.body.isActive;
         record.email = req.body.email.toLowerCase();
         record.weeklySummaries = req.body.weeklySummaries;
+        record.weeklySummariesCount = req.body.weeklySummariesCount;
         record.mediaUrl = req.body.mediaUrl;
       }
 
