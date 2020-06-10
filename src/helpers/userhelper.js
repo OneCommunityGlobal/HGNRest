@@ -4,6 +4,7 @@ const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const myteam = require('../helpers/helperModels/myTeam');
 const dashboardhelper = require('../helpers/dashboardhelper')();
+const reporthelper = require('../helpers/reporthelper')();
 
 const emailSender = require('../utilities/emailSender');
 
@@ -75,69 +76,49 @@ const userhelper = function () {
 
   /**
    * This function will send out an email listing all users that have a summary provided for a specific week.
-   * A week is represented by a number weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest. The weekIndex represents
-   * the index of the weeklySummaries array stored in the database, weeklySummaries[0], weeklySummaries[1] and weeklySummaries[2].
-   * The checkDate parameter can also be used to check whether the dueDate of the summary belongs to the week being checked.
-   * There could be edge cases where a user's account has been inactive for a period of time then when activated again
-   * they'll have summaries stored in the database with much older dates. If checkDate is set to "false" those older summaries
-   * will also be counted based on the index of the week being checked, otherwise they will not be included in the email
-   * as the dates won't be matching.
+   * A week is represented by a number weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
+   * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
+   * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
    *
-   * @param {int}     weekIndex Numbered representation of a week where 0 is the most recent and 2 the oldest.
-   * @param {boolean} checkDate Whether to check if the dueDate of the summary belongs to the week being checked.
+   * @param {int} weekIndex Numbered representation of a week where 0 is the most recent and 2 the oldest.
    *
    * @return {void}
    */
-  const emailweeklySummariesForAllUsers = function (weekIndex, checkDate = true) {
+  const emailweeklySummariesForAllUsers = function (weekIndex) {
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
     );
 
     weekIndex = (weekIndex !== null) ? weekIndex : 1;
 
-    const isDateBetween = (dueDate) => {
-      const pstStartOfWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(weekIndex, 'week');
-      const pstEndOfWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(weekIndex, 'week');
-      const fromDate = moment(pstStartOfWeek).toDate();
-      const toDate = moment(pstEndOfWeek).toDate();
-      return moment(dueDate).isBetween(fromDate, toDate, undefined, '[]');
-    };
-
-    userProfile
-      .find(
-        {
-          isActive: true,
-        },
-        '_id firstName lastName weeklySummaries mediaUrl',
-      )
-      .then((users) => {
+    reporthelper
+      .weeklySummaries(weekIndex, weekIndex)
+      .then((results) => {
         let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
         const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> Not provided!</div>';
 
-        users.forEach((user) => {
+        results.forEach((result) => {
           const {
             firstName, lastName, weeklySummaries, mediaUrl,
-          } = user;
+          } = result;
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-          if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[weekIndex]) {
-            const { dueDate, summary } = weeklySummaries[weekIndex];
+          // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
+          if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[0]) {
+            const { dueDate, summary } = weeklySummaries[0];
             if (summary) {
               weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).format('YYYY-MM-DD')}):</p>
-                                      <div style="padding: 0 20px;">${summary}</div>`;
-              if (checkDate && !isDateBetween(dueDate)) {
-                weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-              }
+                                        <div style="padding: 0 20px;">${summary}</div>`;
             }
           }
 
           emailBody += `\n
-            <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
-              <b>Name:</b> ${firstName} ${lastName}:
-              <p><b>Media URL:</b> ${mediaUrlLink}</p>
-              ${weeklySummaryMessage}
-            </div>`;
+              <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
+                <b>Name:</b> ${firstName} ${lastName}
+                <p><b>Media URL:</b> ${mediaUrlLink}</p>
+                ${weeklySummaryMessage}
+              </div>`;
         });
 
         emailSender(
