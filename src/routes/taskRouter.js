@@ -8,11 +8,15 @@ const routes = function (task) {
   wbsRouter.route('/tasks/:wbsId')
     .get(controller.getTasks);
 
-  wbsRouter.route('/task/:wbsId')
-    .post(controller.postTask);
+  wbsRouter.route('/task/:id')
+    .post(controller.postTask)
+    .get(controller.getTaskById);
 
   wbsRouter.route('/task/del/:taskId')
     .delete(controller.deleteTask);
+
+  wbsRouter.route('/task/update/:taskId')
+    .put(controller.updateTask);
 
   wbsRouter.route('/tasks/swap/')
     .put(controller.swap);
