@@ -11,7 +11,6 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
-
   const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours, resources) => {
     Task.findById(taskId, (error, task) => {
       task.hoursBest = hoursBest;
@@ -249,7 +248,7 @@ const taskController = function (Task) {
 
   const postTask = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
-      res.status(403).send({ error: 'You are not authorized to create new projects.' });
+      res.status(403).send({ error: 'You are not authorized to create new Task.' });
       return;
     }
 
@@ -259,9 +258,10 @@ const taskController = function (Task) {
       return;
     }
 
+    const wbsId = req.params.id;
 
     const _task = new Task();
-    _task.wbsId = req.params.wbsId;
+    _task.wbsId = wbsId;
     _task.taskName = req.body.taskName;
     _task.num = req.body.num;
     _task.task = req.body.task;
@@ -303,7 +303,7 @@ const taskController = function (Task) {
 
 
     if (!req.body.nums) {
-      res.status(400).send({ error: 'Nums is a mandatory fields' });
+      res.status(400).send({ error: 'Num is a mandatory fields' });
       return;
     }
 
@@ -388,6 +388,40 @@ const taskController = function (Task) {
   };
 
 
+  const updateTask = (req, res) => {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to create new Task.' });
+      return;
+    }
+
+    const { taskId } = req.params;
+    const task = req.body;
+
+    Task.findById(taskId, (error, _task) => {
+      _task.taskName = task.taskName;
+      _task.priority = task.priority;
+      _task.resources = task.resources;
+      _task.isAssigned = task.isAssigned;
+      _task.status = task.status;
+      _task.hoursBest = task.hoursBest;
+      _task.hoursWorst = task.hoursWorst;
+      _task.hoursMost = task.hoursMost;
+      _task.estimatedHours = task.estimatedHours;
+      _task.startedDatetime = task.startedDatetime;
+      _task.dueDatetime = task.dueDatetime;
+      _task.links = task.links;
+      _task.modifiedDatetime = Date.now();
+
+
+      _task.save().then((result) => {
+        updateParents(_task.wbsId);
+        resetNum(_task.wbsId);
+        return res.status(201).send(result);
+      })
+        .catch((errors) => { res.status(400).send(errors); });
+    });
+  };
+
   const swap = function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
@@ -444,6 +478,13 @@ const taskController = function (Task) {
     });
   };
 
+  const getTaskById = function (req, res) {
+    const taskId = req.params.id;
+
+    Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+  };
 
   return {
     postTask,
@@ -451,6 +492,8 @@ const taskController = function (Task) {
     swap,
     updateNum,
     deleteTask,
+    getTaskById,
+    updateTask,
   };
 };
 
