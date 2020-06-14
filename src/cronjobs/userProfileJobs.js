@@ -13,7 +13,7 @@ const userProfileScheduledJobs = function () {
 
   const emailWeeklySummaries = new CronJob(
     '5 0 * * 0', // Every Sunday, 5 minutes past midnight.
-    userhelper.emailweeklySummariesForAllUsers,
+    userhelper.emailWeeklySummariesForAllUsers,
     null,
     false,
     'America/Los_Angeles',

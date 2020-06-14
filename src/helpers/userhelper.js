@@ -84,7 +84,7 @@ const userhelper = function () {
    *
    * @return {void}
    */
-  const emailweeklySummariesForAllUsers = function (weekIndex) {
+  const emailWeeklySummariesForAllUsers = function (weekIndex) {
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
     );
@@ -335,7 +335,7 @@ const userhelper = function () {
     deleteBadgeAfterYear,
     notifyInfringments,
     getInfringmentEmailBody,
-    emailweeklySummariesForAllUsers,
+    emailWeeklySummariesForAllUsers,
   };
 };
 
