@@ -51,6 +51,7 @@ const userProfileSchema = new Schema({
   weeklyComittedHours: { type: Number, default: 10 },
   createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
+  reactivationDate: { type: Date },
   personalLinks: [
     { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
   ],
