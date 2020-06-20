@@ -109,7 +109,7 @@ const userhelper = function () {
           if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[0]) {
             const { dueDate, summary } = weeklySummaries[0];
             if (summary) {
-              weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).format('YYYY-MM-DD')}):</p>
+              weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MM-DD')}):</p>
                                         <div style="padding: 0 20px;">${summary}</div>`;
             }
           }
