@@ -27,6 +27,7 @@ const userProfileSchema = new Schema({
   },
   lastName: { type: String, required: true, minlength: 2 },
   phoneNumber: [{ type: String, phoneNumber: String }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String, required: true, unique: true, validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],

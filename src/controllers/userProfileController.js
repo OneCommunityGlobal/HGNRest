@@ -104,7 +104,7 @@ const userProfileController = function (UserProfile) {
     up.role = req.body.role;
     up.firstName = req.body.firstName;
     up.lastName = req.body.lastName;
-    up.email = _email;
+    up.jobTitle = req.body.jobTitle;
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
     up.weeklyComittedHours = req.body.weeklyComittedHours;
@@ -113,8 +113,6 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
-    up.email = _email;
-
 
     up.save()
       .then(() => res.status(200).send({
@@ -158,6 +156,7 @@ const userProfileController = function (UserProfile) {
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
       record.lastName = req.body.lastName;
+      record.jobTitle = req.body.jobTitle;
       record.phoneNumber = req.body.phoneNumber;
       record.bio = req.body.bio;
       record.personalLinks = req.body.personalLinks;
