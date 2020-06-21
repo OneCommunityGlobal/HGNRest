@@ -48,7 +48,6 @@ const actionItemController = function (ActionItem) {
         actionitem._id = result._id;
         actionitem.assignedTo = _actionItem.assignedTo;
 
-
         res.status(200).send(actionitem);
       })
       .catch((error) => {
