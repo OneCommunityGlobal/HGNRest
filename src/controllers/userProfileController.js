@@ -484,6 +484,7 @@ const userProfileController = function (UserProfile) {
         res.status(500).send(error);
       });
   };
+
   const resetPassword = function (req, res) {
     ValidatePassword(req);
 
