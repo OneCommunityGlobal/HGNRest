@@ -59,14 +59,14 @@ const userhelper = function () {
     };
   };
   const getInfringmentEmailBody = function (firstName, lastName, infringment) {
-    const text = `Dear <b>${firstName} ${lastName}</b>, 
+    const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>
         Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <b>
         <div>Date Assigned: ${infringment.date}</div>
         <div>Description : ${infringment.description}</div>
         </b>
-        <p>        
+        <p>
         No worries though, life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.
         </p>
         <p>Thank you,</p>
@@ -167,6 +167,33 @@ const userhelper = function () {
       .catch(error => logger.logException(error));
   };
 
+  const reActivateUser = function () {
+    logger.logInfo(
+      `Job for activating users based on scheduled re-activation date starting at ${moment().tz('America/Los_Angeles').format()}`,
+    );
+    userProfile
+      .find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate')
+      .then((users) => {
+        users.forEach((user) => {
+          if (moment.tz(moment(), 'America/Los_Angeles').isSame(moment.tz(user.reactivationDate, 'UTC'), 'day')) {
+            userProfile.findByIdAndUpdate(
+              user._id,
+              {
+                $set: {
+                  isActive: true,
+                },
+              }, { new: true },
+            )
+              .then(() => {
+                logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+              })
+              .catch(error => logger.logException(error));
+          }
+        });
+      })
+      .catch(error => logger.logException(error));
+  };
+
   const notifyInfringments = function (
     original,
     current,
@@ -200,6 +227,7 @@ const userhelper = function () {
     validateprofilepic,
     assignBlueBadgeforTimeNotMet,
     deleteBadgeAfterYear,
+    reActivateUser,
     notifyInfringments,
     getInfringmentEmailBody,
   };
