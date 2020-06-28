@@ -244,7 +244,7 @@ const taskController = function (Task) {
       });
   };
 
-  const importTask = async (req,res)=>{
+  const importTask = async (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new Task.' });
       return;
@@ -283,14 +283,12 @@ const taskController = function (Task) {
     _task.position = req.body.position;
     _task.createdDatetime = Date.now();
     _task.modifiedDatetime = Date.now();
-  
+
 
     _task.save()
-      .then((result) => {
-        return res.status(201).send(result);
-      })
+      .then(result => res.status(201).send(result))
       .catch((errors) => { res.status(400).send(errors); });
-  }
+  };
 
   const postTask = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
@@ -533,14 +531,14 @@ const taskController = function (Task) {
   };
 
   const saveParents = function (updatedTask, position) {
-    let taskNumArr = updatedTask.num.split('.');
-    let firstNum = parseInt(taskNumArr[0]);
-    if(updatedTask.num ==='0'){
-      firstNum = 1
+    const taskNumArr = updatedTask.num.split('.');
+    let firstNum = parseInt(taskNumArr[0], 10);
+    if (updatedTask.num === '0') {
+      firstNum = 1;
     }
-    let newNum = ++firstNum;
-    for(let i=1; i<taskNumArr.length;i++){
-      newNum += `.${taskNumArr[i]}`
+    let newNum = firstNum + 1;
+    for (let i = 1; i < taskNumArr.length; i += 1) {
+      newNum += `.${taskNumArr[i]}`;
     }
     console.log(newNum);
 
@@ -548,56 +546,53 @@ const taskController = function (Task) {
       task.parentId1 = updatedTask.parentId1;
       task.parentId2 = updatedTask.parentId2;
       task.parentId3 = updatedTask.parentId3;
-      task.mother = updatedTask.mother ;
+      task.mother = updatedTask.mother;
       task.position = position;
       task.num = newNum;
       task.save();
     });
-  }
+  };
 
 
-  const fixTasks = function (req,res){
+  const fixTasks = function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new Task.' });
       return;
     }
 
-    const wbsId = req.params.wbsId;
+    const { wbsId } = req.params;
 
     Task.find({ wbsId: { $in: [wbsId] } })
       .then((tasks) => {
-
         let parentId1 = null;
         let parentId2 = null;
         let parentId3 = null;
 
-        tasks.forEach((task,i)=>{
-         
-          if(task.level===1){
+        tasks.forEach((task, i) => {
+          if (task.level === 1) {
             parentId1 = task._id; // for task level 2
-          }else if(task.level===2){
-            task.parentId1 = parentId1; 
+          } else if (task.level === 2) {
+            task.parentId1 = parentId1;
             task.mother = parentId1;
             parentId2 = task._id;
-            saveParents(task,i);
-          }else if(task.level===3){
+            saveParents(task, i);
+          } else if (task.level === 3) {
             task.parentId1 = parentId1;
             task.parentId2 = parentId2;
             task.mother = parentId2;
             parentId3 = task._id;
-            saveParents(task,i);
-          }else if(task.level===4){
+            saveParents(task, i);
+          } else if (task.level === 4) {
             task.parentId1 = parentId1;
             task.parentId2 = parentId2;
             task.parentId3 = parentId3;
             task.mother = parentId3;
-            saveParents(task,i);
+            saveParents(task, i);
           }
-          
-        })
-    });
+        });
+      });
     res.status(200).send('done');
-  }
+  };
 
   return {
     postTask,
@@ -608,7 +603,7 @@ const taskController = function (Task) {
     getTaskById,
     updateTask,
     importTask,
-    fixTasks
+    fixTasks,
   };
 };
 

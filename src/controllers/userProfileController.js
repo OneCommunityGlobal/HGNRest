@@ -315,12 +315,12 @@ const userProfileController = function (UserProfile) {
       .catch(error => res.status(404).send(error));
   };
 
-  const getUserByName = (req,res) =>{
+  const getUserByName = (req, res) => {
     const { name } = req.params;
-    UserProfile.find({firstName: name.split(' ')[0], lastName: name.split(' ')[1]}, '_id, profilePic')
+    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
-  }
+  };
 
   const updatepassword = function (req, res) {
     const { userId } = req.params;
