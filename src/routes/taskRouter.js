@@ -6,10 +6,12 @@ const routes = function (task) {
   const wbsRouter = express.Router();
 
   wbsRouter.route('/tasks/:wbsId')
-    .get(controller.getTasks);
+    .get(controller.getTasks)
+    .put(controller.fixTasks);
 
   wbsRouter.route('/task/:id')
     .post(controller.postTask)
+    .put(controller.importTask)
     .get(controller.getTaskById);
 
   wbsRouter.route('/task/del/:taskId')

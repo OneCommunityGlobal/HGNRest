@@ -1,5 +1,4 @@
 // const mongoose = require('mongoose');
-
 const taskController = function (Task) {
   const getTasks = (req, res) => {
     Task.find(
@@ -245,6 +244,53 @@ const taskController = function (Task) {
       });
   };
 
+  const importTask = async (req,res)=>{
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to create new Task.' });
+      return;
+    }
+
+    if (!req.body.taskName || !req.body.isActive
+    ) {
+      res.status(400).send({ error: 'Task Name, Active status, Task Number are mandatory fields' });
+      return;
+    }
+
+    const wbsId = req.params.id;
+
+    const _task = new Task();
+    _task.wbsId = wbsId;
+    _task.taskName = req.body.taskName;
+    _task.num = req.body.num;
+    _task.task = req.body.task;
+    _task.level = req.body.level;
+    _task.priority = req.body.priority;
+    _task.resources = req.body.resources;
+    _task.isAssigned = req.body.isAssigned;
+    _task.status = req.body.status;
+    _task.hoursBest = req.body.hoursBest;
+    _task.hoursWorst = req.body.hoursWorst;
+    _task.hoursMost = req.body.hoursMost;
+    _task.estimatedHours = req.body.estimatedHours;
+    _task.startedDatetime = req.body.startedDatetime;
+    _task.dueDatetime = req.body.dueDatetime;
+    _task.links = req.body.links;
+    _task.parentId1 = req.body.parentId1;
+    _task.parentId2 = req.body.parentId2;
+    _task.parentId3 = req.body.parentId3;
+    _task.isActive = req.body.isActive;
+    _task.mother = req.body.mother;
+    _task.position = req.body.position;
+    _task.createdDatetime = Date.now();
+    _task.modifiedDatetime = Date.now();
+  
+
+    _task.save()
+      .then((result) => {
+        return res.status(201).send(result);
+      })
+      .catch((errors) => { res.status(400).send(errors); });
+  }
 
   const postTask = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
@@ -486,6 +532,73 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
+  const saveParents = function (updatedTask, position) {
+    let taskNumArr = updatedTask.num.split('.');
+    let firstNum = parseInt(taskNumArr[0]);
+    if(updatedTask.num ==='0'){
+      firstNum = 1
+    }
+    let newNum = ++firstNum;
+    for(let i=1; i<taskNumArr.length;i++){
+      newNum += `.${taskNumArr[i]}`
+    }
+    console.log(newNum);
+
+    Task.findById(updatedTask._id, (error, task) => {
+      task.parentId1 = updatedTask.parentId1;
+      task.parentId2 = updatedTask.parentId2;
+      task.parentId3 = updatedTask.parentId3;
+      task.mother = updatedTask.mother ;
+      task.position = position;
+      task.num = newNum;
+      task.save();
+    });
+  }
+
+
+  const fixTasks = function (req,res){
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to create new Task.' });
+      return;
+    }
+
+    const wbsId = req.params.wbsId;
+
+    Task.find({ wbsId: { $in: [wbsId] } })
+      .then((tasks) => {
+
+        let parentId1 = null;
+        let parentId2 = null;
+        let parentId3 = null;
+
+        tasks.forEach((task,i)=>{
+         
+          if(task.level===1){
+            parentId1 = task._id; // for task level 2
+          }else if(task.level===2){
+            task.parentId1 = parentId1; 
+            task.mother = parentId1;
+            parentId2 = task._id;
+            saveParents(task,i);
+          }else if(task.level===3){
+            task.parentId1 = parentId1;
+            task.parentId2 = parentId2;
+            task.mother = parentId2;
+            parentId3 = task._id;
+            saveParents(task,i);
+          }else if(task.level===4){
+            task.parentId1 = parentId1;
+            task.parentId2 = parentId2;
+            task.parentId3 = parentId3;
+            task.mother = parentId3;
+            saveParents(task,i);
+          }
+          
+        })
+    });
+    res.status(200).send('done');
+  }
+
   return {
     postTask,
     getTasks,
@@ -494,6 +607,8 @@ const taskController = function (Task) {
     deleteTask,
     getTaskById,
     updateTask,
+    importTask,
+    fixTasks
   };
 };
 
