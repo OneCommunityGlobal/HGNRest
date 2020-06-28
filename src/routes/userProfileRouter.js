@@ -16,6 +16,9 @@ const routes = function (userProfile) {
     .delete(controller.deleteUserProfile)
     .patch(controller.changeUserStatus);
 
+  userProfileRouter.route('/userProfile/name/:name')
+    .get(controller.getUserByName);
+
   userProfileRouter.route('/userProfile/reportees/:userId')
     .get(controller.getreportees);
 
