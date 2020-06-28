@@ -168,7 +168,7 @@ const projectController = function (Project) {
       res.status(400).send({ error: 'Invalid request' });
       return;
     }
-    userProfile.find({ projects: projectId }, '_id firstName lastName')
+    userProfile.find({ projects: projectId }, '_id firstName lastName profilePic')
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => { res.status(200).send(results); })
       .catch((error) => { res.status(500).send(error); });
