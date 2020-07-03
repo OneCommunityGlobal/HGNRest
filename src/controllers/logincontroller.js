@@ -20,8 +20,8 @@ const logincontroller = function () {
     const user = await userprofile.findOne({ email: { $regex: _email, $options: 'i' } })
       .catch(error => res.status(400).send(error));
 
-
-    if (!user) {
+    // returning 403 if the user not found or the found user is inactive.
+    if (!user || user.isActive === false) {
       res.status(403).send({ message: 'Invalid email and/ or password.' });
       return;
     }
