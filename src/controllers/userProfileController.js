@@ -54,7 +54,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklyComittedHours email isActive',
+      '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate',
     )
       .sort({
         lastName: 1,
