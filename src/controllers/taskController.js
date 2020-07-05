@@ -272,7 +272,7 @@ const taskController = function (Task) {
     // add up 1 to num
     const numBody = req.body.num;
     const numBodyArr = numBody.split('.');
-    const firstNum = parseInt(numBodyArr[0],10) + 1;
+    const firstNum = parseInt(numBodyArr[0], 10) + 1;
     numBodyArr[0] = '';
     const newNum = `${firstNum}${numBodyArr.join('.')}`;
 
