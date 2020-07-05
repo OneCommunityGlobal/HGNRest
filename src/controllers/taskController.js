@@ -56,10 +56,10 @@ const taskController = function (Task) {
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task._id)) {
           hasChild = true;
-          sumHoursBest += childTask.hoursBest;
-          sumHoursWorst += childTask.hoursWorst;
-          sumHoursMost += childTask.hoursMost;
-          sumEstimatedHours += childTask.estimatedHours;
+          sumHoursBest = parseInt(childTask.hoursBest, 10) + parseInt(sumHoursBest, 10);
+          sumHoursWorst = parseInt(childTask.hoursWorst, 10) + parseInt(sumHoursWorst, 10);
+          sumHoursMost = parseInt(childTask.hoursMost, 10) + parseInt(sumHoursMost, 10);
+          sumEstimatedHours = parseInt(childTask.estimatedHours, 10) + parseInt(sumEstimatedHours, 10);
           childTask.resources.forEach((member) => {
             let isInResource = false;
             resources.forEach((mem) => {
@@ -244,6 +244,17 @@ const taskController = function (Task) {
       });
   };
 
+
+  const fixedText = (text) => {
+    let fixedTextStr = text.replace(/""/g, '"');
+    fixedTextStr = fixedTextStr.replace(/;/g, ',');
+    if (text[0] === '"') {
+      fixedTextStr = fixedTextStr.substring(1, fixedTextStr.length - 1);
+    }
+    return fixedTextStr;
+  };
+
+
   const importTask = async (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new Task.' });
@@ -258,20 +269,28 @@ const taskController = function (Task) {
 
     const wbsId = req.params.id;
 
+    // add up 1 to num
+    const numBody = req.body.num;
+    const numBodyArr = numBody.split('.');
+    const firstNum = parseInt(numBodyArr[0],10) + 1;
+    numBodyArr[0] = '';
+    const newNum = `${firstNum}${numBodyArr.join('.')}`;
+
+
     const _task = new Task();
     _task.wbsId = wbsId;
-    _task.taskName = req.body.taskName;
-    _task.num = req.body.num;
+    _task.taskName = fixedText(req.body.taskName);
+    _task.num = newNum;
     _task.task = req.body.task;
     _task.level = req.body.level;
     _task.priority = req.body.priority;
     _task.resources = req.body.resources;
     _task.isAssigned = req.body.isAssigned;
     _task.status = req.body.status;
-    _task.hoursBest = req.body.hoursBest;
-    _task.hoursWorst = req.body.hoursWorst;
-    _task.hoursMost = req.body.hoursMost;
-    _task.estimatedHours = req.body.estimatedHours;
+    _task.hoursBest = parseInt(req.body.hoursBest.trim(), 10);
+    _task.hoursWorst = parseInt(req.body.hoursWorst.trim(), 10);
+    _task.hoursMost = parseInt(req.body.hoursMost.trim(), 10);
+    _task.estimatedHours = parseInt(req.body.estimatedHours.trim(), 10);
     _task.startedDatetime = req.body.startedDatetime;
     _task.dueDatetime = req.body.dueDatetime;
     _task.links = req.body.links;
@@ -531,24 +550,12 @@ const taskController = function (Task) {
   };
 
   const saveParents = function (updatedTask, position) {
-    const taskNumArr = updatedTask.num.split('.');
-    let firstNum = parseInt(taskNumArr[0], 10);
-    if (updatedTask.num === '0') {
-      firstNum = 1;
-    }
-    let newNum = firstNum + 1;
-    for (let i = 1; i < taskNumArr.length; i += 1) {
-      newNum += `.${taskNumArr[i]}`;
-    }
-    console.log(newNum);
-
     Task.findById(updatedTask._id, (error, task) => {
       task.parentId1 = updatedTask.parentId1;
       task.parentId2 = updatedTask.parentId2;
       task.parentId3 = updatedTask.parentId3;
       task.mother = updatedTask.mother;
       task.position = position;
-      task.num = newNum;
       task.save();
     });
   };
@@ -569,24 +576,29 @@ const taskController = function (Task) {
         let parentId3 = null;
 
         tasks.forEach((task, i) => {
+          const taskNumArr = task.num.split('.');
           if (task.level === 1) {
             parentId1 = task._id; // for task level 2
+            task.mother = null;
           } else if (task.level === 2) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
             task.parentId1 = parentId1;
             task.mother = parentId1;
-            parentId2 = task._id;
             saveParents(task, i);
           } else if (task.level === 3) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
+            parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num)[0]._id;
             task.parentId1 = parentId1;
             task.parentId2 = parentId2;
             task.mother = parentId2;
-            parentId3 = task._id;
             saveParents(task, i);
           } else if (task.level === 4) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
+            parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num)[0]._id;
+            parentId3 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}` === pTask.num)[0]._id;
             task.parentId1 = parentId1;
             task.parentId2 = parentId2;
             task.parentId3 = parentId3;
-            task.mother = parentId3;
             saveParents(task, i);
           }
         });
