@@ -43,7 +43,7 @@ const userProfileSchema = new Schema({
   badgeCollection: [{ badgeName: String, quantity: Number, lastModifiedDate: Date }],
   profilePic: { type: String },
   infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
-  privacySettings: { blueSquares: {type: Boolean}, email: {type: Boolean}, phoneNumber: {type: Boolean} }
+  privacySettings: { blueSquares: { type: Boolean }, email: { type: Boolean }, phoneNumber: { type: Boolean } },
 });
 
 userProfileSchema.pre('save', function (next) {
