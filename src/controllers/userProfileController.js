@@ -113,7 +113,7 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
-    up.privacySettings = req.body.privacySettings;
+    // up.privacySettings = req.body.privacySettings;
 
     up.save()
       .then(() => res.status(200).send({
