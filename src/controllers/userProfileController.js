@@ -113,6 +113,7 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
+    up.privacySettings = req.body.privacySettings;
 
     up.save()
       .then(() => res.status(200).send({
@@ -162,6 +163,7 @@ const userProfileController = function (UserProfile) {
       record.personalLinks = req.body.personalLinks;
       record.lastModifiedDate = Date.now();
       record.profilePic = req.body.profilePic;
+      record.privacySettings = req.body.privacySettings;
 
 
       if (isRequestorAdmin) {
