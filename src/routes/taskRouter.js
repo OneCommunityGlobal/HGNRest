@@ -20,6 +20,9 @@ const routes = function (task) {
   wbsRouter.route('/task/update/:taskId')
     .put(controller.updateTask);
 
+  wbsRouter.route('/task/updateAllParents/:wbsId/')
+    .put(controller.updateAllParents);
+
   wbsRouter.route('/tasks/swap/')
     .put(controller.swap);
 
