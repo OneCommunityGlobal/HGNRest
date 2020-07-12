@@ -195,19 +195,20 @@ const taskController = function (Task) {
 
 
   const updateParents = (wbsId, parentId1) => {
-      Task.find({
-        $and:[{ $or: [ { _id: parentId1 },{ parentId1: parentId1 }, {parentId1:null}] },
-              {wbsId: { $in: [wbsId] }}]})
-        .then((tasks) => {
-          tasks = [...new Set(tasks.map(item => item))];
-          for (let lv = 3; lv > 0; lv -= 1) {
-            calculateSubTasks(lv, tasks);
-            setDatesSubTasks(lv, tasks);
-            calculatePriority(lv, tasks);
-            setAssigned(lv, tasks);
-            setStatus(lv, tasks);
-          }
-        });
+    Task.find({
+      $and: [{ $or: [{ _id: parentId1 }, { parentId1 }, { parentId1: null }] },
+        { wbsId: { $in: [wbsId] } }],
+    })
+      .then((tasks) => {
+        tasks = [...new Set(tasks.map(item => item))];
+        for (let lv = 3; lv > 0; lv -= 1) {
+          calculateSubTasks(lv, tasks);
+          setDatesSubTasks(lv, tasks);
+          calculatePriority(lv, tasks);
+          setAssigned(lv, tasks);
+          setStatus(lv, tasks);
+        }
+      });
   };
 
   const updateTaskNums = (taskId, num) => {
@@ -563,24 +564,22 @@ const taskController = function (Task) {
     });
   };
 
-  const updateAllParents = ( req, res) =>{
-    const {wbsId} = req.params;
-    try{
-    Task.find({ wbsId: { $in: [wbsId] } })
-      .then((tasks) => {
-          tasks = tasks.filter(task => task.level===1);
-          tasks.forEach(task => {
-            updateParents(task.wbsId,task._id.toString());
-          })
-         
-    })
-  
-    res.status(200).send('done');
-    }catch(error){
+  const updateAllParents = (req, res) => {
+    const { wbsId } = req.params;
+    try {
+      Task.find({ wbsId: { $in: [wbsId] } })
+        .then((tasks) => {
+          tasks = tasks.filter(task => task.level === 1);
+          tasks.forEach((task) => {
+            updateParents(task.wbsId, task._id.toString());
+          });
+        });
+
+      res.status(200).send('done');
+    } catch (error) {
       res.status(400).send(error);
     }
-  }
-
+  };
 
 
   const fixTasks = function (req, res) {
@@ -591,38 +590,37 @@ const taskController = function (Task) {
     const { wbsId } = req.params;
     Task.find({ wbsId: { $in: [wbsId] } })
       .then((tasks) => {
-     
-          let parentId1 = null;
-          let parentId2 = null;
-          let parentId3 = null;
+        let parentId1 = null;
+        let parentId2 = null;
+        let parentId3 = null;
 
-          tasks.forEach((task, i) => {
-            const taskNumArr = task.num.split('.');
-            if (task.level === 1) {
-              parentId1 = task._id; // for task level 2
-              task.mother = null;
-            } else if (task.level === 2) {
-              parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
-              task.parentId1 = parentId1;
-              task.mother = parentId1;
-              saveParents(task, i);
-            } else if (task.level === 3) {
-              parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
-              parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num)[0]._id;
-              task.parentId1 = parentId1;
-              task.parentId2 = parentId2;
-              task.mother = parentId2;
-              saveParents(task, i);
-            } else if (task.level === 4) {
-              parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
-              parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num)[0]._id;
-              parentId3 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}` === pTask.num)[0]._id;
-              task.parentId1 = parentId1;
-              task.parentId2 = parentId2;
-              task.parentId3 = parentId3;
-              saveParents(task, i);
-            }
-          });
+        tasks.forEach((task, i) => {
+          const taskNumArr = task.num.split('.');
+          if (task.level === 1) {
+            parentId1 = task._id; // for task level 2
+            task.mother = null;
+          } else if (task.level === 2) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
+            task.parentId1 = parentId1;
+            task.mother = parentId1;
+            saveParents(task, i);
+          } else if (task.level === 3) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
+            parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num)[0]._id;
+            task.parentId1 = parentId1;
+            task.parentId2 = parentId2;
+            task.mother = parentId2;
+            saveParents(task, i);
+          } else if (task.level === 4) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
+            parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num)[0]._id;
+            parentId3 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}` === pTask.num)[0]._id;
+            task.parentId1 = parentId1;
+            task.parentId2 = parentId2;
+            task.parentId3 = parentId3;
+            saveParents(task, i);
+          }
+        });
       });
 
     res.status(200).send('done');
@@ -638,7 +636,7 @@ const taskController = function (Task) {
     updateTask,
     importTask,
     fixTasks,
-    updateAllParents
+    updateAllParents,
   };
 };
 
