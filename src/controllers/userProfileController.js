@@ -6,7 +6,7 @@ const logger = require('../startup/logger');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
-  const {requestor} = req.body;
+  const { requestor } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     res.status(400).send({
