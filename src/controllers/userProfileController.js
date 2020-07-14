@@ -5,7 +5,8 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 
 function ValidatePassword(req, res) {
-  const { userId, requestor } = req.params;
+  const { userId } = req.params;
+  const { requestor } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     res.status(400).send({
