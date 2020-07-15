@@ -27,9 +27,18 @@ const userProfileScheduledJobs = function () {
     'America/Los_Angeles',
   );
 
+  const updateUserStatusToActive = new CronJob(
+    '1 0 * * *', // Run this every day, 1 minute after mimdnight (PST).
+    userhelper.reActivateUser,
+    null,
+    false,
+    'America/Los_Angeles',
+  );
+
   assignBlueBadge.start();
   emailWeeklySummaries.start();
   deleteBlueBadgeOlderThanYear.start();
+  updateUserStatusToActive.start();
 };
 
 module.exports = userProfileScheduledJobs;

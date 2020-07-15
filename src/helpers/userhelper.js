@@ -299,6 +299,33 @@ const userhelper = function () {
       .catch(error => logger.logException(error));
   };
 
+  const reActivateUser = function () {
+    logger.logInfo(
+      `Job for activating users based on scheduled re-activation date starting at ${moment().tz('America/Los_Angeles').format()}`,
+    );
+    userProfile
+      .find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate')
+      .then((users) => {
+        users.forEach((user) => {
+          if (moment.tz(moment(), 'America/Los_Angeles').isSame(moment.tz(user.reactivationDate, 'UTC'), 'day')) {
+            userProfile.findByIdAndUpdate(
+              user._id,
+              {
+                $set: {
+                  isActive: true,
+                },
+              }, { new: true },
+            )
+              .then(() => {
+                logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+              })
+              .catch(error => logger.logException(error));
+          }
+        });
+      })
+      .catch(error => logger.logException(error));
+  };
+
   const notifyInfringments = function (
     original,
     current,
@@ -333,6 +360,7 @@ const userhelper = function () {
     validateprofilepic,
     assignBlueBadges,
     deleteBadgeAfterYear,
+    reActivateUser,
     notifyInfringments,
     getInfringmentEmailBody,
     emailWeeklySummariesForAllUsers,
