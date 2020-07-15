@@ -4,9 +4,9 @@ const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 
-
 function ValidatePassword(req, res) {
-  const { userId, requestor } = req.params;
+  const { userId } = req.params;
+  const { requestor } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     res.status(400).send({
@@ -23,7 +23,10 @@ function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (!userId === requestor.requestorId && !requestor.role === 'Administrator') {
+  if (
+    !userId === requestor.requestorId
+    && !requestor.role === 'Administrator'
+  ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -38,19 +41,22 @@ function ValidatePassword(req, res) {
   }
 }
 
-
 const userProfileController = function (UserProfile) {
   const getUserProfiles = function (req, res) {
     const AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
-    const isRequestorAuthorized = !!((AuthorizedRolesToView.includes(req.body.requestor.role)));
-
+    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
+      req.body.requestor.role,
+    );
 
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
 
-    UserProfile.find({}, '_id firstName lastName role weeklyComittedHours email isActive')
+    UserProfile.find(
+      {},
+      '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate',
+    )
       .sort({
         lastName: 1,
       })
@@ -60,22 +66,28 @@ const userProfileController = function (UserProfile) {
 
   const getProjectMembers = function (req, res) {
     const AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
-    const isRequestorAuthorized = !!((AuthorizedRolesToView.includes(req.body.requestor.role)));
+    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
+      req.body.requestor.role,
+    );
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
-    UserProfile.find({
-      projects: {
-        $in: [req.params.projectId],
+    UserProfile.find(
+      {
+        projects: {
+          $in: [req.params.projectId],
+        },
       },
-    }, '_id firstName email', (err, profiles) => {
-      if (err) {
-        res.status(404).send('Error finding user profiles');
-        return;
-      }
-      res.json(profiles);
-    });
+      '_id firstName email',
+      (err, profiles) => {
+        if (err) {
+          res.status(404).send('Error finding user profiles');
+          return;
+        }
+        res.json(profiles);
+      },
+    );
   };
 
   const postUserProfile = async function (req, res) {
@@ -118,7 +130,6 @@ const userProfileController = function (UserProfile) {
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.mediaUrl = req.body.mediaUrl || '';
 
-
     up.save()
       .then(() => res.status(200).send({
         _id: up._id,
@@ -129,8 +140,12 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
 
-    const isRequestorAuthorized = !!((req.body.requestor.role === 'Administrator' || req.body.requestor.role === 'Manager' || req.body.requestor.requestorId === userid));
-    const isRequestorAdmin = (req.body.requestor.role === 'Administrator');
+    const isRequestorAuthorized = !!(
+      req.body.requestor.role === 'Administrator'
+      || req.body.requestor.role === 'Manager'
+      || req.body.requestor.requestorId === userid
+    );
+    const isRequestorAdmin = req.body.requestor.role === 'Administrator';
 
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
@@ -153,10 +168,16 @@ const userProfileController = function (UserProfile) {
       }
 
       // let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
-      const originalInfringments = (record.infringments) ? record.infringments : [];
-
+      const originalInfringments = record.infringments
+        ? record.infringments
+        : [];
 
       const infringmentAuthorizers = ['Manager', 'Administrator'];
+
+      // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
+      record.jobTitle = req.body.jobTitle;
+      record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
+      record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
 
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
@@ -169,7 +190,6 @@ const userProfileController = function (UserProfile) {
       record.weeklySummaries = req.body.weeklySummaries;
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
-
 
       if (isRequestorAdmin) {
         record.role = req.body.role;
@@ -189,9 +209,16 @@ const userProfileController = function (UserProfile) {
         record.infringments = req.body.infringments;
       }
 
-      record.save()
+      record
+        .save()
         .then((results) => {
-          userhelper.notifyInfringments(originalInfringments, results.infringments, results.firstName, results.lastName, results.email);
+          userhelper.notifyInfringments(
+            originalInfringments,
+            results.infringments,
+            results.firstName,
+            results.lastName,
+            results.email,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -203,7 +230,12 @@ const userProfileController = function (UserProfile) {
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
 
-    if (!userId || !option || (option !== 'delete' && option !== 'archive') || req.body.requestor.role !== 'Administrator') {
+    if (
+      !userId
+      || !option
+      || (option !== 'delete' && option !== 'archive')
+      || req.body.requestor.role !== 'Administrator'
+    ) {
       res.status(400).send({
         error: 'Bad request',
       });
@@ -211,7 +243,6 @@ const userProfileController = function (UserProfile) {
     }
 
     const user = await UserProfile.findById(userId);
-
 
     if (!user) {
       res.status(400).send({
@@ -221,26 +252,35 @@ const userProfileController = function (UserProfile) {
     }
 
     if (option === 'archive') {
-      const timeArchiveUser = await UserProfile.findOne({
-        firstName: 'TimeArchiveAccount',
-        lastName: 'TimeArchiveAccount',
-      }, '_id');
+      const timeArchiveUser = await UserProfile.findOne(
+        {
+          firstName: 'TimeArchiveAccount',
+          lastName: 'TimeArchiveAccount',
+        },
+        '_id',
+      );
 
       if (!timeArchiveUser) {
-        logger.logException('Time Archive user was not found. Please check the database');
+        logger.logException(
+          'Time Archive user was not found. Please check the database',
+        );
         res.status(500).send({
-          error: 'Time Archive User not found. Please contact your developement team on why that happened',
+          error:
+            'Time Archive User not found. Please contact your developement team on why that happened',
         });
         return;
       }
 
-      await TimeEntry.updateMany({
-        personId: userId,
-      }, {
-        $set: {
-          personId: mongoose.Types.ObjectId(timeArchiveUser._id),
+      await TimeEntry.updateMany(
+        {
+          personId: userId,
         },
-      });
+        {
+          $set: {
+            personId: mongoose.Types.ObjectId(timeArchiveUser._id),
+          },
+        },
+      );
     }
 
     await UserProfile.deleteOne({
@@ -249,12 +289,13 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ message: 'Executed Successfully' });
   };
 
-
   const getUserById = function (req, res) {
     const userid = req.params.userId;
 
-
-    UserProfile.findById(userid, '-password -lastModifiedDate -createdDate -__v')
+    UserProfile.findById(
+      userid,
+      '-password -lastModifiedDate -createdDate -__v',
+    )
       .populate({
         path: 'teams',
         select: '_id teamName',
@@ -284,6 +325,13 @@ const userProfileController = function (UserProfile) {
       .catch(error => res.status(404).send(error));
   };
 
+  const getUserByName = (req, res) => {
+    const { name } = req.params;
+    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic')
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+  };
+
   const updatepassword = function (req, res) {
     const { userId } = req.params;
     const { requestor } = req.body;
@@ -294,13 +342,20 @@ const userProfileController = function (UserProfile) {
     }
 
     // Verify correct params in body
-    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
+    if (
+      !req.body.currentpassword
+      || !req.body.newpassword
+      || !req.body.confirmnewpassword
+    ) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
       });
     }
     // Verify request is authorized by self or adminsitrator
-    if (!userId === requestor.requestorId && !requestor.role === 'Administrator') {
+    if (
+      !userId === requestor.requestorId
+      && !requestor.role === 'Administrator'
+    ) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -322,7 +377,8 @@ const userProfileController = function (UserProfile) {
 
     return UserProfile.findById(userId, 'password')
       .then((user) => {
-        bcrypt.compare(req.body.currentpassword, user.password)
+        bcrypt
+          .compare(req.body.currentpassword, user.password)
           .then((passwordMatch) => {
             if (!passwordMatch) {
               return res.status(400).send({
@@ -333,7 +389,8 @@ const userProfileController = function (UserProfile) {
             user.set({
               password: req.body.newpassword,
             });
-            return user.save()
+            return user
+              .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
               .catch(error => res.status(500).send(error));
           })
@@ -359,10 +416,10 @@ const userProfileController = function (UserProfile) {
       validroles = ['Volunteer', 'Manager'];
     }
 
-
-    userhelper.getTeamMembers({
-      _id: userid,
-    })
+    userhelper
+      .getTeamMembers({
+        _id: userid,
+      })
       .then((results) => {
         const teammembers = [];
 
@@ -382,15 +439,15 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    userhelper.getTeamMembers({
-      _id: req.params.userId,
-    })
+    userhelper
+      .getTeamMembers({
+        _id: req.params.userId,
+      })
       .then((results) => {
         res.status(200).send(results);
       })
       .catch(error => res.status(400).send(error));
   };
-
 
   const getUserName = function (req, res) {
     const { userId } = req.params;
@@ -415,7 +472,8 @@ const userProfileController = function (UserProfile) {
 
   const changeUserStatus = function (req, res) {
     const { userId } = req.params;
-    const status = (req.body.status === 'Active');
+    const status = req.body.status === 'Active';
+    const activationDate = req.body.reactivationDate;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -426,8 +484,10 @@ const userProfileController = function (UserProfile) {
       .then((user) => {
         user.set({
           isActive: status,
+          reactivationDate: activationDate,
         });
-        user.save()
+        user
+          .save()
           .then(() => {
             res.status(200).send({
               message: 'status updated',
@@ -441,6 +501,7 @@ const userProfileController = function (UserProfile) {
         res.status(500).send(error);
       });
   };
+
   const resetPassword = function (req, res) {
     ValidatePassword(req);
 
@@ -449,7 +510,8 @@ const userProfileController = function (UserProfile) {
         user.set({
           password: req.body.newpassword,
         });
-        user.save()
+        user
+          .save()
           .then(() => {
             res.status(200).send({
               message: ' password Reset',
@@ -464,9 +526,7 @@ const userProfileController = function (UserProfile) {
       });
   };
 
-
   return {
-
     postUserProfile,
     getUserProfiles,
     putUserProfile,
@@ -479,6 +539,7 @@ const userProfileController = function (UserProfile) {
     getProjectMembers,
     changeUserStatus,
     resetPassword,
+    getUserByName,
   };
 };
 
