@@ -123,7 +123,7 @@ const userhelper = function () {
                   })
                   .then(status => emailSender(
                     status.email,
-                    'New Infringment Assigned',
+                    'New Infringement Assigned',
                     getInfringmentEmailBody(
                       status.firstName,
                       status.lastName,
