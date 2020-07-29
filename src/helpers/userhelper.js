@@ -180,7 +180,7 @@ const userhelper = function () {
    *  3 ) Call the processweeklySummariesByUserId(personId) to process the weeklySummaries array
    *      and increment the weeklySummariesCount for valud submissions.
    */
-  const assignBlueBadges = function () {
+  const assignBlueBadgesForTimeNotMetOrSummaries = function () {
     logger.logInfo(
       `Job for assigning blue badge for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
@@ -358,7 +358,7 @@ const userhelper = function () {
     getUserName,
     getTeamMembers,
     validateprofilepic,
-    assignBlueBadges,
+    assignBlueBadgesForTimeNotMetOrSummaries,
     deleteBadgeAfterYear,
     reActivateUser,
     notifyInfringments,
