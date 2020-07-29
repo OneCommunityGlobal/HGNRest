@@ -5,7 +5,7 @@ const userhelper = require('../helpers/userhelper')();
 const userProfileScheduledJobs = function () {
   const assignBlueBadge = new CronJob(
     '0 0 * * 0',
-    userhelper.assignBlueBadges,
+    userhelper.assignBlueBadgesForTimeNotMetOrSummaries,
     null,
     false,
     'America/Los_Angeles',
