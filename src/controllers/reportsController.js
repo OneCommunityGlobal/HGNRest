@@ -12,7 +12,10 @@ const reportsController = function () {
 
     const weeklySummaries = reporthelper.weeklySummaries(2, 0);
     weeklySummaries
-      .then(results => res.status(200).send(results))
+      .then((results) => {
+        const summaries = reporthelper.formatSummaries(results);
+        res.status(200).send(summaries);
+      })
       .catch(error => res.status(404).send(error));
   };
 
