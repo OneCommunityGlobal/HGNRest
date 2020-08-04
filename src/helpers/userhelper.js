@@ -76,7 +76,7 @@ const userhelper = function () {
 
   /**
    * This function will send out an email listing all users that have a summary provided for a specific week.
-   * A week is represented by a number weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
+   * A week is represented by an weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
    * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
    * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
    *
