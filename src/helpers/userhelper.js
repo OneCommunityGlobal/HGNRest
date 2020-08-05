@@ -144,7 +144,7 @@ const userhelper = function () {
    * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
    * @param {boolean} hasWeeklySummary Whether the user with personId has submitted a valid weekly summary.
    */
-  const processweeklySummariesByUserId = function (personId, hasWeeklySummary) {
+  const processWeeklySummariesByUserId = function (personId, hasWeeklySummary) {
     userProfile
       .findByIdAndUpdate(personId, {
         $push: {
@@ -177,7 +177,7 @@ const userhelper = function () {
    * This function is called by a cron job to do 3 things to all active users:
    *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
-   *  3 ) Call the processweeklySummariesByUserId(personId) to process the weeklySummaries array
+   *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
    *      and increment the weeklySummariesCount for valud submissions.
    */
   const assignBlueBadgesForTimeNotMetOrSummaries = function () {
@@ -219,7 +219,7 @@ const userhelper = function () {
           }
 
           //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-          processweeklySummariesByUserId(personId, hasWeeklySummary);
+          processWeeklySummariesByUserId(personId, hasWeeklySummary);
 
           dashboardhelper
             .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
