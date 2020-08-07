@@ -126,6 +126,9 @@ const userProfileController = function (UserProfile) {
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
     up.email = _email;
+    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
+    up.mediaUrl = req.body.mediaUrl || '';
 
     up.save()
       .then(() => res.status(200).send({
@@ -184,6 +187,9 @@ const userProfileController = function (UserProfile) {
       record.personalLinks = req.body.personalLinks;
       record.lastModifiedDate = Date.now();
       record.profilePic = req.body.profilePic;
+      record.weeklySummaries = req.body.weeklySummaries;
+      record.weeklySummariesCount = req.body.weeklySummariesCount;
+      record.mediaUrl = req.body.mediaUrl;
 
       if (isRequestorAdmin) {
         record.role = req.body.role;
@@ -194,6 +200,9 @@ const userProfileController = function (UserProfile) {
         record.projects = Array.from(new Set(req.body.projects));
         record.isActive = req.body.isActive;
         record.email = req.body.email.toLowerCase();
+        record.weeklySummaries = req.body.weeklySummaries;
+        record.weeklySummariesCount = req.body.weeklySummariesCount;
+        record.mediaUrl = req.body.mediaUrl;
       }
 
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {

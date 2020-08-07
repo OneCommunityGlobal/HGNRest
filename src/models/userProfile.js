@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 
 const { Schema } = mongoose;
 const validate = require('mongoose-validator');
@@ -62,12 +63,10 @@ const userProfileSchema = new Schema({
     { badgeName: String, quantity: Number, lastModifiedDate: Date },
   ],
   profilePic: { type: String },
-  infringments: [
-    {
-      date: { type: String, required: true },
-      description: { type: String, required: true },
-    },
-  ],
+  infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
+  weeklySummaries: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
+  weeklySummariesCount: { type: Number, default: 0 },
+  mediaUrl: { type: String },
 });
 
 userProfileSchema.pre('save', function (next) {
