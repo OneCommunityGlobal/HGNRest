@@ -1,7 +1,10 @@
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
-    WBS.find({}, 'wbsName isActive')
+    WBS.find(
+      { projectId: { $in: [req.params.projectId] } },
+      'wbsName isActive',
+    )
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
