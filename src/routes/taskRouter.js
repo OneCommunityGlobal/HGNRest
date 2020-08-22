@@ -17,6 +17,9 @@ const routes = function (task) {
   wbsRouter.route('/task/del/:taskId')
     .delete(controller.deleteTask);
 
+  wbsRouter.route('/task/wbs/del/:wbsId')
+    .delete(controller.deleteTaskByWBS);
+
   wbsRouter.route('/task/update/:taskId')
     .put(controller.updateTask);
 
@@ -28,6 +31,9 @@ const routes = function (task) {
 
   wbsRouter.route('/tasks/update/num')
     .put(controller.updateNum);
+
+  wbsRouter.route('/tasks/moveTasks/:wbsId')
+    .put(controller.moveTask);
 
 
   return wbsRouter;
