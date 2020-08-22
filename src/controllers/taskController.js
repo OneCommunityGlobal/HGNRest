@@ -31,21 +31,17 @@ const taskController = function (Task) {
   };
 
   const updatePriority = (taskId, priority) => {
-   
-      Task.findById(taskId, (error, task) => {
-        task.priority = priority;
-        task.save();
-      });
-   
+    Task.findById(taskId, (error, task) => {
+      task.priority = priority;
+      task.save();
+    });
   };
 
   const updateAssigned = (taskId, isAssigned) => {
-   
-      Task.findById(taskId, (error, task) => {
-        task.isAssigned = isAssigned;
-        task.save();
-      });
-  
+    Task.findById(taskId, (error, task) => {
+      task.isAssigned = isAssigned;
+      task.save();
+    });
   };
 
   const calculateSubTasks = (level, tasks) => {
@@ -433,7 +429,7 @@ const taskController = function (Task) {
   };
 
 
-  const updateNumById = (taskId, currNum, newNum,res) => {
+  const updateNumById = (taskId, currNum, newNum, res) => {
     Task.findById(taskId, (error, task) => {
       task.num = task.num.replace(currNum, newNum);
       task.save()
@@ -468,13 +464,13 @@ const taskController = function (Task) {
       let finalChangeValueList = [];
 
       if (!isFromSmaller) {
-        for (let i = parseInt(toLastPart, 10); i < parseInt(fromLastPart, 10); i+=1) {
+        for (let i = parseInt(toLastPart, 10); i < parseInt(fromLastPart, 10); i += 1) {
           numChangeList.push(`${toFirstPart.length > 0 ? `${toFirstPart}.` : ''}${i}`);
         }
         finalChangeList = [...numChangeValueList, ...numChangeList];
         finalChangeValueList = [...numChangeList, fromNum];
       } else {
-        for (let i = parseInt(fromLastPart, 10); i < parseInt(toLastPart, 10); i+=1) {
+        for (let i = parseInt(fromLastPart, 10); i < parseInt(toLastPart, 10); i += 1) {
           numChangeList.push(`${toFirstPart.length > 0 ? `${toFirstPart}.` : ''}${i}`);
         }
 
@@ -498,7 +494,7 @@ const taskController = function (Task) {
       // update
       idList.forEach((ids, index) => {
         ids.forEach((id) => {
-          updateNumById(id, finalChangeList[index], finalChangeValueList[index],res);
+          updateNumById(id, finalChangeList[index], finalChangeValueList[index], res);
         });
       });
     });
@@ -710,7 +706,7 @@ const taskController = function (Task) {
         tasks = appendTasks.sort((a, b) => {
           const aArr = a.num.split('.');
           const bArr = b.num.split('.');
-          for (let i = 0; i < 4; i+=1) {
+          for (let i = 0; i < 4; i += 1) {
             if (parseFloat(aArr[i]) < parseFloat(bArr[i])) {
               return -1;
             }
