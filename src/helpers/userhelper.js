@@ -4,6 +4,7 @@ const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const myteam = require('../helpers/helperModels/myTeam');
 const dashboardhelper = require('../helpers/dashboardhelper')();
+const reporthelper = require('../helpers/reporthelper')();
 
 const emailSender = require('../utilities/emailSender');
 
@@ -58,24 +59,128 @@ const userhelper = function () {
       errors,
     };
   };
-  const getInfringmentEmailBody = function (firstName, lastName, infringment) {
-    const text = `Dear <b>${firstName} ${lastName}</b>, 
-        <p>
-        Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <b>
-        <div>Date Assigned: ${infringment.date}</div>
-        <div>Description : ${infringment.description}</div>
-        </b>
-        <p>        
-        No worries though, life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.
-        </p>
-        <p>Thank you,</p>
-        <p><b> One Community </b></p>`;
+
+  const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringements) {
+    const text = `Dear <b>${firstName} ${lastName}</b>,
+        <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
+        <p><b>Date Assigned:</b> ${infringment.date}</p>
+        <p><b>Description:</b> ${infringment.description}</p>
+        <p><b>Total Infringements:</b> This is your <b>${moment.localeData().ordinal(totalInfringements)}</b> blue square of 5.</p>
+        <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
+        <p>Thank you,<br />
+        One Community</p>`;
 
     return text;
   };
 
-  const assignBlueBadgeforTimeNotMet = function () {
+
+  /**
+   * This function will send out an email listing all users that have a summary provided for a specific week.
+   * A week is represented by an weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
+   * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
+   * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
+   *
+   * @param {int} weekIndex Numbered representation of a week where 0 is the most recent and 2 the oldest.
+   *
+   * @return {void}
+   */
+  const emailWeeklySummariesForAllUsers = function (weekIndex) {
+    logger.logInfo(
+      `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
+    );
+
+    weekIndex = (weekIndex !== null) ? weekIndex : 1;
+
+    reporthelper
+      .weeklySummaries(weekIndex, weekIndex)
+      .then((results) => {
+        let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
+        const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> Not provided!</div>';
+
+        results.forEach((result) => {
+          const {
+            firstName, lastName, weeklySummaries, mediaUrl, weeklySummariesCount,
+          } = result;
+
+          const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+          const totalValidWeeklySummaries = weeklySummariesCount || 'No valid submissions yet!';
+          let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
+          // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
+          if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[0]) {
+            const { dueDate, summary } = weeklySummaries[0];
+            if (summary) {
+              weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MM-DD')}):</p>
+                                        <div style="padding: 0 20px;">${summary}</div>`;
+            }
+          }
+
+          emailBody += `\n
+          <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
+          <b>Name:</b> ${firstName} ${lastName}
+          <p><b>Media URL:</b> ${mediaUrlLink}</p>
+          <p><b>Total Valid Weekly Summaries:</b> ${totalValidWeeklySummaries}</p>
+          ${weeklySummaryMessage}
+          </div>`;
+        });
+
+        emailSender(
+          'onecommunityglobal@gmail.com',
+          'Weekly Summaries for all active users...',
+          emailBody,
+          null,
+        );
+      })
+      .catch(error => logger.logException(error));
+  };
+
+
+  /**
+   * This function will process the weeklySummaries array in the following way:
+   *  1 ) Push a new (blank) summary at the beginning of the array.
+   *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
+   *
+   * This function will also increment the weeklySummariesCount by 1 if the user had provided a valid summary.
+   *
+   * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
+   * @param {boolean} hasWeeklySummary Whether the user with personId has submitted a valid weekly summary.
+   */
+  const processWeeklySummariesByUserId = function (personId, hasWeeklySummary) {
+    userProfile
+      .findByIdAndUpdate(personId, {
+        $push: {
+          weeklySummaries: {
+            $each: [
+              {
+                dueDate: moment().tz('America/Los_Angeles').endOf('week'),
+                summary: '',
+              },
+            ],
+            $position: 0,
+            $slice: 3,
+          },
+        },
+      })
+      .then(() => {
+        if (hasWeeklySummary) {
+          userProfile
+            .findByIdAndUpdate(personId, {
+              $inc: { weeklySummariesCount: 1 },
+            }, { new: true })
+            // .then(result => console.log('result:', result))
+            .catch(error => logger.logException(error));
+        }
+      })
+      .catch(error => logger.logException(error));
+  };
+
+  /**
+   * This function is called by a cron job to do 3 things to all active users:
+   *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
+   *  2 ) Determine whether there's been an infringement for the time not met for last week.
+   *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
+   *      and increment the weeklySummariesCount for valud submissions.
+   */
+  const assignBlueBadgesForTimeNotMetOrSummaries = function () {
     logger.logInfo(
       `Job for assigning blue badge for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
@@ -94,44 +199,71 @@ const userhelper = function () {
         {
           isActive: true,
         },
-        '_id',
+        '_id weeklySummaries',
       )
       .then((users) => {
         users.forEach((user) => {
-          const personId = mongoose.Types.ObjectId(user._id);
+          const {
+            _id, weeklySummaries,
+          } = user;
+          const personId = mongoose.Types.ObjectId(_id);
+
+          let hasWeeklySummary = false;
+          if (Array.isArray(weeklySummaries) && weeklySummaries.length) {
+            const { dueDate, summary } = weeklySummaries[0];
+            const fromDate = moment(pdtStartOfLastWeek).toDate();
+            const toDate = moment(pdtEndOfLastWeek).toDate();
+            if (summary && moment(dueDate).isBetween(fromDate, toDate, undefined, '[]')) {
+              hasWeeklySummary = true;
+            }
+          }
+
+          //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
+          processWeeklySummariesByUserId(personId, hasWeeklySummary);
 
           dashboardhelper
             .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
             .then((results) => {
-              const { weeklyComittedHours } = results[0];
-              const timeSpent = results[0].timeSpent_hrs;
-              if (timeSpent < weeklyComittedHours) {
-                const description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                  'dddd YYYY-MM-DD',
-                )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+              const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
+              const timeNotMet = (timeSpent < weeklyComittedHours);
+              let description;
+
+              if (timeNotMet || !hasWeeklySummary) {
+                if (timeNotMet && !hasWeeklySummary) {
+                  description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                } else if (timeNotMet) {
+                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                } else {
+                  description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                }
+
                 const infringment = {
                   date: moment()
                     .utc()
                     .format('YYYY-MM-DD'),
                   description,
                 };
+
                 userProfile
                   .findByIdAndUpdate(personId, {
                     $push: {
                       infringments: infringment,
                     },
+                  }, { new: true })
+                  .then((status) => {
+                    emailSender(
+                      status.email,
+                      'New Infringment Assigned',
+                      getInfringmentEmailBody(
+                        status.firstName,
+                        status.lastName,
+                        infringment,
+                        status.infringments.length,
+                      ),
+                      null,
+                      'onecommunityglobal@gmail.com',
+                    );
                   })
-                  .then(status => emailSender(
-                    status.email,
-                    'New Infringment Assigned',
-                    getInfringmentEmailBody(
-                      status.firstName,
-                      status.lastName,
-                      infringment,
-                    ),
-                    null,
-                    'onecommunityglobal@gmail.com',
-                  ))
                   .catch(error => logger.logException(error));
               }
             })
@@ -167,6 +299,33 @@ const userhelper = function () {
       .catch(error => logger.logException(error));
   };
 
+  const reActivateUser = function () {
+    logger.logInfo(
+      `Job for activating users based on scheduled re-activation date starting at ${moment().tz('America/Los_Angeles').format()}`,
+    );
+    userProfile
+      .find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate')
+      .then((users) => {
+        users.forEach((user) => {
+          if (moment.tz(moment(), 'America/Los_Angeles').isSame(moment.tz(user.reactivationDate, 'UTC'), 'day')) {
+            userProfile.findByIdAndUpdate(
+              user._id,
+              {
+                $set: {
+                  isActive: true,
+                },
+              }, { new: true },
+            )
+              .then(() => {
+                logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+              })
+              .catch(error => logger.logException(error));
+          }
+        });
+      })
+      .catch(error => logger.logException(error));
+  };
+
   const notifyInfringments = function (
     original,
     current,
@@ -177,6 +336,7 @@ const userhelper = function () {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
+    const totalInfringements = newCurrent.length;
     let newInfringments = [];
     newInfringments = _.differenceWith(
       newCurrent,
@@ -187,7 +347,7 @@ const userhelper = function () {
       emailSender(
         emailAddress,
         'New Infringment Assigned',
-        getInfringmentEmailBody(firstName, lastName, element),
+        getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
         null,
         'onecommunityglobal@gmail.com',
       );
@@ -198,10 +358,12 @@ const userhelper = function () {
     getUserName,
     getTeamMembers,
     validateprofilepic,
-    assignBlueBadgeforTimeNotMet,
+    assignBlueBadgesForTimeNotMetOrSummaries,
     deleteBadgeAfterYear,
+    reActivateUser,
     notifyInfringments,
     getInfringmentEmailBody,
+    emailWeeklySummariesForAllUsers,
   };
 };
 
