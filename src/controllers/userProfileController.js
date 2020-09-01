@@ -5,7 +5,8 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 
 function ValidatePassword(req, res) {
-  const { userId, requestor } = req.params;
+  const { userId } = req.params;
+  const { requestor } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     res.status(400).send({
@@ -54,7 +55,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklyComittedHours email isActive',
+      '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate',
     )
       .sort({
         lastName: 1,
@@ -125,6 +126,9 @@ const userProfileController = function (UserProfile) {
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
     up.email = _email;
+    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
+    up.mediaUrl = req.body.mediaUrl || '';
 
     up.save()
       .then(() => res.status(200).send({
@@ -183,6 +187,9 @@ const userProfileController = function (UserProfile) {
       record.personalLinks = req.body.personalLinks;
       record.lastModifiedDate = Date.now();
       record.profilePic = req.body.profilePic;
+      record.weeklySummaries = req.body.weeklySummaries;
+      record.weeklySummariesCount = req.body.weeklySummariesCount;
+      record.mediaUrl = req.body.mediaUrl;
 
       if (isRequestorAdmin) {
         record.role = req.body.role;
@@ -193,6 +200,9 @@ const userProfileController = function (UserProfile) {
         record.projects = Array.from(new Set(req.body.projects));
         record.isActive = req.body.isActive;
         record.email = req.body.email.toLowerCase();
+        record.weeklySummaries = req.body.weeklySummaries;
+        record.weeklySummariesCount = req.body.weeklySummariesCount;
+        record.mediaUrl = req.body.mediaUrl;
       }
 
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
@@ -312,6 +322,13 @@ const userProfileController = function (UserProfile) {
         res.status(200).send(results);
       })
 
+      .catch(error => res.status(404).send(error));
+  };
+
+  const getUserByName = (req, res) => {
+    const { name } = req.params;
+    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic')
+      .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
 
@@ -456,6 +473,7 @@ const userProfileController = function (UserProfile) {
   const changeUserStatus = function (req, res) {
     const { userId } = req.params;
     const status = req.body.status === 'Active';
+    const activationDate = req.body.reactivationDate;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -466,6 +484,7 @@ const userProfileController = function (UserProfile) {
       .then((user) => {
         user.set({
           isActive: status,
+          reactivationDate: activationDate,
         });
         user
           .save()
@@ -482,6 +501,7 @@ const userProfileController = function (UserProfile) {
         res.status(500).send(error);
       });
   };
+
   const resetPassword = function (req, res) {
     ValidatePassword(req);
 
@@ -519,6 +539,7 @@ const userProfileController = function (UserProfile) {
     getProjectMembers,
     changeUserStatus,
     resetPassword,
+    getUserByName,
   };
 };
 
