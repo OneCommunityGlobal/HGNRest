@@ -1,3 +1,4 @@
+
 // const mongoose = require('mongoose');
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -56,10 +57,10 @@ const taskController = function (Task) {
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task._id)) {
           hasChild = true;
-          sumHoursBest += childTask.hoursBest;
-          sumHoursWorst += childTask.hoursWorst;
-          sumHoursMost += childTask.hoursMost;
-          sumEstimatedHours += childTask.estimatedHours;
+          sumHoursBest = parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
+          sumHoursWorst = parseFloat(childTask.hoursWorst, 10) + parseFloat(sumHoursWorst, 10);
+          sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
+          sumEstimatedHours = parseFloat(childTask.estimatedHours, 10) + parseFloat(sumEstimatedHours, 10);
           childTask.resources.forEach((member) => {
             let isInResource = false;
             resources.forEach((mem) => {
@@ -194,9 +195,13 @@ const taskController = function (Task) {
   const setStatus = (level, tasks) => tasks;
 
 
-  const updateParents = (wbsId) => {
-    Task.find({ wbsId: { $in: [wbsId] } })
+  const updateParents = (wbsId, parentId1) => {
+    Task.find({
+      $and: [{ $or: [{ _id: parentId1 }, { parentId1 }, { parentId1: null }] },
+        { wbsId: { $in: [wbsId] } }],
+    })
       .then((tasks) => {
+        tasks = [...new Set(tasks.map(item => item))];
         for (let lv = 3; lv > 0; lv -= 1) {
           calculateSubTasks(lv, tasks);
           setDatesSubTasks(lv, tasks);
@@ -244,7 +249,18 @@ const taskController = function (Task) {
       });
   };
 
-  const importTask = async (req, res) => {
+
+  const fixedText = (text) => {
+    let fixedTextStr = text.replace(/""/g, '"');
+    fixedTextStr = fixedTextStr.replace(/;/g, ',');
+    if (text[0] === '"') {
+      fixedTextStr = fixedTextStr.substring(1, fixedTextStr.length - 1);
+    }
+    return fixedTextStr;
+  };
+
+
+  const importTask = (req, res) => {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new Task.' });
       return;
@@ -258,20 +274,28 @@ const taskController = function (Task) {
 
     const wbsId = req.params.id;
 
+    // add up 1 to num
+    const numBody = req.body.num;
+    const numBodyArr = numBody.split('.');
+    const firstNum = parseFloat(numBodyArr[0], 10) + 1;
+    numBodyArr[0] = '';
+    const newNum = `${firstNum}${numBodyArr.join('.')}`;
+
+
     const _task = new Task();
     _task.wbsId = wbsId;
-    _task.taskName = req.body.taskName;
-    _task.num = req.body.num;
+    _task.taskName = fixedText(req.body.taskName);
+    _task.num = newNum;
     _task.task = req.body.task;
     _task.level = req.body.level;
     _task.priority = req.body.priority;
     _task.resources = req.body.resources;
     _task.isAssigned = req.body.isAssigned;
     _task.status = req.body.status;
-    _task.hoursBest = req.body.hoursBest;
-    _task.hoursWorst = req.body.hoursWorst;
-    _task.hoursMost = req.body.hoursMost;
-    _task.estimatedHours = req.body.estimatedHours;
+    _task.hoursBest = parseFloat(req.body.hoursBest.trim(), 10);
+    _task.hoursWorst = parseFloat(req.body.hoursWorst.trim(), 10);
+    _task.hoursMost = parseFloat(req.body.hoursMost.trim(), 10);
+    _task.estimatedHours = parseFloat(req.body.estimatedHours.trim(), 10);
     _task.startedDatetime = req.body.startedDatetime;
     _task.dueDatetime = req.body.dueDatetime;
     _task.links = req.body.links;
@@ -286,7 +310,9 @@ const taskController = function (Task) {
 
 
     _task.save()
-      .then(result => res.status(201).send(result))
+      .then((result) => {
+        res.status(201).send(result);
+      })
       .catch((errors) => { res.status(400).send(errors); });
   };
 
@@ -332,7 +358,7 @@ const taskController = function (Task) {
 
     _task.save()
       .then((result) => {
-        updateParents(_task.wbsId);
+        updateParents(_task.wbsId, _task.parentId1);
         resetNum(_task.wbsId);
         return res.status(201).send(result);
       })
@@ -367,7 +393,7 @@ const taskController = function (Task) {
               childTask1.num = childTask1.num.replace(childTask1.num.substring(0, elm.num.length), elm.num);
 
               childTask1.save()
-                .then().catch(errors => res.status(400).send(errors));
+                .then(true).catch(errors => res.status(400).send(errors));
 
               // level 3
               Task.find({ parentId: { $in: [childTask1._id] } })
@@ -377,7 +403,7 @@ const taskController = function (Task) {
                       childTask2.num = childTask2.num.replace(childTask2.num.substring(0, childTask1.num.length), childTask1.num);
 
                       childTask2.save()
-                        .then().catch(errors => res.status(400).send(errors));
+                        .then(true).catch(errors => res.status(400).send(errors));
 
                       // level 4
                       Task.find({ parentId: { $in: [childTask2._id] } })
@@ -387,7 +413,7 @@ const taskController = function (Task) {
                               childTask3.num = childTask3.num.replace(childTask3.num.substring(0, childTask2.num.length), childTask2.num);
 
                               childTask3.save()
-                                .then().catch(errors => res.status(400).send(errors));
+                                .then(true).catch(errors => res.status(400).send(errors));
                             });
                           }
                         }).catch(error => res.status(404).send(error));
@@ -400,6 +426,78 @@ const taskController = function (Task) {
     });
 
     res.status(200).send(true);
+  };
+
+
+  const updateNumById = (taskId, currNum, newNum, res) => {
+    Task.findById(taskId, (error, task) => {
+      task.num = task.num.replace(currNum, newNum);
+      task.save()
+        .then().catch(errors => res.status(400).send(errors));
+    });
+  };
+
+  const moveTask = (req, res) => {
+    if (!req.body.fromNum || !req.body.toNum) {
+      res.status(400).send({ error: 'wbsId, fromNum, toNum are mandatory fields' });
+      return;
+    }
+
+    Task.find({ wbsId: { $in: req.params.wbsId } }).then((tasks) => {
+      // list of affected tasks
+
+      const fromNum = req.body.fromNum.split('.0')[0];
+      const fromNumArr = fromNum.split('.');
+      const fromLastPart = fromNumArr.pop();
+
+      const toNum = req.body.toNum.split('.0')[0];
+      const toNumArr = toNum.split('.');
+      const toLastPart = toNumArr.pop();
+      const toFirstPart = toNumArr.join('.');
+
+      const isFromSmaller = parseInt(fromLastPart, 10) < parseInt(toLastPart, 10);
+
+      const numChangeList = [];
+      const numChangeValueList = [isFromSmaller ? toNum : fromNum];
+
+      let finalChangeList = [];
+      let finalChangeValueList = [];
+
+      if (!isFromSmaller) {
+        for (let i = parseInt(toLastPart, 10); i < parseInt(fromLastPart, 10); i += 1) {
+          numChangeList.push(`${toFirstPart.length > 0 ? `${toFirstPart}.` : ''}${i}`);
+        }
+        finalChangeList = [...numChangeValueList, ...numChangeList];
+        finalChangeValueList = [...numChangeList, fromNum];
+      } else {
+        for (let i = parseInt(fromLastPart, 10); i < parseInt(toLastPart, 10); i += 1) {
+          numChangeList.push(`${toFirstPart.length > 0 ? `${toFirstPart}.` : ''}${i}`);
+        }
+
+        finalChangeList = [...numChangeList, ...numChangeValueList];
+        finalChangeValueList = [...numChangeValueList, ...numChangeList];
+      }
+
+      const idList = [];
+
+      // find ids
+      finalChangeList.forEach((item) => {
+        const tmpList = [];
+        tasks.forEach((task) => {
+          if (task.num.indexOf(item) === 0) {
+            tmpList.push(task._id);
+          }
+        });
+        idList.push(tmpList);
+      });
+
+      // update
+      idList.forEach((ids, index) => {
+        ids.forEach((id) => {
+          updateNumById(id, finalChangeList[index], finalChangeValueList[index], res);
+        });
+      });
+    });
   };
 
   const deleteTask = (req, res) => {
@@ -423,10 +521,35 @@ const taskController = function (Task) {
 
       Promise.all([...removeTasks])
         .then(() => {
-          updateParents(record[0].wbsId);
+          updateParents(record[0].wbsId, record[0].parentId1);
           resetNum(record[0].wbsId);
-          return res.status(200).send({ message: ' WBS successfully deleted' });
+          return res.status(200).send({ message: ' Task successfully deleted' });
         })
+        .catch((errors) => { res.status(400).send(errors); });
+    }).catch((errors) => { res.status(400).send(errors); });
+  };
+
+  const deleteTaskByWBS = (req, res) => {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are  not authorized to delete tasks.' });
+      return;
+    }
+    const { wbsId } = req.params;
+
+    Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
+      if (error || !record || (record === null) || (record.length === 0)) {
+        res.status(400).send({ error: 'No valid records found' });
+        return;
+      }
+
+      const removeTasks = [];
+      record.forEach((rec) => {
+        removeTasks.push(rec.remove());
+      });
+
+
+      Promise.all([...removeTasks])
+        .then(() => res.status(200).send({ message: ' Tasks were successfully deleted' }))
         .catch((errors) => { res.status(400).send(errors); });
     }).catch((errors) => { res.status(400).send(errors); });
   };
@@ -458,7 +581,7 @@ const taskController = function (Task) {
 
 
       _task.save().then((result) => {
-        updateParents(_task.wbsId);
+        updateParents(_task.wbsId, _task.parentId1);
         resetNum(_task.wbsId);
         return res.status(201).send(result);
       })
@@ -531,26 +654,30 @@ const taskController = function (Task) {
   };
 
   const saveParents = function (updatedTask, position) {
-    const taskNumArr = updatedTask.num.split('.');
-    let firstNum = parseInt(taskNumArr[0], 10);
-    if (updatedTask.num === '0') {
-      firstNum = 1;
-    }
-    let newNum = firstNum + 1;
-    for (let i = 1; i < taskNumArr.length; i += 1) {
-      newNum += `.${taskNumArr[i]}`;
-    }
-    console.log(newNum);
-
     Task.findById(updatedTask._id, (error, task) => {
       task.parentId1 = updatedTask.parentId1;
       task.parentId2 = updatedTask.parentId2;
       task.parentId3 = updatedTask.parentId3;
       task.mother = updatedTask.mother;
       task.position = position;
-      task.num = newNum;
       task.save();
     });
+  };
+
+  const updateAllParents = (req, res) => {
+    const { wbsId } = req.params;
+    try {
+      Task.find({ wbsId: { $in: [wbsId] } })
+        .then((tasks) => {
+          tasks = tasks.filter(task => task.level === 1);
+          tasks.forEach((task) => {
+            updateParents(task.wbsId, task._id.toString());
+          });
+          res.status(200).send('done');
+        });
+    } catch (error) {
+      res.status(400).send(error);
+    }
   };
 
 
@@ -559,30 +686,63 @@ const taskController = function (Task) {
       res.status(403).send({ error: 'You are not authorized to create new Task.' });
       return;
     }
-
     const { wbsId } = req.params;
-
     Task.find({ wbsId: { $in: [wbsId] } })
       .then((tasks) => {
+        const appendTasks = [];
+        tasks.forEach((task) => {
+          if (task.level === 1) {
+            task.num += '.0.0.0';
+          }
+          if (task.level === 2) {
+            task.num += '.0.0';
+          }
+          if (task.level === 3) {
+            task.num += '.0';
+          }
+          appendTasks.push(task);
+        });
+
+        tasks = appendTasks.sort((a, b) => {
+          const aArr = a.num.split('.');
+          const bArr = b.num.split('.');
+          for (let i = 0; i < 4; i += 1) {
+            if (parseFloat(aArr[i]) < parseFloat(bArr[i])) {
+              return -1;
+            }
+            if (parseFloat(aArr[i]) > parseFloat(bArr[i])) {
+              return 1;
+            }
+          }
+          return 0;
+        });
+
         let parentId1 = null;
         let parentId2 = null;
         let parentId3 = null;
 
         tasks.forEach((task, i) => {
+          task.num = task.num.replace(/.0/g, '');
+          const taskNumArr = task.num.split('.');
           if (task.level === 1) {
             parentId1 = task._id; // for task level 2
+            task.mother = null;
           } else if (task.level === 2) {
+            parentId1 = tasks.filter(pTask => `${taskNumArr[0]}` === pTask.num.replace(/.0/g, ''))[0]._id;
             task.parentId1 = parentId1;
             task.mother = parentId1;
-            parentId2 = task._id;
             saveParents(task, i);
           } else if (task.level === 3) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num.replace(/.0/g, ''))[0]._id;
+            parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num.replace(/.0/g, ''))[0]._id;
             task.parentId1 = parentId1;
             task.parentId2 = parentId2;
             task.mother = parentId2;
-            parentId3 = task._id;
             saveParents(task, i);
           } else if (task.level === 4) {
+            parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
+            parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === pTask.num.replace(/.0/g, ''))[0]._id;
+            parentId3 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}` === pTask.num.replace(/.0/g, ''))[0]._id;
             task.parentId1 = parentId1;
             task.parentId2 = parentId2;
             task.parentId3 = parentId3;
@@ -591,6 +751,7 @@ const taskController = function (Task) {
           }
         });
       });
+
     res.status(200).send('done');
   };
 
@@ -604,6 +765,9 @@ const taskController = function (Task) {
     updateTask,
     importTask,
     fixTasks,
+    updateAllParents,
+    deleteTaskByWBS,
+    moveTask,
   };
 };
 
