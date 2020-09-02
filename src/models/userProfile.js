@@ -21,12 +21,6 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
-  jobTitle: { type: String },
-  emailPubliclyAccessible: { type: Boolean, default: true },
-  phoneNumberPubliclyAccessible: {
-    type: Boolean,
-    default: true,
-  },
   role: {
     type: String,
     required: true,
@@ -40,6 +34,7 @@ const userProfileSchema = new Schema({
   },
   lastName: { type: String, required: true, minlength: 2 },
   phoneNumber: [{ type: String, phoneNumber: String }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String,
@@ -64,6 +59,7 @@ const userProfileSchema = new Schema({
   ],
   profilePic: { type: String },
   infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
+  privacySettings: { blueSquares: { type: Boolean }, email: { type: Boolean }, phoneNumber: { type: Boolean } },
   weeklySummaries: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
