@@ -327,7 +327,9 @@ const taskController = function (Task) {
     _task.position = req.body.position;
     _task.createdDatetime = Date.now();
     _task.modifiedDatetime = Date.now();
-    _task.taskDetails = req.body.taskDetails;
+    _task.whyInfo = req.body.whyInfo;
+    _task.intentInfo = req.body.intentInfo;
+    _task.endstateInfo = req.body.endstateInfo
 
     _task
       .save()
@@ -381,7 +383,9 @@ const taskController = function (Task) {
     _task.position = req.body.position;
     _task.createdDatetime = Date.now();
     _task.modifiedDatetime = Date.now();
-    _task.taskDetails = req.body.taskDetails;
+    _task.whyInfo = req.body.whyInfo;
+    _task.intentInfo = req.body.intentInfo;
+    _task.endstateInfo = req.body.endstateInfo
 
     _task
       .save()
@@ -675,7 +679,9 @@ const taskController = function (Task) {
       _task.dueDatetime = task.dueDatetime;
       _task.links = task.links;
       _task.modifiedDatetime = Date.now();
-      _task.taskDetails = task.taskDetails;
+      _task.whyInfo = req.body.whyInfo;
+      _task.intentInfo = req.body.intentInfo;
+      _task.endstateInfo = req.body.endstateInfo
 
       _task
         .save()
