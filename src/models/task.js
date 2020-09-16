@@ -44,11 +44,9 @@ const taskschema = new Schema({
   isActive: { type: Boolean, default: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
-  taskDetails: {
-    whyInfo: { type: String },
-    intentInfo: { type: String },
-    endstateInfo: { type: String },
-  },
+  whyInfo: { type: String },
+  intentInfo: { type: String },
+  endstateInfo: { type: String },
 });
 
 module.exports = mongoose.model("task", taskschema, "tasks");
