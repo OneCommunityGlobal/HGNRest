@@ -868,6 +868,18 @@ const taskController = function (Task) {
     res.status(200).send('done');
   };
 
+  // const getTasksByUserId = (req, res) => {
+  //   const { userId } = req.params;
+
+  //   try {
+  //     Task.find({ 'resources.userID': userId }).then((results) => {
+  //       res.status(200).send(results);
+  //     });
+  //   } catch (error) {
+  //     res.status(400).send(error);
+  //   }
+  // };
+
   const getTasksByUserId = (req, res) => {
     const { userId } = req.params;
 
