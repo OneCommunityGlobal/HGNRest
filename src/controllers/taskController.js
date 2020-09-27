@@ -275,7 +275,7 @@ const taskController = function (Task) {
       let totalNumberPriority = 0;
       let isAssigned = false;
 
-      //const resources = [];
+      // const resources = [];
       let hasChild = false;
       let totalChild = 0;
 
@@ -370,7 +370,7 @@ const taskController = function (Task) {
       }
 
       task._id = new mongoose.Types.ObjectId(); // add Id
-      task.level = parseInt(task.level,10); // fix level to number
+      task.level = parseInt(task.level, 10); // fix level to number
       task.hoursBest = parseFloat(task.hoursBest.trim(), 10);
       task.hoursWorst = parseFloat(task.hoursWorst.trim(), 10);
       task.hoursMost = parseFloat(task.hoursMost.trim(), 10);
