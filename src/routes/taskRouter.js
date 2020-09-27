@@ -11,8 +11,10 @@ const routes = function (task) {
 
   wbsRouter.route('/task/:id')
     .post(controller.postTask)
-    .put(controller.importTask)
     .get(controller.getTaskById);
+
+  wbsRouter.route('/task/import/:id')
+    .post(controller.importTask);
 
   wbsRouter.route('/task/del/:taskId')
     .delete(controller.deleteTask);
