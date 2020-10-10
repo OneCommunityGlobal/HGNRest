@@ -2,16 +2,16 @@ const mongoose = require('mongoose');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
-    let level = req.params.level;
+    const { level } = req.params;
 
     let query = {
       wbsId: { $in: [req.params.wbsId] },
       level: { $in: [level] },
     };
 
-    let mother = req.params.mother;
+    const { mother } = req.params;
 
-    if(mother !== '0'){
+    if (mother !== '0') {
       query = {
         wbsId: { $in: [req.params.wbsId] },
         level: { $in: [level] },
@@ -23,7 +23,6 @@ const taskController = function (Task) {
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
-
 
 
   const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours, resources) => {
