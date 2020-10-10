@@ -30,6 +30,7 @@ const taskschema = new Schema({
   mother: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
   position: { type: Number, required: true },
   isActive: { type: Boolean, default: true },
+  hasChild: { type: Boolean, default: false },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
 

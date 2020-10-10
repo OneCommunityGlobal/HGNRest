@@ -5,7 +5,7 @@ const routes = function (task) {
   const controller = require('../controllers/taskController')(task);
   const wbsRouter = express.Router();
 
-  wbsRouter.route('/tasks/:wbsId')
+  wbsRouter.route('/tasks/:wbsId/:level/:mother')
     .get(controller.getTasks)
     .put(controller.fixTasks);
 
