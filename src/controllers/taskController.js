@@ -2,14 +2,29 @@ const mongoose = require('mongoose');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
-    Task.find(
-      {
+    let level = req.params.level;
+
+    let query = {
+      wbsId: { $in: [req.params.wbsId] },
+      level: { $in: [level] },
+    };
+
+    let mother = req.params.mother;
+
+    if(mother !== '0'){
+      query = {
         wbsId: { $in: [req.params.wbsId] },
-      },
-    )
+        level: { $in: [level] },
+        mother: { $in: [mother] },
+      };
+    }
+
+    Task.find(query)
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
+
+
 
   const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours, resources) => {
     Task.findById(taskId, (error, task) => {
@@ -330,7 +345,7 @@ const taskController = function (Task) {
             tasks[i].estimatedHours = sumEstimatedHours;
             tasks[i].startedDatetime = minStartedDate;
             tasks[i].dueDatetime = maxDueDatetime;
-
+            tasks[i].hasChild = true;
             tasks[i].isAssigned = isAssigned;
 
             const avg = totalNumberPriority / totalChild;
@@ -495,6 +510,7 @@ const taskController = function (Task) {
       _task.parentId2 = new mongoose.Types.ObjectId(task.parentId2);
       _task.parentId3 = new mongoose.Types.ObjectId(task.parentId3);
       _task.isActive = task.isActive;
+      _task.hasChild = task.hasChild;
       _task.mother = new mongoose.Types.ObjectId(task.mother);
       _task.position = task.position;
       _task.createdDatetime = Date.now();
