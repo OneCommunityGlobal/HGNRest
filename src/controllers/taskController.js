@@ -289,7 +289,7 @@ const taskController = function (Task) {
       let totalNumberPriority = 0;
       let isAssigned = false;
 
-      // const resources = [];
+      const resources = [];
       let hasChild = false;
       let totalChild = 0;
 
@@ -321,17 +321,20 @@ const taskController = function (Task) {
           }
 
 
-          /* childTask.resources.forEach((member) => {
+          childTask.resources.forEach((member) => {
             let isInResource = false;
             resources.forEach((mem) => {
-              if (member.userID.equals(mem.userID)) {
+              // if (member.userID.equals(mem.userID)) {
+              // isInResource = true;
+              // }
+              if (member.name === mem.name) {
                 isInResource = true;
               }
             });
             if (!isInResource) {
               resources.push(member);
             }
-          }); */
+          });
         }
       });
 
@@ -358,7 +361,7 @@ const taskController = function (Task) {
             }
 
             tasks[i].priority = priority;
-            // tasks[i].resources = resources;
+            tasks[i].resources = resources;
           }
         });
         // updateSumUp(task._id, sumHoursBest, sumHoursWorst, sumHoursMost, sumEstimatedHours, resources);
@@ -390,9 +393,15 @@ const taskController = function (Task) {
       task.hoursMost = parseFloat(task.hoursMost.trim(), 10);
       task.estimatedHours = parseFloat(task.estimatedHours.trim(), 10);
 
+      if (task.resourceName) {
+        task.resources = [{ name: task.resourceName, userID: null, profilePic: null }];
+      } else {
+        task.resources = [];
+      }
       formatedTasks.push(task);
     });
 
+    // console.log(formatedTasks);
 
     // Sort the task
     const sortedTasks = formatedTasks.sort((a, b) => {
@@ -480,12 +489,12 @@ const taskController = function (Task) {
 
     const wbsId = req.params.id;
     const taskList = req.body.list;
-    console.log('taskList', taskList.length);
+    //console.log('taskList', taskList.length);
     const fixedTasks = fixTasksLocal(taskList);
     // const isFine = true;
 
     // const dbTasks = [];
-    console.log('fixedtask', fixedTasks.length);
+    //console.log('fixedtask', fixedTasks.length);
 
     fixedTasks.forEach((task) => {
       const _task = new Task();
@@ -495,7 +504,7 @@ const taskController = function (Task) {
       _task.num = task.num;
       _task.level = task.level;
       _task.priority = task.priority;
-      // _task.resources = task.resources;
+      _task.resources = task.resources;
       _task.isAssigned = task.isAssigned;
       _task.status = task.status;
       _task.hoursBest = task.hoursBest;
