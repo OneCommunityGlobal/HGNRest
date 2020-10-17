@@ -1020,8 +1020,6 @@ const taskController = function (Task) {
   };
 
 
-
-
   const updateAllParents = (req, res) => {
     const { wbsId } = req.params;
 
