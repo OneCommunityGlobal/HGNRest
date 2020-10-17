@@ -1,8 +1,8 @@
 const express = require('express');
 
 
-const routes = function (task) {
-  const controller = require('../controllers/taskController')(task);
+const routes = function (task, userProfile) {
+  const controller = require('../controllers/taskController')(task, userProfile);
   const wbsRouter = express.Router();
 
   wbsRouter.route('/tasks/:wbsId/:level/:mother')

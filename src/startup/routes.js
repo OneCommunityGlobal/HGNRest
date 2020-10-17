@@ -20,7 +20,7 @@ const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
 const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
-const taskRouter = require('../routes/taskRouter')(task);
+const taskRouter = require('../routes/taskRouter')(task, userProfile);
 
 
 module.exports = function (app) {
