@@ -489,12 +489,12 @@ const taskController = function (Task) {
 
     const wbsId = req.params.id;
     const taskList = req.body.list;
-    //console.log('taskList', taskList.length);
+    // console.log('taskList', taskList.length);
     const fixedTasks = fixTasksLocal(taskList);
     // const isFine = true;
 
     // const dbTasks = [];
-    //console.log('fixedtask', fixedTasks.length);
+    // console.log('fixedtask', fixedTasks.length);
 
     fixedTasks.forEach((task) => {
       const _task = new Task();
