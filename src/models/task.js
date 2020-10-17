@@ -33,6 +33,9 @@ const taskschema = new Schema({
   hasChild: { type: Boolean, default: false },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
+  whyInfo: { type: String },
+  intentInfo: { type: String },
+  endstateInfo: { type: String },
 
 });
 
