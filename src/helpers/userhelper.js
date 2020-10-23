@@ -358,14 +358,9 @@ const userhelper = function () {
     getUserName,
     getTeamMembers,
     validateprofilepic,
-<<<<<<< HEAD
     assignBlueSquareforTimeNotMet,
     deleteBlueSquareAfterYear,
-=======
-    assignBlueBadgesForTimeNotMetOrSummaries,
-    deleteBadgeAfterYear,
     reActivateUser,
->>>>>>> 07f601ba363f26df5ef9335ab7c4cd1a1dae6897
     notifyInfringments,
     getInfringmentEmailBody,
     emailWeeklySummariesForAllUsers,
