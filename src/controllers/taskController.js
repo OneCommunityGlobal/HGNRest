@@ -329,7 +329,7 @@ const taskController = function (Task) {
     _task.modifiedDatetime = Date.now();
     _task.whyInfo = req.body.whyInfo;
     _task.intentInfo = req.body.intentInfo;
-    _task.endstateInfo = req.body.endstateInfo
+    _task.endstateInfo = req.body.endstateInfo;
 
     _task
       .save()
@@ -385,7 +385,7 @@ const taskController = function (Task) {
     _task.modifiedDatetime = Date.now();
     _task.whyInfo = req.body.whyInfo;
     _task.intentInfo = req.body.intentInfo;
-    _task.endstateInfo = req.body.endstateInfo
+    _task.endstateInfo = req.body.endstateInfo;
 
     _task
       .save()
@@ -681,7 +681,7 @@ const taskController = function (Task) {
       _task.modifiedDatetime = Date.now();
       _task.whyInfo = req.body.whyInfo;
       _task.intentInfo = req.body.intentInfo;
-      _task.endstateInfo = req.body.endstateInfo
+      _task.endstateInfo = req.body.endstateInfo;
 
       _task
         .save()
