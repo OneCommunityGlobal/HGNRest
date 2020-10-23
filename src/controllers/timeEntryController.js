@@ -22,6 +22,7 @@ const timeEntrycontroller = function (TimeEntry) {
         timeentry.timeSpent = moment('1900-01-01 00:00:00').add(element.totalSeconds, 'seconds').format('HH:mm:ss');
         timeentry.notes = element.notes;
         timeentry.isTangible = element.isTangible;
+        timeentry.editCount = element.editCount;
         items.push(timeentry);
       });
       return res.json(items).status(200);
@@ -41,6 +42,7 @@ const timeEntrycontroller = function (TimeEntry) {
     timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
     timeentry.notes = req.body.notes;
     timeentry.isTangible = req.body.isTangible;
+    timeentry.editCount = req.body.editCount;
     timeentry.createdDateTime = moment().utc().toISOString();
     timeentry.lastModifiedDateTime = moment().utc().toISOString();
 
@@ -76,6 +78,7 @@ const timeEntrycontroller = function (TimeEntry) {
           record._id = element._id;
           record.notes = element.notes;
           record.isTangible = element.isTangible;
+          record.editCount = element.editCount;
           record.personId = element.personId;
           record.projectId = (element.projectId) ? element.projectId._id : '';
           record.projectName = (element.projectId) ? element.projectId.projectName : '';
@@ -141,6 +144,7 @@ const timeEntrycontroller = function (TimeEntry) {
           record.notes = req.body.notes;
           record.totalSeconds = moment.duration(timeSpent).asSeconds();
           record.isTangible = req.body.isTangible;
+          record.editCount = req.body.editCount;
           record.lastModifiedDateTime = moment().utc().toISOString();
           record.projectId = mongoose.Types.ObjectId(req.body.projectId);
           if (req.body.requestor.role === 'Administrator') {
