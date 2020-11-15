@@ -16,7 +16,7 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/task/import/:id')
     .post(controller.importTask);
 
-  wbsRouter.route('/task/del/:taskId')
+  wbsRouter.route('/task/del/:taskId/:mother')
     .delete(controller.deleteTask);
 
   wbsRouter.route('/task/wbs/del/:wbsId')
