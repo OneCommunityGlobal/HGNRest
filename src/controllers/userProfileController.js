@@ -529,6 +529,16 @@ const userProfileController = function (UserProfile) {
       });
   };
 
+  const getAllUsersWithFacebookLink = function (req, res) {
+    try {
+      UserProfile.find({ 'personalLinks.Name': 'Facebook' }).then((results) => {
+        res.status(200).send(results);
+      });
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  }
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -543,6 +553,7 @@ const userProfileController = function (UserProfile) {
     changeUserStatus,
     resetPassword,
     getUserByName,
+    getAllUsersWithFacebookLink,
   };
 };
 
