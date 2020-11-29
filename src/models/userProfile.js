@@ -56,12 +56,12 @@ const userProfileSchema = new Schema({
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [{
     badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
-    count: Number, 
-    lastModified: Date, 
+    count: Number,
+    lastModified: Date,
     featured: {
-      type: Boolean, 
-      required: true, 
-      default: false 
+      type: Boolean,
+      required: true,
+      default: false,
     },
   }],
   profilePic: { type: String },
