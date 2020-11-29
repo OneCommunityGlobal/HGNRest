@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-// add categoryId after Category colletion is created
 const Badge = new Schema({
   badgeName: { type: String, required: true },
   category: { type: String, required: true, enum: ['Education', 'Infrastructure', 'Marketing & Promotion', 'Interviews & Hospitality', 'Funding & Partnership Building', 'Other'] },
