@@ -324,7 +324,7 @@ const userProfileController = function (UserProfile) {
           path: 'badge',
           model: Badge,
           select: '_id badgeName imageUrl description',
-        }
+        },
       })
       .then((results) => {
         if (!results) {
