@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const { Schema } = mongoose;
 
+const SECONDS_IN_MONTH = 2419200;
+
 const taskNotificationSchema = new Schema({
   message: { type: String },
   taskName: { type: String, required: true },
@@ -14,7 +16,7 @@ const taskNotificationSchema = new Schema({
   taskId: { type: Schema.Types.ObjectId, ref: "task", required: true },
   isRead: { type: Boolean, default: false },
   eventType: { type: String },
-  dateCreated: { type: Date, default: Date.now() },
+  dateCreated: { type: Date, default: Date.now(), expires: SECONDS_IN_MONTH },
   dateRead: { type: Date, default: null },
   oldTaskInfos: {
     oldWhyInfo: { type: String, default: "" },
