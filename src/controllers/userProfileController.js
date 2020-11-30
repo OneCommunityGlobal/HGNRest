@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
+const Badge = require('../models/badge');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -315,6 +316,14 @@ const userProfileController = function (UserProfile) {
           sort: {
             projectName: 1,
           },
+        },
+      })
+      .populate({
+        path: 'badgeCollection',
+        populate: {
+          path: 'badge',
+          model: Badge,
+          select: '_id badgeName imageUrl description',
         },
       })
       .then((results) => {
