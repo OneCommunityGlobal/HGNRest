@@ -9,8 +9,10 @@ const wbs = require('../models/wbs');
 const task = require('../models/task');
 const timer = require('../models/timer');
 const taskNotification = require('../models/taskNotification');
+const badge = require('../models/badge');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
+const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')();
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
@@ -43,4 +45,5 @@ module.exports = function (app) {
   app.use('/api', taskRouter);
   app.use('/api', timerRouter);
   app.use('/api', taskNotificationRouter);
+  app.use('/api', badgeRouter);
 };
