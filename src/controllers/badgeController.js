@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const Badge = require('../models/badge');
 const UserProfile = require('../models/userProfile');
 
 const badgeController = function (Badge) {
@@ -24,8 +23,11 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName imageUrl',
-    )
+      'badgeName imageUrl category project ranking description',
+    ).populate({
+      path: 'project',
+      select: '_id projectName',
+    })
       .sort({
         badgeName: 1,
       })
