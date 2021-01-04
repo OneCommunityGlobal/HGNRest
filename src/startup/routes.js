@@ -8,6 +8,8 @@ const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
 const timer = require('../models/timer');
+const popup = require('../models/popupEditor');
+const popupBackup = require('../models/popupEditorBackup');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const dashboardRouter = require('../routes/dashboardRouter')();
@@ -23,7 +25,8 @@ const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
 const timerRouter = require('../routes/timerRouter')(timer);
-
+const popupRouter = require('../routes/popupEditorRouter')(popup);
+const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -40,4 +43,6 @@ module.exports = function (app) {
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
   app.use('/api', timerRouter);
+  app.use('/api', popupRouter);
+  app.use('/api', popupBackupRouter);
 };
