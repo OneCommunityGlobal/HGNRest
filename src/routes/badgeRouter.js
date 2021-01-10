@@ -9,6 +9,10 @@ const routes = function (badge) {
   badgeRouter.route('/badge/:userId')
     .get(controller.getAllBadges);
 
+  badgeRouter.route('/badge/assign/:userId')
+    .put(controller.assignBadges);
+
+
   return badgeRouter;
 };
 
