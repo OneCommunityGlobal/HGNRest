@@ -3,23 +3,16 @@ const UserProfile = require('../models/userProfile');
 
 const badgeController = function (Badge) {
   const getAllBadges = function (req, res) {
+
     const AuthorizedRolesToView = ['Administrator'];
+    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
+      req.body.requestor.role,
+    );
 
-    const userId = mongoose.Types.ObjectId(req.params.userId);
-
-    UserProfile.findById(userId, 'role')
-      .then((user) => {
-        const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
-          user.role,
-        );
-
-        if (!isRequestorAuthorized) {
-          res.status(403).send('You are not authorized to view all badge data.');
-        }
-      })
-      .catch((error) => {
-        res.status(404).send(error);
-      });
+    if (!isRequestorAuthorized) {
+      res.status(403).send('You are not authorized to view all badge data.');
+      return;
+    }
 
     Badge.find(
       {},
@@ -36,23 +29,16 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = function (req, res) {
+
     const AuthorizedRolesToView = ['Administrator'];
+    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
+      req.body.requestor.role,
+    );
 
-    const requestorId = req.body.requestorId;
-
-    UserProfile.findById(requestorId, 'role')
-      .then((user) => {
-        const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
-          user.role,
-        );
-
-        if (!isRequestorAuthorized) {
-          res.status(403).send('You are not authorized to assign badges.');
-        }
-      })
-      .catch((error) => {
-        res.status(404).send(error);
-      });
+    if (!isRequestorAuthorized) {
+      res.status(403).send('You are not authorized to assign badges.');
+      return;
+    }
 
     const userToBeAssigned = mongoose.Types.ObjectId(req.params.userId);
 
