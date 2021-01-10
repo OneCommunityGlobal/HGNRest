@@ -62,8 +62,18 @@ const popupEditorBackupController = function (PopupEditorBackups) {
 
     try {
       PopupEditorBackups.find({ popupId: { $in: popupId } }, (error, popupBackup) => {
-        popupBackup[0].popupContent = req.body.popupContent;
-        popupBackup[0].save().then(results => res.status(201).send(results));
+        if (popupBackup.length > 0) {
+          popupBackup[0].popupContent = req.body.popupContent;
+          popupBackup[0].save().then(results => res.status(201).send(results));
+        } else {
+          const popup = new PopupEditorBackups();
+          popup.popupId = req.params.id;
+          popup.popupContent = req.body.popupContent;
+          popup.popupName = req.body.popupName;
+          popup.save()
+            .then(results => res.status(201).send(results))
+            .catch(err => res.status(500).send({ err }));
+        }
       });
     } catch (error) {
       res.status(500).send({ error });
