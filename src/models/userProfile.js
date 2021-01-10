@@ -70,6 +70,7 @@ const userProfileSchema = new Schema({
   weeklySummaries: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
+  collaborationPreference: {type: String}
 });
 
 userProfileSchema.pre('save', function (next) {
