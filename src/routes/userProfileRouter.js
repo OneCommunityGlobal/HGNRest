@@ -37,6 +37,9 @@ const routes = function (userProfile) {
   userProfileRouter.route('/userProfile/project/:projectId')
     .get(controller.getProjectMembers);
 
+  userProfileRouter.route('/userProfile/socials/facebook')
+    .get(controller.getAllUsersWithFacebookLink);
+
   return userProfileRouter;
 };
 

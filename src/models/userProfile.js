@@ -54,9 +54,16 @@ const userProfileSchema = new Schema({
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
-  badgeCollection: [
-    { badgeName: String, quantity: Number, lastModifiedDate: Date },
-  ],
+  badgeCollection: [{
+    badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
+    count: { type: Number, default: 0 },
+    lastModified: { type: Date, required: true, default: Date.now() },
+    featured: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+  }],
   profilePic: { type: String },
   infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
   privacySettings: { blueSquares: { type: Boolean }, email: { type: Boolean }, phoneNumber: { type: Boolean } },

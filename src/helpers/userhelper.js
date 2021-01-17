@@ -180,9 +180,9 @@ const userhelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
    *      and increment the weeklySummariesCount for valud submissions.
    */
-  const assignBlueBadgesForTimeNotMetOrSummaries = function () {
+  const assignBlueSquareforTimeNotMet = function () {
     logger.logInfo(
-      `Job for assigning blue badge for commitment not met starting at ${moment()
+      `Job for assigning blue square for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
         .format()}`,
     );
@@ -273,9 +273,9 @@ const userhelper = function () {
       .catch(error => logger.logException(error));
   };
 
-  const deleteBadgeAfterYear = function () {
+  const deleteBlueSquareAfterYear = function () {
     logger.logInfo(
-      `Job for deleting badges older than 1 year starting at ${moment()
+      `Job for deleting blue squares older than 1 year starting at ${moment()
         .tz('America/Los_Angeles')
         .format()}`,
     );
@@ -358,8 +358,8 @@ const userhelper = function () {
     getUserName,
     getTeamMembers,
     validateprofilepic,
-    assignBlueBadgesForTimeNotMetOrSummaries,
-    deleteBadgeAfterYear,
+    assignBlueSquareforTimeNotMet,
+    deleteBlueSquareAfterYear,
     reActivateUser,
     notifyInfringments,
     getInfringmentEmailBody,

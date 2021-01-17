@@ -10,8 +10,11 @@ const task = require('../models/task');
 const timer = require('../models/timer');
 const popup = require('../models/popupEditor');
 const popupBackup = require('../models/popupEditorBackup');
+const taskNotification = require('../models/taskNotification');
+const badge = require('../models/badge');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
+const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')();
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
@@ -27,6 +30,8 @@ const taskRouter = require('../routes/taskRouter')(task);
 const timerRouter = require('../routes/timerRouter')(timer);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
+const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -45,4 +50,6 @@ module.exports = function (app) {
   app.use('/api', timerRouter);
   app.use('/api', popupRouter);
   app.use('/api', popupBackupRouter);
+  app.use('/api', taskNotificationRouter);
+  app.use('/api', badgeRouter);
 };
