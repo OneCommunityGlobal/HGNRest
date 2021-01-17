@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
+const Badge = require('../models/badge');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -317,6 +318,14 @@ const userProfileController = function (UserProfile) {
           },
         },
       })
+      .populate({
+        path: 'badgeCollection',
+        populate: {
+          path: 'badge',
+          model: Badge,
+          select: '_id badgeName imageUrl description',
+        },
+      })
       .then((results) => {
         if (!results) {
           res.status(400).send({ error: 'This is not a valid user' });
@@ -330,7 +339,7 @@ const userProfileController = function (UserProfile) {
 
   const getUserByName = (req, res) => {
     const { name } = req.params;
-    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic')
+    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic, badgeCollection')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
@@ -529,6 +538,16 @@ const userProfileController = function (UserProfile) {
       });
   };
 
+  const getAllUsersWithFacebookLink = function (req, res) {
+    try {
+      UserProfile.find({ 'personalLinks.Name': 'Facebook' }).then((results) => {
+        res.status(200).send(results);
+      });
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -543,6 +562,7 @@ const userProfileController = function (UserProfile) {
     changeUserStatus,
     resetPassword,
     getUserByName,
+    getAllUsersWithFacebookLink,
   };
 };
 

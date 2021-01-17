@@ -3,9 +3,9 @@ import { CronJob } from 'cron';
 const userhelper = require('../helpers/userhelper')();
 
 const userProfileScheduledJobs = function () {
-  const assignBlueBadge = new CronJob(
+  const assignBlueSquare = new CronJob(
     '0 0 * * 0',
-    userhelper.assignBlueBadgesForTimeNotMetOrSummaries,
+    userhelper.assignBlueSquareforTimeNotMet,
     null,
     false,
     'America/Los_Angeles',
@@ -19,9 +19,9 @@ const userProfileScheduledJobs = function () {
     'America/Los_Angeles',
   );
 
-  const deleteBlueBadgeOlderThanYear = new CronJob(
+  const deleteBlueSquareOlderThanYear = new CronJob(
     '0 0 * * *',
-    userhelper.deleteBadgeAfterYear,
+    userhelper.deleteBlueSquareAfterYear,
     null,
     false,
     'America/Los_Angeles',
@@ -35,9 +35,9 @@ const userProfileScheduledJobs = function () {
     'America/Los_Angeles',
   );
 
-  assignBlueBadge.start();
+  assignBlueSquare.start();
   emailWeeklySummaries.start();
-  deleteBlueBadgeOlderThanYear.start();
+  deleteBlueSquareOlderThanYear.start();
   updateUserStatusToActive.start();
 };
 
