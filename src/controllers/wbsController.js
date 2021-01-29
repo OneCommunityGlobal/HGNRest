@@ -52,11 +52,11 @@ const wbsController = function (WBS) {
     }).catch((errors) => { res.status(400).send(errors); });
   };
 
-  const getWBS = function(req, res) {
+  const getWBS = function (req, res) {
     WBS.find()
       .then(results => res.status(200).send(results))
-      .catch(error => res.status(500).send({error}))
-  }
+      .catch(error => res.status(500).send({ error }));
+  };
 
   return {
     postWBS,
