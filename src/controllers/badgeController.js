@@ -38,7 +38,7 @@ const badgeController = function (Badge) {
   const assignBadges = function (req, res) {
     const AuthorizedRolesToView = ['Administrator'];
 
-    const requestorId = req.body.requestorId;
+    const { requestorId } = req.body;
 
     UserProfile.findById(requestorId, 'role')
       .then((user) => {
@@ -56,8 +56,8 @@ const badgeController = function (Badge) {
 
     const userToBeAssigned = mongoose.Types.ObjectId(req.params.userId);
 
-    UserProfile.findById(userToBeAssigned,(error, record)=>{
-     if (error || record === null) {
+    UserProfile.findById(userToBeAssigned, (error, record) => {
+      if (error || record === null) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }

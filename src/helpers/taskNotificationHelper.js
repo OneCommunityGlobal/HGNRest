@@ -113,7 +113,7 @@ const taskNotificationHelper = function () {
     });
 
     Promise.all(notificationPromises).then((data) => {
-      console.log(data)
+      console.log(data);
     });
   };
 
