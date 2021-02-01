@@ -51,7 +51,7 @@ const badgeController = function (Badge) {
 
       record.save()
         .then(results => res.status(201).send(results._id))
-        .catch(errors => res.status(400).send(errors));
+        .catch(errors => res.status(500).send(errors));
     });
   };
 
