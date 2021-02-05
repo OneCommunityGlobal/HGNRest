@@ -121,17 +121,21 @@ const userhelper = function () {
                       infringments: infringment,
                     },
                   })
-                  .then(status => emailSender(
-                    status.email,
-                    'New Infringement Assigned',
-                    getInfringmentEmailBody(
-                      status.firstName,
-                      status.lastName,
-                      infringment,
-                    ),
-                    null,
-                    'onecommunityglobal@gmail.com',
-                  ))
+                  .then(status => {
+                    if (process.env.sendEmail) {
+                      emailSender(
+                        status.email,
+                        'New Infringement Assigned',
+                        getInfringmentEmailBody(
+                          status.firstName,
+                          status.lastName,
+                          infringment,
+                        ),
+                        null,
+                        'onecommunityglobal@gmail.com',
+                      )
+                    }
+                  })
                   .catch(error => logger.logException(error));
               }
             })
@@ -184,13 +188,15 @@ const userhelper = function () {
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
     newInfringments.forEach((element) => {
-      emailSender(
-        emailAddress,
-        'New Infringment Assigned',
-        getInfringmentEmailBody(firstName, lastName, element),
-        null,
-        'onecommunityglobal@gmail.com',
-      );
+      if (process.env.sendEmail) {
+        emailSender(
+          emailAddress,
+          'New Infringment Assigned',
+          getInfringmentEmailBody(firstName, lastName, element),
+          null,
+          'onecommunityglobal@gmail.com',
+        );
+      }
     });
   };
 
