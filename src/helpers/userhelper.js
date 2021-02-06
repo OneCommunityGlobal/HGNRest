@@ -122,13 +122,14 @@ const userhelper = function () {
           ${weeklySummaryMessage}
           </div>`;
         });
-
-        emailSender(
-          'onecommunityglobal@gmail.com',
-          'Weekly Summaries for all active users...',
-          emailBody,
-          null,
-        );
+        if (process.env.sendEmail) {
+          emailSender(
+            'onecommunityglobal@gmail.com',
+            'Weekly Summaries for all active users...',
+            emailBody,
+            null,
+          );
+        }
       })
       .catch(error => logger.logException(error));
   };
@@ -251,18 +252,20 @@ const userhelper = function () {
                     },
                   }, { new: true })
                   .then((status) => {
-                    emailSender(
-                      status.email,
-                      'New Infringment Assigned',
-                      getInfringmentEmailBody(
-                        status.firstName,
-                        status.lastName,
-                        infringment,
-                        status.infringments.length,
-                      ),
-                      null,
-                      'onecommunityglobal@gmail.com',
-                    );
+                    if (process.env.sendEmail) {
+                      emailSender(
+                        status.email,
+                        'New Infringment Assigned',
+                        getInfringmentEmailBody(
+                          status.firstName,
+                          status.lastName,
+                          infringment,
+                          status.infringments.length,
+                        ),
+                        null,
+                        'onecommunityglobal@gmail.com',
+                      );
+                    }
                   })
                   .catch(error => logger.logException(error));
               }
@@ -344,13 +347,15 @@ const userhelper = function () {
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
     newInfringments.forEach((element) => {
-      emailSender(
-        emailAddress,
-        'New Infringment Assigned',
-        getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
-        null,
-        'onecommunityglobal@gmail.com',
-      );
+      if (process.env.sendEmail) {
+        emailSender(
+          emailAddress,
+          'New Infringment Assigned',
+          getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
+          null,
+          'onecommunityglobal@gmail.com',
+        );
+      }
     });
   };
 

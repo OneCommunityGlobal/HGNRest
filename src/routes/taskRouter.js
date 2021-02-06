@@ -1,20 +1,22 @@
 const express = require('express');
 
 
-const routes = function (task) {
-  const controller = require('../controllers/taskController')(task);
+const routes = function (task, userProfile) {
+  const controller = require('../controllers/taskController')(task, userProfile);
   const wbsRouter = express.Router();
 
-  wbsRouter.route('/tasks/:wbsId')
+  wbsRouter.route('/tasks/:wbsId/:level/:mother')
     .get(controller.getTasks)
     .put(controller.fixTasks);
 
   wbsRouter.route('/task/:id')
     .post(controller.postTask)
-    .put(controller.importTask)
     .get(controller.getTaskById);
 
-  wbsRouter.route('/task/del/:taskId')
+  wbsRouter.route('/task/import/:id')
+    .post(controller.importTask);
+
+  wbsRouter.route('/task/del/:taskId/:mother')
     .delete(controller.deleteTask);
 
   wbsRouter.route('/task/wbs/del/:wbsId')

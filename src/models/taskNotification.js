@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
@@ -10,28 +10,28 @@ const taskNotificationSchema = new Schema({
   taskNum: { type: String },
   recipient: {
     type: Schema.Types.ObjectId,
-    ref: "userProfile",
+    ref: 'userProfile',
     required: true,
   },
-  taskId: { type: Schema.Types.ObjectId, ref: "task", required: true },
+  taskId: { type: Schema.Types.ObjectId, ref: 'task', required: true },
   isRead: { type: Boolean, default: false },
   eventType: { type: String },
   dateCreated: { type: Date, default: Date.now(), expires: SECONDS_IN_MONTH },
   dateRead: { type: Date, default: null },
   oldTaskInfos: {
-    oldWhyInfo: { type: String, default: "" },
-    oldIntentInfo: { type: String, default: "" },
-    oldEndstateInfo: { type: String, default: "" },
+    oldWhyInfo: { type: String, default: '' },
+    oldIntentInfo: { type: String, default: '' },
+    oldEndstateInfo: { type: String, default: '' },
   },
   newTaskInfos: {
-    newWhyInfo: { type: String, default: "" },
-    newIntentInfo: { type: String, default: "" },
-    newEndstateInfo: { type: String, default: "" },
+    newWhyInfo: { type: String, default: '' },
+    newIntentInfo: { type: String, default: '' },
+    newEndstateInfo: { type: String, default: '' },
   },
 });
 
 module.exports = mongoose.model(
-  "taskNotification",
+  'taskNotification',
   taskNotificationSchema,
-  "taskNotifications"
+  'taskNotifications',
 );
