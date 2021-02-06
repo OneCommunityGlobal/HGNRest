@@ -46,8 +46,6 @@ const forgotPwdController = function (userProfile) {
         );
         logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
 
-        console.log(`New password ${ranPwd} was generated for ${user._id}`);
-
         res.status(200).send({ message: 'generated new password' });
       })
       .catch((error) => {
