@@ -21,37 +21,31 @@ const taskNotificationController = function (TaskNotification) {
 
     if (req.body.oldTaskInfos) {
       if (req.body.oldTaskInfos.oldWhyInfo) {
-        newTaskNotification.oldTaskInfos.oldWhyInfo =
-          req.body.oldTaskInfos.oldWhyInfo;
+        newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldWhyInfo;
       }
       if (req.body.oldTaskInfos.oldIntentInfo) {
-        newTaskNotification.oldTaskInfos.oldWhyInfo =
-          req.body.oldTaskInfos.oldIntentInfo;
+        newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldIntentInfo;
       }
       if (req.body.oldTaskInfos.oldEndstateInfo) {
-        newTaskNotification.oldTaskInfos.oldWhyInfo =
-          req.body.oldTaskInfos.oldEndstateInfo;
+        newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldEndstateInfo;
       }
     }
     if (req.body.newTaskInfos) {
       if (req.body.newTaskInfos.newWhyInfo) {
-        newTaskNotification.newTaskInfos.newWhyInfo =
-          req.body.newTaskInfos.newWhyInfo;
+        newTaskNotification.newTaskInfos.newWhyInfo = req.body.newTaskInfos.newWhyInfo;
       }
       if (req.body.newTaskInfos.newIntentInfo) {
-        newTaskNotification.newTaskInfos.newIntentInfo =
-          req.body.newTaskInfos.newIntentInfo;
+        newTaskNotification.newTaskInfos.newIntentInfo = req.body.newTaskInfos.newIntentInfo;
       }
       if (req.body.newTaskInfos.newEndstateInfo) {
-        newTaskNotification.newTaskInfos.newEndstateInfo =
-          req.body.newTaskInfos.newEndstateInfo;
+        newTaskNotification.newTaskInfos.newEndstateInfo = req.body.newTaskInfos.newEndstateInfo;
       }
     }
 
     newTaskNotification
       .save()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(400).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(400).send(error));
   };
 
   const deleteTaskNotification = function (req, res) {
@@ -64,7 +58,7 @@ const taskNotificationController = function (TaskNotification) {
         // }
         result
           .remove()
-          .then(res.status(200).send({ message: "Deleted task notification" }))
+          .then(res.status(200).send({ message: 'Deleted task notification' }))
           .catch((error) => {
             res.status(400).send(error);
           });
@@ -83,13 +77,13 @@ const taskNotificationController = function (TaskNotification) {
           result.dateRead = Date.now();
           result
             .save()
-            .then((notification) => res.status(200).send(notification))
-            .catch((error) => res.status(400).send(error));
+            .then(notification => res.status(200).send(notification))
+            .catch(error => res.status(400).send(error));
         } else {
-          res.status(404).send("TaskNotification not found.");
+          res.status(404).send('TaskNotification not found.');
         }
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   return {
