@@ -10,6 +10,8 @@ const emailSender = require('../utilities/emailSender');
 
 const logger = require('../startup/logger');
 
+let timeoutMS = 0;
+
 const userhelper = function () {
   const getTeamMembers = function (user) {
     const userid = mongoose.Types.ObjectId(user._id);
@@ -182,6 +184,7 @@ const userhelper = function () {
    *      and increment the weeklySummariesCount for valud submissions.
    */
   const assignBlueSquareforTimeNotMet = function () {
+    timeoutMS = 0;
     logger.logInfo(
       `Job for assigning blue square for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
@@ -253,18 +256,22 @@ const userhelper = function () {
                   }, { new: true })
                   .then((status) => {
                     if (process.env.sendEmail) {
-                      emailSender(
-                        status.email,
-                        'New Infringment Assigned',
-                        getInfringmentEmailBody(
-                          status.firstName,
-                          status.lastName,
-                          infringment,
-                          status.infringments.length,
-                        ),
-                        null,
-                        'onecommunityglobal@gmail.com',
-                      );
+                      timeoutMS += 500;
+                      setTimeout(()=>{
+                        emailSender(
+                          status.email,
+                          'New Infringment Assigned',
+                          getInfringmentEmailBody(
+                            status.firstName,
+                            status.lastName,
+                            infringment,
+                            status.infringments.length,
+                          ),
+                          null,
+                          'onecommunityglobal@gmail.com',
+                        );
+                      }, timeoutMS )
+
                     }
                   })
                   .catch(error => logger.logException(error));
