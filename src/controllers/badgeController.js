@@ -2,9 +2,7 @@ const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
 
 const badgeController = function (Badge) {
-
   const getAllBadges = function (req, res) {
-
     const AuthorizedRolesToView = ['Administrator'];
     const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
       req.body.requestor.role,
@@ -30,7 +28,6 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = function (req, res) {
-
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send('You are not authorized to assign badges.');
       return;
@@ -52,7 +49,6 @@ const badgeController = function (Badge) {
   };
 
   const postBadge = function (req, res) {
-
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
@@ -76,7 +72,7 @@ const badgeController = function (Badge) {
         badge.save()
           .then(results => res.status(201).send(results))
           .catch(errors => res.status(500).send(errors));
-      })
+      });
   };
 
   return {
