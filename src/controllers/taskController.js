@@ -447,6 +447,7 @@ const taskController = function (Task) {
   const fixTasksLocal = (tasks, wbsId) => {
     // Format num
     const formatedTasks = [];
+
     tasks.forEach((task) => {
       if (parseInt(task.level, 10) === 1) {
         task.num += '.0.0.0';
@@ -456,6 +457,7 @@ const taskController = function (Task) {
         task.num += '.0';
       }
 
+
       task._id = new mongoose.Types.ObjectId(); // add Id
       task.level = parseInt(task.level, 10); // fix level to number
       task.hoursBest = parseFloat(task.hoursBest.trim(), 10);
@@ -463,6 +465,7 @@ const taskController = function (Task) {
       task.hoursMost = parseFloat(task.hoursMost.trim(), 10);
       task.estimatedHours = parseFloat(task.estimatedHours, 10);
       task.estimatedHours = parseFloat(task.estimatedHours, 10);
+
 
       if (task.resourceName) {
         task.resources = [{ name: task.resourceName.split('|')[0], userID: task.resourceName.split('|')[1], profilePic: task.resourceName.split('|')[2] }];
@@ -599,6 +602,7 @@ const taskController = function (Task) {
       _task.whyInfo = task.whyInfo;
       _task.intentInfo = task.intentInfo;
       _task.endstateInfo = task.endstateInfo;
+      _task.classification = task.classification;
 
       _task.save().then().catch((ex) => { res.status(400).send(ex); });
     });
@@ -699,6 +703,7 @@ const taskController = function (Task) {
     _task.whyInfo = req.body.whyInfo;
     _task.intentInfo = req.body.intentInfo;
     _task.endstateInfo = req.body.endstateInfo;
+    _task.classification = req.body.classification;
 
     _task
       .save()
@@ -888,15 +893,14 @@ const taskController = function (Task) {
   };
 
   const deleteTask = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    /* if (req.body.requestor.role !== 'Administrator') {
       res
         .status(403)
         .send({ error: 'You are  not authorized to delete tasks.' });
       return;
-    }
+    } */
     const { taskId } = req.params;
     const { mother } = req.params;
-
     Task.find(
       {
         $or: [
@@ -936,12 +940,12 @@ const taskController = function (Task) {
   };
 
   const deleteTaskByWBS = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    /* if (req.body.requestor.role !== 'Administrator') {
       res
         .status(403)
         .send({ error: 'You are  not authorized to delete tasks.' });
       return;
-    }
+    } */
     const { wbsId } = req.params;
 
     Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
@@ -993,7 +997,7 @@ const taskController = function (Task) {
       _task.whyInfo = req.body.whyInfo;
       _task.intentInfo = req.body.intentInfo;
       _task.endstateInfo = req.body.endstateInfo;
-
+      _task.classification = req.body.classification;
       _task
         .save()
         .then(result => res.status(201).send(result))

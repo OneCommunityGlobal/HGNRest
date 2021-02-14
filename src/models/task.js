@@ -48,6 +48,7 @@ const taskschema = new Schema({
   whyInfo: { type: String },
   intentInfo: { type: String },
   endstateInfo: { type: String },
+  classification: { type: String },
 
 });
 
