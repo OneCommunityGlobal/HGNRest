@@ -56,7 +56,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate',
+      '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -497,6 +497,7 @@ const userProfileController = function (UserProfile) {
         user.set({
           isActive: status,
           reactivationDate: activationDate,
+          endDate: (activationDate ? undefined : Date.now())
         });
         user
           .save()
