@@ -5,13 +5,11 @@ const logger = require('../startup/logger');
 
 function getEmailMessageForForgotPassword(user, ranPwd) {
   const message = `<b> Hello ${user.firstName} ${user.lastName},</b>
-    <p>Do not reply to this mail.</p> 
-    <p>Your 'forgot password' request was recieved and here is your new password:</p>
+    <p>Congratulations on successfully completing the Highest Good Network 3-question Change My Password Challenge. Your reward is this NEW PASSWORD! </p>
     <blockquote> ${ranPwd}</blockquote>
-    <p>Please change this password the next time you log in. Do this by clicking the arrow in the top-right corner by your profile picture and then selecting the "Update Password" option. </P>
+    <p>Use it now to log in. Then store it in a safe place or change it on your Profile Page to something easier for you to remember. </p>
     <p>Thank you,<p>
-    <p>One Community</p>
-    `;
+    <p>One Community</p>`;
   return message;
 }
 
@@ -46,7 +44,7 @@ const forgotPwdController = function (userProfile) {
           null,
           null,
         );
-        logger.logInfo(`New password ${ranPwd} was generated for user._id`);
+        logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
 
         res.status(200).send({ message: 'generated new password' });
       })
