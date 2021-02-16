@@ -50,7 +50,7 @@ const badgeController = function (Badge) {
 
   const postBadge = function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
-      res.status(403).send({ error: 'You are not authorized to create new projects.' });
+      res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
 
