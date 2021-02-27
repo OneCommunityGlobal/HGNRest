@@ -41,13 +41,19 @@ const dashboardcontroller = function () {
       .catch(error => res.status(400).send(error));
   };
 
-  return {
+  const orgData = function (req, res) {
+    const fullOrgData = dashboardhelper.getOrgData();
 
+    fullOrgData.then((results) => { res.status(200).send(results); })
+      .catch(error => res.status(400).send(error));
+  };
+
+  return {
     dashboarddata,
     monthlydata,
     weeklydata,
     leaderboarddata,
-
+    orgData,
   };
 };
 
