@@ -3,7 +3,6 @@ const UserProfile = require('../models/userProfile');
 
 const badgeController = function (Badge) {
   const getAllBadges = function (req, res) {
-
     const AuthorizedRolesToView = ['Administrator'];
     const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
       req.body.requestor.role,
@@ -29,7 +28,6 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = function (req, res) {
-
     const AuthorizedRolesToView = ['Administrator'];
     const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
       req.body.requestor.role,

@@ -18,6 +18,9 @@ const route = function () {
   Dashboardrouter.route('/dashboard/leaderboard/:userId')
     .get(controller.leaderboarddata);
 
+  Dashboardrouter.route('/dashboard/org/data')
+    .get(controller.orgData);
+
   return Dashboardrouter;
 };
 
