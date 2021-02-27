@@ -44,7 +44,7 @@ const dashboardcontroller = function () {
   const orgData = function (req, res) {
     const fullOrgData = dashboardhelper.getOrgData();
 
-    fullOrgData.then((results) => { res.status(200).send(results); })
+    fullOrgData.then((results) => { res.status(200).send(results[0]); })
       .catch(error => res.status(400).send(error));
   };
 
