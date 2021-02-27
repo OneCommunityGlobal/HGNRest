@@ -86,6 +86,9 @@ const dashboardhelper = function () {
       {
         $group: {
           _id: 0,
+          member_count: {
+            $sum: 1,
+          },
           totalSeconds: {
             $sum: '$totalSeconds',
           },
@@ -103,6 +106,7 @@ const dashboardhelper = function () {
       {
         $project: {
           _id: 0,
+          member_count: '$member_count',
           totalWeeklyComittedHours: '$totalWeeklyComittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
