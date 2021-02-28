@@ -497,7 +497,7 @@ const userProfileController = function (UserProfile) {
         user.set({
           isActive: status,
           reactivationDate: activationDate,
-          endDate: (activationDate ? undefined : Date.now())
+          endDate: (activationDate ? undefined : Date.now()),
         });
         user
           .save()

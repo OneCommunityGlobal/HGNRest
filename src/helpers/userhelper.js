@@ -257,7 +257,7 @@ const userhelper = function () {
                   .then((status) => {
                     if (process.env.sendEmail) {
                       timeoutMS += 500;
-                      setTimeout(()=>{
+                      setTimeout(() => {
                         emailSender(
                           status.email,
                           'New Infringment Assigned',
@@ -270,8 +270,7 @@ const userhelper = function () {
                           null,
                           'onecommunityglobal@gmail.com',
                         );
-                      }, timeoutMS )
-
+                      }, timeoutMS);
                     }
                   })
                   .catch(error => logger.logException(error));
