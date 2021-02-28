@@ -36,7 +36,7 @@ const forgotPwdController = function (userProfile) {
       return;
     }
     const ranPwd = uuidv4().concat('TEMP');
-    user.set({ password: ranPwd });
+    user.set({ resetPwd: ranPwd });
     user.save()
       .then(() => {
         emailSender(
