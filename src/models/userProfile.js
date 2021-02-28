@@ -71,7 +71,7 @@ const userProfileSchema = new Schema({
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
-  resetPwd: { type: String }
+  resetPwd: { type: String },
 });
 
 userProfileSchema.pre('save', function (next) {
