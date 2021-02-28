@@ -17,10 +17,10 @@ const routes = function (task, userProfile) {
     .post(controller.importTask);
 
   wbsRouter.route('/task/del/:taskId/:mother')
-    .delete(controller.deleteTask);
+    .post(controller.deleteTask);
 
   wbsRouter.route('/task/wbs/del/:wbsId')
-    .delete(controller.deleteTaskByWBS);
+    .post(controller.deleteTaskByWBS);
 
   wbsRouter.route('/task/update/:taskId')
     .put(controller.updateTask);
