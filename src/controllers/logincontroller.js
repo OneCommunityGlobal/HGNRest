@@ -36,6 +36,7 @@ const logincontroller = function () {
 
     if (!isPasswordMatch && user.resetPwd !== '') {
       isPasswordMatch = (_password === user.resetPwd);
+      isNewUser = true;
     }
 
     if (isNewUser && isPasswordMatch) {

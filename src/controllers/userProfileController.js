@@ -121,7 +121,7 @@ const userProfileController = function (UserProfile) {
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
     up.weeklyComittedHours = req.body.weeklyComittedHours;
-    up.personalLinks = req.body.personalLinks; 
+    up.personalLinks = req.body.personalLinks;
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
@@ -402,6 +402,7 @@ const userProfileController = function (UserProfile) {
 
             user.set({
               password: req.body.newpassword,
+              resetPwd: undefined
             });
             return user
               .save()
