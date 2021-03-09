@@ -22,8 +22,8 @@ const dashboardhelper = function () {
       {
         $lookup: {
           from: 'timeEntries',
-          localField: 'personId',
-          foreignField: '_id',
+          localField: '_id',
+          foreignField: 'personId',
           as: 'timeEntryData',
         },
       },
