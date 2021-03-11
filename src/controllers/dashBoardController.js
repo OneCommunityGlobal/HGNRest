@@ -38,7 +38,16 @@ const dashboardcontroller = function () {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const leaderboard = dashboardhelper.getLeaderboard(userId);
 
-    leaderboard.then((results) => { res.status(200).send(results); })
+    leaderboard.then((results) => {
+      if (results.length > 0) {
+        res.status(200).send(results);
+      } else {
+        const { getUserLaborData } = dashboardhelper;
+        getUserLaborData(userId).then((r) => {
+          res.status(200).send(r);
+        });
+      }
+    })
       .catch(error => res.status(400).send(error));
   };
 
@@ -89,7 +98,6 @@ const dashboardcontroller = function () {
       res.status(500).send('Failed');
     }
   };
-
 
 
   return {
