@@ -72,7 +72,7 @@ const userProfileSchema = new Schema({
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
   resetPwd: { type: String },
-  collaborationPreference: {type: String},
+  collaborationPreference: { type: String },
 });
 
 userProfileSchema.pre('save', function (next) {

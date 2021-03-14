@@ -402,7 +402,7 @@ const userProfileController = function (UserProfile) {
 
             user.set({
               password: req.body.newpassword,
-              resetPwd: undefined
+              resetPwd: undefined,
             });
             return user
               .save()
