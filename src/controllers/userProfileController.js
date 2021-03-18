@@ -323,7 +323,7 @@ const userProfileController = function (UserProfile) {
         populate: {
           path: 'badge',
           model: Badge,
-          select: '_id badgeName imageUrl description',
+          select: '_id badgeName imageUrl description ranking',
         },
       })
       .then((results) => {
