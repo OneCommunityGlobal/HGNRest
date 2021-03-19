@@ -10,6 +10,9 @@ const routes = function (badge) {
     .get(controller.getAllBadges)
     .post(controller.postBadge);
 
+  badgeRouter.route('/badge/:badgeId')
+    .delete(controller.deleteBadge);
+
   badgeRouter.route('/badge/assign/:userId')
     .put(controller.assignBadges);
 
