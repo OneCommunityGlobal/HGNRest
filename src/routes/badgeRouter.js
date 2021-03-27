@@ -6,12 +6,15 @@ const routes = function (badge) {
 
   const badgeRouter = express.Router();
 
-  badgeRouter.route('/badge/:userId')
-    .get(controller.getAllBadges);
+  badgeRouter.route('/badge')
+    .get(controller.getAllBadges)
+    .post(controller.postBadge);
+
+  badgeRouter.route('/badge/:badgeId')
+    .delete(controller.deleteBadge);
 
   badgeRouter.route('/badge/assign/:userId')
     .put(controller.assignBadges);
-
 
   return badgeRouter;
 };
