@@ -10,6 +10,126 @@ const dashboardhelper = function () {
     return userProfile.findById(userId, '_id firstName lastName role profilePic badgeCollection');
   };
 
+  const getOrgData = function () {
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+    return userProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntryData',
+        },
+      },
+      {
+        $project: {
+          personId: 1,
+          name: 1,
+          weeklyComittedHours: 1,
+          timeEntryData: {
+            $filter: {
+              input: '$timeEntryData',
+              as: 'timeentry',
+              cond: {
+                $and: [{
+                  $gte: ['$$timeentry.dateOfWork', pdtstart],
+                }, {
+                  $lte: ['$$timeentry.dateOfWork', pdtend],
+                }],
+              },
+            },
+          },
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntryData',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          personId: 1,
+          weeklyComittedHours: 1,
+          totalSeconds: {
+            $cond: [{
+              $gte: ['$timeEntryData.totalSeconds', 0],
+            }, '$timeEntryData.totalSeconds', 0],
+          },
+          isTangible: {
+            $cond: [{
+              $gte: ['$timeEntryData.totalSeconds', 0],
+            }, '$timeEntryData.isTangible', false],
+          },
+        },
+      },
+      {
+        $addFields: {
+          tangibletime: {
+            $cond: [{
+              $eq: ['$isTangible', true],
+            }, '$totalSeconds', 0],
+          },
+          intangibletime: {
+            $cond: [{
+              $eq: ['$isTangible', false],
+            }, '$totalSeconds', 0],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: 0,
+          member_count: {
+            $sum: 1,
+          },
+          totalSeconds: {
+            $sum: '$totalSeconds',
+          },
+          tangibletime: {
+            $sum: '$tangibletime',
+          },
+          intangibletime: {
+            $sum: '$intangibletime',
+          },
+          totalWeeklyComittedHours: {
+            $sum: '$weeklyComittedHours',
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          member_count: '$member_count',
+          totalWeeklyComittedHours: '$totalWeeklyComittedHours',
+          totaltime_hrs: {
+            $divide: ['$totalSeconds', 3600],
+          },
+          totaltangibletime_hrs: {
+            $divide: ['$tangibletime', 3600],
+          },
+          totalintangibletime_hrs: {
+            $divide: ['$intangibletime', 3600],
+          },
+          percentagespentintangible: {
+            $cond: [{
+              $eq: ['$totalSeconds', 0],
+            }, 0, {
+              $multiply: [{
+                $divide: ['$tangibletime', '$totalSeconds'],
+              }, 100],
+            }],
+          },
+        },
+      },
+    ]);
+  };
 
   const getLeaderboard = function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
@@ -120,6 +240,146 @@ const dashboardhelper = function () {
             personId: '$personId',
             weeklyComittedHours: '$weeklyComittedHours',
             name: '$name',
+          },
+          totalSeconds: {
+            $sum: '$totalSeconds',
+          },
+          tangibletime: {
+            $sum: '$tangibletime',
+          },
+          intangibletime: {
+            $sum: '$intangibletime',
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          personId: '$_id.personId',
+          name: '$_id.name',
+          weeklyComittedHours: '$_id.weeklyComittedHours',
+          totaltime_hrs: {
+            $divide: ['$totalSeconds', 3600],
+          },
+          totaltangibletime_hrs: {
+            $divide: ['$tangibletime', 3600],
+          },
+          totalintangibletime_hrs: {
+            $divide: ['$intangibletime', 3600],
+          },
+          percentagespentintangible: {
+            $cond: [{
+              $eq: ['$totalSeconds', 0],
+            }, 0, {
+              $multiply: [{
+                $divide: ['$tangibletime', '$totalSeconds'],
+              }, 100],
+            }],
+          },
+        },
+      },
+      {
+        $sort: {
+          totaltangibletime_hrs: -1,
+          name: 1,
+        },
+      },
+    ]);
+  };
+
+  const getUserLaborData = function (userId) {
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+    return userProfile.aggregate([
+      {
+        $match: {
+          _id: userId,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          personId: '$_id',
+          name: {
+            $concat: [
+              '$firstName',
+              ' ',
+              '$lastName',
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntryData',
+        },
+      },
+      {
+        $project: {
+          personId: 1,
+          name: 1,
+          weeklyComittedHours: 1,
+          timeEntryData: {
+            $filter: {
+              input: '$timeEntryData',
+              as: 'timeentry',
+              cond: {
+                $and: [{
+                  $gte: ['$$timeentry.dateOfWork', pdtstart],
+                }, {
+                  $lte: ['$$timeentry.dateOfWork', pdtend],
+                }],
+              },
+            },
+          },
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntryData',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          personId: 1,
+          name: 1,
+          weeklyComittedHours: 1,
+          totalSeconds: {
+            $cond: [{
+              $gte: ['$timeEntryData.totalSeconds', 0],
+            }, '$timeEntryData.totalSeconds', 0],
+          },
+          isTangible: {
+            $cond: [{
+              $gte: ['$timeEntryData.totalSeconds', 0],
+            }, '$timeEntryData.isTangible', false],
+          },
+        },
+      },
+      {
+        $addFields: {
+          tangibletime: {
+            $cond: [{
+              $eq: ['$isTangible', true],
+            }, '$totalSeconds', 0],
+          },
+          intangibletime: {
+            $cond: [{
+              $eq: ['$isTangible', false],
+            }, '$totalSeconds', 0],
+          },
+        },
+      }, {
+        $group: {
+          _id: {
+            personId: '$personId',
+            weeklyComittedHours: '$weeklyComittedHours',
+            name: '$name',
+            firstName: '$firstName',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -294,7 +554,9 @@ const dashboardhelper = function () {
 
   return {
     personaldetails,
+    getUserLaborData,
     getLeaderboard,
+    getOrgData,
     laborthismonth,
     laborthisweek,
 

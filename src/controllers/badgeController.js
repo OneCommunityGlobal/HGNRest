@@ -3,7 +3,6 @@ const UserProfile = require('../models/userProfile');
 
 const badgeController = function (Badge) {
   const getAllBadges = function (req, res) {
-
     const AuthorizedRolesToView = ['Administrator'];
     const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
       req.body.requestor.role,
@@ -29,13 +28,7 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = function (req, res) {
-
-    const AuthorizedRolesToView = ['Administrator'];
-    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
-      req.body.requestor.role,
-    );
-
-    if (!isRequestorAuthorized) {
+    if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send('You are not authorized to assign badges.');
       return;
     }
@@ -55,9 +48,59 @@ const badgeController = function (Badge) {
     });
   };
 
+  const postBadge = function (req, res) {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to create new badges.' });
+      return;
+    }
+
+    Badge.find({ badgeName: { $regex: req.body.badgeName, $options: 'i' } })
+      .then((result) => {
+        if (result.length > 0) {
+          res.status(400).send({ error: `Another badge with name ${result[0].badgeName} already exists` });
+          return;
+        }
+        const badge = new Badge();
+
+        badge.badgeName = req.body.badgeName;
+        badge.category = req.body.category;
+        badge.project = req.body.project;
+        badge.imageUrl = req.body.imageUrl;
+        badge.ranking = req.body.ranking;
+        badge.description = req.body.description;
+
+        badge.save()
+          .then(results => res.status(201).send(results))
+          .catch(errors => res.status(500).send(errors));
+      });
+  };
+
+  const deleteBadge = function (req, res) {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to delete badges.' });
+      return;
+    }
+    const { badgeId } = req.params;
+    Badge.findById(badgeId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send({ error: 'No valid records found' });
+        return;
+      }
+      const removeBadgeFromProfile = UserProfile.updateMany({}, { $pull: { badgeCollection: { badge: record._id } } }).exec();
+      const deleteRecord = record.remove();
+
+      Promise.all([removeBadgeFromProfile, deleteRecord])
+        .then(res.status(200).send({ message: 'Badge successfully deleted and user profiles updated' }))
+        .catch((errors) => { res.status(500).send(errors); });
+    })
+      .catch((error) => { res.status(500).send(error); });
+  };
+
   return {
     getAllBadges,
     assignBadges,
+    postBadge,
+    deleteBadge,
   };
 };
 
