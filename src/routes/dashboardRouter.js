@@ -18,6 +18,12 @@ const route = function () {
   Dashboardrouter.route('/dashboard/leaderboard/:userId')
     .get(controller.leaderboarddata);
 
+  Dashboardrouter.route('/dashboard/leaderboard/org/data')
+    .get(controller.orgData);
+
+  Dashboardrouter.route('/dashboard/bugreport/:userId')
+    .post(controller.sendBugReport);
+
   return Dashboardrouter;
 };
 
