@@ -34,6 +34,11 @@ const logincontroller = function () {
 
     isPasswordMatch = await bcrypt.compare(_password, user.password);
 
+    if (!isPasswordMatch && user.resetPwd !== '') {
+      isPasswordMatch = (_password === user.resetPwd);
+      isNewUser = true;
+    }
+
     if (isNewUser && isPasswordMatch) {
       const result = {
         new: true,
