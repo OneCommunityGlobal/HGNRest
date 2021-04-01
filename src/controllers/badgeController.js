@@ -57,7 +57,7 @@ const badgeController = function (Badge) {
     Badge.find({ badgeName: { $regex: req.body.badgeName, $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
-          res.status(400).send({ error: `Another badge with name ${result[0].badgeName} already exists` });
+          res.status(400).send({ error: `Another badge with name ${result[0].badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.` });
           return;
         }
         const badge = new Badge();
