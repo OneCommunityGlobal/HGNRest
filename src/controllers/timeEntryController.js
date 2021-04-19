@@ -1,5 +1,7 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const emailSender = require('../utilities/emailSender');
 
 const formatseconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -11,6 +13,7 @@ const timeEntrycontroller = function (TimeEntry) {
   const getAllTimeEnteries = function (req, res) {
     TimeEntry.find((err, records) => {
       if (err) {
+        console.log(err);
         return res.status(404).send(err);
       }
       const items = [];
@@ -111,6 +114,30 @@ const timeEntrycontroller = function (TimeEntry) {
       .catch(error => res.status(400).send(error));
   };
 
+  const getEditedTimeEntryEmailBody = function getEditedTimeEntryEmailBody(firstName, lastName, original, final) {
+    let text = `
+    A time entry was edited for: ${firstName} ${lastName}.
+    The Entry was changed as follows:`;
+    const originalEntries = Object.entries(original);
+    for (let i = 0; i < originalEntries.length; i+=1) {
+      if (final[originalEntries[i]]) {
+        text += `<p>Original ${originalEntries[i]}:</p><p>${original[originalEntries[i]]}</p><p>Final ${originalEntries[i]}:</p>${final[originalEntries[i]]}`;
+      }
+    }
+    return text;
+  };
+
+  const sendEditedEntry = function sendEditedEntry(personId, original, final) {
+    try {
+    // get userId info
+      userProfile.findById(personId).then((response) => {
+        const emailBody = getEditedTimeEntryEmailBody(response.firstName, response.lastName, original, final);
+        emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited from ${response.firstName} ${response.lastName}`, emailBody);
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
   const editTimeEntry = function (req, res) {
     // Verify request body
@@ -141,6 +168,9 @@ const timeEntrycontroller = function (TimeEntry) {
         // verify that requestor is owner of timeentry or an administrator
 
         if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === 'Administrator') {
+          if (record.personId.toString() === req.body.requestor.requestorId.toString()) {
+            sendEditedEntry(record.personId.toString(), record, req.body);
+          }
           record.notes = req.body.notes;
           record.totalSeconds = moment.duration(timeSpent).asSeconds();
           record.isTangible = req.body.isTangible;
