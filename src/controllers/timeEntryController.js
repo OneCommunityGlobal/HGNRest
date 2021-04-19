@@ -114,25 +114,34 @@ const timeEntrycontroller = function (TimeEntry) {
       .catch(error => res.status(400).send(error));
   };
 
-  const getEditedTimeEntryEmailBody = function getEditedTimeEntryEmailBody(firstName, lastName, original, final) {
-    let text = `
-    A time entry was edited for: ${firstName} ${lastName}.
-    The Entry was changed as follows:`;
-    const originalEntries = Object.entries(original);
-    for (let i = 0; i < originalEntries.length; i+=1) {
-      if (final[originalEntries[i]]) {
-        text += `<p>Original ${originalEntries[i]}:</p><p>${original[originalEntries[i]]}</p><p>Final ${originalEntries[i]}:</p>${final[originalEntries[i]]}`;
-      }
-    }
+  const getEditedTimeEntryEmailBody = function getEditedTimeEntryEmailBody(firstName, lastName, email, original, finalTime, requestor) {
+    const formattedOriginal = moment.utc(original * 1000).format('HH[ hours ]mm[ minutes]');
+    const formattedFinal = moment.utc(finalTime * 1000).format('HH[ hours ]mm[ minutes]');
+    const text = `
+    A time entry was edited for ${firstName} ${lastName} with the following email: ${email}.
+    The Entry time was changed from [${formattedOriginal}] to [${formattedFinal}]
+    The entry was modified by user ${requestor.firstName} ${requestor.lastName} with the following email: ${requestor.email}`;
+
     return text;
   };
 
-  const sendEditedEntry = function sendEditedEntry(personId, original, final) {
+  const sendEditedEntry = function sendEditedEntry(personId, original, finalTime, final) {
     try {
     // get userId info
+      const originalTime = original.totalSeconds;
       userProfile.findById(personId).then((response) => {
-        const emailBody = getEditedTimeEntryEmailBody(response.firstName, response.lastName, original, final);
-        emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited from ${response.firstName} ${response.lastName}`, emailBody);
+        if (personId !== final.requestor.requestorId) {
+          userProfile.findById(final.requestor.requestorId).then((requestor) => {
+            const emailBody = getEditedTimeEntryEmailBody(response.firstName, response.lastName, response.email, originalTime, finalTime, requestor);
+            console.log(emailBody);
+            emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${response.firstName} ${response.lastName}`, emailBody);
+          });
+        } else {
+          const requestor = response;
+          const emailBody = getEditedTimeEntryEmailBody(response.firstName, response.lastName, response.email, originalTime, finalTime, requestor);
+          console.log(emailBody);
+          emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${response.firstName} ${response.lastName}`, emailBody);
+        }
       });
     } catch (error) {
       console.log(error);
@@ -164,15 +173,16 @@ const timeEntrycontroller = function (TimeEntry) {
         const hours = (req.body.hours) ? req.body.hours : '00';
         const minutes = (req.body.minutes) ? req.body.minutes : '00';
 
-        const timeSpent = `${hours}:${minutes}`;
+        const timeSpent = `${hours}:${minutes < 10 ? `0${minutes}` : minutes}`;
         // verify that requestor is owner of timeentry or an administrator
 
         if (record.personId.toString() === req.body.requestor.requestorId.toString() || req.body.requestor.role === 'Administrator') {
-          if (record.personId.toString() === req.body.requestor.requestorId.toString()) {
-            sendEditedEntry(record.personId.toString(), record, req.body);
+          const totalSeconds = moment.duration(timeSpent).asSeconds();
+          if (totalSeconds !== record.totalSeconds) {
+            sendEditedEntry(record.personId.toString(), record, totalSeconds, req.body);
           }
           record.notes = req.body.notes;
-          record.totalSeconds = moment.duration(timeSpent).asSeconds();
+          record.totalSeconds = totalSeconds;
           record.isTangible = req.body.isTangible;
           record.editCount = req.body.editCount;
           record.lastModifiedDateTime = moment().utc().toISOString();
