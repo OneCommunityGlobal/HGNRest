@@ -13,7 +13,7 @@ const timeEntrycontroller = function (TimeEntry) {
   const getAllTimeEnteries = function (req, res) {
     TimeEntry.find((err, records) => {
       if (err) {
-        console.log(err);
+        // console.log(err);
         return res.status(404).send(err);
       }
       const items = [];
@@ -133,18 +133,18 @@ const timeEntrycontroller = function (TimeEntry) {
         if (personId !== final.requestor.requestorId) {
           userProfile.findById(final.requestor.requestorId).then((requestor) => {
             const emailBody = getEditedTimeEntryEmailBody(response.firstName, response.lastName, response.email, originalTime, finalTime, requestor);
-            console.log(emailBody);
+            // console.log(emailBody);
             emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${response.firstName} ${response.lastName}`, emailBody);
           });
         } else {
           const requestor = response;
           const emailBody = getEditedTimeEntryEmailBody(response.firstName, response.lastName, response.email, originalTime, finalTime, requestor);
-          console.log(emailBody);
+          // console.log(emailBody);
           emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${response.firstName} ${response.lastName}`, emailBody);
         }
       });
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   };
 
