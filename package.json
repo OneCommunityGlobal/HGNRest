@@ -7,6 +7,7 @@
     "test": "test",
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
+    "buildw": "babel src -d dist --watch",
     "start": "node dist/server.js",
     "serve": "node src/server.js"
   },
