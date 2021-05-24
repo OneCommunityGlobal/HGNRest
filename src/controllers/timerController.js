@@ -43,9 +43,16 @@ const timerController = function (Timer) {
         return res.status(500).send(error);
       }
       if (record === null) {
+        if (req.body.requestor.requestorId === userId) {
+          const newRecord = {
+            userId,
+            pausedAt: 0,
+            isWorking: false,
+          };
+          return Timer.create(newRecord).then(result => res.status(200).send(result)).catch(() => res.status(400).send('Timer record not found for the given user ID'));
+        }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-
       return res.status(200).send(record);
     });
   };

@@ -104,7 +104,9 @@ const taskNotificationHelper = function () {
           newTaskNotification.newTaskInfos.newEndstateInfo = '';
         }
 
-        TaskNotification.findByIdAndDelete(notification._id).catch(error => console.error(error));
+        TaskNotification.findByIdAndDelete(notification._id).catch((error) => {
+          console.error(error)
+        });
       } else {
         newTaskNotification.oldTaskInfos = { ...oldTaskInfosConst };
         newTaskNotification.newTaskInfos = newInfo;
