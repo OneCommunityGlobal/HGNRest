@@ -39,7 +39,7 @@ const timerController = function (Timer) {
   const getTimer = function (req, res) {
     const { userId } = req.params;
 
-    Timer.findOne({ userId }, (error, record) => {
+    Timer.findOne({ userId }).lean().exec((error, record) => {
       if (error) {
         return res.status(500).send(error);
       }
@@ -54,8 +54,8 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-      const passed = (record.started ? Math.floor((Date.now() - record.started) / 1000) : 0) + record.pausedAt;
-      return res.status(200).send({ passed, ...record });
+      record.passed = (record.started ? Math.floor((Date.now() - record.started) / 1000) : 0) + record.pausedAt;
+      return res.status(200).send(record);
     });
   };
 
