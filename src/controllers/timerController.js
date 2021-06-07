@@ -7,6 +7,7 @@ const timerController = function (Timer) {
       $set: {
         pausedAt: req.body.pausedAt,
         isWorking: req.body.isWorking,
+        started: req.body.isWorking ? Date.now() : null,
       },
     };
     const options = {
