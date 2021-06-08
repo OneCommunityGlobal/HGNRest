@@ -54,7 +54,7 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-      record.passed = (record.started ? Math.floor((Date.now() - record.started) / 1000) : 0) + record.pausedAt;
+      record.seconds = (record.started ? Math.floor((Date.now() - record.started) / 1000) : 0) + record.pausedAt;
       return res.status(200).send(record);
     });
   };
