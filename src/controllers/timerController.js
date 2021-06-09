@@ -39,17 +39,10 @@ const timerController = function (Timer) {
 
   const seconds = timer => (timer.started ? Math.floor((Date.now() - timer.started) / 1000) : 0) + timer.pausedAt;
 
-  const touch = (userId) => {
-    Timer.findOneAndUpdate(
-      { userId },
-      { $set: { lastAccess: Date.now() }}
-    );
-  };
-
   const getTimer = function (req, res) {
     const { userId } = req.params;
 
-    Timer.findOne({ userId }).lean().exec((error, record) => {
+    Timer.findOneAndUpdate({ userId }, { lastAccess: Date.now() }).lean().exec((error, record) => {
       if (error) {
         return res.status(500).send(error);
       }
@@ -65,7 +58,6 @@ const timerController = function (Timer) {
         return res.status(400).send('Timer record not found for the given user ID');
       }
       record.seconds = seconds(record);
-      touch(record.userId);
       return res.status(200).send(record);
     });
   };
