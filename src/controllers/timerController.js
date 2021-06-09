@@ -37,12 +37,36 @@ const timerController = function (Timer) {
     });
   };
 
-  const seconds = timer => (timer.started ? Math.floor((Date.now() - timer.started) / 1000) : 0) + timer.pausedAt;
+  const fiveMin = 5 * 60 * 1000;
+
+  const timePassed = (timer) => {
+    if (!timer.started) { return 0; }
+    const now = timer.timedOut ? timer.lastAccess : Date.now();
+    return Math.floor((now - timer.started) / 1000);
+  }
+
+  const adjust = (timer) => {
+
+    timer.timedOut = timer.lastAccess && (Date.now() - timer.lastAccess > fiveMin);
+    timer.seconds = timer.pausedAt + timePassed(timer);
+
+    const update = timer.timedOut ? {
+      isWorking: false,
+      pauseAt: timer.seconds,
+      started: null
+    } : {
+      lastAccess: Date.now()
+    };
+
+    Timer.findOneAndUpdate({ userId: timer.userId }, update);
+
+    return timer;
+  }
 
   const getTimer = function (req, res) {
     const { userId } = req.params;
 
-    Timer.findOneAndUpdate({ userId }, { lastAccess: Date.now() }).lean().exec((error, record) => {
+    Timer.findOne({ userId }).lean().exec((error, record) => {
       if (error) {
         return res.status(500).send(error);
       }
@@ -57,8 +81,7 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-      record.seconds = seconds(record);
-      return res.status(200).send(record);
+      return res.status(200).send(adjust(record));
     });
   };
 
