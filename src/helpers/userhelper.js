@@ -185,19 +185,24 @@ const userhelper = function () {
    */
   const assignBlueSquareforTimeNotMet = function () {
     timeoutMS = 0;
+    
     logger.logInfo(
       `Job for assigning blue square for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
         .format()}`,
     );
+    
     const pdtStartOfLastWeek = moment()
+      .locale('en')
       .tz('America/Los_Angeles')
       .startOf('week')
       .subtract(1, 'week');
     const pdtEndOfLastWeek = moment()
+      .locale('en')
       .tz('America/Los_Angeles')
       .endOf('week')
       .subtract(1, 'week');
+      
     userProfile
       .find(
         {
