@@ -37,8 +37,6 @@ const timerController = function (Timer) {
     });
   };
 
-  const fiveMin = 5 * 60 * 1000;
-
   const timePassed = (timer) => {
     if (!timer.started) { return 0; }
     const now = timer.timedOut ? timer.lastAccess : Date.now();
@@ -47,18 +45,28 @@ const timerController = function (Timer) {
 
   const adjust = (timer) => {
 
-    timer.timedOut = timer.lastAccess && (Date.now() - timer.lastAccess > fiveMin);
+    const oneMin = 60 * 1000;
+    const fiveMin = 5 * oneMin;
+    const timeSinceLastAccess = timer.lastAccess && (Date.now() - timer.lastAccess);
+    const setLastAccess = !timer.lastAccess || (timeSinceLastAccess > oneMin);
+
+    timer.timedOut = timeSinceLastAccess > fiveMin;
     timer.seconds = timer.pausedAt + timePassed(timer);
 
-    const update = timer.timedOut ? {
-      isWorking: false,
-      pauseAt: timer.seconds,
-      started: null
-    } : {
-      lastAccess: Date.now()
-    };
+    if (timer.timedOut) {
 
-    Timer.findOneAndUpdate({ userId: timer.userId }, update);
+      Timer.findOneAndUpdate({ userId: timer.userId }, {
+        isWorking: false,
+        pauseAt: timer.seconds,
+        started: null,
+        lastAccess: Date.now()
+      })
+
+    } else if (setLastAccess) {
+
+      Timer.findOneAndUpdate({ userId: timer.userId }, {lastAccess: Date.now()})
+
+    }
 
     return timer;
   }
