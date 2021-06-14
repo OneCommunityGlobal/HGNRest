@@ -41,10 +41,9 @@ const timerController = function (Timer) {
     if (!timer.started) { return 0; }
     const now = timer.timedOut ? timer.lastAccess : Date.now();
     return Math.floor((now - timer.started) / 1000);
-  }
+  };
 
-  const adjust = (timer) => {
-
+  const adjust = (timer, cb) => {
     const oneMin = 60 * 1000;
     const fiveMin = 5 * oneMin;
     const timeSinceLastAccess = timer.lastAccess ? (Date.now() - timer.lastAccess) : 0;
@@ -54,22 +53,18 @@ const timerController = function (Timer) {
     timer.seconds = timer.pausedAt + timePassed(timer);
 
     if (timer.timedOut) {
-
-      Timer.findOneAndUpdate({ userId: timer.userId }, {
+      return Timer.findOneAndUpdate({ userId: timer.userId }, {
         isWorking: false,
         pauseAt: timer.seconds,
         started: null,
-        lastAccess: Date.now()
-      })
-
-    } else if (setLastAccess) {
-
-      Timer.findOneAndUpdate({ userId: timer.userId }, {lastAccess: Date.now()})
-
+        lastAccess: Date.now(),
+      }).then(() => cb(timer));
+    } if (setLastAccess) {
+      return Timer.findOneAndUpdate({ userId: timer.userId }, { lastAccess: Date.now() }).then(() => cb(timer));
     }
 
-    return timer;
-  }
+    cb(timer);
+  };
 
   const getTimer = function (req, res) {
     const { userId } = req.params;
@@ -89,7 +84,7 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-      return res.status(200).send(adjust(record));
+      adjust(record, (timer) => { res.status(200).send(timer)});
     });
   };
 
