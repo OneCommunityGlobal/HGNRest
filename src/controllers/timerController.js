@@ -7,6 +7,8 @@ const timerController = function (Timer) {
       $set: {
         pausedAt: req.body.pausedAt,
         isWorking: req.body.isWorking,
+        started: req.body.isWorking ? Date.now() : null,
+        lastAccess: Date.now(),
       },
     };
     const options = {
@@ -35,10 +37,40 @@ const timerController = function (Timer) {
     });
   };
 
+  const timePassed = (timer) => {
+    if (!timer.started) { return 0; }
+    const now = timer.timedOut ? timer.lastAccess : Date.now();
+    return Math.floor((now - timer.started) / 1000);
+  };
+
+  const adjust = (timer, cb) => {
+    const oneMin = 60 * 1000;
+    const fiveMin = 5 * oneMin;
+    const timeSinceLastAccess = timer.lastAccess ? (Date.now() - timer.lastAccess) : 0;
+    const setLastAccess = !timer.lastAccess || (timeSinceLastAccess > oneMin);
+
+    timer.timedOut = timer.isWorking && (timeSinceLastAccess > fiveMin);
+    timer.seconds = timer.pausedAt + timePassed(timer);
+
+    if (timer.timedOut) {
+      return Timer.findOneAndUpdate({ userId: timer.userId }, {
+        isWorking: false,
+        pauseAt: timer.seconds,
+        started: null,
+        lastAccess: Date.now(),
+      }).then(() => cb(timer));
+    }
+    if (setLastAccess) {
+      return Timer.findOneAndUpdate({ userId: timer.userId }, { lastAccess: Date.now() }).then(() => cb(timer));
+    }
+
+    return cb(timer);
+  };
+
   const getTimer = function (req, res) {
     const { userId } = req.params;
 
-    Timer.findOne({ userId }, (error, record) => {
+    Timer.findOne({ userId }).lean().exec((error, record) => {
       if (error) {
         return res.status(500).send(error);
       }
@@ -53,7 +85,9 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-      return res.status(200).send(record);
+      return adjust(record, (timer) => { res.status(200).send(timer); });
+
+      // return res.status(200).send(record);
     });
   };
 
