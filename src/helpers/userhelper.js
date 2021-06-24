@@ -255,11 +255,12 @@ const userhelper = function () {
                     },
                   }, { new: true })
                   .then((status) => {
+                    console.log(status);
                     if (process.env.sendEmail) {
                       timeoutMS += 500;
                       setTimeout(() => {
                         emailSender(
-                          status.email,
+                          'chrisweilacker@gmail.com',
                           'New Infringment Assigned',
                           getInfringmentEmailBody(
                             status.firstName,
@@ -365,6 +366,10 @@ const userhelper = function () {
     });
   };
 
+  const awardNewBadges = function () {
+
+  };
+
   return {
     getUserName,
     getTeamMembers,
@@ -375,6 +380,7 @@ const userhelper = function () {
     notifyInfringments,
     getInfringmentEmailBody,
     emailWeeklySummariesForAllUsers,
+    awardNewBadges,
   };
 };
 

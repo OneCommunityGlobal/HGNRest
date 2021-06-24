@@ -73,6 +73,8 @@ const userProfileSchema = new Schema({
   endDate: { type: Date, required: false },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
+  personalBestMaxHrs: { type: Number },
+  totalTangibleHrs: { type: Number },
 });
 
 userProfileSchema.pre('save', function (next) {
