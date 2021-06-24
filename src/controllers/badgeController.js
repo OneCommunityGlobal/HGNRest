@@ -96,11 +96,51 @@ const badgeController = function (Badge) {
       .catch((error) => { res.status(500).send(error); });
   };
 
+  const putBadge = function (req, res) {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to update badges.' });
+      return;
+    }
+    const { badgeId } = req.params;
+    const imageUrl = null;
+
+    // If has req.body.file than upload image and insert that url
+    // into imageUrl
+    if (req.body.file) {
+      // call imageUpload function
+      // store onto Azure and return url
+    }
+
+
+    const data = {
+      name: req.body.name,
+      description: req.body.description,
+      type: req.body.type,
+      multiple: req.body.multiple,
+      totalHrs: req.body.totalHrs,
+      people: req.body.people,
+      category: req.body.category,
+      project: req.body.project,
+      imageUrl: imageUrl || req.body.imageUrl,
+      ranking: req.body.ranking,
+    };
+
+    Badge.findByIdAndUpdate(badgeId, data, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send({ error: 'No valid records found' });
+        return;
+      }
+      record.update();
+    }).then(res.status(200).send({ message: 'Badge successfully deleted and user profiles updated' }))
+      .catch((errors) => { res.status(500).send(errors); });
+  };
+
   return {
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
+    putBadge,
   };
 };
 

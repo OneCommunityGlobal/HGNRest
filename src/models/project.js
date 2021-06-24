@@ -7,6 +7,7 @@ const projectschema = new Schema({
   isActive: { type: Boolean, default: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
+  category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other', 'Unspecified'] },
 });
 
 module.exports = mongoose.model('project', projectschema, 'projects');
