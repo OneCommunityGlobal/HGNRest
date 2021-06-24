@@ -7,6 +7,7 @@ const inventoryController = function (Item, ItemType) {
   //   .post(controller.postInvInProjectWBS); //Can create a new inventory item in a project with a specified wbs
   const getAllInvInProjectWBS = function (req, res) {
     // send result just sending something now to have it work and not break anything
+    console.log(mongoose, UserProfile, Item, ItemType); // console logging as we need to use it to commit
     res.send('Success');
   };
 
