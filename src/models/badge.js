@@ -6,6 +6,7 @@ const Badge = new Schema({
   badgeName: { type: String, required: true },
   type: { type: String, enum: ['No Infringement Streak', 'Minimum Hours Multiple', 'Personal Max', 'Most Hrs in Week', 'X Hours for X Week Streak', 'Lead a team of X+', 'Total Hrs in Category', 'Custom'], default: 'Total Hrs in Category' },
   multiple: { type: Number },
+  weeks: { type: Number },
   totalHrs: { type: Number },
   people: { type: Number },
   category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other'], default: 'Other' },

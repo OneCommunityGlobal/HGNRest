@@ -22,7 +22,8 @@ const routes = function (item, itemType) {
     .put(controller.transferInvById);
 
   inventoryRouter.route('/invwaste/:invId') // Waste some or all of the inventory
-    .delete(controller.putInvById);
+    .put(controller.unWasteInvById)
+    .delete(controller.delInvById);
 
   inventoryRouter.route('/inv/:projectId') // All By Project seperated into WBS (wbs can be nill which is the unassigned category)
     .get(controller.getAllInvInProject)
