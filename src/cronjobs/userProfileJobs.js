@@ -4,7 +4,7 @@ const userhelper = require('../helpers/userhelper')();
 
 const userProfileScheduledJobs = function () {
   const assignBlueSquare = new CronJob(
-    '4 0 * * 0',
+    '2 0 * * 0',
     userhelper.assignBlueSquareforTimeNotMet,
     null,
     false,

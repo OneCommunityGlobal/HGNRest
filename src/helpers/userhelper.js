@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
 const userProfile = require('../models/userProfile');
+//const badge = require('../models/badge');
 const myteam = require('../helpers/helperModels/myTeam');
 const dashboardhelper = require('../helpers/dashboardhelper')();
 const reporthelper = require('../helpers/reporthelper')();
@@ -184,7 +185,7 @@ const userhelper = function () {
    *      and increment the weeklySummariesCount for valud submissions.
    */
   const assignBlueSquareforTimeNotMet = function () {
-    timeoutMS = 0;
+    timeoutMS = 200000;
     logger.logInfo(
       `Job for assigning blue square for commitment not met starting at ${moment()
         .tz('America/Los_Angeles')
@@ -206,7 +207,7 @@ const userhelper = function () {
         '_id weeklySummaries',
       )
       .then((users) => {
-        users.forEach((user) => {
+        users.forEach(async (user) => {
           const {
             _id, weeklySummaries,
           } = user;
@@ -214,20 +215,20 @@ const userhelper = function () {
 
           let hasWeeklySummary = false;
           if (Array.isArray(weeklySummaries) && weeklySummaries.length) {
-            const { dueDate, summary } = weeklySummaries[0];
-            const fromDate = moment(pdtStartOfLastWeek).toDate();
-            const toDate = moment(pdtEndOfLastWeek).toDate();
-            if (summary && moment(dueDate).isBetween(fromDate, toDate, undefined, '[]')) {
+            const { summary } = weeklySummaries[0];
+            // const fromDate = moment(pdtStartOfLastWeek).toDate();
+            // const toDate = moment(pdtEndOfLastWeek).toDate();
+            if (summary) {
               hasWeeklySummary = true;
             }
           }
 
           //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-          processWeeklySummariesByUserId(personId, hasWeeklySummary);
+          await processWeeklySummariesByUserId(personId, hasWeeklySummary);
 
-          dashboardhelper
+          await dashboardhelper
             .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
-            .then((results) => {
+            .then(async (results) => {
               const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
               const timeNotMet = (timeSpent < weeklyComittedHours);
               let description;
@@ -248,8 +249,12 @@ const userhelper = function () {
                   description,
                 };
 
-                userProfile
+                await userProfile
                   .findByIdAndUpdate(personId, {
+                    $inc: {
+                      personalBestMaxHrs: timeSpent || 0,
+                      totalTangibleHrs: timeSpent || 0,
+                    },
                     $push: {
                       infringments: infringment,
                     },
@@ -260,7 +265,7 @@ const userhelper = function () {
                       timeoutMS += 500;
                       setTimeout(() => {
                         emailSender(
-                          'chrisweilacker@gmail.com',
+                          status.email,
                           'New Infringment Assigned',
                           getInfringmentEmailBody(
                             status.firstName,
@@ -278,9 +283,56 @@ const userhelper = function () {
               }
             })
             .catch(error => logger.logException(error));
+
+
+          await dashboardhelper
+            .laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
+            .then(async (categories) => {
+              if (Array.isArray(categories) && categories.length > 0) {
+                await userProfile
+                  .findOneAndUpdate({ _id: personId, categoryTangibleHrs: { $exists: false } },
+                    { $set: { categoryTangibleHrs: [] } });
+              } else {
+                return;
+              }
+              categories.forEach(async (elem) => {
+                if (elem._id == null) {
+                  elem._id = 'Other';
+                }
+                await userProfile
+                  .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': elem._id },
+                    { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } }, { new: true }).then(async (result) => {
+                    if (result) {
+
+                    } else {
+                      await userProfile
+                        .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': { $ne: elem._id } },
+                          { $addToSet: { categoryTangibleHrs: { category: elem._id, hrs: elem.timeSpent_hrs } } });
+                    }
+                  });
+              });
+            });
         });
       })
       .catch(error => logger.logException(error));
+
+    // processWeeklySummaries for nonActive users
+    userProfile
+      .find(
+        {
+          isActive: false,
+        },
+        '_id',
+      )
+      .then((users) => {
+        users.forEach(async (user) => {
+          const {
+            _id,
+          } = user;
+          const personId = mongoose.Types.ObjectId(_id);
+          await processWeeklySummariesByUserId(personId, false);
+        });
+      });
   };
 
   const deleteBlueSquareAfterYear = function () {
@@ -367,7 +419,26 @@ const userhelper = function () {
   };
 
   const awardNewBadges = function () {
+    // getBadges User Has By Type
+    userProfile
+      .find(
+        {
+          isActive: true,
+        },
+        '_id badgeCollection',
+      )
+      .then((users) => {
+        users.forEach(async (user) => {
+          const {
+            _id, badgeCollection,
+          } = user;
+          const personId = mongoose.Types.ObjectId(_id);
+        });
+      });
+  };
 
+  const getBadgesByUserbyType = function () {
+    return;
   };
 
   return {

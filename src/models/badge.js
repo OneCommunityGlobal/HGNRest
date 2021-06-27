@@ -9,7 +9,7 @@ const Badge = new Schema({
   weeks: { type: Number },
   totalHrs: { type: Number },
   people: { type: Number },
-  category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other'], default: 'Other' },
+  category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other', 'Unspecified'], default: 'Other' },
   project: { type: Schema.Types.ObjectId, ref: 'project' },
   imageUrl: { type: String },
   ranking: { type: Number },
