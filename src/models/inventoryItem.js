@@ -6,7 +6,12 @@ const InventoryItem = new Schema({
   quantity: { type: Number, required: true },
   poNums: [{ type: String }],
   cost: { type: Number },
-  costPer: { type: Number },
+  costPer: {
+    type: Number,
+    default() {
+      return this.cost / this.quantity;
+    },
+  },
   notes: [{
     quantity: { type: Number },
     typeOfMovement: { type: String },
