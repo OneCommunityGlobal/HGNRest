@@ -203,6 +203,7 @@ const userhelper = function () {
       .find(
         {
           isActive: true,
+          _id: mongoose.Types.ObjectId('607b0ff930d5080017c0adad')
         },
         '_id weeklySummaries',
       )
@@ -257,9 +258,9 @@ const userhelper = function () {
                     $max: {
                       personalBestMaxHrs: timeSpent || 0,
                     },
-                    $push: {
-                      infringments: infringment,
-                    },
+                    // $push: {
+                    //   infringments: infringment,
+                    // },
                     $set: {
                       lastWeekTangibleHrs: timeSpent || 0,
                     },
@@ -422,38 +423,61 @@ const userhelper = function () {
   };
 
   const replaceBadge = async function (personId, oldBadgeId, newBadgeId) {
-    userProfile.findOneAndUpdate({ _id: personId, 'badgeCollection.badge': oldBadgeId },
-      { $set: { 'badgeCollection.$.badge': newBadgeId, 'badgeCollection.$.lastModified': Date.now().toString(), 'badgeCollection.$.count': 1 } });
+    console.log("Replacing Badge", personId, oldBadgeId, newBadgeId);
+    userProfile.updateOne({ _id: personId, 'badgeCollection.badge': oldBadgeId },
+      { $set: { 'badgeCollection.$.badge': newBadgeId, 'badgeCollection.$.lastModified': Date.now().toString(), 'badgeCollection.$.count': 1} }, 
+      function(err)
+      {
+        if (err) {
+          console.log(err);
+        }
+      });
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    userProfile.findOneAndUpdate({ _id: personId, 'badgeCollection.badge': badgeId },
-      { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } });
+    console.log("Increase Badge Count", personId, badgeId);
+    userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
+      { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } }, 
+      function(err)
+      {
+        if (err) {
+          console.log(err);
+        }
+      });
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
-    userProfile.findOneAndUpdate({ _id: personId, 'badgeCollection.badge': badgeId },
-      { $set: { 'badgeCollection.$.count': count, 'badgeCollection.$.lastModified': Date.now().toString() } });
+    console.log("Changing Badge Count", personId, badgeId, count);
+    userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
+      { $set: { 'badgeCollection.$.count': count, 'badgeCollection.$.lastModified': Date.now().toString() } }, 
+      function(err)
+      {
+        if (err) {
+          console.log(err);
+        }
+      });
   };
 
   const addBadge = async function (personId, badgeId, count = 1, featured = false) {
+    console.log("Adding Badge ", personId, badgeId, count);
     userProfile.findByIdAndUpdate(personId,
       {
-        badgeCollection:
-        {
           $push:
           {
-            badge: badgeId, count, featured, lastModified: Date.now().toString(),
+            badgeCollection: {badge: badgeId, count: count, featured: featured, lastModified: Date.now().toString()},
           },
-        },
-      });
+      }, function (err) {
+        if (err) {
+          console.log(err);
+        }
+      })
   };
 
   //   'No Infringement Streak',
   const checkNoInfringementStreak = async function (personId, user, badgeCollection) {
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge.type === 'No Infringement Streak') {
+      if (badgeCollection[i].badge?.type === 'No Infringement Streak') {
         badgeOfType = badgeCollection[i].badge;
         break;
       }
@@ -466,21 +490,24 @@ const userhelper = function () {
           return;
         }
 
-        results.forEach((elem) => {
+        results.every((elem) => {
         // Cannot handle greater than 12 months due to data loss
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-              if (user.infringements.length === 0 || moment().diff(moment(user.infringements[user.ifnringements.length - 1].date, 'months', true) >= elem.months)) {
+              if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
                 if (badgeOfType) {
-                  if (badgeOfType._id !== elem._id) {
-                    replaceBadge(personId, badgeOfType._id, elem._id);
+                  if (badgeOfType._id.toString() !== elem._id.toString()) {
+                    replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
                   }
+                  return false;
                 } else {
-                  addBadge(personId, elem._id);
+                  addBadge(personId, mongoose.Types.ObjectId(elem._id));
+                  return false;
                 }
               }
             }
           }
+          return true;
         });
       });
   };
@@ -488,8 +515,8 @@ const userhelper = function () {
   // 'Minimum Hours Multiple',
   const checkMinHoursMultiple = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
-    for (let i = 0; i < badgeCollection.length; i+=1) {
-      if (badgeCollection[i].badge.type === 'Minimum Hours Multiple') {
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'Minimum Hours Multiple') {
         badgesOfType.push(badgeCollection[i].badge);
       }
     }
@@ -502,19 +529,19 @@ const userhelper = function () {
         }
 
         results.forEach((elem) => {
-          if (user.lastWeekTangibleHrs / user.weeklyComittedHours >= elem.multiple) {
+          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) {
             let theBadge;
             for (let i = 0; i < badgesOfType.length; i += 1) {
-              if (badgesOfType[i]._id === elem._id) {
+              if (badgesOfType[i]._id.toString() === elem._id.toString()) {
                 theBadge = badgesOfType[i]._id;
                 break;
               }
             }
 
             if (theBadge) {
-              increaseBadgeCount(personId, theBadge);
+              increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
             } else {
-              addBadge(personId, elem._id);
+              addBadge(personId, mongoose.Types.ObjectId(elem._id));
             }
           }
         });
@@ -525,7 +552,7 @@ const userhelper = function () {
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge.type === 'Personal Max') {
+      if (badgeCollection[i].badge?.type === 'Personal Max') {
         badgeOfType = badgeCollection[i].badge;
         break;
       }
@@ -535,9 +562,9 @@ const userhelper = function () {
         console.log(results);
         if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs === user.personalBestMaxHrs) {
           if (badgeOfType) {
-            changeBadgeCount(personId, badgeOfType._id, user.personalBestMaxHrs);
+            changeBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id), user.personalBestMaxHrs);
           } else {
-            addBadge(personId, results._id, user.personalBestMaxHrs);
+            addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
           }
         }
       });
@@ -546,8 +573,8 @@ const userhelper = function () {
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
     let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i+=1) {
-      if (badgeCollection[i].badge.type === 'Most Hrs in Week') {
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'Most Hrs in Week') {
         badgeOfType = badgeCollection[i].badge;
         break;
       }
@@ -557,13 +584,14 @@ const userhelper = function () {
         console.log(results);
         userProfile.aggregate([
           { $match: { isActive: true } },
-          { $group: { _id: 1, maxHours: { $max: '$weeklyCommittedHours' } } },
+          { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
         ]).then((userResults) => {
-          if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= userResults.maxHours) {
+          console.log('userresults', userResults);
+          if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= userResults[0].maxHours) {
             if (badgeOfType) {
-              increaseBadgeCount(personId, badgeOfType._id);
+              increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
             } else {
-              addBadge(personId, results._id);
+              addBadge(personId, mongoose.Types.ObjectId(results._id));
             }
           }
         });
@@ -572,17 +600,58 @@ const userhelper = function () {
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    return (personId, user, badgeCollection)
+    return (personId, user, badgeCollection);
   };
 
   // 'Lead a team of X+'
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
-    return (personId, user, badgeCollection)
+    if (!['Manager', 'Administrator', 'Core Team'].includes(user.role)) {
+      return;
+    }
+    let teamMembers
+    await getTeamMembers({
+      _id: personId,
+    }).then((results)=>{
+      teamMembers = results;
+      return;
+    });
+    console.log('Team Members', teamMembers);
+    let badgeOfType;
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'No Infringement Streak') {
+        badgeOfType = badgeCollection[i].badge;
+        break;
+      }
+    }
+    
+    badge.find({ type: 'Lead a team of X+' })
+      .sort({ people: -1 })
+      .then((results) => {
+        console.log(results);
+        if (!Array.isArray(results) || !results.length) {
+          return;
+        }
+
+        results.every((elem) => {
+          if (teamMembers.length >= elem.people) {
+            if (badgeOfType) {
+              if (badgeOfType._id.toString() !== elem._id.toString() && badgeOfType.people < elem.people) {
+                replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
+              }
+              return false;
+            } else {
+              addBadge(personId, mongoose.Types.ObjectId(elem._id));
+              return false;
+            }
+          }
+          return true;
+        });
+      });
   };
 
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
-    return (personId, user, badgeCollection)
+    return (personId, user, badgeCollection);
   };
 
   // const checkNoInfringementStreak = async function  (personId, user, badgeCollection) {
@@ -641,6 +710,7 @@ const userhelper = function () {
       .find(
         {
           isActive: true,
+          _id: mongoose.Types.ObjectId('607b0ff930d5080017c0adad')
         },
       ).populate('badgeCollection.badge')
       .then((users) => {
