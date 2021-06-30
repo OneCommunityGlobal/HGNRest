@@ -2,7 +2,7 @@ import { CronJob } from 'cron';
 
 const userhelper = require('../helpers/userhelper')();
 
-//Testing remove
+// Testing remove
 // userhelper.assignBlueSquareforTimeNotMet();
 // setTimeout(()=>{
 //   userhelper.awardNewBadges();
@@ -40,7 +40,7 @@ const userProfileScheduledJobs = function () {
     false,
     'America/Los_Angeles',
   );
-                                                 
+
   const updateUserStatusToActive = new CronJob(
     '1 0 * * *', // Run this every day, 1 minute after mimdnight (PST).
     userhelper.reActivateUser,

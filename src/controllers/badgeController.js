@@ -15,12 +15,13 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName imageUrl category project ranking description',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description',
     ).populate({
       path: 'project',
       select: '_id projectName',
     })
       .sort({
+        ranking: 1,
         badgeName: 1,
       })
       .then(results => res.status(200).send(results))
@@ -64,6 +65,11 @@ const badgeController = function (Badge) {
 
         badge.badgeName = req.body.badgeName;
         badge.category = req.body.category;
+        badge.type = req.body.type;
+        badge.multiple = req.body.multiple;
+        badge.weeks = req.body.weeks;
+        badge.months = req.body.months;
+        badge.people = req.body.people;
         badge.project = req.body.project;
         badge.imageUrl = req.body.imageUrl;
         badge.ranking = req.body.ranking;
@@ -113,13 +119,15 @@ const badgeController = function (Badge) {
 
 
     const data = {
-      name: req.body.name,
+      badgeName: req.body.name || req.body.badgeName,
       description: req.body.description,
       type: req.body.type,
       multiple: req.body.multiple,
       totalHrs: req.body.totalHrs,
       people: req.body.people,
       category: req.body.category,
+      months: req.body.months,
+      weeks: req.body.weeks,
       project: req.body.project,
       imageUrl: imageUrl || req.body.imageUrl,
       ranking: req.body.ranking,
