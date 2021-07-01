@@ -15,12 +15,13 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName imageUrl category project ranking description',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description',
     ).populate({
       path: 'project',
       select: '_id projectName',
     })
       .sort({
+        ranking: 1,
         badgeName: 1,
       })
       .then(results => res.status(200).send(results))
@@ -64,6 +65,11 @@ const badgeController = function (Badge) {
 
         badge.badgeName = req.body.badgeName;
         badge.category = req.body.category;
+        badge.type = req.body.type;
+        badge.multiple = req.body.multiple;
+        badge.weeks = req.body.weeks;
+        badge.months = req.body.months;
+        badge.people = req.body.people;
         badge.project = req.body.project;
         badge.imageUrl = req.body.imageUrl;
         badge.ranking = req.body.ranking;
@@ -96,11 +102,53 @@ const badgeController = function (Badge) {
       .catch((error) => { res.status(500).send(error); });
   };
 
+  const putBadge = function (req, res) {
+    if (req.body.requestor.role !== 'Administrator') {
+      res.status(403).send({ error: 'You are not authorized to update badges.' });
+      return;
+    }
+    const { badgeId } = req.params;
+    const imageUrl = null;
+
+    // If has req.body.file than upload image and insert that url
+    // into imageUrl
+    if (req.body.file) {
+      // call imageUpload function
+      // store onto Azure and return url
+    }
+
+
+    const data = {
+      badgeName: req.body.name || req.body.badgeName,
+      description: req.body.description,
+      type: req.body.type,
+      multiple: req.body.multiple,
+      totalHrs: req.body.totalHrs,
+      people: req.body.people,
+      category: req.body.category,
+      months: req.body.months,
+      weeks: req.body.weeks,
+      project: req.body.project,
+      imageUrl: imageUrl || req.body.imageUrl,
+      ranking: req.body.ranking,
+    };
+
+    Badge.findByIdAndUpdate(badgeId, data, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send({ error: 'No valid records found' });
+        return;
+      }
+      record.update();
+    }).then(res.status(200).send({ message: 'Badge successfully deleted and user profiles updated' }))
+      .catch((errors) => { res.status(500).send(errors); });
+  };
+
   return {
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
+    putBadge,
   };
 };
 

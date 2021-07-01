@@ -546,11 +546,98 @@ const dashboardhelper = function () {
         },
       },
     },
-
-
     ]);
   };
 
+  const laborThisWeekByCategory = function (userId, startDate, endDate) {
+    const fromdate = moment(startDate).format('YYYY-MM-DD');
+    const todate = moment(endDate).format('YYYY-MM-DD');
+
+    return userProfile.aggregate([{
+      $match: {
+        _id: userId,
+      },
+    },
+    {
+      $project: {
+        weeklyComittedHours: 1,
+        _id: 1,
+      },
+    },
+    {
+      $lookup: {
+        from: 'timeEntries',
+        localField: '_id',
+        foreignField: 'personId',
+        as: 'timeEntryData',
+      },
+    },
+    {
+      $project: {
+        weeklyComittedHours: 1,
+        timeEntryData: {
+          $filter: {
+            input: '$timeEntryData',
+            as: 'timeentry',
+            cond: {
+              $and: [{
+                $eq: ['$$timeentry.isTangible', true],
+              }, {
+                $gte: ['$$timeentry.dateOfWork', fromdate],
+              }, {
+                $lte: ['$$timeentry.dateOfWork', todate],
+              }],
+            },
+          },
+        },
+      },
+    },
+    {
+      $unwind: {
+        path: '$timeEntryData',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $group: {
+        _id: '$timeEntryData.projectId',
+        effort: {
+          $sum: '$timeEntryData.totalSeconds',
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: 'projects',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'project',
+      },
+    },
+    {
+      $unwind: {
+        path: '$project',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $group: {
+        _id: '$project.category',
+        effort: {
+          $sum: '$effort',
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        timeSpent_hrs: {
+          $divide: ['$effort', 3600],
+        },
+      },
+    },
+    ]);
+  };
 
   return {
     personaldetails,
@@ -559,7 +646,7 @@ const dashboardhelper = function () {
     getOrgData,
     laborthismonth,
     laborthisweek,
-
+    laborThisWeekByCategory,
   };
 };
 

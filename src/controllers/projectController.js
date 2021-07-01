@@ -5,7 +5,7 @@ const userProfile = require('../models/userProfile');
 
 const projectController = function (Project) {
   const getAllProjects = function (req, res) {
-    Project.find({}, 'projectName isActive')
+    Project.find({}, 'projectName isActive category')
       .sort({ projectName: 1 })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
@@ -62,6 +62,7 @@ const projectController = function (Project) {
         const _project = new Project();
 
         _project.projectName = req.body.projectName;
+        _project.category = req.body.category || 'Unspecified';
         _project.isActive = req.body.isActive;
         _project.createdDatetime = Date.now();
         _project.modifiedDatetime = Date.now();
