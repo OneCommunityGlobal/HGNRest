@@ -234,20 +234,20 @@ const userhelper = function () {
               let description;
 
               await userProfile
-                  .findByIdAndUpdate(personId, {
-                    $inc: {
-                      totalTangibleHrs: timeSpent || 0,
-                    },
-                    $max: {
-                      personalBestMaxHrs: timeSpent || 0,
-                    },
-                    $push: {
-                      savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
-                    },
-                    $set: {
-                      lastWeekTangibleHrs: timeSpent || 0,
-                    },
-                  }, { new: true })
+                .findByIdAndUpdate(personId, {
+                  $inc: {
+                    totalTangibleHrs: timeSpent || 0,
+                  },
+                  $max: {
+                    personalBestMaxHrs: timeSpent || 0,
+                  },
+                  $push: {
+                    savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
+                  },
+                  $set: {
+                    lastWeekTangibleHrs: timeSpent || 0,
+                  },
+                }, { new: true });
 
               if (timeNotMet || !hasWeeklySummary) {
                 if (timeNotMet && !hasWeeklySummary) {
