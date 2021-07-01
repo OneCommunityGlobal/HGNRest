@@ -73,6 +73,11 @@ const userProfileSchema = new Schema({
   endDate: { type: Date, required: false },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
+  personalBestMaxHrs: { type: Number, default: 0 },
+  totalTangibleHrs: { type: Number, default: 0 },
+  lastWeekTangibleHrs: { type: Number, default: 0 },
+  categoryTangibleHrs: [{ category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other'], default: 'Other' }, hrs: { type: Number, default: 0 } }],
+  savedTangibleHrs: [Number],
 });
 
 userProfileSchema.pre('save', function (next) {

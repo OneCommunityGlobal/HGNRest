@@ -2,9 +2,15 @@ import { CronJob } from 'cron';
 
 const userhelper = require('../helpers/userhelper')();
 
+// Testing remove
+// userhelper.assignBlueSquareforTimeNotMet();
+// setTimeout(()=>{
+//   userhelper.awardNewBadges();
+// }, 2000)
+
 const userProfileScheduledJobs = function () {
   const assignBlueSquare = new CronJob(
-    '0 0 * * 0',
+    '2 0 * * 0',
     userhelper.assignBlueSquareforTimeNotMet,
     null,
     false,
@@ -14,6 +20,14 @@ const userProfileScheduledJobs = function () {
   const emailWeeklySummaries = new CronJob(
     '5 0 * * 0', // Every Sunday, 5 minutes past midnight.
     userhelper.emailWeeklySummariesForAllUsers,
+    null,
+    false,
+    'America/Los_Angeles',
+  );
+
+  const awardNewBadges = new CronJob(
+    '15 0 * * 0', // Every Sunday, 15 minutes past midnight.
+    userhelper.awardNewBadges,
     null,
     false,
     'America/Los_Angeles',
@@ -39,6 +53,7 @@ const userProfileScheduledJobs = function () {
   emailWeeklySummaries.start();
   deleteBlueSquareOlderThanYear.start();
   updateUserStatusToActive.start();
+  awardNewBadges.start();
 };
 
 module.exports = userProfileScheduledJobs;
