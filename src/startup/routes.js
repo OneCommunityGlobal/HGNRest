@@ -12,6 +12,8 @@ const popup = require('../models/popupEditor');
 const popupBackup = require('../models/popupEditorBackup');
 const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
+const inventoryItem = require('../models/inventoryItem');
+const inventoryItemType = require('../models/inventoryItemType');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -31,7 +33,7 @@ const timerRouter = require('../routes/timerRouter')(timer);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
-
+const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -52,4 +54,5 @@ module.exports = function (app) {
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
+  app.use('/api', inventoryRouter);
 };

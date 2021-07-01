@@ -138,9 +138,8 @@ const badgeController = function (Badge) {
         res.status(400).send({ error: 'No valid records found' });
         return;
       }
-      record.update();
-    }).then(res.status(200).send({ message: 'Badge successfully deleted and user profiles updated' }))
-      .catch((errors) => { res.status(500).send(errors); });
+      res.status(200).send({ message: 'Badge successfully updated' });
+    });
   };
 
   return {
