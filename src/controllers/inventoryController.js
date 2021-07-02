@@ -50,7 +50,20 @@ const inventoryController = function (Item, ItemType) {
     //  Add a note field with "Created/Purchased" in the typeOfMovement field quantity being the full quantity and message being the req.body.message
     // make sure the item is saved and
     // send result just sending sucess and any information returned
-    return res.send('Success');
+    const item = new Item();
+
+    item.quantity = req.body.quantity;
+    item.poNums = [req.body.poNum];
+    item.cost = req.body.cost;
+    item.inventoryItemType = req.body.typeId;
+    item.wasted = false;
+    item.project = req.params.projectId;
+    item.wbs = req.params.wbsId;
+    item.notes = [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
+
+    return item.save()
+      .then(results => res.status(201).send(results))
+      .catch(errors => res.status(500).send(errors));
   };
 
 
@@ -95,7 +108,26 @@ const inventoryController = function (Item, ItemType) {
     // same as posting an item inProjectWBS but the WBS is uanassigned(i.e. null)
     // but same process
     // send result just sending something now to have it work and not break anything
-    return res.send('Success');
+    // use req.params.projectId and req.body.quantity,
+    // req.body.cost, req.body.ponum and req.body.typeId, req.body.message
+    // create the item  using that information with cost per quantity being a calculation.
+    //  Add a note field with "Created/Purchased" in the typeOfMovement field quantity being the full quantity and message being the req.body.message
+    // make sure the item is saved and
+    // send result just sending sucess and any information returned
+    const item = new Item();
+
+    item.quantity = req.body.quantity;
+    item.poNums = [req.body.poNum];
+    item.cost = req.body.cost;
+    item.inventoryItemType = req.body.typeId;
+    item.wasted = false;
+    item.project = req.params.projectId;
+    item.wbs = null;
+    item.notes = [{ "quantity": req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
+
+    return item.save()
+      .then(results => res.status(201).send(results))
+      .catch(errors => res.status(500).send(errors));
   };
 
   // inventoryRouter.route('/invtransfer/:invId') //Transfer some or all of the inventory to another project/wbs
