@@ -123,7 +123,7 @@ const inventoryController = function (Item, ItemType) {
     item.wasted = false;
     item.project = req.params.projectId;
     item.wbs = null;
-    item.notes = [{ "quantity": req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
+    item.notes = [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
 
     return item.save()
       .then(results => res.status(201).send(results))
