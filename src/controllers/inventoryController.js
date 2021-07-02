@@ -95,7 +95,31 @@ const inventoryController = function (Item, ItemType) {
     // same as posting an item inProjectWBS but the WBS is uanassigned(i.e. null)
     // but same process
     // send result just sending something now to have it work and not break anything
-    return res.send('Success');
+    /*
+    return Item.find({ name: { $regex: req.body.name, $options: 'i' } })
+      .then((result) => {
+        if (result.length > 0) {
+          res.status(400).send({ error: `Another Item with name ${req.body.name} already exists. Sorry, but item names should be like snowflakes, no two should be the same.` });
+          return;
+        }
+    */
+        const inventoryItem = new Item();
+        inventoryItem.quantity = req.body.quantity;
+        inventoryItem.poNums = req.body.poNums;
+        inventoryItem.cost = req.body.cost;
+        inventoryItem.costPer = req.body.cost / req.body.quantity;
+        inventoryItem.notes = req.body.notes;
+        inventoryItem.created = Date.now();
+        inventoryItem.inventoryItemType = req.body.inventoryItemType;
+        inventoryItem.wasted = req.body.wasted;
+        inventoryItem.project = req.body.project;
+        //inventoryItem.wbs = req.body.wbs;
+
+        return inventoryItem.save()
+          .then(results => res.status(201).send(results))
+          .catch(errors => res.status(500).send(errors));
+      //});
+    // res.send('Success');
   };
 
   // inventoryRouter.route('/invtransfer/:invId') //Transfer some or all of the inventory to another project/wbs

@@ -13,7 +13,7 @@ const popupBackup = require('../models/popupEditorBackup');
 const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
-const inventoryItemType = require('../models/inventoryItemType');
+const inventoryItemType = require('../models/InventoryItemType');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
