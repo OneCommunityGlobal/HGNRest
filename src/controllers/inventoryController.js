@@ -114,18 +114,19 @@ const inventoryController = function (Item, ItemType) {
     //  Add a note field with "Created/Purchased" in the typeOfMovement field quantity being the full quantity and message being the req.body.message
     // make sure the item is saved and
     // send result just sending sucess and any information returned
-    const item = new Item();
+    const inventoryItem = new Item();
 
-    item.quantity = req.body.quantity;
-    item.poNums = [req.body.poNum];
-    item.cost = req.body.cost;
-    item.inventoryItemType = req.body.typeId;
-    item.wasted = false;
-    item.project = req.params.projectId;
-    item.wbs = null;
-    item.notes = [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
+    inventoryItem.quantity = req.body.quantity;
+    inventoryItem.poNums = [req.body.poNum];
+    inventoryItem.cost = req.body.cost;
+    inventoryItem.inventoryItemType = req.body.typeId;
+    inventoryItem.wasted = false;
+    inventoryItem.project = req.params.projectId;
+    inventoryItem.wbs = null;
+    inventoryItem.notes = [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
+    inventoryItem.created = Date.now();
 
-    return item.save()
+    return inventoryItem.save()
       .then(results => res.status(201).send(results))
       .catch(errors => res.status(500).send(errors));
   };
