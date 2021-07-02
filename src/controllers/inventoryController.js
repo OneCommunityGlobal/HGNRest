@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
+const moment = require('moment');
 // const UserProfile = require('../models/userProfile');
+const projects = require('../models/project');
 
 const inventoryController = function (Item, ItemType) {
 // inventoryRouter.route('/inv/:projectId/wbs/:wbsId') //All By Project seperated into WBS (wbs can be nill which is the unassigned category)
@@ -40,7 +42,7 @@ const inventoryController = function (Item, ItemType) {
     // send result just sending something now to have it work and not break anything
   };
 
-  const postInvInProjectWBS = function (req, res) {
+  const postInvInProjectWBS = async function (req, res) {
     if (!['Manager', 'Administrator', 'Core Team'].includes(req.body.requestor.role)) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
@@ -50,20 +52,28 @@ const inventoryController = function (Item, ItemType) {
     //  Add a note field with "Created/Purchased" in the typeOfMovement field quantity being the full quantity and message being the req.body.message
     // make sure the item is saved and
     // send result just sending sucess and any information returned
-    const item = new Item();
+    const projectExists = await projects.findOne({ _id: req.params.projectId }).select('_id').lean();
+    if (req.body.quantity && req.body.typeId && projectExists) {
+      const data = {
+        quantity: req.body.quantity,
+        poNums: [req.body.poNum],
+        cost: req.body.cost,
+        inventoryItemType: req.body.typeId || req.body.typeID,
+        wasted: false,
+        project: mongoose.Types.ObjectId(req.params.projectId),
+        wbs: req.params.wbsId && req.params.wbsId !== 'Unassigned'
+          ? mongoose.Types.ObjectId(req.params.wbsId)
+          : null,
+        notes: [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` }],
+        created: Date.now(),
+      };
+      const inventoryItem = new Item(data);
 
-    item.quantity = req.body.quantity;
-    item.poNums = [req.body.poNum];
-    item.cost = req.body.cost;
-    item.inventoryItemType = req.body.typeId;
-    item.wasted = false;
-    item.project = req.params.projectId;
-    item.wbs = req.params.wbsId;
-    item.notes = [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
-
-    return item.save()
-      .then(results => res.status(201).send(results))
-      .catch(errors => res.status(500).send(errors));
+      return inventoryItem.save()
+        .then(results => res.status(201).send(results))
+        .catch(errors => res.status(500).send(errors));
+    }
+    return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
   };
 
 
@@ -101,7 +111,7 @@ const inventoryController = function (Item, ItemType) {
       .catch(error => res.status(404).send(error));
   };
 
-  const postInvInProject = function (req, res) {
+  const postInvInProject = async function (req, res) {
     if (!['Manager', 'Administrator', 'Core Team'].includes(req.body.requestor.role)) {
       return res.status(403).send('You are not authorized to post new inventory data.');
     }
@@ -114,21 +124,26 @@ const inventoryController = function (Item, ItemType) {
     //  Add a note field with "Created/Purchased" in the typeOfMovement field quantity being the full quantity and message being the req.body.message
     // make sure the item is saved and
     // send result just sending sucess and any information returned
-    const inventoryItem = new Item();
+    const projectExists = await projects.findOne({ _id: req.params.projectId }).select('_id').lean();
+    if (req.body.quantity && req.body.typeId && projectExists) {
+      const data = {
+        quantity: req.body.quantity,
+        poNums: [req.body.poNum],
+        cost: req.body.cost,
+        inventoryItemType: req.body.typeId || req.body.typeID,
+        wasted: false,
+        project: mongoose.Types.ObjectId(req.params.projectId),
+        wbs: null,
+        notes: [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` }],
+        created: Date.now(),
+      };
+      const inventoryItem = new Item(data);
 
-    inventoryItem.quantity = req.body.quantity;
-    inventoryItem.poNums = [req.body.poNum];
-    inventoryItem.cost = req.body.cost;
-    inventoryItem.inventoryItemType = req.body.typeId;
-    inventoryItem.wasted = false;
-    inventoryItem.project = req.params.projectId;
-    inventoryItem.wbs = null;
-    inventoryItem.notes = [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quanity} on ${Date.now().toString()} note: ${req.body.notes}` }];
-    inventoryItem.created = Date.now();
-
-    return inventoryItem.save()
-      .then(results => res.status(201).send(results))
-      .catch(errors => res.status(500).send(errors));
+      return inventoryItem.save()
+        .then(results => res.status(201).send(results))
+        .catch(errors => res.status(500).send(errors));
+    }
+    return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
   };
 
   // inventoryRouter.route('/invtransfer/:invId') //Transfer some or all of the inventory to another project/wbs
