@@ -2,12 +2,6 @@ import { CronJob } from 'cron';
 
 const userhelper = require('../helpers/userhelper')();
 
-// Testing remove
-// userhelper.assignBlueSquareforTimeNotMet();
-// setTimeout(()=>{
-//   userhelper.awardNewBadges();
-// }, 2000)
-
 const userProfileScheduledJobs = function () {
   const assignBlueSquare = new CronJob(
     '2 0 * * 0',
