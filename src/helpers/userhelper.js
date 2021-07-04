@@ -170,7 +170,6 @@ const userhelper = function () {
             .findByIdAndUpdate(personId, {
               $inc: { weeklySummariesCount: 1 },
             }, { new: true })
-            // .then(result => console.log('result:', result))
             .catch(error => logger.logException(error));
         }
       })
@@ -252,7 +251,7 @@ const userhelper = function () {
                     .subtract(1, 'year')
                     .format('YYYY-MM-DD');
                   const oldInfringements = [];
-                  for (let i = 0; i < res.infringments.length; i+=1) {
+                  for (let i = 0; i < res.infringments.length; i += 1) {
                     if (moment(res.infringements[i].date).diff(cutOffDate) >= 0) {
                       oldInfringements.push(res.infringements[i]);
                     } else {
@@ -639,12 +638,11 @@ const userhelper = function () {
         badgesOfType.push(badgeCollection[i].badge);
       }
     }
-
     badge.find({ type: 'X Hours for X Week Streak', weeks: 1 })
       .sort({ totalHrs: -1 })
       .then((results) => {
         results.every((elem) => {
-          if (elem.totalHrs >= user.lastWeekTangibleHrs) {
+          if (elem.totalHrs <= user.lastWeekTangibleHrs) {
             let theBadge;
             for (let i = 0; i < badgesOfType.length; i += 1) {
               if (badgesOfType[i]._id.toString() === elem._id.toString()) {
@@ -674,7 +672,11 @@ const userhelper = function () {
     await getTeamMembers({
       _id: personId,
     }).then((results) => {
-      teamMembers = results.myteam;
+      if (results) {
+        teamMembers = results.myteam;
+      } else {
+        teamMembers = [];
+      }
     });
 
     let badgeOfType;
@@ -693,16 +695,13 @@ const userhelper = function () {
         }
 
         results.every((elem) => {
-          console.log('elem', elem, 'teammembers length', teamMembers.length);
           if (teamMembers.length >= elem.people) {
             if (badgeOfType) {
-              console.log(' badge of type ', badgeOfType);
               if (badgeOfType._id.toString() !== elem._id.toString() && badgeOfType.people < elem.people) {
                 replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
               }
               return false;
             }
-            console.log(elem);
             addBadge(personId, mongoose.Types.ObjectId(elem._id));
             return false;
           }
@@ -731,7 +730,7 @@ const userhelper = function () {
       badge.find({ type: 'Total Hrs in Category', category })
         .sort({ totalHrs: -1 })
         .then((results) => {
-          if (!Array.isArray(results) || !results.length) {
+          if (!Array.isArray(results) || !results.length || !categoryHrs) {
             return;
           }
 
