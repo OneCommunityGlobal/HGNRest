@@ -314,12 +314,12 @@ const userhelper = function () {
                 await userProfile
                   .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': elem._id },
                     { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } }, { new: true }).then(async (result) => {
-                    if (!result) {
-                      await userProfile
-                        .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': { $ne: elem._id } },
-                          { $addToSet: { categoryTangibleHrs: { category: elem._id, hrs: elem.timeSpent_hrs } } });
-                    }
-                  });
+                      if (!result) {
+                        await userProfile
+                          .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': { $ne: elem._id } },
+                            { $addToSet: { categoryTangibleHrs: { category: elem._id, hrs: elem.timeSpent_hrs } } });
+                      }
+                    });
               });
             });
         });
@@ -466,11 +466,11 @@ const userhelper = function () {
     userProfile.findByIdAndUpdate(personId,
       {
         $push:
-          {
-            badgeCollection: {
-              badge: badgeId, count, featured, lastModified: Date.now().toString(),
-            },
+        {
+          badgeCollection: {
+            badge: badgeId, count, featured, lastModified: Date.now().toString(),
           },
+        },
       }, (err) => {
         if (err) {
           console.log(err);
@@ -495,7 +495,7 @@ const userhelper = function () {
         }
 
         results.every((elem) => {
-        // Cannot handle greater than 12 months due to data loss
+          // Cannot handle greater than 12 months due to data loss
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
