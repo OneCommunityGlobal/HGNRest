@@ -34,7 +34,7 @@ const userProfileScheduledJobs = function () {
   );
 
   const deleteBlueSquareOlderThanYear = new CronJob(
-    '0 0 * * *',
+    '8 0 * * 0',
     userhelper.deleteBlueSquareAfterYear,
     null,
     false,

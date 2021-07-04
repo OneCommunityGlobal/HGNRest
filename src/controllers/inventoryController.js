@@ -39,8 +39,6 @@ const inventoryController = function (Item, ItemType) {
       })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
-    //     console.log(mongoose, UserProfile, Item, ItemType); //console logging as we need to use it to commit
-    // send result just sending something now to have it work and not break anything
   };
 
   const postInvInProjectWBS = async function (req, res) {
@@ -95,13 +93,13 @@ const inventoryController = function (Item, ItemType) {
         inventoryItemType: req.body.typeId || req.body.typeID,
         wasted: false,
       },
-        {
-          $inc: { quantity: req.body.quantity, cost: req.body.cost },
-          $push: {
-            notes: { quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` },
-            poNums: req.body.poNum,
-          },
-        }, { new: true })
+      {
+        $inc: { quantity: req.body.quantity, cost: req.body.cost },
+        $push: {
+          notes: { quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` },
+          poNums: req.body.poNum,
+        },
+      }, { new: true })
         .then((results) => {
           Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
             .then(result => res.status(201).send(result));
@@ -183,13 +181,13 @@ const inventoryController = function (Item, ItemType) {
       return Item.findOneAndUpdate({
         project: mongoose.Types.ObjectId(req.params.projectId), wbs: null, inventoryItemType: req.body.typeId || req.body.typeID, wasted: false,
       },
-        {
-          $inc: { quantity: req.body.quantity, cost: req.body.cost },
-          $push: {
-            notes: { quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` },
-            poNums: req.body.poNum,
-          },
-        }, { new: true })
+      {
+        $inc: { quantity: req.body.quantity, cost: req.body.cost },
+        $push: {
+          notes: { quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` },
+          poNums: req.body.poNum,
+        },
+      }, { new: true })
         .then((results) => {
           // new call to update the costPer using the new quantities and cost
           Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
