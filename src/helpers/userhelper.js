@@ -247,7 +247,27 @@ const userhelper = function () {
                   $set: {
                     lastWeekTangibleHrs: timeSpent || 0,
                   },
-                }, { new: true });
+                }, { new: true }).then((res) => {
+                  const cutOffDate = moment()
+                    .subtract(1, 'year')
+                    .format('YYYY-MM-DD');
+                  const oldInfringements = [];
+                  for (let i = 0; i < res.infringments.length; i+=1) {
+                    if (moment(res.infringements[i].date).diff(cutOffDate) >= 0) {
+                      oldInfringements.push(res.infringements[i]);
+                    } else {
+                      break;
+                    }
+                  }
+                  if (oldInfringements.length) {
+                    userProfile
+                      .findByIdAndUpdate(personId, {
+                        $push: {
+                          oldInfringements: { $each: oldInfringements, $slice: -200 },
+                        },
+                      }, { new: true });
+                  }
+                });
 
               if (timeNotMet || !hasWeeklySummary) {
                 if (timeNotMet && !hasWeeklySummary) {
@@ -314,12 +334,12 @@ const userhelper = function () {
                 await userProfile
                   .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': elem._id },
                     { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } }, { new: true }).then(async (result) => {
-                      if (!result) {
-                        await userProfile
-                          .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': { $ne: elem._id } },
-                            { $addToSet: { categoryTangibleHrs: { category: elem._id, hrs: elem.timeSpent_hrs } } });
-                      }
-                    });
+                    if (!result) {
+                      await userProfile
+                        .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': { $ne: elem._id } },
+                          { $addToSet: { categoryTangibleHrs: { category: elem._id, hrs: elem.timeSpent_hrs } } });
+                    }
+                  });
               });
             });
         });
@@ -495,10 +515,23 @@ const userhelper = function () {
         }
 
         results.every((elem) => {
-          // Cannot handle greater than 12 months due to data loss
+          // Cannot account for time paused yet
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
+                if (badgeOfType) {
+                  if (badgeOfType._id.toString() !== elem._id.toString()) {
+                    replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
+                  }
+                  return false;
+                }
+                addBadge(personId, mongoose.Types.ObjectId(elem._id));
+                return false;
+              }
+            }
+          } else if (user.infringements.length === 0) {
+            if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
+              if (user.oldInfringments.length === 0 || Math.abs(moment().diff(moment(user.oldInfringments[user.oldInfringments?.length - 1].date), 'months', true)) >= (elem.months - 12)) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
                     replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
@@ -599,6 +632,36 @@ const userhelper = function () {
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
+    // Handle Increasing the 1 week streak badges
+    const badgesOfType = [];
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
+        badgesOfType.push(badgeCollection[i].badge);
+      }
+    }
+
+    badge.find({ type: 'X Hours for X Week Streak', weeks: 1 })
+      .sort({ totalHrs: -1 })
+      .then((results) => {
+        results.every((elem) => {
+          if (elem.totalHrs >= user.lastWeekTangibleHrs) {
+            let theBadge;
+            for (let i = 0; i < badgesOfType.length; i += 1) {
+              if (badgesOfType[i]._id.toString() === elem._id.toString()) {
+                theBadge = badgesOfType[i]._id;
+                break;
+              }
+            }
+            if (theBadge) {
+              increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
+              return false;
+            }
+            addBadge(personId, mongoose.Types.ObjectId(elem._id));
+            return false;
+          }
+          return true;
+        });
+      });
     return (personId, user, badgeCollection);
   };
 
