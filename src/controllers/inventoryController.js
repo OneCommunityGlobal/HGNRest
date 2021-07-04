@@ -467,7 +467,10 @@ const inventoryController = function (Item, ItemType) {
     // req.params.invId
     // Look up an inventory item by id and send back the info as jsong
     // send result just sending something now to have it work and not break anything
-    return res.send('Success');
+    return Item.findById({ _id: req.params.invId })
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+    // return res.send('Success');
   };
 
   const putInvById = function (req, res) {
@@ -476,7 +479,27 @@ const inventoryController = function (Item, ItemType) {
     }
     // update the inv by id.
     // send result just sending something now to have it work and not break anything
-    return res.send('Success');
+    const { invId } = req.params;
+    // return res.send('Success');
+    const data = {
+      quantity: req.body.quantity,
+      poNums: [req.body.poNum],
+      cost: req.body.cost,
+      inventoryItemType: req.body.typeId || req.body.typeID,
+      wasted: false,
+      project: mongoose.Types.ObjectId(req.params.projectId),
+      wbs: null,
+      notes: [{ quantity: req.body.quantity, typeOfMovement: 'Purchased', message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` }],
+      created: Date.now(),
+    };
+
+    return Item.findByIdAndUpdate(invId, data, (error, record) => {
+      if (error || record == null) {
+        res.status(400).send({ error: 'No Valid records found' });
+        return;
+      }
+      res.status(200).send({ message: 'Inventory successfully updated '});
+    });
   };
 
 
@@ -489,7 +512,10 @@ const inventoryController = function (Item, ItemType) {
     }
     // send result just sending something now to have it work and not break anything
     // Use model ItemType and return the find by Id
-    return res.send('Success');
+    return ItemType.findById({ _id: req.params.typeId })
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+    // return res.send('Success');
   };
 
   const putInvType = function (req, res) {
