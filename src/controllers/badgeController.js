@@ -28,7 +28,7 @@ const badgeController = function (Badge) {
       .catch(error => res.status(404).send(error));
   };
 
-  const assignBadges = function (req, res) {
+  const assignBadges = async function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send('You are not authorized to assign badges.');
       return;
@@ -129,7 +129,7 @@ const badgeController = function (Badge) {
       months: req.body.months,
       weeks: req.body.weeks,
       project: req.body.project,
-      imageUrl: imageUrl || req.body.imageUrl,
+      imageUrl: imageUrl || req.body.imageUrl || req.body.imageURL,
       ranking: req.body.ranking,
     };
 

@@ -498,7 +498,7 @@ const inventoryController = function (Item, ItemType) {
         res.status(400).send({ error: 'No Valid records found' });
         return;
       }
-      res.status(200).send({ message: 'Inventory successfully updated '});
+      res.status(200).send({ message: 'Inventory successfully updated ' });
     });
   };
 
