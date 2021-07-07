@@ -28,7 +28,7 @@ const badgeController = function (Badge) {
       .catch(error => res.status(404).send(error));
   };
 
-  const assignBadges = function (req, res) {
+  const assignBadges = async function (req, res) {
     if (req.body.requestor.role !== 'Administrator') {
       res.status(403).send('You are not authorized to assign badges.');
       return;
@@ -41,11 +41,21 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
-      record.badgeCollection = req.body.badgeCollection;
+      const grouped = req.body.badgeCollection.reduce((groupd, item) => {
+        const propertyValue = item.badge;
+        groupd[propertyValue] = (groupd[propertyValue] || 0) + 1;
+        return groupd;
+      }, {});
+      const result = Object.keys(grouped).every(bdge => grouped[bdge] <= 1);
+      if (result) {
+        record.badgeCollection = req.body.badgeCollection;
 
-      record.save()
-        .then(results => res.status(201).send(results._id))
-        .catch(errors => res.status(500).send(errors));
+        record.save()
+          .then(results => res.status(201).send(results._id))
+          .catch(errors => res.status(500).send(errors));
+      } else {
+        res.status(500).send('Duplicate badges sent in.');
+      }
     });
   };
 
@@ -129,7 +139,7 @@ const badgeController = function (Badge) {
       months: req.body.months,
       weeks: req.body.weeks,
       project: req.body.project,
-      imageUrl: imageUrl || req.body.imageUrl,
+      imageUrl: imageUrl || req.body.imageUrl || req.body.imageURL,
       ranking: req.body.ranking,
     };
 
@@ -138,9 +148,8 @@ const badgeController = function (Badge) {
         res.status(400).send({ error: 'No valid records found' });
         return;
       }
-      record.update();
-    }).then(res.status(200).send({ message: 'Badge successfully deleted and user profiles updated' }))
-      .catch((errors) => { res.status(500).send(errors); });
+      res.status(200).send({ message: 'Badge successfully updated' });
+    });
   };
 
   return {
