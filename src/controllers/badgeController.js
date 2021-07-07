@@ -41,11 +41,21 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
-      record.badgeCollection = req.body.badgeCollection;
+      const grouped = req.body.badgeCollection.reduce((groupd, item) => {
+        const propertyValue = item.badge;
+        groupd[propertyValue] = (groupd[propertyValue] || 0) + 1;
+        return groupd;
+      }, {});
+      const result = Object.keys(grouped).every(badge => grouped[badge] <= 1);
+      if (result) {
+        record.badgeCollection = req.body.badgeCollection;
 
-      record.save()
-        .then(results => res.status(201).send(results._id))
-        .catch(errors => res.status(500).send(errors));
+        record.save()
+          .then(results => res.status(201).send(results._id))
+          .catch(errors => res.status(500).send(errors));
+      } else {
+        res.status(500).send('Duplicate badges sent in.');
+      }
     });
   };
 
