@@ -13,7 +13,7 @@ Step1: Clone the App
 
 Step2: Run npm install. Best way is to open the code in the editor and open integrated teminal. Run npm install.
 
-Step3: Start the app: To start the app, you need to set up several process.env variables. These variables are :  
+Step3: Start the app: To start the app, you need to set up several process.env variables. These variables are:  
 user=<user>  
 password=<password>  
 cluster=<clustername>  
@@ -28,7 +28,7 @@ TOKEN_LIFETIME=<number>
 TOKEN_LIFETIME_UNITS=<unit like days, second, hours etc>  
 JWT_SECRET=<secret value>  
 
-To make the process easy create a .env file and put the above text in the file and replace values with correct values. Then do a npm start. By default, the services will start on port 4500 and you can http://localhost:4500/api/<routename> to access the methods. A tools like Postman will be your best friend here.
+To make the process easy create a .env file and put the above text in the file and replace values with the correct values, which you can get from your teammates. Then do an npm run-script build followed by an npm start. By default, the services will start on port 4500 and you can http://localhost:4500/api/<routename> to access the methods. A tools like Postman will be your best friend here, you will need to have an auth token placed in the 'Authorization' header which you can get through the networking tab of the local frontend when you login.
 
 * `npm run lint` command for fixing lint
 * `npm run build` command for building server
