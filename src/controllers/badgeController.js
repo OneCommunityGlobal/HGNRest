@@ -46,7 +46,7 @@ const badgeController = function (Badge) {
         groupd[propertyValue] = (groupd[propertyValue] || 0) + 1;
         return groupd;
       }, {});
-      const result = Object.keys(grouped).every(badge => grouped[badge] <= 1);
+      const result = Object.keys(grouped).every(bdge => grouped[bdge] <= 1);
       if (result) {
         record.badgeCollection = req.body.badgeCollection;
 
