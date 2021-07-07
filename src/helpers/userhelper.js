@@ -503,7 +503,7 @@ const userhelper = function () {
       {
         $pull:
         {
-          'badgeCollection.badge': badgeId,
+          badgeCollection: { badge: badgeId },
         },
       }, (err) => {
         if (err) {
@@ -695,11 +695,11 @@ const userhelper = function () {
           streak.badges.every((bdge) => {
             let badgeOfType;
             for (let i = 0; i < badgeCollection.length; i += 1) {
-              if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak' && badgeCollection[i].badge?.weeks == bdge.weeks) {
+              if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak' && badgeCollection[i].badge?.weeks === bdge.weeks) {
                 if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
                   removeDupBadge(personId, badgeOfType._id);
                   badgeOfType = badgeCollection[i].badge;
-                } else if (badgOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
+                } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
                   removeDupBadge(personId, badgeCollection[i].badge._id);
                 } else if (!badgeOfType) {
                   badgeOfType = badgeCollection[i].badge;
