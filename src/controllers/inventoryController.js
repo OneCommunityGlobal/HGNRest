@@ -299,19 +299,24 @@ const inventoryController = function (Item, ItemType) {
     // send result just sending something now to have it work and not break anything
     // Similar to transfer but changing from wasted false to a wasted true item
 
-    const properWaste = await Item.findOne({ _id: req.params.invId, $gte: { quantity: req.body.quantity }, wasted: false }).select('_id').lean();
+    const properWaste = await Item.findOne({ _id: req.params.invId, quantity: { $gte: req.body.quantity }, wasted: false }).select('_id').lean();
     if (!properWaste) {
       return res.status(400).send('You must send a valid Inventory Id with enough quantity that you requested to be wasted.');
     }
 
     const projectExists = await projects.findOne({ _id: req.body.projectId }).select('_id').lean();
+    if (!projectExists) {
+      return res.status(400).send(`Project does not exist ${req.body.projectId}`);
+    }
     let wbsExists = true;
-    if (req.params.wbsId && req.params.wbsId !== 'Unassigned') {
-      wbsExists = await wbs.findOne({ _id: req.params.wbsId }).select('_id').lean();
+    if (req.body.wbsId && req.body.wbsId !== 'Unassigned') {
+      wbsExists = await wbs.findOne({ _id: req.body.wbsId }).select('_id').lean();
+    } else {
+      return res.status(400).send(req.body.wbsId);
     }
 
-    if (req.body.quantity && req.param.invId && projectExists && wbsExists) {
-      return Item.findByIdAndUpdate(req.param.invId, {
+    if (req.body.quantity && req.params.invId && projectExists && wbsExists) {
+      return Item.findByIdAndUpdate(req.params.invId, {
         $decr: { quantity: req.body.quantity },
         $push: {
           notes: {
@@ -328,8 +333,8 @@ const inventoryController = function (Item, ItemType) {
           // check if there is a new item that already exists
           Item.findOne({
             project: req.body.projectId,
-            wbs: req.params.wbsId && req.params.wbsId !== 'Unassigned'
-              ? mongoose.Types.ObjectId(req.params.wbsId)
+            wbs: req.body.wbsId && req.body.wbsId !== 'Unassigned'
+              ? mongoose.Types.ObjectId(req.body.wbsId)
               : null,
             wasted: true,
           }, { new: true })
@@ -357,8 +362,8 @@ const inventoryController = function (Item, ItemType) {
                 inventoryItemType: prevResults.inventoryItemType || req.body.typeID,
                 wasted: true,
                 project: mongoose.Types.ObjectId(req.params.projectId),
-                wbs: req.params.wbsId && req.params.wbsId !== 'Unassigned'
-                  ? mongoose.Types.ObjectId(req.params.wbsId)
+                wbs: req.body.wbsId && req.body.wbsId !== 'Unassigned'
+                  ? mongoose.Types.ObjectId(req.body.wbsId)
                   : null,
                 notes: [{ quantity: req.body.quantity, typeOfMovement: 'Wasted to', message: `Wasted ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` }],
                 created: Date.now(),
@@ -380,19 +385,19 @@ const inventoryController = function (Item, ItemType) {
     if (!['Manager', 'Administrator', 'Core Team'].includes(req.body.requestor.role)) {
       return res.status(403).send('You are not authorized to unwaste inventory.');
     }
-    const properUnWaste = await Item.findOne({ _id: req.params.invId, $gte: { quantity: req.body.quantity }, wasted: true }).select('_id').lean();
+    const properUnWaste = await Item.findOne({ _id: req.params.invId, quantity: { $gte: req.body.quantity }, wasted: true }).select('_id').lean();
     if (!properUnWaste) {
       return res.status(400).send('You must send a valid Inventory Id with enough quantity that you requested to be unwasted.');
     }
 
     const projectExists = await projects.findOne({ _id: req.body.projectId }).select('_id').lean();
     let wbsExists = true;
-    if (req.params.wbsId && req.params.wbsId !== 'Unassigned') {
-      wbsExists = await wbs.findOne({ _id: req.params.wbsId }).select('_id').lean();
+    if (req.body.wbsId && req.body.wbsId !== 'Unassigned') {
+      wbsExists = await wbs.findOne({ _id: req.body.wbsId }).select('_id').lean();
     }
 
-    if (req.body.quantity && req.param.invId && projectExists && wbsExists) {
-      return Item.findByIdAndUpdate(req.param.invId, {
+    if (req.body.quantity && req.params.invId && projectExists && wbsExists) {
+      return Item.findByIdAndUpdate(req.params.invId, {
         $decr: { quantity: req.body.quantity },
         $push: {
           notes: {
@@ -409,8 +414,8 @@ const inventoryController = function (Item, ItemType) {
           // check if there is a new item that already exists
           Item.findOne({
             project: req.body.projectId,
-            wbs: req.params.wbsId && req.params.wbsId !== 'Unassigned'
-              ? mongoose.Types.ObjectId(req.params.wbsId)
+            wbs: req.body.wbsId && req.body.wbsId !== 'Unassigned'
+              ? mongoose.Types.ObjectId(req.body.wbsId)
               : null,
             wasted: false,
           }, { new: true })
@@ -437,9 +442,9 @@ const inventoryController = function (Item, ItemType) {
                 cost: (prevResults.costPer * req.body.quantity),
                 inventoryItemType: prevResults.inventoryItemType || req.body.typeID,
                 wasted: false,
-                project: mongoose.Types.ObjectId(req.params.projectId),
-                wbs: req.params.wbsId && req.params.wbsId !== 'Unassigned'
-                  ? mongoose.Types.ObjectId(req.params.wbsId)
+                project: mongoose.Types.ObjectId(req.body.projectId),
+                wbs: req.body.wbsId && req.body.wbsId !== 'Unassigned'
+                  ? mongoose.Types.ObjectId(req.body.wbsId)
                   : null,
                 notes: [{ quantity: req.body.quantity, typeOfMovement: 'UnWasted to', message: `UnWasted ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}` }],
                 created: Date.now(),
