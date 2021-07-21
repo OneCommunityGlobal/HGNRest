@@ -251,9 +251,9 @@ const userhelper = function () {
                     .subtract(1, 'year')
                     .format('YYYY-MM-DD');
                   const oldInfringements = [];
-                  for (let i = 0; i < res.infringments.length; i += 1) {
-                    if (moment(res.infringements[i].date).diff(cutOffDate) >= 0) {
-                      oldInfringements.push(res.infringements[i]);
+                  for (let i = 0; i < res?.infringments.length; i += 1) {
+                    if (res?.infringments && moment(res?.infringments[i].date).diff(cutOffDate) >= 0) {
+                      oldInfringements.push(res.infringments[i]);
                     } else {
                       break;
                     }
