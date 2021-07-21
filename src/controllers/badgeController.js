@@ -77,6 +77,7 @@ const badgeController = function (Badge) {
         badge.category = req.body.category;
         badge.type = req.body.type;
         badge.multiple = req.body.multiple;
+        badge.totalHrs = req.body.totalHrs;
         badge.weeks = req.body.weeks;
         badge.months = req.body.months;
         badge.people = req.body.people;
