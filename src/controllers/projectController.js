@@ -89,6 +89,7 @@ const projectController = function (Project) {
       }
 
       record.projectName = req.body.projectName;
+      record.category = req.body.category;
       record.isActive = req.body.isActive;
       record.modifiedDatetime = Date.now();
 
