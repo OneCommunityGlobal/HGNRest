@@ -291,7 +291,6 @@ const userhelper = function () {
                     },
                   }, { new: true })
                   .then((status) => {
-                    console.log(status);
                     if (process.env.sendEmail) {
                       timeoutMS += 500;
                       setTimeout(() => {
@@ -536,6 +535,7 @@ const userhelper = function () {
 
         results.every((elem) => {
           // Cannot account for time paused yet
+          
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
@@ -549,7 +549,7 @@ const userhelper = function () {
                 return false;
               }
             }
-          } else if (user.infringements.length === 0) {
+          } else if (user?.infringements?.length === 0) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (user.oldInfringments.length === 0 || Math.abs(moment().diff(moment(user.oldInfringments[user.oldInfringments?.length - 1].date), 'months', true)) >= (elem.months - 12)) {
                 if (badgeOfType) {
@@ -583,7 +583,7 @@ const userhelper = function () {
           return;
         }
 
-        results.forEach((elem) => {
+        results.every((elem) => {
           if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) {
             let theBadge;
             for (let i = 0; i < badgesOfType.length; i += 1) {
@@ -595,10 +595,13 @@ const userhelper = function () {
 
             if (theBadge) {
               increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
+              return false;
             } else {
               addBadge(personId, mongoose.Types.ObjectId(elem._id));
+              return false;
             }
           }
+          return true;
         });
       });
   };
@@ -770,7 +773,7 @@ const userhelper = function () {
         }
 
         results.every((elem) => {
-          if (teamMembers.length >= elem.people) {
+          if (teamMembers && teamMembers.length >= elem.people) {
             if (badgeOfType) {
               if (badgeOfType._id.toString() !== elem._id.toString() && badgeOfType.people < elem.people) {
                 replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
