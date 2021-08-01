@@ -535,7 +535,7 @@ const userhelper = function () {
 
         results.every((elem) => {
           // Cannot account for time paused yet
-          
+
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
@@ -596,10 +596,9 @@ const userhelper = function () {
             if (theBadge) {
               increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
               return false;
-            } else {
-              addBadge(personId, mongoose.Types.ObjectId(elem._id));
-              return false;
             }
+            addBadge(personId, mongoose.Types.ObjectId(elem._id));
+            return false;
           }
           return true;
         });
@@ -849,13 +848,13 @@ const userhelper = function () {
             _id, badgeCollection,
           } = user;
           const personId = mongoose.Types.ObjectId(_id);
-          await checkNoInfringementStreak(personId, user, badgeCollection);
-          await checkMinHoursMultiple(personId, user, badgeCollection);
           await checkPersonalMax(personId, user, badgeCollection);
           await checkMostHrsWeek(personId, user, badgeCollection);
-          await checkLeadTeamOfXplus(personId, user, badgeCollection);
+          await checkMinHoursMultiple(personId, user, badgeCollection);
           await checkTotalHrsInCat(personId, user, badgeCollection);
+          await checkLeadTeamOfXplus(personId, user, badgeCollection);
           await checkXHrsForXWeeks(personId, user, badgeCollection);
+          await checkNoInfringementStreak(personId, user, badgeCollection);
         });
       });
   };
