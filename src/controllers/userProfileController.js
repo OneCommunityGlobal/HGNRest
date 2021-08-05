@@ -195,6 +195,7 @@ const userProfileController = function (UserProfile) {
       record.weeklySummaries = req.body.weeklySummaries;
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
+      record.totalTangibleHrs = req.body.totalTangibleHrs;
 
       if (isRequestorAdmin) {
         record.role = req.body.role;
