@@ -191,11 +191,9 @@ const userProfileController = function (UserProfile) {
       record.lastModifiedDate = Date.now();
       record.profilePic = req.body.profilePic;
       record.privacySettings = req.body.privacySettings;
-
       record.weeklySummaries = req.body.weeklySummaries;
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
-      record.totalTangibleHrs = req.body.totalTangibleHrs;
 
       if (isRequestorAdmin) {
         record.role = req.body.role;
@@ -210,6 +208,9 @@ const userProfileController = function (UserProfile) {
         record.weeklySummariesCount = req.body.weeklySummariesCount;
         record.mediaUrl = req.body.mediaUrl;
         record.collaborationPreference = req.body.collaborationPreference;
+        record.weeklySummaryNotReq = req.body.weeklySummaryNotReq ?  req.body.weeklySummaryNotReq : record.weeklySummaryNotReq;
+        record.categoryTangibleHrs = req.body.categoryTangibleHrs ?  req.body.categoryTangibleHrs : record.categoryTangibleHrs;
+        record.totalTangibleHrs = req.body.totalTangibleHrs;
       }
 
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
