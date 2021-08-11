@@ -25,6 +25,7 @@ const reporthelper = function () {
       $project: {
         firstName: 1,
         lastName: 1,
+        email: 1,
         mediaUrl: 1,
         weeklySummaries: {
           $filter: {
