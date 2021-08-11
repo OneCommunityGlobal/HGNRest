@@ -104,7 +104,7 @@ const userhelper = function () {
 
         results.forEach((result) => {
           const {
-            firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours
+            firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
           } = result;
 
           if (email !== undefined && email !== null) {
