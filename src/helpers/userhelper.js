@@ -104,10 +104,10 @@ const userhelper = function () {
 
         results.forEach((result) => {
           const {
-            firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount,
+            firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours
           } = result;
 
-          if(email !== undefined && email !== null) {
+          if (email !== undefined && email !== null) {
             emails.push(email);
           }
 
@@ -119,24 +119,25 @@ const userhelper = function () {
             const { dueDate, summary } = weeklySummaries[0];
             if (summary) {
               weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MM-DD')}):</p>
-                                        <div style="padding: 0 20px;">${summary}</div>`;
+                                        <div style="padding: 0 20px;">${summary || '<span style="color: red;">Not provided!</span>'}</div>`;
             }
           }
 
           emailBody += `\n
           <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
-          <p><b>Media URL:</b> ${mediaUrlLink}</p>
-          <p><b>Total Valid Weekly Summaries:</b> ${totalValidWeeklySummaries}</p>
+          <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
+          <p><b>Total Valid Weekly Summaries:</b> ${totalValidWeeklySummaries || 'No valid submissions yet!'}</p>
+          <p><b>Committed weekly hours</b>: ${weeklyComittedHours}</p>
           ${weeklySummaryMessage}
           </div>`;
         });
 
-        //Necessary because our version of node is outdated
-        //and doesn't have String.prototype.replaceAll
+        // Necessary because our version of node is outdated
+        // and doesn't have String.prototype.replaceAll
         let emailString = [...(new Set(emails))].toString();
-        while(emailString.includes(',')) emailString = emailString.replace(',', '\n');
-        while(emailString.includes('\n')) emailString = emailString.replace('\n', ', ');
+        while (emailString.includes(',')) emailString = emailString.replace(',', '\n');
+        while (emailString.includes('\n')) emailString = emailString.replace('\n', ', ');
 
         emailBody += `\n
           <div>
@@ -145,7 +146,7 @@ const userhelper = function () {
               ${emailString}
             </p>
           </div>
-        `
+        `;
 
         if (process.env.sendEmail) {
           emailSender(

@@ -27,6 +27,7 @@ const reporthelper = function () {
         lastName: 1,
         email: 1,
         mediaUrl: 1,
+        weeklyComittedHours: 1,
         weeklySummaries: {
           $filter: {
             input: '$weeklySummaries',
