@@ -12,7 +12,9 @@ const Badge = new Schema({
   people: { type: Number },
   category: {
     type: String,
-    enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Unassigned', 'Other', 'Unspecified'], default: 'Unassigned' }, //"Other" kept for legacy reasons
+    enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Unassigned', 'Other', 'Unspecified'],
+    default: 'Unassigned',
+  }, // "Other" kept for legacy reasons
   project: { type: Schema.Types.ObjectId, ref: 'project' },
   imageUrl: { type: String },
   ranking: { type: Number },
