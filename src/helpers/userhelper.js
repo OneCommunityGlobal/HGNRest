@@ -247,11 +247,10 @@ const userhelper = function () {
                     lastWeekTangibleHrs: timeSpent || 0,
                   },
                 }, { new: true }).then((res) => {
-
                   if (res?.weeklySummaryNotReq) {
                     hasWeeklySummary = true;
                   }
-                  
+
                   const cutOffDate = moment()
                     .subtract(1, 'year')
                     .format('YYYY-MM-DD');

@@ -79,7 +79,7 @@ const userProfileSchema = new Schema({
   lastWeekTangibleHrs: { type: Number, default: 0 },
   categoryTangibleHrs: [{ category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other'], default: 'Other' }, hrs: { type: Number, default: 0 } }],
   savedTangibleHrs: [Number],
-  weeklySummaryNotReq: {type: Boolean, default: false}
+  weeklySummaryNotReq: { type: Boolean, default: false },
 });
 
 userProfileSchema.pre('save', function (next) {
