@@ -3,7 +3,6 @@ import { CronJob } from 'cron';
 const userhelper = require('../helpers/userhelper')();
 
 const userProfileScheduledJobs = function () {
-
   const updateUserStatusToActive = new CronJob(
     '1 0 * * *', // Run this every day, 1 minute after mimdnight (PST).
     userhelper.reActivateUser,
