@@ -624,7 +624,7 @@ const userhelper = function () {
     }
     await badge.findOne({ type: 'Personal Max' })
       .then((results) => {
-        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs === user.personalBestMaxHrs) {
+        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs>=1 && user.lastWeekTangibleHrs === user.personalBestMaxHrs) {
           if (badgeOfType) {
             changeBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id), user.personalBestMaxHrs);
           } else {
