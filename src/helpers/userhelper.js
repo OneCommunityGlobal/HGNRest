@@ -270,6 +270,10 @@ const userhelper = function () {
                     lastWeekTangibleHrs: timeSpent || 0,
                   },
                 }, { new: true }).then((res) => {
+                  if (res?.weeklySummaryNotReq) {
+                    hasWeeklySummary = true;
+                  }
+
                   const cutOffDate = moment()
                     .subtract(1, 'year')
                     .format('YYYY-MM-DD');
@@ -291,7 +295,7 @@ const userhelper = function () {
                   }
                 });
 
-              if (timeNotMet || !hasWeeklySummary) {
+              if (timeNotMet || (!hasWeeklySummary)) {
                 if (timeNotMet && !hasWeeklySummary) {
                   description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
                 } else if (timeNotMet) {
@@ -643,7 +647,7 @@ const userhelper = function () {
     }
     await badge.findOne({ type: 'Personal Max' })
       .then((results) => {
-        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs === user.personalBestMaxHrs) {
+        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= 1 && user.lastWeekTangibleHrs === user.personalBestMaxHrs) {
           if (badgeOfType) {
             changeBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id), user.personalBestMaxHrs);
           } else {
