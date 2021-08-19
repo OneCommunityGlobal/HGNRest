@@ -83,6 +83,8 @@ const timeEntrycontroller = function (TimeEntry) {
         notifyEditByEmail(timeEntry.personId.toString(), timeEntry, totalSeconds, req.body);
       }
 
+      const initialSeconds = timeEntry.totalSeconds;
+
       timeEntry.notes = req.body.notes;
       timeEntry.totalSeconds = totalSeconds;
       timeEntry.isTangible = req.body.isTangible;
@@ -92,17 +94,19 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
 
       // Update edit history
-      if (req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
+      if (timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
+          initialSeconds: initialSeconds,
+          newSeconds: totalSeconds
         });
 
         // Issue infraction if edit history contains more than 5 edits in the last year
         let totalRecentEdits = 0;
 
         requestor.timeEntryEditHistory.forEach((edit) => {
-          if (moment().diff(edit.date, 'days') <= 365) {
+          if (moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365) {
             totalRecentEdits += 1;
           }
         });
