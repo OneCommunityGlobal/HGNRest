@@ -79,6 +79,11 @@ const userProfileSchema = new Schema({
   lastWeekTangibleHrs: { type: Number, default: 0 },
   categoryTangibleHrs: [{ category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other'], default: 'Other' }, hrs: { type: Number, default: 0 } }],
   savedTangibleHrs: [Number],
+  timeEntryEditHistory: [{
+    date: { type: Date, required: true, default: moment().tz('America/Los_Angeles').toDate() },
+    initialSeconds: { type: Number, required: true},
+    newSeconds: {type: Number, required: true}
+  }],
   weeklySummaryNotReq: { type: Boolean, default: false },
 });
 
