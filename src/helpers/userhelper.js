@@ -114,7 +114,7 @@ const userhelper = function () {
             emails.push(email);
           }
 
-          const hoursLogged = (summary.totalSeconds / 3600 || 0);
+          const hoursLogged = (result.totalSeconds / 3600 || 0);
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
@@ -132,17 +132,15 @@ const userhelper = function () {
           <b>Name:</b> ${firstName} ${lastName}
           <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
           ${
-            weeklySummariesCount === 8 ?
-            `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>'`
-            :
-            `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
-          }
+  weeklySummariesCount === 8
+    ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>'`
+    : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
+}
           ${
-            hoursLogged >= weeklyComittedHours ?
-            `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
-            :
-            `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
-          }
+  hoursLogged >= weeklyComittedHours
+    ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
+    : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
+}
           ${weeklySummaryMessage}
           </div>`;
         });
