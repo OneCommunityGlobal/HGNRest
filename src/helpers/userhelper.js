@@ -102,6 +102,9 @@ const userhelper = function () {
         let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
         const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> Not provided!</div>';
 
+        results.sort((a, b) => (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastname}`));
+
+
         results.forEach((result) => {
           const {
             firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
@@ -111,8 +114,9 @@ const userhelper = function () {
             emails.push(email);
           }
 
+          const hoursLogged = (summary.totalSeconds / 3600 || 0);
+
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-          const totalValidWeeklySummaries = weeklySummariesCount || 'No valid submissions yet!';
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
           // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
           if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[0]) {
@@ -127,8 +131,18 @@ const userhelper = function () {
           <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
           <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
-          <p><b>Total Valid Weekly Summaries:</b> ${totalValidWeeklySummaries || 'No valid submissions yet!'}</p>
-          <p><b>Committed weekly hours</b>: ${weeklyComittedHours}</p>
+          ${
+            weeklySummariesCount === 8 ?
+            `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>'`
+            :
+            `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
+          }
+          ${
+            hoursLogged >= weeklyComittedHours ?
+            `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
+            :
+            `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
+          }
           ${weeklySummaryMessage}
           </div>`;
         });
