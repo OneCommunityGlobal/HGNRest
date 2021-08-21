@@ -94,12 +94,12 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
 
       // Update edit history
-      if (timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
+      if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
-          initialSeconds: initialSeconds,
-          newSeconds: totalSeconds
+          initialSeconds,
+          newSeconds: totalSeconds,
         });
 
         // Issue infraction if edit history contains more than 5 edits in the last year
