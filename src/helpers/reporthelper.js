@@ -42,10 +42,10 @@ const reporthelper = function () {
                 },
                 {
                   $lte: ['$$timeEntry.createdDateTime', toDate],
-                }
-              ]  
+                },
+              ],
             },
-          }
+          },
         },
         firstName: 1,
         lastName: 1,
@@ -73,13 +73,13 @@ const reporthelper = function () {
     {
       $addFields: {
         totalSeconds: {
-          $sum: '$timeEntries.totalSeconds'
-        }
-      }
+          $sum: '$timeEntries.totalSeconds',
+        },
+      },
     },
     {
-      $unset: 'timeEntries'
-    }
+      $unset: 'timeEntries',
+    },
     ]);
   };
 
