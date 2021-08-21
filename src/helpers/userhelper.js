@@ -99,8 +99,12 @@ const userhelper = function () {
     reporthelper
       .weeklySummaries(weekIndex, weekIndex)
       .then((results) => {
+
         let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
-        const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> Not provided!</div>';
+
+        const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
+
+        const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: magenta;"> Not required for this user </span></div>';
 
         results.sort((a, b) => (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastname}`));
 
@@ -117,13 +121,17 @@ const userhelper = function () {
           const hoursLogged = (result.totalSeconds / 3600 || 0);
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
+          
           // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
-          if (Array.isArray(weeklySummaries) && weeklySummaries.length && weeklySummaries[0]) {
+          if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
             const { dueDate, summary } = weeklySummaries[0];
             if (summary) {
-              weeklySummaryMessage = `<p><b>Weekly Summary</b> (for the week ending on ${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MM-DD')}):</p>
-                                        <div style="padding: 0 20px;">${summary || '<span style="color: red;">Not provided!</span>'}</div>`;
+              weeklySummaryMessage = `<div><b>Weekly Summary</b> (for the week ending on <b>${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MMM-DD')}</b>):</div>
+                                      <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}">${summary}</div>`;
+            } else if (result.weeklySummaryNotReq === true) {
+              weeklySummaryMessage = weeklySummaryNotRequiredMessage;
             }
           }
 
