@@ -81,8 +81,8 @@ const userProfileSchema = new Schema({
   savedTangibleHrs: [Number],
   timeEntryEditHistory: [{
     date: { type: Date, required: true, default: moment().tz('America/Los_Angeles').toDate() },
-    initialSeconds: { type: Number, required: true},
-    newSeconds: {type: Number, required: true}
+    initialSeconds: { type: Number, required: true },
+    newSeconds: { type: Number, required: true },
   }],
   weeklySummaryNotReq: { type: Boolean, default: false },
 });
