@@ -99,7 +99,6 @@ const userhelper = function () {
     reporthelper
       .weeklySummaries(weekIndex, weekIndex)
       .then((results) => {
-
         let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
         const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
@@ -123,7 +122,7 @@ const userhelper = function () {
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
 
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-          
+
           // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
           if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
             const { dueDate, summary } = weeklySummaries[0];
