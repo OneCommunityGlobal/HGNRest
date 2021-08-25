@@ -98,8 +98,8 @@ const timeEntrycontroller = function (TimeEntry) {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
-          initialSeconds: initialSeconds,
-          newSeconds: totalSeconds
+          initialSeconds,
+          newSeconds: totalSeconds,
         });
 
         // Issue infraction if edit history contains more than 5 edits in the last year
