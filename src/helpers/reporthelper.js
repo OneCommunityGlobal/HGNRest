@@ -22,7 +22,31 @@ const reporthelper = function () {
       },
     },
     {
+      $lookup: {
+        from: 'timeEntries',
+        localField: '_id',
+        foreignField: 'personId',
+        as: 'timeEntries',
+      },
+    },
+    {
       $project: {
+        timeEntries: {
+          $filter: {
+            input: '$timeEntries',
+            as: 'timeEntry',
+            cond: {
+              $and: [
+                {
+                  $gte: ['$$timeEntry.createdDateTime', fromDate],
+                },
+                {
+                  $lte: ['$$timeEntry.createdDateTime', toDate],
+                },
+              ],
+            },
+          },
+        },
         firstName: 1,
         lastName: 1,
         email: 1,
@@ -46,6 +70,16 @@ const reporthelper = function () {
         },
         weeklySummariesCount: 1,
       },
+    },
+    {
+      $addFields: {
+        totalSeconds: {
+          $sum: '$timeEntries.totalSeconds',
+        },
+      },
+    },
+    {
+      $unset: 'timeEntries',
     },
     ]);
   };
