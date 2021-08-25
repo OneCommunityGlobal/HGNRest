@@ -11,11 +11,10 @@ const dashboardhelper = function () {
   };
 
   const getOrgData = async function () {
-
     const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
     const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
-    
-    const output =  await userProfile.aggregate([
+
+    const output = await userProfile.aggregate([
       {
         $match: {
           isActive: true,
@@ -108,7 +107,7 @@ const dashboardhelper = function () {
       {
         $project: {
           _id: 0,
-          member_count: '$member_count',
+          memberCount: '$member_count',
           totalWeeklyComittedHours: '$totalWeeklyComittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
@@ -130,20 +129,22 @@ const dashboardhelper = function () {
           },
         },
       },
-    ])
-    
+    ]);
+
     // This is a temporary band aid. I can't figure out why, but intangible time entries
     // somehow increment the total weekly committed hours across all users. ???
-    const USERS = await userProfile.find({isActive: true});
+    const USERS = await userProfile.find({ isActive: true });
     let TOTAL_COMMITED_HOURS = 0;
+    let MEMBER_COUNT = 0;
     USERS.forEach((user) => {
       TOTAL_COMMITED_HOURS += user.weeklyComittedHours;
+      MEMBER_COUNT += 1;
     });
 
     output[0].totalWeeklyComittedHours = TOTAL_COMMITED_HOURS;
+    output[0].memberCount = MEMBER_COUNT;
 
     return output;
-
   };
 
   const getLeaderboard = function (userId) {
