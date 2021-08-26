@@ -95,6 +95,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // Update edit history
       if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
+        
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
@@ -114,11 +115,21 @@ const timeEntrycontroller = function (TimeEntry) {
         if (totalRecentEdits >= 5) {
           requestor.infringments.push({
             date: moment().tz('America/Los_Angeles'),
-            description: 'More than 5 time entry edits in the last calendar year',
+            description: `${totalRecentEdits} time entry edits in the last calendar year`,
           });
         }
 
         await requestor.save();
+
+        emailSender(`onecommunityglobal@gmail.com, ${requestor.email}`, `${requestor.firstName} ${requestor.lastName} was issued a blue square for excessive time entry edits`, `
+          <p>
+            ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries 5 or more times
+            within the last calendar year.
+          </p>
+          <p>
+            This is the ${totalRecentEdits}th edit within the past 365 days.
+          </p>
+        `)
       }
 
 
