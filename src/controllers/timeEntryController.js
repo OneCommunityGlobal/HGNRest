@@ -95,7 +95,6 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // Update edit history
       if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
-        
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
@@ -129,7 +128,7 @@ const timeEntrycontroller = function (TimeEntry) {
           <p>
             This is the ${totalRecentEdits}th edit within the past 365 days.
           </p>
-        `)
+        `);
       }
 
 
