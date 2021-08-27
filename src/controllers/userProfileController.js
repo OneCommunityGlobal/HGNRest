@@ -96,18 +96,28 @@ const userProfileController = function (UserProfile) {
       res.status(403).send('You are not authorized to create new users');
       return;
     }
-    const _email = req.body.email;
-    const userbyemail = await UserProfile.findOne({
+
+    const userByEmail = await UserProfile.findOne({
       email: {
-        $regex: _email,
+        $regex: req.body.email,
         $options: 'i',
       },
     });
 
-    if (userbyemail) {
-      const error = 'Email already exists. Please choose another email.';
+    if (userByEmail) {
       res.status(400).send({
-        error,
+        error: 'That email address is already in use. Please choose another email address.',
+      });
+      return;
+    }
+
+    const userByPhoneNumber = await UserProfile.findOne({
+      phoneNumber: req.body.phoneNumber,
+    });
+
+    if (userByPhoneNumber) {
+      res.status(400).send({
+        error: 'That phone number is already in use. Please choose another number.',
       });
       return;
     }
@@ -126,7 +136,7 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = Date.now();
-    up.email = _email;
+    up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.mediaUrl = req.body.mediaUrl || '';
