@@ -79,7 +79,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const totalSeconds = moment.duration(`${hours}:${minutes}`).asSeconds();
 
-      if (totalSeconds !== timeEntry.totalSeconds) {
+      if (timeEntry.isTangible === true && totalSeconds !== timeEntry.totalSeconds) {
         notifyEditByEmail(timeEntry.personId.toString(), timeEntry, totalSeconds, req.body);
       }
 
