@@ -116,19 +116,19 @@ const timeEntrycontroller = function (TimeEntry) {
             date: moment().tz('America/Los_Angeles'),
             description: `${totalRecentEdits} time entry edits in the last calendar year`,
           });
-        }
 
-        await requestor.save();
-
-        emailSender(`onecommunityglobal@gmail.com, ${requestor.email}`, `${requestor.firstName} ${requestor.lastName} was issued a blue square for excessive time entry edits`, `
+          emailSender(`onecommunityglobal@gmail.com, ${requestor.email}`, `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`, `
           <p>
-            ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries 5 or more times
+            ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
             within the last calendar year.
           </p>
           <p>
             This is the ${totalRecentEdits}th edit within the past 365 days.
           </p>
         `);
+        }
+
+        await requestor.save();
       }
 
 
