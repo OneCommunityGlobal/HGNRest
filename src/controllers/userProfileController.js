@@ -141,6 +141,7 @@ const userProfileController = function (UserProfile) {
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.mediaUrl = req.body.mediaUrl || '';
     up.collaborationPreference = req.body.collaborationPreference || '';
+    up.timeZone = req.body.timeZone || 'America/Los_Angeles';
 
     up.save()
       .then(() => res.status(200).send({
@@ -222,6 +223,7 @@ const userProfileController = function (UserProfile) {
         record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
+        record.timeZone = req.body.timeZone;
       }
 
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
