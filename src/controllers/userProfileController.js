@@ -224,6 +224,7 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.timeZone = req.body.timeZone;
+        record.hoursByCategory = req.body.hoursByCategory;
       }
 
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
