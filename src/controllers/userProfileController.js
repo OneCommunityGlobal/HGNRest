@@ -222,6 +222,7 @@ const userProfileController = function (UserProfile) {
         record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
+        record.hoursByCategory = req.body.hoursByCategory;
       }
 
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
