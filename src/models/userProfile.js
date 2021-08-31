@@ -93,6 +93,7 @@ const userProfileSchema = new Schema({
     newSeconds: { type: Number, required: true },
   }],
   weeklySummaryNotReq: { type: Boolean, default: false },
+  timeZone: {type: String, required: true, default: 'America/Los_Angeles'}
 });
 
 userProfileSchema.pre('save', function (next) {
