@@ -3,13 +3,6 @@ import { CronJob } from 'cron';
 const userhelper = require('../helpers/userhelper')();
 
 const userProfileScheduledJobs = function () {
-  const updateUserStatusToActive = new CronJob(
-    '1 0 * * *', // Run this every day, 1 minute after mimdnight (PST).
-    userhelper.reActivateUser,
-    null,
-    false,
-    'America/Los_Angeles',
-  );
 
   const assignBlueSquare = new CronJob(
     '2 0 * * 0', // Every Sunday, 2 minutes past midnight (PST).
@@ -43,12 +36,19 @@ const userProfileScheduledJobs = function () {
     'America/Los_Angeles',
   );
 
+  const updateUserStatusToActive = new CronJob(
+    '20 0 * * *', // Run this every day, 20 minutes after midnight (PST).
+    userhelper.reActivateUser,
+    null,
+    false,
+    'America/Los_Angeles',
+  );
 
   assignBlueSquare.start();
   emailWeeklySummaries.start();
   deleteBlueSquareOlderThanYear.start();
-  updateUserStatusToActive.start();
   awardNewBadges.start();
+  updateUserStatusToActive.start();
 };
 
 module.exports = userProfileScheduledJobs;
