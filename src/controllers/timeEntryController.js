@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { getInfringmentEmailBody } = require('src/helpers/userhelper');
 const userProfile = require('../models/userProfile');
 const emailSender = require('../utilities/emailSender');
 
@@ -117,15 +118,25 @@ const timeEntrycontroller = function (TimeEntry) {
             description: `${totalRecentEdits} time entry edits in the last calendar year`,
           });
 
-          emailSender(`onecommunityglobal@gmail.com, ${requestor.email}`, `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`, `
-          <p>
-            ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
-            within the last calendar year.
-          </p>
-          <p>
-            This is the ${totalRecentEdits}th edit within the past 365 days.
-          </p>
-        `);
+          emailSender('onecommunityglobal@gmail.com', `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`, `
+            <p>
+              ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
+              within the last calendar year.
+            </p>
+            <p>
+              This is the ${totalRecentEdits}th edit within the past 365 days.
+            </p>
+          `);
+
+          const emailInfringement = {
+            date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
+            description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
+          };
+
+          // Baindaid until email queue is implemented
+          setTimeout(() => {
+            emailSender(requestor.email, 'TITLE', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
+          }, 5000);
         }
 
         await requestor.save();
