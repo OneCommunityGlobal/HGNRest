@@ -82,7 +82,7 @@ const userProfileSchema = new Schema({
     education: { type: Number, default: 0 },
     society: { type: Number, default: 0 },
     energy: { type: Number, default: 0 },
-    unassigned: { type: Number, default: 0 }
+    unassigned: { type: Number, default: 0 },
   },
   lastWeekTangibleHrs: { type: Number, default: 0 },
   categoryTangibleHrs: [{ category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other'], default: 'Other' }, hrs: { type: Number, default: 0 } }],
@@ -93,7 +93,7 @@ const userProfileSchema = new Schema({
     newSeconds: { type: Number, required: true },
   }],
   weeklySummaryNotReq: { type: Boolean, default: false },
-  timeZone: {type: String, required: true, default: 'America/Los_Angeles'}
+  timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
 });
 
 userProfileSchema.pre('save', function (next) {

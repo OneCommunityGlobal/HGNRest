@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const moment = require('moment-timezone');
+
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
@@ -225,8 +227,8 @@ const userProfileController = function (UserProfile) {
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.timeZone = req.body.timeZone;
         record.hoursByCategory = req.body.hoursByCategory;
+        record.createdDate = moment(req.body.createdDate).toDate();
       }
-
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
         record.infringments = req.body.infringments;
       }
@@ -316,7 +318,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.findById(
       userid,
-      '-password -lastModifiedDate -createdDate -__v',
+      '-password -lastModifiedDate -__v',
     )
       .populate({
         path: 'teams',
