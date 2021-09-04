@@ -1,6 +1,18 @@
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
 
+/**
+ * 
+ * @param {*} date1 
+ * @param {*} date2 
+ * @returns The absolute value of the difference in weeks between the two input dates.
+ */
+const absoluteDifferenceInWeeks = (date1, date2) => {
+  date1 = moment(date1);
+  date2 = moment(date2);
+  const absoluteDifference = Math.abs(date1.diff(date2, 'days'));
+  return Math.floor(absoluteDifference / 7);
+}
 
 const reporthelper = function () {
   /**
@@ -10,13 +22,12 @@ const reporthelper = function () {
    * @param {integer} startWeekIndex The start week index, eg. 0 for this week.
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
-  const weeklySummaries = function (startWeekIndex, endWeekIndex) {
-    const pstStartOfWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(startWeekIndex, 'week');
-    const pstEndOfWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(endWeekIndex, 'week');
-    const fromDate = moment(pstStartOfWeek).toDate();
-    const toDate = moment(pstEndOfWeek).toDate();
+  const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
 
-    return userProfile.aggregate([{
+    const pstStart = moment().tz('America/Los_Angeles').startOf('week').subtract(startWeekIndex, 'week').toDate()
+    const pstEnd = moment().tz('America/Los_Angeles').endOf('week').subtract(endWeekIndex, 'week').toDate()
+
+    const results = await userProfile.aggregate([{
       $match: {
         isActive: true,
       },
@@ -38,10 +49,10 @@ const reporthelper = function () {
             cond: {
               $and: [
                 {
-                  $gte: ['$$timeEntry.createdDateTime', fromDate],
+                  $gte: ['$$timeEntry.dateOfWork', moment(pstStart).format('YYYY-MM-DD')],
                 },
                 {
-                  $lte: ['$$timeEntry.createdDateTime', toDate],
+                  $lte: ['$$timeEntry.dateOfWork', moment(pstEnd).format('YYYY-MM-DD')],
                 },
               ],
             },
@@ -60,9 +71,9 @@ const reporthelper = function () {
             cond: {
               $and: [
                 {
-                  $gte: ['$$ws.dueDate', fromDate],
+                  $gte: ['$$ws.dueDate', pstStart],
                 }, {
-                  $lte: ['$$ws.dueDate', toDate],
+                  $lte: ['$$ws.dueDate', pstEnd],
                 },
               ],
             },
@@ -70,19 +81,32 @@ const reporthelper = function () {
         },
         weeklySummariesCount: 1,
       },
-    },
-    {
-      $addFields: {
-        totalSeconds: {
-          $sum: '$timeEntries.totalSeconds',
-        },
-      },
-    },
-    {
-      $unset: 'timeEntries',
-    },
+    }
     ]);
+
+    //Logic too difficult to do using aggregation. 
+    results.forEach((result) => {
+      
+      result.totalSeconds = []
+
+      result.timeEntries.forEach((entry) => {
+
+        const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+
+        if(result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) result.totalSeconds[index] = 0;
+        result.totalSeconds[index] += entry.totalSeconds;
+      })
+
+      delete result['timeEntries'];
+    })
+
+    return results;
+
   };
+
+
+
+
 
   /**
    * Checks whether a date belongs to a specific week based on week index.
