@@ -135,7 +135,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
           // Baindaid until email queue is implemented
           setTimeout(() => {
-            emailSender(requestor.email, 'TITLE', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
+            emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
           }, 5000);
         }
 
