@@ -117,7 +117,7 @@ const userhelper = function () {
             emails.push(email);
           }
 
-          const hoursLogged = (result.totalSeconds / 3600 || 0);
+          const hoursLogged = ((result.totalSeconds[weekIndex] || 0) / 3600 || 0);
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
 
