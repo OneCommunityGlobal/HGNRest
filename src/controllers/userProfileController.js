@@ -228,6 +228,7 @@ const userProfileController = function (UserProfile) {
         record.timeZone = req.body.timeZone;
         record.hoursByCategory = req.body.hoursByCategory;
         record.createdDate = moment(req.body.createdDate).toDate();
+        record.endDate = moment(req.body.endDate).toDate();
       }
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
         record.infringments = req.body.infringments;
