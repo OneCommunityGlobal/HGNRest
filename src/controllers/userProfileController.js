@@ -6,6 +6,7 @@ const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+const { default: yearMonthDayDateValidator } = require('../utilities/yearMonthDayDateValidator');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -228,7 +229,9 @@ const userProfileController = function (UserProfile) {
         record.timeZone = req.body.timeZone;
         record.hoursByCategory = req.body.hoursByCategory;
         record.createdDate = moment(req.body.createdDate).toDate();
-        record.endDate = moment(req.body.endDate).toDate();
+        if (yearMonthDayDateValidator(req.body.endDate)) {
+          record.endDate = moment(req.body.endDate).toDate();
+        }
       }
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
         record.infringments = req.body.infringments;
