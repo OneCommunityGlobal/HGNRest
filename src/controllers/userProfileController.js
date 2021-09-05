@@ -232,6 +232,8 @@ const userProfileController = function (UserProfile) {
         record.createdDate = moment(req.body.createdDate).toDate();
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
+        } else {
+          record.set('endDate', undefined, { strict: false });
         }
       }
       if (infringmentAuthorizers.includes(req.body.requestor.role)) {
@@ -512,6 +514,7 @@ const userProfileController = function (UserProfile) {
     const { userId } = req.params;
     const status = req.body.status === 'Active';
     const activationDate = req.body.reactivationDate;
+    const { endDate } = req.body;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -523,7 +526,7 @@ const userProfileController = function (UserProfile) {
         user.set({
           isActive: status,
           reactivationDate: activationDate,
-          endDate: (activationDate ? undefined : Date.now()),
+          endDate,
         });
         user
           .save()
