@@ -1,3 +1,5 @@
+import yearMonthDayDateValidator from '../utilities/yearMonthDayDateValidator';
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const moment = require('moment-timezone');
@@ -6,7 +8,6 @@ const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
-const { default: yearMonthDayDateValidator } = require('../utilities/yearMonthDayDateValidator');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
