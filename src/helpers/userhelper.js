@@ -83,16 +83,16 @@ const userhelper = function () {
    * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
    * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
    *
-   * @param {int} weekIndex Numbered representation of a week where 0 is the most recent and 2 the oldest.
+   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 2 the oldest.
    *
    * @return {void}
    */
-  const emailWeeklySummariesForAllUsers = function (weekIndex) {
+  const emailWeeklySummariesForAllUsers = function (weekIndex = 1) {
+
+
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
     );
-
-    weekIndex = (weekIndex !== null) ? weekIndex : 1;
 
     const emails = [];
 
@@ -117,7 +117,7 @@ const userhelper = function () {
             emails.push(email);
           }
 
-          const hoursLogged = ((result.totalSeconds[weekIndex] || 0) / 3600 || 0);
+          const hoursLogged = ((result.totalSeconds[weekIndex] || 0) / 3600);
 
           const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
 
@@ -140,7 +140,7 @@ const userhelper = function () {
           <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
           ${
   weeklySummariesCount === 8
-    ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>'`
+    ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
     : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
 }
           ${
