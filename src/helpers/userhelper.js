@@ -243,6 +243,8 @@ const userhelper = function () {
       const users = await userProfile.find({ isActive: true }, '_id weeklySummaries');
 
       for (let i = 0; i < users.length; i += 1) {
+  
+
         const user = users[i];
 
         const personId = mongoose.Types.ObjectId(user._id);
@@ -291,15 +293,16 @@ const userhelper = function () {
 
         const cutOffDate = moment()
           .subtract(1, 'year')
-          .format('YYYY-MM-DD');
+
         const oldInfringements = [];
-        for (let k = 0; i < updateResult?.infringments.length; k += 1) {
+        for (let k = 0; k < updateResult?.infringments.length; k += 1) {
           if (updateResult?.infringments && moment(updateResult?.infringments[k].date).diff(cutOffDate) >= 0) {
             oldInfringements.push(updateResult.infringments[k]);
           } else {
             break;
           }
         }
+
         if (oldInfringements.length) {
           userProfile
             .findByIdAndUpdate(personId, {
@@ -443,7 +446,6 @@ const userhelper = function () {
         const user = users[i];
 
         if (moment().isSameOrAfter(moment(user.reactivationDate))) {
-
           await userProfile.findByIdAndUpdate(
             user._id,
             {
