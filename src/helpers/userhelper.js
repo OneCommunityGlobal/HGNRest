@@ -354,7 +354,6 @@ const userhelper = function () {
           }
 
           categories.forEach(async (elem) => {
-
             if (elem._id == null) {
               elem._id = 'Other';
             }
@@ -382,8 +381,7 @@ const userhelper = function () {
                   },
                 );
             }
-
-          })
+          });
         }
       });
     } catch (err) {
