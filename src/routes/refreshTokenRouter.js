@@ -1,6 +1,7 @@
 const express = require('express');
 const userProfile = require('models/userProfile');
 const { issueRefreshToken, getSignedJwt } = require('controllers/logincontroller')();
+const moment = require('moment-timezone')
 
 /**
  * Client provides a refresh token to the server. In return,
@@ -26,7 +27,11 @@ const postRefreshToken = async (req, res) => {
 
     const newRefreshToken = await issueRefreshToken(user);
 
-    const updatedRefreshTokens = user.refreshTokens.filter(tokenEntry => tokenEntry.token !== req.body.refreshToken);
+    // Removes the refesh token being provided by the client and elimiates any possibly outdated tokens.
+    const updatedRefreshTokens = user.refreshTokens.filter(tokenEntry => (
+      tokenEntry.token !== req.body.refreshToken
+        && (moment().diff(moment(tokenEntry.expirationDate), 'seconds') <= 0)
+    ));
 
     user.refreshTokens = updatedRefreshTokens;
 
