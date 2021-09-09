@@ -2,9 +2,9 @@ const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
 
 /**
- * 
- * @param {*} date1 
- * @param {*} date2 
+ *
+ * @param {*} date1
+ * @param {*} date2
  * @returns The absolute value of the difference in weeks between the two input dates.
  */
 const absoluteDifferenceInWeeks = (date1, date2) => {
@@ -12,7 +12,7 @@ const absoluteDifferenceInWeeks = (date1, date2) => {
   date2 = moment(date2);
   const absoluteDifference = Math.abs(date1.diff(date2, 'days'));
   return Math.floor(absoluteDifference / 7);
-}
+};
 
 const reporthelper = function () {
   /**
@@ -23,9 +23,10 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
-
-    const pstStart = moment().tz('America/Los_Angeles').startOf('week').subtract(startWeekIndex, 'week').toDate()
-    const pstEnd = moment().tz('America/Los_Angeles').endOf('week').subtract(endWeekIndex, 'week').toDate()
+    const pstStart = moment().tz('America/Los_Angeles').startOf('week').subtract(startWeekIndex, 'week')
+      .toDate();
+    const pstEnd = moment().tz('America/Los_Angeles').endOf('week').subtract(endWeekIndex, 'week')
+      .toDate();
 
     const results = await userProfile.aggregate([{
       $match: {
@@ -81,31 +82,25 @@ const reporthelper = function () {
         },
         weeklySummariesCount: 1,
       },
-    }
+    },
     ]);
 
-    //Logic too difficult to do using aggregation. 
+    // Logic too difficult to do using aggregation.
     results.forEach((result) => {
-      
-      result.totalSeconds = []
+      result.totalSeconds = [];
 
       result.timeEntries.forEach((entry) => {
-
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
-        if(result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) result.totalSeconds[index] = 0;
+        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) result.totalSeconds[index] = 0;
         result.totalSeconds[index] += entry.totalSeconds;
-      })
+      });
 
-      delete result['timeEntries'];
-    })
+      delete result.timeEntries;
+    });
 
     return results;
-
   };
-
-
-
 
 
   /**
