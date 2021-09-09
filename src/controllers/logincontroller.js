@@ -43,7 +43,7 @@ const getSignedJwt = (user) => {
   };
 
   const signatureOptions = {
-    expiresIn: '60 seconds',
+    expiresIn: '15 minutes',
   };
 
   const token = jwt.sign(jwtPayload, process.env.JWT_SECRET, signatureOptions);
