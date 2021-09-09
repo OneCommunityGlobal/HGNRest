@@ -94,6 +94,13 @@ const userProfileSchema = new Schema({
   }],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
+  refreshTokens: [
+    {
+      token: { type: String, required: true },
+      expirationDate: { type: Date, required: true },
+      _id: { type: Schema.Types.ObjectId, default: mongoose.Types.ObjectId() },
+    },
+  ],
 });
 
 userProfileSchema.pre('save', function (next) {
