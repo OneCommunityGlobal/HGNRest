@@ -3,7 +3,6 @@ import { CronJob } from 'cron';
 const userhelper = require('../helpers/userhelper')();
 
 const userProfileScheduledJobs = function () {
-
   const assignBlueSquare = new CronJob(
     '2 0 * * 0', // Every Sunday, 2 minutes past midnight (PST).
     userhelper.assignBlueSquareforTimeNotMet,
