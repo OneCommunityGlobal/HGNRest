@@ -243,6 +243,7 @@ const userhelper = function () {
       const users = await userProfile.find({ isActive: true }, '_id weeklySummaries');
 
       for (let i = 0; i < users.length; i += 1) {
+
         const user = users[i];
 
         const personId = mongoose.Types.ObjectId(user._id);
@@ -294,7 +295,7 @@ const userhelper = function () {
           .format('YYYY-MM-DD');
         const oldInfringements = [];
         for (let k = 0; i < updateResult?.infringments.length; k += 1) {
-          if (updateResult?.infringments && moment(updateResult?.infringments[i].date).diff(cutOffDate) >= 0) {
+          if (updateResult?.infringments && moment(updateResult?.infringments[k].date).diff(cutOffDate) >= 0) {
             oldInfringements.push(updateResult.infringments[k]);
           } else {
             break;
