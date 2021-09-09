@@ -103,7 +103,9 @@ const userhelper = function () {
 
       results.sort((a, b) => (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastname}`));
 
-      results.forEach(async (result) => {
+      for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
+
         const {
           firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
         } = result;
@@ -154,7 +156,7 @@ const userhelper = function () {
 }
           ${weeklySummaryMessage}
         </div>`;
-      });
+      }
 
       // Necessary because our version of node is outdated
       // and doesn't have String.prototype.replaceAll
@@ -240,7 +242,9 @@ const userhelper = function () {
 
       const users = await userProfile.find({ isActive: true }, '_id weeklySummaries');
 
-      users.forEach(async (user) => {
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+
         const personId = mongoose.Types.ObjectId(user._id);
 
         let hasWeeklySummary = false;
@@ -289,9 +293,9 @@ const userhelper = function () {
           .subtract(1, 'year')
           .format('YYYY-MM-DD');
         const oldInfringements = [];
-        for (let i = 0; i < updateResult?.infringments.length; i += 1) {
+        for (let k = 0; i < updateResult?.infringments.length; k += 1) {
           if (updateResult?.infringments && moment(updateResult?.infringments[i].date).diff(cutOffDate) >= 0) {
-            oldInfringements.push(updateResult.infringments[i]);
+            oldInfringements.push(updateResult.infringments[k]);
           } else {
             break;
           }
@@ -350,10 +354,12 @@ const userhelper = function () {
                 { $set: { categoryTangibleHrs: [] } },
               );
           } else {
-            return;
+            continue;
           }
 
-          categories.forEach(async (elem) => {
+          for (let j = 0; j < categories.length; j += 1) {
+            const elem = categories[j];
+
             if (elem._id == null) {
               elem._id = 'Other';
             }
@@ -381,9 +387,9 @@ const userhelper = function () {
                   },
                 );
             }
-          });
+          }
         }
-      });
+      }
     } catch (err) {
       logger.logException(err);
     }
@@ -391,9 +397,10 @@ const userhelper = function () {
     // processWeeklySummaries for nonActive users
     try {
       const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
-      inactiveUsers.forEach(async (user) => {
+      for (let i = 0; i < inactiveUsers.length; i += 1) {
+        const user = inactiveUsers[i];
         await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
-      });
+      }
     } catch (err) {
       logger.logException(err);
     }
@@ -432,7 +439,9 @@ const userhelper = function () {
     try {
       const users = await userProfile.find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate');
 
-      users.forEach(async (user) => {
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+
         if (moment.tz(moment(), 'America/Los_Angeles').isSame(moment.tz(user.reactivationDate, 'UTC'), 'day')) {
           await userProfile.findByIdAndUpdate(
             user._id,
@@ -445,7 +454,7 @@ const userhelper = function () {
 
           logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
         }
-      });
+      }
     } catch (err) {
       logger.logException(err);
     }
@@ -873,7 +882,9 @@ const userhelper = function () {
         .find({ isActive: true })
         .populate('badgeCollection.badge');
 
-      users.forEach(async (user) => {
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
         await checkPersonalMax(personId, user, badgeCollection);
@@ -883,7 +894,7 @@ const userhelper = function () {
         await checkLeadTeamOfXplus(personId, user, badgeCollection);
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
-      });
+      }
     } catch (err) {
       logger.logException(err);
     }
