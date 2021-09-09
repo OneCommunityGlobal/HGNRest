@@ -243,7 +243,6 @@ const userhelper = function () {
       const users = await userProfile.find({ isActive: true }, '_id weeklySummaries');
 
       for (let i = 0; i < users.length; i += 1) {
-
         const user = users[i];
 
         const personId = mongoose.Types.ObjectId(user._id);
@@ -443,7 +442,8 @@ const userhelper = function () {
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
-        if (moment.tz(moment(), 'America/Los_Angeles').isSame(moment.tz(user.reactivationDate, 'UTC'), 'day')) {
+        if (moment().isSameOrAfter(moment(user.reactivationDate))) {
+
           await userProfile.findByIdAndUpdate(
             user._id,
             {
