@@ -1,3 +1,4 @@
+const refreshTokenRouter = require('routes/refreshTokenRouter')();
 
 const timeEntry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
@@ -55,4 +56,5 @@ module.exports = function (app) {
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
   app.use('/api', inventoryRouter);
+  app.use('/api', refreshTokenRouter);
 };
