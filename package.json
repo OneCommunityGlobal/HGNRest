@@ -29,7 +29,7 @@
     "pre-commit": "^1.2.2"
   },
   "dependencies": {
-    "@babel/cli": "^7.10.1",
+    "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
     "@babel/plugin-transform-async-to-generator": "^7.10.1",
