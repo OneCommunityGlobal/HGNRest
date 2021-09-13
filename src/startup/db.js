@@ -34,10 +34,8 @@ module.exports = function () {
   const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;
 
   mongoose.connect(uri, {
-    useCreateIndex: true,
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    useFindAndModify: false,
   })
     .then(afterConnect)
     .catch(err => logger.logException(err));
