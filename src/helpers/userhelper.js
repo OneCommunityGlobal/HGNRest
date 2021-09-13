@@ -88,8 +88,6 @@ const userhelper = function () {
    * @return {void}
    */
   const emailWeeklySummariesForAllUsers = function (weekIndex = 1) {
-
-
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
     );
