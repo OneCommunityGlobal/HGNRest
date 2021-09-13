@@ -325,7 +325,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.findById(
       userid,
-      '-password -lastModifiedDate -__v',
+      '-password -refreshTokens -lastModifiedDate -__v',
     )
       .populate({
         path: 'teams',
