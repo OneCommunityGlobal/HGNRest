@@ -14,7 +14,9 @@
     "func-names": "off",
     "no-underscore-dangle": "off",
     "no-param-reassign" : "off",
-    "max-len": "off"
+    "max-len": "off",
+    "no-continue": "warn",
+    "no-await-in-loop": "warn"
   },
   "settings": {
     "import/resolver": {
