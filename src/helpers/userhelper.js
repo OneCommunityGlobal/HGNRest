@@ -11,8 +11,6 @@ const emailSender = require('../utilities/emailSender');
 
 const logger = require('../startup/logger');
 
-let timeoutMS = 200000;
-
 const userhelper = function () {
   const getTeamMembers = function (user) {
     const userid = mongoose.Types.ObjectId(user._id);
@@ -87,59 +85,67 @@ const userhelper = function () {
    *
    * @return {void}
    */
-  const emailWeeklySummariesForAllUsers = function (weekIndex = 1) {
+  const emailWeeklySummariesForAllUsers = async (weekIndex = 1) => {
+    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
-
-    logger.logInfo(
-      `Job for emailing all users' weekly summaries starting at ${moment().tz('America/Los_Angeles').format()}`,
-    );
+    logger.logInfo(`Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`);
 
     const emails = [];
 
-    reporthelper
-      .weeklySummaries(weekIndex, weekIndex)
-      .then((results) => {
-        let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
+    try {
+      const results = await reporthelper.weeklySummaries(weekIndex, weekIndex);
 
-        const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
+      let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
-        const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: magenta;"> Not required for this user </span></div>';
+      const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
 
-        results.sort((a, b) => (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastname}`));
+      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: magenta;"> Not required for this user </span></div>';
 
+      results.sort((a, b) => (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastname}`));
 
-        results.forEach((result) => {
-          const {
-            firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
-          } = result;
+      for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
 
-          if (email !== undefined && email !== null) {
-            emails.push(email);
+        const {
+          firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
+        } = result;
+
+        if (email !== undefined && email !== null) {
+          emails.push(email);
+        }
+
+        const hoursLogged = ((result.totalSeconds[weekIndex] / 3600) || 0);
+
+        const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+
+        let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
+
+        // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
+        if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
+          const { dueDate, summary } = weeklySummaries[0];
+          if (summary) {
+            weeklySummaryMessage = `
+              <div>
+                <b>Weekly Summary</b>
+                (for the week ending on <b>${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MMM-DD')}</b>):
+              </div>
+              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}">
+                ${summary}
+              </div>
+            `;
+          } else if (result.weeklySummaryNotReq === true) {
+            weeklySummaryMessage = weeklySummaryNotRequiredMessage;
           }
+        }
 
-          const hoursLogged = ((result.totalSeconds[weekIndex] || 0) / 3600);
-
-          const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-
-          let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-
-          // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
-          if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
-            const { dueDate, summary } = weeklySummaries[0];
-            if (summary) {
-              weeklySummaryMessage = `<div><b>Weekly Summary</b> (for the week ending on <b>${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MMM-DD')}</b>):</div>
-                                      <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}">${summary}</div>`;
-            } else if (result.weeklySummaryNotReq === true) {
-              weeklySummaryMessage = weeklySummaryNotRequiredMessage;
-            }
-          }
-
-          emailBody += `\n
-          <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
+        emailBody += `
+        \n
+        <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
-          <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
-          ${
-  weeklySummariesCount === 8
+          <p>
+            <b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}
+          </p>
+          ${weeklySummariesCount === 8
     ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
     : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
 }
@@ -149,34 +155,33 @@ const userhelper = function () {
     : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
 }
           ${weeklySummaryMessage}
-          </div>`;
-        });
+        </div>`;
+      }
 
-        // Necessary because our version of node is outdated
-        // and doesn't have String.prototype.replaceAll
-        let emailString = [...(new Set(emails))].toString();
-        while (emailString.includes(',')) emailString = emailString.replace(',', '\n');
-        while (emailString.includes('\n')) emailString = emailString.replace('\n', ', ');
+      // Necessary because our version of node is outdated
+      // and doesn't have String.prototype.replaceAll
+      let emailString = [...(new Set(emails))].toString();
+      while (emailString.includes(',')) emailString = emailString.replace(',', '\n');
+      while (emailString.includes('\n')) emailString = emailString.replace('\n', ', ');
 
-        emailBody += `\n
-          <div>
-            <h3>Emails</h3>
-            <p>
-              ${emailString}
-            </p>
-          </div>
-        `;
+      emailBody += `\n
+        <div>
+          <h3>Emails</h3>
+          <p>
+            ${emailString}
+          </p>
+        </div>
+      `;
 
-        if (process.env.sendEmail) {
-          emailSender(
-            'onecommunityglobal@gmail.com',
-            'Weekly Summaries for all active users...',
-            emailBody,
-            null,
-          );
-        }
-      })
-      .catch(error => logger.logException(error));
+      emailSender(
+        'onecommunityglobal@gmail.com',
+        'Weekly Summaries for all active users...',
+        emailBody,
+        null,
+      );
+    } catch (err) {
+      logger.logException(err);
+    }
   };
 
 
@@ -225,202 +230,194 @@ const userhelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
    *      and increment the weeklySummariesCount for valud submissions.
    */
-  const assignBlueSquareforTimeNotMet = function () {
-    timeoutMS = 200000;
-    logger.logInfo(
-      `Job for assigning blue square for commitment not met starting at ${moment()
-        .tz('America/Los_Angeles')
-        .format()}`,
-    );
-    const pdtStartOfLastWeek = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(1, 'week');
-    const pdtEndOfLastWeek = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(1, 'week');
-    userProfile
-      .find(
-        {
-          isActive: true,
-        },
-        '_id weeklySummaries',
-      )
-      .then((users) => {
-        users.forEach(async (user) => {
-          const {
-            _id, weeklySummaries,
-          } = user;
-          const personId = mongoose.Types.ObjectId(_id);
+  const assignBlueSquareforTimeNotMet = async () => {
+    try {
+      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
-          let hasWeeklySummary = false;
-          if (Array.isArray(weeklySummaries) && weeklySummaries.length) {
-            const { summary } = weeklySummaries[0];
-            // const fromDate = moment(pdtStartOfLastWeek).toDate();
-            // const toDate = moment(pdtEndOfLastWeek).toDate();
-            if (summary) {
-              hasWeeklySummary = true;
-            }
+      logger.logInfo(`Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`);
+
+      const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
+
+      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+
+      const users = await userProfile.find({ isActive: true }, '_id weeklySummaries');
+
+      for (let i = 0; i < users.length; i += 1) {
+  
+
+        const user = users[i];
+
+        const personId = mongoose.Types.ObjectId(user._id);
+
+        let hasWeeklySummary = false;
+
+        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+          const { summary } = user.weeklySummaries[0];
+          if (summary) {
+            hasWeeklySummary = true;
+          }
+        }
+
+        //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
+        await processWeeklySummariesByUserId(personId, hasWeeklySummary);
+
+        const results = await dashboardhelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+        const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
+
+        const timeNotMet = (timeSpent < weeklyComittedHours);
+        let description;
+
+        const updateResult = await userProfile.findByIdAndUpdate(
+          personId,
+          {
+            $inc: {
+              totalTangibleHrs: timeSpent || 0,
+            },
+            $max: {
+              personalBestMaxHrs: timeSpent || 0,
+            },
+            $push: {
+              savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
+            },
+            $set: {
+              lastWeekTangibleHrs: timeSpent || 0,
+            },
+          },
+          { new: true },
+        );
+
+        if (updateResult?.weeklySummaryNotReq) {
+          hasWeeklySummary = true;
+        }
+
+        const cutOffDate = moment()
+          .subtract(1, 'year')
+
+        const oldInfringements = [];
+        for (let k = 0; k < updateResult?.infringments.length; k += 1) {
+          if (updateResult?.infringments && moment(updateResult?.infringments[k].date).diff(cutOffDate) >= 0) {
+            oldInfringements.push(updateResult.infringments[k]);
+          } else {
+            break;
+          }
+        }
+
+        if (oldInfringements.length) {
+          userProfile
+            .findByIdAndUpdate(personId, {
+              $push: {
+                oldInfringements: { $each: oldInfringements, $slice: -10 },
+              },
+            }, { new: true });
+        }
+
+        if (timeNotMet || (!hasWeeklySummary)) {
+          if (timeNotMet && !hasWeeklySummary) {
+            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+          } else if (timeNotMet) {
+            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+          } else {
+            description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
 
-          //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-          await processWeeklySummariesByUserId(personId, hasWeeklySummary);
+          const infringment = {
+            date: moment()
+              .utc()
+              .format('YYYY-MM-DD'),
+            description,
+          };
 
-          await dashboardhelper
-            .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
-            .then(async (results) => {
-              const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
-              const timeNotMet = (timeSpent < weeklyComittedHours);
-              let description;
+          const status = await userProfile
+            .findByIdAndUpdate(personId, {
+              $push: {
+                infringments: infringment,
+              },
+            }, { new: true });
 
+          emailSender(
+            status.email,
+            'New Infringment Assigned',
+            getInfringmentEmailBody(
+              status.firstName,
+              status.lastName,
+              infringment,
+              status.infringments.length,
+            ),
+            null,
+            'onecommunityglobal@gmail.com',
+          );
+
+          const categories = await dashboardhelper.laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+          if (Array.isArray(categories) && categories.length > 0) {
+            await userProfile
+              .findOneAndUpdate(
+                { _id: personId, categoryTangibleHrs: { $exists: false } },
+                { $set: { categoryTangibleHrs: [] } },
+              );
+          } else {
+            continue;
+          }
+
+          for (let j = 0; j < categories.length; j += 1) {
+            const elem = categories[j];
+
+            if (elem._id == null) {
+              elem._id = 'Other';
+            }
+
+            const updateResult2 = await userProfile
+              .findOneAndUpdate(
+                { _id: personId, 'categoryTangibleHrs.category': elem._id },
+                { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } },
+                { new: true },
+              );
+
+            if (!updateResult2) {
               await userProfile
-                .findByIdAndUpdate(personId, {
-                  $inc: {
-                    totalTangibleHrs: timeSpent || 0,
+                .findOneAndUpdate(
+                  {
+                    _id: personId,
+                    'categoryTangibleHrs.category': { $ne: elem._id },
                   },
-                  $max: {
-                    personalBestMaxHrs: timeSpent || 0,
-                  },
-                  $push: {
-                    savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
-                  },
-                  $set: {
-                    lastWeekTangibleHrs: timeSpent || 0,
-                  },
-                }, { new: true }).then((res) => {
-                  if (res?.weeklySummaryNotReq) {
-                    hasWeeklySummary = true;
-                  }
-
-                  const cutOffDate = moment()
-                    .subtract(1, 'year')
-                    .format('YYYY-MM-DD');
-                  const oldInfringements = [];
-                  for (let i = 0; i < res?.infringments.length; i += 1) {
-                    if (res?.infringments && moment(res?.infringments[i].date).diff(cutOffDate) >= 0) {
-                      oldInfringements.push(res.infringments[i]);
-                    } else {
-                      break;
-                    }
-                  }
-                  if (oldInfringements.length) {
-                    userProfile
-                      .findByIdAndUpdate(personId, {
-                        $push: {
-                          oldInfringements: { $each: oldInfringements, $slice: -10 },
-                        },
-                      }, { new: true });
-                  }
-                });
-
-              if (timeNotMet || (!hasWeeklySummary)) {
-                if (timeNotMet && !hasWeeklySummary) {
-                  description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-                } else if (timeNotMet) {
-                  description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-                } else {
-                  description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-                }
-
-                const infringment = {
-                  date: moment()
-                    .utc()
-                    .format('YYYY-MM-DD'),
-                  description,
-                };
-
-                await userProfile
-                  .findByIdAndUpdate(personId, {
-                    $push: {
-                      infringments: infringment,
+                  {
+                    $addToSet: {
+                      categoryTangibleHrs: {
+                        category: elem._id, hrs: elem.timeSpent_hrs,
+                      },
                     },
-                  }, { new: true })
-                  .then((status) => {
-                    if (process.env.sendEmail) {
-                      timeoutMS += 500;
-                      setTimeout(() => {
-                        emailSender(
-                          status.email,
-                          'New Infringment Assigned',
-                          getInfringmentEmailBody(
-                            status.firstName,
-                            status.lastName,
-                            infringment,
-                            status.infringments.length,
-                          ),
-                          null,
-                          'onecommunityglobal@gmail.com',
-                        );
-                      }, timeoutMS);
-                    }
-                  })
-                  .catch(error => logger.logException(error));
-              }
-            })
-            .catch(error => logger.logException(error));
-
-
-          await dashboardhelper
-            .laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
-            .then(async (categories) => {
-              if (Array.isArray(categories) && categories.length > 0) {
-                await userProfile
-                  .findOneAndUpdate({ _id: personId, categoryTangibleHrs: { $exists: false } },
-                    { $set: { categoryTangibleHrs: [] } });
-              } else {
-                return;
-              }
-              categories.forEach(async (elem) => {
-                if (elem._id == null) {
-                  elem._id = 'Other';
-                }
-                await userProfile
-                  .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': elem._id },
-                    { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } }, { new: true }).then(async (result) => {
-                    if (!result) {
-                      await userProfile
-                        .findOneAndUpdate({ _id: personId, 'categoryTangibleHrs.category': { $ne: elem._id } },
-                          { $addToSet: { categoryTangibleHrs: { category: elem._id, hrs: elem.timeSpent_hrs } } });
-                    }
-                  });
-              });
-            });
-        });
-      })
-      .catch(error => logger.logException(error));
+                  },
+                );
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logger.logException(err);
+    }
 
     // processWeeklySummaries for nonActive users
-    userProfile
-      .find(
-        {
-          isActive: false,
-        },
-        '_id',
-      )
-      .then((users) => {
-        users.forEach(async (user) => {
-          const {
-            _id,
-          } = user;
-          const personId = mongoose.Types.ObjectId(_id);
-          await processWeeklySummariesByUserId(personId, false);
-        });
-      });
+    try {
+      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
+      for (let i = 0; i < inactiveUsers.length; i += 1) {
+        const user = inactiveUsers[i];
+        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+      }
+    } catch (err) {
+      logger.logException(err);
+    }
   };
 
-  const deleteBlueSquareAfterYear = function () {
-    logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${moment()
-        .tz('America/Los_Angeles')
-        .format()}`,
-    );
-    const cutOffDate = moment()
-      .subtract(1, 'year')
-      .format('YYYY-MM-DD');
-    userProfile
-      .updateMany(
-        {},
+  const deleteBlueSquareAfterYear = async () => {
+    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+
+    logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`);
+
+    const cutOffDate = moment().subtract(1, 'year').format('YYYY-MM-DD');
+
+    try {
+      const results = await userProfile.updateMany({},
         {
           $pull: {
             infringments: {
@@ -429,37 +426,41 @@ const userhelper = function () {
               },
             },
           },
-        },
-      )
-      .then(results => logger.logInfo(results))
-      .catch(error => logger.logException(error));
+        });
+
+      logger.logInfo(results);
+    } catch (err) {
+      logger.logException(err);
+    }
   };
 
-  const reActivateUser = function () {
-    logger.logInfo(
-      `Job for activating users based on scheduled re-activation date starting at ${moment().tz('America/Los_Angeles').format()}`,
-    );
-    userProfile
-      .find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate')
-      .then((users) => {
-        users.forEach((user) => {
-          if (moment.tz(moment(), 'America/Los_Angeles').isSame(moment.tz(user.reactivationDate, 'UTC'), 'day')) {
-            userProfile.findByIdAndUpdate(
-              user._id,
-              {
-                $set: {
-                  isActive: true,
-                },
-              }, { new: true },
-            )
-              .then(() => {
-                logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
-              })
-              .catch(error => logger.logException(error));
-          }
-        });
-      })
-      .catch(error => logger.logException(error));
+  const reActivateUser = async () => {
+    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+
+    logger.logInfo(`Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`);
+
+    try {
+      const users = await userProfile.find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate');
+
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+
+        if (moment().isSameOrAfter(moment(user.reactivationDate))) {
+          await userProfile.findByIdAndUpdate(
+            user._id,
+            {
+              $set: {
+                isActive: true,
+              },
+            }, { new: true },
+          );
+
+          logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+        }
+      }
+    } catch (err) {
+      logger.logException(err);
+    }
   };
 
   const notifyInfringments = function (
@@ -480,15 +481,13 @@ const userhelper = function () {
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
     newInfringments.forEach((element) => {
-      if (process.env.sendEmail) {
-        emailSender(
-          emailAddress,
-          'New Infringment Assigned',
-          getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
-          null,
-          'onecommunityglobal@gmail.com',
-        );
-      }
+      emailSender(
+        emailAddress,
+        'New Infringment Assigned',
+        getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
+        null,
+        'onecommunityglobal@gmail.com',
+      );
     });
   };
 
@@ -880,29 +879,28 @@ const userhelper = function () {
     });
   };
 
-  const awardNewBadges = async function () {
-    // getBadges User Has By Type
-    await userProfile
-      .find(
-        {
-          isActive: true,
-        },
-      ).populate('badgeCollection.badge')
-      .then((users) => {
-        users.forEach(async (user) => {
-          const {
-            _id, badgeCollection,
-          } = user;
-          const personId = mongoose.Types.ObjectId(_id);
-          await checkPersonalMax(personId, user, badgeCollection);
-          await checkMostHrsWeek(personId, user, badgeCollection);
-          await checkMinHoursMultiple(personId, user, badgeCollection);
-          await checkTotalHrsInCat(personId, user, badgeCollection);
-          await checkLeadTeamOfXplus(personId, user, badgeCollection);
-          await checkXHrsForXWeeks(personId, user, badgeCollection);
-          await checkNoInfringementStreak(personId, user, badgeCollection);
-        });
-      });
+  const awardNewBadges = async () => {
+    try {
+      const users = await userProfile
+        .find({ isActive: true })
+        .populate('badgeCollection.badge');
+
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+
+        const { _id, badgeCollection } = user;
+        const personId = mongoose.Types.ObjectId(_id);
+        await checkPersonalMax(personId, user, badgeCollection);
+        await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkXHrsForXWeeks(personId, user, badgeCollection);
+        await checkNoInfringementStreak(personId, user, badgeCollection);
+      }
+    } catch (err) {
+      logger.logException(err);
+    }
   };
 
   return {
