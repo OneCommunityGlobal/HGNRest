@@ -1,7 +1,7 @@
 const express = require('express');
 const userProfile = require('models/userProfile');
 const { issueRefreshToken, getSignedJwt } = require('controllers/logincontroller')();
-const moment = require('moment-timezone')
+const moment = require('moment-timezone');
 
 /**
  * Client provides a refresh token to the server. In return,
