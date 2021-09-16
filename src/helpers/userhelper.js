@@ -559,6 +559,35 @@ const userhelper = function () {
     }
   };
 
+
+  // remove the last badge you earned on this streak(not including 1)
+  const removePrevHrBadge = async function (personId, user, badgeCollection, hrs, weeks) {
+    // Check each Streak Greater than One to check if it works
+    if (weeks < 3) {
+      return;
+    }
+    let removed = false;
+    await badge.aggregate([
+      { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1, $lt: weeks }, totalHrs: hrs } },
+      { $sort: { weeks: -1, totalHrs: -1 } },
+      { $group: { _id: '$weeks', badges: { $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' } } } },
+    ])
+      .then((results) => {
+        results.forEach((streak) => {
+          streak.badges.every((bdge) => {
+            for (let i = 0; i < badgeCollection.length; i += 1) {
+              if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak' && badgeCollection[i].badge?.weeks === bdge.weeks && bdge.hrs === hrs && !removed) {
+                changeBadgeCount(personId, badgeCollection[i].badge._id, badgeCollection[i].badge.count - 1);
+                removed = true;
+                return false;
+              }
+            }
+            return true;
+          });
+        });
+      });
+  };
+
   //   'No Infringement Streak',
   const checkNoInfringementStreak = async function (personId, user, badgeCollection) {
     let badgeOfType;
@@ -789,33 +818,6 @@ const userhelper = function () {
       });
   };
 
-  // remove the last badge you earned on this streak(not including 1)
-  const removePrevHrBadge = async function (personId, user, badgeCollection, hrs, weeks) {
-    // Check each Streak Greater than One to check if it works
-    if (weeks < 3) {
-      return;
-    }
-    let removed = false;
-    await badge.aggregate([
-      { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1, $lt: weeks }, totalHrs: hrs } },
-      { $sort: { weeks: -1, totalHrs: -1 } },
-      { $group: { _id: '$weeks', badges: { $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' } } } },
-    ])
-      .then((results) => {
-        results.forEach((streak) => {
-          streak.badges.every((bdge) => {
-            for (let i = 0; i < badgeCollection.length; i += 1) {
-              if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak' && badgeCollection[i].badge?.weeks === bdge.weeks && bdge.hrs == hrs && !removed) {
-                changeBadgeCount(personId, badgeCollection[i].badge._id, badgeCollection[i].badge.count - 1);
-                removed = true;
-                return false;
-              }
-            }
-          });
-        });
-      });
-  };
-
   // 'Lead a team of X+'
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     if (!['Manager', 'Administrator', 'Core Team'].includes(user.role)) {
@@ -832,7 +834,7 @@ const userhelper = function () {
       }
     });
 
-    objIds = {};
+    const objIds = {};
     teamMembers = teamMembers.filter((elem) => {
       if (['Manager', 'Administrator', 'Core Team'].includes(elem.role)) {
         return false;
