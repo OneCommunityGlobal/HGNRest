@@ -513,17 +513,6 @@ const userhelper = function () {
       });
   };
 
-  const changeBadgeCount = async function (personId, badgeId, count) {
-    console.log('Changing Badge Count', personId, badgeId, count);
-    userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
-      { $set: { 'badgeCollection.$.count': count, 'badgeCollection.$.lastModified': Date.now().toString() } },
-      (err) => {
-        if (err) {
-          console.log(err);
-        }
-      });
-  };
-
   const addBadge = async function (personId, badgeId, count = 1, featured = false) {
     console.log('Adding Badge ', personId, badgeId, count);
     userProfile.findByIdAndUpdate(personId,
@@ -553,6 +542,50 @@ const userhelper = function () {
         if (err) {
           console.log(err);
         }
+      });
+  };
+
+  const changeBadgeCount = async function (personId, badgeId, count) {
+    console.log('Changing Badge Count', personId, badgeId, count);
+    if (count === 0) {
+      removeDupBadge(personId, badgeId);
+    } else {
+      userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
+        { $set: { 'badgeCollection.$.count': count, 'badgeCollection.$.lastModified': Date.now().toString() } },
+        (err) => {
+          if (err) {
+            console.log(err);
+          }
+        });
+    }
+  };
+
+
+  // remove the last badge you earned on this streak(not including 1)
+  const removePrevHrBadge = async function (personId, user, badgeCollection, hrs, weeks) {
+    // Check each Streak Greater than One to check if it works
+    if (weeks < 3) {
+      return;
+    }
+    let removed = false;
+    await badge.aggregate([
+      { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1, $lt: weeks }, totalHrs: hrs } },
+      { $sort: { weeks: -1, totalHrs: -1 } },
+      { $group: { _id: '$weeks', badges: { $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' } } } },
+    ])
+      .then((results) => {
+        results.forEach((streak) => {
+          streak.badges.every((bdge) => {
+            for (let i = 0; i < badgeCollection.length; i += 1) {
+              if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak' && badgeCollection[i].badge?.weeks === bdge.weeks && bdge.hrs === hrs && !removed) {
+                changeBadgeCount(personId, badgeCollection[i].badge._id, badgeCollection[i].badge.count - 1);
+                removed = true;
+                return false;
+              }
+            }
+            return true;
+          });
+        });
       });
   };
 
@@ -738,6 +771,7 @@ const userhelper = function () {
       { $group: { _id: '$weeks', badges: { $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' } } } },
     ])
       .then((results) => {
+        let lastHr = -1;
         results.forEach((streak) => {
           streak.badges.every((bdge) => {
             let badgeOfType;
@@ -753,6 +787,7 @@ const userhelper = function () {
                 }
               }
             }
+            // check if it is possible to earn this streak
             if (user.savedTangibleHrs.length >= bdge.weeks) {
               let awardBadge = true;
               const endOfArr = user.savedTangibleHrs.length - 1;
@@ -762,13 +797,18 @@ const userhelper = function () {
                   return true;
                 }
               }
-              if (awardBadge) {
+              // if all checks for award badge are green double check that we havent already awarded a higher streak for the same number of hours
+              if (awardBadge && bdge.hrs > lastHr) {
+                lastHr = bdge.hrs;
                 if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
                   replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(bdge._id));
+                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
                 } else if (!badgeOfType) {
                   addBadge(personId, mongoose.Types.ObjectId(bdge._id));
+                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
                   increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
+                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
                 }
                 return false;
               }
@@ -793,6 +833,19 @@ const userhelper = function () {
       } else {
         teamMembers = [];
       }
+    });
+
+    const objIds = {};
+    teamMembers = teamMembers.filter((elem) => {
+      if (['Manager', 'Administrator', 'Core Team'].includes(elem.role)) {
+        return false;
+      }
+
+      if (objIds[elem._id]) {
+        return false;
+      }
+      objIds[elem._id] = true;
+      return true;
     });
 
     let badgeOfType;

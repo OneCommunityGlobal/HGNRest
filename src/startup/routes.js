@@ -1,5 +1,3 @@
-const refreshTokenRouter = require('routes/refreshTokenRouter')();
-
 const timeEntry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const project = require('../models/project');
@@ -27,6 +25,7 @@ const notificationRouter = require('../routes/notificationRouter')(notification)
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
+const refreshTokenRouter = require('../routes/refreshTokenRouter')();
 const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
