@@ -13,7 +13,6 @@ const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
-
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')();
@@ -25,7 +24,6 @@ const notificationRouter = require('../routes/notificationRouter')(notification)
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
-const refreshTokenRouter = require('../routes/refreshTokenRouter')();
 const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
@@ -55,5 +53,4 @@ module.exports = function (app) {
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
   app.use('/api', inventoryRouter);
-  app.use('/api', refreshTokenRouter);
 };
