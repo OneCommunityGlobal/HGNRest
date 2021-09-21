@@ -3,15 +3,14 @@ const userProfile = require('../models/userProfile');
 
 /**
  *
- * @param {*} date1
- * @param {*} date2
+ * @param {*} dateOfWork
+ * @param {*} pstEnd
  * @returns The absolute value of the difference in weeks between the two input dates.
  */
-const absoluteDifferenceInWeeks = (date1, date2) => {
-  date1 = moment(date1);
-  date2 = moment(date2);
-  const absoluteDifference = Math.abs(date1.diff(date2, 'days'));
-  return Math.floor(absoluteDifference / 7);
+const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
+  dateOfWork = moment(dateOfWork).endOf('week')
+  pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week')
+  return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
 };
 
 const reporthelper = function () {
@@ -81,19 +80,28 @@ const reporthelper = function () {
           },
         },
         weeklySummariesCount: 1,
+        isTangible: 1,
       },
     },
     ]);
 
     // Logic too difficult to do using aggregation.
     results.forEach((result) => {
+
       result.totalSeconds = [];
 
       result.timeEntries.forEach((entry) => {
+
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) result.totalSeconds[index] = 0;
-        result.totalSeconds[index] += entry.totalSeconds;
+        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
+          result.totalSeconds[index] = 0;
+        }
+
+        if(entry.isTangible === true) {
+          result.totalSeconds[index] += entry.totalSeconds;
+        }
+
       });
 
       delete result.timeEntries;

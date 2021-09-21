@@ -133,10 +133,8 @@ const timeEntrycontroller = function (TimeEntry) {
             description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
           };
 
-          // Baindaid until email queue is implemented
-          setTimeout(() => {
-            emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
-          }, 5000);
+          emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
+        
         }
 
         await requestor.save();
@@ -225,8 +223,8 @@ const timeEntrycontroller = function (TimeEntry) {
       return;
     }
 
-    const fromdate = moment(req.params.fromdate).format('YYYY-MM-DD');
-    const todate = moment(req.params.todate).format('YYYY-MM-DD');
+    const fromdate = moment(req.params.fromdate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const { userId } = req.params;
 
     TimeEntry.find(
