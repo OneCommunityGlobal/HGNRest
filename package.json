@@ -19,7 +19,6 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.15.0",
     "@types/express": "^4.17.6",
-    "@types/mongoose": "^4.7.53",
     "@types/node": "^8.10.61",
     "babel-eslint": "^10.1.0",
     "eslint": "^5.9.0",
@@ -48,7 +47,7 @@
     "lodash": "^4.17.21",
     "moment": "^2.29.1",
     "moment-timezone": "^0.5.33",
-    "mongoose": "^6.0.5",
+    "mongoose": "^5.13.7",
     "mongoose-validator": "2.0.1",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.4.16",

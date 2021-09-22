@@ -335,7 +335,7 @@ const userProfileController = function (UserProfile) {
             teamName: 1,
           },
         },
-      },{
+      }, {
         path: 'projects',
         select: '_id projectName',
         options: {
@@ -343,7 +343,7 @@ const userProfileController = function (UserProfile) {
             projectName: 1,
           },
         },
-      },{
+      }, {
         path: 'badgeCollection',
         populate: {
           path: 'badge',
