@@ -327,7 +327,7 @@ const userProfileController = function (UserProfile) {
       userid,
       '-password -refreshTokens -lastModifiedDate -__v',
     )
-      .populate({
+      .populate([{
         path: 'teams',
         select: '_id teamName',
         options: {
@@ -335,8 +335,7 @@ const userProfileController = function (UserProfile) {
             teamName: 1,
           },
         },
-      })
-      .populate({
+      },{
         path: 'projects',
         select: '_id projectName',
         options: {
@@ -344,15 +343,15 @@ const userProfileController = function (UserProfile) {
             projectName: 1,
           },
         },
-      })
-      .populate({
+      },{
         path: 'badgeCollection',
         populate: {
           path: 'badge',
           model: Badge,
           select: '_id badgeName type imageUrl description ranking',
         },
-      })
+      }])
+      .exec()
       .then((results) => {
         if (!results) {
           res.status(400).send({ error: 'This is not a valid user' });
@@ -360,7 +359,6 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(results);
       })
-
       .catch(error => res.status(404).send(error));
   };
 
