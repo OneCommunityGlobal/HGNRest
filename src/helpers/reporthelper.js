@@ -8,8 +8,8 @@ const userProfile = require('../models/userProfile');
  * @returns The absolute value of the difference in weeks between the two input dates.
  */
 const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
-  dateOfWork = moment(dateOfWork).endOf('week')
-  pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week')
+  dateOfWork = moment(dateOfWork).endOf('week');
+  pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
   return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
 };
 
@@ -87,21 +87,18 @@ const reporthelper = function () {
 
     // Logic too difficult to do using aggregation.
     results.forEach((result) => {
-
       result.totalSeconds = [];
 
       result.timeEntries.forEach((entry) => {
-
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
         if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
           result.totalSeconds[index] = 0;
         }
 
-        if(entry.isTangible === true) {
+        if (entry.isTangible === true) {
           result.totalSeconds[index] += entry.totalSeconds;
         }
-
       });
 
       delete result.timeEntries;
