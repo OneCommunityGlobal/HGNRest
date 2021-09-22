@@ -134,7 +134,6 @@ const timeEntrycontroller = function (TimeEntry) {
           };
 
           emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
-        
         }
 
         await requestor.save();
