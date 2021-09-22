@@ -352,7 +352,7 @@ const userProfileController = function (UserProfile) {
           model: Badge,
           select: '_id badgeName type imageUrl description ranking',
         },
-      })
+      }).exec()
       .then((results) => {
         if (!results) {
           res.status(400).send({ error: 'This is not a valid user' });
@@ -360,7 +360,6 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(results);
       })
-
       .catch(error => res.status(404).send(error));
   };
 
