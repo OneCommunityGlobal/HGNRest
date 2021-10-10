@@ -111,6 +111,7 @@ const userProfileController = function (UserProfile) {
     if (userByEmail) {
       res.status(400).send({
         error: 'That email address is already in use. Please choose another email address.',
+        type: 'email',
       });
       return;
     }
@@ -122,9 +123,15 @@ const userProfileController = function (UserProfile) {
     if (userByPhoneNumber) {
       res.status(400).send({
         error: 'That phone number is already in use. Please choose another number.',
+        type: 'phoneNumber',
       });
       return;
     }
+
+    const userDuplicateName = await UserProfile.findOne({
+      firstName: req.body.firstName,
+      lastName: req.body.lastName
+    });
 
     const up = new UserProfile();
     up.password = req.body.password;
@@ -148,9 +155,17 @@ const userProfileController = function (UserProfile) {
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
 
     up.save()
-      .then(() => res.status(200).send({
-        _id: up._id,
-      }))
+      .then(() => {
+        if(userDuplicateName){
+          res.status(200).send({
+          warning: 'User with same name exists, new user with duplicate name created.',
+          _id: up._id,
+        });
+        }
+        res.status(200).send({
+            _id: up._id,
+          });
+      })
       .catch(error => res.status(501).send(error));
   };
 
