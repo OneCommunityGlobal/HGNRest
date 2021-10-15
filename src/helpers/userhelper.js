@@ -662,25 +662,25 @@ const userhelper = function () {
           return;
         }
 
-        results.every((elem) => {
-          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) {
+        for (let i = 0; i < results.length; i += 1) { // this needs to be a for loop so that the returns break before assigning badges for lower multiples
+          const elem = results[i]; // making variable elem accessible for below code
+          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) { 
             let theBadge;
-            for (let i = 0; i < badgesOfType.length; i += 1) {
-              if (badgesOfType[i]._id.toString() === elem._id.toString()) {
-                theBadge = badgesOfType[i]._id;
+            for (let j = 0; j < badgesOfType.length; j += 1) {
+              if (badgesOfType[j]._id.toString() === elem._id.toString()) {
+                theBadge = badgesOfType[j]._id;
                 break;
               }
             }
 
             if (theBadge) {
               increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
-              return false;
+              return; // don't need to return a value, just break the loop
             }
             addBadge(personId, mongoose.Types.ObjectId(elem._id));
-            return false;
+            return; // don't need to return a value, just break the loop
           }
-          return true;
-        });
+        }
       });
   };
 
