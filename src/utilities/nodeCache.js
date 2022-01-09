@@ -17,6 +17,16 @@ const cache = function () {
     return '';
   }
 
+  function removeCache(key) {
+    try {
+      if (cacheStore.has(key)) {
+        cacheStore.del(key);
+      }
+    } catch (e) {
+      logger.logException(e);
+    }
+  }
+
   function setCache(key, response) {
     try {
       const cacheData = cacheStore.get(key);
@@ -32,6 +42,7 @@ const cache = function () {
   return {
     setCache,
     getCache,
+    removeCache,
   };
 };
 

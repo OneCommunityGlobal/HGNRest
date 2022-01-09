@@ -563,7 +563,8 @@ const taskController = function (Task) {
       res.status(400).send({ error: 'Task Name, Active status, Task Number are mandatory fields' });
       return;
     } */
-
+    /* Remove Cache If Data Exist */
+    cache.removeCache(req.params.id);
     const wbsId = req.params.id;
     const taskList = req.body.list;
     // console.log('taskList', taskList.length);
@@ -674,6 +675,8 @@ const taskController = function (Task) {
       return;
     }
 
+    /* Remove Cache If Data Exist */
+    cache.removeCache(req.params.id);
     const wbsId = req.params.id;
 
     const _task = new Task();
@@ -1068,17 +1071,16 @@ const taskController = function (Task) {
 
   const getTaskById = function (req, res) {
     const taskId = req.params.id;
-    const key = req.originalUrl;
 
-    if (cache.getCache(key)) {
-      const getData = cache.getCache(key);
+    if (cache.getCache(taskId)) {
+      const getData = cache.getCache(taskId);
       res.status(200).send(getData);
       return;
     }
 
     Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
       .then((results) => {
-        cache.setCache(key, results);
+        cache.setCache(taskId, results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
