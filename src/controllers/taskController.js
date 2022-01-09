@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const cache = require('../utilities/nodeCache')();
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1067,9 +1068,19 @@ const taskController = function (Task) {
 
   const getTaskById = function (req, res) {
     const taskId = req.params.id;
+    const key = req.originalUrl;
+
+    if (cache.getCache(key)) {
+      const getData = cache.getCache(key);
+      res.status(200).send(getData);
+      return;
+    }
 
     Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
-      .then(results => res.status(200).send(results))
+      .then((results) => {
+        cache.setCache(key, results);
+        res.status(200).send(results);
+      })
       .catch(error => res.status(404).send(error));
   };
 
