@@ -172,7 +172,6 @@ const userProfileController = function (UserProfile) {
 
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
-
     const isRequestorAuthorized = !!(
       req.body.requestor.role === 'Administrator'
       || req.body.requestor.role === 'Manager'
@@ -184,6 +183,7 @@ const userProfileController = function (UserProfile) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
+    cache.removeCache(userid);
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -276,7 +276,6 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
-
     if (
       !userId
       || !option
@@ -288,7 +287,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-
+    cache.removeCache(userId);
     const user = await UserProfile.findById(userId);
 
     if (!user) {
@@ -338,10 +337,9 @@ const userProfileController = function (UserProfile) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
-    const key = req.originalUrl;
 
-    if (cache.getCache(key)) {
-      const getData = cache.getCache(key);
+    if (cache.getCache(userid)) {
+      const getData = cache.getCache(userid);
       res.status(200).send(getData);
       return;
     }
@@ -380,7 +378,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        cache.setCache(key, results);
+        cache.setCache(userid, results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
@@ -543,6 +541,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+    cache.removeCache(userId);
     UserProfile.findById(userId, 'isActive')
       .then((user) => {
         user.set({
