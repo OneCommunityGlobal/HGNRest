@@ -49,6 +49,7 @@
     "moment-timezone": "^0.5.33",
     "mongoose": "^5.13.7",
     "mongoose-validator": "2.0.1",
+    "node-cache": "^5.1.2",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.4.16",
     "uuid": "^3.4.0"

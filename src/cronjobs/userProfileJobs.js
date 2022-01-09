@@ -1,5 +1,5 @@
-import { CronJob } from 'cron';
-import moment from 'moment-timezone';
+const { CronJob } = require('cron');
+const moment = require('moment-timezone');
 
 const userhelper = require('../helpers/userhelper')();
 

@@ -1,4 +1,5 @@
-import yearMonthDayDateValidator from '../utilities/yearMonthDayDateValidator';
+const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
+const cache = require('../utilities/nodeCache')();
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -130,7 +131,7 @@ const userProfileController = function (UserProfile) {
 
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
-      lastName: req.body.lastName
+      lastName: req.body.lastName,
     });
 
     const up = new UserProfile();
@@ -156,15 +157,15 @@ const userProfileController = function (UserProfile) {
 
     up.save()
       .then(() => {
-        if(userDuplicateName){
+        if (userDuplicateName) {
           res.status(200).send({
-          warning: 'User with same name exists, new user with duplicate name created.',
-          _id: up._id,
-        });
-        }
-        res.status(200).send({
+            warning: 'User with same name exists, new user with duplicate name created.',
             _id: up._id,
           });
+        }
+        res.status(200).send({
+          _id: up._id,
+        });
       })
       .catch(error => res.status(501).send(error));
   };
@@ -337,6 +338,13 @@ const userProfileController = function (UserProfile) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
+    const key = req.originalUrl;
+
+    if (cache.getCache(key)) {
+      const getData = cache.getCache(key);
+      res.status(200).send(getData);
+      return;
+    }
 
     UserProfile.findById(
       userid,
@@ -372,6 +380,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
+        cache.setCache(key, results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
