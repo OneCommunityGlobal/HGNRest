@@ -564,7 +564,7 @@ const taskController = function (Task) {
       return;
     } */
     /* Remove Cache If Data Exist */
-    cache.removeCache(req.params.id);
+    cache.removeCache(`task-${req.params.id}`);
     const wbsId = req.params.id;
     const taskList = req.body.list;
     // console.log('taskList', taskList.length);
@@ -676,7 +676,7 @@ const taskController = function (Task) {
     }
 
     /* Remove Cache If Data Exist */
-    cache.removeCache(req.params.id);
+    cache.removeCache(`task-${req.params.id}`);
     const wbsId = req.params.id;
 
     const _task = new Task();
@@ -1072,15 +1072,15 @@ const taskController = function (Task) {
   const getTaskById = function (req, res) {
     const taskId = req.params.id;
 
-    if (cache.getCache(taskId)) {
-      const getData = cache.getCache(taskId);
+    if (cache.getCache(`task-${taskId}`)) {
+      const getData = cache.getCache(`task-${taskId}`);
       res.status(200).send(getData);
       return;
     }
 
     Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
       .then((results) => {
-        cache.setCache(taskId, results);
+        cache.setCache(`task-${taskId}`, results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));

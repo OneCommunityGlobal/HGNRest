@@ -183,7 +183,7 @@ const userProfileController = function (UserProfile) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
-    cache.removeCache(userid);
+    cache.removeCache(`user-${userid}`);
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -287,7 +287,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    cache.removeCache(userId);
+    cache.removeCache(`user-${userId}`);
     const user = await UserProfile.findById(userId);
 
     if (!user) {
@@ -337,9 +337,8 @@ const userProfileController = function (UserProfile) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
-
-    if (cache.getCache(userid)) {
-      const getData = cache.getCache(userid);
+    if (cache.getCache(`user-${userid}`)) {
+      const getData = cache.getCache(`user-${userid}`);
       res.status(200).send(getData);
       return;
     }
@@ -378,7 +377,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        cache.setCache(userid, results);
+        cache.setCache(`user-${userid}`, results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
@@ -541,7 +540,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    cache.removeCache(userId);
+    cache.removeCache(`user-${userId}`);
     UserProfile.findById(userId, 'isActive')
       .then((user) => {
         user.set({
