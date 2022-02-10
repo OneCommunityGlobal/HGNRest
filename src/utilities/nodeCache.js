@@ -3,7 +3,7 @@
 const NodeCache = require('node-cache');
 const logger = require('../startup/logger');
 
-const cacheStore = new NodeCache({ stdTTL: 100, checkperiod: 120 });
+const cacheStore = new NodeCache({ stdTTL: 300, checkperiod: 600 });
 
 const cache = function () {
   function getCache(key) {
