@@ -664,7 +664,7 @@ const userhelper = function () {
 
         for (let i = 0; i < results.length; i += 1) { // this needs to be a for loop so that the returns break before assigning badges for lower multiples
           const elem = results[i]; // making variable elem accessible for below code
-          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) { 
+          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) {
             let theBadge;
             for (let j = 0; j < badgesOfType.length; j += 1) {
               if (badgesOfType[j]._id.toString() === elem._id.toString()) {

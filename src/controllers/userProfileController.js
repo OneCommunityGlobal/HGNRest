@@ -1,4 +1,5 @@
-import yearMonthDayDateValidator from '../utilities/yearMonthDayDateValidator';
+const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
+const cache = require('../utilities/nodeCache')();
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -130,7 +131,7 @@ const userProfileController = function (UserProfile) {
 
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
-      lastName: req.body.lastName
+      lastName: req.body.lastName,
     });
 
     const up = new UserProfile();
@@ -156,22 +157,21 @@ const userProfileController = function (UserProfile) {
 
     up.save()
       .then(() => {
-        if(userDuplicateName){
+        if (userDuplicateName) {
           res.status(200).send({
-          warning: 'User with same name exists, new user with duplicate name created.',
-          _id: up._id,
-        });
-        }
-        res.status(200).send({
+            warning: 'User with same name exists, new user with duplicate name created.',
             _id: up._id,
           });
+        }
+        res.status(200).send({
+          _id: up._id,
+        });
       })
       .catch(error => res.status(501).send(error));
   };
 
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
-
     const isRequestorAuthorized = !!(
       req.body.requestor.role === 'Administrator'
       || req.body.requestor.role === 'Manager'
@@ -183,6 +183,7 @@ const userProfileController = function (UserProfile) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
+    cache.removeCache(`user-${userid}`);
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -275,7 +276,6 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
-
     if (
       !userId
       || !option
@@ -287,7 +287,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-
+    cache.removeCache(`user-${userId}`);
     const user = await UserProfile.findById(userId);
 
     if (!user) {
@@ -337,6 +337,11 @@ const userProfileController = function (UserProfile) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
+    if (cache.getCache(`user-${userid}`)) {
+      const getData = cache.getCache(`user-${userid}`);
+      res.status(200).send(getData);
+      return;
+    }
 
     UserProfile.findById(
       userid,
@@ -372,6 +377,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
+        cache.setCache(`user-${userid}`, results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
@@ -534,6 +540,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+    cache.removeCache(`user-${userId}`);
     UserProfile.findById(userId, 'isActive')
       .then((user) => {
         user.set({
