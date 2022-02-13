@@ -469,7 +469,7 @@ const taskController = function (Task) {
 
 
       if (task.resourceName) {
-        task.resources = [{ name: task.resourceName.split('|')[0], userID: task.resourceName.split('|')[1], profilePic: task.resourceName.split('|')[2] }];
+        task.resources = [{ name: task.resourceName.split('|')[0], userID: task.resourceName.split('|')[1] }];
       } else {
         task.resources = [];
       }
