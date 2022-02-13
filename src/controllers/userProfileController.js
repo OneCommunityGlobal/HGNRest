@@ -1,14 +1,16 @@
-const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cache = require('../utilities/nodeCache')();
+const moment = require('moment-timezone');
+
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const moment = require('moment-timezone');
+
 
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
+const cache = require('../utilities/nodeCache')();
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
