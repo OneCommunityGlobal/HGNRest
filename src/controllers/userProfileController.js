@@ -1,14 +1,16 @@
-const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cache = require('../utilities/nodeCache')();
+const moment = require('moment-timezone');
+
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const moment = require('moment-timezone');
+
 
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
+const cache = require('../utilities/nodeCache')();
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -59,6 +61,12 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
+    if (cache.getCache('allusers')) {
+      const getData = cache.getCache('allusers');
+      res.status(200).send(getData);
+      return;
+    }
+
     UserProfile.find(
       {},
       '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate endDate',
@@ -66,7 +74,14 @@ const userProfileController = function (UserProfile) {
       .sort({
         lastName: 1,
       })
-      .then(results => res.status(200).send(results))
+      .then((results) => {
+        if (!results) {
+          res.status(500).send({ error: 'User result was invalid' });
+          return;
+        }
+        cache.setCache('allusers', results);
+        res.status(200).send(results);
+      })
       .catch(error => res.status(404).send(error));
   };
 
@@ -184,6 +199,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
     cache.removeCache(`user-${userid}`);
+    cache.removeCache('allusers');
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
