@@ -2,10 +2,8 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-
 const ProjectSchema = new Schema({
-
-  projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'allProjects' },
+  projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'project' },
   projectName: { type: String },
 });
 
