@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
@@ -20,18 +20,24 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: '14.x'
+          cache: 'npm' # github actions can cache node_modules automatically to speed the build by about ~45s
 
-      - name: npm install, build, and test
+      - name: npm install, and build
         run: |
           npm install
           npm run build --if-present
-          npm run test --if-present
+          
+      # Zip artifacts to speed things up
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -qr
+      # We exclude node_modules and dist because the Azure Oryx/Kudu deploy runs npm install and rebuilds everything anyway...
+      # If we zip them we just increase the size of the zip file and it's not needed
       
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v2
         with:
           name: node-app
-          path: .
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -50,7 +56,7 @@ jobs:
         uses: azure/webapps-deploy@v2
         id: deploy-to-webapp
         with:
-          app-name: 'hgn-rest-beta'
+          app-name: 'hgn-rest-dev'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_47800FE52B59410A903D5C41C2F9C10F }}
-          package: .
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D3183F132BC14D79A19DC24953125EA4 }}
+          package: release.zip
