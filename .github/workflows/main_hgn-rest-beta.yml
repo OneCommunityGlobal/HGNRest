@@ -56,7 +56,7 @@ jobs:
         uses: azure/webapps-deploy@v2
         id: deploy-to-webapp
         with:
-          app-name: 'hgn-rest-dev'
+          app-name: 'hgn-rest-beta'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D3183F132BC14D79A19DC24953125EA4 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_47800FE52B59410A903D5C41C2F9C10F }}
           package: release.zip
