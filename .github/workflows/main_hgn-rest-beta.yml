@@ -29,7 +29,7 @@ jobs:
           
       # Zip artifacts to speed things up
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -qr
+        run: zip release.zip ./* -qr -x "node_modules/*" "dist/*"
       # We exclude node_modules and dist because the Azure Oryx/Kudu deploy runs npm install and rebuilds everything anyway...
       # If we zip them we just increase the size of the zip file and it's not needed
       
@@ -59,4 +59,4 @@ jobs:
           app-name: 'hgn-rest-beta'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_47800FE52B59410A903D5C41C2F9C10F }}
-          package: release.zip
+          package: .
