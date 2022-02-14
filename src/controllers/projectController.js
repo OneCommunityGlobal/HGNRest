@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 const timeentry = require('../models/timeentry');
-const userProject = require('../helpers/helperModels/userProjects');
 const userProfile = require('../models/userProfile');
+const userProject = require('../helpers/helperModels/userProjects');
+
 
 const projectController = function (Project) {
   const getAllProjects = function (req, res) {
@@ -109,18 +110,19 @@ const projectController = function (Project) {
   };
 
   const getUserProjects = function (req, res) {
-    console.log("getting projects for ");
+    console.log('getting projects for ');
     const { userId } = req.params;
-    console.log(userId)
+    console.log(userId);
 
     userProject.findById(userId)
       .then((results) => {
-        console.log(results.projects)
+        console.log(results.projects);
         res.status(200).send(results.projects);
       })
-      .catch((error) => { 
-        console.log(error)
-        res.status(400).send(error); });
+      .catch((error) => {
+        console.log(error);
+        res.status(400).send(error);
+      });
   };
 
   const assignProjectToUsers = function (req, res) {
