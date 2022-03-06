@@ -20,7 +20,6 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: '14.x'
-          cache: 'npm' # github actions can cache node_modules automatically to speed the build by about ~45s
 
       - name: npm install, and build
         run: |
