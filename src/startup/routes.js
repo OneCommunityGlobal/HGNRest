@@ -32,6 +32,7 @@ const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
+const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -53,4 +54,5 @@ module.exports = function (app) {
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
   app.use('/api', inventoryRouter);
+  app.use('/api', timeZoneAPIRouter);
 };
