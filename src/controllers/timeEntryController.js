@@ -256,6 +256,54 @@ const timeEntrycontroller = function (TimeEntry) {
       })
       .catch(error => res.status(400).send(error));
   };
+
+  const getTimeEntriesForUsersList = function (req, res) {
+    const { members } = req.query;
+    const membersArr = members.split(',');
+    console.log(membersArr);
+
+    const fromDate = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .subtract(0, 'weeks')
+      .format('YYYY-MM-DD');
+        
+    const toDate = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(0, 'weeks')
+      .format('YYYY-MM-DD');
+
+    TimeEntry.find(
+      {
+        personId: { $in: membersArr },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('projectId')
+      .sort({ lastModifiedDateTime: -1 })
+      .then((results) => {
+        const data = [];
+        results.forEach((element) => {
+          const record = {};
+
+          record._id = element._id;
+          record.notes = element.notes;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId;
+          record.projectId = element.projectId ? element.projectId._id : '';
+          record.projectName = element.projectId
+            ? element.projectId.projectName
+            : '';
+          record.dateOfWork = element.dateOfWork;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch(error => res.status(400).send(error));
+  };
   const getTimeEntriesForSpecifiedProject = function (req, res) {
     if (
       !req.params
@@ -323,6 +371,7 @@ const timeEntrycontroller = function (TimeEntry) {
     getAllTimeEnteries,
     postTimeEntry,
     getTimeEntriesForSpecifiedPeriod,
+    getTimeEntriesForUsersList,
     editTimeEntry,
     deleteTimeEntry,
     getTimeEntriesForSpecifiedProject,
