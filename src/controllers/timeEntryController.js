@@ -260,14 +260,14 @@ const timeEntrycontroller = function (TimeEntry) {
   const getTimeEntriesForUsersList = function (req, res) {
     const { members } = req.query;
     const membersArr = members.split(',');
-    console.log(membersArr);
+    // console.log(membersArr);
 
     const fromDate = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
       .subtract(0, 'weeks')
       .format('YYYY-MM-DD');
-        
+
     const toDate = moment()
       .tz('America/Los_Angeles')
       .endOf('week')
