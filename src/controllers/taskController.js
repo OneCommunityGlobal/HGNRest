@@ -1098,11 +1098,13 @@ const taskController = function (Task) {
     res.status(200).send('done');
   };
 
-  const getTasksByUserId = (req, res) => {
-    const { userId } = req.params;
-
+  const getTasksByUserList = async (req, res) => {
+    const { members } = req.query;
+    const membersArr = members.split(',');
+    // console.log(membersArr);
     try {
-      Task.find({ 'resources.userID': userId }).then((results) => {
+      Task.find({ 'resources.userID': { $in: membersArr } }, '-resources.profilePic').then((results) => {
+        // console.log(results);
         res.status(200).send(results);
       });
     } catch (error) {
@@ -1123,7 +1125,7 @@ const taskController = function (Task) {
     updateAllParents,
     deleteTaskByWBS,
     moveTask,
-    getTasksByUserId,
+    getTasksByUserList,
   };
 };
 
