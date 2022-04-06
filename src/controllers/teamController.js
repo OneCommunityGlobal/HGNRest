@@ -124,8 +124,7 @@ const teamcontroller = function (Team) {
       res.status(400).send({ error: 'Invalid request' });
       return;
     }
-    userProfile.find({ teams: teamId }, '_id firstName lastName')
-      .sort({ firstName: 1, lastName: 1 })
+    userProfile.find({ teams: teamId })
       .then((results) => { res.status(200).send(results); })
       .catch((error) => { res.status(500).send(error); });
   };
