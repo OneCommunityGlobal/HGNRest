@@ -18,6 +18,9 @@ const routes = function (TimeEntry) {
   TimeEntryRouter.route('/TimeEntry/user/:userId/:fromdate/:todate')
     .get(controller.getTimeEntriesForSpecifiedPeriod);
 
+  TimeEntryRouter.route('/TimeEntry/users')
+    .get(controller.getTimeEntriesForUsersList);
+
   TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
     .get(controller.getTimeEntriesForSpecifiedProject);
 
