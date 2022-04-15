@@ -354,7 +354,7 @@ const userProfileController = function (UserProfile) {
   const getUserById = function (req, res) {
     const userid = req.params.userId;
     if (cache.getCache(`user-${userid}`)) {
-      const getData = cache.getCache(`user-${userid}`);
+      const getData = JSON.parse(cache.getCache(`user-${userid}`));
       res.status(200).send(getData);
       return;
     }
@@ -393,7 +393,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        cache.setCache(`user-${userid}`, results);
+        cache.setCache(`user-${userid}`, JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
