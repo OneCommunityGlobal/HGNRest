@@ -390,7 +390,6 @@ const userProfileController = function (UserProfile) {
       }])
       .exec()
       .then((results) => {
-        console.log('resuls: ', results.privacySettings);
         if (!results) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;

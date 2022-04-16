@@ -66,7 +66,7 @@ const userProfileSchema = new Schema({
   }],
   profilePic: { type: String },
   infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
-  location: { type: String, default: "" },
+  location: { type: String, default: '' },
   oldInfringements: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
   privacySettings: { blueSquares: { type: Boolean, default: true }, email: { type: Boolean, default: true }, phoneNumber: { type: Boolean, default: true } },
   weeklySummaries: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
