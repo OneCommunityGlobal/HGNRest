@@ -236,6 +236,7 @@ const userProfileController = function (UserProfile) {
       record.bio = req.body.bio;
       record.personalLinks = req.body.personalLinks;
       record.lastModifiedDate = Date.now();
+      record.location = req.body.location;
       record.profilePic = req.body.profilePic;
       record.privacySettings = req.body.privacySettings;
       record.weeklySummaries = req.body.weeklySummaries;
