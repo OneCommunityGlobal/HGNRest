@@ -62,7 +62,7 @@ const userProfileController = function (UserProfile) {
     }
 
     if (cache.getCache('allusers')) {
-      const getData = cache.getCache('allusers');
+      const getData = JSON.parse(cache.getCache('allusers'));
       res.status(200).send(getData);
       return;
     }
@@ -79,7 +79,7 @@ const userProfileController = function (UserProfile) {
           res.status(500).send({ error: 'User result was invalid' });
           return;
         }
-        cache.setCache('allusers', results);
+        cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
@@ -236,6 +236,7 @@ const userProfileController = function (UserProfile) {
       record.bio = req.body.bio;
       record.personalLinks = req.body.personalLinks;
       record.lastModifiedDate = Date.now();
+      record.location = req.body.location;
       record.profilePic = req.body.profilePic;
       record.privacySettings = req.body.privacySettings;
       record.weeklySummaries = req.body.weeklySummaries;
@@ -354,7 +355,7 @@ const userProfileController = function (UserProfile) {
   const getUserById = function (req, res) {
     const userid = req.params.userId;
     if (cache.getCache(`user-${userid}`)) {
-      const getData = cache.getCache(`user-${userid}`);
+      const getData = JSON.parse(cache.getCache(`user-${userid}`));
       res.status(200).send(getData);
       return;
     }
@@ -393,7 +394,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        cache.setCache(`user-${userid}`, results);
+        cache.setCache(`user-${userid}`, JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
