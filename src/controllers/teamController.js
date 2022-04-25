@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const hasPermission = require('../utilities/permissions');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -28,7 +29,7 @@ const teamcontroller = function (Team) {
       .catch(error => res.send(error).status(404));
   };
   const deleteTeam = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'deleteTeam')) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
       return;
     }
@@ -48,7 +49,7 @@ const teamcontroller = function (Team) {
       .catch((error) => { res.status(400).send(error); });
   };
   const putTeam = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'putTeam')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -74,7 +75,7 @@ const teamcontroller = function (Team) {
   const assignTeamToUsers = function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'assignTeamToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }

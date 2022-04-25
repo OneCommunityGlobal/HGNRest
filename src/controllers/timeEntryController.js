@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const { getInfringmentEmailBody } = require('../helpers/userhelper')();
 const userProfile = require('../models/userProfile');
 const emailSender = require('../utilities/emailSender');
+const hasPermission = require('../utilities/permissions');
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -71,7 +72,7 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error: `No valid records found for ${req.params.timeEntryId}` });
       }
 
-      if (req.body.requestor.role !== 'Administrator' && timeEntry.personId.toString() !== req.body.requestor.requestorId.toString()) {
+      if (!hasPermission(req.body.requestor.role, 'editTimeEntry') && timeEntry.personId.toString() !== req.body.requestor.requestorId.toString()) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
@@ -95,7 +96,7 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
 
       // Update edit history
-      if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && req.body.requestor.role !== 'Administrator') {
+      if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && !hasPermission(req.body.requestor.role, 'editTimeEntry')) {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
@@ -348,7 +349,7 @@ const timeEntrycontroller = function (TimeEntry) {
         if (
           record.personId.toString()
             === req.body.requestor.requestorId.toString()
-          || req.body.requestor.role === 'Administrator'
+          || hasPermission(req.body.requestor.role, 'deleteTimeEntry')
         ) {
           record
             .remove()

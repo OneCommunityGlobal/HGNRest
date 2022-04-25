@@ -1,14 +1,10 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
+const hasPermission = require('../utilities/permissions');
 
 const badgeController = function (Badge) {
   const getAllBadges = function (req, res) {
-    const AuthorizedRolesToView = ['Administrator'];
-    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
-      req.body.requestor.role,
-    );
-
-    if (!isRequestorAuthorized) {
+    if (!hasPermission(req.body.requestor.role, 'seeBadges')) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -29,7 +25,7 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = async function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'assignBadges')) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
     }
@@ -60,7 +56,7 @@ const badgeController = function (Badge) {
   };
 
   const postBadge = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'createBadges')) {
       res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
@@ -93,7 +89,7 @@ const badgeController = function (Badge) {
   };
 
   const deleteBadge = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'deleteBadges')) {
       res.status(403).send({ error: 'You are not authorized to delete badges.' });
       return;
     }
@@ -114,7 +110,7 @@ const badgeController = function (Badge) {
   };
 
   const putBadge = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'updateBadges')) {
       res.status(403).send({ error: 'You are not authorized to update badges.' });
       return;
     }

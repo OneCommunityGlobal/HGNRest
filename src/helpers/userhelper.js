@@ -10,6 +10,7 @@ const reporthelper = require('../helpers/reporthelper')();
 const emailSender = require('../utilities/emailSender');
 
 const logger = require('../startup/logger');
+const hasPermission = require('../utilities/permissions');
 
 const userhelper = function () {
   const getTeamMembers = function (user) {
@@ -822,7 +823,7 @@ const userhelper = function () {
 
   // 'Lead a team of X+'
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
-    if (!['Manager', 'Administrator', 'Core Team'].includes(user.role)) {
+    if (!hasPermission(user.role, 'checkLeadTeamOfXplus')) {
       return;
     }
     let teamMembers;
@@ -838,7 +839,7 @@ const userhelper = function () {
 
     const objIds = {};
     teamMembers = teamMembers.filter((elem) => {
-      if (['Manager', 'Administrator', 'Core Team'].includes(elem.role)) {
+      if (hasPermission(elem.role, 'checkLeadTeamOfXplus')) {
         return false;
       }
 
