@@ -1,9 +1,7 @@
 const moment = require('moment-timezone');
 
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-
 
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');

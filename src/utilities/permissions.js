@@ -159,4 +159,4 @@ const hasPermission = (role, action) => {
   return isAllowed;
 };
 
-export default hasPermission;
+module.exports = hasPermission;
