@@ -37,11 +37,14 @@ const dashboardcontroller = function () {
   const leaderboarddata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const leaderboard = dashboardhelper.getLeaderboard(userId);
-
+    console.log('LEADERBOARD', leaderboard);
     leaderboard.then((results) => {
+      console.log('RESULTS', results);
       if (results.length > 0) {
+        console.log('ENTERED IF');
         res.status(200).send(results);
       } else {
+        console.log('ENTERED ELSE');
         const { getUserLaborData } = dashboardhelper;
         getUserLaborData(userId).then((r) => {
           res.status(200).send(r);
