@@ -169,6 +169,7 @@ const userProfileController = function (UserProfile) {
     up.mediaUrl = req.body.mediaUrl || '';
     up.collaborationPreference = req.body.collaborationPreference || '';
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
+    up.location = req.body.location;
 
     up.save()
       .then(() => {
