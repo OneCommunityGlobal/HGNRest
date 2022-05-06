@@ -193,9 +193,7 @@ const userProfileController = function (UserProfile) {
         //remove backend cache
         cache.removeCache('allusers');
       })
-      .catch(error => res.status(501).send(error));
-      
-      
+      .catch(error => res.status(501).send(error))
   };
 
   const putUserProfile = function (req, res) {
