@@ -190,8 +190,12 @@ const userProfileController = function (UserProfile) {
         res.status(200).send({
           _id: up._id,
         });
+        //remove backend cache
+        cache.removeCache('allusers');
       })
       .catch(error => res.status(501).send(error));
+      
+      
   };
 
   const putUserProfile = function (req, res) {
@@ -314,6 +318,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
     cache.removeCache(`user-${userId}`);
+    cache.removeCache('allusers');
     const user = await UserProfile.findById(userId);
 
     if (!user) {
