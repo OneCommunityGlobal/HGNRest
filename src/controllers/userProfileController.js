@@ -132,17 +132,25 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    const userByPhoneNumber = await UserProfile.findOne({
-      phoneNumber: req.body.phoneNumber,
-    });
+    /***
+     *  Turn on and off the duplicate phone number checker by changing
+     *  the value of duplicatePhoneNumberCheck variable.
+     */
+     const duplicatePhoneNumberCheck = false;
 
-    if (userByPhoneNumber) {
-      res.status(400).send({
-        error: 'That phone number is already in use. Please choose another number.',
-        type: 'phoneNumber',
-      });
-      return;
-    }
+     if(duplicatePhoneNumberCheck){
+       const userByPhoneNumber = await UserProfile.findOne({
+         phoneNumber: req.body.phoneNumber,
+       });
+   
+       if (userByPhoneNumber) {
+         res.status(400).send({
+           error: 'That phone number is already in use. Please choose another number.',
+           type: 'phoneNumber',
+         });
+         return;
+       }
+     }
 
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
