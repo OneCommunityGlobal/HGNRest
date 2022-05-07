@@ -1,71 +1,59 @@
 const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 const logger = require('../startup/logger');
 
-const closure = () => {
-  const queue = [];
 
-  setInterval(() => {
-    const nextItem = queue.shift();
+const emailSender = async function emailSender(recipient, subject, message, cc = null, bcc = null) {
+  const CLIENT_EMAIL = process.env.REACT_APP_EMAIL;
+  const CLIENT_ID = process.env.REACT_APP_EMAIL_CLIENT_ID;
+  const CLIENT_SECRET = process.env.REACT_APP_EMAIL_CLIENT_SECRET;
+  const REDIRECT_URI = process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI;
+  const REFRESH_TOKEN = process.env.REACT_APP_EMAIL_REFRESH_TOKEN;
+  const OAuth2Client = new google.auth.OAuth2(
+    CLIENT_ID,
+    CLIENT_SECRET,
+    REDIRECT_URI,
+  );
 
-    if (!nextItem) return;
+  logger.logInfo('test refresh token : ', REFRESH_TOKEN);
 
-    const {
-      recipient, subject, message, cc, bcc,
-    } = nextItem;
+  OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
+  try {
+    // Generate the accessToken on the fly
+    const ACCESSTOKEN = await OAuth2Client.getAccessToken();
+    logger.logInfo(ACCESSTOKEN);
 
-    nodemailer.createTestAccount(() => {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTPDomain,
-        port: process.env.SMTPPort,
-        secure: true,
-        auth: {
-          user: process.env.SMTPUser,
-          pass: process.env.SMTPPass,
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-      });
-
-      logger.logInfo(transporter);
-
-      const mailOptions = {
-        from: process.env.SMTPUser,
-        to: recipient,
-        cc,
-        bcc,
-        subject,
-        html: message,
-      };
-
-      return transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          logger.logException(error);
-          return error;
-        }
-        logger.logInfo(info);
-        return info;
-      });
+    // Create the email envelope (transport)
+    const transport = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: CLIENT_EMAIL,
+        clientId: CLIENT_ID,
+        clientSecret: CLIENT_SECRET,
+        refreshToken: REFRESH_TOKEN,
+        accessToken: ACCESSTOKEN,
+      },
     });
-  }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
-  /**
-   *
-   * @param {string} recipient A comma-seperated list of recipients for this email. Examples: 'cow@cow.jp' OR 'cow@cow.jp, cow23@cow.jp'
-   * @param {string} subject Email subject
-   * @param {string} message HTML formatted email body
-   * @param {*} cc
-   * @param {*} bcc
-   */
-  const emailSender = function (recipient, subject, message, cc = null, bcc = null) {
-    if (process.env.sendEmail) {
-      queue.push({
-        recipient, subject, message, cc, bcc,
-      });
-    }
-  };
+    logger.logInfo(transport);
 
-  return emailSender;
+    const mailOptions = {
+      from: process.env.SMTPUser,
+      to: recipient,
+      cc,
+      bcc,
+      subject,
+      html: message,
+    };
+
+    const result = await transport.sendMail(mailOptions);
+    logger.logInfo(result);
+    return result;
+  } catch (error) {
+    logger.logException(error);
+    return error;
+  }
 };
 
-module.exports = closure();
+module.exports = emailSender;
