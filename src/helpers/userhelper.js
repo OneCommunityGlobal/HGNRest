@@ -339,7 +339,7 @@ const userhelper = function () {
 
           emailSender(
             status.email,
-            'New Infringment Assigned',
+            'New Infringement Assigned',
             getInfringmentEmailBody(
               status.firstName,
               status.lastName,
@@ -485,7 +485,7 @@ const userhelper = function () {
     newInfringments.forEach((element) => {
       emailSender(
         emailAddress,
-        'New Infringment Assigned',
+        'New Infringement Assigned',
         getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
         null,
         'onecommunityglobal@gmail.com',
