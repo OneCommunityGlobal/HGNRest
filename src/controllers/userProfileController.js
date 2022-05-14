@@ -152,6 +152,7 @@ const userProfileController = function (UserProfile) {
        }
      }
 
+
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
       lastName: req.body.lastName,
@@ -190,7 +191,9 @@ const userProfileController = function (UserProfile) {
         res.status(200).send({
           _id: up._id,
         });
-        //remove backend cache
+
+        // remove backend cache
+
         cache.removeCache('allusers');
       })
       .catch(error => res.status(501).send(error))
