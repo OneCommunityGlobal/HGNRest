@@ -49,7 +49,9 @@ const taskschema = new Schema({
   intentInfo: { type: String },
   endstateInfo: { type: String },
   classification: { type: String },
-
+  oldWhyInfo: { type: String, default: '' },
+  oldIntentInfo: { type: String, default: '' },
+  oldEndstateInfo: { type: String, default: '' },
 });
 
 module.exports = mongoose.model('task', taskschema, 'tasks');
