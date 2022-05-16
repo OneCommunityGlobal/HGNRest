@@ -14,7 +14,7 @@ const taskNotificationSchema = new Schema({
     required: true,
   },
   taskId: { type: Schema.Types.ObjectId, ref: 'task', required: true },
-  isRead: { type: Boolean, default: false },
+  readStatus: { type: Number, default: 0 }, // 0: unread, 1: read but not acknowleged, 2: read and acknowledged
   eventType: { type: String },
   dateCreated: { type: Date, default: Date.now(), expires: SECONDS_IN_MONTH },
   dateRead: { type: Date, default: null },
