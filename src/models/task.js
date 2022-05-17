@@ -52,6 +52,8 @@ const taskschema = new Schema({
   oldWhyInfo: { type: String, default: '' },
   oldIntentInfo: { type: String, default: '' },
   oldEndstateInfo: { type: String, default: '' },
+  taskNotifications: [
+    { type: mongoose.SchemaTypes.ObjectId, ref: 'taskNotification', default: null }],
 });
 
 module.exports = mongoose.model('task', taskschema, 'tasks');
