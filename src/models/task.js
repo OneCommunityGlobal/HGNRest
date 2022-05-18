@@ -52,6 +52,7 @@ const taskschema = new Schema({
   oldWhyInfo: { type: String, default: '' },
   oldIntentInfo: { type: String, default: '' },
   oldEndstateInfo: { type: String, default: '' },
+  oldClassification: { type: String },
   taskNotifications: [
     { type: mongoose.SchemaTypes.ObjectId, ref: 'taskNotification', default: null }],
 });
