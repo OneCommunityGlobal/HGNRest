@@ -24,7 +24,7 @@ const userProfileSchema = new Schema({
   role: {
     type: String,
     required: true,
-    enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team'],
+    enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Mentor', 'Owner'],
   },
   firstName: {
     type: String,
