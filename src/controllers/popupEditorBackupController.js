@@ -1,3 +1,5 @@
+const hasPermission = require('../utilities/permissions');
+
 const popupEditorBackupController = function (PopupEditorBackups) {
   const getAllPopupEditorBackups = function (req, res) {
     PopupEditorBackups.find()
@@ -18,7 +20,7 @@ const popupEditorBackupController = function (PopupEditorBackups) {
 
 
   const createPopupEditorBackup = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'createPopup')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new popup' });
@@ -44,7 +46,7 @@ const popupEditorBackupController = function (PopupEditorBackups) {
   };
 
   const updatePopupEditorBackup = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'updatePopup')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new popup' });

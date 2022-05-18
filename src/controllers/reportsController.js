@@ -1,11 +1,9 @@
 const reporthelper = require('../helpers/reporthelper')();
+const hasPermission = require('../utilities/permissions');
 
 const reportsController = function () {
   const getWeeklySummaries = function (req, res) {
-    const AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
-    const isRequestorAuthorized = !!((AuthorizedRolesToView.includes(req.body.requestor.role)));
-
-    if (!isRequestorAuthorized) {
+    if (!hasPermission(req.body.requestor.role, 'getWeeklySummaries')) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
