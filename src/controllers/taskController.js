@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const hasPermission = require('../utilities/permissions');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -550,7 +551,7 @@ const taskController = function (Task) {
   };
 
   const importTask = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'importTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -658,7 +659,7 @@ const taskController = function (Task) {
   };
 
   const postTask = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'postTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -713,7 +714,7 @@ const taskController = function (Task) {
   };
 
   const updateNum = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'updateNum')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -969,7 +970,7 @@ const taskController = function (Task) {
   };
 
   const updateTask = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'updateTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -1007,7 +1008,7 @@ const taskController = function (Task) {
   };
 
   const swap = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'swapTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });

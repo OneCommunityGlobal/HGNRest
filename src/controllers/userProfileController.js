@@ -1,9 +1,7 @@
 const moment = require('moment-timezone');
 
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-
 
 const userhelper = require('../helpers/userhelper')();
 const TimeEntry = require('../models/timeentry');
@@ -11,6 +9,7 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
+const hasPermission = require('../utilities/permissions');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -33,7 +32,7 @@ function ValidatePassword(req, res) {
   // Verify request is authorized by self or adminsitrator
   if (
     !userId === requestor.requestorId
-    && !requestor.role === 'Administrator'
+    && !hasPermission(requestor.role, 'updatePassword')
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -51,12 +50,7 @@ function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = function (req, res) {
-    const AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
-    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
-      req.body.requestor.role,
-    );
-
-    if (!isRequestorAuthorized) {
+    if (!hasPermission(req.body.requestor.role, 'getUserProfiles')) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
@@ -86,11 +80,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const getProjectMembers = function (req, res) {
-    const AuthorizedRolesToView = ['Manager', 'Administrator', 'Core Team'];
-    const isRequestorAuthorized = !!AuthorizedRolesToView.includes(
-      req.body.requestor.role,
-    );
-    if (!isRequestorAuthorized) {
+    if (!hasPermission(req.body.requestor.role, 'getProjectMembers')) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
@@ -112,7 +102,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'postUserProfile')) {
       res.status(403).send('You are not authorized to create new users');
       return;
     }
@@ -202,11 +192,9 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      req.body.requestor.role === 'Administrator'
-      || req.body.requestor.role === 'Manager'
+      hasPermission(req.body.requestor.role, 'putUserProfile')
       || req.body.requestor.requestorId === userid
     );
-    const isRequestorAdmin = req.body.requestor.role === 'Administrator';
 
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
@@ -235,8 +223,6 @@ const userProfileController = function (UserProfile) {
         ? record.infringments
         : [];
 
-      const infringmentAuthorizers = ['Manager', 'Administrator'];
-
       // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
@@ -257,7 +243,7 @@ const userProfileController = function (UserProfile) {
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
 
-      if (isRequestorAdmin) {
+      if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
         record.weeklyComittedHours = req.body.weeklyComittedHours;
@@ -283,7 +269,7 @@ const userProfileController = function (UserProfile) {
           record.set('endDate', undefined, { strict: false });
         }
       }
-      if (infringmentAuthorizers.includes(req.body.requestor.role)) {
+      if (hasPermission(req.body.requestor.role, 'infringmentAuthorizer')) {
         record.infringments = req.body.infringments;
       }
 
@@ -311,7 +297,7 @@ const userProfileController = function (UserProfile) {
       !userId
       || !option
       || (option !== 'delete' && option !== 'archive')
-      || req.body.requestor.role !== 'Administrator'
+      || !hasPermission(req.body.requestor.role, 'deleteUserProfile')
     ) {
       res.status(400).send({
         error: 'Bad request',
@@ -444,7 +430,7 @@ const userProfileController = function (UserProfile) {
     // Verify request is authorized by self or adminsitrator
     if (
       !userId === requestor.requestorId
-      && !requestor.role === 'Administrator'
+      && !hasPermission(requestor.role, 'updatePassword')
     ) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
@@ -501,9 +487,9 @@ const userProfileController = function (UserProfile) {
     const userid = mongoose.Types.ObjectId(req.params.userId);
     const { role } = req.body.requestor;
 
-    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team'];
+    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
 
-    if (role === 'Volunteer' || role === 'Manager') {
+    if (hasPermission(role, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
     }
 
