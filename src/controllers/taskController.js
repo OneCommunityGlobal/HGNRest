@@ -993,10 +993,15 @@ const taskController = function (Task) {
       _task.dueDatetime = task.dueDatetime;
       _task.links = task.links;
       _task.modifiedDatetime = Date.now();
+      _task.oldWhyInfo = task.whyInfo;
+      _task.oldIntentInfo = task.intentInfo;
+      _task.oldEndstateInfo = task.endstateInfo;
+      _task.oldClassification = task.classification;
       _task.whyInfo = req.body.whyInfo;
       _task.intentInfo = req.body.intentInfo;
       _task.endstateInfo = req.body.endstateInfo;
       _task.classification = req.body.classification;
+      _task.taskNotifications = req.body.taskNotifications;
       _task
         .save()
         .then(result => res.status(201).send(result))
