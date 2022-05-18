@@ -37,7 +37,6 @@ const dashboardcontroller = function () {
   const leaderboarddata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const leaderboard = dashboardhelper.getLeaderboard(userId);
-
     leaderboard.then((results) => {
       if (results.length > 0) {
         res.status(200).send(results);
