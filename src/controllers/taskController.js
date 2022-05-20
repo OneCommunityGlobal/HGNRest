@@ -703,12 +703,10 @@ const taskController = function (Task) {
     _task.intentInfo = req.body.intentInfo;
     _task.endstateInfo = req.body.endstateInfo;
     _task.classification = req.body.classification;
-    
-    // // TODO: What is the best way to create taskNotifications from here?
-    // const taskNotifications = [];
-    // req.body.resources.forEach(resource => {
-    //   createTaskNotification();
-    // });
+
+    // TODO: Is it better to handle the logic of creating taskNotifications here?
+    // How would you do that?
+    _task.taskNotifications = req.body.taskNotifications;
 
     _task
       .save()
