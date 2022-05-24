@@ -72,7 +72,7 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error: `No valid records found for ${req.params.timeEntryId}` });
       }
 
-      if (!hasPermission(req.body.requestor.role, 'editTimeEntry') && timeEntry.personId.toString() !== req.body.requestor.requestorId.toString()) {
+      if (!(hasPermission(req.body.requestor.role, 'editTimeEntry') || timeEntry.personId.toString() === req.body.requestor.requestorId.toString())) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
