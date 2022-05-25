@@ -122,25 +122,25 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    /***
+    /** *
      *  Turn on and off the duplicate phone number checker by changing
      *  the value of duplicatePhoneNumberCheck variable.
      */
-     const duplicatePhoneNumberCheck = false;
+    const duplicatePhoneNumberCheck = false;
 
-     if(duplicatePhoneNumberCheck){
-       const userByPhoneNumber = await UserProfile.findOne({
-         phoneNumber: req.body.phoneNumber,
-       });
-   
-       if (userByPhoneNumber) {
-         res.status(400).send({
-           error: 'That phone number is already in use. Please choose another number.',
-           type: 'phoneNumber',
-         });
-         return;
-       }
-     }
+    if (duplicatePhoneNumberCheck) {
+      const userByPhoneNumber = await UserProfile.findOne({
+        phoneNumber: req.body.phoneNumber,
+      });
+
+      if (userByPhoneNumber) {
+        res.status(400).send({
+          error: 'That phone number is already in use. Please choose another number.',
+          type: 'phoneNumber',
+        });
+        return;
+      }
+    }
 
 
     const userDuplicateName = await UserProfile.findOne({
@@ -182,11 +182,16 @@ const userProfileController = function (UserProfile) {
           _id: up._id,
         });
 
-        // remove backend cache
-
-        cache.removeCache('allusers');
+        // update backend cache
+        const userCache = `{"isActive":${true},"weeklyComittedHours":${up.weeklyComittedHours},
+                            "createdDate":"${up.createdDate.toISOString()}","_id":"${up._id}","role":"${up.role}",
+                            "firstName":"${up.firstName}","lastName":"${up.lastName}","email":"${up.email}"}`;
+        const userCacheJson = JSON.parse(userCache);
+        const allUserCache = JSON.parse(cache.getCache('allusers'));
+        allUserCache.push(userCacheJson);
+        cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch(error => res.status(501).send(error))
+      .catch(error => res.status(501).send(error));
   };
 
   const putUserProfile = function (req, res) {
@@ -201,7 +206,6 @@ const userProfileController = function (UserProfile) {
       return;
     }
     cache.removeCache(`user-${userid}`);
-    cache.removeCache('allusers');
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -243,6 +247,17 @@ const userProfileController = function (UserProfile) {
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
 
+      // find userData in cache
+      const isUserInCache = cache.hasCache('allusers');
+      let allUserData;
+      let userData;
+      let userIdx;
+      if (isUserInCache) {
+        allUserData = JSON.parse(cache.getCache('allusers'));
+        userIdx = allUserData.findIndex(users => users._id === userid);
+        userData = allUserData[userIdx];
+      }
+
       if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
@@ -265,8 +280,16 @@ const userProfileController = function (UserProfile) {
         record.createdDate = moment(req.body.createdDate).toDate();
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
+          userData.endDate = record.endData.toISOString();
         } else {
           record.set('endDate', undefined, { strict: false });
+        }
+        if (isUserInCache) {
+          userData.role = record.role;
+          userData.weeklyComittedHours = record.weeklyComittedHours;
+          userData.email = record.email;
+          userData.isActive = record.isActive;
+          userData.createdDate = record.createdDate.toISOString();
         }
       }
       if (hasPermission(req.body.requestor.role, 'infringmentAuthorizer')) {
@@ -286,6 +309,12 @@ const userProfileController = function (UserProfile) {
           res.status(200).json({
             _id: record._id,
           });
+
+          // update alluser cache if we have cache
+          if (isUserInCache) {
+            allUserData.splice(userIdx, 1, userData);
+            cache.setCache('allusers', JSON.stringify(allUserData));
+          }
         })
         .catch(error => res.status(400).send(error));
     });
@@ -304,8 +333,6 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    cache.removeCache(`user-${userId}`);
-    cache.removeCache('allusers');
     const user = await UserProfile.findById(userId);
 
     if (!user) {
@@ -346,6 +373,12 @@ const userProfileController = function (UserProfile) {
         },
       );
     }
+
+    cache.removeCache(`user-${userId}`);
+    const allUserData = JSON.parse(cache.getCache('allusers'));
+    const userIdx = allUserData.findIndex(users => users._id === userId);
+    allUserData.splice(userIdx, 1);
+    cache.setCache('allusers', JSON.stringify(allUserData));
 
     await UserProfile.deleteOne({
       _id: userId,
