@@ -280,7 +280,7 @@ const userProfileController = function (UserProfile) {
         record.createdDate = moment(req.body.createdDate).toDate();
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
-          userData.endDate = record.endData.toISOString();
+          userData.endDate = record.endDate.toISOString();
         } else {
           record.set('endDate', undefined, { strict: false });
         }
