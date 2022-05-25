@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const userHelper = require('../helpers/userhelper');
+const myteam = require('../helpers/helperModels/myTeam');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1124,8 +1125,17 @@ const taskController = function (Task) {
 
   const getTasksForTeamsByUser = async (req, res) => {
     try {
-      const teamMembers = userHelper.getTeamMembers({ _id: req.params.userId });
-      const tasks = Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
+      const teamMembersResponse = await myteam.findById(req.params.userId).select({
+        'myteam._id': 1,
+        // 'myteam.role': 1,
+        // 'myteam.fullName': 1,
+        // _id: 0,
+      });
+      const teamMembers = [teamMembersResponse._id];
+      teamMembersResponse.myteam.forEach((user) => {
+        teamMembers.push(user._id);
+      });
+      const tasks = await Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
       res.status(200).send(tasks);
     } catch (error) {
       res.status(400).send(error);

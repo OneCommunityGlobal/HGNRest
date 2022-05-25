@@ -110,13 +110,10 @@ const projectController = function (Project) {
   };
 
   const getUserProjects = function (req, res) {
-    console.log('getting projects for ');
     const { userId } = req.params;
-    console.log(userId);
 
     userProject.findById(userId)
       .then((results) => {
-        console.log(results.projects);
         res.status(200).send(results.projects);
       })
       .catch((error) => {
