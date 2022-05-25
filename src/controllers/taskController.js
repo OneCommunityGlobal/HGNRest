@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const hasPermission = require('../utilities/permissions');
+const userHelper = require('../helpers/userhelper');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1121,6 +1123,16 @@ const taskController = function (Task) {
     }
   };
 
+  const getTasksForTeamsByUser = async (req, res) => {
+    try {
+      const teamMembers = await userHelper.getTeamMembers({ _id: req.params.userId });
+      const tasks = await Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
+      res.status(200).send(tasks);
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1135,6 +1147,7 @@ const taskController = function (Task) {
     deleteTaskByWBS,
     moveTask,
     getTasksByUserList,
+    getTasksForTeamsByUser,
   };
 };
 

@@ -40,6 +40,9 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/tasks/userProfile')
     .get(controller.getTasksByUserList);
 
+  wbsRouter.route('/user/:userId/teams/tasks')
+    .get(controller.getTasksForTeamsByUser);
+
   return wbsRouter;
 };
 
