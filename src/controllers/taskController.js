@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const myteam = require('../helpers/helperModels/myTeam');
+const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1130,12 +1131,19 @@ const taskController = function (Task) {
         // 'myteam.fullName': 1,
         // _id: 0,
       });
-      const teamMembers = [teamMembersResponse._id];
+      const teamMemberIds = [teamMembersResponse._id];
       teamMembersResponse.myteam.forEach((user) => {
-        teamMembers.push(user._id);
+        teamMemberIds.push(user._id);
       });
-      const tasks = await Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
-      res.status(200).send(tasks);
+      const teamMembers = await Promise.all(
+        teamMemberIds.map(async teamMemberId => userProfile.findById(teamMemberId, '-profilePic -password -refreshTokens -lastModifiedDate -__v')),
+      );
+      const teamMembersWithTasks = await Promise.all(
+        teamMembers.map(async user => ({ ...user._doc, tasks: await Task.find({ 'resources.userID': { $in: user } }, '-resources.profilePic') })),
+      );
+      res.status(200).send(teamMembersWithTasks);
+      // const tasks = await Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
+      // res.status(200).send(tasks);
     } catch (error) {
       res.status(400).send(error);
     }
