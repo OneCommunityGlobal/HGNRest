@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const userHelper = require('../helpers/userhelper');
 const myteam = require('../helpers/helperModels/myTeam');
 
 const taskController = function (Task) {
