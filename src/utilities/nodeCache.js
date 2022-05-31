@@ -1,5 +1,4 @@
 
-
 const NodeCache = require('node-cache');
 const logger = require('../startup/logger');
 
@@ -39,10 +38,15 @@ const cache = function () {
     }
   }
 
+  function hasCache(key) {
+    return cacheStore.has(key);
+  }
+
   return {
     setCache,
     getCache,
     removeCache,
+    hasCache,
   };
 };
 
