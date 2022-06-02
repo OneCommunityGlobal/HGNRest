@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 const myteam = require('../helpers/helperModels/myTeam');
 const userProfile = require('../models/userProfile');
 
@@ -1125,23 +1126,292 @@ const taskController = function (Task) {
 
   const getTasksForTeamsByUser = async (req, res) => {
     try {
-      const teamMembersResponse = await myteam.findById(req.params.userId).select({
-        'myteam._id': 1,
-        // 'myteam.role': 1,
-        // 'myteam.fullName': 1,
-        // _id: 0,
-      });
-      const teamMemberIds = [teamMembersResponse._id];
-      teamMembersResponse.myteam.forEach((user) => {
-        teamMemberIds.push(user._id);
-      });
-      const teamMembers = await Promise.all(
-        teamMemberIds.map(async teamMemberId => userProfile.findById(teamMemberId, '-profilePic -password -refreshTokens -lastModifiedDate -__v')),
-      );
-      const teamMembersWithTasks = await Promise.all(
-        teamMembers.map(async user => ({ ...user._doc, tasks: await Task.find({ 'resources.userID': { $in: user } }, '-resources.profilePic') })),
-      );
-      res.status(200).send(teamMembersWithTasks);
+      const pdtstart = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .format('YYYY-MM-DD');
+      const pdtend = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .format('YYYY-MM-DD');
+      const userId = mongoose.Types.ObjectId(req.params.userId);
+      const agg = myteam.aggregate([
+        {
+          $match: {
+            _id: userId,
+          },
+        },
+        {
+          $unwind: '$myteam',
+        },
+        {
+          $project: {
+            _id: 0,
+            personId: '$myteam._id',
+            name: '$myteam.fullName',
+            // role: '$myteam.role',
+          },
+        },
+        // have personId, name,
+        {
+          $lookup: {
+            from: 'userProfiles',
+            localField: 'personId',
+            foreignField: '_id',
+            as: 'persondata',
+          },
+        },
+        {
+          $project: {
+            personId: 1,
+            name: 1,
+            weeklyComittedHours: {
+              $arrayElemAt: ['$persondata.weeklyComittedHours', 0],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: 'personId',
+            foreignField: 'personId',
+            as: 'timeEntryData',
+          },
+        },
+        {
+          $project: {
+            personId: 1,
+            name: 1,
+            weeklyComittedHours: 1,
+            timeEntryData: {
+              $filter: {
+                input: '$timeEntryData',
+                as: 'timeentry',
+                cond: {
+                  $and: [
+                    {
+                      $gte: ['$$timeentry.dateOfWork', pdtstart],
+                    },
+                    {
+                      $lte: ['$$timeentry.dateOfWork', pdtend],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: '$timeEntryData',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            personId: 1,
+            name: 1,
+            weeklyComittedHours: 1,
+            totalSeconds: {
+              $cond: [
+                {
+                  $gte: ['$timeEntryData.totalSeconds', 0],
+                },
+                '$timeEntryData.totalSeconds',
+                0,
+              ],
+            },
+            isTangible: {
+              $cond: [
+                {
+                  $gte: ['$timeEntryData.totalSeconds', 0],
+                },
+                '$timeEntryData.isTangible',
+                false,
+              ],
+            },
+          },
+        },
+        {
+          $addFields: {
+            tangibletime: {
+              $cond: [
+                {
+                  $eq: ['$isTangible', true],
+                },
+                '$totalSeconds',
+                0,
+              ],
+            },
+            intangibletime: {
+              $cond: [
+                {
+                  $eq: ['$isTangible', false],
+                },
+                '$totalSeconds',
+                0,
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              personId: '$personId',
+              weeklyComittedHours: '$weeklyComittedHours',
+              name: '$name',
+            },
+            totalSeconds: {
+              $sum: '$totalSeconds',
+            },
+            tangibletime: {
+              $sum: '$tangibletime',
+            },
+            intangibletime: {
+              $sum: '$intangibletime',
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            personId: '$_id.personId',
+            name: '$_id.name',
+            weeklyComittedHours: '$_id.weeklyComittedHours',
+            totaltime_hrs: {
+              $divide: ['$totalSeconds', 3600],
+            },
+            totaltangibletime_hrs: {
+              $divide: ['$tangibletime', 3600],
+            },
+            totalintangibletime_hrs: {
+              $divide: ['$intangibletime', 3600],
+            },
+            percentagespentintangible: {
+              $cond: [
+                {
+                  $eq: ['$totalSeconds', 0],
+                },
+                0,
+                {
+                  $multiply: [
+                    {
+                      $divide: ['$tangibletime', '$totalSeconds'],
+                    },
+                    100,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: 'tasks',
+            localField: 'personId',
+            foreignField: 'resources.userID',
+            as: 'tasks',
+          },
+        },
+        {
+          $project: {
+            tasks: {
+              resources: {
+                profilePic: 0,
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: '$tasks',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: 'wbs',
+            localField: 'tasks.wbsId',
+            foreignField: '_id',
+            as: 'projectId',
+          },
+        },
+        {
+          $addFields: {
+            'tasks.projectId': {
+              $cond: [
+                { $ne: ['$projectId', []] },
+                { $arrayElemAt: ['$projectId', 0] },
+                '$tasks.projectId',
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            projectId: 0,
+            tasks: {
+              projectId: {
+                _id: 0,
+                isActive: 0,
+                modifiedDatetime: 0,
+                wbsName: 0,
+                createdDatetime: 0,
+                __v: 0,
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            'tasks.projectId': '$tasks.projectId.projectId',
+          },
+        },
+        {
+          $group: {
+            _id: '$personId',
+            tasks: { $push: '$tasks' },
+            data: {
+              $first: '$$ROOT',
+            },
+          },
+        },
+        {
+          $addFields: {
+            'data.tasks': {
+              $filter: {
+                input: '$tasks',
+                as: 'task',
+                cond: { $ne: ['$$task', {}] },
+              },
+            },
+          },
+        },
+        {
+          $replaceRoot: {
+            newRoot: '$data',
+          },
+        },
+      ]);
+      const data = await agg.exec();
+      res.status(200).send(data);
+      // const teamMembersResponse = await myteam.findById(req.params.userId).select({
+      //   'myteam._id': 1,
+      //   // 'myteam.role': 1,
+      //   // 'myteam.fullName': 1,
+      //   // _id: 0,
+      // });
+      // const teamMemberIds = [teamMembersResponse._id];
+      // teamMembersResponse.myteam.forEach((user) => {
+      //   teamMemberIds.push(user._id);
+      // });
+      // const teamMembers = await Promise.all(
+      //   teamMemberIds.map(async teamMemberId => userProfile.findById(teamMemberId, '-profilePic -password -refreshTokens -lastModifiedDate -__v')),
+      // );
+      // const teamMembersWithTasks = await Promise.all(
+      //   teamMembers.map(async user => ({ ...user._doc, tasks: await Task.find({ 'resources.userID': { $in: user } }, '-resources.profilePic') })),
+      // );
+      // res.status(200).send(teamMembersWithTasks);
       // const tasks = await Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
       // res.status(200).send(tasks);
     } catch (error) {
