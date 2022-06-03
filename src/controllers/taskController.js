@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const myteam = require('../helpers/helperModels/myTeam');
-const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
