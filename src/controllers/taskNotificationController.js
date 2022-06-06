@@ -11,7 +11,7 @@ const taskNotificationController = function (TaskNotification) {
       });
   };
 
-  const createTaskNotification = function (req, res) {
+  const createOrUpdateTaskNotification = function (req, res) {
     const newTaskNotification = new TaskNotification();
     newTaskNotification.message = req.body.message;
     newTaskNotification.recipient = req.body.recipient;
@@ -89,7 +89,7 @@ const taskNotificationController = function (TaskNotification) {
   return {
     getUnreadTaskNotificationsByUser,
     deleteTaskNotification,
-    createTaskNotification,
+    createOrUpdateTaskNotification,
     markTaskNotificationAsRead,
   };
 };

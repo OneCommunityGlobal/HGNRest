@@ -986,28 +986,15 @@ const taskController = function (Task) {
     const task = req.body;
 
     Task.findById(taskId, (error, _task) => {
-      _task.taskName = task.taskName;
-      _task.priority = task.priority;
-      _task.resources = task.resources;
-      _task.isAssigned = task.isAssigned;
-      _task.status = task.status;
-      _task.hoursBest = task.hoursBest;
-      _task.hoursWorst = task.hoursWorst;
-      _task.hoursMost = task.hoursMost;
-      _task.estimatedHours = task.estimatedHours;
-      _task.startedDatetime = task.startedDatetime;
-      _task.dueDatetime = task.dueDatetime;
-      _task.links = task.links;
-      _task.modifiedDatetime = Date.now();
-      _task.oldWhyInfo = task.whyInfo;
-      _task.oldIntentInfo = task.intentInfo;
-      _task.oldEndstateInfo = task.endstateInfo;
-      _task.oldClassification = task.classification;
-      _task.whyInfo = req.body.whyInfo;
-      _task.intentInfo = req.body.intentInfo;
-      _task.endstateInfo = req.body.endstateInfo;
-      _task.classification = req.body.classification;
-      _task.taskNotifications = req.body.taskNotifications;
+      _task = {
+        ...task,
+        modifiedDatetime: Date.now(),
+        // todo: maybe need to change that after creating notifications
+        oldWhyInfo: task.whyInfo,
+        oldIntentInfo: task.intentInfo,
+        oldEndstateInfo: task.endstateInfo,
+        oldClassification: task.classification,
+      };
       _task
         .save()
         .then(result => res.status(201).send(result))
