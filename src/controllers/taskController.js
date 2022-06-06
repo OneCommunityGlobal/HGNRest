@@ -1367,6 +1367,15 @@ const taskController = function (Task) {
           },
         },
         {
+          $lookup: {
+            from: 'taskNotifications',
+            localField: 'task._id',
+            foreignField: 'taskId',
+            as: 'tasks.taskNotifications',
+          },
+        },
+
+        {
           $group: {
             _id: '$personId',
             tasks: { $push: '$tasks' },
