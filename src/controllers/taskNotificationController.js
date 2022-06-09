@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const taskNotificationController = function (TaskNotification) {
   const getUnreadTaskNotificationsByUser = function (req, res) {
     const { userId } = req.params;
@@ -11,41 +13,69 @@ const taskNotificationController = function (TaskNotification) {
       });
   };
 
-  const createOrUpdateTaskNotification = function (req, res) {
-    const newTaskNotification = new TaskNotification();
-    newTaskNotification.message = req.body.message;
-    newTaskNotification.recipient = req.body.recipient;
-    newTaskNotification.taskId = req.body.taskId;
-    newTaskNotification.taskName = req.body.taskName;
-    newTaskNotification.taskNum = req.body.taskNum;
+  const createOrUpdateTaskNotification = async (req, res) => {
+    try {
+      const taskId = mongoose.Types.ObjectId(req.params.userId);
+      const { oldTask, userIds } = req.body;
 
-    if (req.body.oldTaskInfos) {
-      if (req.body.oldTaskInfos.oldWhyInfo) {
-        newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldWhyInfo;
-      }
-      if (req.body.oldTaskInfos.oldIntentInfo) {
-        newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldIntentInfo;
-      }
-      if (req.body.oldTaskInfos.oldEndstateInfo) {
-        newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldEndstateInfo;
-      }
-    }
-    if (req.body.newTaskInfos) {
-      if (req.body.newTaskInfos.newWhyInfo) {
-        newTaskNotification.newTaskInfos.newWhyInfo = req.body.newTaskInfos.newWhyInfo;
-      }
-      if (req.body.newTaskInfos.newIntentInfo) {
-        newTaskNotification.newTaskInfos.newIntentInfo = req.body.newTaskInfos.newIntentInfo;
-      }
-      if (req.body.newTaskInfos.newEndstateInfo) {
-        newTaskNotification.newTaskInfos.newEndstateInfo = req.body.newTaskInfos.newEndstateInfo;
-      }
-    }
+      // If task notification with taskId and userId exists, don't do anything.
+      // Else, create new task notification.image.png
+      await Promise.all(
+        userIds.map(async userId => (
+          TaskNotification.update({
+            $and: [
+              { taskId },
+              { userId },
+            ],
+          },
+          {
+            $setOnInsert: {
+              oldTask,
+            },
+          },
+          {
+            upsert: true,
+            setDefaultsOnInsert: true,
+          })
+        )),
+      );
+      res.status(200).send({ message: 'Create or updated task notification' });
 
-    newTaskNotification
-      .save()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(400).send(error));
+      // const newTaskNotification = new TaskNotification();
+      // newTaskNotification.message = req.body.message;
+      // newTaskNotification.recipient = req.body.recipient;
+      // newTaskNotification.taskId = req.body.taskId;
+      // newTaskNotification.taskName = req.body.taskName;
+      // newTaskNotification.taskNum = req.body.taskNum;
+      // if (req.body.oldTaskInfos) {
+      //   if (req.body.oldTaskInfos.oldWhyInfo) {
+      //     newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldWhyInfo;
+      //   }
+      //   if (req.body.oldTaskInfos.oldIntentInfo) {
+      //     newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldIntentInfo;
+      //   }
+      //   if (req.body.oldTaskInfos.oldEndstateInfo) {
+      //     newTaskNotification.oldTaskInfos.oldWhyInfo = req.body.oldTaskInfos.oldEndstateInfo;
+      //   }
+      // }
+      // if (req.body.newTaskInfos) {
+      //   if (req.body.newTaskInfos.newWhyInfo) {
+      //     newTaskNotification.newTaskInfos.newWhyInfo = req.body.newTaskInfos.newWhyInfo;
+      //   }
+      //   if (req.body.newTaskInfos.newIntentInfo) {
+      //     newTaskNotification.newTaskInfos.newIntentInfo = req.body.newTaskInfos.newIntentInfo;
+      //   }
+      //   if (req.body.newTaskInfos.newEndstateInfo) {
+      //     newTaskNotification.newTaskInfos.newEndstateInfo = req.body.newTaskInfos.newEndstateInfo;
+      //   }
+      // }
+      // newTaskNotification
+      //   .save()
+      //   .then(results => res.status(200).send(results))
+      //   .catch(error => res.status(400).send(error));
+    } catch (error) {
+      res.status(400).send(error);
+    }
   };
 
   const deleteTaskNotification = function (req, res) {

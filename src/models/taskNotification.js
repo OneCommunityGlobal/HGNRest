@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const task = require('../models/task');
 
 const { Schema } = mongoose;
 
@@ -17,9 +18,10 @@ const taskNotificationSchema = new Schema({
   isAcknowleged: { type: Number, default: 0 },
   eventType: { type: String },
   dateCreated: { type: Date, default: Date.now(), expires: SECONDS_IN_MONTH },
-  oldWhyInfo: { type: String, default: '' },
-  oldIntentInfo: { type: String, default: '' },
-  oldEndstateInfo: { type: String, default: '' },
+  oldTask: { type: task, default: {} },
+  // oldWhyInfo: { type: String, default: '' },
+  // oldIntentInfo: { type: String, default: '' },
+  // oldEndstateInfo: { type: String, default: '' },
 });
 
 module.exports = mongoose.model(
