@@ -1352,7 +1352,7 @@ const taskController = function (Task) {
         {
           $lookup: {
             from: 'taskNotifications',
-            localField: 'task._id',
+            localField: 'tasks._id',
             foreignField: 'taskId',
             as: 'tasks.taskNotifications',
           },
@@ -1385,7 +1385,7 @@ const taskController = function (Task) {
         },
       ]);
       const data = await agg.exec();
-      console.log(JSON.stringify(data, null, 4));
+      // console.log(JSON.stringify(data, null, 4));
       res.status(200).send(data);
       // const teamMembersResponse = await myteam.findById(req.params.userId).select({
       //   'myteam._id': 1,

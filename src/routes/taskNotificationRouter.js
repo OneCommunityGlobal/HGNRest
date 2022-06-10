@@ -6,7 +6,7 @@ const routes = function (TaskNotification) {
   );
   const TaskNotificationRouter = express.Router();
 
-  TaskNotificationRouter.route('/tasknotification/task/:taskId')
+  TaskNotificationRouter.route('/task/:taskId/tasknotification')
     .post(controller.createOrUpdateTaskNotification);
 
   TaskNotificationRouter.route('/tasknotification/user/:userId')

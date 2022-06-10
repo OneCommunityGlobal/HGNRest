@@ -15,17 +15,18 @@ const taskNotificationController = function (TaskNotification) {
 
   const createOrUpdateTaskNotification = async (req, res) => {
     try {
-      const taskId = mongoose.Types.ObjectId(req.params.userId);
+      const taskId = mongoose.Types.ObjectId(req.params.taskId);
       const { oldTask, userIds } = req.body;
-
+      // await TaskNotification.deleteMany({});
+      // console.log('updating task notifications...');
       // If task notification with taskId and userId exists, don't do anything.
       // Else, create new task notification.image.png
       await Promise.all(
         userIds.map(async userId => (
-          TaskNotification.update({
+          TaskNotification.updateOne({
             $and: [
               { taskId },
-              { userId },
+              { userId: mongoose.Types.ObjectId(userId) },
             ],
           },
           {
@@ -39,6 +40,9 @@ const taskNotificationController = function (TaskNotification) {
           })
         )),
       );
+      // const taskNotifications = await TaskNotification.find({});
+      // console.log(taskNotifications);
+      // console.log('finished updating task notifications.');
       res.status(200).send({ message: 'Create or updated task notification' });
 
       // const newTaskNotification = new TaskNotification();
@@ -74,6 +78,7 @@ const taskNotificationController = function (TaskNotification) {
       //   .then(results => res.status(200).send(results))
       //   .catch(error => res.status(400).send(error));
     } catch (error) {
+      console.log(error);
       res.status(400).send(error);
     }
   };
