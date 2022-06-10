@@ -706,10 +706,6 @@ const taskController = function (Task) {
     _task.endstateInfo = req.body.endstateInfo;
     _task.classification = req.body.classification;
 
-    // TODO: Is it better to handle the logic of creating taskNotifications here?
-    // How would you do that?
-    _task.taskNotifications = req.body.taskNotifications;
-
     _task
       .save()
       .then(result => res.status(201).send(result))
