@@ -20,6 +20,7 @@ const taskschema = new Schema({
   hoursBest: { type: Number, default: 0.0 },
   hoursWorst: { type: Number, default: 0.0 },
   hoursMost: { type: Number, default: 0.0 },
+  hoursLogged: {type: Number, default: 0.0 },
   estimatedHours: { type: Number, default: 0.0 },
   startedDatetime: { type: Date },
   dueDatetime: { type: Date },
