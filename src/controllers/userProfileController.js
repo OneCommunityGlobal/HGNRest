@@ -428,8 +428,11 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        cache.setCache(`user-${userid}`, JSON.stringify(results));
-        res.status(200).send(results);
+        userhelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
+          results.set('tangibleHoursReportedThisWeek', hours, { strict: false });
+          cache.setCache(`user-${userid}`, JSON.stringify(results));
+          res.status(200).send(results);
+        });
       })
       .catch(error => res.status(404).send(error));
   };
