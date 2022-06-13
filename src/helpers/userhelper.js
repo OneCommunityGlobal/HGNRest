@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
 const userProfile = require('../models/userProfile');
+const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
 const myteam = require('../helpers/helperModels/myTeam');
 const dashboardhelper = require('../helpers/dashboardhelper')();
@@ -958,6 +959,24 @@ const userhelper = function () {
     }
   };
 
+  const getTangibleHoursReportedThisWeekByUserId = function (userId) {
+    const userid = mongoose.Types.ObjectId(userId);
+    const pdtstart = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .format('YYYY-MM-DD');
+    const pdtend = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .format('YYYY-MM-DD');
+
+    return timeEntries.find({ personId: userid, dateOfWork: { $gte: pdtstart, $lte: pdtend }, isTangible: true }, 'totalSeconds')
+      .then((results) => {
+        const totalTangibleWeeklySeconds = results.reduce((acc, { totalSeconds }) => acc + totalSeconds, 0);
+        return (totalTangibleWeeklySeconds / 3600).toFixed(2);
+      });
+  };
+
   return {
     getUserName,
     getTeamMembers,
@@ -969,6 +988,7 @@ const userhelper = function () {
     getInfringmentEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
+    getTangibleHoursReportedThisWeekByUserId,
   };
 };
 
