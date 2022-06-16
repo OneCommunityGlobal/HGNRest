@@ -980,11 +980,9 @@ const taskController = function (Task) {
 
     const { taskId } = req.params;
 
-    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, req.body).exec();
-
-    res
-      .status(201)
-      .send();
+    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, { ...req.body, modifiedDatetime: Date.now() })
+      .then(() => res.status(201).send())
+      .catch(error => res.status(404).send(error));
   };
 
   const swap = function (req, res) {
