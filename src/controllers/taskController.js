@@ -660,7 +660,7 @@ const taskController = function (Task) {
   };
 
   const postTask = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (req.body.requestor.role !== 'Administrator' && req.body.requestor.role !== 'Owner') {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -971,33 +971,20 @@ const taskController = function (Task) {
   };
 
   const updateTask = (req, res) => {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (req.body.requestor.role !== 'Administrator' && req.body.requestor.role !== 'Owner') {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new Task.' });
+        .send({ error: 'You are not authorized to update Task.' });
       return;
     }
 
     const { taskId } = req.params;
-    const task = req.body;
 
-    Task.findById(taskId, (error, _task) => {
-      _task = {
-        ...task,
-        modifiedDatetime: Date.now(),
-        // todo: maybe need to change that after creating notifications
-        oldWhyInfo: task.whyInfo,
-        oldIntentInfo: task.intentInfo,
-        oldEndstateInfo: task.endstateInfo,
-        oldClassification: task.classification,
-      };
-      _task
-        .save()
-        .then(result => res.status(201).send(result))
-        .catch((errors) => {
-          res.status(400).send(errors);
-        });
-    });
+    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, req.body).exec();
+
+    res
+      .status(201)
+      .send();
   };
 
   const swap = function (req, res) {
