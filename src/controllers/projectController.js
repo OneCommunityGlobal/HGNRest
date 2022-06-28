@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const timeentry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const userProject = require('../helpers/helperModels/userProjects');
+const hasPermission = require('../utilities/permissions');
 
 
 const projectController = function (Project) {
@@ -13,7 +14,7 @@ const projectController = function (Project) {
   };
 
   const deleteProject = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'deleteProject')) {
       res.status(403).send({ error: 'You are  not authorized to delete projects.' });
       return;
     }
@@ -44,7 +45,7 @@ const projectController = function (Project) {
   };
 
   const postProject = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'postProject')) {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
     }
@@ -76,7 +77,7 @@ const projectController = function (Project) {
 
 
   const putProject = function (req, res) {
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'putProject')) {
       res.status(403).send('You are not authorized to make changes in the projects.');
       return;
     }
@@ -125,7 +126,7 @@ const projectController = function (Project) {
   const assignProjectToUsers = function (req, res) {
     // verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (req.body.requestor.role !== 'Administrator') {
+    if (!hasPermission(req.body.requestor.role, 'assignProjectToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
