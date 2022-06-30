@@ -12,7 +12,7 @@ const routes = function (TaskNotification) {
   TaskNotificationRouter.route('/tasknotification/user/:userId')
     .get(controller.getUnreadTaskNotificationsByUser);
 
-  TaskNotificationRouter.route('/tasknotification/:notificationId')
+  TaskNotificationRouter.route('/tasknotification/:taskNotificationId')
     .delete(controller.deleteTaskNotification);
 
   TaskNotificationRouter.route('/tasknotification/read/:notificationId')
