@@ -234,7 +234,8 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       ' -createdDateTime',
     )
-      .populate('projectId')
+      // allow the task-based timeEntry get its taskId into projectId field when calling this func
+      // .populate('projectId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
