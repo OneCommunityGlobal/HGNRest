@@ -27,7 +27,7 @@ const closure = () => {
     CLIENT_SECRET,
     REDIRECT_URI,
   );
-  
+
   OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
   setInterval(async () => {
@@ -55,7 +55,7 @@ const closure = () => {
           user: CLIENT_EMAIL,
           refreshToken: REFRESH_TOKEN,
           accessToken: ACCESSTOKEN,
-        }
+        },
       };
 
       const result = await transporter.sendMail(mailOptions);
