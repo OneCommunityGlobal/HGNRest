@@ -1117,10 +1117,10 @@ const taskController = function (Task) {
             _id: 0,
             personId: '$myteam._id',
             name: '$myteam.fullName',
-            // role: '$myteam.role',
+            role: '$role',
           },
         },
-        // have personId, name,
+        // have personId, name, role
         {
           $lookup: {
             from: 'userProfiles',
@@ -1133,6 +1133,7 @@ const taskController = function (Task) {
           $project: {
             personId: 1,
             name: 1,
+            role: 1,
             weeklyComittedHours: {
               $arrayElemAt: ['$persondata.weeklyComittedHours', 0],
             },
@@ -1151,6 +1152,7 @@ const taskController = function (Task) {
             personId: 1,
             name: 1,
             weeklyComittedHours: 1,
+            role: 1,
             timeEntryData: {
               $filter: {
                 input: '$timeEntryData',
@@ -1180,6 +1182,7 @@ const taskController = function (Task) {
             personId: 1,
             name: 1,
             weeklyComittedHours: 1,
+            role: 1,
             totalSeconds: {
               $cond: [
                 {
@@ -1228,6 +1231,7 @@ const taskController = function (Task) {
               personId: '$personId',
               weeklyComittedHours: '$weeklyComittedHours',
               name: '$name',
+              role: '$role',
             },
             totalSeconds: {
               $sum: '$totalSeconds',
@@ -1246,6 +1250,7 @@ const taskController = function (Task) {
             personId: '$_id.personId',
             name: '$_id.name',
             weeklyComittedHours: '$_id.weeklyComittedHours',
+            role: '$_id.role',
             totaltime_hrs: {
               $divide: ['$totalSeconds', 3600],
             },
@@ -1373,25 +1378,6 @@ const taskController = function (Task) {
       const data = await agg.exec();
       // console.log(JSON.stringify(data, null, 4));
       res.status(200).send(data);
-      // const teamMembersResponse = await myteam.findById(req.params.userId).select({
-      //   'myteam._id': 1,
-      //   // 'myteam.role': 1,
-      //   // 'myteam.fullName': 1,
-      //   // _id: 0,
-      // });
-      // const teamMemberIds = [teamMembersResponse._id];
-      // teamMembersResponse.myteam.forEach((user) => {
-      //   teamMemberIds.push(user._id);
-      // });
-      // const teamMembers = await Promise.all(
-      //   teamMemberIds.map(async teamMemberId => userProfile.findById(teamMemberId, '-profilePic -password -refreshTokens -lastModifiedDate -__v')),
-      // );
-      // const teamMembersWithTasks = await Promise.all(
-      //   teamMembers.map(async user => ({ ...user._doc, tasks: await Task.find({ 'resources.userID': { $in: user } }, '-resources.profilePic') })),
-      // );
-      // res.status(200).send(teamMembersWithTasks);
-      // const tasks = await Task.find({ 'resources.userID': { $in: teamMembers } }, '-resources.profilePic');
-      // res.status(200).send(tasks);
     } catch (error) {
       res.status(400).send(error);
     }
