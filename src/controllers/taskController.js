@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
+const myteam = require('../helpers/helperModels/myTeam');
 const hasPermission = require('../utilities/permissions');
 
 const taskController = function (Task) {
@@ -973,38 +975,15 @@ const taskController = function (Task) {
     if (!hasPermission(req.body.requestor.role, 'updateTask')) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new Task.' });
+        .send({ error: 'You are not authorized to update Task.' });
       return;
     }
 
     const { taskId } = req.params;
-    const task = req.body;
 
-    Task.findById(taskId, (error, _task) => {
-      _task.taskName = task.taskName;
-      _task.priority = task.priority;
-      _task.resources = task.resources;
-      _task.isAssigned = task.isAssigned;
-      _task.status = task.status;
-      _task.hoursBest = task.hoursBest;
-      _task.hoursWorst = task.hoursWorst;
-      _task.hoursMost = task.hoursMost;
-      _task.estimatedHours = task.estimatedHours;
-      _task.startedDatetime = task.startedDatetime;
-      _task.dueDatetime = task.dueDatetime;
-      _task.links = task.links;
-      _task.modifiedDatetime = Date.now();
-      _task.whyInfo = req.body.whyInfo;
-      _task.intentInfo = req.body.intentInfo;
-      _task.endstateInfo = req.body.endstateInfo;
-      _task.classification = req.body.classification;
-      _task
-        .save()
-        .then(result => res.status(201).send(result))
-        .catch((errors) => {
-          res.status(400).send(errors);
-        });
-    });
+    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, { ...req.body, modifiedDatetime: Date.now() })
+      .then(() => res.status(201).send())
+      .catch(error => res.status(404).send(error));
   };
 
   const swap = function (req, res) {
@@ -1113,6 +1092,297 @@ const taskController = function (Task) {
     }
   };
 
+  const getTasksForTeamsByUser = async (req, res) => {
+    try {
+      const pdtstart = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .format('YYYY-MM-DD');
+      const pdtend = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .format('YYYY-MM-DD');
+      const userId = mongoose.Types.ObjectId(req.params.userId);
+      const agg = myteam.aggregate([
+        {
+          $match: {
+            _id: userId,
+          },
+        },
+        {
+          $unwind: '$myteam',
+        },
+        {
+          $project: {
+            _id: 0,
+            personId: '$myteam._id',
+            name: '$myteam.fullName',
+            role: '$role',
+          },
+        },
+        // have personId, name, role
+        {
+          $lookup: {
+            from: 'userProfiles',
+            localField: 'personId',
+            foreignField: '_id',
+            as: 'persondata',
+          },
+        },
+        {
+          $project: {
+            personId: 1,
+            name: 1,
+            role: 1,
+            weeklyComittedHours: {
+              $arrayElemAt: ['$persondata.weeklyComittedHours', 0],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: 'personId',
+            foreignField: 'personId',
+            as: 'timeEntryData',
+          },
+        },
+        {
+          $project: {
+            personId: 1,
+            name: 1,
+            weeklyComittedHours: 1,
+            role: 1,
+            timeEntryData: {
+              $filter: {
+                input: '$timeEntryData',
+                as: 'timeentry',
+                cond: {
+                  $and: [
+                    {
+                      $gte: ['$$timeentry.dateOfWork', pdtstart],
+                    },
+                    {
+                      $lte: ['$$timeentry.dateOfWork', pdtend],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: '$timeEntryData',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            personId: 1,
+            name: 1,
+            weeklyComittedHours: 1,
+            role: 1,
+            totalSeconds: {
+              $cond: [
+                {
+                  $gte: ['$timeEntryData.totalSeconds', 0],
+                },
+                '$timeEntryData.totalSeconds',
+                0,
+              ],
+            },
+            isTangible: {
+              $cond: [
+                {
+                  $gte: ['$timeEntryData.totalSeconds', 0],
+                },
+                '$timeEntryData.isTangible',
+                false,
+              ],
+            },
+          },
+        },
+        {
+          $addFields: {
+            tangibletime: {
+              $cond: [
+                {
+                  $eq: ['$isTangible', true],
+                },
+                '$totalSeconds',
+                0,
+              ],
+            },
+            intangibletime: {
+              $cond: [
+                {
+                  $eq: ['$isTangible', false],
+                },
+                '$totalSeconds',
+                0,
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              personId: '$personId',
+              weeklyComittedHours: '$weeklyComittedHours',
+              name: '$name',
+              role: '$role',
+            },
+            totalSeconds: {
+              $sum: '$totalSeconds',
+            },
+            tangibletime: {
+              $sum: '$tangibletime',
+            },
+            intangibletime: {
+              $sum: '$intangibletime',
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            personId: '$_id.personId',
+            name: '$_id.name',
+            weeklyComittedHours: '$_id.weeklyComittedHours',
+            role: '$_id.role',
+            totaltime_hrs: {
+              $divide: ['$totalSeconds', 3600],
+            },
+            totaltangibletime_hrs: {
+              $divide: ['$tangibletime', 3600],
+            },
+            totalintangibletime_hrs: {
+              $divide: ['$intangibletime', 3600],
+            },
+            percentagespentintangible: {
+              $cond: [
+                {
+                  $eq: ['$totalSeconds', 0],
+                },
+                0,
+                {
+                  $multiply: [
+                    {
+                      $divide: ['$tangibletime', '$totalSeconds'],
+                    },
+                    100,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: 'tasks',
+            localField: 'personId',
+            foreignField: 'resources.userID',
+            as: 'tasks',
+          },
+        },
+        {
+          $project: {
+            tasks: {
+              resources: {
+                profilePic: 0,
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: '$tasks',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: 'wbs',
+            localField: 'tasks.wbsId',
+            foreignField: '_id',
+            as: 'projectId',
+          },
+        },
+        {
+          $addFields: {
+            'tasks.projectId': {
+              $cond: [
+                { $ne: ['$projectId', []] },
+                { $arrayElemAt: ['$projectId', 0] },
+                '$tasks.projectId',
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            projectId: 0,
+            tasks: {
+              projectId: {
+                _id: 0,
+                isActive: 0,
+                modifiedDatetime: 0,
+                wbsName: 0,
+                createdDatetime: 0,
+                __v: 0,
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            'tasks.projectId': '$tasks.projectId.projectId',
+          },
+        },
+        {
+          $lookup: {
+            from: 'taskNotifications',
+            localField: 'tasks._id',
+            foreignField: 'taskId',
+            as: 'tasks.taskNotifications',
+          },
+        },
+
+        {
+          $group: {
+            _id: '$personId',
+            tasks: { $push: '$tasks' },
+            data: {
+              $first: '$$ROOT',
+            },
+          },
+        },
+        {
+          $addFields: {
+            'data.tasks': {
+              $filter: {
+                input: '$tasks',
+                as: 'task',
+                cond: { $ne: ['$$task', {}] },
+              },
+            },
+          },
+        },
+        {
+          $replaceRoot: {
+            newRoot: '$data',
+          },
+        },
+      ]);
+      const data = await agg.exec();
+      // console.log(JSON.stringify(data, null, 4));
+      res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1127,6 +1397,7 @@ const taskController = function (Task) {
     deleteTaskByWBS,
     moveTask,
     getTasksByUserList,
+    getTasksForTeamsByUser,
   };
 };
 
