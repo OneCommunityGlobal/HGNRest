@@ -6,13 +6,13 @@ const routes = function (TaskNotification) {
   );
   const TaskNotificationRouter = express.Router();
 
-  TaskNotificationRouter.route('/tasknotification')
-    .post(controller.createTaskNotification);
+  TaskNotificationRouter.route('/task/:taskId/tasknotification')
+    .post(controller.createOrUpdateTaskNotification);
 
   TaskNotificationRouter.route('/tasknotification/user/:userId')
     .get(controller.getUnreadTaskNotificationsByUser);
 
-  TaskNotificationRouter.route('/tasknotification/:notificationId')
+  TaskNotificationRouter.route('/tasknotification/:taskNotificationId')
     .delete(controller.deleteTaskNotification);
 
   TaskNotificationRouter.route('/tasknotification/read/:notificationId')

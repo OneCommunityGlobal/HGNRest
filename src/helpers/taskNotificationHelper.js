@@ -2,8 +2,8 @@ const TaskNotification = require('../models/taskNotification');
 const taskNotificationController = require('../controllers/taskNotificationController');
 
 const taskNotificationHelper = function () {
-  const createTaskNotification = function () {
-    taskNotificationController.createTaskNotification();
+  const createOrUpdateTaskNotification = function () {
+    taskNotificationController.createOrUpdateTaskNotification();
   };
 
   const createNotificationsOnUpdate = async (oldTask, newInfo) => {
@@ -120,7 +120,7 @@ const taskNotificationHelper = function () {
   };
 
   return {
-    createTaskNotification,
+    createOrUpdateTaskNotification,
     createNotificationsOnUpdate,
   };
 };
