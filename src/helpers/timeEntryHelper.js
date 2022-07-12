@@ -9,6 +9,7 @@ const timeEntryHelper = function () {
       {
         projectId: projectId,
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isTangible: true,
       },
       '-createdDateTime -lastModifiedDateTime',
     )
