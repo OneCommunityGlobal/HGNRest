@@ -2,6 +2,7 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const { getInfringmentEmailBody } = require('../helpers/userhelper')();
 const userProfile = require('../models/userProfile');
+const task = require('../models/task');
 const emailSender = require('../utilities/emailSender');
 const hasPermission = require('../utilities/permissions');
 
@@ -66,6 +67,7 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error: 'ObjectIds are not correctly formed' });
       }
 
+      // Get initial timeEntry by timeEntryId
       const timeEntry = await TimeEntry.findById(req.params.timeEntryId);
 
       if (!timeEntry) {
@@ -86,14 +88,36 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       const initialSeconds = timeEntry.totalSeconds;
+      const initialProjectId = timeEntry.projectId;
 
       timeEntry.notes = req.body.notes;
       timeEntry.totalSeconds = totalSeconds;
       timeEntry.isTangible = req.body.isTangible;
       timeEntry.lastModifiedDateTime = moment().utc().toISOString();
       timeEntry.projectId = mongoose.Types.ObjectId(req.body.projectId);
-
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
+
+      // Update the hoursLogged field of related tasks
+      // Revert the time of initial task
+      if (timeEntry.isTangible === true) {
+        try {
+          const initialTask = await task.findById(initialProjectId);
+          initialTask.hoursLogged -= (initialSeconds / 3600);
+          await initialTask.save();
+        } catch (error) {
+          console.log('Failed to find the initial task by id');
+        }
+      }
+      // Add the time for newly edited task
+      if (req.body.isTangible === 'true') {
+        try {
+          const editedTask = await task.findById(req.body.projectId);
+          editedTask.hoursLogged += (totalSeconds / 3600);
+          await editedTask.save();
+        } catch (error) {
+          console.log('Failed to find the edited task by id');
+        }
+      }
 
       // Update edit history
       if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && !hasPermission(req.body.requestor.role, 'editTimeEntry')) {
@@ -177,7 +201,7 @@ const timeEntrycontroller = function (TimeEntry) {
     });
   };
 
-  const postTimeEntry = function (req, res) {
+  const postTimeEntry = async function (req, res) {
     if (
       !mongoose.Types.ObjectId.isValid(req.body.personId)
       || !mongoose.Types.ObjectId.isValid(req.body.projectId)
@@ -208,6 +232,17 @@ const timeEntrycontroller = function (TimeEntry) {
           .send({ message: `Time Entry saved with id as ${results._id}` });
       })
       .catch(error => res.status(400).send(error));
+
+    // Add this tangbile time entry to related task's hoursLogged
+    if (timeentry.isTangible === true) {
+      try {
+        const currentTask = await task.findById(req.body.projectId);
+        currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
+        await currentTask.save();
+      } catch (error) {
+        console.log('Failed to find the task by id');
+      }
+    }
   };
 
   const getTimeEntriesForSpecifiedPeriod = function (req, res) {
@@ -306,6 +341,7 @@ const timeEntrycontroller = function (TimeEntry) {
       })
       .catch(error => res.status(400).send(error));
   };
+
   const getTimeEntriesForSpecifiedProject = function (req, res) {
     if (
       !req.params
@@ -352,6 +388,18 @@ const timeEntrycontroller = function (TimeEntry) {
             === req.body.requestor.requestorId.toString()
           || hasPermission(req.body.requestor.role, 'deleteTimeEntry')
         ) {
+          // Revert this tangible timeEntry of related task's hoursLogged
+          if (record.isTangible === true) {
+            task.findById(record.projectId)
+              .then((currentTask) => {
+                currentTask.hoursLogged -= (record.totalSeconds / 3600);
+                currentTask.save();
+              })
+              .catch((error) => {
+                console.log(error);
+              });
+          }
+
           record
             .remove()
             .then(() => {
