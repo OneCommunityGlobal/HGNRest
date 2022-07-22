@@ -7,18 +7,14 @@ const routes = function (TaskEditSuggestion) {
   );
   const TaskEditSuggestionRouter = express.Router();
 
-  TaskEditSuggestionRouter.route('/task/:taskId/tasknotification')
-    .post(controller.createOrUpdateTaskNotification);
+  TaskEditSuggestionRouter.route('/taskEditSuggestion')
+    .post(controller.createTaskEditSuggestion);
 
-  TaskEditSuggestionRouter.route('/tasknotification/user/:userId')
-    .get(controller.getUnreadTaskNotificationsByUser);
+  TaskEditSuggestionRouter.route('/taskEditSuggestion')
+    .get(controller.findAllTaskEditSuggestions);
 
-  TaskEditSuggestionRouter.route('/tasknotification/:taskNotificationId')
-    .delete(controller.deleteTaskNotification);
-
-  TaskEditSuggestionRouter.route('/tasknotification/read/:notificationId')
-    .post(controller.markTaskNotificationAsRead);
-
+  TaskEditSuggestionRouter.route('/taskEditSuggestion/:taskEditSuggestionId')
+    .delete(controller.deleteTaskEditSuggestion);
 
   return TaskEditSuggestionRouter;
 };
