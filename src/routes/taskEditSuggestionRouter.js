@@ -7,13 +7,13 @@ const routes = function (TaskEditSuggestion) {
   );
   const TaskEditSuggestionRouter = express.Router();
 
-  TaskEditSuggestionRouter.route('/taskEditSuggestion')
+  TaskEditSuggestionRouter.route('/taskeditsuggestion')
     .post(controller.createTaskEditSuggestion);
 
-  TaskEditSuggestionRouter.route('/taskEditSuggestion')
+  TaskEditSuggestionRouter.route('/taskeditsuggestion')
     .get(controller.findAllTaskEditSuggestions);
 
-  TaskEditSuggestionRouter.route('/taskEditSuggestion/:taskEditSuggestionId')
+  TaskEditSuggestionRouter.route('/taskeditsuggestion/:taskEditSuggestionId')
     .delete(controller.deleteTaskEditSuggestion);
 
   return TaskEditSuggestionRouter;

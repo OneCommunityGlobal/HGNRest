@@ -1,12 +1,16 @@
 /* eslint-disable linebreak-style */
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
 
 const taskEditSuggestionController = function (TaskEditSuggestion) {
   const createTaskEditSuggestion = async function (req, res) {
     try {
       const taskEditSuggestion = new TaskEditSuggestion();
       taskEditSuggestion.userId = req.body.userId;
-      taskEditSuggestion.user = req.body.user;
+
+      const profile = await userProfile.findById(mongoose.Types.ObjectId(taskEditSuggestion.userId));
+      taskEditSuggestion.user = `${profile.firstName} ${profile.lastName}`;
+
       taskEditSuggestion.dateSuggested = Date.now();
       taskEditSuggestion.taskId = req.body.taskId;
       taskEditSuggestion.oldTask = req.body.oldTask;
