@@ -31,19 +31,13 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
     }
   };
 
-  const deleteTaskEditSuggestion = function (req, res) {
-    TaskEditSuggestion.findById(req.params.taskNotificationId)
-      .then((result) => {
-        result
-          .remove()
-          .then(res.status(200).send({ message: 'Deleted task edit suggestion' }))
-          .catch((error) => {
-            res.status(400).send(error);
-          });
-      })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+  const deleteTaskEditSuggestion = async function (req, res) {
+    try {
+      await TaskEditSuggestion.deleteOne(req.param.taskEditSuggestionId);
+      res.status(200).send({ message: `Deleted task edit suggestion with _id: ${req.param.taskEditSuggestionId}` });
+    } catch (error) {
+      res.status(400).send(error);
+    }
   };
 
   return {
