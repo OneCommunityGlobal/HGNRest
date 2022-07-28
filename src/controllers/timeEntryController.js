@@ -89,6 +89,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const initialSeconds = timeEntry.totalSeconds;
       const initialProjectId = timeEntry.projectId;
+      const initialIsTangible = timeEntry.isTangible;
 
       timeEntry.notes = req.body.notes;
       timeEntry.totalSeconds = totalSeconds;
@@ -97,9 +98,10 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.projectId = mongoose.Types.ObjectId(req.body.projectId);
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
 
-      // Update the hoursLogged field of related tasks
-      // Revert the time of initial task
-      if (timeEntry.isTangible === true) {
+      // Update the hoursLogged field of related tasks based on before and after timeEntries
+      // initialIsTangible is a bealoon value, req.body.isTangible is a string
+      if (initialIsTangible === true && req.body.isTangible === 'true') {
+        // Before timeEntry is tangible, after timeEntry is also tangible
         try {
           const initialTask = await task.findById(initialProjectId);
           initialTask.hoursLogged -= (initialSeconds / 3600);
@@ -107,9 +109,24 @@ const timeEntrycontroller = function (TimeEntry) {
         } catch (error) {
           console.log('Failed to find the initial task by id');
         }
-      }
-      // Add the time for newly edited task
-      if (req.body.isTangible === 'true') {
+        try {
+          const editedTask = await task.findById(req.body.projectId);
+          editedTask.hoursLogged += (totalSeconds / 3600);
+          await editedTask.save();
+        } catch (error) {
+          console.log('Failed to find the edited task by id');
+        }
+      } else if (initialIsTangible === true && req.body.isTangible === 'false') {
+        // Before timeEntry is tangible, after timeEntry is in-tangible
+        try {
+          const initialTask = await task.findById(initialProjectId);
+          initialTask.hoursLogged -= (initialSeconds / 3600);
+          await initialTask.save();
+        } catch (error) {
+          console.log('Failed to find the initial task by id');
+        }
+      } else if (initialIsTangible === false && req.body.isTangible === 'true') {
+        // Before timeEntry is in-tangible, after timeEntry is tangible
         try {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
