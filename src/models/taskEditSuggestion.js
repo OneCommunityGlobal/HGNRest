@@ -13,6 +13,7 @@ const TaskEditSuggestion = new Schema({
   dateSuggested: { type: Date, default: Date.now() },
   taskId: { type: Schema.Types.ObjectId, ref: 'task', required: true },
   oldTask: {
+    _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'tasks', required: true },
     taskName: { type: String, required: true },
     priority: { type: String, default: 'Primary' },
     resources: [
@@ -35,6 +36,8 @@ const TaskEditSuggestion = new Schema({
     endstateInfo: { type: String, default: '' },
     startedDatetime: { type: Date },
     dueDatetime: { type: Date },
+    wbsId: { type: mongoose.SchemaTypes.ObjectId, ref: 'wbs', required: true },
+    projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'projects', required: true },
   },
   newTask: {
     taskName: { type: String, required: true },

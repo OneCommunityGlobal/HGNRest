@@ -1,6 +1,7 @@
 /* eslint-disable linebreak-style */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const wbs = require('../models/wbs');
 
 const taskEditSuggestionController = function (TaskEditSuggestion) {
   const createTaskEditSuggestion = async function (req, res) {
@@ -8,16 +9,19 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
       const taskEditSuggestion = new TaskEditSuggestion();
       taskEditSuggestion.userId = req.body.userId;
 
-      const profile = await userProfile.findById(mongoose.Types.ObjectId(taskEditSuggestion.userId));
+      const profile = await userProfile.findById(mongoose.Types.ObjectId(taskEditSuggestion.userId)).select('firstName lastName');
       taskEditSuggestion.user = `${profile.firstName} ${profile.lastName}`;
 
       taskEditSuggestion.dateSuggested = Date.now();
       taskEditSuggestion.taskId = req.body.taskId;
       taskEditSuggestion.oldTask = req.body.oldTask;
+      const wbsProjectId = await wbs.findById(mongoose.Types.ObjectId(req.body.oldTask.wbsId)).select('projectId');
+      taskEditSuggestion.oldTask.projectId = wbsProjectId.projectId;
       taskEditSuggestion.newTask = req.body.newTask;
       const result = await taskEditSuggestion.save();
       res.status(201).send(result);
     } catch (error) {
+      console.log(error);
       res.status(400).send(error);
     }
   };
