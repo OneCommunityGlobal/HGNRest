@@ -24,8 +24,13 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
 
   const findAllTaskEditSuggestions = async function (req, res) {
     try {
-      const result = await TaskEditSuggestion.find();
-      res.status(200).send(result);
+      if (req.query.count === 'true') {
+        const count = await TaskEditSuggestion.countDocuments();
+        res.status(200).send({ count });
+      } else {
+        const result = await TaskEditSuggestion.find();
+        res.status(200).send(result);
+      }
     } catch (error) {
       res.status(400).send(error);
     }
