@@ -8,7 +8,7 @@ const routes = function (TaskEditSuggestion) {
   const TaskEditSuggestionRouter = express.Router();
 
   TaskEditSuggestionRouter.route('/taskeditsuggestion')
-    .post(controller.createTaskEditSuggestion);
+    .post(controller.createOrUpdateTaskEditSuggestion);
 
   TaskEditSuggestionRouter.route('/taskeditsuggestion')
     .get(controller.findAllTaskEditSuggestions);

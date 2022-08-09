@@ -4,22 +4,40 @@ const userProfile = require('../models/userProfile');
 const wbs = require('../models/wbs');
 
 const taskEditSuggestionController = function (TaskEditSuggestion) {
-  const createTaskEditSuggestion = async function (req, res) {
+  const createOrUpdateTaskEditSuggestion = async function (req, res) {
     try {
-      const taskEditSuggestion = new TaskEditSuggestion();
-      taskEditSuggestion.userId = req.body.userId;
+      // const taskEditSuggestion = new TaskEditSuggestion();
+      // taskEditSuggestion.userId = req.body.userId;
 
-      const profile = await userProfile.findById(mongoose.Types.ObjectId(taskEditSuggestion.userId)).select('firstName lastName');
-      taskEditSuggestion.user = `${profile.firstName} ${profile.lastName}`;
+      // const profile = await userProfile.findById(mongoose.Types.ObjectId(taskEditSuggestion.userId)).select('firstName lastName');
+      // taskEditSuggestion.user = `${profile.firstName} ${profile.lastName}`;
 
-      taskEditSuggestion.dateSuggested = Date.now();
-      taskEditSuggestion.taskId = req.body.taskId;
-      taskEditSuggestion.oldTask = req.body.oldTask;
+      // taskEditSuggestion.dateSuggested = Date.now();
+      // taskEditSuggestion.taskId = req.body.taskId;
+      // taskEditSuggestion.oldTask = req.body.oldTask;
+      // const wbsProjectId = await wbs.findById(mongoose.Types.ObjectId(req.body.oldTask.wbsId)).select('projectId');
+      // taskEditSuggestion.oldTask.projectId = wbsProjectId.projectId;
+      // taskEditSuggestion.newTask = req.body.newTask;
+      // const result = await taskEditSuggestion.save();
+      // res.status(201).send(result);
+
+      const profile = await userProfile.findById(mongoose.Types.ObjectId(req.body.userId)).select('firstName lastName');
       const wbsProjectId = await wbs.findById(mongoose.Types.ObjectId(req.body.oldTask.wbsId)).select('projectId');
-      taskEditSuggestion.oldTask.projectId = wbsProjectId.projectId;
-      taskEditSuggestion.newTask = req.body.newTask;
-      const result = await taskEditSuggestion.save();
-      res.status(201).send(result);
+
+      const taskIdQuery = { taskId: mongoose.Types.ObjectId(req.body.taskId) };
+      const update = {
+        userId: req.body.userId,
+        user: `${profile.firstName} ${profile.lastName}`,
+        dateSuggested: Date.now(),
+        taskId: req.body.taskId,
+        wbsId: req.body.oldTask.wbsId,
+        projectId: wbsProjectId.projectId,
+        oldTask: req.body.oldTask,
+        newTask: req.body.newTask,
+      };
+      const options = { upsert: true, new: true, setDefaultsOnInsert: true };
+      const tes = await TaskEditSuggestion.findOneAndUpdate(taskIdQuery, update, options);
+      res.status(200).send(tes);
     } catch (error) {
       console.log(error);
       res.status(400).send(error);
@@ -50,7 +68,7 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
   };
 
   return {
-    createTaskEditSuggestion,
+    createOrUpdateTaskEditSuggestion,
     findAllTaskEditSuggestions,
     deleteTaskEditSuggestion,
   };
