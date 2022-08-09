@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const myteam = require('../helpers/helperModels/myTeam');
-const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const hasPermission = require('../utilities/permissions');
 
 const taskController = function (Task) {
@@ -1060,14 +1059,7 @@ const taskController = function (Task) {
     const taskId = req.params.id;
     Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
       .then((results) => {
-        if (!results) {
-          res.status(400).send({ error: 'This is not a valid task' });
-          return;
-        }
-        timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId).then((hours) => {
-          results.set('hoursLogged', hours, { strict: false });
-          res.status(200).send(results);
-        });
+        res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
   };
