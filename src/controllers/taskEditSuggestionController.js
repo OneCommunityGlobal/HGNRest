@@ -35,7 +35,9 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
         oldTask: req.body.oldTask,
         newTask: req.body.newTask,
       };
-      const options = { upsert: true, new: true, setDefaultsOnInsert: true };
+      const options = {
+        upsert: true, new: true, setDefaultsOnInsert: true, rawResult: true,
+      };
       const tes = await TaskEditSuggestion.findOneAndUpdate(taskIdQuery, update, options);
       res.status(200).send(tes);
     } catch (error) {
