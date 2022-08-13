@@ -50,7 +50,7 @@ const timerController = function (Timer) {
     const setLastAccess = !timer.lastAccess || (timeSinceLastAccess > oneMin);
 
     timer.timedOut = timer.isWorking && (timeSinceLastAccess > fiveMin);
-    timer.seconds = timer.pausedAt + timePassed(timer);
+    timer.seconds = timer.pausedAt;
 
     if (timer.timedOut) {
       return Timer.findOneAndUpdate({ userId: timer.userId }, {
