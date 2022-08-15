@@ -6,21 +6,6 @@ const wbs = require('../models/wbs');
 const taskEditSuggestionController = function (TaskEditSuggestion) {
   const createOrUpdateTaskEditSuggestion = async function (req, res) {
     try {
-      // const taskEditSuggestion = new TaskEditSuggestion();
-      // taskEditSuggestion.userId = req.body.userId;
-
-      // const profile = await userProfile.findById(mongoose.Types.ObjectId(taskEditSuggestion.userId)).select('firstName lastName');
-      // taskEditSuggestion.user = `${profile.firstName} ${profile.lastName}`;
-
-      // taskEditSuggestion.dateSuggested = Date.now();
-      // taskEditSuggestion.taskId = req.body.taskId;
-      // taskEditSuggestion.oldTask = req.body.oldTask;
-      // const wbsProjectId = await wbs.findById(mongoose.Types.ObjectId(req.body.oldTask.wbsId)).select('projectId');
-      // taskEditSuggestion.oldTask.projectId = wbsProjectId.projectId;
-      // taskEditSuggestion.newTask = req.body.newTask;
-      // const result = await taskEditSuggestion.save();
-      // res.status(201).send(result);
-
       const profile = await userProfile.findById(mongoose.Types.ObjectId(req.body.userId)).select('firstName lastName');
       const wbsProjectId = await wbs.findById(mongoose.Types.ObjectId(req.body.oldTask.wbsId)).select('projectId');
 
