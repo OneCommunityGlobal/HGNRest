@@ -2,7 +2,7 @@
 
 'npm install' to install the dependencies. 'npm start' to run the application
 
-To get started, make sure you have:
+To get started, make sure you have: 
 
 1. Node v9.5 or higher installed on your machine.
 2. A decent code editor like VS Code or Atom.
