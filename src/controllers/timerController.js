@@ -1,4 +1,61 @@
+
+const logger = require('../startup/logger');
+
 const timerController = function (Timer) {
+  const getTimerFromDatabase = async ({ userId }) => {
+    try {
+      const timerObject = await Timer.findOne({ userId }).exec();
+      if (!timerObject) {
+          const newRecord = {
+            userId,
+            totalSeconds: 0,
+            isRunning: false,
+            isApplicationPaused: false,
+            isUserPaused: false,
+          };
+          const newTimer = await Timer.create(newRecord).exec();
+        return newTimer;
+      }
+      return timerObject;
+    } catch (e) {
+      logger.logException(e);
+      throw new Error('Issue trying to retrieve timer data from MongoDB');
+    }
+  };
+
+  const setTimerToDatabase = async ({
+    userId,
+    timerObject: {
+        totalSeconds,
+        isRunning,
+        isUserPaused,
+        isApplicationPaused,
+    } = {},
+  } = {}) => {
+    try {
+      const update = {
+        $set: {
+            totalSeconds,
+            isRunning,
+            isUserPaused,
+            isApplicationPaused,
+        },
+      };
+
+      const options = {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+        rawResult: true,
+      };
+
+      return await Timer.findOneAndUpdate({ userId }, update, options).exec();
+    } catch (e) {
+      logger.logException(e);
+      throw new Error('Issue trying to set timer data from MongoDB');
+    }
+  };
+
   const putTimer = function (req, res) {
     const { userId } = req.params;
 
@@ -85,13 +142,14 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
-      return adjust(record, (timer) => { res.status(200).send(timer); });
 
       // return res.status(200).send(record);
     });
   };
 
-  return { putTimer, getTimer };
+  return {
+    putTimer, getTimer, getTimerFromDatabase, setTimerToDatabase,
+  };
 };
 
 module.exports = timerController;

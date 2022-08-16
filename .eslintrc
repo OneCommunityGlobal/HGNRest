@@ -15,7 +15,8 @@
     "no-continue": "warn",
     "no-await-in-loop": "warn",
     "template-curly-spacing": "off",
-    "indent": "off"
+    "indent": "off",
+    "linebreak-style": 0
   },
   "settings": {
     "import/resolver": {
