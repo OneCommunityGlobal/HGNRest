@@ -107,7 +107,7 @@ const timerController = function (Timer) {
     const setLastAccess = !timer.lastAccess || (timeSinceLastAccess > oneMin);
 
     timer.timedOut = timer.isWorking && (timeSinceLastAccess > fiveMin);
-    timer.seconds = timer.pausedAt;
+    timer.seconds = timer.pausedAt + timePassed(timer);
 
     if (timer.timedOut) {
       return Timer.findOneAndUpdate({ userId: timer.userId }, {
@@ -142,6 +142,7 @@ const timerController = function (Timer) {
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
+      return adjust(record, (timer) => { res.status(200).send(timer); });
 
       // return res.status(200).send(record);
     });
