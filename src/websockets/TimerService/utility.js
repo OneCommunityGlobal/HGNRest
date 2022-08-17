@@ -49,7 +49,7 @@ export const saveTimerToRedis = ({
   timerObject,
   redisClient,
 } = {}) => {
-  try {
+    try {
     return redisClient.publish(
       TIMER_UPDATES_CHANNEL,
       JSON.stringify({

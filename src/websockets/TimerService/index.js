@@ -16,7 +16,7 @@ const {
 
 export default async () => {
   try {
-    const addTimerByUserId = async (userId, redisClient) => {
+    const addTimerByUserId = async (userId, redisClient, startTimer) => {
       try {
         const {
           isUserPaused,
@@ -36,11 +36,13 @@ export default async () => {
           startedAtInSeconds: 0,
         };
 
-        saveTimerToRedis({
-          redisClient,
-          userId,
-          timerObject,
-        });
+        if (startTimer) {
+          saveTimerToRedis({
+            redisClient,
+            userId,
+            timerObject,
+          });
+        }
 
         return timerObject;
       } catch (e) {
@@ -51,14 +53,14 @@ export default async () => {
       }
     };
 
-    const findOrCreateTimerObject = async (userId, redisClient) => {
+    const findOrCreateTimerObject = async (userId, { redisClient, startTimer }) => {
       try {
         let timerObject = await getTimerFromRedis({
           redisClient,
           userId,
         });
         if (!timerObject?.userId) {
-          timerObject = await addTimerByUserId(userId, redisClient);
+          timerObject = await addTimerByUserId(userId, redisClient, startTimer);
         }
 
         return timerObject;
@@ -82,7 +84,7 @@ export default async () => {
     ) => {
       try {
         // Retrieve timer
-        const timerObject = await findOrCreateTimerObject(userId, main) ?? {};
+        const timerObject = await findOrCreateTimerObject(userId, { redisClient: main, startTimer: true }) ?? {};
         const {
           isApplicationPaused,
         } = timerObject;
@@ -127,14 +129,16 @@ export default async () => {
           isRunning: true,
         };
 
-        // Save timer to mongo database
-        await setTimerToDatabase({
-          userId,
-          timerObject: {
-            totalSeconds: newTimerObject.seconds,
-            ...timerObject,
-          },
-        });
+        if (newTimerObject?.seconds === 0) {
+          // Save timer to mongo database
+          await setTimerToDatabase({
+            userId,
+            timerObject: {
+              totalSeconds: newTimerObject.seconds,
+              ...timerObject,
+            },
+          });
+        }
 
         // Save timer to redis
         await saveTimerToRedis({
@@ -172,7 +176,7 @@ export default async () => {
     }) => {
       try {
         // Retrieve timer from memory or create a new one from database
-        const timerObject = await findOrCreateTimerObject(userId, main);
+        const timerObject = await findOrCreateTimerObject(userId, { redisClient: main, startTimer: false });
         return timerObject;
       } catch (e) {
         logger.logException(e);
@@ -227,8 +231,8 @@ export default async () => {
             userId,
             timerObject: {
               // We use previous data since this is the correct time here
-              totalSeconds: timerObject?.seconds,
-              ...timerObject,
+              totalSeconds: totalTimeAddedUp,
+              ...newTimerObject,
             },
           });
 

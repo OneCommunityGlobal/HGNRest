@@ -77,7 +77,7 @@ export const authenticate = (request, returnToRequestFlow) => {
 
 // Handle Message Callback
 export async function handleMessage(data, { timerService, userId, websocketConnection }) {
-    try {
+  try {
         const intentData = JSON.parse(data?.toString()) ?? {};
         const {
             intent,
@@ -133,32 +133,27 @@ export async function handleClose({
     try {
         clearInterval(interval);
 
-        console.log('Closing connection, ', { userId });
-        const activeTimer = JSON.parse(await redisClients.main.get(userId) ?? {});
-        console.log('Closing connection, ', { userId, activeTimer });
+        const activeTimer = JSON.parse(await redisClients.main.get(userId) ?? '{}');
+
         const userConnections = await redisClients.main.get(getUserConnectionKey(userId));
-        console.log('Removing connection from redis, Before -->', { userId, userConnections });
-        const currentUserConnections = +userConnections - 1;
+
+      const currentUserConnections = +userConnections - 1;
         await redisClients.main.set(getUserConnectionKey(userId), currentUserConnections);
-        console.log('Removing connection from redis, After -->', { userId, userConnections: currentUserConnections });
-
-        console.log('\nRemoving connection from websocket list, Before -->', { userId, totalConnections: clients?.[userId]?.length });
-
 
         clients[userId] = clients[userId].filter(
-            ({ connectionKey: activeConnectionKey }) => activeConnectionKey === websocketConnection.id,
+            ({ id }) => id !== websocketConnection.id,
         );
 
         console.log('Removing connection from websocket list, After -->', { userId, totalConnections: clients?.[userId]?.length });
 
 
-        if (currentUserConnections < 1 && activeTimer?.isRunning) {
+        if (currentUserConnections < 1 && activeTimer?.userId) {
             console.log('Saving data, since there is no more active connections');
             await timerService.pauseTimerByUserId(userId, {
-            saveDataToDatabase: true,
-            isUserPaused: false,
-            isApplicationPaused: true,
-            redisClients,
+              saveDataToDatabase: true,
+              isUserPaused: activeTimer?.isUserPaused,
+              isApplicationPaused: !activeTimer?.isUserPaused,
+              redisClients,
             });
 
             await redisClients.main.del(getUserConnectionKey(userId));
@@ -173,6 +168,6 @@ export async function handleClose({
 }
 
 export async function listener(message, { clients }) {
-    const { userId, timerObject } = JSON.parse(message) ?? {};
-    distrubuteMessage({ clients, userId, timerObject });
+  const { userId, timerObject } = JSON.parse(message) ?? {};
+  distrubuteMessage({ clients, userId, timerObject });
 }
