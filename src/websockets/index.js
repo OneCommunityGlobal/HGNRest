@@ -15,6 +15,7 @@ const {
   updateClientsList,
   getUserConnectionKey,
   handleClose,
+  syncRedisDatabaseOnShutDown,
 } = require("./api");
 const logger = require('../startup/logger');
 
@@ -28,6 +29,7 @@ export default async (expressServer) => {
     redisClients.main.connect(),
   ]);
 
+  // Initialize websocket
   const websocketServer = new WebSocket.Server({
     noServer: true,
     path: "/timer-service",
@@ -53,38 +55,10 @@ export default async (expressServer) => {
 
   redisClients.main.on("error", err => logger.logException(err));
 
-
-  const cleanupRedis = async (callback) => {
-    const cleanupArray = Object.keys(clients).map(userIdProperty => new Promise(async (resolve, reject) => {
-      try {
-          const userConnections = await redisClients.main.get(getUserConnectionKey(userIdProperty));
-
-          const currentUserConnections = +userConnections - clients[userIdProperty].length;
-          await redisClients.main.set(getUserConnectionKey(userIdProperty), currentUserConnections);
-
-        if (currentUserConnections === 0) {
-            await timerService.pauseTimerByUserId(userIdProperty, {
-              saveDataToDatabase: true,
-              isUserPaused: true,
-              isApplicationPaused: false,
-              redisClients,
-            });
-
-            redisClients.main.del(getUserConnectionKey(userIdProperty));
-          }
-
-        resolve("Done!");
-      } catch (e) {
-        reject(e);
-     }
-   }), []);
-    await Promise.all(cleanupArray);
-    callback();
-  };
-
-    exitHook((callback) => {
-        cleanupRedis(callback);
-    });
+  // This is an clean up to help make sure the data is sync'd with Redis.
+  exitHook((callback) => {
+    syncRedisDatabaseOnShutDown(callback, { clients, redisClients, timerService });
+  });
 
   websocketServer.on(
     "connection",
