@@ -8,6 +8,7 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
     try {
       const profile = await userProfile.findById(mongoose.Types.ObjectId(req.body.userId)).select('firstName lastName');
       const wbsProjectId = await wbs.findById(mongoose.Types.ObjectId(req.body.oldTask.wbsId)).select('projectId');
+      const projectMembers = await userProfile.find({ projects: mongoose.Types.ObjectId(wbsProjectId.projectId) }, '_id firstName lastName profilePic').sort({ firstName: 1, lastName: 1 });
 
       const taskIdQuery = { taskId: mongoose.Types.ObjectId(req.body.taskId) };
       const update = {
@@ -19,6 +20,7 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
         projectId: wbsProjectId.projectId,
         oldTask: req.body.oldTask,
         newTask: req.body.newTask,
+        projectMembers,
       };
       const options = {
         upsert: true, new: true, setDefaultsOnInsert: true, rawResult: true,
