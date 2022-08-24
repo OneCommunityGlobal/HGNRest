@@ -46,7 +46,8 @@ export const updateClientsList = ({
 };
 
 export const sendMessage = ({ messageToSend, websocketConnection } = {}) => {
-  websocketConnection.send(JSON.stringify(messageToSend));
+  const timeStamp = new Date().getTime() / 1000
+  websocketConnection.send(JSON.stringify({...messageToSend, timeStamp}));
 };
 
 export const distributeMessages = ({ userId, clients, timerObject }) => {
