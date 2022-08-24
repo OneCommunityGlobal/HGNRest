@@ -53,8 +53,8 @@ export const distributeMessages = ({ userId, clients, timerObject }) => {
   if (!clients?.[userId]?.length) {
     return;
   }
-
-  clients?.[userId]?.map(({ websocketConnection }) => websocketConnection.send(JSON.stringify(timerObject)));
+  const timeStamp = new Date().getTime() / 1000
+  clients?.[userId]?.map(({ websocketConnection }) => websocketConnection.send(JSON.stringify({...timerObject, timeStamp})));
 };
 
 export const authenticate = (request, returnToRequestFlow) => {
