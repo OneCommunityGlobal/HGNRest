@@ -2,7 +2,6 @@ const hasPermission = require('../utilities/permissions');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
-    console.log('running into get all wbs func');
     WBS.find(
       { projectId: { $in: [req.params.projectId] } },
       'wbsName isActive',
@@ -55,18 +54,15 @@ const wbsController = function (WBS) {
   };
 
   const getWBS = function (req, res) {
-    console.log('running into get WBS func');
     WBS.find()
       .then(results => res.status(200).send(results))
       .catch(error => res.status(500).send({ error }));
   };
 
   const getWBSById = function (req, res) {
-    console.log('running into func');
     const wbsId = req.params.id;
     WBS.findById(wbsId)
       .then((results) => {
-        console.log('running here');
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
