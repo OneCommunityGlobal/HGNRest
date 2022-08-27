@@ -1,5 +1,6 @@
 
 const logger = require('../startup/logger');
+const OldTimer = require('../models/oldTimer');
 
 const timerController = function (Timer) {
   const getTimerFromDatabase = async ({ userId }) => {
@@ -72,7 +73,7 @@ const timerController = function (Timer) {
       upsert: true, new: true, setDefaultsOnInsert: true, rawResult: true,
     };
 
-    Timer.findOneAndUpdate(query, update, options, (error, rawResult) => {
+    OldTimer.findOneAndUpdate(query, update, options, (error, rawResult) => {
       if (error) {
         return res.status(500).send({ error });
       }
@@ -110,7 +111,7 @@ const timerController = function (Timer) {
     timer.seconds = timer.pausedAt + timePassed(timer);
 
     if (timer.timedOut) {
-      return Timer.findOneAndUpdate({ userId: timer.userId }, {
+      return OldTimer.findOneAndUpdate({ userId: timer.userId }, {
         isWorking: false,
         pauseAt: timer.seconds,
         started: null,
@@ -118,7 +119,7 @@ const timerController = function (Timer) {
       }).then(() => cb(timer));
     }
     if (setLastAccess) {
-      return Timer.findOneAndUpdate({ userId: timer.userId }, { lastAccess: Date.now() }).then(() => cb(timer));
+      return OldTimer.findOneAndUpdate({ userId: timer.userId }, { lastAccess: Date.now() }).then(() => cb(timer));
     }
 
     return cb(timer);
@@ -127,7 +128,7 @@ const timerController = function (Timer) {
   const getTimer = function (req, res) {
     const { userId } = req.params;
 
-    Timer.findOne({ userId }).lean().exec((error, record) => {
+    OldTimer.findOne({ userId }).lean().exec((error, record) => {
       if (error) {
         return res.status(500).send(error);
       }
@@ -138,7 +139,7 @@ const timerController = function (Timer) {
             pausedAt: 0,
             isWorking: false,
           };
-          return Timer.create(newRecord).then(result => res.status(200).send(result)).catch(() => res.status(400).send('Timer record not found for the given user ID'));
+          return OldTimer.create(newRecord).then(result => res.status(200).send(result)).catch(() => res.status(400).send('Timer record not found for the given user ID'));
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }

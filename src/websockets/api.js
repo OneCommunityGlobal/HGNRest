@@ -46,16 +46,20 @@ export const updateClientsList = ({
 };
 
 export const sendMessage = ({ messageToSend, websocketConnection } = {}) => {
-  const timeStamp = new Date().getTime() / 1000
-  websocketConnection.send(JSON.stringify({...messageToSend, timeStamp}));
+  const timeStamp = new Date().getTime() / 1000;
+
+  websocketConnection.send(JSON.stringify({ ...messageToSend, timeStamp }));
 };
 
 export const distributeMessages = ({ userId, clients, timerObject }) => {
   if (!clients?.[userId]?.length) {
     return;
   }
-  const timeStamp = new Date().getTime() / 1000
-  clients?.[userId]?.map(({ websocketConnection }) => websocketConnection.send(JSON.stringify({...timerObject, timeStamp})));
+
+  const timeStamp = new Date().getTime() / 1000;
+
+  // eslint-disable-next-line no-unused-expressions
+  clients?.[userId]?.forEach(({ websocketConnection }) => websocketConnection.send(JSON.stringify({ ...timerObject, timeStamp })));
 };
 
 export const authenticate = (request, returnToRequestFlow) => {
@@ -149,11 +153,7 @@ export async function handleClose({
             ({ id }) => id !== websocketConnection.id,
         );
 
-        console.log('Removing connection from websocket list, After -->', { userId, totalConnections: clients?.[userId]?.length });
-
-
         if (currentUserConnections < 1 && activeTimer?.userId) {
-            console.log('Saving data, since there is no more active connections');
             await timerService.pauseTimerByUserId(userId, {
               saveDataToDatabase: true,
               isUserPaused: activeTimer?.isUserPaused,
@@ -179,7 +179,7 @@ export async function listener(message, { clients }) {
   distributeMessages({ clients, userId, timerObject });
 }
 
-export const syncRedisDatabaseOnShutDown = async (callback, { clients, redisClients, timerService }) => {
+export const syncRedisDatabaseOnShutDown = async (callback, { clients, redisPassedInClients, timerService }) => {
   /**
    * We need to loop through all active clients and make sure
    * that they are cleaned up in the Redis database and update
@@ -187,20 +187,20 @@ export const syncRedisDatabaseOnShutDown = async (callback, { clients, redisClie
    */
   const cleanupArray = Object.keys(clients).map(userIdProperty => new Promise(async (resolve, reject) => {
     try {
-        const userConnections = await redisClients.main.get(getUserConnectionKey(userIdProperty));
+        const userConnections = await redisPassedInClients.main.get(getUserConnectionKey(userIdProperty));
 
         const currentUserConnections = +userConnections - clients[userIdProperty].length;
-        await redisClients.main.set(getUserConnectionKey(userIdProperty), currentUserConnections);
+        await redisPassedInClients.main.set(getUserConnectionKey(userIdProperty), currentUserConnections);
 
       if (currentUserConnections === 0) {
           await timerService.pauseTimerByUserId(userIdProperty, {
             saveDataToDatabase: true,
             isUserPaused: true,
             isApplicationPaused: false,
-            redisClients,
+            redisClients: redisPassedInClients,
           });
 
-          redisClients.main.del(getUserConnectionKey(userIdProperty));
+          redisPassedInClients.main.del(getUserConnectionKey(userIdProperty));
         }
 
       resolve('Done!');

@@ -26,7 +26,6 @@ export const saveTimerToRedis = ({
   try {
     return redisClient.set(userId, JSON.stringify(timerObject));
   } catch (e) {
-      console.log(e);
     logger.logException(e);
     throw e;
   }

@@ -57,7 +57,7 @@ export default async (expressServer) => {
 
   // This is an clean up to help make sure the data is sync'd with Redis.
   exitHook((callback) => {
-    syncRedisDatabaseOnShutDown(callback, { clients, redisClients, timerService });
+    syncRedisDatabaseOnShutDown(callback, { clients, redisPassedInClients: redisClients, timerService });
   });
 
   websocketServer.on(
