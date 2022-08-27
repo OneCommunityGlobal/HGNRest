@@ -11,6 +11,9 @@ const routes = function (wbs) {
     .post(controller.postWBS)
     .delete(controller.deleteWBS);
 
+  wbsRouter.route('/wbsId/:id')
+    .get(controller.getWBSById);
+
   wbsRouter.route('/wbs').get(controller.getWBS);
 
   return wbsRouter;
