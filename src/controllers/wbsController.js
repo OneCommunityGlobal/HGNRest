@@ -59,11 +59,21 @@ const wbsController = function (WBS) {
       .catch(error => res.status(500).send({ error }));
   };
 
+  const getWBSById = function (req, res) {
+    const wbsId = req.params.id;
+    WBS.findById(wbsId)
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(error => res.status(404).send(error));
+  };
+
   return {
     postWBS,
     deleteWBS,
     getAllWBS,
     getWBS,
+    getWBSById,
   };
 };
 
