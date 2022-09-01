@@ -29,11 +29,12 @@ const taskController = function (Task) {
   };
 
 
-  const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, estimatedHours, resources) => {
+  const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, hoursLogged, estimatedHours, resources) => {
     Task.findById(taskId, (error, task) => {
       task.hoursBest = hoursBest;
       task.hoursMost = hoursMost;
       task.hoursWorst = hoursWorst;
+      task.hoursLogged = hoursLogged;
       task.estimatedHours = estimatedHours;
       task.resources = resources;
       task.save();
@@ -71,6 +72,7 @@ const taskController = function (Task) {
       let sumHoursBest = 0;
       let sumHoursWorst = 0;
       let sumHoursMost = 0;
+      let sumHoursLogged = 0;
       let sumEstimatedHours = 0;
       const resources = [];
       let hasChild = false;
@@ -81,6 +83,7 @@ const taskController = function (Task) {
           sumHoursWorst = parseFloat(childTask.hoursWorst, 10)
             + parseFloat(sumHoursWorst, 10);
           sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
+          sumHoursLogged = parseFloat(childTask.hoursLogged, 10) + parseFloat(sumHoursLogged, 10);
           sumEstimatedHours = parseFloat(childTask.estimatedHours, 10)
             + parseFloat(sumEstimatedHours, 10);
           childTask.resources.forEach((member) => {
@@ -103,6 +106,7 @@ const taskController = function (Task) {
             tasks[i].hoursBest = sumHoursBest;
             tasks[i].hoursMost = sumHoursMost;
             tasks[i].hoursWorst = sumHoursWorst;
+            tasks[i].hoursLogged = sumHoursLogged;
             tasks[i].estimatedHours = sumEstimatedHours;
             tasks[i].resources = resources;
           }
@@ -112,6 +116,7 @@ const taskController = function (Task) {
           sumHoursBest,
           sumHoursWorst,
           sumHoursMost,
+          sumHoursLogged,
           sumEstimatedHours,
           resources,
         );
@@ -357,6 +362,7 @@ const taskController = function (Task) {
       let sumHoursBest = 0;
       let sumHoursWorst = 0;
       let sumHoursMost = 0;
+      let sumHoursLogged = 0;
       let sumEstimatedHours = 0;
       let minStartedDate = task.startedDatetime;
       let maxDueDatetime = task.dueDatetime;
@@ -373,6 +379,7 @@ const taskController = function (Task) {
           sumHoursBest = parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
           sumHoursWorst = parseFloat(childTask.hoursWorst, 10) + parseFloat(sumHoursWorst, 10);
           sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
+          sumHoursLogged = parseFloat(childTask.hoursLogged, 10) + parseFloat(sumHoursLogged, 10);
           sumEstimatedHours = parseFloat(childTask.estimatedHours, 10) + parseFloat(sumEstimatedHours, 10);
           if (minStartedDate > childTask.startedDatetime) {
             minStartedDate = childTask.startedDatetime;
@@ -418,6 +425,7 @@ const taskController = function (Task) {
             tasks[i].hoursBest = sumHoursBest;
             tasks[i].hoursMost = sumHoursMost;
             tasks[i].hoursWorst = sumHoursWorst;
+            tasks[i].hoursLogged = sumHoursLogged;
             tasks[i].estimatedHours = sumEstimatedHours;
             tasks[i].startedDatetime = minStartedDate;
             tasks[i].dueDatetime = maxDueDatetime;
@@ -467,6 +475,7 @@ const taskController = function (Task) {
       task.hoursBest = parseFloat(task.hoursBest.trim(), 10);
       task.hoursWorst = parseFloat(task.hoursWorst.trim(), 10);
       task.hoursMost = parseFloat(task.hoursMost.trim(), 10);
+      task.hoursLogged = parseFloat(task.hoursLogged.trim(), 10);
       task.estimatedHours = parseFloat(task.estimatedHours, 10);
       task.estimatedHours = parseFloat(task.estimatedHours, 10);
 
@@ -589,6 +598,7 @@ const taskController = function (Task) {
       _task.hoursBest = task.hoursBest;
       _task.hoursWorst = task.hoursWorst;
       _task.hoursMost = task.hoursMost;
+      _task.hoursLogged = task.hoursLogged;
       _task.estimatedHours = parseFloat(task.estimatedHours, 10);
       _task.startedDatetime = task.startedDatetime || null;
       _task.dueDatetime = task.dueDatetime || null;
@@ -691,6 +701,7 @@ const taskController = function (Task) {
     _task.hoursBest = req.body.hoursBest;
     _task.hoursWorst = req.body.hoursWorst;
     _task.hoursMost = req.body.hoursMost;
+    _task.hoursLogged = req.body.hoursLogged;
     _task.estimatedHours = req.body.estimatedHours;
     _task.startedDatetime = req.body.startedDatetime;
     _task.dueDatetime = req.body.dueDatetime;
@@ -1047,7 +1058,6 @@ const taskController = function (Task) {
 
   const getTaskById = function (req, res) {
     const taskId = req.params.id;
-
     Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
       .then((results) => {
         res.status(200).send(results);
