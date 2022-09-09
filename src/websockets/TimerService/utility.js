@@ -2,9 +2,7 @@ import { TIMER_UPDATES_CHANNEL } from 'websockets/api';
 
 const logger = require('../../startup/logger');
 
-export const calculateTotalSecondsBasedOnStartingTime = ({ currentTimeInSeconds, startedAtInSeconds, seconds }) => currentTimeInSeconds
-          - startedAtInSeconds
-  + seconds;
+export const calculateTotalSecondsBasedOnStartingTime = ({ currentTimeInSeconds, startedAtInSeconds, seconds }) => currentTimeInSeconds - startedAtInSeconds + seconds;
 
 export const getTimerFromRedis = async ({
   userId,

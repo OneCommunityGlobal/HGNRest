@@ -20,7 +20,7 @@ export const redisClients = {
   }),
 };
 
-export const intents = {
+const intents = {
     START_TIMER: 'START_TIMER',
     PAUSE_TIMER: 'PAUSE_TIMER',
     STOP_TIMER: 'STOP_TIMER',
