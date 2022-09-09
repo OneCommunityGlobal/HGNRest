@@ -36,6 +36,7 @@ module.exports = function () {
   mongoose.connect(uri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    useFindAndModify: false,
   })
     .then(afterConnect)
     .catch(err => logger.logException(err));
