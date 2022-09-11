@@ -10,4 +10,4 @@ const timerSchema = new Schema({
   isApplicationPaused: { type: Boolean, default: false },
 });
 
-module.exports = mongoose.model('timer', timerSchema, 'timers');
+module.exports = mongoose.model('newTimer', timerSchema, 'newTimers');
