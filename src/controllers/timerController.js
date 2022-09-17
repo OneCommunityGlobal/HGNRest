@@ -14,7 +14,7 @@ const timerController = function (Timer) {
             isApplicationPaused: false,
             isUserPaused: false,
           };
-          const newTimer = await Timer.create(newRecord).exec();
+        const newTimer = await Timer.create(newRecord);
         return newTimer;
       }
       return timerObject;
