@@ -15,6 +15,7 @@ const userProfileJobs = () => {
         await userhelper.awardNewBadges();
       }
       await userhelper.reActivateUser();
+      await userhelper.deActivateUser();
     },
     null,
     false,
@@ -23,5 +24,4 @@ const userProfileJobs = () => {
 
   allUserProfileJobs.start();
 };
-
 module.exports = userProfileJobs;

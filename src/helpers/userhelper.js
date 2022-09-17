@@ -977,6 +977,28 @@ const userhelper = function () {
       });
   };
 
+  const deActivateUser = async () => {
+    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    logger.logInfo(`Job for deactivating users based on scheduled end date ${currentFormattedDate}`);
+    try {
+      const users = await userProfile.find({ isActive: true, endDate: { $exists: true } }, '_id isActive endDate');
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+        if (moment().isAfter(moment(user.endDate))) {
+          await userProfile.findByIdAndUpdate(
+            user._id,
+            user.set({
+              isActive: false,
+            }),
+            { new: true },
+          );
+          logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+        }
+      }
+    } catch (err) {
+      logger.logException(err);
+    }
+  };
   return {
     getUserName,
     getTeamMembers,
@@ -984,6 +1006,7 @@ const userhelper = function () {
     assignBlueSquareforTimeNotMet,
     deleteBlueSquareAfterYear,
     reActivateUser,
+    deActivateUser,
     notifyInfringments,
     getInfringmentEmailBody,
     emailWeeklySummariesForAllUsers,
