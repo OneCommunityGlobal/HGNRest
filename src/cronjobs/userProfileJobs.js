@@ -23,5 +23,17 @@ const userProfileJobs = () => {
   );
 
   allUserProfileJobs.start();
+/* For Test
+  const test1 = new CronJob(
+    '42 * * * *', // At minute 42. You can change the minute whenever your want to test 
+    async () => {
+      await userhelper.test();
+    },
+    null,
+    false,
+    'America/Los_Angeles',
+  );
+  test1.start();
+*/
 };
 module.exports = userProfileJobs;
