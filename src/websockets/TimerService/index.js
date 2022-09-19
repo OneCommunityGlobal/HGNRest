@@ -201,6 +201,11 @@ export default async () => {
           userId,
         });
 
+        // Prevent pausing application twice
+        if (!timerObject?.isRunning) {
+          return timerObject;
+        }
+
         const currentTimeInSeconds = new Date().getTime() / 1000;
 
         const totalTimeAddedUp = calculateTotalSecondsBasedOnStartingTime({
