@@ -1012,6 +1012,7 @@ const userhelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
+    // test,
   };
 };
 
