@@ -984,7 +984,7 @@ const userhelper = function () {
       const users = await userProfile.find({ isActive: true, endDate: { $exists: true } }, '_id isActive endDate');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        if (moment().isSameOrAfter(moment(user.endDate))) {
+        if (moment().isAfter(moment(user.endDate))) {
           await userProfile.findByIdAndUpdate(
             user._id,
             user.set({
@@ -999,32 +999,6 @@ const userhelper = function () {
       logger.logException(err);
     }
   };
-  /* Test Function
-  const test = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
-    try {
-      const users = await userProfile.find({ isActive: true, endDate: { $exists: true } }, '_id isActive endDate');
-      console.log('*Test Data Before findandModify');
-      console.log('User need to be deActivated:', users);
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        if (moment().add(5, 'days').isSameOrAfter(moment(user.endDate))) {
-          await userProfile.findByIdAndUpdate(
-            user._id,
-            user.set({
-              isActive: false,
-            }),
-            { new: true },
-          );
-        }
-      }
-      console.log('*Test Data After findAndModify');
-      console.log('deActivateUser:', users);
-    } catch (err) {
-      logger.logException(err);
-    }
-  };
-  */
   return {
     getUserName,
     getTeamMembers,
