@@ -1,4 +1,3 @@
-/* eslint-disable linebreak-style */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const wbs = require('../models/wbs');
