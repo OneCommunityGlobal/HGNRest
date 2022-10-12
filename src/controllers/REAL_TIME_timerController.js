@@ -1,4 +1,62 @@
+
+const logger = require('../startup/logger');
+const OldTimer = require('../models/timer');
+
 const timerController = function (Timer) {
+  const getTimerFromDatabase = async ({ userId }) => {
+    try {
+      const timerObject = await Timer.findOne({ userId }).exec();
+      if (!timerObject) {
+          const newRecord = {
+            userId,
+            totalSeconds: 0,
+            isRunning: false,
+            isApplicationPaused: false,
+            isUserPaused: false,
+          };
+        const newTimer = await Timer.create(newRecord);
+        return newTimer;
+      }
+      return timerObject;
+    } catch (e) {
+      logger.logException(e);
+      throw new Error('Issue trying to retrieve timer data from MongoDB');
+    }
+  };
+
+  const setTimerToDatabase = async ({
+    userId,
+    timerObject: {
+        totalSeconds,
+        isRunning,
+        isUserPaused,
+        isApplicationPaused,
+    } = {},
+  } = {}) => {
+    try {
+      const update = {
+        $set: {
+            totalSeconds,
+            isRunning,
+            isUserPaused,
+            isApplicationPaused,
+        },
+      };
+
+      const options = {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+        rawResult: true,
+      };
+
+      return await Timer.findOneAndUpdate({ userId }, update, options).exec();
+    } catch (e) {
+      logger.logException(e);
+      throw new Error('Issue trying to set timer data from MongoDB');
+    }
+  };
+
   const putTimer = function (req, res) {
     const { userId } = req.params;
 
@@ -15,7 +73,7 @@ const timerController = function (Timer) {
       upsert: true, new: true, setDefaultsOnInsert: true, rawResult: true,
     };
 
-    Timer.findOneAndUpdate(query, update, options, (error, rawResult) => {
+    OldTimer.findOneAndUpdate(query, update, options, (error, rawResult) => {
       if (error) {
         return res.status(500).send({ error });
       }
@@ -53,7 +111,7 @@ const timerController = function (Timer) {
     timer.seconds = timer.pausedAt + timePassed(timer);
 
     if (timer.timedOut) {
-      return Timer.findOneAndUpdate({ userId: timer.userId }, {
+      return OldTimer.findOneAndUpdate({ userId: timer.userId }, {
         isWorking: false,
         pauseAt: timer.seconds,
         started: null,
@@ -61,7 +119,7 @@ const timerController = function (Timer) {
       }).then(() => cb(timer));
     }
     if (setLastAccess) {
-      return Timer.findOneAndUpdate({ userId: timer.userId }, { lastAccess: Date.now() }).then(() => cb(timer));
+      return OldTimer.findOneAndUpdate({ userId: timer.userId }, { lastAccess: Date.now() }).then(() => cb(timer));
     }
 
     return cb(timer);
@@ -70,7 +128,7 @@ const timerController = function (Timer) {
   const getTimer = function (req, res) {
     const { userId } = req.params;
 
-    Timer.findOne({ userId }).lean().exec((error, record) => {
+    OldTimer.findOne({ userId }).lean().exec((error, record) => {
       if (error) {
         return res.status(500).send(error);
       }
@@ -81,7 +139,7 @@ const timerController = function (Timer) {
             pausedAt: 0,
             isWorking: false,
           };
-          return Timer.create(newRecord).then(result => res.status(200).send(result)).catch(() => res.status(400).send('Timer record not found for the given user ID'));
+          return OldTimer.create(newRecord).then(result => res.status(200).send(result)).catch(() => res.status(400).send('Timer record not found for the given user ID'));
         }
         return res.status(400).send('Timer record not found for the given user ID');
       }
@@ -91,7 +149,9 @@ const timerController = function (Timer) {
     });
   };
 
-  return { putTimer, getTimer };
+  return {
+    putTimer, getTimer, getTimerFromDatabase, setTimerToDatabase,
+  };
 };
 
 module.exports = timerController;
