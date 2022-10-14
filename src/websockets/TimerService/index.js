@@ -1,11 +1,11 @@
 /* eslint-disable consistent-return */
 /* eslint-disable linebreak-style */
-const Timer = require('../../models/REAL_TIME_timer');
+const Timer = require('../../models/timer');
 const logger = require('../../startup/logger');
 const {
   setTimerToDatabase,
   getTimerFromDatabase,
-} = require('../../controllers/REAL_TIME_timerController')(Timer);
+} = require('../../controllers/timerController')(Timer);
 const {
   saveTimerToRedis,
   publish,
