@@ -19,9 +19,8 @@ const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
 
-/** Real-time Timer Service: Un-comment to renable */
-// (async () => {
-//   await websockets(server);
-// })();
+(async () => {
+  await websockets(server);
+})();
 
 module.exports = server;
