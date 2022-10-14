@@ -19,8 +19,4 @@ const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
 
-(async () => {
-  await websockets(server);
-})();
-
 module.exports = server;
