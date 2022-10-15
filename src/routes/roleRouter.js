@@ -10,9 +10,9 @@ const routes = function (role) {
 
   RolesRouter.route('/roles/:roleId')
   .get(controller.getRoleById)
-  .patch(controller.updateRoleById);
-
-  return RolesRouter;
+  .patch(controller.updateRoleById)
+  .delete(controller.deleteRoleById);
+return RolesRouter;
 };
 
 module.exports = routes;
