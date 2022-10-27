@@ -978,13 +978,13 @@ const userhelper = function () {
   };
 
   const deActivateUser = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
-    logger.logInfo(`Job for deactivating users based on scheduled end date ${currentFormattedDate}`);
     try {
       const users = await userProfile.find({ isActive: true, endDate: { $exists: true } }, '_id isActive endDate');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        if (moment().isAfter(moment(user.endDate))) {
+        const { endDate } = user;
+        endDate.setHours(endDate.getHours() + 7);
+        if (moment().isAfter(moment(endDate))) {
           await userProfile.findByIdAndUpdate(
             user._id,
             user.set({
@@ -992,7 +992,27 @@ const userhelper = function () {
             }),
             { new: true },
           );
-          logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+          const id = user._id;
+          const person = await userProfile.findById(id);
+          logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
+          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
+
+          const emailBody = `<p> Hi Admin! </p>
+
+          <p>This email is to let you know that ${person.firstName} ${person.lastName} has completed their scheduled last day( ${person.endDate}) and been deactivated in the Highest Good Network application. </p>
+          
+          <p>This is their email from the system: ${person.email }. Please email them to let them know their work is complete and thank them for their volunteer time with One Community. </p>
+          
+          <p> Thanks! <br />
+          
+          One Community </p>`;
+          emailSender(
+            'onecommunityglobal@gmail.com',
+            subject,
+            emailBody,
+            null,
+            null,
+          );
         }
       }
     } catch (err) {
