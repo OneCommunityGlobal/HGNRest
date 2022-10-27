@@ -982,9 +982,7 @@ const userhelper = function () {
       const users = await userProfile.find({ isActive: true, endDate: { $exists: true } }, '_id isActive endDate');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const { endDate } = user;
-        endDate.setHours(endDate.getHours() + 7);
-        if (moment().isAfter(moment(endDate))) {
+        if (moment().isAfter(moment(user.endDate).utc())) {
           await userProfile.findByIdAndUpdate(
             user._id,
             user.set({
@@ -992,9 +990,9 @@ const userhelper = function () {
             }),
             { new: true },
           );
+          logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
           const id = user._id;
           const person = await userProfile.findById(id);
-          logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
           const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
 
           const emailBody = `<p> Hi Admin! </p>
