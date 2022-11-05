@@ -28,7 +28,8 @@ const userProfileSchema = new Schema({
     // enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Mentor', 'Owner'],
   },
   permissions: {
-    type: [String],
+      frontPermissions: [String],
+      backPermissions: [String],
   },
   firstName: {
     type: String,

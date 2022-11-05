@@ -7,14 +7,12 @@ const rolesController = function (Role) {
   };
 
   const createNewRole = function (req, res) {
-    // Unccoment when go to production;
-    // if (req.body.requestor.role !== 'Owner') {
-    //   res.status(403).send({ error: 'You are not authorized to create a new role. Must be a Owner.' });
-    // }
+    if (req.body.requestor.role !== 'Owner') {
+      res.status(403).send({ error: 'You are not authorized to create a new role. Must be a Owner.' });
+    }
 
     if (!req.body.roleName || !req.body.permissions) {
       res.status(400).send({ error: 'roleName and permissions are mandatory fields.' });
-      return;
     }
 
     const role = new Role();
@@ -35,10 +33,9 @@ const rolesController = function (Role) {
 
 
   const updateRoleById = function (req, res) {
-    // if (req.body.requestor.role !== 'Owner') {
-    //   res.status(403).send('You are not authorized to make changes in the roles.');
-    //   return;
-    // }
+    if (req.body.requestor.role !== 'Owner') {
+      res.status(403).send('You are not authorized to make changes in the roles.');
+    }
 
     const { roleId } = req.params;
 
@@ -60,6 +57,9 @@ const rolesController = function (Role) {
 
   const deleteRoleById = function (req, res) {
     const { roleId } = req.params;
+    if (req.body.requestor.role !== 'Owner') {
+      res.status(403).send('You are not authorized to make changes in the roles.');
+    }
     Role.findById(roleId)
       .then((result) => {
         result

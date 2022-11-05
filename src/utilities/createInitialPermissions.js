@@ -226,6 +226,7 @@ const permissionsRoles = [
       'addDeleteEditOwners',
       'toggleSubmitForm',
       'seePermissionsManagement',
+      'putUserProfilePermissions',
     ],
     permissionsBackEnd: [
       'seeBadges',
@@ -284,9 +285,9 @@ const createInitialPermissionsFront = async () => {
       const allRoles = await Role.find();
 
       // Add a new permission if the role Owner has been changed in the  permissionsRoles Array
-      if (roleName === 'Administrator') {
+      if (roleName === 'Owner') {
         const ownerRoleDataBase = allRoles.find(
-          role => role.roleName === 'Administrator',
+          role => role.roleName === 'Owner',
         );
         const { _id: roleId } = ownerRoleDataBase;
         const permissionsBackOwnerDataBase = ownerRoleDataBase.permissionsBackEnd;
