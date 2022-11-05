@@ -83,6 +83,8 @@ const userProfileSchema = new Schema({
     education: { type: Number, default: 0 },
     society: { type: Number, default: 0 },
     energy: { type: Number, default: 0 },
+    economics: { type: Number, default: 0 },
+    stewardship: { type: Number, default: 0 },
     unassigned: { type: Number, default: 0 },
   },
   lastWeekTangibleHrs: { type: Number, default: 0 },
