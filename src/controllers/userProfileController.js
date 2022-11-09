@@ -63,7 +63,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklyComittedHours email isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklyComittedHours email permissions isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -168,6 +168,7 @@ const userProfileController = function (UserProfile) {
     up.collaborationPreference = req.body.collaborationPreference || '';
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
     up.location = req.body.location;
+    up.permissions = req.body.permissions;
 
     up.save()
       .then(() => {
@@ -259,7 +260,6 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
-
       if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
@@ -278,6 +278,10 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;        
         record.createdDate = moment(req.body.createdDate).toDate();
+
+        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
+
+
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
           userData.endDate = record.endDate.toISOString();
