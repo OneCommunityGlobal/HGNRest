@@ -137,7 +137,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // Update edit history
-      if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && hasPermission(req.body.requestor.role, 'editTimeEntry')) {
+      if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && !hasPermission(req.body.requestor.role, 'editTimeEntry')) {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
