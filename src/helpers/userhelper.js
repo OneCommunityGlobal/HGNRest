@@ -63,11 +63,11 @@ const userhelper = function () {
     };
   };
 
-  const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringements) {
+  const getinfringementEmailBody = function (firstName, lastName, infringement, totalInfringements) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${infringment.date}</p>
-        <p><b>Description:</b> ${infringment.description}</p>
+        <p><b>Date Assigned:</b> ${infringement.date}</p>
+        <p><b>Description:</b> ${infringement.description}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment.localeData().ordinal(totalInfringements)}</b> blue square of 5.</p>
         <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
         <p>Thank you,<br />
@@ -298,9 +298,9 @@ const userhelper = function () {
           .subtract(1, 'year');
 
         const oldInfringements = [];
-        for (let k = 0; k < updateResult?.infringments.length; k += 1) {
-          if (updateResult?.infringments && moment(updateResult?.infringments[k].date).diff(cutOffDate) >= 0) {
-            oldInfringements.push(updateResult.infringments[k]);
+        for (let k = 0; k < updateResult?.infringements.length; k += 1) {
+          if (updateResult?.infringements && moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0) {
+            oldInfringements.push(updateResult.infringements[k]);
           } else {
             break;
           }
@@ -324,7 +324,7 @@ const userhelper = function () {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
 
-          const infringment = {
+          const infringement = {
             date: moment()
               .utc()
               .format('YYYY-MM-DD'),
@@ -334,18 +334,18 @@ const userhelper = function () {
           const status = await userProfile
             .findByIdAndUpdate(personId, {
               $push: {
-                infringments: infringment,
+                infringements: infringement,
               },
             }, { new: true });
 
           emailSender(
             status.email,
             'New Infringement Assigned',
-            getInfringmentEmailBody(
+            getinfringementEmailBody(
               status.firstName,
               status.lastName,
-              infringment,
-              status.infringments.length,
+              infringement,
+              status.infringements.length,
             ),
             null,
             'onecommunityglobal@gmail.com',
@@ -423,7 +423,7 @@ const userhelper = function () {
       const results = await userProfile.updateMany({},
         {
           $pull: {
-            infringments: {
+            infringements: {
               date: {
                 $lte: cutOffDate,
               },
@@ -466,7 +466,7 @@ const userhelper = function () {
     }
   };
 
-  const notifyInfringments = function (
+  const notifyinfringements = function (
     original,
     current,
     firstName,
@@ -477,17 +477,17 @@ const userhelper = function () {
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
-    let newInfringments = [];
-    newInfringments = _.differenceWith(
+    let newinfringements = [];
+    newinfringements = _.differenceWith(
       newCurrent,
       newOriginal,
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
-    newInfringments.forEach((element) => {
+    newinfringements.forEach((element) => {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
-        getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
+        getinfringementEmailBody(firstName, lastName, element, totalInfringements),
         null,
         'onecommunityglobal@gmail.com',
       );
@@ -619,7 +619,7 @@ const userhelper = function () {
 
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-              if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
+              if (user.infringements.length === 0 || Math.abs(moment().diff(moment(user.infringements[user.infringements?.length - 1].date), 'months', true)) >= elem.months) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
                     replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
@@ -632,7 +632,7 @@ const userhelper = function () {
             }
           } else if (user?.infringements?.length === 0) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-              if (user.oldInfringments.length === 0 || Math.abs(moment().diff(moment(user.oldInfringments[user.oldInfringments?.length - 1].date), 'months', true)) >= (elem.months - 12)) {
+              if (user.oldinfringements.length === 0 || Math.abs(moment().diff(moment(user.oldinfringements[user.oldinfringements?.length - 1].date), 'months', true)) >= (elem.months - 12)) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
                     replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
@@ -1027,8 +1027,8 @@ const userhelper = function () {
     deleteBlueSquareAfterYear,
     reActivateUser,
     deActivateUser,
-    notifyInfringments,
-    getInfringmentEmailBody,
+    notifyinfringements,
+    getinfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,

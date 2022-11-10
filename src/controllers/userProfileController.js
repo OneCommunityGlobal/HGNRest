@@ -222,9 +222,9 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      // let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
-      const originalInfringments = record.infringments
-        ? record.infringments
+      // let requested_infringements = (req.body.infringements)? (req.body.infringements): [];
+      const originalinfringements = record.infringements
+        ? record.infringements
         : [];
 
       // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
@@ -275,7 +275,7 @@ const userProfileController = function (UserProfile) {
         record.weeklySummaryNotReq = req.body.weeklySummaryNotReq ? req.body.weeklySummaryNotReq : record.weeklySummaryNotReq;
         record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
-        record.timeEntryEditHistory = req.body.timeEntryEditHistory;        
+        record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.hoursByCategory = req.body.hoursByCategory;
         record.createdDate = moment(req.body.createdDate).toDate();
         if (yearMonthDayDateValidator(req.body.endDate)) {
@@ -292,16 +292,16 @@ const userProfileController = function (UserProfile) {
           userData.createdDate = record.createdDate.toISOString();
         }
       }
-      if (hasPermission(req.body.requestor.role, 'infringmentAuthorizer')) {
-        record.infringments = req.body.infringments;
+      if (hasPermission(req.body.requestor.role, 'infringementAuthorizer')) {
+        record.infringements = req.body.infringements;
       }
 
       record
         .save()
         .then((results) => {
-          userhelper.notifyInfringments(
-            originalInfringments,
-            results.infringments,
+          userhelper.notifyinfringements(
+            originalinfringements,
+            results.infringements,
             results.firstName,
             results.lastName,
             results.email,

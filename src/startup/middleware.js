@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const moment = require('moment');
 const config = require('../config');
 
 module.exports = function (app) {
@@ -42,7 +41,7 @@ module.exports = function (app) {
       || !payload.expiryTimestamp
       || !payload.userid
       || !payload.role
-      || moment().isAfter(payload.expiryTimestamp)
+      // || moment().isAfter(payload.expiryTimestamp)
     ) {
       res.status(401).send('Unauthorized request');
       return;
