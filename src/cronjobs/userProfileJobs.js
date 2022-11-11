@@ -3,6 +3,7 @@ const moment = require('moment-timezone');
 
 const userhelper = require('../helpers/userhelper')();
 
+
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
     '1 0 * * *', // Every day, 1 minute past midnight (PST).
@@ -15,6 +16,7 @@ const userProfileJobs = () => {
         await userhelper.awardNewBadges();
       }
       await userhelper.reActivateUser();
+      await userhelper.deActivateUser();
     },
     null,
     false,
@@ -23,5 +25,4 @@ const userProfileJobs = () => {
 
   allUserProfileJobs.start();
 };
-
 module.exports = userProfileJobs;

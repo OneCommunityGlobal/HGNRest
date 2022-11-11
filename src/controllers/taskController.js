@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const myteam = require('../helpers/helperModels/myTeam');
+const wbs = require('../models/wbs');
+const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const hasPermission = require('../utilities/permissions');
 
 const taskController = function (Task) {
@@ -1059,7 +1061,14 @@ const taskController = function (Task) {
     const taskId = req.params.id;
     Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
       .then((results) => {
-        res.status(200).send(results);
+        if (!results) {
+          res.status(400).send({ error: 'This is not a valid task' });
+          return;
+        }
+        timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId).then((hours) => {
+          results.set('hoursLogged', hours, { strict: false });
+          res.status(200).send(results);
+        });
       })
       .catch(error => res.status(404).send(error));
   };
@@ -1089,13 +1098,24 @@ const taskController = function (Task) {
   };
 
   const getTasksByUserList = async (req, res) => {
+
     const { members } = req.query;
     const membersArr = members.split(',');
-    // console.log(membersArr);
     try {
-      Task.find({ 'resources.userID': { $in: membersArr } }, '-resources.profilePic').then((results) => {
-        // console.log(results);
-        res.status(200).send(results);
+      Task.find({ 'resources.userID': { $in: membersArr } }, '-resources.profilePic')
+      .then((results) => {
+        wbs.find({
+          '_id': { $in: results.map(item => item.wbsId)}
+        })
+        .then((projectIds) => {
+          const resultsWithProjectsIds = results.map(
+            item => {
+              item.set('projectId', projectIds?.find(projectId => projectId._id.toString() === item.wbsId.toString())?.projectId, { strict: false });
+              return item;
+            }
+          );
+          res.status(200).send(resultsWithProjectsIds);
+        });
       });
     } catch (error) {
       res.status(400).send(error);
