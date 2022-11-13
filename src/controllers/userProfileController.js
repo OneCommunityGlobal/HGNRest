@@ -592,6 +592,8 @@ const userProfileController = function (UserProfile) {
     const status = req.body.status === 'Active';
     const activationDate = req.body.reactivationDate;
     const { endDate } = req.body;
+    const isSet = req.body.isSet === 'FinalDay';
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -605,6 +607,7 @@ const userProfileController = function (UserProfile) {
           isActive: status,
           reactivationDate: activationDate,
           endDate,
+          isSet,
         });
         user
           .save()
