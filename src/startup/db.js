@@ -2,7 +2,6 @@
 const mongoose = require('mongoose');
 const logger = require('./logger');
 const userProfile = require('../models/userProfile');
-const initialPermissions = require('../utilities/createInitialPermissions');
 
 mongoose.Promise = Promise;
 
@@ -15,7 +14,6 @@ const afterConnect = async () => {
       },
     );
 
-    await initialPermissions();
     if (!user) {
       userProfile.create({
         firstName: 'TimeArchiveAccount',

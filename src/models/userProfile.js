@@ -24,12 +24,7 @@ const userProfileSchema = new Schema({
   role: {
     type: String,
     required: true,
-    // remove enum
-    // enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Mentor', 'Owner'],
-  },
-  permissions: {
-      frontPermissions: [String],
-      backPermissions: [String],
+    enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Mentor', 'Owner'],
   },
   firstName: {
     type: String,
