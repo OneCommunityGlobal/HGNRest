@@ -49,6 +49,7 @@ const logincontroller = function () {
       const jwtPayload = {
         userid: user._id,
         role: user.role,
+        permissions: user.permissions,
         expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
       };
 
