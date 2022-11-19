@@ -283,7 +283,7 @@ const permissionsRoles = [
 
 
 const createInitialPermissionsFront = async () => {
-  const userEmail = { email: 'jae@onecommunityglobal.orgg' };
+  const userEmail = { email: 'jae@onecommunityglobal.org' };
   const update = { role: 'Owner' };
   await User.findOneAndUpdate(userEmail, update);
 
