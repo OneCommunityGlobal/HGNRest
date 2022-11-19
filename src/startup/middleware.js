@@ -51,6 +51,8 @@ module.exports = function (app) {
     const requestor = {};
     requestor.requestorId = payload.userid;
     requestor.role = payload.role;
+    requestor.permissions = payload.permissions;
+
     req.body.requestor = requestor;
     next();
   });
