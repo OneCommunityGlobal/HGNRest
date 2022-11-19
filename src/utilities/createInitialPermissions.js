@@ -311,7 +311,7 @@ const createInitialPermissionsFront = async () => {
         if (!IsAllFrontPermissionsOwnerUpdated) {
         updatedOwnerPermissions.permissions = permissions;
         }
-        if (!IsAllFrontPermissionsOwnerUpdated) {
+        if (!IsAllBackPermissionsOwnerUpdated) {
         updatedOwnerPermissions.permissionsBackEnd = permissionsBackEnd;
         }
       }
