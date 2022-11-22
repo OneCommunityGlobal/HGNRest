@@ -142,7 +142,6 @@ const userProfileController = function (UserProfile) {
       }
     }
 
-
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
       lastName: req.body.lastName,
@@ -248,6 +247,8 @@ const userProfileController = function (UserProfile) {
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
       record.timeZone = req.body.timeZone;
+      record.hoursByCategory = req.body.hoursByCategory;
+      record.totalTangibleHrs = req.body.totalTangibleHrs;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -275,8 +276,7 @@ const userProfileController = function (UserProfile) {
         record.weeklySummaryNotReq = req.body.weeklySummaryNotReq ? req.body.weeklySummaryNotReq : record.weeklySummaryNotReq;
         record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
-        record.timeEntryEditHistory = req.body.timeEntryEditHistory;
-        record.hoursByCategory = req.body.hoursByCategory;
+        record.timeEntryEditHistory = req.body.timeEntryEditHistory;        
         record.createdDate = moment(req.body.createdDate).toDate();
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
@@ -412,7 +412,7 @@ const userProfileController = function (UserProfile) {
         },
       }, {
         path: 'projects',
-        select: '_id projectName',
+        select: '_id projectName category',
         options: {
           sort: {
             projectName: 1,
