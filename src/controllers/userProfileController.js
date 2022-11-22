@@ -142,7 +142,6 @@ const userProfileController = function (UserProfile) {
       }
     }
 
-
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
       lastName: req.body.lastName,
@@ -248,6 +247,8 @@ const userProfileController = function (UserProfile) {
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
       record.timeZone = req.body.timeZone;
+      record.hoursByCategory = req.body.hoursByCategory;
+      record.totalTangibleHrs = req.body.totalTangibleHrs;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -280,7 +281,6 @@ const userProfileController = function (UserProfile) {
         record.createdDate = moment(req.body.createdDate).toDate();
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
-
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
@@ -412,7 +412,7 @@ const userProfileController = function (UserProfile) {
         },
       }, {
         path: 'projects',
-        select: '_id projectName',
+        select: '_id projectName category',
         options: {
           sort: {
             projectName: 1,
@@ -592,6 +592,8 @@ const userProfileController = function (UserProfile) {
     const status = req.body.status === 'Active';
     const activationDate = req.body.reactivationDate;
     const { endDate } = req.body;
+    const isSet = req.body.isSet === 'FinalDay';
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -605,6 +607,7 @@ const userProfileController = function (UserProfile) {
           isActive: status,
           reactivationDate: activationDate,
           endDate,
+          isSet,
         });
         user
           .save()
