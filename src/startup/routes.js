@@ -39,6 +39,11 @@ const roleRouter = require('../routes/roleRouter')(role);
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 
+const taskEditSuggestion = require('../models/taskEditSuggestion');
+const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
+const roleRouter = require('../routes/roleRouter')(role);
+
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
