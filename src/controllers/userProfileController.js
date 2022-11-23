@@ -282,6 +282,7 @@ const userProfileController = function (UserProfile) {
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
 
+
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
           userData.endDate = record.endDate.toISOString();
