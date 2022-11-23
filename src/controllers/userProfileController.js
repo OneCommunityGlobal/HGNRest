@@ -276,7 +276,7 @@ const userProfileController = function (UserProfile) {
         record.weeklySummaryNotReq = req.body.weeklySummaryNotReq ? req.body.weeklySummaryNotReq : record.weeklySummaryNotReq;
         record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
-        record.timeEntryEditHistory = req.body.timeEntryEditHistory;        
+        record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
