@@ -35,9 +35,6 @@ const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBack
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
-const roleRouter = require('../routes/roleRouter')(role);
-const taskEditSuggestion = require('../models/taskEditSuggestion');
-const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
