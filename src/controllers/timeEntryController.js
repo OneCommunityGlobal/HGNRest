@@ -1,6 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
-const { getinfringementEmailBody } = require('../helpers/userhelper')();
+const { getinfringementEmailBody } = require('../helpers/userHelper')();
 const userProfile = require('../models/userProfile');
 const task = require('../models/task');
 const emailSender = require('../utilities/emailSender');

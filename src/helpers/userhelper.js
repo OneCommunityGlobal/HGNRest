@@ -4,33 +4,33 @@ const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
-const myteam = require('../helpers/helperModels/myTeam');
-const dashboardhelper = require('../helpers/dashboardhelper')();
-const reporthelper = require('../helpers/reporthelper')();
+const myTeam = require('./helperModels/myTeam');
+const dashboardHelper = require('./dashboardhelper')();
+const reportHelper = require('./reportHelper')();
 
 const emailSender = require('../utilities/emailSender');
 
 const logger = require('../startup/logger');
 const hasPermission = require('../utilities/permissions');
 
-const userhelper = function () {
+const userHelper = function () {
   const getTeamMembers = function (user) {
-    const userid = mongoose.Types.ObjectId(user._id);
+    const userId = mongoose.Types.ObjectId(user._id);
     // var teamid = userdetails.teamId;
-    return myteam.findById(userid).select({
-      'myteam._id': 1,
-      'myteam.role': 1,
-      'myteam.fullName': 1,
+    return myTeam.findById(userId).select({
+      'myTeam._id': 1,
+      'myTeam.role': 1,
+      'myTeam.fullName': 1,
       _id: 0,
     });
   };
 
-  const getUserName = async function (userId) {
-    const userid = mongoose.Types.ObjectId(userId);
-    return userProfile.findById(userid, 'firstName lastName');
+  const getUserName = async function (user_Id) {
+    const userId = mongoose.Types.ObjectId(user_Id);
+    return userProfile.findById(user_Id, 'firstName lastName');
   };
 
-  const validateprofilepic = function (profilePic) {
+  const validateProfilePic = function (profilePic) {
     const picParts = profilePic.split('base64');
     let result = true;
     const errors = [];
@@ -43,16 +43,16 @@ const userhelper = function () {
     }
 
     // validate size
-    const imagesize = picParts[1].length;
-    const sizeInBytes = (4 * Math.ceil(imagesize / 3) * 0.5624896334383812) / 1024;
+    const imageSize = picParts[1].length;
+    const sizeInBytes = (4 * Math.ceil(imageSize / 3) * 0.5624896334383812) / 1024;
 
     if (sizeInBytes > 50) {
       errors.push('Image size should not exceed 50KB');
       result = false;
     }
 
-    const imagetype = picParts[0].split('/')[1];
-    if (imagetype !== 'jpeg;' && imagetype !== 'png;') {
+    const imageType = picParts[0].split('/')[1];
+    if (imageType !== 'jpeg;' && imageType !== 'png;') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
@@ -63,7 +63,7 @@ const userhelper = function () {
     };
   };
 
-  const getinfringementEmailBody = function (firstName, lastName, infringement, totalInfringements) {
+  const getInfringementEmailBody = function (firstName, lastName, infringement, totalInfringements) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>
@@ -95,7 +95,7 @@ const userhelper = function () {
     const emails = [];
 
     try {
-      const results = await reporthelper.weeklySummaries(weekIndex, weekIndex);
+      const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -235,7 +235,7 @@ const userhelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
    *      and increment the weeklySummariesCount for valud submissions.
    */
-  const assignBlueSquareforTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async () => {
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
@@ -264,7 +264,7 @@ const userhelper = function () {
         //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
         await processWeeklySummariesByUserId(personId, hasWeeklySummary);
 
-        const results = await dashboardhelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
+        const results = await dashboardHelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
         const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
 
@@ -341,7 +341,7 @@ const userhelper = function () {
           emailSender(
             status.email,
             'New Infringement Assigned',
-            getinfringementEmailBody(
+            getInfringementEmailBody(
               status.firstName,
               status.lastName,
               infringement,
@@ -351,7 +351,7 @@ const userhelper = function () {
             'onecommunityglobal@gmail.com',
           );
 
-          const categories = await dashboardhelper.laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
+          const categories = await dashboardHelper.laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
           if (Array.isArray(categories) && categories.length > 0) {
             await userProfile
@@ -466,7 +466,7 @@ const userhelper = function () {
     }
   };
 
-  const notifyinfringements = function (
+  const notifyInfringements = function (
     original,
     current,
     firstName,
@@ -477,17 +477,17 @@ const userhelper = function () {
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
-    let newinfringements = [];
-    newinfringements = _.differenceWith(
+    let newInfringements = [];
+    newInfringements = _.differenceWith(
       newCurrent,
       newOriginal,
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
-    newinfringements.forEach((element) => {
+    newInfringements.forEach((element) => {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
-        getinfringementEmailBody(firstName, lastName, element, totalInfringements),
+        getInfringementEmailBody(firstName, lastName, element, totalInfringements),
         null,
         'onecommunityglobal@gmail.com',
       );
@@ -832,7 +832,7 @@ const userhelper = function () {
       _id: personId,
     }).then((results) => {
       if (results) {
-        teamMembers = results.myteam;
+        teamMembers = results.myTeam;
       } else {
         teamMembers = [];
       }
@@ -959,8 +959,8 @@ const userhelper = function () {
     }
   };
 
-  const getTangibleHoursReportedThisWeekByUserId = function (userId) {
-    const userid = mongoose.Types.ObjectId(userId);
+  const getTangibleHoursReportedThisWeekByUserId = function (personId) {
+    const userId = mongoose.Types.ObjectId(personId);
     const pdtstart = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
@@ -970,7 +970,7 @@ const userhelper = function () {
       .endOf('week')
       .format('YYYY-MM-DD');
 
-    return timeEntries.find({ personId: userid, dateOfWork: { $gte: pdtstart, $lte: pdtend }, isTangible: true }, 'totalSeconds')
+    return timeEntries.find({ personId: userId, dateOfWork: { $gte: pdtstart, $lte: pdtend }, isTangible: true }, 'totalSeconds')
       .then((results) => {
         const totalTangibleWeeklySeconds = results.reduce((acc, { totalSeconds }) => acc + totalSeconds, 0);
         return (totalTangibleWeeklySeconds / 3600).toFixed(2);
@@ -1022,13 +1022,13 @@ const userhelper = function () {
   return {
     getUserName,
     getTeamMembers,
-    validateprofilepic,
-    assignBlueSquareforTimeNotMet,
+    validateProfilePic,
+    assignBlueSquareForTimeNotMet,
     deleteBlueSquareAfterYear,
     reActivateUser,
     deActivateUser,
-    notifyinfringements,
-    getinfringementEmailBody,
+    notifyInfringements,
+    getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
@@ -1036,4 +1036,4 @@ const userhelper = function () {
   };
 };
 
-module.exports = userhelper;
+module.exports = userHelper;
