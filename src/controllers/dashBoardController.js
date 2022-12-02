@@ -1,47 +1,47 @@
 const mongoose = require('mongoose');
-const dashboardhelper = require('../helpers/dashboardHelper')();
+const dashboardHelper = require('../helpers/dashboardHelper')();
 const emailSender = require('../utilities/emailSender');
 
-const dashboardcontroller = function () {
-  const dashboarddata = function (req, res) {
+const dashboardController = function () {
+  const dashboardData = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
-    const snapshot = dashboardhelper.personaldetails(userId);
+    const snapshot = dashboardHelper.personalDetails(userId);
 
     snapshot.then((results) => { res.send(results).status(200); });
   };
 
-  const monthlydata = function (req, res) {
+  const monthlyData = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
-    const laborthismonth = dashboardhelper.laborthismonth(userId, req.params.fromDate, req.params.toDate);
-    laborthismonth.then((results) => {
+    const laborThisMonth = dashboardHelper.laborThisMonth(userId, req.params.fromDate, req.params.toDate);
+    laborThisMonth.then((results) => {
       if (!results || results.length === 0) {
-        const emptyresult = [{
+        const emptyResult = [{
           projectName: '',
           timeSpent_hrs: 0,
         }];
-        res.status(200).send(emptyresult);
+        res.status(200).send(emptyResult);
         return;
       }
       res.status(200).send(results);
     });
   };
 
-  const weeklydata = function (req, res) {
+  const weeklyData = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
-    const laborthisweek = dashboardhelper.laborthisweek(userId, req.params.fromDate, req.params.toDate);
-    laborthisweek.then((results) => { res.send(results).status(200); });
+    const laborThisWeek = dashboardHelper.laborThisWeek(userId, req.params.fromDate, req.params.toDate);
+    laborThisWeek.then((results) => { res.send(results).status(200); });
   };
 
 
-  const leaderboarddata = function (req, res) {
+  const leaderBoardData = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
-    const leaderboard = dashboardhelper.getLeaderboard(userId);
-    leaderboard.then((results) => {
+    const leaderBoard = dashboardHelper.getLeaderBoard(userId);
+    leaderBoard.then((results) => {
       if (results.length > 0) {
         res.status(200).send(results);
       } else {
-        const { getUserLaborData } = dashboardhelper;
+        const { getUserLaborData } = dashboardHelper;
         getUserLaborData(userId).then((r) => {
           res.status(200).send(r);
         });
@@ -51,7 +51,7 @@ const dashboardcontroller = function () {
   };
 
   const orgData = function (req, res) {
-    const fullOrgData = dashboardhelper.getOrgData();
+    const fullOrgData = dashboardHelper.getOrgData();
 
     fullOrgData.then((results) => { res.status(200).send(results[0]); })
       .catch(error => res.status(400).send(error));
@@ -88,7 +88,7 @@ const dashboardcontroller = function () {
     try {
       emailSender(
         'onecommunityglobal@gmail.com',
-        `Bug Rport from ${firstName} ${lastName}`,
+        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
       );
@@ -100,13 +100,13 @@ const dashboardcontroller = function () {
 
 
   return {
-    dashboarddata,
-    monthlydata,
-    weeklydata,
-    leaderboarddata,
+    dashboardData,
+    monthlyData,
+    weeklyData,
+    leaderBoardData,
     orgData,
     sendBugReport,
   };
 };
 
-module.exports = dashboardcontroller;
+module.exports = dashboardController;

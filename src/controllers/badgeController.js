@@ -37,12 +37,12 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
-      const grouped = req.body.badgeCollection.reduce((groupd, item) => {
+      const grouped = req.body.badgeCollection.reduce((group, item) => {
         const propertyValue = item.badge;
-        groupd[propertyValue] = (groupd[propertyValue] || 0) + 1;
-        return groupd;
+        group[propertyValue] = (group[propertyValue] || 0) + 1;
+        return group;
       }, {});
-      const result = Object.keys(grouped).every(bdge => grouped[bdge] <= 1);
+      const result = Object.keys(grouped).every(badge => grouped[badge] <= 1);
       if (result) {
         record.badgeCollection = req.body.badgeCollection;
 
