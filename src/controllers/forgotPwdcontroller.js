@@ -1,4 +1,4 @@
-const uuidv4 = require('uuid/v4');
+const uuid = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 
@@ -34,7 +34,7 @@ const forgotPwdController = function (userProfile) {
       res.status(400).send({ error: 'No Valid user was found' });
       return;
     }
-    const ranPwd = uuidv4().concat('TEMP');
+    const ranPwd = uuid().concat('TEMP');
     user.set({ resetPwd: ranPwd });
     user.save()
       .then(() => {

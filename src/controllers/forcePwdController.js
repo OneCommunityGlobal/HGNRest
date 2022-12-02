@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const forcePwdcontroller = function (userProfile) {
+const forcePwdController = function (userProfile) {
   const forcePwd = function forcePwd(req, res) {
     const { userId } = req.body;
 
@@ -11,7 +11,7 @@ const forcePwdcontroller = function (userProfile) {
 
     userProfile.findById(userId, 'password')
       .then((user) => {
-        user.set({ password: req.body.newpassword });
+        user.set({ password: req.body.newPassword });
         user.save()
           .then(() => {
             res.status(200).send({ message: ' password Reset' });
@@ -29,4 +29,4 @@ const forcePwdcontroller = function (userProfile) {
   };
 };
 
-module.exports = forcePwdcontroller;
+module.exports = forcePwdController;

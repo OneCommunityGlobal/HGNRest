@@ -6,7 +6,7 @@ const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeEntry');
 const badge = require('../models/badge');
 const myTeam = require('./helperModels/myTeam');
-const dashboardHelper = require('./dashboardHelper')();
+const dashboardHelper = require('./dashBoardHelper')();
 const reportHelper = require('./reportHelper')();
 
 const emailSender = require('../utilities/emailSender');

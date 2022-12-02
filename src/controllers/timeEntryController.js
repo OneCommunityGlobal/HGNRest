@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const { getInfringmentEmailBody } = require('../helpers/userHelper')();
@@ -48,8 +49,9 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
     const requestor = (personId !== final.requestor.requestorId) ? await userProfile.findById(final.requestor.requestorId) : record;
     const emailBody = getEditedTimeEntryEmailBody(record.firstName, record.lastName, record.email, originalTime, finalTime, requestor);
     emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${record.firstName} ${record.lastName}`, emailBody);
+    return emailBody;
   } catch (error) {
-    console.log(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
+    return error;
   }
 };
 
@@ -107,14 +109,14 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          return error;
         }
         try {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          return error;
         }
       } else if (initialIsTangible === true && req.body.isTangible === 'false') {
         // Before timeEntry is tangible, after timeEntry is in-tangible
@@ -123,7 +125,7 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          return error;
         }
       } else if (initialIsTangible === false && req.body.isTangible === 'true') {
         // Before timeEntry is in-tangible, after timeEntry is tangible
@@ -132,7 +134,7 @@ const timeEntrycontroller = function (TimeEntry) {
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          return error;
         }
       }
 
@@ -198,7 +200,6 @@ const timeEntrycontroller = function (TimeEntry) {
   const getAllTimeEnteries = function (req, res) {
     TimeEntry.find((err, records) => {
       if (err) {
-        // console.log(err);
         return res.status(404).send(err);
       }
       const items = [];
