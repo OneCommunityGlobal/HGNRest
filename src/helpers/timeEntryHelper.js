@@ -7,7 +7,7 @@ const timeEntryHelper = function () {
     const toDate = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
     return timeEntry.find(
       {
-        projectId: projectId,
+        projectId,
         dateOfWork: { $gte: fromDate, $lte: toDate },
         isTangible: true,
       },
