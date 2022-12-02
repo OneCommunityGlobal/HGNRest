@@ -1,34 +1,34 @@
 const mongoose = require('mongoose');
-const notificationhelper = require('../helpers/notificationHelper')();
+const notificationHelper = require('../helpers/notificationHelper')();
 
 const actionItemController = function (ActionItem) {
-  const getactionItem = function (req, res) {
-    const userid = req.params.userId;
+  const getActionItem = function (req, res) {
+    const id = req.params.userId;
     ActionItem.find({
-      assignedTo: userid,
+      assignedTo: id,
     }, ('-createdDateTime -__v'))
       .populate('createdBy', 'firstName lastName')
       .then((results) => {
-        const actionitems = [];
+        const actItems = [];
 
         results.forEach((element) => {
-          const actionitem = {};
+          const actItem = {};
 
-          actionitem._id = element._id;
-          actionitem.description = element.description;
-          actionitem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
-          actionitem.assignedTo = element.assignedTo;
+          actItem._id = element._id;
+          actItem.description = element.description;
+          actItem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
+          actItem.assignedTo = element.assignedTo;
 
-          actionitems.push(actionitem);
+          actItems.push(actItem);
         });
 
-        res.status(200).send(actionitems);
+        res.status(200).send(actItems);
       })
       .catch((error) => {
         res.status(400).send(error);
       });
   };
-  const postactionItem = function (req, res) {
+  const postActionItem = function (req, res) {
     const { requestorId, assignedTo } = req.body.requestor;
     const _actionItem = new ActionItem();
 
@@ -39,23 +39,23 @@ const actionItemController = function (ActionItem) {
 
     _actionItem.save()
       .then((result) => {
-        notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
+        notificationHelper.notificationCreated(requestorId, assignedTo, _actionItem.description);
 
-        const actionitem = {};
+        const actItem = {};
 
-        actionitem.createdBy = 'You';
-        actionitem.description = _actionItem.description;
-        actionitem._id = result._id;
-        actionitem.assignedTo = _actionItem.assignedTo;
+        actItem.createdBy = 'You';
+        actItem.description = _actionItem.description;
+        actItem._id = result._id;
+        actItem.assignedTo = _actionItem.assignedTo;
 
-        res.status(200).send(actionitem);
+        res.status(200).send(actItem);
       })
       .catch((error) => {
         res.status(400).send(error);
       });
   };
 
-  const deleteactionItem = async function (req, res) {
+  const deleteActionItem = async function (req, res) {
     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
 
@@ -73,7 +73,7 @@ const actionItemController = function (ActionItem) {
 
     const { requestorId, assignedTo } = req.body.requestor;
 
-    notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
+    notificationHelper.notificationDeleted(requestorId, assignedTo, _actionItem.description);
 
     _actionItem.remove()
       .then(() => {
@@ -86,7 +86,7 @@ const actionItemController = function (ActionItem) {
       });
   };
 
-  const editactionItem = async function (req, res) {
+  const editActionItem = async function (req, res) {
     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
     const { requestorId, assignedTo } = req.body.requestor;
@@ -102,7 +102,7 @@ const actionItemController = function (ActionItem) {
       });
       return;
     }
-    notificationhelper.notificationedited(requestorId, assignedTo, _actionItem.description, req.body.description);
+    notificationHelper.notificationEdited(requestorId, assignedTo, _actionItem.description, req.body.description);
 
     _actionItem.description = req.body.description;
     _actionItem.assignedTo = req.body.assignedTo;
@@ -114,10 +114,10 @@ const actionItemController = function (ActionItem) {
 
 
   return {
-    getactionItem,
-    postactionItem,
-    deleteactionItem,
-    editactionItem,
+    getActionItem,
+    postActionItem,
+    deleteActionItem,
+    editActionItem,
 
   };
 };
