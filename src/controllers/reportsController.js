@@ -1,4 +1,4 @@
-const reporthelper = require('../helpers/reporthelper')();
+const reportHelper = require('../helpers/reportHelper')();
 const hasPermission = require('../utilities/permissions');
 
 const reportsController = function () {
@@ -8,10 +8,10 @@ const reportsController = function () {
       return;
     }
 
-    const weeklySummaries = reporthelper.weeklySummaries(2, 0);
+    const weeklySummaries = reportHelper.weeklySummaries(2, 0);
     weeklySummaries
       .then((results) => {
-        const summaries = reporthelper.formatSummaries(results);
+        const summaries = reportHelper.formatSummaries(results);
         res.status(200).send(summaries);
       })
       .catch(error => res.status(404).send(error));

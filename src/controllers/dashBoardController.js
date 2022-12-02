@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const dashboardhelper = require('../helpers/dashboardhelper')();
+const dashboardhelper = require('../helpers/dashboardHelper')();
 const emailSender = require('../utilities/emailSender');
 
 const dashboardcontroller = function () {

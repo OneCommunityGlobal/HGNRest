@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const notificationhelper = require('../helpers/notificationhelper')();
+const notificationhelper = require('../helpers/notificationHelper')();
 
 const actionItemController = function (ActionItem) {
   const getactionItem = function (req, res) {
