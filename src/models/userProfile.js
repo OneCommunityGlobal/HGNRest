@@ -71,7 +71,7 @@ const userProfileSchema = new Schema({
     },
   }],
   profilePic: { type: String },
-  infringments: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
+  infringements: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
   location: { type: String, default: '' },
   oldInfringements: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
   privacySettings: { blueSquares: { type: Boolean, default: true }, email: { type: Boolean, default: true }, phoneNumber: { type: Boolean, default: true } },

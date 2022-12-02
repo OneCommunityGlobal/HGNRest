@@ -1,7 +1,7 @@
 const Notification = require('../models/notification');
 const eventtypes = require('../constants/eventTypes');
 const notificationController = require('../controllers/notificationController')(Notification);
-const userhelper = require('../helpers/userhelper')();
+const userhelper = require('./userHelper')();
 
 const notificationhelper = function () {
   const createnotification = function (notification) {

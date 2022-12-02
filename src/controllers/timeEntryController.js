@@ -1,6 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
-const { getInfringmentEmailBody } = require('../helpers/userhelper')();
+const { getinfringementEmailBody } = require('../helpers/userHelper')();
 const userProfile = require('../models/userProfile');
 const task = require('../models/task');
 const emailSender = require('../utilities/emailSender');
@@ -155,7 +155,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
 
         if (totalRecentEdits >= 5) {
-          requestor.infringments.push({
+          requestor.infringements.push({
             date: moment().tz('America/Los_Angeles'),
             description: `${totalRecentEdits} time entry edits in the last calendar year`,
           });
@@ -175,7 +175,7 @@ const timeEntrycontroller = function (TimeEntry) {
             description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
           };
 
-          emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringmentEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringments.length));
+          emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getinfringementEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringements.length));
         }
 
         await requestor.save();

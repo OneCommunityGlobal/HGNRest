@@ -3,7 +3,7 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userhelper = require('../helpers/userhelper')();
+const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
@@ -214,7 +214,7 @@ const userProfileController = function (UserProfile) {
       // validate userprofile pic
 
       if (req.body.profilePic) {
-        const results = userhelper.validateprofilepic(req.body.profilePic);
+        const results = userHelper.validateProfilePic(req.body.profilePic);
 
         if (!results.result) {
           res.status(400).json(results.errors);
@@ -222,9 +222,9 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      // let requested_infringments = (req.body.infringments)? (req.body.infringments): [];
-      const originalInfringments = record.infringments
-        ? record.infringments
+      // let requested_infringements = (req.body.infringements)? (req.body.infringements): [];
+      const originalinfringements = record.infringements
+        ? record.infringements
         : [];
 
       // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
@@ -296,16 +296,16 @@ const userProfileController = function (UserProfile) {
           userData.createdDate = record.createdDate.toISOString();
         }
       }
-      if (hasPermission(req.body.requestor.role, 'infringmentAuthorizer')) {
-        record.infringments = req.body.infringments;
+      if (hasPermission(req.body.requestor.role, 'infringementAuthorizer')) {
+        record.infringements = req.body.infringements;
       }
 
       record
         .save()
         .then((results) => {
-          userhelper.notifyInfringments(
-            originalInfringments,
-            results.infringments,
+          userHelper.notifyinfringements(
+            originalinfringements,
+            results.infringements,
             results.firstName,
             results.lastName,
             results.email,
@@ -432,7 +432,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userhelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
+        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
           results.set('tangibleHoursReportedThisWeek', hours, { strict: false });
           cache.setCache(`user-${userid}`, JSON.stringify(results));
           res.status(200).send(results);
@@ -533,7 +533,7 @@ const userProfileController = function (UserProfile) {
       validroles = ['Volunteer', 'Manager'];
     }
 
-    userhelper
+    userHelper
       .getTeamMembers({
         _id: userid,
       })
@@ -556,7 +556,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    userhelper
+    userHelper
       .getTeamMembers({
         _id: req.params.userId,
       })

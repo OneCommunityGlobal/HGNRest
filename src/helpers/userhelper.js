@@ -4,33 +4,33 @@ const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
-const myteam = require('../helpers/helperModels/myTeam');
-const dashboardhelper = require('../helpers/dashboardhelper')();
-const reporthelper = require('../helpers/reporthelper')();
+const myTeam = require('./helperModels/myTeam');
+const dashboardHelper = require('./dashboardhelper')();
+const reportHelper = require('./reportHelper')();
 
 const emailSender = require('../utilities/emailSender');
 
 const logger = require('../startup/logger');
 const hasPermission = require('../utilities/permissions');
 
-const userhelper = function () {
+const userHelper = function () {
   const getTeamMembers = function (user) {
-    const userid = mongoose.Types.ObjectId(user._id);
+    const userId = mongoose.Types.ObjectId(user._id);
     // var teamid = userdetails.teamId;
-    return myteam.findById(userid).select({
-      'myteam._id': 1,
-      'myteam.role': 1,
-      'myteam.fullName': 1,
+    return myTeam.findById(userId).select({
+      'myTeam._id': 1,
+      'myTeam.role': 1,
+      'myTeam.fullName': 1,
       _id: 0,
     });
   };
 
-  const getUserName = async function (userId) {
-    const userid = mongoose.Types.ObjectId(userId);
-    return userProfile.findById(userid, 'firstName lastName');
+  const getUserName = async function (user_Id) {
+    const userId = mongoose.Types.ObjectId(user_Id);
+    return userProfile.findById(user_Id, 'firstName lastName');
   };
 
-  const validateprofilepic = function (profilePic) {
+  const validateProfilePic = function (profilePic) {
     const picParts = profilePic.split('base64');
     let result = true;
     const errors = [];
@@ -43,16 +43,16 @@ const userhelper = function () {
     }
 
     // validate size
-    const imagesize = picParts[1].length;
-    const sizeInBytes = (4 * Math.ceil(imagesize / 3) * 0.5624896334383812) / 1024;
+    const imageSize = picParts[1].length;
+    const sizeInBytes = (4 * Math.ceil(imageSize / 3) * 0.5624896334383812) / 1024;
 
     if (sizeInBytes > 50) {
       errors.push('Image size should not exceed 50KB');
       result = false;
     }
 
-    const imagetype = picParts[0].split('/')[1];
-    if (imagetype !== 'jpeg;' && imagetype !== 'png;') {
+    const imageType = picParts[0].split('/')[1];
+    if (imageType !== 'jpeg;' && imageType !== 'png;') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
@@ -63,11 +63,11 @@ const userhelper = function () {
     };
   };
 
-  const getInfringmentEmailBody = function (firstName, lastName, infringment, totalInfringements) {
+  const getInfringementEmailBody = function (firstName, lastName, infringement, totalInfringements) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${infringment.date}</p>
-        <p><b>Description:</b> ${infringment.description}</p>
+        <p><b>Date Assigned:</b> ${infringement.date}</p>
+        <p><b>Description:</b> ${infringement.description}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment.localeData().ordinal(totalInfringements)}</b> blue square of 5.</p>
         <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
         <p>Thank you,<br />
@@ -95,7 +95,7 @@ const userhelper = function () {
     const emails = [];
 
     try {
-      const results = await reporthelper.weeklySummaries(weekIndex, weekIndex);
+      const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -235,7 +235,7 @@ const userhelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
    *      and increment the weeklySummariesCount for valud submissions.
    */
-  const assignBlueSquareforTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async () => {
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
@@ -264,7 +264,7 @@ const userhelper = function () {
         //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
         await processWeeklySummariesByUserId(personId, hasWeeklySummary);
 
-        const results = await dashboardhelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
+        const results = await dashboardHelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
         const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
 
@@ -298,9 +298,9 @@ const userhelper = function () {
           .subtract(1, 'year');
 
         const oldInfringements = [];
-        for (let k = 0; k < updateResult?.infringments.length; k += 1) {
-          if (updateResult?.infringments && moment(updateResult?.infringments[k].date).diff(cutOffDate) >= 0) {
-            oldInfringements.push(updateResult.infringments[k]);
+        for (let k = 0; k < updateResult?.infringements.length; k += 1) {
+          if (updateResult?.infringements && moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0) {
+            oldInfringements.push(updateResult.infringements[k]);
           } else {
             break;
           }
@@ -324,7 +324,7 @@ const userhelper = function () {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
 
-          const infringment = {
+          const infringement = {
             date: moment()
               .utc()
               .format('YYYY-MM-DD'),
@@ -334,24 +334,24 @@ const userhelper = function () {
           const status = await userProfile
             .findByIdAndUpdate(personId, {
               $push: {
-                infringments: infringment,
+                infringements: infringement,
               },
             }, { new: true });
 
           emailSender(
             status.email,
             'New Infringement Assigned',
-            getInfringmentEmailBody(
+            getInfringementEmailBody(
               status.firstName,
               status.lastName,
-              infringment,
-              status.infringments.length,
+              infringement,
+              status.infringements.length,
             ),
             null,
             'onecommunityglobal@gmail.com',
           );
 
-          const categories = await dashboardhelper.laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
+          const categories = await dashboardHelper.laborThisWeekByCategory(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
           if (Array.isArray(categories) && categories.length > 0) {
             await userProfile
@@ -423,7 +423,7 @@ const userhelper = function () {
       const results = await userProfile.updateMany({},
         {
           $pull: {
-            infringments: {
+            infringements: {
               date: {
                 $lte: cutOffDate,
               },
@@ -466,7 +466,7 @@ const userhelper = function () {
     }
   };
 
-  const notifyInfringments = function (
+  const notifyInfringements = function (
     original,
     current,
     firstName,
@@ -477,17 +477,17 @@ const userhelper = function () {
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
-    let newInfringments = [];
-    newInfringments = _.differenceWith(
+    let newInfringements = [];
+    newInfringements = _.differenceWith(
       newCurrent,
       newOriginal,
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
-    newInfringments.forEach((element) => {
+    newInfringements.forEach((element) => {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
-        getInfringmentEmailBody(firstName, lastName, element, totalInfringements),
+        getInfringementEmailBody(firstName, lastName, element, totalInfringements),
         null,
         'onecommunityglobal@gmail.com',
       );
@@ -619,7 +619,7 @@ const userhelper = function () {
 
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-              if (user.infringments.length === 0 || Math.abs(moment().diff(moment(user.infringments[user.infringments?.length - 1].date), 'months', true)) >= elem.months) {
+              if (user.infringements.length === 0 || Math.abs(moment().diff(moment(user.infringements[user.infringements?.length - 1].date), 'months', true)) >= elem.months) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
                     replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
@@ -632,7 +632,7 @@ const userhelper = function () {
             }
           } else if (user?.infringements?.length === 0) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-              if (user.oldInfringments.length === 0 || Math.abs(moment().diff(moment(user.oldInfringments[user.oldInfringments?.length - 1].date), 'months', true)) >= (elem.months - 12)) {
+              if (user.oldinfringements.length === 0 || Math.abs(moment().diff(moment(user.oldinfringements[user.oldinfringements?.length - 1].date), 'months', true)) >= (elem.months - 12)) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
                     replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
@@ -832,7 +832,7 @@ const userhelper = function () {
       _id: personId,
     }).then((results) => {
       if (results) {
-        teamMembers = results.myteam;
+        teamMembers = results.myTeam;
       } else {
         teamMembers = [];
       }
@@ -959,8 +959,8 @@ const userhelper = function () {
     }
   };
 
-  const getTangibleHoursReportedThisWeekByUserId = function (userId) {
-    const userid = mongoose.Types.ObjectId(userId);
+  const getTangibleHoursReportedThisWeekByUserId = function (personId) {
+    const userId = mongoose.Types.ObjectId(personId);
     const pdtstart = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
@@ -970,7 +970,7 @@ const userhelper = function () {
       .endOf('week')
       .format('YYYY-MM-DD');
 
-    return timeEntries.find({ personId: userid, dateOfWork: { $gte: pdtstart, $lte: pdtend }, isTangible: true }, 'totalSeconds')
+    return timeEntries.find({ personId: userId, dateOfWork: { $gte: pdtstart, $lte: pdtend }, isTangible: true }, 'totalSeconds')
       .then((results) => {
         const totalTangibleWeeklySeconds = results.reduce((acc, { totalSeconds }) => acc + totalSeconds, 0);
         return (totalTangibleWeeklySeconds / 3600).toFixed(2);
@@ -1022,13 +1022,13 @@ const userhelper = function () {
   return {
     getUserName,
     getTeamMembers,
-    validateprofilepic,
-    assignBlueSquareforTimeNotMet,
+    validateProfilePic,
+    assignBlueSquareForTimeNotMet,
     deleteBlueSquareAfterYear,
     reActivateUser,
     deActivateUser,
-    notifyInfringments,
-    getInfringmentEmailBody,
+    notifyInfringements,
+    getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
@@ -1036,4 +1036,4 @@ const userhelper = function () {
   };
 };
 
-module.exports = userhelper;
+module.exports = userHelper;
