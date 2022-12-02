@@ -1,7 +1,7 @@
 const { CronJob } = require('cron');
 const moment = require('moment-timezone');
 
-const userhelper = require('../helpers/userhelper')();
+const userhelper = require('../helpers/userHelper')();
 
 
 const userProfileJobs = () => {
