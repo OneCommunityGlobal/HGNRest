@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userhelper = require('../helpers/userHelper')();
-const TimeEntry = require('../models/timeentry');
+const TimeEntry = require('../models/timeEntry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');

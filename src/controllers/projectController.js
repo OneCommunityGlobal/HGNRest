@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const timeentry = require('../models/timeentry');
+const timeentry = require('../models/timeEntry');
 const userProfile = require('../models/userProfile');
 const userProject = require('../helpers/helperModels/userProjects');
 const hasPermission = require('../utilities/permissions');

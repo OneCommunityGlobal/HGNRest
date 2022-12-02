@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const myTeamSchema = new Schema({
 
   _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-  myteam: [
+  myTeam: [
     {
       _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       fullName: { type: String },

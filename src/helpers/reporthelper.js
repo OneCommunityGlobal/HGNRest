@@ -13,7 +13,7 @@ const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
   return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
 };
 
-const reporthelper = function () {
+const reportHelper = function () {
   /**
    * Get an array of objects, each containing selected fields from
    * the userProfile collection relative to the weekly summaries.
@@ -62,7 +62,7 @@ const reporthelper = function () {
         lastName: 1,
         email: 1,
         mediaUrl: 1,
-        weeklyComittedHours: 1,
+        weeklyCommittedHours: 1,
         weeklySummaryNotReq: 1,
         weeklySummaries: {
           $filter: {
@@ -185,4 +185,4 @@ const reporthelper = function () {
   };
 };
 
-module.exports = reporthelper;
+module.exports = reportHelper;

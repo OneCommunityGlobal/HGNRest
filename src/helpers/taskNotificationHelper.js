@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const TaskNotification = require('../models/taskNotification');
 const taskNotificationController = require('../controllers/taskNotificationController');
 
@@ -15,7 +16,7 @@ const taskNotificationHelper = function () {
     const oldTaskInfosConst = {
       oldWhyInfo: task.whyInfo,
       oldIntentInfo: task.intentInfo,
-      oldEndstateInfo: task.endstateInfo,
+      oldEndStateInfo: task.endStateInfo,
     };
 
     users.forEach(async (user) => {
@@ -28,12 +29,12 @@ const taskNotificationHelper = function () {
         oldTaskInfos: {
           oldWhyInfo: '',
           oldIntentInfo: '',
-          oldEndstateInfo: '',
+          oldEndStateInfo: '',
         },
         newTaskInfos: {
           newWhyInfo: '',
           newIntentInfo: '',
-          newEndstateInfo: '',
+          newEndStateInfo: '',
         },
       });
 
@@ -43,16 +44,16 @@ const taskNotificationHelper = function () {
         isRead: false,
       }).exec();
       if (notification) {
-        const notifOldWhy = notification.oldTaskInfos.oldWhyInfo;
-        const notifOldIntent = notification.oldTaskInfos.oldIntentInfo;
-        const notifOldEndstate = notification.oldTaskInfos.oldEndstateInfo;
-        const notifNewWhy = notification.newTaskInfos.newWhyInfo;
-        const notifNewIntent = notification.newTaskInfos.newIntentInfo;
-        const notifNewEndstate = notification.newTaskInfos.newEndstateInfo;
+        const notifyOldWhy = notification.oldTaskInfos.oldWhyInfo;
+        const notifyOldIntent = notification.oldTaskInfos.oldIntentInfo;
+        const notifyOldEndState = notification.oldTaskInfos.oldEndStateInfo;
+        const notifyNewWhy = notification.newTaskInfos.newWhyInfo;
+        const notifyNewIntent = notification.newTaskInfos.newIntentInfo;
+        const notifyNewEndState = notification.newTaskInfos.newEndStateInfo;
 
         // oldWhyInfo
-        if (notifOldWhy) {
-          newTaskNotification.oldTaskInfos.oldWhyInfo = notifOldWhy;
+        if (notifyOldWhy) {
+          newTaskNotification.oldTaskInfos.oldWhyInfo = notifyOldWhy;
         } else if (task.whyInfo) {
           newTaskNotification.oldTaskInfos.oldWhyInfo = task.whyInfo;
         } else {
@@ -60,28 +61,28 @@ const taskNotificationHelper = function () {
         }
 
         // oldIntentInfo
-        if (notifOldIntent) {
-          newTaskNotification.oldTaskInfos.oldIntentInfo = notifOldIntent;
+        if (notifyOldIntent) {
+          newTaskNotification.oldTaskInfos.oldIntentInfo = notifyOldIntent;
         } else if (task.intentInfo) {
           newTaskNotification.oldTaskInfos.oldIntentInfo = task.intentInfo;
         } else {
           newTaskNotification.oldTaskInfos.oldIntentInfo = '';
         }
 
-        // oldEndstateInfo
-        if (notifOldEndstate) {
-          newTaskNotification.oldTaskInfos.oldEndstateInfo = notifOldEndstate;
-        } else if (task.endstateInfo) {
-          newTaskNotification.oldTaskInfos.oldEndstateInfo = task.endstateInfo;
+        // oldEndStateInfo
+        if (notifyOldEndState) {
+          newTaskNotification.oldTaskInfos.oldEndStateInfo = notifyOldEndState;
+        } else if (task.endStateInfo) {
+          newTaskNotification.oldTaskInfos.oldEndStateInfo = task.endStateInfo;
         } else {
-          newTaskNotification.oldTaskInfos.oldEndstateInfo = '';
+          newTaskNotification.oldTaskInfos.oldEndStateInfo = '';
         }
 
         // newWhyInfo
         if (newInfo.newWhyInfo) {
           newTaskNotification.newTaskInfos.newWhyInfo = newInfo.newWhyInfo;
         } else if (notification.newTaskInfos.newWhyInfo) {
-          newTaskNotification.newTaskInfos.newWhyInfo = notifNewWhy;
+          newTaskNotification.newTaskInfos.newWhyInfo = notifyNewWhy;
         } else {
           newTaskNotification.newTaskInfos.newWhyInfo = '';
         }
@@ -90,18 +91,18 @@ const taskNotificationHelper = function () {
         if (newInfo.newIntentInfo) {
           newTaskNotification.newTaskInfos.newIntentInfo = newInfo.newIntentInfo;
         } else if (notification.newTaskInfos.newIntentInfo) {
-          newTaskNotification.newTaskInfos.newIntentInfo = notifNewIntent;
+          newTaskNotification.newTaskInfos.newIntentInfo = notifyNewIntent;
         } else {
           newTaskNotification.newTaskInfos.newIntentInfo = '';
         }
 
-        // newEndstateInfo
-        if (newInfo.newEndstateInfo) {
-          newTaskNotification.newTaskInfos.newEndstateInfo = newInfo.newEndstateInfo;
-        } else if (notification.newTaskInfos.newEndstateInfo) {
-          newTaskNotification.newTaskInfos.newEndstateInfo = notifNewEndstate;
+        // newEndStateInfo
+        if (newInfo.newEndStateInfo) {
+          newTaskNotification.newTaskInfos.newEndStateInfo = newInfo.newEndStateInfo;
+        } else if (notification.newTaskInfos.newEndStateInfo) {
+          newTaskNotification.newTaskInfos.newEndStateInfo = notifyNewEndState;
         } else {
-          newTaskNotification.newTaskInfos.newEndstateInfo = '';
+          newTaskNotification.newTaskInfos.newEndStateInfo = '';
         }
 
         TaskNotification.findByIdAndDelete(notification._id).catch((error) => {

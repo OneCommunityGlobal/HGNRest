@@ -1,5 +1,5 @@
 const moment = require('moment-timezone');
-const timeEntry = require('../models/timeentry');
+const timeEntry = require('../models/timeEntry');
 
 const timeEntryHelper = function () {
   const getAllHoursLoggedForSpecifiedProject = function (projectId) {

@@ -1,4 +1,4 @@
-const timeEntry = require('../models/timeentry');
+const timeEntry = require('../models/timeEntry');
 const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 const team = require('../models/team');
