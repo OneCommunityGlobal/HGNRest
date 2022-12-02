@@ -1105,14 +1105,14 @@ const taskController = function (Task) {
       Task.find({ 'resources.userID': { $in: membersArr } }, '-resources.profilePic')
       .then((results) => {
         wbs.find({
-          '_id': { $in: results.map(item => item.wbsId)}
+          _id: { $in: results.map(item => item.wbsId) },
         })
         .then((projectIds) => {
           const resultsWithProjectsIds = results.map(
-            item => {
+            (item) => {
               item.set('projectId', projectIds?.find(projectId => projectId._id.toString() === item.wbsId.toString())?.projectId, { strict: false });
               return item;
-            }
+            },
           );
           res.status(200).send(resultsWithProjectsIds);
         });
