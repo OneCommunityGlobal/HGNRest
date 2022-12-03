@@ -1,7 +1,7 @@
 const { CronJob } = require('cron');
 const moment = require('moment-timezone');
 
-const userhelper = require('../helpers/userHelper')();
+const userHelper = require('../helpers/userHelper')();
 
 
 const userProfileJobs = () => {
@@ -10,13 +10,13 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        await userhelper.assignBlueSquareforTimeNotMet();
-        await userhelper.emailWeeklySummariesForAllUsers();
-        await userhelper.deleteBlueSquareAfterYear();
-        await userhelper.awardNewBadges();
+        await userHelper.assignBlueSquareforTimeNotMet();
+        await userHelper.emailWeeklySummariesForAllUsers();
+        await userHelper.deleteBlueSquareAfterYear();
+        await userHelper.awardNewBadges();
       }
-      await userhelper.reActivateUser();
-      await userhelper.deActivateUser();
+      await userHelper.reActivateUser();
+      await userHelper.deActivateUser();
     },
     null,
     false,
