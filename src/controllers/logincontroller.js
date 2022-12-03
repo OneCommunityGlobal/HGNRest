@@ -4,7 +4,7 @@ const moment = require('moment');
 const config = require('../config');
 const userprofile = require('../models/userProfile');
 
-const logincontroller = function () {
+const loginController = function () {
   const { JWT_SECRET } = config;
 
   const login = async function _login(req, res) {
@@ -77,4 +77,4 @@ const logincontroller = function () {
   };
 };
 
-module.exports = logincontroller;
+module.exports = loginController;

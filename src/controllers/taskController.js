@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
-const myteam = require('../helpers/helperModels/myTeam');
+const myTeam = require('../helpers/helperModels/myTeam');
 const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const hasPermission = require('../utilities/permissions');
@@ -42,10 +42,10 @@ const taskController = function (Task) {
     });
   };
 
-  const updateDateTime = (taskId, startedDatetime, dueDatetime) => {
+  const updateDateTime = (taskId, startedDateTime, dueDateTime) => {
     Task.findById(taskId, (error, task) => {
-      task.startedDatetime = startedDatetime;
-      task.dueDatetime = dueDatetime;
+      task.startedDateTime = startedDateTime;
+      task.dueDateTime = dueDateTime;
       task.save();
     });
   };
@@ -132,17 +132,17 @@ const taskController = function (Task) {
       const childTasks = tasks.filter(
         taskChild => taskChild.level === level + 1,
       );
-      let minStartedDate = task.startedDatetime;
-      let maxDueDatetime = task.dueDatetime;
+      let minStartedDate = task.startedDateTime;
+      let maxDueDateTime = task.dueDateTime;
       let hasChild = false;
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task.taskId)) {
           hasChild = true;
-          if (minStartedDate > childTask.startedDatetime) {
-            minStartedDate = childTask.startedDatetime;
+          if (minStartedDate > childTask.startedDateTime) {
+            minStartedDate = childTask.startedDateTime;
           }
-          if (maxDueDatetime < childTask.dueDatetime) {
-            maxDueDatetime = childTask.dueDatetime;
+          if (maxDueDateTime < childTask.dueDateTime) {
+            maxDueDateTime = childTask.dueDateTime;
           }
         }
       });
@@ -150,11 +150,11 @@ const taskController = function (Task) {
       if (hasChild) {
         tasks.forEach((mainTask, i) => {
           if (mainTask._id.equals(task._id)) {
-            tasks[i].startedDatetime = minStartedDate;
-            tasks[i].dueDatetime = maxDueDatetime;
+            tasks[i].startedDateTime = minStartedDate;
+            tasks[i].dueDateTime = maxDueDateTime;
           }
         });
-        updateDateTime(task._id, minStartedDate, maxDueDatetime);
+        updateDateTime(task._id, minStartedDate, maxDueDateTime);
       }
     });
     return tasks;
@@ -365,8 +365,8 @@ const taskController = function (Task) {
       let sumHoursMost = 0;
       let sumHoursLogged = 0;
       let sumEstimatedHours = 0;
-      let minStartedDate = task.startedDatetime;
-      let maxDueDatetime = task.dueDatetime;
+      let minStartedDate = task.startedDateTime;
+      let maxDueDateTime = task.dueDateTime;
       let totalNumberPriority = 0;
       let isAssigned = false;
 
@@ -382,11 +382,11 @@ const taskController = function (Task) {
           sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
           sumHoursLogged = parseFloat(childTask.hoursLogged, 10) + parseFloat(sumHoursLogged, 10);
           sumEstimatedHours = parseFloat(childTask.estimatedHours, 10) + parseFloat(sumEstimatedHours, 10);
-          if (minStartedDate > childTask.startedDatetime) {
-            minStartedDate = childTask.startedDatetime;
+          if (minStartedDate > childTask.startedDateTime) {
+            minStartedDate = childTask.startedDateTime;
           }
-          if (maxDueDatetime < childTask.dueDatetime) {
-            maxDueDatetime = childTask.dueDatetime;
+          if (maxDueDateTime < childTask.dueDateTime) {
+            maxDueDateTime = childTask.dueDateTime;
           }
 
           totalChild += 1;
@@ -428,8 +428,8 @@ const taskController = function (Task) {
             tasks[i].hoursWorst = sumHoursWorst;
             tasks[i].hoursLogged = sumHoursLogged;
             tasks[i].estimatedHours = sumEstimatedHours;
-            tasks[i].startedDatetime = minStartedDate;
-            tasks[i].dueDatetime = maxDueDatetime;
+            tasks[i].startedDateTime = minStartedDate;
+            tasks[i].dueDateTime = maxDueDateTime;
             tasks[i].hasChild = true;
             tasks[i].isAssigned = isAssigned;
 
@@ -459,7 +459,7 @@ const taskController = function (Task) {
 
   const fixTasksLocal = (tasks, wbsId) => {
     // Format num
-    const formatedTasks = [];
+    const formattedTasks = [];
 
     tasks.forEach((task) => {
       if (parseInt(task.level, 10) === 1) {
@@ -486,13 +486,13 @@ const taskController = function (Task) {
       } else {
         task.resources = [];
       }
-      formatedTasks.push(task);
+      formattedTasks.push(task);
     });
 
-    // console.log(formatedTasks);
+    // console.log(formattedTasks);
 
     // Sort the task
-    const sortedTasks = formatedTasks.sort((a, b) => {
+    const sortedTasks = formattedTasks.sort((a, b) => {
       const aArr = a.num.split('.');
       const bArr = b.num.split('.');
       for (let i = 0; i < 4; i += 1) {
@@ -601,8 +601,8 @@ const taskController = function (Task) {
       _task.hoursMost = task.hoursMost;
       _task.hoursLogged = task.hoursLogged;
       _task.estimatedHours = parseFloat(task.estimatedHours, 10);
-      _task.startedDatetime = task.startedDatetime || null;
-      _task.dueDatetime = task.dueDatetime || null;
+      _task.startedDateTime = task.startedDateTime || null;
+      _task.dueDateTime = task.dueDateTime || null;
       _task.links = task.links;
       _task.parentId1 = new mongoose.Types.ObjectId(task.parentId1);
       _task.parentId2 = new mongoose.Types.ObjectId(task.parentId2);
@@ -611,11 +611,11 @@ const taskController = function (Task) {
       _task.hasChild = task.hasChild;
       _task.mother = new mongoose.Types.ObjectId(task.mother);
       _task.position = task.position;
-      _task.createdDatetime = Date.now();
-      _task.modifiedDatetime = Date.now();
+      _task.createdDateTime = Date.now();
+      _task.modifiedDateTime = Date.now();
       _task.whyInfo = task.whyInfo;
       _task.intentInfo = task.intentInfo;
-      _task.endstateInfo = task.endstateInfo;
+      _task.endStateInfo = task.endStateInfo;
       _task.classification = task.classification;
 
       _task.save().then().catch((ex) => { res.status(400).send(ex); });
@@ -650,8 +650,8 @@ const taskController = function (Task) {
     _task.hoursWorst = parseFloat(req.body.hoursWorst.trim(), 10);
     _task.hoursMost = parseFloat(req.body.hoursMost.trim(), 10);
     _task.estimatedHours = parseFloat(req.body.estimatedHours.trim(), 10);
-    _task.startedDatetime = req.body.startedDatetime;
-    _task.dueDatetime = req.body.dueDatetime;
+    _task.startedDateTime = req.body.startedDateTime;
+    _task.dueDateTime = req.body.dueDateTime;
     _task.links = req.body.links;
     _task.parentId1 = req.body.parentId1;
     _task.parentId2 = req.body.parentId2;
@@ -659,8 +659,8 @@ const taskController = function (Task) {
     _task.isActive = req.body.isActive;
     _task.mother = `${motherNum}-${wbsId}`;
     _task.position = req.body.position;
-    _task.createdDatetime = Date.now();
-    _task.modifiedDatetime = Date.now();
+    _task.createdDateTime = Date.now();
+    _task.modifiedDateTime = Date.now();
 
     _task
       .save()
@@ -704,8 +704,8 @@ const taskController = function (Task) {
     _task.hoursMost = req.body.hoursMost;
     _task.hoursLogged = req.body.hoursLogged;
     _task.estimatedHours = req.body.estimatedHours;
-    _task.startedDatetime = req.body.startedDatetime;
-    _task.dueDatetime = req.body.dueDatetime;
+    _task.startedDateTime = req.body.startedDateTime;
+    _task.dueDateTime = req.body.dueDateTime;
     _task.links = req.body.links;
     _task.parentId1 = req.body.parentId1;
     _task.parentId2 = req.body.parentId2;
@@ -713,11 +713,11 @@ const taskController = function (Task) {
     _task.isActive = req.body.isActive;
     _task.mother = req.body.mother;
     _task.position = req.body.position;
-    _task.createdDatetime = Date.now();
-    _task.modifiedDatetime = Date.now();
+    _task.createdDateTime = Date.now();
+    _task.modifiedDateTime = Date.now();
     _task.whyInfo = req.body.whyInfo;
     _task.intentInfo = req.body.intentInfo;
-    _task.endstateInfo = req.body.endstateInfo;
+    _task.endStateInfo = req.body.endStateInfo;
     _task.classification = req.body.classification;
 
     _task
@@ -994,7 +994,7 @@ const taskController = function (Task) {
 
     const { taskId } = req.params;
 
-    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, { ...req.body, modifiedDatetime: Date.now() })
+    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, { ...req.body, modifiedDateTime: Date.now() })
       .then(() => res.status(201).send())
       .catch(error => res.status(404).send(error));
   };
@@ -1059,7 +1059,7 @@ const taskController = function (Task) {
 
   const getTaskById = function (req, res) {
     const taskId = req.params.id;
-    Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
+    Task.findById(taskId, '-__v  -createdDateTime -modifiedDateTime')
       .then((results) => {
         if (!results) {
           res.status(400).send({ error: 'This is not a valid task' });
@@ -1132,20 +1132,20 @@ const taskController = function (Task) {
         .endOf('week')
         .format('YYYY-MM-DD');
       const userId = mongoose.Types.ObjectId(req.params.userId);
-      const agg = myteam.aggregate([
+      const agg = myTeam.aggregate([
         {
           $match: {
             _id: userId,
           },
         },
         {
-          $unwind: '$myteam',
+          $unwind: '$myTeam',
         },
         {
           $project: {
             _id: 0,
-            personId: '$myteam._id',
-            name: '$myteam.fullName',
+            personId: '$myTeam._id',
+            name: '$myTeam.fullName',
             role: '$role',
           },
         },
@@ -1356,9 +1356,9 @@ const taskController = function (Task) {
               projectId: {
                 _id: 0,
                 isActive: 0,
-                modifiedDatetime: 0,
+                modifiedDateTime: 0,
                 wbsName: 0,
-                createdDatetime: 0,
+                createdDateTime: 0,
                 __v: 0,
               },
             },

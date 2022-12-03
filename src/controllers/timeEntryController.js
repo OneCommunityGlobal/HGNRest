@@ -8,10 +8,10 @@ const emailSender = require('../utilities/emailSender');
 const hasPermission = require('../utilities/permissions');
 
 const formatSeconds = function (seconds) {
-  const formattedseconds = parseInt(seconds, 10);
+  const formattedSeconds = parseInt(seconds, 10);
   const values = `${Math.floor(
-    moment.duration(formattedseconds, 'seconds').asHours(),
-  )}:${moment.duration(formattedseconds, 'seconds').minutes()}`;
+    moment.duration(formattedSeconds, 'seconds').asHours(),
+  )}:${moment.duration(formattedSeconds, 'seconds').minutes()}`;
   return values.split(':');
 };
 
@@ -55,7 +55,7 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
   }
 };
 
-const timeEntrycontroller = function (TimeEntry) {
+const timeEntryController = function (TimeEntry) {
   const editTimeEntry = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -197,7 +197,7 @@ const timeEntrycontroller = function (TimeEntry) {
     return res.status(200).send();
   };
 
-  const getAllTimeEnteries = function (req, res) {
+  const getAllTimeEntries = function (req, res) {
     TimeEntry.find((err, records) => {
       if (err) {
         return res.status(404).send(err);
@@ -251,7 +251,7 @@ const timeEntrycontroller = function (TimeEntry) {
       })
       .catch(error => res.status(400).send(error));
 
-    // Add this tangbile time entry to related task's hoursLogged
+    // Add this tangible time entry to related task's hoursLogged
     if (timeentry.isTangible === true) {
       try {
         const currentTask = await task.findById(req.body.projectId);
@@ -436,7 +436,7 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   return {
-    getAllTimeEnteries,
+    getAllTimeEntries,
     postTimeEntry,
     getTimeEntriesForSpecifiedPeriod,
     getTimeEntriesForUsersList,
@@ -446,4 +446,4 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 };
 
-module.exports = timeEntrycontroller;
+module.exports = timeEntryController;

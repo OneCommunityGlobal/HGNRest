@@ -2,14 +2,14 @@ const mongoose = require('mongoose');
 
 const notificationController = function (Notification) {
   const getUserNotifications = function (req, res) {
-    const userid = req.params.userId;
+    const id = req.params.userId;
 
-    if (!mongoose.Types.ObjectId.isValid(userid)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).send({ error: 'Bad Request' });
       return;
     }
 
-    Notification.find({ recipient: userid }, '_id message eventType')
+    Notification.find({ recipient: id }, '_id message eventType')
       .then((results) => { res.status(200).send(results); })
       .catch((errors) => { res.status(400).send(errors); });
   };

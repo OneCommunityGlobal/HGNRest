@@ -1,4 +1,3 @@
-
 const logger = require('../startup/logger');
 const OldTimer = require('../models/timer');
 

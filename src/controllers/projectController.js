@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const timeentry = require('../models/timeEntry');
+const timeEntry = require('../models/timeEntry');
 const userProfile = require('../models/userProfile');
 const userProject = require('../helpers/helperModels/userProjects');
 const hasPermission = require('../utilities/permissions');
@@ -27,15 +27,15 @@ const projectController = function (Project) {
 
       // find if project has any time enteries associated with it
 
-      timeentry.find({ projectId: record._id }, '_id')
-        .then((timeentries) => {
-          if (timeentries.length > 0) {
-            res.status(400).send({ error: 'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.' });
+      timeEntry.find({ projectId: record._id }, '_id')
+        .then((tEntries) => {
+          if (tEntries.length > 0) {
+            res.status(400).send({ error: 'This project has associated time entries and cannot be deleted. Consider deactivating it instead.' });
           } else {
-            const removeprojectfromprofile = userProfile.updateMany({}, { $pull: { projects: record._id } }).exec();
-            const removeproject = record.remove();
+            const removeProjectFromProfile = userProfile.updateMany({}, { $pull: { projects: record._id } }).exec();
+            const removeProject = record.remove();
 
-            Promise.all([removeprojectfromprofile, removeproject])
+            Promise.all([removeProjectFromProfile, removeProject])
               .then(res.status(200).send({ message: ' Project successfully deleted and user profiles updated' }))
               .catch((errors) => { res.status(400).send(errors); });
           }
@@ -144,16 +144,16 @@ const projectController = function (Project) {
           return;
         }
         const { users } = req.body;
-        const assignlist = [];
-        const unassignlist = [];
+        const assignList = [];
+        const unassignList = [];
 
         users.forEach((element) => {
           const { userId, operation } = element;
-          if (operation === 'Assign') { assignlist.push(userId); } else { unassignlist.push(userId); }
+          if (operation === 'Assign') { assignList.push(userId); } else { unassignList.push(userId); }
         });
 
-        const assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { projects: project._id } }).exec();
-        const unassignPromise = userProfile.updateMany({ _id: { $in: unassignlist } }, { $pull: { projects: project._id } }).exec();
+        const assignPromise = userProfile.updateMany({ _id: { $in: assignList } }, { $addToSet: { projects: project._id } }).exec();
+        const unassignPromise = userProfile.updateMany({ _id: { $in: unassignList } }, { $pull: { projects: project._id } }).exec();
 
         Promise.all([assignPromise, unassignPromise])
           .then(() => {
@@ -168,7 +168,7 @@ const projectController = function (Project) {
       });
   };
 
-  const getprojectMembership = function (req, res) {
+  const getProjectMembership = function (req, res) {
     const { projectId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       res.status(400).send({ error: 'Invalid request' });
@@ -188,7 +188,7 @@ const projectController = function (Project) {
     deleteProject,
     getUserProjects,
     assignProjectToUsers,
-    getprojectMembership,
+    getProjectMembership,
   };
 };
 

@@ -3,7 +3,7 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userhelper = require('../helpers/userHelper')();
+const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeEntry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
@@ -195,18 +195,18 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = function (req, res) {
-    const userid = req.params.userId;
+    const id = req.params.userId;
     const isRequestorAuthorized = !!(
       hasPermission(req.body.requestor.role, 'putUserProfile')
-      || req.body.requestor.requestorId === userid
+      || req.body.requestor.requestorId === id
     );
 
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
-    cache.removeCache(`user-${userid}`);
-    UserProfile.findById(userid, (err, record) => {
+    cache.removeCache(`user-${id}`);
+    UserProfile.findById(id, (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
         return;
@@ -214,7 +214,7 @@ const userProfileController = function (UserProfile) {
       // validate userprofile pic
 
       if (req.body.profilePic) {
-        const results = userhelper.validateprofilepic(req.body.profilePic);
+        const results = userHelper.validateProfilePic(req.body.profilePic);
 
         if (!results.result) {
           res.status(400).json(results.errors);
@@ -257,7 +257,7 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex(users => users._id === userid);
+        userIdx = allUserData.findIndex(users => users._id === id);
         userData = allUserData[userIdx];
       }
       if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
@@ -303,7 +303,7 @@ const userProfileController = function (UserProfile) {
       record
         .save()
         .then((results) => {
-          userhelper.notifyInfringments(
+          userHelper.notifyInfringments(
             originalInfringments,
             results.infringments,
             results.firstName,
@@ -391,15 +391,15 @@ const userProfileController = function (UserProfile) {
   };
 
   const getUserById = function (req, res) {
-    const userid = req.params.userId;
-    if (cache.getCache(`user-${userid}`)) {
-      const getData = JSON.parse(cache.getCache(`user-${userid}`));
+    const id = req.params.userId;
+    if (cache.getCache(`user-${id}`)) {
+      const getData = JSON.parse(cache.getCache(`user-${id}`));
       res.status(200).send(getData);
       return;
     }
 
     UserProfile.findById(
-      userid,
+      id,
       '-password -refreshTokens -lastModifiedDate -__v',
     )
       .populate([{
@@ -432,9 +432,9 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userhelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
+        userHelper.getTangibleHoursReportedThisWeekByUserId(id).then((hours) => {
           results.set('tangibleHoursReportedThisWeek', hours, { strict: false });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
+          cache.setCache(`user-${id}`, JSON.stringify(results));
           res.status(200).send(results);
         });
       })
@@ -524,7 +524,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    const userid = mongoose.Types.ObjectId(req.params.userId);
+    const id = mongoose.Types.ObjectId(req.params.userId);
     const { role } = req.body.requestor;
 
     let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
@@ -533,9 +533,9 @@ const userProfileController = function (UserProfile) {
       validroles = ['Volunteer', 'Manager'];
     }
 
-    userhelper
+    userHelper
       .getTeamMembers({
-        _id: userid,
+        _id: id,
       })
       .then((results) => {
         const teammembers = [];
@@ -556,7 +556,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    userhelper
+    userHelper
       .getTeamMembers({
         _id: req.params.userId,
       })

@@ -25,8 +25,8 @@ const wbsController = function (WBS) {
     _wbs.projectId = req.params.id;
     _wbs.wbsName = req.body.wbsName;
     _wbs.isActive = req.body.isActive;
-    _wbs.createdDatetime = Date.now();
-    _wbs.modifiedDatetime = Date.now();
+    _wbs.createdDateTime = Date.now();
+    _wbs.modifiedDateTime = Date.now();
 
     _wbs.save()
       .then(results => res.status(201).send(results))

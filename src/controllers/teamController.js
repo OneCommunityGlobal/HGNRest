@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const hasPermission = require('../utilities/permissions');
 
-const teamcontroller = function (Team) {
+const teamController = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
@@ -21,8 +21,8 @@ const teamcontroller = function (Team) {
 
     team.teamName = req.body.teamName;
     team.isACtive = req.body.isActive;
-    team.createdDatetime = Date.now();
-    team.modifiedDatetime = Date.now();
+    team.createdDateTime = Date.now();
+    team.modifiedDateTime = Date.now();
 
     team.save()
       .then(results => res.send(results).status(200))
@@ -39,10 +39,10 @@ const teamcontroller = function (Team) {
         res.status(400).send({ error: 'No valid records found' });
         return;
       }
-      const removeteamfromprofile = userProfile.updateMany({}, { $pull: { teams: record._id } }).exec();
-      const deleteteam = record.remove();
+      const removeTeamFromProfile = userProfile.updateMany({}, { $pull: { teams: record._id } }).exec();
+      const eraseTeam = record.remove();
 
-      Promise.all([removeteamfromprofile, deleteteam])
+      Promise.all([removeTeamFromProfile, eraseTeam])
         .then(res.status(200).send({ message: ' Team successfully deleted and user profiles updated' }))
         .catch((errors) => { res.status(400).send(errors); });
     })
@@ -63,8 +63,8 @@ const teamcontroller = function (Team) {
       }
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
-      record.createdDatetime = Date.now();
-      record.modifiedDatetime = Date.now();
+      record.createdDateTime = Date.now();
+      record.modifiedDateTime = Date.now();
 
       record.save()
         .then(results => res.status(201).send(results._id))
@@ -94,17 +94,17 @@ const teamcontroller = function (Team) {
           return;
         }
         const { users } = req.body;
-        const assignlist = [];
-        const unassignlist = [];
+        const assignList = [];
+        const unassignList = [];
 
         users.forEach((element) => {
           const { userId, operation } = element;
 
-          if (operation === 'Assign') { assignlist.push(userId); } else { unassignlist.push(userId); }
+          if (operation === 'Assign') { assignList.push(userId); } else { unassignList.push(userId); }
         });
 
-        const assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: team._id } }).exec();
-        const unassignPromise = userProfile.updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: team._id } }).exec();
+        const assignPromise = userProfile.updateMany({ _id: { $in: assignList } }, { $addToSet: { teams: team._id } }).exec();
+        const unassignPromise = userProfile.updateMany({ _id: { $in: unassignList } }, { $pull: { teams: team._id } }).exec();
 
         Promise.all([assignPromise, unassignPromise])
           .then(() => {
@@ -141,4 +141,4 @@ const teamcontroller = function (Team) {
   };
 };
 
-module.exports = teamcontroller;
+module.exports = teamController;
