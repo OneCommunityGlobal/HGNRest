@@ -6,8 +6,8 @@ const team = new Schema({
 
   teamName: { type: 'String', required: true },
   isActive: { type: 'Boolean', required: true, default: true },
-  createdDatetime: { type: Date },
-  modifiedDatetime: { type: Date, default: Date.now() },
+  createdDateTime: { type: Date },
+  modifiedDateTime: { type: Date, default: Date.now() },
 
 });
 

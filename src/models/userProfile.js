@@ -13,11 +13,11 @@ const userProfileSchema = new Schema({
     required: true,
     validate: {
       validator(v) {
-        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
-        return passwordregex.test(v);
+        const passwordRegex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        return passwordRegex.test(v);
       },
       message:
-        '{VALUE} is not a valid password!password should be at least 8 charcaters long with uppercase, lowercase and number/special char.',
+        '{VALUE} is not a valid password!password should be at least 8 characters long with uppercase, lowercase and number/special char.',
     },
   },
   isActive: { type: Boolean, required: true, default: true },

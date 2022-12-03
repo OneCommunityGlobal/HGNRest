@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-const taskschema = new Schema({
+const taskSchema = new Schema({
   taskName: { type: String, required: true },
   wbsId: { type: mongoose.SchemaTypes.ObjectId, ref: 'wbs', required: true },
   num: { type: String, required: true },
@@ -52,4 +52,4 @@ const taskschema = new Schema({
   classification: { type: String },
 });
 
-module.exports = mongoose.model('task', taskschema, 'tasks');
+module.exports = mongoose.model('task', taskSchema, 'tasks');

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-const wbsschema = new Schema({
+const wbsSchema = new Schema({
 
   wbsName: { type: String, required: true },
   projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'project' },
@@ -12,4 +12,4 @@ const wbsschema = new Schema({
 
 });
 
-module.exports = mongoose.model('wbs', wbsschema, 'wbs');
+module.exports = mongoose.model('wbs', wbsSchema, 'wbs');
