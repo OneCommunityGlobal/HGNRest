@@ -3,7 +3,7 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userhelper = require('../helpers/userhelper')();
+const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
@@ -142,7 +142,6 @@ const userProfileController = function (UserProfile) {
       }
     }
 
-
     const userDuplicateName = await UserProfile.findOne({
       firstName: req.body.firstName,
       lastName: req.body.lastName,
@@ -215,7 +214,7 @@ const userProfileController = function (UserProfile) {
       // validate userprofile pic
 
       if (req.body.profilePic) {
-        const results = userhelper.validateprofilepic(req.body.profilePic);
+        const results = userHelper.validateProfilePic(req.body.profilePic);
 
         if (!results.result) {
           res.status(400).json(results.errors);
@@ -248,6 +247,8 @@ const userProfileController = function (UserProfile) {
       record.weeklySummariesCount = req.body.weeklySummariesCount;
       record.mediaUrl = req.body.mediaUrl;
       record.timeZone = req.body.timeZone;
+      record.hoursByCategory = req.body.hoursByCategory;
+      record.totalTangibleHrs = req.body.totalTangibleHrs;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -276,7 +277,6 @@ const userProfileController = function (UserProfile) {
         record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
-        record.hoursByCategory = req.body.hoursByCategory;
         record.createdDate = moment(req.body.createdDate).toDate();
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
@@ -303,7 +303,7 @@ const userProfileController = function (UserProfile) {
       record
         .save()
         .then((results) => {
-          userhelper.notifyinfringements(
+          userHelper.notifyinfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -412,7 +412,7 @@ const userProfileController = function (UserProfile) {
         },
       }, {
         path: 'projects',
-        select: '_id projectName',
+        select: '_id projectName category',
         options: {
           sort: {
             projectName: 1,
@@ -432,7 +432,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userhelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
+        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
           results.set('tangibleHoursReportedThisWeek', hours, { strict: false });
           cache.setCache(`user-${userid}`, JSON.stringify(results));
           res.status(200).send(results);
@@ -533,7 +533,7 @@ const userProfileController = function (UserProfile) {
       validroles = ['Volunteer', 'Manager'];
     }
 
-    userhelper
+    userHelper
       .getTeamMembers({
         _id: userid,
       })
@@ -556,7 +556,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    userhelper
+    userHelper
       .getTeamMembers({
         _id: req.params.userId,
       })
@@ -592,6 +592,8 @@ const userProfileController = function (UserProfile) {
     const status = req.body.status === 'Active';
     const activationDate = req.body.reactivationDate;
     const { endDate } = req.body;
+    const isSet = req.body.isSet === 'FinalDay';
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -605,6 +607,7 @@ const userProfileController = function (UserProfile) {
           isActive: status,
           reactivationDate: activationDate,
           endDate,
+          isSet,
         });
         user
           .save()

@@ -1,4 +1,4 @@
-const reporthelper = require('../helpers/reporthelper')();
+const reporthelper = require('../helpers/reportHelper')();
 const hasPermission = require('../utilities/permissions');
 
 const reportsController = function () {
