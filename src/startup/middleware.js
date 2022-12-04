@@ -11,13 +11,13 @@ module.exports = function (app) {
 
     if (
       (req.originalUrl === '/api/login'
-        || req.originalUrl === '/api/forgotpassword')
+        || req.originalUrl === '/api/forgotPassword')
       && req.method === 'POST'
     ) {
       next();
       return;
     }
-    if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') {
+    if (req.originalUrl === '/api/forcePassword' && req.method === 'PATCH') {
       next();
       return;
     }

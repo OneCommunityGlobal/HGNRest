@@ -74,14 +74,14 @@ export const authenticate = (request, returnToRequestFlow) => {
   if (
     !payload
     || !payload.expiryTimestamp
-    || !payload.userid
+    || !payload.id
     || !payload.role
     || moment().isAfter(payload.expiryTimestamp)
   ) {
     returnToRequestFlow('401 Unauthorized', null);
   }
 
-  returnToRequestFlow(null, payload.userid);
+  returnToRequestFlow(null, payload.id);
 };
 
 // Handle Message Callback

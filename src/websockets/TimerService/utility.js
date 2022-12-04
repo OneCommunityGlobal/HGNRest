@@ -1,4 +1,4 @@
-import { TIMER_UPDATES_CHANNEL } from 'websockets/api';
+import { TIMER_UPDATES_CHANNEL } from '../api';
 
 const logger = require('../../startup/logger');
 

@@ -23,7 +23,7 @@ const routes = function (project) {
 
   projectRouter.route('/project/:projectId/users/')
     .post(controller.assignProjectToUsers)
-    .get(controller.getprojectMembership);
+    .get(controller.getProjectMembership);
 
 
   return projectRouter;

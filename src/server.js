@@ -1,6 +1,6 @@
 require('dotenv').load();
 const express = require('express');
-const websockets = require('./websockets/index').default;
+const webSockets = require('./webSockets/index').default;
 
 const app = express();
 const logger = require('./startup/logger');
@@ -19,7 +19,7 @@ const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
 (async () => {
-  await websockets(server);
+  await webSockets(server);
 })();
 
 module.exports = server;

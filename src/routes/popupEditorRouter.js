@@ -5,11 +5,11 @@ const routes = function (popupEditor) {
   const controller = require('../controllers/popupEditorController')(popupEditor);
   const popupEditorRouter = express.Router();
 
-  popupEditorRouter.route('/popupeditors/')
+  popupEditorRouter.route('/popUpEditors/')
     .get(controller.getAllPopupEditors)
     .post(controller.createPopupEditor);
 
-  popupEditorRouter.route('/popupeditor/:id')
+  popupEditorRouter.route('/popUpEditors/:id')
     .post(controller.updatePopupEditor)
     .get(controller.getPopupEditorById);
 

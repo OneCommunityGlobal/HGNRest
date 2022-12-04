@@ -516,7 +516,7 @@ const userProfileController = function (UserProfile) {
       .catch(error => res.status(500).send(error));
   };
 
-  const getreportees = function (req, res) {
+  const getReportees = function (req, res) {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
       res.status(400).send({
         error: 'Bad request',
@@ -549,7 +549,7 @@ const userProfileController = function (UserProfile) {
       .catch(error => res.status(400).send(error));
   };
 
-  const getTeamMembersofUser = function (req, res) {
+  const getTeamMembersOfUser = function (req, res) {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
       res.status(400).send({
         error: 'Bad request',
@@ -665,10 +665,10 @@ const userProfileController = function (UserProfile) {
     putUserProfile,
     deleteUserProfile,
     getUserById,
-    getreportees,
+    getReportees,
     updatepassword,
     getUserName,
-    getTeamMembersofUser,
+    getTeamMembersOfUser,
     getProjectMembers,
     changeUserStatus,
     resetPassword,

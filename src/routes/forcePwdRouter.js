@@ -2,13 +2,13 @@ const express = require('express');
 
 
 const routes = function (userProfile) {
-  const forcePwdrouter = express.Router();
+  const forcePwdRouter = express.Router();
   const controller = require('../controllers/forcePwdController')(userProfile);
 
-  forcePwdrouter.route('/forcepassword')
+  forcePwdRouter.route('/forcepassword')
     .patch(controller.forcePwd);
 
-  return forcePwdrouter;
+  return forcePwdRouter;
 };
 
 module.exports = routes;

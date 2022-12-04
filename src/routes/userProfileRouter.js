@@ -20,10 +20,10 @@ const routes = function (userProfile) {
     .get(controller.getUserByName);
 
   userProfileRouter.route('/userProfile/reportees/:userId')
-    .get(controller.getreportees);
+    .get(controller.getReportees);
 
   userProfileRouter.route('/userProfile/teammembers/:userId')
-    .get(controller.getTeamMembersofUser);
+    .get(controller.getTeamMembersOfUser);
 
   userProfileRouter.route('/userProfile/:userId/updatePassword')
     .patch(controller.updatepassword);

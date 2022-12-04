@@ -7,7 +7,7 @@ const routes = function (TimeEntry) {
 
 
   TimeEntryRouter.route('/TimeEntry')
-    .get(controller.getAllTimeEnteries)
+    .get(controller.getAllTimeEntries)
     .post(controller.postTimeEntry);
 
 
@@ -15,7 +15,7 @@ const routes = function (TimeEntry) {
     .put(controller.editTimeEntry)
     .delete(controller.deleteTimeEntry);
 
-  TimeEntryRouter.route('/TimeEntry/user/:userId/:fromdate/:todate')
+  TimeEntryRouter.route('/TimeEntry/user/:userId/:fromDate/:toDate')
     .get(controller.getTimeEntriesForSpecifiedPeriod);
 
   TimeEntryRouter.route('/TimeEntry/users')

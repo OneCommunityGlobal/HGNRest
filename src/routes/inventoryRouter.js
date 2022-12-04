@@ -6,11 +6,11 @@ const routes = function (item, itemType) {
 
   const inventoryRouter = express.Router();
 
-  inventoryRouter.route('/invtype')
+  inventoryRouter.route('/invType')
     .get(controller.getAllInvType)
     .post(controller.postInvType);
 
-  inventoryRouter.route('/invtype/:typeId')
+  inventoryRouter.route('/invType/:typeId')
     .get(controller.getInvTypeById)
     .put(controller.putInvType);
 
@@ -18,7 +18,7 @@ const routes = function (item, itemType) {
     .get(controller.getInvIdInfo)
     .put(controller.putInvById);
 
-  inventoryRouter.route('/invtransfer/:invId') // Transfer some or all of the inventory to another project/wbs
+  inventoryRouter.route('/invTransfer/:invId') // Transfer some or all of the inventory to another project/wbs
     .put(controller.transferInvById);
 
   inventoryRouter.route('/invwaste/:invId') // Waste some or all of the inventory
@@ -29,7 +29,7 @@ const routes = function (item, itemType) {
     .get(controller.getAllInvInProject)
     .post(controller.postInvInProject); // Can create a new inventory item in a project with unassigned wbs
 
-  inventoryRouter.route('/inv/:projectId/wbs/:wbsId') // All By Project seperated into WBS (wbs can be nill which is the unassigned category)
+  inventoryRouter.route('/inv/:projectId/wbs/:wbsId') // All By Project separated into WBS (wbs can be nill which is the unassigned category)
     .get(controller.getAllInvInProjectWBS)
     .post(controller.postInvInProjectWBS); // Can create a new inventory item in a project with a specified wbs
 

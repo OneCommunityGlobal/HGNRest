@@ -5,7 +5,7 @@ const route = function () {
 
   const reportsRouter = express.Router();
 
-  reportsRouter.route('/reports/weeklysummaries')
+  reportsRouter.route('/reports/weeklySummaries')
     .get(controller.getWeeklySummaries);
 
   return reportsRouter;

@@ -6,16 +6,16 @@ const routes = function (actionItem) {
   const actionItemRouter = express.Router();
 
   actionItemRouter.route('/actionItem')
-    .post(controller.postactionItem);
+    .post(controller.postActionItem);
 
 
   actionItemRouter.route('/actionItem/user/:userId')
-    .get(controller.getactionItem);
+    .get(controller.getActionItem);
 
 
   actionItemRouter.route('/actionItem/:actionItemId')
-    .delete(controller.deleteactionItem)
-    .put(controller.editactionItem);
+    .delete(controller.deleteActionItem)
+    .put(controller.editActionItem);
 
   return actionItemRouter;
 };
