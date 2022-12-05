@@ -26,7 +26,8 @@ const userHelper = function () {
   };
 
   const getUserName = async function (userId) {
-    return userProfile.findById(userId, 'firstName lastName');
+    const userid = mongoose.Types.ObjectId(userId);
+    return userProfile.findById(userid, 'firstName lastName');
   };
 
   const validateProfilePic = function (profilePic) {
