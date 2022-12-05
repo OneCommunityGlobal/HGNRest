@@ -25,9 +25,8 @@ const userHelper = function () {
     });
   };
 
-  const getUserName = async function (user_Id) {
-    const userId = mongoose.Types.ObjectId(user_Id);
-    return userProfile.findById(user_Id, 'firstName lastName');
+  const getUserName = async function (userId) {
+    return userProfile.findById(userId, 'firstName lastName');
   };
 
   const validateProfilePic = function (profilePic) {
