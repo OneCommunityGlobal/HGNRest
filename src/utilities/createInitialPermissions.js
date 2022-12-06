@@ -128,7 +128,7 @@ const permissionsRoles = [
     permissions: [
       'seeWeeklySummaryReports',
       'assignOnlyBlueSquares',
-      'editTask',
+      'suggestTask',
     ],
     permissionsBackEnd: [
       'getUserProfiles',
@@ -159,7 +159,7 @@ const permissionsRoles = [
     permissions: [
       'seeWeeklySummaryReports',
       'assignOnlyBlueSquares',
-      'editTask',
+      'suggestTask',
     ],
     permissionsBackEnd: [
       'getUserProfiles',
