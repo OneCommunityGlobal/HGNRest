@@ -64,5 +64,4 @@ module.exports = function (app) {
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
-
 };
