@@ -10,7 +10,7 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        await userhelper.assignBlueSquareforTimeNotMet();
+        await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.awardNewBadges();
