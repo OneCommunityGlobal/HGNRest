@@ -157,7 +157,7 @@ const reporthelper = function () {
       if (Array.isArray(wS) && wS.length && wS.length < 3) {
         // Common cases for the first entry.
         if (getTheWeek(wS[0].dueDate) === 0) wSummaries[0] = { ...wS[0] };
-        if (getTheWeek(wS[0].dueDate) === 1) {
+        else if (getTheWeek(wS[0].dueDate) === 1) {
           wSummaries[0] = null;
           wSummaries[1] = { ...wS[0] };
         }
@@ -169,7 +169,7 @@ const reporthelper = function () {
             wSummaries[1] = null;
             wSummaries[2] = { ...wS[0] };
           }
-        } else { // When two entries.
+        } else if (wS.length === 2) { // When two entries.
           if (getTheWeek(wS[1].dueDate) === 1) wSummaries[1] = { ...wS[1] };
           if (getTheWeek(wS[1].dueDate) === 2) wSummaries[2] = { ...wS[1] };
         }
