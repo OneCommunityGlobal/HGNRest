@@ -1,10 +1,11 @@
 require('dotenv').load();
 const express = require('express');
 const websockets = require('./websockets/index').default;
-
+const morgan = require('morgan')
 const app = express();
 const logger = require('./startup/logger');
 
+app.use(morgan('dev'));
 logger.init();
 require('./startup/cors')(app);
 require('./startup/db')();

@@ -215,13 +215,47 @@ const userHelper = function () {
             $slice: 3,
           },
         },
-      })
-      .then(() => {
-        if (hasWeeklySummary) {
-          userProfile
-            .findByIdAndUpdate(personId, {
-              $inc: { weeklySummariesCount: 1 },
-            }, { new: true })
+        '_id',
+      )
+      .then((users) => {
+        users.forEach((user) => {
+          const personId = mongoose.Types.ObjectId(user._id);
+
+          dashboardhelper
+            .laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek)
+            .then((results) => {
+              const { weeklyComittedHours } = results[0];
+              const timeSpent = results[0].timeSpent_hrs;
+              if (timeSpent < weeklyComittedHours) {
+                const description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                  'dddd YYYY-MM-DD',
+                )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}`;
+                const infringment = {
+                  date: moment()
+                    .utc()
+                    .format('YYYY-MM-DD'),
+                  description,
+                };
+                userProfile
+                  .findByIdAndUpdate(personId, {
+                    $push: {
+                      infringments: infringment,
+                    },
+                  })
+                  .then(status => emailSender(
+                    status.email,
+                    'New Infringment Assigned',
+                    getInfringmentEmailBody(
+                      status.firstName,
+                      status.lastName,
+                      infringment,
+                    ),
+                    null,
+                    'onecommunityglobal@gmail.com',
+                  ))
+                  .catch(error => logger.logException(error));
+              }
+            })
             .catch(error => logger.logException(error));
         }
       })
@@ -483,11 +517,11 @@ const userHelper = function () {
       newOriginal,
       (arrVal, othVal) => arrVal._id.equals(othVal._id),
     );
-    newInfringements.forEach((element) => {
+    newInfringments.forEach((element) => {
       emailSender(
         emailAddress,
-        'New Infringement Assigned',
-        getInfringementEmailBody(firstName, lastName, element, totalInfringements),
+        'New Infringment Assigned',
+        getInfringmentEmailBody(firstName, lastName, element),
         null,
         'onecommunityglobal@gmail.com',
       );

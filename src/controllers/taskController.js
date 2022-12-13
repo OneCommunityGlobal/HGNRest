@@ -583,7 +583,7 @@ const taskController = function (Task) {
     // const isFine = true;
 
     // const dbTasks = [];
-    // console.log('fixedtask', fixedTasks.length);
+     console.log('fixedtask', fixedTasks);
 
     fixedTasks.forEach((task) => {
       const _task = new Task();
