@@ -59,6 +59,7 @@
     "node-cache": "^5.1.2",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.4.16",
+    "ordinal": "^1.0.3",
     "redis": "^4.2.0",
     "uuid": "^3.4.0",
     "ws": "^8.8.1"
