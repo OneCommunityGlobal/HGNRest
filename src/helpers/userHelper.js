@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
-const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
-const reportHelper = require('./reportHelper')();
+const reportHelper = require('./reporthelper')();
 
 const emailSender = require('../utilities/emailSender');
 
@@ -25,9 +24,9 @@ const userHelper = function () {
     });
   };
 
-  const getUserName = async function (user_Id) {
-    const userId = mongoose.Types.ObjectId(user_Id);
-    return userProfile.findById(user_Id, 'firstName lastName');
+  const getUserName = async function (userId) {
+    const userid = mongoose.Types.ObjectId(userId);
+    return userProfile.findById(userid, 'firstName lastName');
   };
 
   const validateProfilePic = function (profilePic) {
@@ -440,14 +439,13 @@ const userHelper = function () {
   const reActivateUser = async () => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
+
     logger.logInfo(`Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`);
 
     try {
       const users = await userProfile.find({ isActive: false, reactivationDate: { $exists: true } }, '_id isActive reactivationDate');
-
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-
         if (moment().isSameOrAfter(moment(user.reactivationDate))) {
           await userProfile.findByIdAndUpdate(
             user._id,
@@ -455,10 +453,35 @@ const userHelper = function () {
               $set: {
                 isActive: true,
               },
+              $unset: {
+                endDate: user.endDate,
+              },
             }, { new: true },
           );
-
           logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().tz('America/Los_Angeles').format()}.`);
+          const id = user._id;
+          const person = await userProfile.findById(id);
+          const endDate = moment(person.endDate).format('YYYY-MM-DD');
+          logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().format()}.`);
+          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been RE-activated in the Highest Good Network`;
+
+          const emailBody = `<p> Hi Admin! </p>
+
+          <p>This email is to let you know that ${person.firstName} ${person.lastName} has been made active again in the Highest Good Network application after being paused on ${endDate}.</p>
+          
+          <p>If you need to communicate anything with them, this is their email from the system: ${person.email}.</p>
+          
+          <p> Thanks! </p>
+          
+          <p>The HGN A.I. (and One Community)</p>`;
+
+          emailSender(
+            'onecommunityglobal@gmail.com',
+            subject,
+            emailBody,
+            null,
+            null,
+          );
         }
       }
     } catch (err) {
@@ -984,7 +1007,7 @@ const userHelper = function () {
         const user = users[i];
         const { endDate } = user;
         endDate.setHours(endDate.getHours() + 7);
-        if (moment().isAfter(moment(endDate))) {
+        if (moment().isAfter(moment(endDate).add(1, 'days'))) {
           await userProfile.findByIdAndUpdate(
             user._id,
             user.set({
@@ -994,18 +1017,20 @@ const userHelper = function () {
           );
           const id = user._id;
           const person = await userProfile.findById(id);
+          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
           const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
 
           const emailBody = `<p> Hi Admin! </p>
 
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has completed their scheduled last day( ${person.endDate}) and been deactivated in the Highest Good Network application. </p>
+          <p>This email is to let you know that ${person.firstName} ${person.lastName} has completed their scheduled last day (${lastDay}) and been deactivated in the Highest Good Network application. </p>
           
           <p>This is their email from the system: ${person.email }. Please email them to let them know their work is complete and thank them for their volunteer time with One Community. </p>
           
-          <p> Thanks! <br />
+          <p> Thanks! </p>
           
-          One Community </p>`;
+          <p>The HGN A.I. (and One Community)</p>`;
+
           emailSender(
             'onecommunityglobal@gmail.com',
             subject,
