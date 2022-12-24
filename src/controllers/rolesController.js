@@ -14,9 +14,11 @@ const rolesController = function (Role) {
     if (!req.body.roleName || !req.body.permissions) {
       res.status(400).send({ error: 'roleName and permissions are mandatory fields.' });
     }
+    
     const role = new Role();
     role.roleName = req.body.roleName;
     role.permissions = req.body.permissions;
+    
     role.save().then(results => res.status(201).send(results)).catch(err => res.status(500).send({ err }));
   };
 
