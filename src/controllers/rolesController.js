@@ -18,7 +18,6 @@ const rolesController = function (Role) {
     const role = new Role();
     role.roleName = req.body.roleName;
     role.permissions = req.body.permissions;
-    
     role.save().then(results => res.status(201).send(results)).catch(err => res.status(500).send({ err }));
   };
 
