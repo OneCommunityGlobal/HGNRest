@@ -50,7 +50,6 @@ const rolesController = function (Role) {
         return;
       }
       record.permissions = req.body.permissions;
-      record.permissionsBackEnd = req.body.permissionsBackEnd;
 
       record.save()
         .then(results => res.status(201).send(results))
