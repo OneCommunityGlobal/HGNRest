@@ -47,7 +47,6 @@ const rolesController = function (Role) {
         return;
       }
       record.permissions = req.body.permissions;
-
       record.save()
         .then(results => res.status(201).send(results))
         .catch(errors => res.status(400).send(errors));
