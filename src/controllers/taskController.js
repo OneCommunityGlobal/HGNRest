@@ -238,7 +238,7 @@ const taskController = function (Task) {
   const updateParents = (wbsId, parentId1) => {
     Task.find({
       $and: [{ $or: [{ taskId: parentId1 }, { parentId1 }, { parentId1: null }] },
-        { wbsId: { $in: [wbsId] } }],
+      { wbsId: { $in: [wbsId] } }],
     })
       .then((tasks) => {
         tasks = [...new Set(tasks.map(item => item))];
@@ -476,9 +476,7 @@ const taskController = function (Task) {
       task.hoursBest = parseFloat(task.hoursBest.trim(), 10);
       task.hoursWorst = parseFloat(task.hoursWorst.trim(), 10);
       task.hoursMost = parseFloat(task.hoursMost.trim(), 10);
-      task.hoursLogged = parseFloat(task.hoursLogged.trim(), 10);
-      task.estimatedHours = parseFloat(task.estimatedHours, 10);
-      task.estimatedHours = parseFloat(task.estimatedHours, 10);
+      task.estimatedHours = parseFloat(task.estimatedHours.trim(), 10);
 
 
       if (task.resourceName) {
@@ -599,7 +597,6 @@ const taskController = function (Task) {
       _task.hoursBest = task.hoursBest;
       _task.hoursWorst = task.hoursWorst;
       _task.hoursMost = task.hoursMost;
-      _task.hoursLogged = task.hoursLogged;
       _task.estimatedHours = parseFloat(task.estimatedHours, 10);
       _task.startedDatetime = task.startedDatetime || null;
       _task.dueDatetime = task.dueDatetime || null;
@@ -1102,20 +1099,20 @@ const taskController = function (Task) {
     const membersArr = members.split(',');
     try {
       Task.find({ 'resources.userID': { $in: membersArr } }, '-resources.profilePic')
-      .then((results) => {
-        wbs.find({
-          _id: { $in: results.map(item => item.wbsId) },
-        })
-        .then((projectIds) => {
-          const resultsWithProjectsIds = results.map(
-            (item) => {
-              item.set('projectId', projectIds?.find(projectId => projectId._id.toString() === item.wbsId.toString())?.projectId, { strict: false });
-              return item;
-            },
-          );
-          res.status(200).send(resultsWithProjectsIds);
+        .then((results) => {
+          wbs.find({
+            _id: { $in: results.map(item => item.wbsId) },
+          })
+            .then((projectIds) => {
+              const resultsWithProjectsIds = results.map(
+                (item) => {
+                  item.set('projectId', projectIds?.find(projectId => projectId._id.toString() === item.wbsId.toString())?.projectId, { strict: false });
+                  return item;
+                },
+              );
+              res.status(200).send(resultsWithProjectsIds);
+            });
         });
-      });
     } catch (error) {
       res.status(400).send(error);
     }
