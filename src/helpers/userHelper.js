@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
+const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
@@ -71,7 +72,6 @@ const userHelper = function () {
         <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
         <p>Thank you,<br />
         One Community</p>`;
-
     return text;
   };
 
