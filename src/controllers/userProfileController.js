@@ -303,7 +303,7 @@ const userProfileController = function (UserProfile) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyinfringements(
+          userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
