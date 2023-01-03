@@ -30,10 +30,7 @@ function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (
-    !userId === requestor.requestorId
-    && !hasPermission(requestor.role, 'updatePassword')
-  ) {
+  if (!userId === requestor.requestorId && !hasPermission(requestor.role, 'updatePassword')) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -76,7 +73,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getProjectMembers = function (req, res) {
@@ -184,21 +181,25 @@ const userProfileController = function (UserProfile) {
 
         // update backend cache
         const userCache = `{"isActive":${true},"weeklyComittedHours":${up.weeklyComittedHours},
-                            "createdDate":"${up.createdDate.toISOString()}","_id":"${up._id}","role":"${up.role}",
-                            "firstName":"${up.firstName}","lastName":"${up.lastName}","email":"${up.email}"}`;
+                            "createdDate":"${up.createdDate.toISOString()}","_id":"${
+          up._id
+        }","role":"${up.role}",
+                            "firstName":"${up.firstName}","lastName":"${up.lastName}","email":"${
+          up.email
+        }"}`;
         const userCacheJson = JSON.parse(userCache);
         const allUserCache = JSON.parse(cache.getCache('allusers'));
         allUserCache.push(userCacheJson);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch(error => res.status(501).send(error));
+      .catch((error) => res.status(501).send(error));
   };
 
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      hasPermission(req.body.requestor.role, 'putUserProfile')
-      || req.body.requestor.requestorId === userid
+      hasPermission(req.body.requestor.role, 'putUserProfile') ||
+      req.body.requestor.requestorId === userid
     );
 
     if (!isRequestorAuthorized) {
@@ -223,9 +224,7 @@ const userProfileController = function (UserProfile) {
       }
 
       // let requested_infringements = (req.body.infringements)? (req.body.infringements): [];
-      const originalinfringements = record.infringements
-        ? record.infringements
-        : [];
+      const originalinfringements = record.infringements ? record.infringements : [];
 
       // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
       record.jobTitle = req.body.jobTitle;
@@ -249,6 +248,7 @@ const userProfileController = function (UserProfile) {
       record.timeZone = req.body.timeZone;
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
+      record.totalIntangibleHrs = req.body.totalIntangibleHrs;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -257,7 +257,7 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex(users => users._id === userid);
+        userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
       if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
@@ -273,14 +273,18 @@ const userProfileController = function (UserProfile) {
         record.weeklySummariesCount = req.body.weeklySummariesCount;
         record.mediaUrl = req.body.mediaUrl;
         record.collaborationPreference = req.body.collaborationPreference;
-        record.weeklySummaryNotReq = req.body.weeklySummaryNotReq ? req.body.weeklySummaryNotReq : record.weeklySummaryNotReq;
-        record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
+        record.weeklySummaryNotReq = req.body.weeklySummaryNotReq
+          ? req.body.weeklySummaryNotReq
+          : record.weeklySummaryNotReq;
+        record.categoryTangibleHrs = req.body.categoryTangibleHrs
+          ? req.body.categoryTangibleHrs
+          : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
 
-        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
-
+        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions'))
+          record.permissions = req.body.permissions;
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
@@ -320,17 +324,17 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     });
   };
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
     if (
-      !userId
-      || !option
-      || (option !== 'delete' && option !== 'archive')
-      || !hasPermission(req.body.requestor.role, 'deleteUserProfile')
+      !userId ||
+      !option ||
+      (option !== 'delete' && option !== 'archive') ||
+      !hasPermission(req.body.requestor.role, 'deleteUserProfile')
     ) {
       res.status(400).send({
         error: 'Bad request',
@@ -356,9 +360,7 @@ const userProfileController = function (UserProfile) {
       );
 
       if (!timeArchiveUser) {
-        logger.logException(
-          'Time Archive user was not found. Please check the database',
-        );
+        logger.logException('Time Archive user was not found. Please check the database');
         res.status(500).send({
           error:
             'Time Archive User not found. Please contact your developement team on why that happened',
@@ -380,7 +382,7 @@ const userProfileController = function (UserProfile) {
 
     cache.removeCache(`user-${userId}`);
     const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex(users => users._id === userId);
+    const userIdx = allUserData.findIndex((users) => users._id === userId);
     allUserData.splice(userIdx, 1);
     cache.setCache('allusers', JSON.stringify(allUserData));
 
@@ -398,34 +400,35 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.findById(
-      userid,
-      '-password -refreshTokens -lastModifiedDate -__v',
-    )
-      .populate([{
-        path: 'teams',
-        select: '_id teamName',
-        options: {
-          sort: {
-            teamName: 1,
+    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+      .populate([
+        {
+          path: 'teams',
+          select: '_id teamName',
+          options: {
+            sort: {
+              teamName: 1,
+            },
           },
         },
-      }, {
-        path: 'projects',
-        select: '_id projectName category',
-        options: {
-          sort: {
-            projectName: 1,
+        {
+          path: 'projects',
+          select: '_id projectName category',
+          options: {
+            sort: {
+              projectName: 1,
+            },
           },
         },
-      }, {
-        path: 'badgeCollection',
-        populate: {
-          path: 'badge',
-          model: Badge,
-          select: '_id badgeName type imageUrl description ranking',
+        {
+          path: 'badgeCollection',
+          populate: {
+            path: 'badge',
+            model: Badge,
+            select: '_id badgeName type imageUrl description ranking',
+          },
         },
-      }])
+      ])
       .exec()
       .then((results) => {
         if (!results) {
@@ -438,14 +441,17 @@ const userProfileController = function (UserProfile) {
           res.status(200).send(results);
         });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
     const { name } = req.params;
-    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic, badgeCollection')
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+    UserProfile.find(
+      { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
+      '_id, profilePic, badgeCollection',
+    )
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const updatepassword = function (req, res) {
@@ -458,20 +464,13 @@ const userProfileController = function (UserProfile) {
     }
 
     // Verify correct params in body
-    if (
-      !req.body.currentpassword
-      || !req.body.newpassword
-      || !req.body.confirmnewpassword
-    ) {
+    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
       });
     }
     // Verify request is authorized by self or adminsitrator
-    if (
-      !userId === requestor.requestorId
-      && !hasPermission(requestor.role, 'updatePassword')
-    ) {
+    if (!userId === requestor.requestorId && !hasPermission(requestor.role, 'updatePassword')) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -509,11 +508,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
+              .catch((error) => res.status(500).send(error));
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = function (req, res) {
@@ -546,7 +545,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -563,7 +562,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
