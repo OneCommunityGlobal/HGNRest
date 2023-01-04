@@ -13,6 +13,9 @@ const routes = function (task, userProfile) {
     .post(controller.postTask)
     .get(controller.getTaskById);
 
+  wbsRouter.route('/task/delete/children/:taskId')
+  .post(controller.updateChildrenQtd);
+
   wbsRouter.route('/task/import/:id')
     .post(controller.importTask);
 

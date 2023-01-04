@@ -29,6 +29,25 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
+  const updateChildrenQtd = (req, res) => {
+    const { taskId } = req.params;
+    Task.findById(taskId, (error, task) => {
+      if (task) {
+        let newQtd = 0;
+        let child = true;
+        if (task.childrenQtd > 0) {
+          newQtd = task.childrenQtd - 1;
+          if (newQtd == 0) {
+            child = false;
+          }
+        }
+        task.hasChild = child;
+        task.childrenQtd = newQtd;
+        task.save();
+      }
+    });
+  };
+
 
   const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, hoursLogged, estimatedHours, resources) => {
     Task.findById(taskId, (error, task) => {
@@ -994,6 +1013,8 @@ const taskController = function (Task) {
 
     const { taskId } = req.params;
 
+    console.log('update>>>', req.body);
+
     Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, { ...req.body, modifiedDatetime: Date.now() })
       .then(() => res.status(201).send())
       .catch(error => res.status(404).send(error));
@@ -1427,6 +1448,8 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
+    updateChildrenQtd,
+
   };
 };
 
