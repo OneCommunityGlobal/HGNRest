@@ -18,6 +18,7 @@ const rolesController = function (Role) {
     const role = new Role();
     role.roleName = req.body.roleName;
     role.permissions = req.body.permissions;
+    role.permissionsBackEnd = req.body.permissionsBackEnd;
 
     role.save().then(results => res.status(201).send(results)).catch(err => res.status(500).send({ err }));
   };
@@ -49,6 +50,8 @@ const rolesController = function (Role) {
         return;
       }
       record.permissions = req.body.permissions;
+      record.permissionsBackEnd = req.body.permissionsBackEnd;
+
       record.save()
         .then(results => res.status(201).send(results))
         .catch(errors => res.status(400).send(errors));
