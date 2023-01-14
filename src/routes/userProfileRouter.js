@@ -18,9 +18,9 @@ const routes = function (userProfile) {
 
   userProfileRouter.route('/userProfile/name/:name')
     .get(controller.getUserByName);
-  
+
     userProfileRouter.route('/refreshToken/:userId')
-    .get(controller.refreshToken)
+    .get(controller.refreshToken);
 
   userProfileRouter.route('/userProfile/reportees/:userId')
     .get(controller.getreportees);
