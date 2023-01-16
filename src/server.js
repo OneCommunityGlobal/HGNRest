@@ -5,7 +5,6 @@ const websockets = require('./websockets/index').default;
 const app = express();
 const logger = require('./startup/logger');
 
-
 logger.init();
 require('./startup/cors')(app);
 require('./startup/db')();
