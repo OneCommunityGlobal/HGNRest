@@ -147,6 +147,14 @@ const userProfileController = function (UserProfile) {
       lastName: req.body.lastName,
     });
 
+    if (userDuplicateName && !req.body.allowsDuplicateName) {
+      res.status(400).send({
+        error: 'That name is already in use. Please confirm if you want to use this name.',
+        type: 'name',
+      });
+      return;
+    }
+
     const up = new UserProfile();
     up.password = req.body.password;
     up.role = req.body.role;
@@ -172,12 +180,6 @@ const userProfileController = function (UserProfile) {
 
     up.save()
       .then(() => {
-        if (userDuplicateName) {
-          res.status(200).send({
-            warning: 'User with same name exists, new user with duplicate name created.',
-            _id: up._id,
-          });
-        }
         res.status(200).send({
           _id: up._id,
         });
