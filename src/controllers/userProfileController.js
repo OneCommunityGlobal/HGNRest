@@ -3,6 +3,8 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const moment_ = require('moment');
+const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
@@ -10,6 +12,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
+const config = require('../config');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -658,6 +661,24 @@ const userProfileController = function (UserProfile) {
       res.status(400).send(error);
     }
   };
+  const refreshToken = async (req, res) => {
+    const { JWT_SECRET } = config;
+    const user = await UserProfile.findById(req.params.userId);
+
+    if (!user) {
+      res.status(403).send({ message: 'User does not exist' });
+      return;
+    }
+
+    const jwtPayload = {
+      userid: user._id,
+      role: user.role,
+      permissions: user.permissions,
+      expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+    };
+    const refreshToken = jwt.sign(jwtPayload, JWT_SECRET);
+    res.status(200).send({ refreshToken });
+  };
 
   return {
     postUserProfile,
@@ -674,6 +695,7 @@ const userProfileController = function (UserProfile) {
     resetPassword,
     getUserByName,
     getAllUsersWithFacebookLink,
+    refreshToken,
   };
 };
 
