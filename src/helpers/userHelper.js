@@ -761,82 +761,67 @@ const userHelper = function () {
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    // Handle Increasing the 1 week streak badges
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
         badgesOfType.push(badgeCollection[i].badge);
       }
     }
-    await badge.find({ type: 'X Hours for X Week Streak', weeks: 1 })
-      .sort({ totalHrs: -1 })
+    // lastWeekTangibleHrs is rounded to the integer's smallest tenth place.
+    const roundedTangibleHrs = Math.floor(user.lastWeekTangibleHrs / 10) * 10;
+
+    // get all the badges with weeks >= 1 that are of the following type.
+    await badge
+      .aggregate([
+        { $match: { type: 'X Hours for X Week Streak', weeks: { $gte: 1 } } },
+        {
+          $group: {
+            _id: '$weeks',
+            badges: {
+              $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' },
+            },
+          },
+        },
+        { $sort: { weeks: -1, totalHrs: -1 } },
+      ])
       .then((results) => {
-        results.every((elem) => {
-          if (elem.totalHrs <= user.lastWeekTangibleHrs) {
-            let theBadge;
-            for (let i = 0; i < badgesOfType.length; i += 1) {
-              if (badgesOfType[i]._id.toString() === elem._id.toString()) {
-                theBadge = badgesOfType[i]._id;
-                break;
-              }
-            }
-            if (theBadge) {
-              increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
-              return false;
-            }
-            addBadge(personId, mongoose.Types.ObjectId(elem._id));
-            return false;
-          }
-          return true;
-        });
-      });
-    // Check each Streak Greater than One to check if it works
-    await badge.aggregate([
-      { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1 } } },
-      { $sort: { weeks: -1, totalHrs: -1 } },
-      { $group: { _id: '$weeks', badges: { $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' } } } },
-    ])
-      .then((results) => {
-        let lastHr = -1;
         results.forEach((streak) => {
           streak.badges.every((bdge) => {
-            let badgeOfType;
-            for (let i = 0; i < badgeCollection.length; i += 1) {
-              if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak' && badgeCollection[i].badge?.weeks === bdge.weeks) {
-                if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-                  removeDupBadge(personId, badgeOfType._id);
-                  badgeOfType = badgeCollection[i].badge;
-                } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
-                  removeDupBadge(personId, badgeCollection[i].badge._id);
-                } else if (!badgeOfType) {
-                  badgeOfType = badgeCollection[i].badge;
+            // only filter out badges that have total hours equal to a user's last week tangible hours.
+            if (bdge.hrs === roundedTangibleHrs) {
+              let count = 0;
+              if (user.savedTangibleHrs.length >= bdge.weeks) {
+                const endOfArr = user.savedTangibleHrs.length - 1;
+                /* check tangible hours based on the last 200 weeks.
+                 *start the loop from the most recent week, and count the streak.
+                 */
+                for (let i = endOfArr; i >= 0; i--) {
+                  count++;
+                  const roundedSavedTangibleHrs = Math.floor(user.savedTangibleHrs[i] / 10) * 10;
+                  if (roundedSavedTangibleHrs !== bdge.hrs) {
+                    count--;
+                    break;
+                  }
                 }
-              }
-            }
-            // check if it is possible to earn this streak
-            if (user.savedTangibleHrs.length >= bdge.weeks) {
-              let awardBadge = true;
-              const endOfArr = user.savedTangibleHrs.length - 1;
-              for (let i = endOfArr; i >= (endOfArr - bdge.weeks + 1); i -= 1) {
-                if (user.savedTangibleHrs[i] < bdge.hrs) {
-                  awardBadge = false;
-                  return true;
-                }
-              }
-              // if all checks for award badge are green double check that we havent already awarded a higher streak for the same number of hours
-              if (awardBadge && bdge.hrs > lastHr) {
-                lastHr = bdge.hrs;
-                if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
-                  replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(bdge._id));
-                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-                } else if (!badgeOfType) {
+                // if there's a badge with a streak that matches the count
+                if (count === bdge.weeks) {
+                  for (let i = 0; i < badgesOfType.length; i++) {
+                    if (badgesOfType[i].totalHrs === bdge.hrs) {
+                      if (badgesOfType[i].weeks < bdge.weeks) {
+                        removeDupBadge(personId, mongoose.Types.ObjectId(badgesOfType[i]._id));
+                      }
+                    }
+                  }
+
+                  for (let i = 0; i < badgesOfType.length; i++) {
+                    if (badgesOfType[i]._id.toString() === bdge._id.toString()) {
+                      return false;
+                    }
+                  }
+
                   addBadge(personId, mongoose.Types.ObjectId(bdge._id));
-                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-                } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
-                  increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
-                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
+                  return false;
                 }
-                return false;
               }
             }
             return true;
