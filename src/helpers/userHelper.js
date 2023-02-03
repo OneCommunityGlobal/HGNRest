@@ -926,7 +926,6 @@ const userHelper = function () {
           streak.badges.every((bdge) => {
             // only filter out badges that have total hours equal to a user's last week tangible hours.
             if (bdge.hrs === roundedTangibleHrs) {
-              console.log('Badges', bdge);
               let count = 0;
               if (user.savedTangibleHrs.length >= bdge.weeks) {
                 const endOfArr = user.savedTangibleHrs.length - 1;
