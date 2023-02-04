@@ -1163,8 +1163,8 @@ const taskController = function (Task) {
             personId: 1,
             name: 1,
             role: 1,
-            weeklyCommittedHours: {
-              $arrayElemAt: ['$persondata.weeklyCommittedHours', 0],
+            weeklycommittedHours: {
+              $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
             },
           },
         },
@@ -1180,7 +1180,7 @@ const taskController = function (Task) {
           $project: {
             personId: 1,
             name: 1,
-            weeklyCommittedHours: 1,
+            weeklycommittedHours: 1,
             role: 1,
             timeEntryData: {
               $filter: {
@@ -1210,7 +1210,7 @@ const taskController = function (Task) {
           $project: {
             personId: 1,
             name: 1,
-            weeklyCommittedHours: 1,
+            weeklycommittedHours: 1,
             role: 1,
             totalSeconds: {
               $cond: [
@@ -1258,7 +1258,7 @@ const taskController = function (Task) {
           $group: {
             _id: {
               personId: '$personId',
-              weeklyCommittedHours: '$weeklyCommittedHours',
+              weeklycommittedHours: '$weeklycommittedHours',
               name: '$name',
               role: '$role',
             },
@@ -1278,7 +1278,7 @@ const taskController = function (Task) {
             _id: 0,
             personId: '$_id.personId',
             name: '$_id.name',
-            weeklyCommittedHours: '$_id.weeklyCommittedHours',
+            weeklycommittedHours: '$_id.weeklycommittedHours',
             role: '$_id.role',
             totaltime_hrs: {
               $divide: ['$totalSeconds', 3600],

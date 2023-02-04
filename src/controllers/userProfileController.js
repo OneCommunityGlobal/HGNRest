@@ -66,7 +66,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklyCommittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -158,7 +158,7 @@ const userProfileController = function (UserProfile) {
     up.jobTitle = req.body.jobTitle;
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
-    up.weeklyCommittedHours = req.body.weeklyCommittedHours;
+    up.weeklycommittedHours = req.body.weeklycommittedHours;
     up.personalLinks = req.body.personalLinks;
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
@@ -186,7 +186,7 @@ const userProfileController = function (UserProfile) {
         });
 
         // update backend cache
-        const userCache = `{"isActive":${true},"weeklyCommittedHours":${up.weeklyCommittedHours},
+        const userCache = `{"isActive":${true},"weeklycommittedHours":${up.weeklycommittedHours},
                             "createdDate":"${up.createdDate.toISOString()}","_id":"${up._id}","role":"${up.role}",
                             "firstName":"${up.firstName}","lastName":"${up.lastName}","email":"${up.email}"}`;
         const userCacheJson = JSON.parse(userCache);
@@ -266,7 +266,7 @@ const userProfileController = function (UserProfile) {
       if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
-        record.weeklyCommittedHours = req.body.weeklyCommittedHours;
+        record.weeklycommittedHours = req.body.weeklycommittedHours;
         record.adminLinks = req.body.adminLinks;
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
@@ -293,7 +293,7 @@ const userProfileController = function (UserProfile) {
         }
         if (isUserInCache) {
           userData.role = record.role;
-          userData.weeklyCommittedHours = record.weeklyCommittedHours;
+          userData.weeklycommittedHours = record.weeklycommittedHours;
           userData.email = record.email;
           userData.isActive = record.isActive;
           userData.createdDate = record.createdDate.toISOString();

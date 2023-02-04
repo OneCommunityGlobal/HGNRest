@@ -40,7 +40,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           name: 1,
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -68,7 +68,7 @@ const dashboardhelper = function () {
       {
         $project: {
           personId: 1,
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           totalSeconds: {
             $cond: [
               {
@@ -126,8 +126,8 @@ const dashboardhelper = function () {
           intangibletime: {
             $sum: '$intangibletime',
           },
-          totalWeeklyCommittedHours: {
-            $sum: '$weeklyCommittedHours',
+          totalweeklycommittedHours: {
+            $sum: '$weeklycommittedHours',
           },
         },
       },
@@ -135,7 +135,7 @@ const dashboardhelper = function () {
         $project: {
           _id: 0,
           memberCount: '$member_count',
-          totalWeeklyCommittedHours: '$totalWeeklyCommittedHours',
+          totalweeklycommittedHours: '$totalweeklycommittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
           },
@@ -166,16 +166,16 @@ const dashboardhelper = function () {
     ]);
 
     // This is a temporary band aid. I can't figure out why, but intangible time entries
-    // somehow increment the total weekly committed hours across all users. ???
+    // somehow increment the total weekly committted hours across all users. ???
     const USERS = await userProfile.find({ isActive: true });
-    let TOTAL_COMMITED_HOURS = 0;
+    let TOTAL_committED_HOURS = 0;
     let MEMBER_COUNT = 0;
     USERS.forEach((user) => {
-      TOTAL_COMMITED_HOURS += user.weeklyCommittedHours;
+      TOTAL_committED_HOURS += user.weeklycommittedHours;
       MEMBER_COUNT += 1;
     });
 
-    output[0].totalWeeklyCommittedHours = TOTAL_COMMITED_HOURS;
+    output[0].totalweeklycommittedHours = TOTAL_committED_HOURS;
     output[0].memberCount = MEMBER_COUNT;
 
     return output;
@@ -219,8 +219,8 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           name: 1,
-          weeklyCommittedHours: {
-            $arrayElemAt: ['$persondata.weeklyCommittedHours', 0],
+          weeklycommittedHours: {
+            $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
           },
         },
       },
@@ -236,7 +236,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           name: 1,
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -265,7 +265,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           name: 1,
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           totalSeconds: {
             $cond: [
               {
@@ -312,7 +312,7 @@ const dashboardhelper = function () {
         $group: {
           _id: {
             personId: '$personId',
-            weeklyCommittedHours: '$weeklyCommittedHours',
+            weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
           },
           totalSeconds: {
@@ -331,7 +331,7 @@ const dashboardhelper = function () {
           _id: 0,
           personId: '$_id.personId',
           name: '$_id.name',
-          weeklyCommittedHours: '$_id.weeklyCommittedHours',
+          weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
           },
@@ -496,7 +496,7 @@ const dashboardhelper = function () {
       },
       {
         $project: {
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           _id: 1,
         },
       },
@@ -510,7 +510,7 @@ const dashboardhelper = function () {
       },
       {
         $project: {
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -542,7 +542,7 @@ const dashboardhelper = function () {
         $group: {
           _id: {
             _id: '$_id',
-            weeklyCommittedHours: '$weeklyCommittedHours',
+            weeklycommittedHours: '$weeklycommittedHours',
           },
           effort: {
             $sum: '$timeEntryData.totalSeconds',
@@ -552,7 +552,7 @@ const dashboardhelper = function () {
       {
         $project: {
           _id: 0,
-          weeklyCommittedHours: '$_id.weeklyCommittedHours',
+          weeklycommittedHours: '$_id.weeklycommittedHours',
           timeSpent_hrs: {
             $divide: ['$effort', 3600],
           },
@@ -573,7 +573,7 @@ const dashboardhelper = function () {
       },
       {
         $project: {
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           _id: 1,
         },
       },
@@ -587,7 +587,7 @@ const dashboardhelper = function () {
       },
       {
         $project: {
-          weeklyCommittedHours: 1,
+          weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',

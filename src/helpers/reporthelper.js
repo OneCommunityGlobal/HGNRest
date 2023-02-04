@@ -62,7 +62,7 @@ const reporthelper = function () {
         lastName: 1,
         email: 1,
         mediaUrl: 1,
-        weeklyCommittedHours: 1,
+        weeklycommittedHours: 1,
         weeklySummaryNotReq: 1,
         weeklySummaries: {
           $filter: {
