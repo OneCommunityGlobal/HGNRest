@@ -4,8 +4,10 @@ const routes = function (ownerMessage) {
   const controller = require('../controllers/ownerMessageController')(ownerMessage);
   const OwnerMessageRouter = express.Router();
 
-  OwnerMessageRouter.route('/ownermessage')
-  .post(controller.postOwnerMessage);
+  OwnerMessageRouter.route('/ownerMessage')
+  .post(controller.postOwnerMessage)
+  .get(controller.getOwnerMessage)
+  .delete(controller.deleteOwnerMessage);
 
 return OwnerMessageRouter;
 };

@@ -49,7 +49,7 @@ const rolesController = function (Role) {
         res.status(400).send('No valid records found');
         return;
       }
-      record.roleName = req.body.roleName;
+      record.roleName = req.body.roleName
       record.permissions = req.body.permissions;
       record.permissionsBackEnd = req.body.permissionsBackEnd;
 
