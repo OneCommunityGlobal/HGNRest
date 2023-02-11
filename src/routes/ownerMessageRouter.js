@@ -9,6 +9,9 @@ const routes = function (ownerMessage) {
   .get(controller.getOwnerMessage)
   .delete(controller.deleteOwnerMessage);
 
+  OwnerMessageRouter.route('/ownerMessage/:id')
+  .put(controller.updateOwnerMessage);
+
 return OwnerMessageRouter;
 };
 
