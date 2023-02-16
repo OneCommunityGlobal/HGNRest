@@ -10,7 +10,7 @@ const routes = function (ownerMessage) {
   .delete(controller.deleteOwnerMessage);
 
   OwnerMessageRouter.route('/ownerMessage/:id')
-  .put(controller.updateOwnerMessage);
+  .patch(controller.updateOwnerMessage);
 
 return OwnerMessageRouter;
 };

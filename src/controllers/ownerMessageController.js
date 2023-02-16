@@ -53,7 +53,6 @@ const ownerMessageController = function (OwnerMessage) {
     });
   };
 
-
   return {
     postOwnerMessage,
     getOwnerMessage,
