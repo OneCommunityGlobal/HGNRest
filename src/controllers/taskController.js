@@ -1411,6 +1411,24 @@ const taskController = function (Task) {
       res.status(400).send(error);
     }
   };
+  const updateChildrenQty = (req, res) => {
+    const { taskId } = req.params;
+    Task.findById(taskId, (error, task) => {
+      if (task) {
+        let newQty = 0;
+        let child = true;
+        if (task.childrenQty > 0) {
+          newQty = task.childrenQty - 1;
+          if (newQty === 0) {
+            child = false;
+          }
+        }
+        task.hasChild = child;
+        task.childrenQty = newQty;
+        task.save();
+      }
+    });
+  };
 
   return {
     postTask,
@@ -1427,6 +1445,7 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
+    updateChildrenQty
   };
 };
 
