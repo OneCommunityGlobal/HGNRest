@@ -108,7 +108,7 @@ const userHelper = function () {
         const result = results[i];
 
         const {
-          firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
+          firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklycommittedHours,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -154,9 +154,9 @@ const userHelper = function () {
     : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
 }
           ${
-  hoursLogged >= weeklyComittedHours
-    ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
-    : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
+  hoursLogged >= weeklycommittedHours
+    ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
+    : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
 }
           ${weeklySummaryMessage}
         </div>`;
@@ -238,7 +238,7 @@ const userHelper = function () {
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
-      logger.logInfo(`Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`);
+      logger.logInfo(`Job for assigning blue square for committment not met starting at ${currentFormattedDate}`);
 
       const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
 
@@ -265,9 +265,9 @@ const userHelper = function () {
 
         const results = await dashboardHelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
-        const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
+        const { weeklycommittedHours, timeSpent_hrs: timeSpent } = results[0];
 
-        const timeNotMet = (timeSpent < weeklyComittedHours);
+        const timeNotMet = (timeSpent < weeklycommittedHours);
         let description;
 
         const updateResult = await userProfile.findByIdAndUpdate(
@@ -316,9 +316,9 @@ const userHelper = function () {
 
         if (timeNotMet || (!hasWeeklySummary)) {
           if (timeNotMet && !hasWeeklySummary) {
-            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time committment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committted effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
-            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for not meeting weekly volunteer time committment. You logged ${timeSpent} hours against committted effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
@@ -689,7 +689,7 @@ const userHelper = function () {
 
         for (let i = 0; i < results.length; i += 1) { // this needs to be a for loop so that the returns break before assigning badges for lower multiples
           const elem = results[i]; // making variable elem accessible for below code
-          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) {
+          if ((user.lastWeekTangibleHrs / user.weeklycommittedHours) >= elem.multiple) {
             let theBadge;
             for (let j = 0; j < badgesOfType.length; j += 1) {
               if (badgesOfType[j]._id.toString() === elem._id.toString()) {
