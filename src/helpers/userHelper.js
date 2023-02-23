@@ -944,7 +944,6 @@ const userHelper = function () {
 
      
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
-     // console.log(newCatg)
       await badge.find({ type: 'Total Hrs in Category', category:newCatg })
         .sort({ totalHrs: -1 })
         .then((results) => {
