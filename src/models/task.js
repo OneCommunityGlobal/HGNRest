@@ -45,6 +45,7 @@ const taskschema = new Schema({
   position: { type: Number, required: true },
   isActive: { type: Boolean, default: true },
   hasChild: { type: Boolean, default: false },
+  childrenQty: { type: Number, default: 0, required: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
   whyInfo: { type: String },
