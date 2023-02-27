@@ -913,14 +913,21 @@ const userHelper = function () {
 
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
-    const categoryTangibleHrs = user.categoryTangibleHrs || [];
-    const categories = ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship'];
-    if (categoryTangibleHrs.length === 0) {
-      return;
-    }
 
+    const hoursByCategory = user.hoursByCategory || {};
+    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship']
+    
+    const badgesOfType = [];
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'Total Hrs in Category') {
+        badgesOfType.push(badgeCollection[i].badge);
+      }
+    }
+    
     categories.forEach(async (category) => {
-      const categoryHrs = categoryTangibleHrs.find(elem => elem.category === category);
+    
+      const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
+
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
         if (badgeCollection[i].badge?.type === 'Total Hrs in Category' && badgeCollection[i].badge?.category === category) {
@@ -934,15 +941,31 @@ const userHelper = function () {
           }
         }
       }
-      await badge.find({ type: 'Total Hrs in Category', category })
+
+     
+      const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
+      await badge.find({ type: 'Total Hrs in Category', category:newCatg })
         .sort({ totalHrs: -1 })
         .then((results) => {
+        
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
             return;
           }
 
           results.every((elem) => {
-            if (categoryHrs.hrs >= elem.totalHrs) {
+           
+            if (hoursByCategory[categoryHrs] > 0 && hoursByCategory[categoryHrs] >= elem.totalHrs) {
+              let theBadge;
+              for(let i = 0; i < badgesOfType.length; i+=1){
+                if(badgesOfType[i]._id.toString() === elem._id.toString()){
+                  theBadge = badgesOfType[i]._id;
+                  break;
+                }
+              }
+              if (theBadge) {
+                increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
+                return false;
+              }
               if (badgeOfType) {
                 if (badgeOfType._id.toString() !== elem._id.toString() && badgeOfType.totalHrs < elem.totalHrs) {
                   replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
@@ -956,7 +979,8 @@ const userHelper = function () {
           });
         });
     });
-  };
+   
+  }
 
   const awardNewBadges = async () => {
     try {
