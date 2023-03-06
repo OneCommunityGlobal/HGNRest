@@ -41,7 +41,7 @@
     "@babel/runtime": "^7.10.2",
     "@sentry/node": "^5.17.0",
     "async-exit-hook": "^2.0.1",
-    "babel-plugin-module-resolver": "^4.1.0",
+    "babel-plugin-module-resolver": "^5.0.0",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.18.3",
     "cors": "^2.8.4",
