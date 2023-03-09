@@ -617,6 +617,18 @@ const userProfileController = function (UserProfile) {
         user
           .save()
           .then(() => {
+            const isUserInCache = cache.hasCache('allusers');
+            if (isUserInCache) {
+              const allUserData = JSON.parse(cache.getCache('allusers'));
+              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userData = allUserData[userIdx];
+              if (!status) {
+                userData.endDate = user.endDate.toISOString();
+              }
+              userData.isActive = user.isActive;
+              allUserData.splice(userIdx, 1, userData);
+              cache.setCache('allusers', JSON.stringify(allUserData));
+            }
             res.status(200).send({
               message: 'status updated',
             });
