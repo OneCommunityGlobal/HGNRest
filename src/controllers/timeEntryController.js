@@ -49,7 +49,7 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
     const emailBody = getEditedTimeEntryEmailBody(record.firstName, record.lastName, record.email, originalTime, finalTime, requestor);
     emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${record.firstName} ${record.lastName}`, emailBody);
   } catch (error) {
-    console.log(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
+    throw new Error(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
   }
 };
 
@@ -130,14 +130,14 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          throw new Error('Failed to find the initial task by id');
         }
         try {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          throw new Error('Failed to find the edited task by id');
         }
       } else if (initialIsTangible === true && req.body.isTangible === 'false') {
         // Before timeEntry is tangible, after timeEntry is in-tangible
@@ -146,7 +146,7 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          throw new Error('Failed to find the initial task by id');
         }
       } else if (initialIsTangible === false && req.body.isTangible === 'true') {
         // Before timeEntry is in-tangible, after timeEntry is tangible
@@ -155,7 +155,7 @@ const timeEntrycontroller = function (TimeEntry) {
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          throw new Error('Failed to find the edited task by id');
         }
       }
 
@@ -285,7 +285,7 @@ const timeEntrycontroller = function (TimeEntry) {
         currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
         await currentTask.save();
       } catch (error) {
-        console.log('Failed to find the task by id');
+        throw new Error('Failed to find the task by id');
       }
     }
     // checking if logged in hours exceed estimated time after timeentry for a task
@@ -445,7 +445,7 @@ const timeEntrycontroller = function (TimeEntry) {
                 currentTask.save();
               })
               .catch((error) => {
-                console.log(error);
+                throw new Error(error);
               });
           }
 

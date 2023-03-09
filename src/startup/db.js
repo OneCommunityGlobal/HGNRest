@@ -28,7 +28,7 @@ const afterConnect = async () => {
         .catch(error => logger.logException(error));
     }
   } catch (error) {
-    console.log(error);
+    throw new Error(error);
   }
 };
 
