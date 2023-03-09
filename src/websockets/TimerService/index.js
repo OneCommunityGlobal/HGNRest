@@ -1,23 +1,24 @@
-const moment = require("moment");
-const Timer = require("../../models/timer");
-const logger = require("../../startup/logger");
+/* eslint-disable radix */
+const moment = require('moment');
+const Timer = require('../../models/timer');
+const logger = require('../../startup/logger');
 
 /*
 This is the contract between client and server.
 The client can send one of the following messages to the server:
 */
 export const action = {
-  START_TIMER: "START_TIMER",
-  PAUSE_TIMER: "PAUSE_TIMER",
-  STOP_TIMER: "STOP_TIMER",
-  GET_TIMER: "GET_TIMER",
-  CLEAR_TIMER: "CLEAR_TIMER",
-  SWITCH_MODE: "SWITCH_MODE",
-  SET_GOAL: "SET_GOAL=",
-  ADD_GOAL: "ADD_GOAL=",
-  REMOVE_GOAL: "REMOVE_GOAL=",
-  FORCED_PAUSE: "FORCED_PAUSE",
-  ACK_FORCED: "ACK_FORCED",
+  START_TIMER: 'START_TIMER',
+  PAUSE_TIMER: 'PAUSE_TIMER',
+  STOP_TIMER: 'STOP_TIMER',
+  GET_TIMER: 'GET_TIMER',
+  CLEAR_TIMER: 'CLEAR_TIMER',
+  SWITCH_MODE: 'SWITCH_MODE',
+  SET_GOAL: 'SET_GOAL=',
+  ADD_GOAL: 'ADD_GOAL=',
+  REMOVE_GOAL: 'REMOVE_GOAL=',
+  FORCED_PAUSE: 'FORCED_PAUSE',
+  ACK_FORCED: 'ACK_FORCED',
 };
 
 /*
@@ -38,11 +39,11 @@ const getTotalElapsedTime = (client) => {
 
   let total;
   if (client.countdown) {
-    total = time.subtract(elapSinceLastAccess, "milliseconds");
+    total = time.subtract(elapSinceLastAccess, 'milliseconds');
     if (total.asMilliseconds() < 0) {
       total = moment.duration(0);
     }
-  } else total = elapSinceLastAccess.add(client.time, "milliseconds");
+  } else total = elapSinceLastAccess.add(client.time, 'milliseconds');
 
   return total;
 };
@@ -114,7 +115,7 @@ const switchMode = (client) => {
 };
 
 // Here we get the goal time from the message.
-const getGoal = (msg) => parseInt(msg.split("=")[1]);
+const getGoal = msg => parseInt(msg.split('=')[1]);
 
 // Here we set the goal and time to the goal time.
 const setGoal = (client, msg) => {
@@ -123,7 +124,7 @@ const setGoal = (client, msg) => {
 };
 
 const goalOver10Hours = (client, time) => {
-  const goal = moment.duration(client.goal).add(time, "milliseconds").asHours();
+  const goal = moment.duration(client.goal).add(time, 'milliseconds').asHours();
   return goal > 10;
 };
 
@@ -139,12 +140,12 @@ const addGoal = (client, msg) => {
 
   client.goal = moment
     .duration(client.goal)
-    .add(goal, "milliseconds")
+    .add(goal, 'milliseconds')
     .asMilliseconds()
     .toFixed();
   client.time = moment
     .duration(client.time)
-    .add(goal, "milliseconds")
+    .add(goal, 'milliseconds')
     .asMilliseconds()
     .toFixed();
 };
@@ -155,7 +156,7 @@ const addGoal = (client, msg) => {
 const goalLessThan15min = (client, time) => {
   const goal = moment
     .duration(client.goal)
-    .subtract(time, "milliseconds")
+    .subtract(time, 'milliseconds')
     .asMinutes();
   return goal < 15;
 };
@@ -174,12 +175,12 @@ const removeGoal = (client, msg) => {
 
   client.goal = moment
     .duration(client.goal)
-    .subtract(goal, "milliseconds")
+    .subtract(goal, 'milliseconds')
     .asMilliseconds()
     .toFixed();
   const time = moment
     .duration(client.time)
-    .subtract(goal, "milliseconds")
+    .subtract(goal, 'milliseconds')
     .asMilliseconds()
     .toFixed();
   client.time = time < 0 ? 0 : time;
@@ -202,7 +203,7 @@ export const getTimer = async (clientsMap, userId) => {
   } catch (e) {
     logger.logException(e);
     throw new Error(
-      "Something happened when trying to retrieve timer from mongo"
+      'Something happened when trying to retrieve timer from mongo',
     );
   }
 };
@@ -214,7 +215,7 @@ const saveClient = async (client) => {
   } catch (e) {
     logger.logException(e);
     throw new Error(
-      "Something happened when trying to save user timer to mongo"
+      'Something happened when trying to save user timer to mongo',
     );
   }
 };
@@ -230,7 +231,7 @@ Then we update the current client in hash map and return the response.
 */
 export const handleMessage = async (msg, clientsMap, userId) => {
   if (!clientsMap.has(userId)) {
-    throw new Error("It should have this user in memory");
+    throw new Error('It should have this user in memory');
   }
 
   const client = clientsMap.get(userId);
