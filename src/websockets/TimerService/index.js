@@ -1,3 +1,4 @@
+/* eslint-disable no-multi-assign */
 /* eslint-disable radix */
 const moment = require('moment');
 const Timer = require('../../models/timer');
