@@ -205,7 +205,7 @@ const dashboardhelper = function () {
           _id: 0,
           personId: '$myteam._id',
           name: '$myteam.fullName',
-          role: '$myteam.role'
+          role: "$myteam.role"
         },
       },
       {
@@ -220,7 +220,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           name: 1,
-          role: 1,
+          role: '$persondata.role',
           weeklycommittedHours: {
             $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
           },
@@ -369,6 +369,7 @@ const dashboardhelper = function () {
         $sort: {
           totaltangibletime_hrs: -1,
           name: 1,
+          role: 1
         },
       },
     ]);
