@@ -216,6 +216,14 @@ const dashboardhelper = function () {
         },
       },
       {
+        $match: {
+          $or: [
+            { 'persondata.0.role': 'Volunteer' },
+            { 'persondata.0.isvisible': true },
+          ],
+        },
+      },
+      {
         $project: {
           personId: 1,
           name: 1,
