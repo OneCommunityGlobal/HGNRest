@@ -238,7 +238,7 @@ const userHelper = function () {
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
-      logger.logInfo(`Job for assigning blue square for committment not met starting at ${currentFormattedDate}`);
+      logger.logInfo(`Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`);
 
       const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
 
@@ -316,9 +316,9 @@ const userHelper = function () {
 
         if (timeNotMet || (!hasWeeklySummary)) {
           if (timeNotMet && !hasWeeklySummary) {
-            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time committment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committted effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time committment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
-            description = `System auto-assigned infringement for not meeting weekly volunteer time committment. You logged ${timeSpent} hours against committted effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for not meeting weekly volunteer time committment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
