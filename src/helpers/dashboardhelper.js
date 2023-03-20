@@ -212,7 +212,6 @@ const dashboardhelper = function () {
           _id: 0,
           personId: '$myteam._id',
           name: '$myteam.fullName',
-          role: '$myteam.role',
         },
       },
       {
@@ -227,7 +226,9 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           name: 1,
-          role: '$persondata.role',
+          role: {
+            $arrayElemAt: ['$persondata.role', 0]
+          },
           weeklycommittedHours: {
             $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
           },
