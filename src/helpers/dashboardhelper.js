@@ -203,6 +203,7 @@ const dashboardhelper = function () {
       {
         $project: {
           _id: 0,
+          role: 1,
           personId: '$myteam._id',
           name: '$myteam.fullName',
         },
@@ -218,6 +219,15 @@ const dashboardhelper = function () {
       {
         $match: {
           $or: [
+            {
+              role: {
+                $in: [
+                  'Core Team',
+                  'Administrator',
+                  'Owner',
+                ],
+              },
+            },
             { 'persondata.0.role': 'Volunteer' },
             { 'persondata.0.isvisible': true },
           ],
