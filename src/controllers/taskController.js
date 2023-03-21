@@ -1445,7 +1445,7 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
-    updateChildrenQty
+    updateChildrenQty,
   };
 };
 
