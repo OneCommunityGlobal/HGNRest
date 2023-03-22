@@ -229,7 +229,7 @@ const dashboardhelper = function () {
               },
             },
             { 'persondata.0.role': 'Volunteer' },
-            { 'persondata.0.isvisible': true },
+            { 'persondata.0.isVisible': true },
           ],
         },
       },

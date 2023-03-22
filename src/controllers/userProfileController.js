@@ -254,7 +254,7 @@ const userProfileController = function (UserProfile) {
       record.timeZone = req.body.timeZone;
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
-
+      record.isVisible = req.body.isVisible || false;
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
