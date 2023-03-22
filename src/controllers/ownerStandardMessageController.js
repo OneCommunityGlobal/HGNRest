@@ -4,7 +4,7 @@ const ownerStandardMessageController = function (OwnerStandardMessage) {
       res.status(403).send('You are not authorized to create messages!');
     }
     const ownerStandardMessage = new OwnerStandardMessage();
-    ownerStandardMessage.message = req.body.newMessage;
+    ownerStandardMessage.message = req.body.newStandardMessage;
     ownerStandardMessage.save().then(() => res.status(201).json({
       _serverMessage: 'Message succesfuly created!',
       ownerStandardMessage,
@@ -24,7 +24,7 @@ const ownerStandardMessageController = function (OwnerStandardMessage) {
     OwnerStandardMessage.deleteMany({})
     .then((result) => {
       result
-        .then(res.status(200).send({ _serverMessage: 'Message deleted!' }))
+        .then(res.status(200).send({ _serverMessage: 'Standard Message deleted!' }))
         .catch((error) => {
           res.status(400).send(error);
         });
@@ -42,11 +42,11 @@ const ownerStandardMessageController = function (OwnerStandardMessage) {
 
     return OwnerStandardMessage.findById(id, (error, ownerStandardMessage) => {
       if (error || ownerStandardMessage === null) {
-        res.status(400).send('No ownerMessage found');
+        res.status(400).send('No ownerStandardMessage found');
         return;
       }
 
-      ownerStandardMessage.message = req.body.newMessage;
+      ownerStandardMessage.message = req.body.newStandardMessage;
       ownerStandardMessage.save()
         .then(results => res.status(201).send(results))
         .catch(errors => res.status(400).send(errors));
