@@ -1219,9 +1219,9 @@ const userHelper = function () {
       "stewardship",
     ];
 
-    const badgesOfType = badgeCollection.map((object) => {
-      if (object.badge.type === "Total Hrs in Category") return object.badge;
-    });
+    const badgesOfType = badgeCollection
+      .filter((object) => object.badge.type === "Total Hrs in Category")
+      .map((object) => object.badge);
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(
@@ -1299,6 +1299,7 @@ const userHelper = function () {
   };
 
   const awardNewBadges = async () => {
+    console.log("Awarding");
     try {
       const users = await userProfile
         .find({ isActive: true })
@@ -1306,7 +1307,7 @@ const userHelper = function () {
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-
+        //! You can throw a conidtion here to look for a specific user for testing purposes
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
         // await checkPersonalMax(personId, user, badgeCollection);
@@ -1315,7 +1316,7 @@ const userHelper = function () {
         await checkTotalHrsInCat(personId, user, badgeCollection);
         // await checkLeadTeamOfXplus(personId, user, badgeCollection);
         // await checkXHrsForXWeeks(personId, user, badgeCollection);
-        // await checkNoInfringementStreak(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);cd co/
       }
     } catch (err) {
       logger.logException(err);
