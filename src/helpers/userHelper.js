@@ -244,7 +244,7 @@ const userHelper = function () {
 
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
-      const users = await userProfile.find({ isActive: true }, '_id weeklySummaries');
+      const users = await userProfile.find({ isActive: true }, '_id weeklySummaries missedHours');
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
@@ -265,7 +265,9 @@ const userHelper = function () {
 
         const results = await dashboardHelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
-        const { weeklycommittedHours, timeSpent_hrs: timeSpent } = results[0];
+        const { timeSpent_hrs: timeSpent } = results[0];
+
+        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
         const timeNotMet = (timeSpent < weeklycommittedHours);
         let description;
