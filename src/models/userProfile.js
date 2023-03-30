@@ -51,6 +51,7 @@ const userProfileSchema = new Schema({
     ],
   },
   weeklycommittedHours: { type: Number, default: 10 },
+  missedHours: { type: Number, default: 0 },
   createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },

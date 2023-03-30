@@ -11,6 +11,7 @@ const userProfileJobs = () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
         await userhelper.assignBlueSquareForTimeNotMet();
+        await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.awardNewBadges();

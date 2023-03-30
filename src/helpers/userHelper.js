@@ -411,6 +411,82 @@ const userHelper = function () {
     }
   };
 
+  const applyMissedHourForCoreTeam = async () => {
+    try {
+      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+
+      logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentFormattedDate}`);
+
+      const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
+
+      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+
+      await userProfile.updateMany(
+        {
+          role: 'Core Team',
+          isActive: true,
+        },
+        [
+          {
+            $lookup: {
+              from: 'timeEntries',
+              localField: '_id',
+              foreignField: 'personId',
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$isTangible', true] },
+                        { $gte: ['$dateOfWork', pdtStartOfLastWeek] },
+                        { $lte: ['$dateOfWork', pdtEndOfLastWeek] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: 'timeEntries',
+            },
+          },
+          {
+            $set: {
+              missedHours: {
+                $max: [
+                  {
+                    $subtract: [
+                      {
+                        $sum: [
+                          { $ifNull: ['$missedHours', 0] },
+                          '$weeklycommittedHours',
+                        ],
+                      },
+                      {
+                        $divide: [
+                          {
+                            $sum: {
+                              $map: {
+                                input: '$timeEntries',
+                                in: '$$this.totalSeconds',
+                              },
+                            },
+                          },
+                          3600,
+                        ],
+                      },
+                    ],
+                  },
+                  0,
+                ],
+              },
+            },
+          },
+        ],
+      );
+    } catch (err) {
+      logger.logException(err);
+    }
+  };
+
   const deleteBlueSquareAfterYear = async () => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
@@ -1068,6 +1144,7 @@ const userHelper = function () {
     getTeamMembers,
     validateProfilePic,
     assignBlueSquareForTimeNotMet,
+    applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
     reActivateUser,
     deActivateUser,
@@ -1076,7 +1153,6 @@ const userHelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
-    // test,
   };
 };
 
