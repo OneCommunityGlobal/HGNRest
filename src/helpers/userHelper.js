@@ -913,19 +913,17 @@ const userHelper = function () {
 
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
-
     const hoursByCategory = user.hoursByCategory || {};
-    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship']
-    
+    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
+
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'Total Hrs in Category') {
         badgesOfType.push(badgeCollection[i].badge);
       }
     }
-    
+
     categories.forEach(async (category) => {
-    
       const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
 
       let badgeOfType;
@@ -942,22 +940,20 @@ const userHelper = function () {
         }
       }
 
-     
+
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
-      await badge.find({ type: 'Total Hrs in Category', category:newCatg })
+      await badge.find({ type: 'Total Hrs in Category', category: newCatg })
         .sort({ totalHrs: -1 })
         .then((results) => {
-        
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
             return;
           }
 
           results.every((elem) => {
-           
             if (hoursByCategory[categoryHrs] > 0 && hoursByCategory[categoryHrs] >= elem.totalHrs) {
               let theBadge;
-              for(let i = 0; i < badgesOfType.length; i+=1){
-                if(badgesOfType[i]._id.toString() === elem._id.toString()){
+              for (let i = 0; i < badgesOfType.length; i += 1) {
+                if (badgesOfType[i]._id.toString() === elem._id.toString()) {
                   theBadge = badgesOfType[i]._id;
                   break;
                 }
@@ -979,8 +975,7 @@ const userHelper = function () {
           });
         });
     });
-   
-  }
+  };
 
   const awardNewBadges = async () => {
     try {
