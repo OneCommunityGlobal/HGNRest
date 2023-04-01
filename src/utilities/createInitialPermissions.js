@@ -7,6 +7,7 @@ const permissionsRoles = [
     permissions: [
       'seeWeeklySummaryReports',
       'seeUserManagement',
+      'seeSummaryManagement',
       'seeBadgeManagement',
       'seePopupManagement',
       'seeProjectManagement',
