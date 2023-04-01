@@ -39,10 +39,13 @@ const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inve
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
+const summaryGroup = require('models/summaryGroup');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 const roleRouter = require('../routes/roleRouter')(role);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
+const summaryManagementRouter = require('../routes/summaryManagementRouter')(summaryGroup);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -69,4 +72,5 @@ module.exports = function (app) {
   app.use('/api', roleRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
+  app.use('/api', summaryManagementRouter);
 };
