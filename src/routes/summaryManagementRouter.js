@@ -18,4 +18,3 @@ const router = function (summaryGroup) {
 };
 
 module.exports = router;
-
