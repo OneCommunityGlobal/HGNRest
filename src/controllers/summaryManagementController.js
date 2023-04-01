@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const SummaryGroup = require('../models/summaryGroup');
 
-const summaryManagementController = function(summaryGroup) {
-  const postNewSummaryGroup = function(req, res) {
+const summaryManagementController = function (summaryGroup) {
+  const postNewSummaryGroup = function (req, res) {
     const summaryGroup = new SummaryGroup();
 
     summaryGroup.summaryGroupName = req.body.summaryGroupName;
@@ -12,8 +12,8 @@ const summaryManagementController = function(summaryGroup) {
 
     summaryGroup
       .save()
-      .then((results) => res.send(results).status(200))
-      .catch((error) => res.send(error).status(500));
+      .then(results => res.send(results).status(200))
+      .catch(error => res.send(error).status(500));
   };
   const getAllSummaryGroup = function (req, res) {
     summaryGroup.find({})
@@ -22,7 +22,6 @@ const summaryManagementController = function(summaryGroup) {
       .catch(error => res.send(error).status(404));
   };
   const deleteSummaryGroup = function (req, res) {
-    
     const { summaryGroupId } = req.params;
     summaryGroup.findById(summaryGroupId, (error, record) => {
       if (error || record === null) {
@@ -37,10 +36,10 @@ const summaryManagementController = function(summaryGroup) {
       .catch((error) => { res.status(400).send(error); });
   };
   const putSummaryGroup = function (req, res) {
-    /*if (!hasPermission(req.body.requestor.role, 'putTeam')) {
+    /* if (!hasPermission(req.body.requestor.role, 'putTeam')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
-    }*/
+    } */
 
     const { summaryGroupId } = req.params;
 
@@ -69,4 +68,3 @@ const summaryManagementController = function(summaryGroup) {
 };
 
 module.exports = summaryManagementController;
-
