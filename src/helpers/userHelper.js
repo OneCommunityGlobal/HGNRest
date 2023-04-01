@@ -415,75 +415,89 @@ const userHelper = function () {
 
   const applyMissedHourForCoreTeam = async () => {
     try {
-      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+      const currentDate = moment().tz('America/Los_Angeles');
 
-      logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentFormattedDate}`);
+      logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentDate.format()}`);
 
-      const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
+      const startOfLastWeek = currentDate.subtract(1, 'week').startOf('week').format('YYYY-MM-DD');
 
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+      const endOfLastWeek = currentDate.subtract(1, 'week').endOf('week').format('YYYY-MM-DD');
 
-      await userProfile.updateMany(
+      const missedHours = await userProfile.aggregate([
         {
-          role: 'Core Team',
-          isActive: true,
-        },
-        [
-          {
-            $lookup: {
-              from: 'timeEntries',
-              localField: '_id',
-              foreignField: 'personId',
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: ['$isTangible', true] },
-                        { $gte: ['$dateOfWork', pdtStartOfLastWeek] },
-                        { $lte: ['$dateOfWork', pdtEndOfLastWeek] },
-                      ],
-                    },
-                  },
-                },
-              ],
-              as: 'timeEntries',
-            },
+          $match: {
+            role: 'Core Team',
+            isActive: true,
           },
-          {
-            $set: {
-              missedHours: {
-                $max: [
-                  {
-                    $subtract: [
-                      {
-                        $sum: [
-                          { $ifNull: ['$missedHours', 0] },
-                          '$weeklycommittedHours',
-                        ],
-                      },
-                      {
-                        $divide: [
-                          {
-                            $sum: {
-                              $map: {
-                                input: '$timeEntries',
-                                in: '$$this.totalSeconds',
-                              },
-                            },
-                          },
-                          3600,
-                        ],
-                      },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: '_id',
+            foreignField: 'personId',
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$isTangible', true] },
+                      { $gte: ['$dateOfWork', startOfLastWeek] },
+                      { $lte: ['$dateOfWork', endOfLastWeek] },
                     ],
                   },
-                  0,
-                ],
+                },
               },
+            ],
+            as: 'timeEntries',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            missedHours: {
+              $max: [
+                {
+                  $subtract: [
+                    {
+                      $sum: [
+                        { $ifNull: ['$missedHours', 0] },
+                        '$weeklycommittedHours',
+                      ],
+                    },
+                    {
+                      $divide: [
+                        {
+                          $sum: {
+                            $map: {
+                              input: '$timeEntries',
+                              in: '$$this.totalSeconds',
+                            },
+                          },
+                        },
+                        3600,
+                      ],
+                    },
+                  ],
+                },
+                0,
+              ],
             },
           },
-        ],
-      );
+        },
+      ]);
+
+      const bulkOps = [];
+
+      missedHours.forEach((obj) => {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: obj._id },
+            update: { missedHours: obj.missedHours },
+          },
+        });
+      });
+
+      await userProfile.bulkWrite(bulkOps);
     } catch (err) {
       logger.logException(err);
     }
