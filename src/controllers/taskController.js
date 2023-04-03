@@ -1163,8 +1163,8 @@ const taskController = function (Task) {
             personId: 1,
             name: 1,
             role: 1,
-            weeklyComittedHours: {
-              $arrayElemAt: ['$persondata.weeklyComittedHours', 0],
+            weeklycommittedHours: {
+              $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
             },
           },
         },
@@ -1180,7 +1180,7 @@ const taskController = function (Task) {
           $project: {
             personId: 1,
             name: 1,
-            weeklyComittedHours: 1,
+            weeklycommittedHours: 1,
             role: 1,
             timeEntryData: {
               $filter: {
@@ -1210,7 +1210,7 @@ const taskController = function (Task) {
           $project: {
             personId: 1,
             name: 1,
-            weeklyComittedHours: 1,
+            weeklycommittedHours: 1,
             role: 1,
             totalSeconds: {
               $cond: [
@@ -1258,7 +1258,7 @@ const taskController = function (Task) {
           $group: {
             _id: {
               personId: '$personId',
-              weeklyComittedHours: '$weeklyComittedHours',
+              weeklycommittedHours: '$weeklycommittedHours',
               name: '$name',
               role: '$role',
             },
@@ -1278,7 +1278,7 @@ const taskController = function (Task) {
             _id: 0,
             personId: '$_id.personId',
             name: '$_id.name',
-            weeklyComittedHours: '$_id.weeklyComittedHours',
+            weeklycommittedHours: '$_id.weeklycommittedHours',
             role: '$_id.role',
             totaltime_hrs: {
               $divide: ['$totalSeconds', 3600],
@@ -1411,6 +1411,24 @@ const taskController = function (Task) {
       res.status(400).send(error);
     }
   };
+  const updateChildrenQty = (req, res) => {
+    const { taskId } = req.params;
+    Task.findById(taskId, (error, task) => {
+      if (task) {
+        let newQty = 0;
+        let child = true;
+        if (task.childrenQty > 0) {
+          newQty = task.childrenQty - 1;
+          if (newQty === 0) {
+            child = false;
+          }
+        }
+        task.hasChild = child;
+        task.childrenQty = newQty;
+        task.save();
+      }
+    });
+  };
 
   return {
     postTask,
@@ -1427,6 +1445,7 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
+    updateChildrenQty,
   };
 };
 

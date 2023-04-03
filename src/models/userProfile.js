@@ -48,7 +48,7 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
-  weeklyComittedHours: { type: Number, default: 10 },
+  weeklycommittedHours: { type: Number, default: 10 },
   createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },

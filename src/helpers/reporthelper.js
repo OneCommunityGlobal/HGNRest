@@ -62,7 +62,7 @@ const reporthelper = function () {
         lastName: 1,
         email: 1,
         mediaUrl: 1,
-        weeklyComittedHours: 1,
+        weeklycommittedHours: 1,
         weeklySummaryNotReq: 1,
         weeklySummaries: {
           $filter: {
@@ -112,8 +112,8 @@ const reporthelper = function () {
    * Checks whether a date belongs to a specific week based on week index.
    *
    * @param {string} dueDate The date to check.
-   * @param {integer} weekIndex An integer in the range 0 - 2, where 0 (this week),
-   *                      1 (last week) or 2 (the week before last).
+   * @param {integer} weekIndex An integer in the range 0 - 3, where 0 (this week),
+   *                      1 (last week), 2 (the week before last) or 3 (three weeks ago).
    * @return {boolean} True if match, false otherwise.
    */
   const doesDateBelongToWeek = function (dueDate, weekIndex) {
@@ -126,7 +126,7 @@ const reporthelper = function () {
 
   /**
    * Get the week index relative to this week, eg. 0 (this week),
-   * 1 (last week) or 2 (the week before last).
+   * 1 (last week), 2 (the week before last) or 3 (three weeks ago).
    *
    * @param {string} dueDate The date to check.
    * @return {integer} The week index, -1 if no match.
@@ -135,6 +135,7 @@ const reporthelper = function () {
     if (doesDateBelongToWeek(dueDate, 0)) return 0;
     if (doesDateBelongToWeek(dueDate, 1)) return 1;
     if (doesDateBelongToWeek(dueDate, 2)) return 2;
+    if (doesDateBelongToWeek(dueDate, 3)) return 3;
     return -1;
   };
 
@@ -145,6 +146,7 @@ const reporthelper = function () {
    *  - the 1st entry should always have the dueDate for this week.
    *  - the 2nd entry should always have the dueDate for last week.
    *  - the 3rd entry should always have the dueDate for the week before last.
+   *  - the 4th entry should always have the dueDate for three weeks ago.
    *
    * @param {Object} results An array of user objects with selected fields.
    * @return {Object} An array of user objects with properly sorted weeklySummaries by due date.

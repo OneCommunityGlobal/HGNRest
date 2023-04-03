@@ -1,3 +1,5 @@
+const UserProfile = require('../models/userProfile');
+const cache = require('../utilities/nodeCache')();
 
 const rolesController = function (Role) {
   const getAllRoles = function (req, res) {
@@ -18,6 +20,7 @@ const rolesController = function (Role) {
     const role = new Role();
     role.roleName = req.body.roleName;
     role.permissions = req.body.permissions;
+    role.permissionsBackEnd = req.body.permissionsBackEnd;
 
     role.save().then(results => res.status(201).send(results)).catch(err => res.status(500).send({ err }));
   };
@@ -48,7 +51,10 @@ const rolesController = function (Role) {
         res.status(400).send('No valid records found');
         return;
       }
+      record.roleName = req.body.roleName;
       record.permissions = req.body.permissions;
+      record.permissionsBackEnd = req.body.permissionsBackEnd;
+
       record.save()
         .then(results => res.status(201).send(results))
         .catch(errors => res.status(400).send(errors));
@@ -61,17 +67,29 @@ const rolesController = function (Role) {
       res.status(403).send('You are not authorized to make changes in the roles.');
     }
     Role.findById(roleId)
-      .then((result) => {
+      .then(result => (
         result
           .remove()
-          .then(res.status(200).send({ message: 'Deleted role' }))
-          .catch((error) => {
-            res.status(400).send(error);
-          });
-      })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+          .then(UserProfile
+            .updateMany({ role: result.roleName }, { role: 'Volunteer' })
+            .then(() => {
+              const isUserInCache = cache.hasCache('allusers');
+              if (isUserInCache) {
+                const allUserData = JSON.parse(cache.getCache('allusers'));
+                allUserData.forEach((user) => {
+                  if (user.role === result.roleName) {
+                    user.role = 'Volunteer';
+                    cache.removeCache(`user-${user._id}`);
+                  }
+                });
+                cache.setCache('allusers', JSON.stringify(allUserData));
+              }
+              res.status(200).send({ message: 'Deleted role' });
+            })
+            .catch(error => res.status(400).send({ error })))
+          .catch(error => res.status(400).send({ error }))
+      ))
+      .catch(error => res.status(400).send({ error }));
   };
 
 

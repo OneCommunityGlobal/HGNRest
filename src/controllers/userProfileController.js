@@ -3,6 +3,8 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const moment_ = require('moment');
+const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
@@ -10,6 +12,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
+const config = require('../config');
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -60,7 +63,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklyComittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -144,6 +147,14 @@ const userProfileController = function (UserProfile) {
       lastName: req.body.lastName,
     });
 
+    if (userDuplicateName && !req.body.allowsDuplicateName) {
+      res.status(400).send({
+        error: 'That name is already in use. Please confirm if you want to use this name.',
+        type: 'name',
+      });
+      return;
+    }
+
     const up = new UserProfile();
     up.password = req.body.password;
     up.role = req.body.role;
@@ -152,7 +163,7 @@ const userProfileController = function (UserProfile) {
     up.jobTitle = req.body.jobTitle;
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
-    up.weeklyComittedHours = req.body.weeklyComittedHours;
+    up.weeklycommittedHours = req.body.weeklycommittedHours;
     up.personalLinks = req.body.personalLinks;
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
@@ -169,17 +180,12 @@ const userProfileController = function (UserProfile) {
 
     up.save()
       .then(() => {
-        if (userDuplicateName) {
-          res.status(200).send({
-            warning: 'User with same name exists, new user with duplicate name created.',
-            _id: up._id,
-          });
-        }
         res.status(200).send({
           _id: up._id,
         });
 
         // update backend cache
+
         const userCache = `{"isActive":${true},"weeklyComittedHours":${up.weeklyComittedHours},
                             "createdDate":"${up.createdDate.toISOString()}","_id":"${
           up._id
@@ -263,7 +269,7 @@ const userProfileController = function (UserProfile) {
       if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
-        record.weeklyComittedHours = req.body.weeklyComittedHours;
+        record.weeklycommittedHours = req.body.weeklycommittedHours;
         record.adminLinks = req.body.adminLinks;
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
@@ -294,7 +300,7 @@ const userProfileController = function (UserProfile) {
         }
         if (isUserInCache) {
           userData.role = record.role;
-          userData.weeklyComittedHours = record.weeklyComittedHours;
+          userData.weeklycommittedHours = record.weeklycommittedHours;
           userData.email = record.email;
           userData.isActive = record.isActive;
           userData.createdDate = record.createdDate.toISOString();
@@ -611,6 +617,18 @@ const userProfileController = function (UserProfile) {
         user
           .save()
           .then(() => {
+            const isUserInCache = cache.hasCache('allusers');
+            if (isUserInCache) {
+              const allUserData = JSON.parse(cache.getCache('allusers'));
+              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userData = allUserData[userIdx];
+              if (!status) {
+                userData.endDate = user.endDate.toISOString();
+              }
+              userData.isActive = user.isActive;
+              allUserData.splice(userIdx, 1, userData);
+              cache.setCache('allusers', JSON.stringify(allUserData));
+            }
             res.status(200).send({
               message: 'status updated',
             });
@@ -657,6 +675,24 @@ const userProfileController = function (UserProfile) {
       res.status(400).send(error);
     }
   };
+  const refreshToken = async (req, res) => {
+    const { JWT_SECRET } = config;
+    const user = await UserProfile.findById(req.params.userId);
+
+    if (!user) {
+      res.status(403).send({ message: 'User does not exist' });
+      return;
+    }
+
+    const jwtPayload = {
+      userid: user._id,
+      role: user.role,
+      permissions: user.permissions,
+      expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+    };
+    const refreshToken = jwt.sign(jwtPayload, JWT_SECRET);
+    res.status(200).send({ refreshToken });
+  };
 
   return {
     postUserProfile,
@@ -673,6 +709,7 @@ const userProfileController = function (UserProfile) {
     resetPassword,
     getUserByName,
     getAllUsersWithFacebookLink,
+    refreshToken,
   };
 };
 

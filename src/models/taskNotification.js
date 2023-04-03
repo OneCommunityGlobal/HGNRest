@@ -25,6 +25,7 @@ const taskNotificationSchema = new Schema({
         name: { type: String, required: true },
         userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
         profilePic: { type: String },
+        completedTask: { type: Boolean, default: false },
       },
     ],
     isAssigned: { type: Boolean, default: true },

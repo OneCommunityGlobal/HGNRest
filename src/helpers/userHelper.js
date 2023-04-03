@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
+const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
@@ -71,18 +72,17 @@ const userHelper = function () {
         <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
         <p>Thank you,<br />
         One Community</p>`;
-
     return text;
   };
 
 
   /**
    * This function will send out an email listing all users that have a summary provided for a specific week.
-   * A week is represented by an weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
+   * A week is represented by an weekIndex: 0, 1, 2 or 3, where 0 is the most recent and 3 the oldest.
    * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
    * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
    *
-   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 2 the oldest.
+   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 3 the oldest.
    *
    * @return {void}
    */
@@ -108,7 +108,7 @@ const userHelper = function () {
         const result = results[i];
 
         const {
-          firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklyComittedHours,
+          firstName, lastName, email, weeklySummaries, mediaUrl, weeklySummariesCount, weeklycommittedHours,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -154,9 +154,9 @@ const userHelper = function () {
     : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
 }
           ${
-  hoursLogged >= weeklyComittedHours
-    ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
-    : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklyComittedHours}</p>`
+  hoursLogged >= weeklycommittedHours
+    ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
+    : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
 }
           ${weeklySummaryMessage}
         </div>`;
@@ -192,7 +192,7 @@ const userHelper = function () {
   /**
    * This function will process the weeklySummaries array in the following way:
    *  1 ) Push a new (blank) summary at the beginning of the array.
-   *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
+   *  2 ) Always maintains 4 items in the array where each item represents a summary for a given week.
    *
    * This function will also increment the weeklySummariesCount by 1 if the user had provided a valid summary.
    *
@@ -211,7 +211,7 @@ const userHelper = function () {
               },
             ],
             $position: 0,
-            $slice: 3,
+            $slice: 4,
           },
         },
       })
@@ -265,9 +265,9 @@ const userHelper = function () {
 
         const results = await dashboardHelper.laborthisweek(personId, pdtStartOfLastWeek, pdtEndOfLastWeek);
 
-        const { weeklyComittedHours, timeSpent_hrs: timeSpent } = results[0];
+        const { weeklycommittedHours, timeSpent_hrs: timeSpent } = results[0];
 
-        const timeNotMet = (timeSpent < weeklyComittedHours);
+        const timeNotMet = (timeSpent < weeklycommittedHours);
         let description;
 
         const updateResult = await userProfile.findByIdAndUpdate(
@@ -316,9 +316,9 @@ const userHelper = function () {
 
         if (timeNotMet || (!hasWeeklySummary)) {
           if (timeNotMet && !hasWeeklySummary) {
-            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
-            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklyComittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
@@ -689,7 +689,7 @@ const userHelper = function () {
 
         for (let i = 0; i < results.length; i += 1) { // this needs to be a for loop so that the returns break before assigning badges for lower multiples
           const elem = results[i]; // making variable elem accessible for below code
-          if ((user.lastWeekTangibleHrs / user.weeklyComittedHours) >= elem.multiple) {
+          if ((user.lastWeekTangibleHrs / user.weeklycommittedHours) >= elem.multiple) {
             let theBadge;
             for (let j = 0; j < badgesOfType.length; j += 1) {
               if (badgesOfType[j]._id.toString() === elem._id.toString()) {
@@ -913,14 +913,19 @@ const userHelper = function () {
 
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
-    const categoryTangibleHrs = user.categoryTangibleHrs || [];
-    const categories = ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship'];
-    if (categoryTangibleHrs.length === 0) {
-      return;
+    const hoursByCategory = user.hoursByCategory || {};
+    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
+
+    const badgesOfType = [];
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'Total Hrs in Category') {
+        badgesOfType.push(badgeCollection[i].badge);
+      }
     }
 
     categories.forEach(async (category) => {
-      const categoryHrs = categoryTangibleHrs.find(elem => elem.category === category);
+      const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
+
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
         if (badgeCollection[i].badge?.type === 'Total Hrs in Category' && badgeCollection[i].badge?.category === category) {
@@ -934,7 +939,10 @@ const userHelper = function () {
           }
         }
       }
-      await badge.find({ type: 'Total Hrs in Category', category })
+
+
+      const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
+      await badge.find({ type: 'Total Hrs in Category', category: newCatg })
         .sort({ totalHrs: -1 })
         .then((results) => {
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
@@ -942,7 +950,18 @@ const userHelper = function () {
           }
 
           results.every((elem) => {
-            if (categoryHrs.hrs >= elem.totalHrs) {
+            if (hoursByCategory[categoryHrs] > 0 && hoursByCategory[categoryHrs] >= elem.totalHrs) {
+              let theBadge;
+              for (let i = 0; i < badgesOfType.length; i += 1) {
+                if (badgesOfType[i]._id.toString() === elem._id.toString()) {
+                  theBadge = badgesOfType[i]._id;
+                  break;
+                }
+              }
+              if (theBadge) {
+                increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
+                return false;
+              }
               if (badgeOfType) {
                 if (badgeOfType._id.toString() !== elem._id.toString() && badgeOfType.totalHrs < elem.totalHrs) {
                   replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(elem._id));
