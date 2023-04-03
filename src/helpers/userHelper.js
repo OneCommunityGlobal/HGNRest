@@ -85,11 +85,11 @@ const userHelper = function () {
 
   /**
    * This function will send out an email listing all users that have a summary provided for a specific week.
-   * A week is represented by an weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
+   * A week is represented by an weekIndex: 0, 1, 2 or 3, where 0 is the most recent and 3 the oldest.
    * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
    * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
    *
-   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 2 the oldest.
+   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 3 the oldest.
    *
    * @return {void}
    */
@@ -227,7 +227,7 @@ const userHelper = function () {
   /**
    * This function will process the weeklySummaries array in the following way:
    *  1 ) Push a new (blank) summary at the beginning of the array.
-   *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
+   *  2 ) Always maintains 4 items in the array where each item represents a summary for a given week.
    *
    * This function will also increment the weeklySummariesCount by 1 if the user had provided a valid summary.
    *
@@ -246,7 +246,7 @@ const userHelper = function () {
               },
             ],
             $position: 0,
-            $slice: 3,
+            $slice: 4,
           },
         },
       })
