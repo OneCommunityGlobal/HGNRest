@@ -8,7 +8,7 @@ const reportsController = function () {
       return;
     }
 
-    const weeklySummaries = reporthelper.weeklySummaries(2, 0);
+    const weeklySummaries = reporthelper.weeklySummaries(3, 0);
     weeklySummaries
       .then((results) => {
         const summaries = reporthelper.formatSummaries(results);
