@@ -244,7 +244,7 @@ const userHelper = function () {
 
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
-      const users = await userProfile.find({ isActive: true }, '_id weeklySummaries missedHours');
+      const users = await userProfile.find({ isActive: true }, '_id weeklycommittedHours weeklySummaries missedHours');
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
@@ -415,13 +415,21 @@ const userHelper = function () {
 
   const applyMissedHourForCoreTeam = async () => {
     try {
-      const currentDate = moment().tz('America/Los_Angeles');
+      const currentDate = moment().tz('America/Los_Angeles').format();
 
-      logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentDate.format()}`);
+      logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentDate}`);
 
-      const startOfLastWeek = currentDate.subtract(1, 'week').startOf('week').format('YYYY-MM-DD');
+      const startOfLastWeek = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .subtract(1, 'week')
+      .format('YYYY-MM-DD');
 
-      const endOfLastWeek = currentDate.subtract(1, 'week').endOf('week').format('YYYY-MM-DD');
+      const endOfLastWeek = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(1, 'week')
+      .format('YYYY-MM-DD');
 
       const missedHours = await userProfile.aggregate([
         {
