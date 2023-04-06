@@ -84,11 +84,11 @@ const userHelper = function () {
 
   /**
    * This function will send out an email listing all users that have a summary provided for a specific week.
-   * A week is represented by an weekIndex: 0, 1 or 2, where 0 is the most recent and 2 the oldest.
+   * A week is represented by an weekIndex: 0, 1, 2 or 3, where 0 is the most recent and 3 the oldest.
    * It relies on the function weeklySummaries(startWeekIndex, endWeekIndex) to get the weekly summaries for the specific week.
    * In this case both the startWeekIndex and endWeekIndex are set to 1 to get the last weeks' summaries for all users.
    *
-   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 2 the oldest.
+   * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 3 the oldest.
    *
    * @return {void}
    */
@@ -220,7 +220,7 @@ const userHelper = function () {
   /**
    * This function will process the weeklySummaries array in the following way:
    *  1 ) Push a new (blank) summary at the beginning of the array.
-   *  2 ) Always maintains 3 items in the array where each item represents a summary for a given week.
+   *  2 ) Always maintains 4 items in the array where each item represents a summary for a given week.
    *
    * This function will also increment the weeklySummariesCount by 1 if the user had provided a valid summary.
    *
@@ -239,7 +239,7 @@ const userHelper = function () {
               },
             ],
             $position: 0,
-            $slice: 3,
+            $slice: 4,
           },
         },
       })
@@ -270,9 +270,8 @@ const userHelper = function () {
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
-      logger.logInfo(
-        `Job for assigning blue square for committment not met starting at ${currentFormattedDate}`,
-      );
+
+      logger.logInfo(`Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`);
 
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
@@ -371,13 +370,10 @@ const userHelper = function () {
 
         if (timeNotMet || !hasWeeklySummary) {
           if (timeNotMet && !hasWeeklySummary) {
-            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time committment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committted effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+
+            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
-            description = `System auto-assigned infringement for not meeting weekly volunteer time committment. You logged ${timeSpent} hours against committted effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
               'dddd YYYY-MM-DD',
@@ -1202,15 +1198,8 @@ const userHelper = function () {
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
-    const categories = [
-      'food',
-      'energy',
-      'housing',
-      'education',
-      'society',
-      'economics',
-      'stewardship',
-    ];
+
+    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
 
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
@@ -1220,9 +1209,8 @@ const userHelper = function () {
     }
 
     categories.forEach(async (category) => {
-      const categoryHrs = Object.keys(hoursByCategory).find(
-        elem => elem === category,
-      );
+      const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
+
 
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
@@ -1247,9 +1235,11 @@ const userHelper = function () {
         }
       }
 
+
+
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
-      await badge
-        .find({ type: 'Total Hrs in Category', category: newCatg })
+      await badge.find({ type: 'Total Hrs in Category', category: newCatg })
+
         .sort({ totalHrs: -1 })
         .then((results) => {
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
@@ -1257,10 +1247,9 @@ const userHelper = function () {
           }
 
           results.every((elem) => {
-            if (
-              hoursByCategory[categoryHrs] > 0
-              && hoursByCategory[categoryHrs] >= elem.totalHrs
-            ) {
+
+            if (hoursByCategory[categoryHrs] > 0 && hoursByCategory[categoryHrs] >= elem.totalHrs) {
+
               let theBadge;
               for (let i = 0; i < badgesOfType.length; i += 1) {
                 if (badgesOfType[i]._id.toString() === elem._id.toString()) {
