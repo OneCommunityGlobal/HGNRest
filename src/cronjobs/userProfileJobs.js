@@ -3,7 +3,6 @@ const moment = require('moment-timezone');
 
 const userhelper = require('../helpers/userHelper')();
 
-
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
     '1 0 * * *', // Every day, 1 minute past midnight (PST).
