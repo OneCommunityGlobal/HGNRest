@@ -261,6 +261,7 @@ const userProfileController = function (UserProfile) {
       record.timeZone = req.body.timeZone;
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
+      record.isVisible = req.body.isVisible || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
 
       // find userData in cache
