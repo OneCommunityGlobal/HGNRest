@@ -1,26 +1,26 @@
-const moment = require('moment-timezone');
-const mongoose = require('mongoose');
-const userProfile = require('../models/userProfile');
-const timeentry = require('../models/timeentry');
-const myTeam = require('../helpers/helperModels/myTeam');
+const moment = require("moment-timezone");
+const mongoose = require("mongoose");
+const userProfile = require("../models/userProfile");
+const timeentry = require("../models/timeentry");
+const myTeam = require("../helpers/helperModels/myTeam");
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
     return userProfile.findById(
       userId,
-      '_id firstName lastName role profilePic badgeCollection',
+      "_id firstName lastName role profilePic badgeCollection"
     );
   };
 
   const getOrgData = async function () {
     const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .startOf("week")
+      .format("YYYY-MM-DD");
     const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .format("YYYY-MM-DD");
 
     const output = await userProfile.aggregate([
       {
@@ -30,10 +30,10 @@ const dashboardhelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
@@ -43,15 +43,15 @@ const dashboardhelper = function () {
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $gte: ['$$timeentry.dateOfWork', pdtstart],
+                    $gte: ["$$timeentry.dateOfWork", pdtstart],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', pdtend],
+                    $lte: ["$$timeentry.dateOfWork", pdtend],
                   },
                 ],
               },
@@ -61,7 +61,7 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
@@ -72,18 +72,18 @@ const dashboardhelper = function () {
           totalSeconds: {
             $cond: [
               {
-                $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ["$timeEntryData.totalSeconds", 0],
               },
-              '$timeEntryData.totalSeconds',
+              "$timeEntryData.totalSeconds",
               0,
             ],
           },
           isTangible: {
             $cond: [
               {
-                $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ["$timeEntryData.totalSeconds", 0],
               },
-              '$timeEntryData.isTangible',
+              "$timeEntryData.isTangible",
               false,
             ],
           },
@@ -94,18 +94,18 @@ const dashboardhelper = function () {
           tangibletime: {
             $cond: [
               {
-                $eq: ['$isTangible', true],
+                $eq: ["$isTangible", true],
               },
-              '$totalSeconds',
+              "$totalSeconds",
               0,
             ],
           },
           intangibletime: {
             $cond: [
               {
-                $eq: ['$isTangible', false],
+                $eq: ["$isTangible", false],
               },
-              '$totalSeconds',
+              "$totalSeconds",
               0,
             ],
           },
@@ -118,43 +118,43 @@ const dashboardhelper = function () {
             $sum: 1,
           },
           totalSeconds: {
-            $sum: '$totalSeconds',
+            $sum: "$totalSeconds",
           },
           tangibletime: {
-            $sum: '$tangibletime',
+            $sum: "$tangibletime",
           },
           intangibletime: {
-            $sum: '$intangibletime',
+            $sum: "$intangibletime",
           },
           totalweeklycommittedHours: {
-            $sum: '$weeklycommittedHours',
+            $sum: "$weeklycommittedHours",
           },
         },
       },
       {
         $project: {
           _id: 0,
-          memberCount: '$member_count',
-          totalweeklycommittedHours: '$totalweeklycommittedHours',
+          memberCount: "$member_count",
+          totalweeklycommittedHours: "$totalweeklycommittedHours",
           totaltime_hrs: {
-            $divide: ['$totalSeconds', 3600],
+            $divide: ["$totalSeconds", 3600],
           },
           totaltangibletime_hrs: {
-            $divide: ['$tangibletime', 3600],
+            $divide: ["$tangibletime", 3600],
           },
           totalintangibletime_hrs: {
-            $divide: ['$intangibletime', 3600],
+            $divide: ["$intangibletime", 3600],
           },
           percentagespentintangible: {
             $cond: [
               {
-                $eq: ['$totalSeconds', 0],
+                $eq: ["$totalSeconds", 0],
               },
               0,
               {
                 $multiply: [
                   {
-                    $divide: ['$tangibletime', '$totalSeconds'],
+                    $divide: ["$tangibletime", "$totalSeconds"],
                   },
                   100,
                 ],
@@ -168,14 +168,14 @@ const dashboardhelper = function () {
     // This is a temporary band aid. I can't figure out why, but intangible time entries
     // somehow increment the total weekly committted hours across all users. ???
     const USERS = await userProfile.find({ isActive: true });
-    let TOTAL_committED_HOURS = 0;
+    let totalCommittedHours = 0;
     let MEMBER_COUNT = 0;
     USERS.forEach((user) => {
-      TOTAL_committED_HOURS += user.weeklycommittedHours;
+      totalCommittedHours += user.weeklycommittedHours;
       MEMBER_COUNT += 1;
     });
 
-    output[0].totalweeklycommittedHours = TOTAL_committED_HOURS;
+    output[0].totalweeklycommittedHours = totalCommittedHours;
     output[0].memberCount = MEMBER_COUNT;
 
     return output;
@@ -184,13 +184,13 @@ const dashboardhelper = function () {
   const getLeaderboard = function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .startOf("week")
+      .format("YYYY-MM-DD");
     const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .format("YYYY-MM-DD");
     return myTeam.aggregate([
       {
         $match: {
@@ -198,22 +198,22 @@ const dashboardhelper = function () {
         },
       },
       {
-        $unwind: '$myteam',
+        $unwind: "$myteam",
       },
       {
         $project: {
           _id: 0,
           role: 1,
-          personId: '$myteam._id',
-          name: '$myteam.fullName',
+          personId: "$myteam._id",
+          name: "$myteam.fullName",
         },
       },
       {
         $lookup: {
-          from: 'userProfiles',
-          localField: 'personId',
-          foreignField: '_id',
-          as: 'persondata',
+          from: "userProfiles",
+          localField: "personId",
+          foreignField: "_id",
+          as: "persondata",
         },
       },
       {
@@ -238,16 +238,16 @@ const dashboardhelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: {
-            $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+            $arrayElemAt: ["$persondata.weeklycommittedHours", 0],
           },
         },
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: 'personId',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "personId",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
@@ -257,15 +257,15 @@ const dashboardhelper = function () {
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $gte: ['$$timeentry.dateOfWork', pdtstart],
+                    $gte: ["$$timeentry.dateOfWork", pdtstart],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', pdtend],
+                    $lte: ["$$timeentry.dateOfWork", pdtend],
                   },
                 ],
               },
@@ -275,7 +275,7 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
@@ -287,18 +287,18 @@ const dashboardhelper = function () {
           totalSeconds: {
             $cond: [
               {
-                $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ["$timeEntryData.totalSeconds", 0],
               },
-              '$timeEntryData.totalSeconds',
+              "$timeEntryData.totalSeconds",
               0,
             ],
           },
           isTangible: {
             $cond: [
               {
-                $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ["$timeEntryData.totalSeconds", 0],
               },
-              '$timeEntryData.isTangible',
+              "$timeEntryData.isTangible",
               false,
             ],
           },
@@ -309,18 +309,18 @@ const dashboardhelper = function () {
           tangibletime: {
             $cond: [
               {
-                $eq: ['$isTangible', true],
+                $eq: ["$isTangible", true],
               },
-              '$totalSeconds',
+              "$totalSeconds",
               0,
             ],
           },
           intangibletime: {
             $cond: [
               {
-                $eq: ['$isTangible', false],
+                $eq: ["$isTangible", false],
               },
-              '$totalSeconds',
+              "$totalSeconds",
               0,
             ],
           },
@@ -329,46 +329,46 @@ const dashboardhelper = function () {
       {
         $group: {
           _id: {
-            personId: '$personId',
-            weeklycommittedHours: '$weeklycommittedHours',
-            name: '$name',
+            personId: "$personId",
+            weeklycommittedHours: "$weeklycommittedHours",
+            name: "$name",
           },
           totalSeconds: {
-            $sum: '$totalSeconds',
+            $sum: "$totalSeconds",
           },
           tangibletime: {
-            $sum: '$tangibletime',
+            $sum: "$tangibletime",
           },
           intangibletime: {
-            $sum: '$intangibletime',
+            $sum: "$intangibletime",
           },
         },
       },
       {
         $project: {
           _id: 0,
-          personId: '$_id.personId',
-          name: '$_id.name',
-          weeklycommittedHours: '$_id.weeklycommittedHours',
+          personId: "$_id.personId",
+          name: "$_id.name",
+          weeklycommittedHours: "$_id.weeklycommittedHours",
           totaltime_hrs: {
-            $divide: ['$totalSeconds', 3600],
+            $divide: ["$totalSeconds", 3600],
           },
           totaltangibletime_hrs: {
-            $divide: ['$tangibletime', 3600],
+            $divide: ["$tangibletime", 3600],
           },
           totalintangibletime_hrs: {
-            $divide: ['$intangibletime', 3600],
+            $divide: ["$intangibletime", 3600],
           },
           percentagespentintangible: {
             $cond: [
               {
-                $eq: ['$totalSeconds', 0],
+                $eq: ["$totalSeconds", 0],
               },
               0,
               {
                 $multiply: [
                   {
-                    $divide: ['$tangibletime', '$totalSeconds'],
+                    $divide: ["$tangibletime", "$totalSeconds"],
                   },
                   100,
                 ],
@@ -394,14 +394,14 @@ const dashboardhelper = function () {
   const getUserLaborData = async function (userId) {
     try {
       const pdtStart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+        .tz("America/Los_Angeles")
+        .startOf("week")
+        .format("YYYY-MM-DD");
 
       const pdtEnd = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+        .tz("America/Los_Angeles")
+        .endOf("week")
+        .format("YYYY-MM-DD");
 
       const user = await userProfile.findById({
         _id: userId,
@@ -433,14 +433,15 @@ const dashboardhelper = function () {
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
           totaltangibletime_hrs: tangibleSeconds / 3600,
           totalintangibletime_hrs: intangibleSeconds / 3600,
-          percentagespentintangible: (intangibleSeconds / tangibleSeconds) * 100,
+          percentagespentintangible:
+            (intangibleSeconds / tangibleSeconds) * 100,
         },
       ];
     } catch (err) {
       return [
         {
-          personId: 'error',
-          name: 'Error Error',
+          personId: "error",
+          name: "Error Error",
           totaltime_hrs: 0,
           totaltangibletime_hrs: 0,
           totalintangibletime_hrs: 0,
@@ -451,8 +452,8 @@ const dashboardhelper = function () {
   };
 
   const laborthismonth = function (userId, startDate, endDate) {
-    const fromdate = moment(startDate).format('YYYY-MM-DD');
-    const todate = moment(endDate).format('YYYY-MM-DD');
+    const fromdate = moment(startDate).format("YYYY-MM-DD");
+    const todate = moment(endDate).format("YYYY-MM-DD");
 
     return timeentry.aggregate([
       {
@@ -468,19 +469,19 @@ const dashboardhelper = function () {
       {
         $group: {
           _id: {
-            projectId: '$projectId',
+            projectId: "$projectId",
           },
           labor: {
-            $sum: '$totalSeconds',
+            $sum: "$totalSeconds",
           },
         },
       },
       {
         $lookup: {
-          from: 'projects',
-          localField: '_id.projectId',
-          foreignField: '_id',
-          as: 'project',
+          from: "projects",
+          localField: "_id.projectId",
+          foreignField: "_id",
+          as: "project",
         },
       },
       {
@@ -489,13 +490,13 @@ const dashboardhelper = function () {
           projectName: {
             $ifNull: [
               {
-                $arrayElemAt: ['$project.projectName', 0],
+                $arrayElemAt: ["$project.projectName", 0],
               },
-              'Undefined',
+              "Undefined",
             ],
           },
           timeSpent_hrs: {
-            $divide: ['$labor', 3600],
+            $divide: ["$labor", 3600],
           },
         },
       },
@@ -503,8 +504,8 @@ const dashboardhelper = function () {
   };
 
   const laborthisweek = function (userId, startDate, endDate) {
-    const fromdate = moment(startDate).format('YYYY-MM-DD');
-    const todate = moment(endDate).format('YYYY-MM-DD');
+    const fromdate = moment(startDate).format("YYYY-MM-DD");
+    const todate = moment(endDate).format("YYYY-MM-DD");
 
     return userProfile.aggregate([
       {
@@ -520,10 +521,10 @@ const dashboardhelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
@@ -531,18 +532,18 @@ const dashboardhelper = function () {
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $eq: ['$$timeentry.isTangible', true],
+                    $eq: ["$$timeentry.isTangible", true],
                   },
                   {
-                    $gte: ['$$timeentry.dateOfWork', fromdate],
+                    $gte: ["$$timeentry.dateOfWork", fromdate],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', todate],
+                    $lte: ["$$timeentry.dateOfWork", todate],
                   },
                 ],
               },
@@ -552,27 +553,27 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
           _id: {
-            _id: '$_id',
-            weeklycommittedHours: '$weeklycommittedHours',
+            _id: "$_id",
+            weeklycommittedHours: "$weeklycommittedHours",
           },
           effort: {
-            $sum: '$timeEntryData.totalSeconds',
+            $sum: "$timeEntryData.totalSeconds",
           },
         },
       },
       {
         $project: {
           _id: 0,
-          weeklycommittedHours: '$_id.weeklycommittedHours',
+          weeklycommittedHours: "$_id.weeklycommittedHours",
           timeSpent_hrs: {
-            $divide: ['$effort', 3600],
+            $divide: ["$effort", 3600],
           },
         },
       },
@@ -580,8 +581,8 @@ const dashboardhelper = function () {
   };
 
   const laborThisWeekByCategory = function (userId, startDate, endDate) {
-    const fromdate = moment(startDate).format('YYYY-MM-DD');
-    const todate = moment(endDate).format('YYYY-MM-DD');
+    const fromdate = moment(startDate).format("YYYY-MM-DD");
+    const todate = moment(endDate).format("YYYY-MM-DD");
 
     return userProfile.aggregate([
       {
@@ -597,10 +598,10 @@ const dashboardhelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
@@ -608,18 +609,18 @@ const dashboardhelper = function () {
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $eq: ['$$timeentry.isTangible', true],
+                    $eq: ["$$timeentry.isTangible", true],
                   },
                   {
-                    $gte: ['$$timeentry.dateOfWork', fromdate],
+                    $gte: ["$$timeentry.dateOfWork", fromdate],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', todate],
+                    $lte: ["$$timeentry.dateOfWork", todate],
                   },
                 ],
               },
@@ -629,37 +630,37 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
-          _id: '$timeEntryData.projectId',
+          _id: "$timeEntryData.projectId",
           effort: {
-            $sum: '$timeEntryData.totalSeconds',
+            $sum: "$timeEntryData.totalSeconds",
           },
         },
       },
       {
         $lookup: {
-          from: 'projects',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'project',
+          from: "projects",
+          localField: "_id",
+          foreignField: "_id",
+          as: "project",
         },
       },
       {
         $unwind: {
-          path: '$project',
+          path: "$project",
           preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
-          _id: '$project.category',
+          _id: "$project.category",
           effort: {
-            $sum: '$effort',
+            $sum: "$effort",
           },
         },
       },
@@ -667,7 +668,7 @@ const dashboardhelper = function () {
         $project: {
           _id: 1,
           timeSpent_hrs: {
-            $divide: ['$effort', 3600],
+            $divide: ["$effort", 3600],
           },
         },
       },
