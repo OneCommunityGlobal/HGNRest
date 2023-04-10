@@ -1,9 +1,9 @@
-const mongoose = require('mongoose');
-const moment = require('moment-timezone');
-const myteam = require('../helpers/helperModels/myTeam');
-const wbs = require('../models/wbs');
-const timeEntryHelper = require('../helpers/timeEntryHelper')();
-const hasPermission = require('../utilities/permissions');
+const mongoose = require("mongoose");
+const moment = require("moment-timezone");
+const myteam = require("../helpers/helperModels/myTeam");
+const wbs = require("../models/wbs");
+const timeEntryHelper = require("../helpers/timeEntryHelper")();
+const hasPermission = require("../utilities/permissions");
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -16,7 +16,7 @@ const taskController = function (Task) {
 
     const { mother } = req.params;
 
-    if (mother !== '0') {
+    if (mother !== "0") {
       query = {
         wbsId: { $in: [req.params.wbsId] },
         level: { $in: [level] },
@@ -25,12 +25,19 @@ const taskController = function (Task) {
     }
 
     Task.find(query)
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
-
-  const updateSumUp = (taskId, hoursBest, hoursWorst, hoursMost, hoursLogged, estimatedHours, resources) => {
+  const updateSumUp = (
+    taskId,
+    hoursBest,
+    hoursWorst,
+    hoursMost,
+    hoursLogged,
+    estimatedHours,
+    resources
+  ) => {
     Task.findById(taskId, (error, task) => {
       task.hoursBest = hoursBest;
       task.hoursMost = hoursMost;
@@ -65,10 +72,10 @@ const taskController = function (Task) {
   };
 
   const calculateSubTasks = (level, tasks) => {
-    const parentTasks = tasks.filter(task => task.level === level);
+    const parentTasks = tasks.filter((task) => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        taskChild => taskChild.level === level + 1,
+        (taskChild) => taskChild.level === level + 1
       );
       let sumHoursBest = 0;
       let sumHoursWorst = 0;
@@ -80,13 +87,19 @@ const taskController = function (Task) {
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task.taskId)) {
           hasChild = true;
-          sumHoursBest = parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
-          sumHoursWorst = parseFloat(childTask.hoursWorst, 10)
-            + parseFloat(sumHoursWorst, 10);
-          sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
-          sumHoursLogged = parseFloat(childTask.hoursLogged, 10) + parseFloat(sumHoursLogged, 10);
-          sumEstimatedHours = parseFloat(childTask.estimatedHours, 10)
-            + parseFloat(sumEstimatedHours, 10);
+          sumHoursBest =
+            parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
+          sumHoursWorst =
+            parseFloat(childTask.hoursWorst, 10) +
+            parseFloat(sumHoursWorst, 10);
+          sumHoursMost =
+            parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
+          sumHoursLogged =
+            parseFloat(childTask.hoursLogged, 10) +
+            parseFloat(sumHoursLogged, 10);
+          sumEstimatedHours =
+            parseFloat(childTask.estimatedHours, 10) +
+            parseFloat(sumEstimatedHours, 10);
           childTask.resources.forEach((member) => {
             let isInResource = false;
             resources.forEach((mem) => {
@@ -119,7 +132,7 @@ const taskController = function (Task) {
           sumHoursMost,
           sumHoursLogged,
           sumEstimatedHours,
-          resources,
+          resources
         );
       }
     });
@@ -127,10 +140,10 @@ const taskController = function (Task) {
   };
 
   const setDatesSubTasks = (level, tasks) => {
-    const parentTasks = tasks.filter(task => task.level === level);
+    const parentTasks = tasks.filter((task) => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        taskChild => taskChild.level === level + 1,
+        (taskChild) => taskChild.level === level + 1
       );
       let minStartedDate = task.startedDatetime;
       let maxDueDatetime = task.dueDatetime;
@@ -161,10 +174,10 @@ const taskController = function (Task) {
   };
 
   const calculatePriority = (level, tasks) => {
-    const parentTasks = tasks.filter(task => task.level === level);
+    const parentTasks = tasks.filter((task) => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        taskChild => taskChild.level === level + 1,
+        (taskChild) => taskChild.level === level + 1
       );
       let totalNumberPriority = 0;
       let totalChild = 0;
@@ -173,11 +186,11 @@ const taskController = function (Task) {
         if (childTask.mother.equals(task.taskId)) {
           hasChild = true;
           totalChild += 1;
-          if (childTask.priority === 'Primary') {
+          if (childTask.priority === "Primary") {
             totalNumberPriority += 3;
-          } else if (childTask.priority === 'Secondary') {
+          } else if (childTask.priority === "Secondary") {
             totalNumberPriority += 2;
-          } else if (childTask.priority === 'Tertiary') {
+          } else if (childTask.priority === "Tertiary") {
             totalNumberPriority += 1;
           }
         }
@@ -190,11 +203,11 @@ const taskController = function (Task) {
           if (mainTask._id.equals(task._id)) {
             const avg = totalNumberPriority / totalChild;
             if (avg <= 1.6) {
-              priority = 'Tertiary';
+              priority = "Tertiary";
             } else if (avg > 1.6 && avg < 2.5) {
-              priority = 'Secondary';
+              priority = "Secondary";
             } else {
-              priority = 'Primary';
+              priority = "Primary";
             }
           }
         });
@@ -205,10 +218,10 @@ const taskController = function (Task) {
   };
 
   const setAssigned = (level, tasks) => {
-    const parentTasks = tasks.filter(task => task.level === level);
+    const parentTasks = tasks.filter((task) => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        taskChild => taskChild.level === level + 1,
+        (taskChild) => taskChild.level === level + 1
       );
       let isAssigned = false;
       let hasChild = false;
@@ -237,32 +250,33 @@ const taskController = function (Task) {
 
   const updateParents = (wbsId, parentId1) => {
     Task.find({
-      $and: [{ $or: [{ taskId: parentId1 }, { parentId1 }, { parentId1: null }] },
-        { wbsId: { $in: [wbsId] } }],
-    })
-      .then((tasks) => {
-        tasks = [...new Set(tasks.map(item => item))];
-        for (let lv = 3; lv > 0; lv -= 1) {
-          calculateSubTasks(lv, tasks);
-          setDatesSubTasks(lv, tasks);
-          calculatePriority(lv, tasks);
-          setAssigned(lv, tasks);
-          setStatus(lv, tasks);
-        }
-      });
+      $and: [
+        { $or: [{ taskId: parentId1 }, { parentId1 }, { parentId1: null }] },
+        { wbsId: { $in: [wbsId] } },
+      ],
+    }).then((tasks) => {
+      tasks = [...new Set(tasks.map((item) => item))];
+      for (let lv = 3; lv > 0; lv -= 1) {
+        calculateSubTasks(lv, tasks);
+        setDatesSubTasks(lv, tasks);
+        calculatePriority(lv, tasks);
+        setAssigned(lv, tasks);
+        setStatus(lv, tasks);
+      }
+    });
   };
 
   const updateTaskNums = (taskId, num) => {
     Task.findById(taskId, (error, task) => {
-      task.num = num.replace(/.0/g, '');
+      task.num = num.replace(/.0/g, "");
       task.save();
     });
   };
 
   const filterAndSort = (tasks, level) => {
     const sortedTask = tasks.sort((a, b) => {
-      const aArr = a.num.split('.');
-      const bArr = b.num.split('.');
+      const aArr = a.num.split(".");
+      const bArr = b.num.split(".");
       for (let i = 0; i < level; i += 1) {
         if (parseInt(aArr[i], 10) < parseInt(bArr[i], 10)) {
           return -1;
@@ -280,20 +294,22 @@ const taskController = function (Task) {
     const appendTasks = [];
 
     tasks.forEach((task) => {
-      const numChildren = tasks.filter(item => item.mother === task.taskId).length;
+      const numChildren = tasks.filter(
+        (item) => item.mother === task.taskId
+      ).length;
       if (numChildren > 0) {
         task.hasChildren = true;
       } else {
         task.hasChildren = false;
       }
       if (task.level === 1) {
-        task.num += '.0.0.0';
+        task.num += ".0.0.0";
       }
       if (task.level === 2) {
-        task.num += '.0.0';
+        task.num += ".0.0";
       }
       if (task.level === 3) {
-        task.num += '.0';
+        task.num += ".0";
       }
 
       appendTasks.push(task);
@@ -304,14 +320,14 @@ const taskController = function (Task) {
 
   const resetNum = (deletedTask, mother) => {
     Task.findById(mother, (error, motherTask) => {
-      const motherNum = motherTask ? motherTask.num : '.';
+      const motherNum = motherTask ? motherTask.num : ".";
 
       Task.find({ mother: { $in: [mother] } }).then((tasks) => {
         const sortedTasks = sortByNum(tasks);
         // const willBeUpdatedNum = [];
 
         sortedTasks.forEach((task, index) => {
-          const newNum = `${motherNum}.${(index + 1)}`.replace('..', '');
+          const newNum = `${motherNum}.${index + 1}`.replace("..", "");
           // console.log(task.num.indexOf(newNum));
           if (task.num.indexOf(newNum) !== 0) {
             updateTaskNums(task._id, newNum);
@@ -326,22 +342,21 @@ const taskController = function (Task) {
               (err, taskChild) => {
                 const sortedChildTasks = sortByNum(taskChild);
                 sortedChildTasks.forEach((item) => {
-                  const childTaskNumArr = item.num.split('.');
-                  const newNumArr = newNum.split('.');
+                  const childTaskNumArr = item.num.split(".");
+                  const newNumArr = newNum.split(".");
                   newNumArr.forEach((numLevel, index2) => {
                     childTaskNumArr[index2] = numLevel;
                   });
                   // console.log(item.num, '->', childTaskNumArr.join('.'));
-                  updateTaskNums(item._id, childTaskNumArr.join('.'));
+                  updateTaskNums(item._id, childTaskNumArr.join("."));
                 });
-              },
+              }
             );
           }
         });
       });
     });
   };
-
 
   /*
   const fixedText = (text) => {
@@ -353,12 +368,13 @@ const taskController = function (Task) {
     return fixedTextStr;
   }; */
 
-
   const calculateSubTasksLocal = (level, tasks) => {
     const calculatedTasks = [];
-    const parentTasks = tasks.filter(task => task.level === level);
+    const parentTasks = tasks.filter((task) => task.level === level);
     parentTasks.forEach((task) => {
-      const childTasks = tasks.filter(taskChild => taskChild.level === (level + 1));
+      const childTasks = tasks.filter(
+        (taskChild) => taskChild.level === level + 1
+      );
 
       let sumHoursBest = 0;
       let sumHoursWorst = 0;
@@ -377,11 +393,19 @@ const taskController = function (Task) {
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task._id)) {
           hasChild = true;
-          sumHoursBest = parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
-          sumHoursWorst = parseFloat(childTask.hoursWorst, 10) + parseFloat(sumHoursWorst, 10);
-          sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
-          sumHoursLogged = parseFloat(childTask.hoursLogged, 10) + parseFloat(sumHoursLogged, 10);
-          sumEstimatedHours = parseFloat(childTask.estimatedHours, 10) + parseFloat(sumEstimatedHours, 10);
+          sumHoursBest =
+            parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
+          sumHoursWorst =
+            parseFloat(childTask.hoursWorst, 10) +
+            parseFloat(sumHoursWorst, 10);
+          sumHoursMost =
+            parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
+          sumHoursLogged =
+            parseFloat(childTask.hoursLogged, 10) +
+            parseFloat(sumHoursLogged, 10);
+          sumEstimatedHours =
+            parseFloat(childTask.estimatedHours, 10) +
+            parseFloat(sumEstimatedHours, 10);
           if (minStartedDate > childTask.startedDatetime) {
             minStartedDate = childTask.startedDatetime;
           }
@@ -390,18 +414,17 @@ const taskController = function (Task) {
           }
 
           totalChild += 1;
-          if (childTask.priority === 'Primary') {
+          if (childTask.priority === "Primary") {
             totalNumberPriority += 3;
-          } else if (childTask.priority === 'Secondary') {
+          } else if (childTask.priority === "Secondary") {
             totalNumberPriority += 2;
-          } else if (childTask.priority === 'Tertiary') {
+          } else if (childTask.priority === "Tertiary") {
             totalNumberPriority += 1;
           }
 
           if (childTask.isAssigned) {
             isAssigned = true;
           }
-
 
           childTask.resources.forEach((member) => {
             let isInResource = false;
@@ -434,13 +457,13 @@ const taskController = function (Task) {
             tasks[i].isAssigned = isAssigned;
 
             const avg = totalNumberPriority / totalChild;
-            let priority = '';
+            let priority = "";
             if (avg <= 1.6) {
-              priority = 'Tertiary';
+              priority = "Tertiary";
             } else if (avg > 1.6 && avg < 2.5) {
-              priority = 'Secondary';
+              priority = "Secondary";
             } else {
-              priority = 'Primary';
+              priority = "Primary";
             }
 
             tasks[i].priority = priority;
@@ -454,8 +477,8 @@ const taskController = function (Task) {
     return calculatedTasks;
   };
 
-  const replaceDotZero = num => num.replace('.0', '').replace('.0', '').replace('.0', '');
-
+  const replaceDotZero = (num) =>
+    num.replace(".0", "").replace(".0", "").replace(".0", "");
 
   const fixTasksLocal = (tasks, wbsId) => {
     // Format num
@@ -463,13 +486,12 @@ const taskController = function (Task) {
 
     tasks.forEach((task) => {
       if (parseInt(task.level, 10) === 1) {
-        task.num += '.0.0.0';
+        task.num += ".0.0.0";
       } else if (parseInt(task.level, 10) === 2) {
-        task.num += '.0.0';
+        task.num += ".0.0";
       } else if (parseInt(task.level, 10) === 3) {
-        task.num += '.0';
+        task.num += ".0";
       }
-
 
       task._id = new mongoose.Types.ObjectId(); // add Id
       task.level = parseInt(task.level, 10); // fix level to number
@@ -480,9 +502,14 @@ const taskController = function (Task) {
       task.estimatedHours = parseFloat(task.estimatedHours, 10);
       task.estimatedHours = parseFloat(task.estimatedHours, 10);
 
-
       if (task.resourceName) {
-        task.resources = [{ name: task.resourceName.split('|')[0], userID: task.resourceName.split('|')[1], profilePic: task.resourceName.split('|')[2] }];
+        task.resources = [
+          {
+            name: task.resourceName.split("|")[0],
+            userID: task.resourceName.split("|")[1],
+            profilePic: task.resourceName.split("|")[2],
+          },
+        ];
       } else {
         task.resources = [];
       }
@@ -493,8 +520,8 @@ const taskController = function (Task) {
 
     // Sort the task
     const sortedTasks = formatedTasks.sort((a, b) => {
-      const aArr = a.num.split('.');
-      const bArr = b.num.split('.');
+      const aArr = a.num.split(".");
+      const bArr = b.num.split(".");
       for (let i = 0; i < 4; i += 1) {
         if (parseFloat(aArr[i]) < parseFloat(bArr[i])) {
           return -1;
@@ -506,35 +533,47 @@ const taskController = function (Task) {
       return 0;
     });
 
-
     let parentId1 = null;
     let parentId2 = null;
     let parentId3 = null;
 
     const updatedParentTasks = [];
 
-
     // Create relationship
     sortedTasks.forEach((task) => {
       task.num = replaceDotZero(task.num);
-      const taskNumArr = task.num.split('.');
+      const taskNumArr = task.num.split(".");
       if (task.level === 1) {
         parentId1 = task._id; // for task level 2
         task.mother = mongoose.Types.ObjectId(wbsId);
       } else if (task.level === 2) {
-        parentId1 = tasks.filter(pTask => `${taskNumArr[0]}` === replaceDotZero(pTask.num))[0]._id;
+        parentId1 = tasks.filter(
+          (pTask) => `${taskNumArr[0]}` === replaceDotZero(pTask.num)
+        )[0]._id;
         task.parentId1 = parentId1;
         task.mother = parentId1;
       } else if (task.level === 3) {
-        parentId1 = tasks.filter(pTask => taskNumArr[0] === replaceDotZero(pTask.num))[0]._id;
-        parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === replaceDotZero(pTask.num))[0]._id;
+        parentId1 = tasks.filter(
+          (pTask) => taskNumArr[0] === replaceDotZero(pTask.num)
+        )[0]._id;
+        parentId2 = tasks.filter(
+          (pTask) =>
+            `${taskNumArr[0]}.${taskNumArr[1]}` === replaceDotZero(pTask.num)
+        )[0]._id;
         task.parentId1 = parentId1;
         task.parentId2 = parentId2;
         task.mother = parentId2;
       } else if (task.level === 4) {
-        parentId1 = tasks.filter(pTask => taskNumArr[0] === pTask.num)[0]._id;
-        parentId2 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}` === replaceDotZero(pTask.num))[0]._id;
-        parentId3 = tasks.filter(pTask => `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}` === replaceDotZero(pTask.num))[0]._id;
+        parentId1 = tasks.filter((pTask) => taskNumArr[0] === pTask.num)[0]._id;
+        parentId2 = tasks.filter(
+          (pTask) =>
+            `${taskNumArr[0]}.${taskNumArr[1]}` === replaceDotZero(pTask.num)
+        )[0]._id;
+        parentId3 = tasks.filter(
+          (pTask) =>
+            `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}` ===
+            replaceDotZero(pTask.num)
+        )[0]._id;
         task.parentId1 = parentId1;
         task.parentId2 = parentId2;
         task.parentId3 = parentId3;
@@ -542,7 +581,6 @@ const taskController = function (Task) {
       }
       updatedParentTasks.push(task);
     });
-
 
     // Calculate parents
     const calculatedTasks = [];
@@ -559,15 +597,14 @@ const taskController = function (Task) {
       }
     });
 
-
     return calculatedTasks;
   };
 
   const importTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'importTask')) {
+    if (!hasPermission(req.body.requestor.role, "importTask")) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new Task.' });
+        .send({ error: "You are not authorized to create new Task." });
       return;
     }
 
@@ -618,14 +655,17 @@ const taskController = function (Task) {
       _task.endstateInfo = task.endstateInfo;
       _task.classification = task.classification;
 
-      _task.save().then().catch((ex) => { res.status(400).send(ex); });
+      _task
+        .save()
+        .then()
+        .catch((ex) => {
+          res.status(400).send(ex);
+        });
     });
 
-
-    res.status(201).send('done');
+    res.status(201).send("done");
 
     // fixTasksLocal(taskList);
-
 
     /*
 
@@ -673,16 +713,16 @@ const taskController = function (Task) {
   };
 
   const postTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'postTask')) {
+    if (!hasPermission(req.body.requestor.role, "postTask")) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new Task.' });
+        .send({ error: "You are not authorized to create new Task." });
       return;
     }
 
     if (!req.body.taskName || !req.body.isActive) {
       res.status(400).send({
-        error: 'Task Name, Active status, Task Number are mandatory fields',
+        error: "Task Name, Active status, Task Number are mandatory fields",
       });
       return;
     }
@@ -722,22 +762,22 @@ const taskController = function (Task) {
 
     _task
       .save()
-      .then(result => res.status(201).send(result))
+      .then((result) => res.status(201).send(result))
       .catch((errors) => {
         res.status(400).send(errors);
       });
   };
 
   const updateNum = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'updateNum')) {
+    if (!hasPermission(req.body.requestor.role, "updateNum")) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new projects.' });
+        .send({ error: "You are not authorized to create new projects." });
       return;
     }
 
     if (!req.body.nums) {
-      res.status(400).send({ error: 'Num is a mandatory fields' });
+      res.status(400).send({ error: "Num is a mandatory fields" });
       return;
     }
 
@@ -748,7 +788,7 @@ const taskController = function (Task) {
         task
           .save()
           .then()
-          .catch(errors => res.status(400).send(errors));
+          .catch((errors) => res.status(400).send(errors));
       });
 
       // level 2
@@ -758,13 +798,13 @@ const taskController = function (Task) {
             childTasks1.forEach((childTask1) => {
               childTask1.num = childTask1.num.replace(
                 childTask1.num.substring(0, elm.num.length),
-                elm.num,
+                elm.num
               );
 
               childTask1
                 .save()
                 .then(true)
-                .catch(errors => res.status(400).send(errors));
+                .catch((errors) => res.status(400).send(errors));
 
               // level 3
               Task.find({ parentId: { $in: [childTask1._id] } })
@@ -773,13 +813,13 @@ const taskController = function (Task) {
                     childTasks2.forEach((childTask2) => {
                       childTask2.num = childTask2.num.replace(
                         childTask2.num.substring(0, childTask1.num.length),
-                        childTask1.num,
+                        childTask1.num
                       );
 
                       childTask2
                         .save()
                         .then(true)
-                        .catch(errors => res.status(400).send(errors));
+                        .catch((errors) => res.status(400).send(errors));
 
                       // level 4
                       Task.find({ parentId: { $in: [childTask2._id] } })
@@ -789,27 +829,29 @@ const taskController = function (Task) {
                               childTask3.num = childTask3.num.replace(
                                 childTask3.num.substring(
                                   0,
-                                  childTask2.num.length,
+                                  childTask2.num.length
                                 ),
-                                childTask2.num,
+                                childTask2.num
                               );
 
                               childTask3
                                 .save()
                                 .then(true)
-                                .catch(errors => res.status(400).send(errors));
+                                .catch((errors) =>
+                                  res.status(400).send(errors)
+                                );
                             });
                           }
                         })
-                        .catch(error => res.status(404).send(error));
+                        .catch((error) => res.status(404).send(error));
                     });
                   }
                 })
-                .catch(error => res.status(404).send(error));
+                .catch((error) => res.status(404).send(error));
             });
           }
         })
-        .catch(error => res.status(404).send(error));
+        .catch((error) => res.status(404).send(error));
     });
 
     res.status(200).send(true);
@@ -821,7 +863,7 @@ const taskController = function (Task) {
       task
         .save()
         .then()
-        .catch(errors => res.status(400).send(errors));
+        .catch((errors) => res.status(400).send(errors));
     });
   };
 
@@ -829,23 +871,24 @@ const taskController = function (Task) {
     if (!req.body.fromNum || !req.body.toNum) {
       res
         .status(400)
-        .send({ error: 'wbsId, fromNum, toNum are mandatory fields' });
+        .send({ error: "wbsId, fromNum, toNum are mandatory fields" });
       return;
     }
 
     Task.find({ wbsId: { $in: req.params.wbsId } }).then((tasks) => {
       // list of affected tasks
 
-      const fromNum = req.body.fromNum.split('.0')[0];
-      const fromNumArr = fromNum.split('.');
+      const fromNum = req.body.fromNum.split(".0")[0];
+      const fromNumArr = fromNum.split(".");
       const fromLastPart = fromNumArr.pop();
 
-      const toNum = req.body.toNum.split('.0')[0];
-      const toNumArr = toNum.split('.');
+      const toNum = req.body.toNum.split(".0")[0];
+      const toNumArr = toNum.split(".");
       const toLastPart = toNumArr.pop();
-      const toFirstPart = toNumArr.join('.');
+      const toFirstPart = toNumArr.join(".");
 
-      const isFromSmaller = parseInt(fromLastPart, 10) < parseInt(toLastPart, 10);
+      const isFromSmaller =
+        parseInt(fromLastPart, 10) < parseInt(toLastPart, 10);
 
       const numChangeList = [];
       const numChangeValueList = [isFromSmaller ? toNum : fromNum];
@@ -860,7 +903,7 @@ const taskController = function (Task) {
           i += 1
         ) {
           numChangeList.push(
-            `${toFirstPart.length > 0 ? `${toFirstPart}.` : ''}${i}`,
+            `${toFirstPart.length > 0 ? `${toFirstPart}.` : ""}${i}`
           );
         }
         finalChangeList = [...numChangeValueList, ...numChangeList];
@@ -872,7 +915,7 @@ const taskController = function (Task) {
           i += 1
         ) {
           numChangeList.push(
-            `${toFirstPart.length > 0 ? `${toFirstPart}.` : ''}${i}`,
+            `${toFirstPart.length > 0 ? `${toFirstPart}.` : ""}${i}`
           );
         }
 
@@ -900,7 +943,7 @@ const taskController = function (Task) {
             id,
             finalChangeList[index],
             finalChangeValueList[index],
-            res,
+            res
           );
         });
       });
@@ -927,7 +970,7 @@ const taskController = function (Task) {
       },
       (error, record) => {
         if (error || !record || record === null || record.length === 0) {
-          res.status(400).send({ error: 'No valid records found' });
+          res.status(400).send({ error: "No valid records found" });
           return;
         }
         // resetNum(taskId, mother);
@@ -936,19 +979,18 @@ const taskController = function (Task) {
           removeTasks.push(rec.remove());
         });
 
-
         Promise.all([...removeTasks])
           .then(() => {
             // updateParents(record[0].wbsId, record[0].parentId1);
             resetNum(taskId, mother);
             return res
               .status(200)
-              .send({ message: ' Task successfully deleted' });
+              .send({ message: " Task successfully deleted" });
           })
           .catch((errors) => {
             res.status(400).send(errors);
           });
-      },
+      }
     ).catch((errors) => {
       res.status(400).send(errors);
     });
@@ -965,7 +1007,7 @@ const taskController = function (Task) {
 
     Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
       if (error || !record || record === null || record.length === 0) {
-        res.status(400).send({ error: 'No valid records found' });
+        res.status(400).send({ error: "No valid records found" });
         return;
       }
 
@@ -975,7 +1017,9 @@ const taskController = function (Task) {
       });
 
       Promise.all([...removeTasks])
-        .then(() => res.status(200).send({ message: ' Tasks were successfully deleted' }))
+        .then(() =>
+          res.status(200).send({ message: " Tasks were successfully deleted" })
+        )
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -985,54 +1029,55 @@ const taskController = function (Task) {
   };
 
   const updateTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'updateTask')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to update Task.' });
+    if (!hasPermission(req.body.requestor.role, "updateTask")) {
+      res.status(403).send({ error: "You are not authorized to update Task." });
       return;
     }
 
     const { taskId } = req.params;
 
-    Task.findOneAndUpdate({ _id: mongoose.Types.ObjectId(taskId) }, { ...req.body, modifiedDatetime: Date.now() })
+    Task.findOneAndUpdate(
+      { _id: mongoose.Types.ObjectId(taskId) },
+      { ...req.body, modifiedDatetime: Date.now() }
+    )
       .then(() => res.status(201).send())
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const swap = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'swapTask')) {
+    if (!hasPermission(req.body.requestor.role, "swapTask")) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new projects.' });
+        .send({ error: "You are not authorized to create new projects." });
       return;
     }
 
     if (!req.body.taskId1 || !req.body.taskId2) {
       res
         .status(400)
-        .send({ error: 'taskId1 and taskId2 are mandatory fields' });
+        .send({ error: "taskId1 and taskId2 are mandatory fields" });
       return;
     }
 
     Task.findById(req.body.taskId1, (error1, task1) => {
       if (error1 || task1 === null) {
-        res.status(400).send('No valid records found');
+        res.status(400).send("No valid records found");
         return;
       }
 
       Task.findById(req.body.taskId2, (error2, task2) => {
         if (error2 || task2 === null) {
-          res.status(400).send('No valid records found');
+          res.status(400).send("No valid records found");
           return;
         }
 
         if (task1.parentId.toString() === task2.parentId.toString()) {
-          let tmpNum = '';
+          let tmpNum = "";
           tmpNum = task1.num;
           task1.num = task2.num;
           task2.num = tmpNum;
         } else {
-          let tmpName = '';
+          let tmpName = "";
           tmpName = task1.taskName;
           task1.taskName = task2.taskName;
           task2.taskName = tmpName;
@@ -1041,80 +1086,87 @@ const taskController = function (Task) {
         task1
           .save()
           .then()
-          .catch(errors => res.status(400).send(errors));
+          .catch((errors) => res.status(400).send(errors));
 
         task2
           .save()
           .then()
-          .catch(errors => res.status(400).send(errors));
+          .catch((errors) => res.status(400).send(errors));
 
         Task.find({
           wbsId: { $in: [task1.wbsId] },
         })
-          .then(results => res.status(200).send(results))
-          .catch(error => res.status(404).send(error));
+          .then((results) => res.status(200).send(results))
+          .catch((error) => res.status(404).send(error));
       });
     });
   };
 
   const getTaskById = function (req, res) {
     const taskId = req.params.id;
-    Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
+    Task.findById(taskId, "-__v  -createdDatetime -modifiedDatetime")
       .then((results) => {
         if (!results) {
-          res.status(400).send({ error: 'This is not a valid task' });
+          res.status(400).send({ error: "This is not a valid task" });
           return;
         }
-        timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId).then((hours) => {
-          results.set('hoursLogged', hours, { strict: false });
-          res.status(200).send(results);
-        });
+        timeEntryHelper
+          .getAllHoursLoggedForSpecifiedProject(taskId)
+          .then((hours) => {
+            results.set("hoursLogged", hours, { strict: false });
+            res.status(200).send(results);
+          });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
-
 
   const updateAllParents = (req, res) => {
     const { wbsId } = req.params;
 
     try {
-      Task.find({ wbsId: { $in: [wbsId] } })
-        .then((tasks) => {
-          tasks = tasks.filter(task => task.level === 1);
-          tasks.forEach((task) => {
-            updateParents(task.wbsId, task.taskId.toString());
-          });
-          res.status(200).send('done');
+      Task.find({ wbsId: { $in: [wbsId] } }).then((tasks) => {
+        tasks = tasks.filter((task) => task.level === 1);
+        tasks.forEach((task) => {
+          updateParents(task.wbsId, task.taskId.toString());
         });
-      res.status(200).send('done');
+        res.status(200).send("done");
+      });
+      res.status(200).send("done");
     } catch (error) {
       res.status(400).send(error);
     }
   };
 
-
   const fixTasks = function (req, res) {
-    res.status(200).send('done');
+    res.status(200).send("done");
   };
 
   const getTasksByUserList = async (req, res) => {
     const { members } = req.query;
-    const membersArr = members.split(',');
+    const membersArr = members.split(",");
     try {
-      Task.find({ 'resources.userID': { $in: membersArr } }, '-resources.profilePic')
-      .then((results) => {
-        wbs.find({
-          _id: { $in: results.map(item => item.wbsId) },
-        })
-        .then((projectIds) => {
-          const resultsWithProjectsIds = results.map(
-            (item) => {
-              item.set('projectId', projectIds?.find(projectId => projectId._id.toString() === item.wbsId.toString())?.projectId, { strict: false });
+      Task.find(
+        { "resources.userID": { $in: membersArr } },
+        "-resources.profilePic"
+      ).then((results) => {
+        wbs
+          .find({
+            _id: { $in: results.map((item) => item.wbsId) },
+          })
+          .then((projectIds) => {
+            const resultsWithProjectsIds = results.map((item) => {
+              item.set(
+                "projectId",
+                projectIds?.find(
+                  (projectId) =>
+                    projectId._id.toString() === item.wbsId.toString()
+                )?.projectId,
+                { strict: false }
+              );
               return item;
-            },
-          );
-          res.status(200).send(resultsWithProjectsIds);
-        });
+            });
+            res.status(200).send(resultsWithProjectsIds);
+          });
       });
     } catch (error) {
       res.status(400).send(error);
@@ -1124,13 +1176,13 @@ const taskController = function (Task) {
   const getTasksForTeamsByUser = async (req, res) => {
     try {
       const pdtstart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+        .tz("America/Los_Angeles")
+        .startOf("week")
+        .format("YYYY-MM-DD");
       const pdtend = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+        .tz("America/Los_Angeles")
+        .endOf("week")
+        .format("YYYY-MM-DD");
       const userId = mongoose.Types.ObjectId(req.params.userId);
       const agg = myteam.aggregate([
         {
@@ -1139,23 +1191,23 @@ const taskController = function (Task) {
           },
         },
         {
-          $unwind: '$myteam',
+          $unwind: "$myteam",
         },
         {
           $project: {
             _id: 0,
-            personId: '$myteam._id',
-            name: '$myteam.fullName',
-            role: '$role',
+            personId: "$myteam._id",
+            name: "$myteam.fullName",
+            role: "$role",
           },
         },
         // have personId, name, role
         {
           $lookup: {
-            from: 'userProfiles',
-            localField: 'personId',
-            foreignField: '_id',
-            as: 'persondata',
+            from: "userProfiles",
+            localField: "personId",
+            foreignField: "_id",
+            as: "persondata",
           },
         },
         {
@@ -1164,16 +1216,16 @@ const taskController = function (Task) {
             name: 1,
             role: 1,
             weeklycommittedHours: {
-              $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+              $arrayElemAt: ["$persondata.weeklycommittedHours", 0],
             },
           },
         },
         {
           $lookup: {
-            from: 'timeEntries',
-            localField: 'personId',
-            foreignField: 'personId',
-            as: 'timeEntryData',
+            from: "timeEntries",
+            localField: "personId",
+            foreignField: "personId",
+            as: "timeEntryData",
           },
         },
         {
@@ -1184,15 +1236,15 @@ const taskController = function (Task) {
             role: 1,
             timeEntryData: {
               $filter: {
-                input: '$timeEntryData',
-                as: 'timeentry',
+                input: "$timeEntryData",
+                as: "timeentry",
                 cond: {
                   $and: [
                     {
-                      $gte: ['$$timeentry.dateOfWork', pdtstart],
+                      $gte: ["$$timeentry.dateOfWork", pdtstart],
                     },
                     {
-                      $lte: ['$$timeentry.dateOfWork', pdtend],
+                      $lte: ["$$timeentry.dateOfWork", pdtend],
                     },
                   ],
                 },
@@ -1202,7 +1254,7 @@ const taskController = function (Task) {
         },
         {
           $unwind: {
-            path: '$timeEntryData',
+            path: "$timeEntryData",
             preserveNullAndEmptyArrays: true,
           },
         },
@@ -1215,18 +1267,18 @@ const taskController = function (Task) {
             totalSeconds: {
               $cond: [
                 {
-                  $gte: ['$timeEntryData.totalSeconds', 0],
+                  $gte: ["$timeEntryData.totalSeconds", 0],
                 },
-                '$timeEntryData.totalSeconds',
+                "$timeEntryData.totalSeconds",
                 0,
               ],
             },
             isTangible: {
               $cond: [
                 {
-                  $gte: ['$timeEntryData.totalSeconds', 0],
+                  $gte: ["$timeEntryData.totalSeconds", 0],
                 },
-                '$timeEntryData.isTangible',
+                "$timeEntryData.isTangible",
                 false,
               ],
             },
@@ -1237,18 +1289,18 @@ const taskController = function (Task) {
             tangibletime: {
               $cond: [
                 {
-                  $eq: ['$isTangible', true],
+                  $eq: ["$isTangible", true],
                 },
-                '$totalSeconds',
+                "$totalSeconds",
                 0,
               ],
             },
             intangibletime: {
               $cond: [
                 {
-                  $eq: ['$isTangible', false],
+                  $eq: ["$isTangible", false],
                 },
-                '$totalSeconds',
+                "$totalSeconds",
                 0,
               ],
             },
@@ -1257,48 +1309,48 @@ const taskController = function (Task) {
         {
           $group: {
             _id: {
-              personId: '$personId',
-              weeklycommittedHours: '$weeklycommittedHours',
-              name: '$name',
-              role: '$role',
+              personId: "$personId",
+              weeklycommittedHours: "$weeklycommittedHours",
+              name: "$name",
+              role: "$role",
             },
             totalSeconds: {
-              $sum: '$totalSeconds',
+              $sum: "$totalSeconds",
             },
             tangibletime: {
-              $sum: '$tangibletime',
+              $sum: "$tangibletime",
             },
             intangibletime: {
-              $sum: '$intangibletime',
+              $sum: "$intangibletime",
             },
           },
         },
         {
           $project: {
             _id: 0,
-            personId: '$_id.personId',
-            name: '$_id.name',
-            weeklycommittedHours: '$_id.weeklycommittedHours',
-            role: '$_id.role',
+            personId: "$_id.personId",
+            name: "$_id.name",
+            weeklycommittedHours: "$_id.weeklycommittedHours",
+            role: "$_id.role",
             totaltime_hrs: {
-              $divide: ['$totalSeconds', 3600],
+              $divide: ["$totalSeconds", 3600],
             },
             totaltangibletime_hrs: {
-              $divide: ['$tangibletime', 3600],
+              $divide: ["$tangibletime", 3600],
             },
             totalintangibletime_hrs: {
-              $divide: ['$intangibletime', 3600],
+              $divide: ["$intangibletime", 3600],
             },
             percentagespentintangible: {
               $cond: [
                 {
-                  $eq: ['$totalSeconds', 0],
+                  $eq: ["$totalSeconds", 0],
                 },
                 0,
                 {
                   $multiply: [
                     {
-                      $divide: ['$tangibletime', '$totalSeconds'],
+                      $divide: ["$tangibletime", "$totalSeconds"],
                     },
                     100,
                   ],
@@ -1309,10 +1361,10 @@ const taskController = function (Task) {
         },
         {
           $lookup: {
-            from: 'tasks',
-            localField: 'personId',
-            foreignField: 'resources.userID',
-            as: 'tasks',
+            from: "tasks",
+            localField: "personId",
+            foreignField: "resources.userID",
+            as: "tasks",
           },
         },
         {
@@ -1326,25 +1378,25 @@ const taskController = function (Task) {
         },
         {
           $unwind: {
-            path: '$tasks',
+            path: "$tasks",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $lookup: {
-            from: 'wbs',
-            localField: 'tasks.wbsId',
-            foreignField: '_id',
-            as: 'projectId',
+            from: "wbs",
+            localField: "tasks.wbsId",
+            foreignField: "_id",
+            as: "projectId",
           },
         },
         {
           $addFields: {
-            'tasks.projectId': {
+            "tasks.projectId": {
               $cond: [
-                { $ne: ['$projectId', []] },
-                { $arrayElemAt: ['$projectId', 0] },
-                '$tasks.projectId',
+                { $ne: ["$projectId", []] },
+                { $arrayElemAt: ["$projectId", 0] },
+                "$tasks.projectId",
               ],
             },
           },
@@ -1366,41 +1418,41 @@ const taskController = function (Task) {
         },
         {
           $addFields: {
-            'tasks.projectId': '$tasks.projectId.projectId',
+            "tasks.projectId": "$tasks.projectId.projectId",
           },
         },
         {
           $lookup: {
-            from: 'taskNotifications',
-            localField: 'tasks._id',
-            foreignField: 'taskId',
-            as: 'tasks.taskNotifications',
+            from: "taskNotifications",
+            localField: "tasks._id",
+            foreignField: "taskId",
+            as: "tasks.taskNotifications",
           },
         },
 
         {
           $group: {
-            _id: '$personId',
-            tasks: { $push: '$tasks' },
+            _id: "$personId",
+            tasks: { $push: "$tasks" },
             data: {
-              $first: '$$ROOT',
+              $first: "$$ROOT",
             },
           },
         },
         {
           $addFields: {
-            'data.tasks': {
+            "data.tasks": {
               $filter: {
-                input: '$tasks',
-                as: 'task',
-                cond: { $ne: ['$$task', {}] },
+                input: "$tasks",
+                as: "task",
+                cond: { $ne: ["$$task", {}] },
               },
             },
           },
         },
         {
           $replaceRoot: {
-            newRoot: '$data',
+            newRoot: "$data",
           },
         },
       ]);
@@ -1411,7 +1463,7 @@ const taskController = function (Task) {
       res.status(400).send(error);
     }
   };
-  const updateChildrenQty = (req, res) => {
+  const updateChildrenQty = (req) => {
     const { taskId } = req.params;
     Task.findById(taskId, (error, task) => {
       if (task) {
