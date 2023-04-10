@@ -178,6 +178,7 @@ const userProfileController = function (UserProfile) {
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: "" }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
+    up.weeklySummaryOption = req.body.weeklySummaryOption;
     up.mediaUrl = req.body.mediaUrl || "";
     up.collaborationPreference = req.body.collaborationPreference || "";
     up.timeZone = req.body.timeZone || "America/Los_Angeles";
@@ -291,6 +292,7 @@ const userProfileController = function (UserProfile) {
         record.weeklySummaryNotReq = req.body.weeklySummaryNotReq
           ? req.body.weeklySummaryNotReq
           : record.weeklySummaryNotReq;
+        record.weeklySummaryOption = req.body.weeklySummaryOption;
         record.categoryTangibleHrs = req.body.categoryTangibleHrs
           ? req.body.categoryTangibleHrs
           : record.categoryTangibleHrs;
