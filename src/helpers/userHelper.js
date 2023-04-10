@@ -222,12 +222,9 @@ const userHelper = function () {
    *  1 ) Push a new (blank) summary at the beginning of the array.
    *  2 ) Always maintains 4 items in the array where each item represents a summary for a given week.
    *
-   * This function will also increment the weeklySummariesCount by 1 if the user had provided a valid summary.
-   *
    * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
-   * @param {boolean} hasWeeklySummary Whether the user with personId has submitted a valid weekly summary.
    */
-  const processWeeklySummariesByUserId = function (personId, hasWeeklySummary) {
+  const processWeeklySummariesByUserId = function (personId) {
     userProfile
       .findByIdAndUpdate(personId, {
         $push: {
@@ -243,19 +240,6 @@ const userHelper = function () {
           },
         },
       })
-      .then(() => {
-        if (hasWeeklySummary) {
-          userProfile
-            .findByIdAndUpdate(
-              personId,
-              {
-                $inc: { weeklySummariesCount: 1 },
-              },
-              { new: true },
-            )
-            .catch(error => logger.logException(error));
-        }
-      })
       .catch(error => logger.logException(error));
   };
 
@@ -263,8 +247,7 @@ const userHelper = function () {
    * This function is called by a cron job to do 3 things to all active users:
    *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
-   *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array
-   *      and increment the weeklySummariesCount for valud submissions.
+   *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
@@ -306,7 +289,7 @@ const userHelper = function () {
         }
 
         //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-        await processWeeklySummariesByUserId(personId, hasWeeklySummary);
+        await processWeeklySummariesByUserId(personId);
 
         const results = await dashboardHelper.laborthisweek(
           personId,
