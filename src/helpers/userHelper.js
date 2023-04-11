@@ -125,6 +125,7 @@ const userHelper = function () {
           mediaUrl,
           weeklySummariesCount,
           weeklycommittedHours,
+          weeklySummaryOption,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -153,11 +154,11 @@ const userHelper = function () {
                   .tz('America/Los_Angeles')
                   .format('YYYY-MMM-DD')}</b>):
               </div>
-              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}">
+              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${weeklySummaryOption === 'Team' ? 'style="color: magenta;"' : ''}>
                 ${summary}
               </div>
             `;
-          } else if (result.weeklySummaryNotReq === true) {
+          } else if (weeklySummaryOption === 'Not Required' || result.weeklySummaryNotReq === true) {
             weeklySummaryMessage = weeklySummaryNotRequiredMessage;
           }
         }
@@ -338,7 +339,7 @@ const userHelper = function () {
           { new: true },
         );
 
-        if (updateResult?.weeklySummaryNotReq) {
+        if (updateResult?.weeklySummaryOption === 'Not Required' || updateResult?.weeklySummaryNotReq) {
           hasWeeklySummary = true;
         }
 
