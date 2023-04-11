@@ -118,7 +118,6 @@ const projectController = function (Project) {
         res.status(200).send(results.projects);
       })
       .catch((error) => {
-        console.log(error);
         res.status(400).send(error);
       });
   };
