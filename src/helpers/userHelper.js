@@ -353,6 +353,7 @@ const userHelper = function () {
 
         if (timeNotMet || !hasWeeklySummary) {
           if (timeNotMet && !hasWeeklySummary) {
+
             description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
             description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
@@ -1180,6 +1181,7 @@ const userHelper = function () {
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
+
     const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
 
     const badgesOfType = [];
@@ -1191,6 +1193,7 @@ const userHelper = function () {
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
+
 
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
