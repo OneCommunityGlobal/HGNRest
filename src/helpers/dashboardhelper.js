@@ -168,14 +168,14 @@ const dashboardhelper = function () {
     // This is a temporary band aid. I can't figure out why, but intangible time entries
     // somehow increment the total weekly committted hours across all users. ???
     const USERS = await userProfile.find({ isActive: true });
-    let TOTAL_committED_HOURS = 0;
+    let totalCommittedHours = 0;
     let MEMBER_COUNT = 0;
     USERS.forEach((user) => {
-      TOTAL_committED_HOURS += user.weeklycommittedHours;
+      totalCommittedHours += user.weeklycommittedHours;
       MEMBER_COUNT += 1;
     });
 
-    output[0].totalweeklycommittedHours = TOTAL_committED_HOURS;
+    output[0].totalweeklycommittedHours = totalCommittedHours;
     output[0].memberCount = MEMBER_COUNT;
 
     return output;
@@ -203,6 +203,7 @@ const dashboardhelper = function () {
       {
         $project: {
           _id: 0,
+          role: 1,
           personId: '$myteam._id',
           name: '$myteam.fullName',
         },
@@ -213,6 +214,23 @@ const dashboardhelper = function () {
           localField: 'personId',
           foreignField: '_id',
           as: 'persondata',
+        },
+      },
+      {
+        $match: {
+          $or: [
+            {
+              role: {
+                $in: [
+                  'Core Team',
+                  'Administrator',
+                  'Owner',
+                ],
+              },
+            },
+            { 'persondata.0.role': 'Volunteer' },
+            { 'persondata.0.isVisible': true },
+          ],
         },
       },
       {
@@ -415,7 +433,8 @@ const dashboardhelper = function () {
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
           totaltangibletime_hrs: tangibleSeconds / 3600,
           totalintangibletime_hrs: intangibleSeconds / 3600,
-          percentagespentintangible: (intangibleSeconds / tangibleSeconds) * 100,
+          percentagespentintangible:
+            (intangibleSeconds / tangibleSeconds) * 100,
         },
       ];
     } catch (err) {
