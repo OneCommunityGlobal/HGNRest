@@ -245,7 +245,7 @@ const dashboardhelper = function () {
           personId: 1,
           name: 1,
           role: {
-            $arrayElemAt: ['$persondata.role', 0]
+            $arrayElemAt: ['$persondata.role', 0],
           },
           weeklycommittedHours: {
             $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
