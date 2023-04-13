@@ -142,7 +142,18 @@ const userHelper = function () {
           : 'Not provided!';
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-
+        const colorStyle = (() => {
+          switch (weeklySummaryOption) {
+            case 'Team':
+              return 'style="color: magenta;"';
+            case 'Not Required':
+              return 'style="color: green"';
+            case 'Required':
+              return '';
+            default:
+              return result.weeklySummaryNotReq ? 'style="color: green"' : '';
+          }
+        })();
         // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
         if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
           const { dueDate, summary } = weeklySummaries[0];
@@ -154,11 +165,11 @@ const userHelper = function () {
                   .tz('America/Los_Angeles')
                   .format('YYYY-MMM-DD')}</b>):
               </div>
-              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${weeklySummaryOption === 'Team' ? 'style="color: magenta;"' : ''}>
+              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
               </div>
             `;
-          } else if (weeklySummaryOption === 'Not Required' || result.weeklySummaryNotReq === true) {
+          } else if (weeklySummaryOption === 'Not Required' || (!weeklySummaryOption && result.weeklySummaryNotReq)) {
             weeklySummaryMessage = weeklySummaryNotRequiredMessage;
           }
         }
