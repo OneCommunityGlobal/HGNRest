@@ -353,7 +353,6 @@ const userHelper = function () {
 
         if (timeNotMet || !hasWeeklySummary) {
           if (timeNotMet && !hasWeeklySummary) {
-
             description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
             description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
@@ -1219,7 +1218,6 @@ const userHelper = function () {
       }
 
 
-
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
       await badge.find({ type: 'Total Hrs in Category', category: newCatg })
 
@@ -1230,9 +1228,7 @@ const userHelper = function () {
           }
 
           results.every((elem) => {
-
             if (hoursByCategory[categoryHrs] > 0 && hoursByCategory[categoryHrs] >= elem.totalHrs) {
-
               let theBadge;
               for (let i = 0; i < badgesOfType.length; i += 1) {
                 if (badgesOfType[i]._id.toString() === elem._id.toString()) {
