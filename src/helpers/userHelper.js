@@ -108,7 +108,7 @@ const userHelper = function () {
 
       const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
 
-      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: magenta;"> Not required for this user </span></div>';
+      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(
           `${b.firstName} ${b.lastname}`,
