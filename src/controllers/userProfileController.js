@@ -33,8 +33,11 @@ function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (!userId === requestor.requestorId && !hasPermission(requestor.role, 'updatePassword')) {
-    res.status(403).send({
+  if (
+    !userId === requestor.requestorId
+    && !hasPermission(requestor.role, 'updatePassword')
+  ) {
+     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
@@ -76,7 +79,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getProjectMembers = function (req, res) {
@@ -116,7 +119,8 @@ const userProfileController = function (UserProfile) {
 
     if (userByEmail) {
       res.status(400).send({
-        error: 'That email address is already in use. Please choose another email address.',
+        error:
+          'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
@@ -135,7 +139,8 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error: 'That phone number is already in use. Please choose another number.',
+          error:
+            'That phone number is already in use. Please choose another number.',
           type: 'phoneNumber',
         });
         return;
@@ -149,7 +154,8 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error: 'That name is already in use. Please confirm if you want to use this name.',
+        error:
+          'That name is already in use. Please confirm if you want to use this name.',
         type: 'name',
       });
       return;
@@ -198,14 +204,14 @@ const userProfileController = function (UserProfile) {
         allUserCache.push(userCacheJson);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch((error) => res.status(501).send(error));
+      .catch(error => res.status(501).send(error));
   };
 
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      hasPermission(req.body.requestor.role, 'putUserProfile') ||
-      req.body.requestor.requestorId === userid
+      hasPermission(req.body.requestor.role, 'putUserProfile')
+      || req.body.requestor.requestorId === userid
     );
 
     if (!isRequestorAuthorized) {
@@ -254,6 +260,7 @@ const userProfileController = function (UserProfile) {
       record.timeZone = req.body.timeZone;
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
+      record.isVisible = req.body.isVisible || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
 
       // find userData in cache
@@ -263,10 +270,12 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
-      if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
+      if (
+        hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
+      ) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
@@ -289,8 +298,7 @@ const userProfileController = function (UserProfile) {
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
 
-        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions'))
-          record.permissions = req.body.permissions;
+        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
@@ -330,17 +338,17 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch((error) => res.status(400).send(error));
+        .catch(error => res.status(400).send(error));
     });
   };
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
     if (
-      !userId ||
-      !option ||
-      (option !== 'delete' && option !== 'archive') ||
-      !hasPermission(req.body.requestor.role, 'deleteUserProfile')
+      !userId
+      || !option
+      || (option !== 'delete' && option !== 'archive')
+      || !hasPermission(req.body.requestor.role, 'deleteUserProfile')
     ) {
       res.status(400).send({
         error: 'Bad request',
@@ -366,7 +374,9 @@ const userProfileController = function (UserProfile) {
       );
 
       if (!timeArchiveUser) {
-        logger.logException('Time Archive user was not found. Please check the database');
+        logger.logException(
+          'Time Archive user was not found. Please check the database',
+        );
         res.status(500).send({
           error:
             'Time Archive User not found. Please contact your developement team on why that happened',
@@ -388,7 +398,7 @@ const userProfileController = function (UserProfile) {
 
     cache.removeCache(`user-${userId}`);
     const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex((users) => users._id === userId);
+    const userIdx = allUserData.findIndex(users => users._id === userId);
     allUserData.splice(userIdx, 1);
     cache.setCache('allusers', JSON.stringify(allUserData));
 
@@ -406,7 +416,10 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+    UserProfile.findById(
+      userid,
+      '-password -refreshTokens -lastModifiedDate -__v',
+    )
       .populate([
         {
           path: 'teams',
@@ -441,13 +454,17 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, { strict: false });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
+        userHelper
+          .getTangibleHoursReportedThisWeekByUserId(userid)
+          .then((hours) => {
+            results.set('tangibleHoursReportedThisWeek', hours, {
+              strict: false,
+            });
+            cache.setCache(`user-${userid}`, JSON.stringify(results));
+            res.status(200).send(results);
+          });
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -456,8 +473,8 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const updatepassword = function (req, res) {
@@ -476,7 +493,10 @@ const userProfileController = function (UserProfile) {
       });
     }
     // Verify request is authorized by self or adminsitrator
-    if (!userId === requestor.requestorId && !hasPermission(requestor.role, 'updatePassword')) {
+    if (
+      !userId === requestor.requestorId
+      && !hasPermission(requestor.role, 'updatePassword')
+    ) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -514,11 +534,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const getreportees = function (req, res) {
@@ -532,7 +552,14 @@ const userProfileController = function (UserProfile) {
     const userid = mongoose.Types.ObjectId(req.params.userId);
     const { role } = req.body.requestor;
 
-    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
+    let validroles = [
+      'Volunteer',
+      'Manager',
+      'Administrator',
+      'Core Team',
+      'Owner',
+      'Mentor',
+    ];
 
     if (hasPermission(role, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
@@ -551,7 +578,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -568,7 +595,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -620,7 +647,9 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userIdx = allUserData.findIndex(
+                users => users._id === userId,
+              );
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();
@@ -690,8 +719,8 @@ const userProfileController = function (UserProfile) {
       permissions: user.permissions,
       expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
     };
-    const refreshToken = jwt.sign(jwtPayload, JWT_SECRET);
-    res.status(200).send({ refreshToken });
+    const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
+    res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
   return {

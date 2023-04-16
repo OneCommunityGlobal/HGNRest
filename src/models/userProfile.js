@@ -141,6 +141,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
+  isVisible: { type: Boolean, default: false },
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -149,12 +150,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then((result) => bcrypt.hash(user.password, result))
+    .then(result => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch((error) => next(error));
+    .catch(error => next(error));
 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
