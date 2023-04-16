@@ -235,7 +235,6 @@ const dashboardhelper = function () {
                 ],
               },
             },
-            { 'persondata.0._id': userid },
             { 'persondata.0.role': 'Volunteer' },
             { 'persondata.0.isVisible': true },
           ],
