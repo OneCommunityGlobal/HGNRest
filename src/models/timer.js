@@ -8,7 +8,7 @@ const timerSchema = new Schema({
   lastAccess: { type: Date, default: Date.now },
   time: { type: Number, default: 900000 },
   countdown: { type: Boolean, default: true },
-  goal: { type: Number, default: 0 },
+  goal: { type: Number, default: 900000 },
   paused: { type: Boolean, default: true },
   forcedPause: { type: Boolean, default: false },
   stopped: { type: Boolean, default: false },
