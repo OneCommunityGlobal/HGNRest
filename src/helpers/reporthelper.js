@@ -64,6 +64,7 @@ const reporthelper = function () {
         mediaUrl: 1,
         weeklycommittedHours: 1,
         weeklySummaryNotReq: 1,
+        weeklySummaryOption: 1,
         weeklySummaries: {
           $filter: {
             input: '$weeklySummaries',
