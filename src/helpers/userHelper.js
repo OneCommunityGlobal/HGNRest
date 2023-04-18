@@ -724,7 +724,6 @@ const userHelper = function () {
   };
 
 
-
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
@@ -777,98 +776,94 @@ const userHelper = function () {
 
 
   // CHECK X HOURS FOR X WEEKS
-const checkXHrsForXWeeks= async function (personId, user, badgeCollection){
+const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
  // Find all badges of type 'X Hours for X Week Streak' in the badge collection
  const badgesOfType = badgeCollection.filter(badge => badge.badge?.type === 'X Hours for X Week Streak').map(badge => badge.badge);
   // Here is assigning the badges for 1 week streak
-const oneWeekBadges = await badge.find({ type: 'X Hours for X Week Streak', weeks: 1 }).sort({totalHrs: -1});
-  
- let arrayBadges = [];
+const oneWeekBadges = await badge.find({ type: 'X Hours for X Week Streak', weeks: 1 }).sort({ totalHrs: -1 });
+
+ const arrayBadges = [];
 //  Here it is been saving the badges that is sastifying a condition for the hours the user worked.
-// for example if the user worked 50 hours in all week the badge to be assigned is just the badge of 50 hours in 1 week 
+// for example if the user worked 50 hours in all week the badge to be assigned is just the badge of 50 hours in 1 week
 // or a badge of lower streak
 // here is saving in this array just the badges that have totalHrs <= 50
-let arrayTotalHrs = [];
-oneWeekBadges.map(badge => {
-    if(badge.totalHrs <= user.lastWeekTangibleHrs){
-      arrayBadges.push(badge)
+const arrayTotalHrs = [];
+oneWeekBadges.map((badge) => {
+    if (badge.totalHrs <= user.lastWeekTangibleHrs) {
+      arrayBadges.push(badge);
       arrayTotalHrs.push(badge.totalHrs);
       }
-   })
+   });
 // Here it is verifying the maximun  hour in the array of badges for the first condition
 // if the user worked 45 hours in a week just make sense assign badges where the total hours are lower then or equal 45 hours
 const maxHourBadge = Math.max(...arrayTotalHrs);
 // now here will assign the especific badge
-arrayBadges.map(badge =>{
-  if(badge.totalHrs === maxHourBadge){
+arrayBadges.map((badge) => {
+  if (badge.totalHrs === maxHourBadge) {
     let badgeId;
-    for(let i = 0; i< badgesOfType.length; i++){
-      if(badgesOfType[i]._id.toString() === badge._id.toString()){
-          badgeId = badgesOfType[i]._id
+    for (let i = 0; i < badgesOfType.length; i++) {
+      if (badgesOfType[i]._id.toString() === badge._id.toString()) {
+          badgeId = badgesOfType[i]._id;
       }
     }
-    if(badgeId){
+    if (badgeId) {
       increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeId));
       return false;
-    }else{
-      addBadge(personId, mongoose.Types.ObjectId(badge._id))
     }
+      addBadge(personId, mongoose.Types.ObjectId(badge._id));
   }
-})
+});
 // check for week greater than 1
 // check how many weeks the user worked
 // based on the length of user.savedTangibleHrs array
 const workedWeeks = user.savedTangibleHrs.length;
-const greatStreakBadges = await badge.find({ type: 'X Hours for X Week Streak', weeks: {$lte: workedWeeks, $gt:1}}).sort({totalHrs: -1});
+const greatStreakBadges = await badge.find({ type: 'X Hours for X Week Streak', weeks: { $lte: workedWeeks, $gt: 1 } }).sort({ totalHrs: -1 });
 // for the badge be assigned have to fulfill the requirement  totalHrs < user.lastWeekTangibleHrs;
 
-let badgesThatMatch = [];
+const badgesThatMatch = [];
 // this array is storing all the badges that fullfil the totalHrs < lastWeekTangibleHrs
-greatStreakBadges.forEach(item =>{
-  if(item.totalHrs <= user.lastWeekTangibleHrs){
+greatStreakBadges.forEach((item) => {
+  if (item.totalHrs <= user.lastWeekTangibleHrs) {
     badgesThatMatch.push(item);
   }
 });
-let matchBadge = [];
-let weeksArray = [];
+const matchBadge = [];
+const weeksArray = [];
 
-badgeCollection.filter( bdg => bdg.badge?.type === 'X Hours for X Week Streak').map(badge =>{
-  for(let i = 0 ; i< badgesThatMatch.length; i++){
-    if(badge.badge?.totalHrs === badgesThatMatch[i].totalHrs ){
+badgeCollection.filter(bdg => bdg.badge?.type === 'X Hours for X Week Streak').map((badge) => {
+  for (let i = 0; i < badgesThatMatch.length; i++) {
+    if (badge.badge?.totalHrs === badgesThatMatch[i].totalHrs) {
       matchBadge.push(badgesThatMatch[i]);
-      weeksArray.push(badgesThatMatch[i].weeks)
-      
+      weeksArray.push(badgesThatMatch[i].weeks);
     }
   }
-})
+});
 // calculate the max week number to assign the badge;
 const maxWeek = Math.max(...weeksArray);
-matchBadge.forEach(bdg =>{
-  let badgeId
-  if(bdg.weeks === maxWeek){
-     //removing lower streak badge
-     badgeCollection.filter((badge) => badge.badge?.type === 'X Hours for X Week Streak').map((item) => {
-      if(item.badge.totalHrs === bdg.totalHrs && item.badge.weeks < maxWeek){
-          removeDupBadge(personId, item.badge._id)
+matchBadge.forEach((bdg) => {
+  let badgeId;
+  if (bdg.weeks === maxWeek) {
+     // removing lower streak badge
+     badgeCollection.filter(badge => badge.badge?.type === 'X Hours for X Week Streak').map((item) => {
+      if (item.badge.totalHrs === bdg.totalHrs && item.badge.weeks < maxWeek) {
+          removeDupBadge(personId, item.badge._id);
       }
-    })
+    });
 
-  
-    for(let i = 0; i< badgesOfType.length; i++){
-      if(badgesOfType[i]._id.toString() === bdg._id.toString()){
-          badgeId = badgesOfType[i]._id
+
+    for (let i = 0; i < badgesOfType.length; i++) {
+      if (badgesOfType[i]._id.toString() === bdg._id.toString()) {
+          badgeId = badgesOfType[i]._id;
       }
     }
-    if(badgeId){
+    if (badgeId) {
       increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeId));
-    }else{
-      addBadge(personId, mongoose.Types.ObjectId(bdg._id))
+    } else {
+      addBadge(personId, mongoose.Types.ObjectId(bdg._id));
     }
   }
- 
- 
-})
-} 
+});
+};
   // 'Lead a team of X+'
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     if (!hasPermission(user.role, 'checkLeadTeamOfXplus')) {
@@ -965,7 +960,6 @@ matchBadge.forEach(bdg =>{
       }
 
 
-      
       await badge.find({ type: 'Total Hrs in Category', category: newCatg })
         .sort({ totalHrs: -1 })
         .then((results) => {
