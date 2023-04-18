@@ -969,7 +969,7 @@ const userHelper = function () {
     const badgesOfType = badgeCollection.filter(badge => badge.badge?.type === 'X Hours for X Week Streak').map(badge => badge.badge);
      // Here is assigning the badges for 1 week streak
    const oneWeekBadges = await badge.find({ type: 'X Hours for X Week Streak', weeks: 1 }).sort({ totalHrs: -1 });
-   
+
     const arrayBadges = [];
    //  Here it is been saving the badges that is sastifying a condition for the hours the user worked.
    // for example if the user worked 50 hours in all week the badge to be assigned is just the badge of 50 hours in 1 week
@@ -1007,7 +1007,7 @@ const userHelper = function () {
    const workedWeeks = user.savedTangibleHrs.length;
    const greatStreakBadges = await badge.find({ type: 'X Hours for X Week Streak', weeks: { $lte: workedWeeks, $gt: 1 } }).sort({ totalHrs: -1 });
    // for the badge be assigned have to fulfill the requirement  totalHrs < user.lastWeekTangibleHrs;
-   
+
    const badgesThatMatch = [];
    // this array is storing all the badges that fullfil the totalHrs < lastWeekTangibleHrs
    greatStreakBadges.forEach((item) => {
@@ -1017,7 +1017,7 @@ const userHelper = function () {
    });
    const matchBadge = [];
    const weeksArray = [];
-   
+
    badgeCollection.filter(bdg => bdg.badge?.type === 'X Hours for X Week Streak').map((badge) => {
      for (let i = 0; i < badgesThatMatch.length; i++) {
        if (badge.badge?.totalHrs === badgesThatMatch[i].totalHrs) {
@@ -1037,8 +1037,8 @@ const userHelper = function () {
              removeDupBadge(personId, item.badge._id);
          }
        });
-   
-   
+
+
        for (let i = 0; i < badgesOfType.length; i++) {
          if (badgesOfType[i]._id.toString() === bdg._id.toString()) {
              badgeId = badgesOfType[i]._id;
