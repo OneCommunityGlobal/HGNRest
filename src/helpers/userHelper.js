@@ -108,7 +108,7 @@ const userHelper = function () {
 
       const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
 
-      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: magenta;"> Not required for this user </span></div>';
+      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(
           `${b.firstName} ${b.lastname}`,
@@ -125,6 +125,7 @@ const userHelper = function () {
           mediaUrl,
           weeklySummariesCount,
           weeklycommittedHours,
+          weeklySummaryOption,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -141,7 +142,18 @@ const userHelper = function () {
           : 'Not provided!';
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-
+        const colorStyle = (() => {
+          switch (weeklySummaryOption) {
+            case 'Team':
+              return 'style="color: magenta;"';
+            case 'Not Required':
+              return 'style="color: green"';
+            case 'Required':
+              return '';
+            default:
+              return result.weeklySummaryNotReq ? 'style="color: green"' : '';
+          }
+        })();
         // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
         if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
           const { dueDate, summary } = weeklySummaries[0];
@@ -153,11 +165,11 @@ const userHelper = function () {
                   .tz('America/Los_Angeles')
                   .format('YYYY-MMM-DD')}</b>):
               </div>
-              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}">
+              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
               </div>
             `;
-          } else if (result.weeklySummaryNotReq === true) {
+          } else if (weeklySummaryOption === 'Not Required' || (!weeklySummaryOption && result.weeklySummaryNotReq)) {
             weeklySummaryMessage = weeklySummaryNotRequiredMessage;
           }
         }
@@ -321,7 +333,7 @@ const userHelper = function () {
           { new: true },
         );
 
-        if (updateResult?.weeklySummaryNotReq) {
+        if (updateResult?.weeklySummaryOption === 'Not Required' || updateResult?.weeklySummaryNotReq) {
           hasWeeklySummary = true;
         }
 
