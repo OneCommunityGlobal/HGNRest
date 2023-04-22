@@ -733,6 +733,7 @@ const taskController = function (Task) {
     _task.startedDatetime = req.body.startedDatetime;
     _task.dueDatetime = req.body.dueDatetime;
     _task.links = req.body.links;
+    _task.category = req.body.category;
     _task.parentId1 = req.body.parentId1;
     _task.parentId2 = req.body.parentId2;
     _task.parentId3 = req.body.parentId3;
