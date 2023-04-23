@@ -611,7 +611,6 @@ const userHelper = function () {
   };
 
   const replaceBadge = async function (personId, oldBadgeId, newBadgeId) {
-    console.log('Replacing Badge', personId, oldBadgeId, newBadgeId);
     userProfile.updateOne(
       { _id: personId, 'badgeCollection.badge': oldBadgeId },
       {
@@ -638,7 +637,6 @@ const userHelper = function () {
         console.log(err);
       }
     });
-
   };
 
   const addBadge = async function (
@@ -647,7 +645,6 @@ const userHelper = function () {
     count = 1,
     featured = false,
   ) {
-    console.log('Adding Badge ', personId, badgeId, count);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -668,7 +665,6 @@ const userHelper = function () {
   };
 
   const removeDupBadge = async function (personId, badgeId) {
-    console.log('Removing Badge ', personId, badgeId);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -685,7 +681,6 @@ const userHelper = function () {
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
-    console.log('Changing Badge Count', personId, badgeId, count);
     if (count === 0) {
       removeDupBadge(personId, badgeId);
     } else {
@@ -1400,7 +1395,6 @@ const userHelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
-    // test,
   };
 };
 

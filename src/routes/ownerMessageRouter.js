@@ -3,7 +3,6 @@ const express = require('express');
 const routes = function (ownerMessage) {
   const controller = require('../controllers/ownerMessageController')(ownerMessage);
   const OwnerMessageRouter = express.Router();
-  // const imageUploadHelper = require('../helpers/imageUploadHelper');
 
   OwnerMessageRouter.route('/ownerMessage')
   .post(controller.postOwnerMessage)
