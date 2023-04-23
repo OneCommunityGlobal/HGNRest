@@ -25,6 +25,20 @@ const userHelper = function () {
     });
   };
 
+  const earnedDateBadge = () =>{
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    // Add 1 beacuse the month start at zero
+    let mm = today.getMonth() + 1; 
+    let dd = today.getDate()
+     
+    mm < 10  ?  mm = '0' + mm : mm;
+    dd < 10  ?  dd = '0' + dd : dd;
+    const formatedDate = yyyy + '-' + mm + '-' + dd;
+
+    return formatedDate;
+  }
+
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     return userProfile.findById(userid, 'firstName lastName');
@@ -108,7 +122,7 @@ const userHelper = function () {
 
       const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
 
-      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: magenta;"> Not required for this user </span></div>';
+      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(
           `${b.firstName} ${b.lastname}`,
@@ -125,6 +139,7 @@ const userHelper = function () {
           mediaUrl,
           weeklySummariesCount,
           weeklycommittedHours,
+          weeklySummaryOption,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -141,7 +156,18 @@ const userHelper = function () {
           : 'Not provided!';
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-
+        const colorStyle = (() => {
+          switch (weeklySummaryOption) {
+            case 'Team':
+              return 'style="color: magenta;"';
+            case 'Not Required':
+              return 'style="color: green"';
+            case 'Required':
+              return '';
+            default:
+              return result.weeklySummaryNotReq ? 'style="color: green"' : '';
+          }
+        })();
         // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
         if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
           const { dueDate, summary } = weeklySummaries[0];
@@ -153,11 +179,11 @@ const userHelper = function () {
                   .tz('America/Los_Angeles')
                   .format('YYYY-MMM-DD')}</b>):
               </div>
-              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}">
+              <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
               </div>
             `;
-          } else if (result.weeklySummaryNotReq === true) {
+          } else if (weeklySummaryOption === 'Not Required' || (!weeklySummaryOption && result.weeklySummaryNotReq)) {
             weeklySummaryMessage = weeklySummaryNotRequiredMessage;
           }
         }
@@ -321,7 +347,7 @@ const userHelper = function () {
           { new: true },
         );
 
-        if (updateResult?.weeklySummaryNotReq) {
+        if (updateResult?.weeklySummaryOption === 'Not Required' || updateResult?.weeklySummaryNotReq) {
           hasWeeklySummary = true;
         }
 
@@ -353,7 +379,6 @@ const userHelper = function () {
 
         if (timeNotMet || !hasWeeklySummary) {
           if (timeNotMet && !hasWeeklySummary) {
-
             description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           } else if (timeNotMet) {
             description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format('dddd YYYY-MM-DD')} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
@@ -604,18 +629,14 @@ const userHelper = function () {
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    userProfile.updateOne(
-      { _id: personId, 'badgeCollection.badge': badgeId },
-      {
-        $inc: { 'badgeCollection.$.count': 1 },
-        $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
-      },
-      (err) => {
-        if (err) {
-          console.log(err);
-        }
-      },
-    );
+    console.log('Increase Badge Count', personId, badgeId);
+    userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
+    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } , $push:{'badgeCollection.$.earnedDate':earnedDateBadge() }},
+    (err) => {
+      if (err) {
+        console.log(err);
+      }
+    });
   };
 
   const addBadge = async function (
@@ -629,10 +650,9 @@ const userHelper = function () {
       {
         $push: {
           badgeCollection: {
-            badge: badgeId,
-            count,
-            featured,
-            lastModified: Date.now().toString(),
+
+            badge: badgeId, count, earnedDate:[earnedDateBadge()], featured, lastModified: Date.now().toString(),
+
           },
         },
       },
@@ -1214,7 +1234,6 @@ const userHelper = function () {
       }
 
 
-
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
       await badge.find({ type: 'Total Hrs in Category', category: newCatg })
 
@@ -1225,9 +1244,7 @@ const userHelper = function () {
           }
 
           results.every((elem) => {
-
             if (hoursByCategory[categoryHrs] > 0 && hoursByCategory[categoryHrs] >= elem.totalHrs) {
-
               let theBadge;
               for (let i = 0; i < badgesOfType.length; i += 1) {
                 if (badgesOfType[i]._id.toString() === elem._id.toString()) {
