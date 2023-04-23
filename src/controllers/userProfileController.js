@@ -236,10 +236,8 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      // let requested_infringements = (req.body.infringements)? (req.body.infringements): [];
       const originalinfringements = record.infringements ? record.infringements : [];
 
-      // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
