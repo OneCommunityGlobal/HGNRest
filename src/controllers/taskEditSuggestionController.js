@@ -27,7 +27,6 @@ const taskEditSuggestionController = function (TaskEditSuggestion) {
       const tes = await TaskEditSuggestion.findOneAndUpdate(taskIdQuery, update, options);
       res.status(200).send(tes);
     } catch (error) {
-      console.log(error);
       res.status(400).send(error);
     }
   };
