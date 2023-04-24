@@ -193,16 +193,19 @@ const userProfileController = function (UserProfile) {
 
         // update backend cache
 
-        const userCache = `{"isActive":${true},"weeklyComittedHours":${up.weeklyComittedHours},
-                            "createdDate":"${up.createdDate.toISOString()}","_id":"${
-          up._id
-        }","role":"${up.role}",
-                            "firstName":"${up.firstName}","lastName":"${up.lastName}","email":"${
-          up.email
-        }"}`;
-        const userCacheJson = JSON.parse(userCache);
+        const userCache = {
+          permissions: up.permissions,
+          isActive: true,
+          weeklycommittedHours: up.weeklycommittedHours,
+          createdDate: up.createdDate.toISOString(),
+          _id: up._id,
+          role: up.role,
+          firstName: up.firstName,
+          lastName: up.lastName,
+          email: up.email,
+        };
         const allUserCache = JSON.parse(cache.getCache('allusers'));
-        allUserCache.push(userCacheJson);
+        allUserCache.push(userCache);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
       .catch((error) => res.status(501).send(error));
@@ -236,10 +239,8 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      // let requested_infringements = (req.body.infringements)? (req.body.infringements): [];
       const originalinfringements = record.infringements ? record.infringements : [];
 
-      // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;

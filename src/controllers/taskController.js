@@ -319,11 +319,9 @@ const taskController = function (Task) {
 
       Task.find({ mother: { $in: [mother] } }).then((tasks) => {
         const sortedTasks = sortByNum(tasks);
-        // const willBeUpdatedNum = [];
 
         sortedTasks.forEach((task, index) => {
           const newNum = `${motherNum}.${index + 1}`.replace('..', '');
-          // console.log(task.num.indexOf(newNum));
           if (task.num.indexOf(newNum) !== 0) {
             updateTaskNums(task._id, newNum);
             Task.find(
@@ -342,7 +340,6 @@ const taskController = function (Task) {
                   newNumArr.forEach((numLevel, index2) => {
                     childTaskNumArr[index2] = numLevel;
                   });
-                  // console.log(item.num, '->', childTaskNumArr.join('.'));
                   updateTaskNums(item._id, childTaskNumArr.join('.'));
                 });
               },
@@ -352,16 +349,6 @@ const taskController = function (Task) {
       });
     });
   };
-
-  /*
-  const fixedText = (text) => {
-    let fixedTextStr = text.replace(/""/g, '"');
-    fixedTextStr = fixedTextStr.replace(/;/g, ',');
-    if (text[0] === '"') {
-      fixedTextStr = fixedTextStr.substring(1, fixedTextStr.length - 1);
-    }
-    return fixedTextStr;
-  }; */
 
   const calculateSubTasksLocal = (level, tasks) => {
     const calculatedTasks = [];
@@ -419,9 +406,6 @@ const taskController = function (Task) {
           childTask.resources.forEach((member) => {
             let isInResource = false;
             resources.forEach((mem) => {
-              // if (member.userID.equals(mem.userID)) {
-              // isInResource = true;
-              // }
               if (member.name === mem.name) {
                 isInResource = true;
               }
@@ -460,7 +444,6 @@ const taskController = function (Task) {
             tasks[i].resources = resources;
           }
         });
-        // updateSumUp(task._id, sumHoursBest, sumHoursWorst, sumHoursMost, sumEstimatedHours, resources);
       }
       calculatedTasks.push(task);
     });
@@ -504,8 +487,6 @@ const taskController = function (Task) {
       }
       formatedTasks.push(task);
     });
-
-    // console.log(formatedTasks);
 
     // Sort the task
     const sortedTasks = formatedTasks.sort((a, b) => {
@@ -594,19 +575,9 @@ const taskController = function (Task) {
       return;
     }
 
-    /* if (!req.body.taskName || !req.body.isActive
-    ) {
-      res.status(400).send({ error: 'Task Name, Active status, Task Number are mandatory fields' });
-      return;
-    } */
     const wbsId = req.params.id;
     const taskList = req.body.list;
-    // console.log('taskList', taskList.length);
     const fixedTasks = fixTasksLocal(taskList, wbsId);
-    // const isFine = true;
-
-    // const dbTasks = [];
-    // console.log('fixedtask', fixedTasks.length);
 
     fixedTasks.forEach((task) => {
       const _task = new Task();
@@ -650,52 +621,6 @@ const taskController = function (Task) {
     });
 
     res.status(201).send('done');
-
-    // fixTasksLocal(taskList);
-
-    /*
-
-    const numBody = req.body.num;
-    let numBodyArr = numBody.split('.');
-    numBodyArr.pop();
-    const motherNum = numBodyArr.join('.');
-
-    const _task = new Task();
-
-    _task.wbsId = wbsId;
-    _task.taskId = `${numBody}-${wbsId}`;
-    _task.taskName = fixedText(req.body.taskName);
-    _task.num = req.body.num;
-    _task.task = req.body.task;
-    _task.level = req.body.level;
-    _task.priority = req.body.priority;
-    _task.resources = req.body.resources;
-    _task.isAssigned = req.body.isAssigned;
-    _task.status = req.body.status;
-    _task.hoursBest = parseFloat(req.body.hoursBest.trim(), 10);
-    _task.hoursWorst = parseFloat(req.body.hoursWorst.trim(), 10);
-    _task.hoursMost = parseFloat(req.body.hoursMost.trim(), 10);
-    _task.estimatedHours = parseFloat(req.body.estimatedHours.trim(), 10);
-    _task.startedDatetime = req.body.startedDatetime;
-    _task.dueDatetime = req.body.dueDatetime;
-    _task.links = req.body.links;
-    _task.parentId1 = req.body.parentId1;
-    _task.parentId2 = req.body.parentId2;
-    _task.parentId3 = req.body.parentId3;
-    _task.isActive = req.body.isActive;
-    _task.mother = `${motherNum}-${wbsId}`;
-    _task.position = req.body.position;
-    _task.createdDatetime = Date.now();
-    _task.modifiedDatetime = Date.now();
-
-    _task
-      .save()
-      .then((result) => {
-        res.status(201).send(result);
-      })
-      .catch((errors) => { res.status(400).send(errors); });
-
-      */
   };
 
   const postTask = (req, res) => {
@@ -934,12 +859,6 @@ const taskController = function (Task) {
   };
 
   const deleteTask = (req, res) => {
-    /* if (req.body.requestor.role !== 'Administrator') {
-      res
-        .status(403)
-        .send({ error: 'You are  not authorized to delete tasks.' });
-      return;
-    } */
     const { taskId } = req.params;
     const { mother } = req.params;
     Task.find(
@@ -956,7 +875,6 @@ const taskController = function (Task) {
           res.status(400).send({ error: 'No valid records found' });
           return;
         }
-        // resetNum(taskId, mother);
         const removeTasks = [];
         record.forEach((rec) => {
           removeTasks.push(rec.remove());
@@ -964,7 +882,6 @@ const taskController = function (Task) {
 
         Promise.all([...removeTasks])
           .then(() => {
-            // updateParents(record[0].wbsId, record[0].parentId1);
             resetNum(taskId, mother);
             return res
               .status(200)
@@ -980,12 +897,6 @@ const taskController = function (Task) {
   };
 
   const deleteTaskByWBS = (req, res) => {
-    /* if (req.body.requestor.role !== 'Administrator') {
-      res
-        .status(403)
-        .send({ error: 'You are  not authorized to delete tasks.' });
-      return;
-    } */
     const { wbsId } = req.params;
 
     Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
@@ -1438,7 +1349,6 @@ const taskController = function (Task) {
         },
       ]);
       const data = await agg.exec();
-      // console.log(JSON.stringify(data, null, 4));
       res.status(200).send(data);
     } catch (error) {
       res.status(400).send(error);

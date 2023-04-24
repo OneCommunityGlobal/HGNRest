@@ -25,6 +25,20 @@ const userHelper = function () {
     });
   };
 
+  const earnedDateBadge = () =>{
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    // Add 1 beacuse the month start at zero
+    let mm = today.getMonth() + 1; 
+    let dd = today.getDate()
+     
+    mm < 10  ?  mm = '0' + mm : mm;
+    dd < 10  ?  dd = '0' + dd : dd;
+    const formatedDate = yyyy + '-' + mm + '-' + dd;
+
+    return formatedDate;
+  }
+
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     return userProfile.findById(userid, 'firstName lastName');
@@ -597,7 +611,6 @@ const userHelper = function () {
   };
 
   const replaceBadge = async function (personId, oldBadgeId, newBadgeId) {
-    console.log('Replacing Badge', personId, oldBadgeId, newBadgeId);
     userProfile.updateOne(
       { _id: personId, 'badgeCollection.badge': oldBadgeId },
       {
@@ -617,18 +630,13 @@ const userHelper = function () {
 
   const increaseBadgeCount = async function (personId, badgeId) {
     console.log('Increase Badge Count', personId, badgeId);
-    userProfile.updateOne(
-      { _id: personId, 'badgeCollection.badge': badgeId },
-      {
-        $inc: { 'badgeCollection.$.count': 1 },
-        $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
-      },
-      (err) => {
-        if (err) {
-          console.log(err);
-        }
-      },
-    );
+    userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
+    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } , $push:{'badgeCollection.$.earnedDate':earnedDateBadge() }},
+    (err) => {
+      if (err) {
+        console.log(err);
+      }
+    });
   };
 
   const addBadge = async function (
@@ -637,16 +645,14 @@ const userHelper = function () {
     count = 1,
     featured = false,
   ) {
-    console.log('Adding Badge ', personId, badgeId, count);
     userProfile.findByIdAndUpdate(
       personId,
       {
         $push: {
           badgeCollection: {
-            badge: badgeId,
-            count,
-            featured,
-            lastModified: Date.now().toString(),
+
+            badge: badgeId, count, earnedDate:[earnedDateBadge()], featured, lastModified: Date.now().toString(),
+
           },
         },
       },
@@ -659,7 +665,6 @@ const userHelper = function () {
   };
 
   const removeDupBadge = async function (personId, badgeId) {
-    console.log('Removing Badge ', personId, badgeId);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -676,7 +681,6 @@ const userHelper = function () {
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
-    console.log('Changing Badge Count', personId, badgeId, count);
     if (count === 0) {
       removeDupBadge(personId, badgeId);
     } else {
@@ -1391,7 +1395,6 @@ const userHelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
-    // test,
   };
 };
 
