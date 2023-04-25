@@ -281,6 +281,7 @@ const userProfileController = function (UserProfile) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
+        record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
         record.adminLinks = req.body.adminLinks;
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
