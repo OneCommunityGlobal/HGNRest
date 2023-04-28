@@ -1108,7 +1108,14 @@ const taskController = function (Task) {
             name: 1,
             role: 1,
             weeklycommittedHours: {
-              $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+              $sum: [
+                {
+                  $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+                },
+                {
+                  $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
+                },
+              ],
             },
           },
         },

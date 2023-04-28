@@ -294,7 +294,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklySummaries',
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
       for (let i = 0; i < users.length; i += 1) {
@@ -323,7 +323,9 @@ const userHelper = function () {
           pdtEndOfLastWeek,
         );
 
-        const { weeklycommittedHours, timeSpent_hrs: timeSpent } = results[0];
+        const { timeSpent_hrs: timeSpent } = results[0];
+
+        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
         const timeNotMet = timeSpent < weeklycommittedHours;
         let description;
@@ -477,6 +479,104 @@ const userHelper = function () {
           false,
         );
       }
+    } catch (err) {
+      logger.logException(err);
+    }
+  };
+
+  const applyMissedHourForCoreTeam = async () => {
+    try {
+      const currentDate = moment().tz('America/Los_Angeles').format();
+
+      logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentDate}`);
+
+      const startOfLastWeek = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .subtract(1, 'week')
+      .format('YYYY-MM-DD');
+
+      const endOfLastWeek = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(1, 'week')
+      .format('YYYY-MM-DD');
+
+      const missedHours = await userProfile.aggregate([
+        {
+          $match: {
+            role: 'Core Team',
+            isActive: true,
+          },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: '_id',
+            foreignField: 'personId',
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$isTangible', true] },
+                      { $gte: ['$dateOfWork', startOfLastWeek] },
+                      { $lte: ['$dateOfWork', endOfLastWeek] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: 'timeEntries',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            missedHours: {
+              $max: [
+                {
+                  $subtract: [
+                    {
+                      $sum: [
+                        { $ifNull: ['$missedHours', 0] },
+                        '$weeklycommittedHours',
+                      ],
+                    },
+                    {
+                      $divide: [
+                        {
+                          $sum: {
+                            $map: {
+                              input: '$timeEntries',
+                              in: '$$this.totalSeconds',
+                            },
+                          },
+                        },
+                        3600,
+                      ],
+                    },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+        },
+      ]);
+
+      const bulkOps = [];
+
+      missedHours.forEach((obj) => {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: obj._id },
+            update: { missedHours: obj.missedHours },
+          },
+        });
+      });
+
+      await userProfile.bulkWrite(bulkOps);
     } catch (err) {
       logger.logException(err);
     }
@@ -1387,6 +1487,7 @@ const userHelper = function () {
     getTeamMembers,
     validateProfilePic,
     assignBlueSquareForTimeNotMet,
+    applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
     reActivateUser,
     deActivateUser,
