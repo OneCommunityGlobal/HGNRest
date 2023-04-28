@@ -249,7 +249,14 @@ const dashboardhelper = function () {
             $arrayElemAt: ['$persondata.role', 0],
           },
           weeklycommittedHours: {
-            $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+            $sum: [
+              {
+                $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+              },
+              {
+                $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
+              },
+            ],
           },
         },
       },
