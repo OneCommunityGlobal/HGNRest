@@ -20,23 +20,20 @@ const taskNotificationController = function (TaskNotification) {
       // If task notification with taskId and userId exists, don't do anything.
       // Else, create new task notification.image.png
       await Promise.all(
-        userIds.map(async userId => (
-          TaskNotification.updateOne({
-            $and: [
-              { taskId },
-              { userId: mongoose.Types.ObjectId(userId) },
-            ],
-          },
-          {
-            $setOnInsert: {
-              oldTask,
+        userIds.map(async userId => TaskNotification.updateOne(
+            {
+              $and: [{ taskId }, { userId: mongoose.Types.ObjectId(userId) }],
             },
-          },
-          {
-            upsert: true,
-            setDefaultsOnInsert: true,
-          })
-        )),
+            {
+              $setOnInsert: {
+                oldTask,
+              },
+            },
+            {
+              upsert: true,
+              setDefaultsOnInsert: true,
+            },
+          )),
       );
       res.status(200).send({ message: 'Create or updated task notification' });
     } catch (error) {
@@ -47,6 +44,33 @@ const taskNotificationController = function (TaskNotification) {
   const deleteTaskNotification = function (req, res) {
     TaskNotification.findById(req.params.taskNotificationId)
       .then((result) => {
+        result
+          .remove()
+          .then(
+            res
+              .status(200)
+              .send({ message: 'Deleted task notification', result }),
+          )
+          .catch((error) => {
+            res.status(400).send(error);
+          });
+      })
+      .catch((error) => {
+        res.status(400).send(error);
+      });
+  };
+
+  // newly created function
+
+  const deleteTaskNotificationByUserId = (req, res) => {
+    TaskNotification.findOne({
+      $and: [
+        { taskId: mongoose.Types.ObjectId(req.params.taskNotificationId) },
+        { userId: mongoose.Types.ObjectId(req.params.userId) },
+      ],
+    })
+      .then((result) => {
+        console.log(result);
         result
           .remove()
           .then(res.status(200).send({ message: 'Deleted task notification' }))
@@ -82,6 +106,7 @@ const taskNotificationController = function (TaskNotification) {
     deleteTaskNotification,
     createOrUpdateTaskNotification,
     markTaskNotificationAsRead,
+    deleteTaskNotificationByUserId,
   };
 };
 
