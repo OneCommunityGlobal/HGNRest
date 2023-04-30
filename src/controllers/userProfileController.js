@@ -306,7 +306,9 @@ const userProfileController = function (UserProfile) {
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
-          userData.endDate = record.endDate.toISOString();
+          if (isUserInCache) {
+            userData.endDate = record.endDate.toISOString();
+          }
         } else {
           record.set('endDate', undefined, { strict: false });
         }
