@@ -26,7 +26,7 @@ const routes = function (TaskNotification) {
   // newly created endpoint
 
   TaskNotificationRouter.route(
-    '/tasknotification/:userId/:taskNotificationId',
+    '/tasknotification/:userId/:taskId',
   ).delete(controller.deleteTaskNotificationByUserId);
 
   return TaskNotificationRouter;
