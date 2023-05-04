@@ -452,6 +452,8 @@ const dashboardhelper = function () {
       return [
         {
           personId: userId,
+          role: user.role,
+          weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
           totaltangibletime_hrs: tangibleSeconds / 3600,
