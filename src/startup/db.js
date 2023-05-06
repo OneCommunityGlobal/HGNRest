@@ -24,7 +24,6 @@ const afterConnect = async () => {
         lastName: 'TimeArchiveAccount',
         email: 'TimeArchiveAccount@yopmail.com',
         role: 'Volunteer',
-        //password: '123Welcome!',
         password: DEF_PWD,
       })
         .then(result => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
