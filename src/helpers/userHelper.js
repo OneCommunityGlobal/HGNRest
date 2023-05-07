@@ -984,7 +984,9 @@ const userHelper = function () {
       });
    // Here it is verifying the maximun  hour in the array of badges for the first condition
    // if the user worked 45 hours in a week just make sense assign badges where the total hours are lower then or equal 45 hours
-   const maxHourBadge = Math.max(...arrayTotalHrs);
+    let maxHourBadge = 0;
+    if(arrayTotalHrs.length > 0) { maxHourBadge = Math.max(...arrayTotalHrs)} 
+    ;
    // now here will assign the especific badge
    arrayBadges.map((badge) => {
      if (badge.totalHrs === maxHourBadge) {
@@ -1027,7 +1029,10 @@ const userHelper = function () {
      }
    });
    // calculate the max week number to assign the badge;
-   const maxWeek = Math.max(...weeksArray);
+   let maxWeek = 0;
+if (weeksArray.length > 0) {
+  maxWeek = Math.max(...weeksArray);
+}
    matchBadge.forEach((bdg) => {
      let badgeId;
      if (bdg.weeks === maxWeek) {
