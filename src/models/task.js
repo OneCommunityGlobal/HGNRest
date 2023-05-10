@@ -26,6 +26,7 @@ const taskschema = new Schema({
   startedDatetime: { type: Date },
   dueDatetime: { type: Date },
   links: [String],
+  category: { type: String },
   parentId1: {
     type: mongoose.SchemaTypes.ObjectId,
     ref: 'task',
