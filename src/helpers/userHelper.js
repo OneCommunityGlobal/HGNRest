@@ -1297,6 +1297,7 @@ const userHelper = function () {
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
 
+
     const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
 
     const badgesOfType = [];
@@ -1336,6 +1337,7 @@ const userHelper = function () {
 
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
       await badge.find({ type: 'Total Hrs in Category', category: newCatg })
+
 
         .sort({ totalHrs: -1 })
         .then((results) => {

@@ -53,6 +53,8 @@ const taskschema = new Schema({
   intentInfo: { type: String },
   endstateInfo: { type: String },
   classification: { type: String },
+  // Created By Ayush : Submit for Review
+  readyForReview: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model('task', taskschema, 'tasks');
