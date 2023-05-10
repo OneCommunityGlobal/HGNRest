@@ -16,8 +16,6 @@ const notificationController = function (Notification) {
 
   const createUserNotification = function (notification) {
     notification.save();
-    // .then(results => { console.log(` notification created with id ${results._id}`) })
-    // .catch(error => { console.log(error) });
   };
 
   const deleteUserNotification = function (req, res) {

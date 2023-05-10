@@ -198,7 +198,6 @@ const timeEntrycontroller = function (TimeEntry) {
   const getAllTimeEnteries = function (req, res) {
     TimeEntry.find((err, records) => {
       if (err) {
-        // console.log(err);
         return res.status(404).send(err);
       }
       const items = [];
@@ -314,7 +313,6 @@ const timeEntrycontroller = function (TimeEntry) {
   const getTimeEntriesForUsersList = function (req, res) {
     const { members } = req.query;
     const membersArr = members.split(',');
-    // console.log(membersArr);
 
     const fromDate = moment()
       .tz('America/Los_Angeles')
