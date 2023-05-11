@@ -4,8 +4,6 @@ const logger = require('./logger');
 const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
 
-const config = require('../config');
-const { DEF_PWD } = config;
 mongoose.Promise = Promise;
 
 const afterConnect = async () => {
@@ -24,7 +22,7 @@ const afterConnect = async () => {
         lastName: 'TimeArchiveAccount',
         email: 'TimeArchiveAccount@yopmail.com',
         role: 'Volunteer',
-        password: DEF_PWD,
+        password: '123Welcome!',
       })
         .then(result => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
         .catch(error => logger.logException(error));

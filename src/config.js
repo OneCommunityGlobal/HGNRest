@@ -1,7 +1,6 @@
 const config = {};
 
 config.JWT_SECRET = process.env.JWT_SECRET;
-config.DEF_PWD = process.env.DEF_PWD;
 config.REQUEST_AUTHKEY = 'Authorization';
 config.TOKEN = {
   Lifetime: process.env.TOKEN_LIFETIME,
