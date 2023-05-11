@@ -264,6 +264,7 @@ const userProfileController = function (UserProfile) {
       record.totalTangibleHrs = req.body.totalTangibleHrs;
       record.isVisible = req.body.isVisible || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
+      record.bioPosted = req.body.bioPosted || false;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
