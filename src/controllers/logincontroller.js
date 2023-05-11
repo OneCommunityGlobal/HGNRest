@@ -5,14 +5,12 @@ const config = require('../config');
 const userprofile = require('../models/userProfile');
 
 const logincontroller = function () {
-  const { JWT_SECRET,DEF_PWD } = config;
+  const { JWT_SECRET } = config;
 
   const login = async function _login(req, res) {
     const _email = req.body.email;
     const _password = req.body.password;
-    
-    
-    const _defPwd = DEF_PWD;
+    const _defPwd = '123Welcome!';
     if (!_email || !_password) {
       res.status(400).send({ error: 'Invalid request' });
       return;
