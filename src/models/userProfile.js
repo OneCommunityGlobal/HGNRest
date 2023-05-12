@@ -142,6 +142,7 @@ const userProfileSchema = new Schema({
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
+  bioPosted: { type: Boolean, default: false },
 });
 
 userProfileSchema.pre('save', function (next) {
