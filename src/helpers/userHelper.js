@@ -745,6 +745,7 @@ const userHelper = function () {
     count = 1,
     featured = false,
   ) {
+    console.log("Adding Badge");
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -1049,34 +1050,40 @@ const userHelper = function () {
 
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
-    let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'Most Hrs in Week') {
-        badgeOfType = badgeCollection[i].badge;
-      }
-    }
-    await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
-      userProfile
-        .aggregate([
-          { $match: { isActive: true } },
-          { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
-        ])
-        .then((userResults) => {
-          if (
-            user.lastWeekTangibleHrs
-            && user.lastWeekTangibleHrs >= userResults[0].maxHours
-          ) {
-            if (badgeOfType) {
-              increaseBadgeCount(
-                personId,
-                mongoose.Types.ObjectId(badgeOfType._id),
-              );
-            } else {
-              addBadge(personId, mongoose.Types.ObjectId(results._id));
+    if (
+      user.weeklycommittedHours > 0 &&
+      user.lastWeekTangibleHrs > user.weeklycommittedHours
+    ) {
+      const badgeOfType = badgeCollection
+        .filter((object) => object.badge.type === "Most Hrs in Week")
+        .map((object) => object.badge);
+      await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
+        userProfile
+          .aggregate([
+            { $match: { isActive: true } },
+            { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
+          ])
+          .then((userResults) => {
+            if (badgeOfType.length > 1) {
+              removeDupBadge(user._id, badgeOfType[0]._id);
+            } 
+
+            if (
+              user.lastWeekTangibleHrs
+              && user.lastWeekTangibleHrs >= userResults[0].maxHours
+            ) {
+              if (badgeOfType.length) {
+                increaseBadgeCount(
+                  personId,
+                  mongoose.Types.ObjectId(badgeOfType[0]._id),
+                );
+              } else {
+                addBadge(personId, mongoose.Types.ObjectId(results._id));
+              }
             }
-          }
-        });
-    });
+          });
+      });
+    }
   };
 
   // 'X Hours for X Week Streak',
