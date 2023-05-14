@@ -79,7 +79,6 @@ const reporthelper = function () {
           weeklySummaryNotReq: 1,
           weeklySummaryOption: 1,
           adminLinks: 1,
-          bioPosted: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
