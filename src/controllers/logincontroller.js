@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 const userprofile = require('../models/userProfile');
+const escapeRegex = require('../utilities/escapeRegex');
 
 const logincontroller = function () {
   const { JWT_SECRET,DEF_PWD } = config;
@@ -19,7 +20,7 @@ const logincontroller = function () {
     }
 
 
-    const user = await userprofile.findOne({ email: { $regex: _email, $options: 'i' } })
+    const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } })
       .catch(error => res.status(400).send(error));
 
     // returning 403 if the user not found or the found user is inactive.
