@@ -1,6 +1,6 @@
 
 const escapeRegex = function (text) {
-    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    return text.replace(/[[\]{}()*+?.\\^$|]/g, '\\$&');
 };
 
 module.exports = escapeRegex;
