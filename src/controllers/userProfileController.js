@@ -727,6 +727,39 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
+
+  const toggleRehireable = async (userId) => {
+    console.log(' into function toggleRehireable(userId)');
+      try {
+        // see how to find the user
+        const user = await UserProfile.findById(userId);
+        if (user.isRehireable) {
+          await UserProfile.findByIdAndUpdate(
+            user._id,
+            {
+              $set: {
+                isRehireable: false,
+              },
+            },
+            { new: true },
+          );
+        }
+        if (!user.isRehireable) {
+            await UserProfile.findByIdAndUpdate(
+              user._id,
+              {
+                $set: {
+                  isRehireable: true,
+                },
+              },
+              { new: true },
+            );
+        }
+      } catch (err) {
+      logger.logException(err);
+      }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -743,6 +776,7 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
+    toggleRehireable,
   };
 };
 

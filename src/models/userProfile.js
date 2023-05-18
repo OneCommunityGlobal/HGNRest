@@ -4,6 +4,7 @@ const moment = require('moment-timezone');
 const { Schema } = mongoose;
 const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
+const { truncate } = require('fs');
 
 const SALT_ROUNDS = 10;
 
@@ -21,7 +22,7 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
-  isRehireable: { type: Boolean, required: true, default: true },
+  isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
   role: {
     type: String,
