@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 
 const badgeController = function (Badge) {
   const getAllBadges = function (req, res) {
@@ -61,7 +62,7 @@ const badgeController = function (Badge) {
       return;
     }
 
-    Badge.find({ badgeName: { $regex: req.body.badgeName, $options: 'i' } })
+    Badge.find({ badgeName: { $regex: escapeRegex(req.body.badgeName), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
           res.status(400).send({ error: `Another badge with name ${result[0].badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.` });
