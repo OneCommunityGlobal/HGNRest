@@ -12,6 +12,7 @@ const userProfileJobs = () => {
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
+        await userhelper.executeSummaryGroupHelper();
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.awardNewBadges();
       }
@@ -25,4 +26,5 @@ const userProfileJobs = () => {
 
   allUserProfileJobs.start();
 };
+
 module.exports = userProfileJobs;

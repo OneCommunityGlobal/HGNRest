@@ -13,6 +13,17 @@ const router = function (summaryGroup) {
   summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId')
     .delete(controller.deleteSummaryGroup)
     .put(controller.putSummaryGroup);
+  summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId/teamMembers')
+    .post(controller.addTeamMemberToSummaryGroup)
+    .get(controller.getTeamMembersBySummaryGroupId);
+
+  summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId/teamMembers/:userId/')
+    .delete(controller.deleteTeamMemberToSummaryGroup);
+  summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId/summaryReceivers')
+    .post(controller.addSummaryReceiversToSummaryGroup)
+    .get(controller.getsummaryReceiversBySummaryGroupId);
+  summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId/summaryReceivers/:userId')
+    .delete(controller.deleteSummaryReceiverToSummaryGroup);
 
   return summaryManagementRouter;
 };
