@@ -1,6 +1,7 @@
 const uuidv4 = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
+const escapeRegex = require('../utilities/escapeRegex');
 
 
 function getEmailMessageForForgotPassword(user, ranPwd) {
@@ -21,9 +22,9 @@ const forgotPwdController = function (userProfile) {
     const _lastName = (req.body.lastName);
 
     const user = await userProfile.findOne({
-      email: { $regex: _email, $options: 'i' },
-      firstName: { $regex: _firstName, $options: 'i' },
-      lastName: { $regex: _lastName, $options: 'i' },
+      email: { $regex: escapeRegex(_email), $options: 'i' },
+      firstName: { $regex: escapeRegex(_firstName), $options: 'i' },
+      lastName: { $regex: escapeRegex(_lastName), $options: 'i' },
     })
       .catch((error) => {
         res.status(500).send(error);

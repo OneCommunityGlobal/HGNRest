@@ -3,6 +3,7 @@ const moment = require('moment');
 const projects = require('../models/project');
 const wbs = require('../models/wbs');
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 
 const inventoryController = function (Item, ItemType) {
   const getAllInvInProjectWBS = function (req, res) {
@@ -539,7 +540,7 @@ const inventoryController = function (Item, ItemType) {
     if (!hasPermission(req.body.requestor.role, 'postInvType')) {
       return res.status(403).send('You are not authorized to save an inventory type.');
     }
-    return ItemType.find({ name: { $regex: req.body.name, $options: 'i' } })
+    return ItemType.find({ name: { $regex: escapeRegex(req.body.name), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
           res.status(400).send({ error: `Another ItemType with name ${req.body.name} already exists. Sorry, but item names should be like snowflakes, no two should be the same.` });
