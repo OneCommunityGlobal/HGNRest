@@ -18,7 +18,6 @@ function ValidatePassword(req, res) {
   const { userId } = req.params;
   const { requestor } = req.body;
 
-
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     res.status(400).send({
       error: 'Bad Request',

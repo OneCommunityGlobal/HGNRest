@@ -4,7 +4,6 @@ const moment = require('moment-timezone');
 const { Schema } = mongoose;
 const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
-const { truncate } = require('fs');
 
 const SALT_ROUNDS = 10;
 
@@ -61,7 +60,7 @@ const userProfileSchema = new Schema({
     {
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
       count: { type: Number, default: 0 },
-      earnedDate: { type: Array, default: [] },
+      earnedDate:{type: Array, default:[]},
       lastModified: { type: Date, required: true, default: Date.now() },
       featured: {
         type: Boolean,

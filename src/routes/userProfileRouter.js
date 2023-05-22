@@ -44,7 +44,7 @@ const routes = function (userProfile) {
     .get(controller.getAllUsersWithFacebookLink);
 
   userProfileRouter.route('/userProfile/peopleReport/:userId')
-    .get(controller.toggleRehireable);
+    .put(controller.toggleRehireable);
 
   return userProfileRouter;
 };
