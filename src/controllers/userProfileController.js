@@ -18,6 +18,7 @@ function ValidatePassword(req, res) {
   const { userId } = req.params;
   const { requestor } = req.body;
 
+
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     res.status(400).send({
       error: 'Bad Request',
@@ -730,6 +731,8 @@ const userProfileController = function (UserProfile) {
 
   const toggleRehireable = async (userId) => {
     console.log(' into function toggleRehireable(userId)');
+    console.log('lili', this.props.userProfile.isRehireable);
+
       try {
         // see how to find the user
         const user = await UserProfile.findById(userId);
