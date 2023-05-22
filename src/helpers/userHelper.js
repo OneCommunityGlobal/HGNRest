@@ -731,8 +731,7 @@ const userHelper = function () {
   const increaseBadgeCount = async function (personId, badgeId) {
     console.log('Increase Badge Count', personId, badgeId);
     userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
-    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } , $push:
-  {'badgeCollection.$.earnedDate':earnedDateBadge() }},
+    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } , $push:{'badgeCollection.$.earnedDate':earnedDateBadge() }},
     (err) => {
       if (err) {
         console.log(err);
@@ -753,7 +752,7 @@ const userHelper = function () {
           badgeCollection: {
 
             badge: badgeId, count, earnedDate:[earnedDateBadge()], featured, lastModified: Date.now().toString(),
-            
+
           },
         },
       },

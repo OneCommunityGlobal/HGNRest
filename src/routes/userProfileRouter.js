@@ -43,9 +43,6 @@ const routes = function (userProfile) {
   userProfileRouter.route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
 
-  userProfileRouter.route('/userProfile/peopleReport/:userId')
-    .put(controller.toggleRehireable);
-
   return userProfileRouter;
 };
 

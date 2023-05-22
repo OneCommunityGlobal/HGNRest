@@ -12,6 +12,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
 function ValidatePassword(req, res) {
@@ -112,7 +113,7 @@ const userProfileController = function (UserProfile) {
 
     const userByEmail = await UserProfile.findOne({
       email: {
-        $regex: req.body.email,
+        $regex: escapeRegex(req.body.email),
         $options: 'i',
       },
     });
@@ -240,7 +241,6 @@ const userProfileController = function (UserProfile) {
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
-
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
@@ -263,7 +263,9 @@ const userProfileController = function (UserProfile) {
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
       record.isVisible = req.body.isVisible || false;
+      record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
+      record.bioPosted = req.body.bioPosted || false;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -279,6 +281,7 @@ const userProfileController = function (UserProfile) {
         hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
       ) {
         record.role = req.body.role;
+        record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
         record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
@@ -301,12 +304,15 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
+        record.bioPosted = req.body.bioPosted;
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
-          userData.endDate = record.endDate.toISOString();
+          if (isUserInCache) {
+            userData.endDate = record.endDate.toISOString();
+          }
         } else {
           record.set('endDate', undefined, { strict: false });
         }
@@ -727,41 +733,6 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
-
-  const toggleRehireable = async (userId) => {
-    console.log(' into function toggleRehireable(userId)');
-    console.log('lili', this.props.userProfile.isRehireable);
-
-      try {
-        // see how to find the user
-        const user = await UserProfile.findById(userId);
-        if (user.isRehireable) {
-          await UserProfile.findByIdAndUpdate(
-            user._id,
-            {
-              $set: {
-                isRehireable: false,
-              },
-            },
-            { new: true },
-          );
-        }
-        if (!user.isRehireable) {
-            await UserProfile.findByIdAndUpdate(
-              user._id,
-              {
-                $set: {
-                  isRehireable: true,
-                },
-              },
-              { new: true },
-            );
-        }
-      } catch (err) {
-      logger.logException(err);
-      }
-  };
-
   return {
     postUserProfile,
     getUserProfiles,
@@ -778,8 +749,8 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
-    toggleRehireable,
   };
 };
 
 module.exports = userProfileController;
+
