@@ -241,7 +241,6 @@ const userProfileController = function (UserProfile) {
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
-
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
@@ -264,6 +263,7 @@ const userProfileController = function (UserProfile) {
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
       record.isVisible = req.body.isVisible || false;
+      record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || false;
 
@@ -281,6 +281,7 @@ const userProfileController = function (UserProfile) {
         hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
       ) {
         record.role = req.body.role;
+        record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
         record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
