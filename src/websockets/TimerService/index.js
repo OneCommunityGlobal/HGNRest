@@ -139,6 +139,11 @@ const addGoal = (client, msg) => {
   const goal = getGoal(msg);
   if (goalOver10Hours(client, goal)) return;
 
+  if (!client.paused) {
+    client.time = getTotalElapsedTime(client).asMilliseconds().toFixed();
+    client.lastAccess = moment();
+  }
+
   client.goal = moment
     .duration(client.goal)
     .add(goal, 'milliseconds')
@@ -173,6 +178,11 @@ const goalLessThan15min = (client, time) => {
 const removeGoal = (client, msg) => {
   const goal = getGoal(msg);
   if (goalLessThan15min(client, goal)) return;
+
+  if (!client.paused) {
+    client.time = getTotalElapsedTime(client).asMilliseconds().toFixed();
+    client.lastAccess = moment();
+  }
 
   client.goal = moment
     .duration(client.goal)
