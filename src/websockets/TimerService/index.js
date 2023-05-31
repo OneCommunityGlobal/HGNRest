@@ -56,6 +56,11 @@ If the timer was paused, we need to check if it was paused by the user or by the
 If it was paused by the server, we need to set the forcedPause flag to true.
 */
 const startTimer = (client) => {
+  if (!client.paused) {
+    client.time = getTotalElapsedTime(client).asMilliseconds().toFixed();
+    client.lastAccess = moment();
+  }
+
   if (client.paused) {
     client.lastAccess = moment();
     client.stopped = false;
