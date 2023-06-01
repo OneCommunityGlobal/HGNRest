@@ -1537,8 +1537,8 @@ const userHelper = function () {
           // weeklySummaries array will have only one item fetched (if present),
           // consequently totalSeconds array will also have only one item in the array (if present)
           // hence totalSeconds[0] should be used
-          const hoursLogged = weeklycommittedHours && weeklycommittedHours.totalSeconds
-              ? weeklycommittedHours.totalSeconds[0] / 3600
+          const hoursLogged = lastWeekTangibleHrs && lastWeekTangibleHrs.totalSeconds
+              ? lastWeekTangibleHrs.totalSeconds[0] / 3600
               : 0;
 
           const mediaUrlLink = mediaUrl
