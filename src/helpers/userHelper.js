@@ -1520,7 +1520,7 @@ const userHelper = function () {
 
           const userProfileDocument = await userProfile.findById(userId).select({
             weeklySummaries: 1,
-            weeklycommittedHours: 1,
+            lastWeekTangibleHrs: 1,
             mediaUrl: 1,
             weeklySummariesCount: 1,
           });
