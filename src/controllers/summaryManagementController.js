@@ -189,7 +189,7 @@ const summaryManagementController = function (summaryGroup) {
     addTeamMemberToSummaryGroup,
     deleteTeamMemberToSummaryGroup,
     addSummaryReceiversToSummaryGroup,
-    getsummaryReceiversBySummaryGroupId,
+    getSummaryReceiversBySummaryGroupId,
     deleteSummaryReceiverToSummaryGroup,
 
   };
