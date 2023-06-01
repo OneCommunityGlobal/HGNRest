@@ -1528,7 +1528,7 @@ const userHelper = function () {
 
           const {
             weeklySummaries,
-            weeklycommittedHours,
+            lastWeekTangibleHrs,
             mediaUrl,
             weeklySummariesCount,
           } = userProfileDocument;
