@@ -1625,7 +1625,6 @@ const userHelper = function () {
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
     executeSummaryGroupHelper,
-    // test,
   };
 };
 
