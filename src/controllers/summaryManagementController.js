@@ -147,7 +147,7 @@ const summaryManagementController = function (summaryGroup) {
   };
 
 
-  const getsummaryReceiversBySummaryGroupId = function (req, res) {
+  const getSummaryReceiversBySummaryGroupId = function (req, res) {
     const { summaryGroupId } = req.params;
 
     summaryGroup.findById(summaryGroupId, (error, summaryGroup) => {
