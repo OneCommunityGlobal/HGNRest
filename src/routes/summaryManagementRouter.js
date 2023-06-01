@@ -21,7 +21,7 @@ const router = function (summaryGroup) {
     .delete(controller.deleteTeamMemberToSummaryGroup);
   summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId/summaryReceivers')
     .post(controller.addSummaryReceiversToSummaryGroup)
-    .get(controller.getsummaryReceiversBySummaryGroupId);
+    .get(controller.getSummaryReceiversBySummaryGroupId);
   summaryManagementRouter.route('/SUMMARY_GROUPS/:summaryGroupId/summaryReceivers/:userId')
     .delete(controller.deleteSummaryReceiverToSummaryGroup);
 
