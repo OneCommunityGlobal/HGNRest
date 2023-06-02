@@ -248,9 +248,6 @@ const dashboardhelper = function () {
           role: {
             $arrayElemAt: ['$persondata.role', 0],
           },
-          isVisible: {
-            $arrayElemAt: ['$persondata.isVisible', 0],
-          },
           weeklycommittedHours: {
             $sum: [
               {
@@ -276,7 +273,6 @@ const dashboardhelper = function () {
           personId: 1,
           name: 1,
           role: 1,
-          isVisible: 1,
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
@@ -307,7 +303,6 @@ const dashboardhelper = function () {
           personId: 1,
           name: 1,
           role: 1,
-          isVisible: 1,
           weeklycommittedHours: 1,
           totalSeconds: {
             $cond: [
@@ -358,7 +353,6 @@ const dashboardhelper = function () {
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
             role: '$role',
-            isVisible: '$isVisible',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -377,7 +371,6 @@ const dashboardhelper = function () {
           personId: '$_id.personId',
           name: '$_id.name',
           role: '$_id.role',
-          isVisible: '$_id.isVisible',
           weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
@@ -460,7 +453,6 @@ const dashboardhelper = function () {
         {
           personId: userId,
           role: user.role,
-          isVisible: user.isVisible,
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
