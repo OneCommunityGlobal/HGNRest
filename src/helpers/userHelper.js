@@ -614,7 +614,6 @@ const userHelper = function () {
   };
 
   const replaceBadge = async function (personId, oldBadgeId, newBadgeId) {
-    console.log("Replacing Badge", personId, oldBadgeId, newBadgeId);
     userProfile.updateOne(
       { _id: personId, "badgeCollection.badge": oldBadgeId },
       {
@@ -633,7 +632,6 @@ const userHelper = function () {
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    console.log("Increase Badge Count", personId, badgeId);
     userProfile.updateOne(
       { _id: personId, "badgeCollection.badge": badgeId },
       {
@@ -654,7 +652,6 @@ const userHelper = function () {
     count = 1,
     featured = false
   ) {
-    console.log("Adding Badge ", personId, badgeId, count);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -676,7 +673,6 @@ const userHelper = function () {
   };
 
   const removeDupBadge = async function (personId, badgeId) {
-    console.log("Removing Badge ", personId, badgeId);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -693,7 +689,6 @@ const userHelper = function () {
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
-    console.log("Changing Badge Count", personId, badgeId, count);
     if (count === 0) {
       removeDupBadge(personId, badgeId);
     } else {
@@ -884,8 +879,6 @@ const userHelper = function () {
     user,
     badgeCollection
   ) {
-    //! Recommend switching in a fakeHrs variable for user.lastWeekTangibleHrs to test this function easily.
-
     if (
       user.weeklycommittedHours > 0 &&
       user.lastWeekTangibleHrs > user.weeklycommittedHours
@@ -904,7 +897,7 @@ const userHelper = function () {
           for (let i = 0; i < results.length; i += 1) {
             // this needs to be a for loop so that the returns break before assigning badges for lower multiples
             const elem = results[i]; // making variable elem accessible for below code
-            //user.lastWeekTangibleHrs
+
             if (
               user.lastWeekTangibleHrs / user.weeklycommittedHours >=
               elem.multiple
@@ -1304,20 +1297,20 @@ const userHelper = function () {
   const awardNewBadges = async () => {
     try {
       const users = await userProfile
-        .find({ isActive: true }) //! add in a firstName property here to look for a specific user.
+        .find({ isActive: true })
         .populate("badgeCollection.badge");
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
-        // await checkPersonalMax(personId, user, badgeCollection);
-        // await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkPersonalMax(personId, user, badgeCollection);
+        await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
-        // await checkTotalHrsInCat(personId, user, badgeCollection);
-        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        // await checkXHrsForXWeeks(personId, user, badgeCollection);
-        // await checkNoInfringementStreak(personId, user, badgeCollection);
+        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkXHrsForXWeeks(personId, user, badgeCollection);
+        await checkNoInfringementStreak(personId, user, badgeCollection);
       }
     } catch (err) {
       logger.logException(err);
