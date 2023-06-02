@@ -750,7 +750,6 @@ const userHelper = function () {
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    console.log("Increase Badge Count", personId, badgeId);
     userProfile.updateOne(
       { _id: personId, "badgeCollection.badge": badgeId },
       {
