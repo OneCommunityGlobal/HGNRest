@@ -8,7 +8,7 @@
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
     "buildw": "babel src -d dist --watch",
-    "start": "node dist/server.js",
+    "start": "node dist/server.js --host 186.211.85.180",
     "serve": "node src/server.js"
   },
   "pre-commit": [
