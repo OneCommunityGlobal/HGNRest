@@ -8,7 +8,7 @@
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
     "buildw": "babel src -d dist --watch",
-    "start": "node dist/server.js --host 186.211.85.180",
+    "start": "node dist/server.js",
     "serve": "node src/server.js"
   },
   "pre-commit": [
@@ -51,6 +51,7 @@
     "googleapis": "^100.0.0",
     "jsonwebtoken": "^9.0.0",
     "lodash": "^4.17.21",
+    "mime": "^3.0.0",
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.35",
     "mongodb": "^3.7.3",
