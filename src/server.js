@@ -1,6 +1,9 @@
 /* eslint-disable quotes */
 require("dotenv").load();
+const mime = require('mime');
 
+// Set the correct MIME type for JavaScript files
+mime.define({ 'application/javascript': ['js'] }, { force: true });
 
 const express = require("express");
 const websockets = require("./websockets").default;
