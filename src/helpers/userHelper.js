@@ -1,5 +1,3 @@
-/* eslint-disable no-continue */
-/* eslint-disable no-await-in-loop */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -27,19 +25,19 @@ const userHelper = function () {
     });
   };
 
-  const earnedDateBadge = () => {
+  const earnedDateBadge = () =>{
     const today = new Date();
     const yyyy = today.getFullYear();
     // Add 1 beacuse the month start at zero
-    let mm = today.getMonth() + 1;
-    let dd = today.getDate();
-
-    mm < 10 ? mm = `0${ mm}` : mm;
-    dd < 10 ? dd = `0${ dd}` : dd;
-    const formatedDate = `${yyyy }-${ mm }-${ dd}`;
+    let mm = today.getMonth() + 1; 
+    let dd = today.getDate()
+     
+    mm < 10  ?  mm = '0' + mm : mm;
+    dd < 10  ?  dd = '0' + dd : dd;
+    const formatedDate = yyyy + '-' + mm + '-' + dd;
 
     return formatedDate;
-  };
+  }
 
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
@@ -724,15 +722,16 @@ const userHelper = function () {
       },
       (err) => {
         if (err) {
-          throw new Error(err);
+          console.log(err);
         }
       },
     );
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
+    console.log('Increase Badge Count', personId, badgeId);
     userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
-    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() }, $push: { 'badgeCollection.$.earnedDate': earnedDateBadge() } },
+    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() } , $push:{'badgeCollection.$.earnedDate':earnedDateBadge() }},
     (err) => {
       if (err) {
         console.log(err);
@@ -752,14 +751,14 @@ const userHelper = function () {
         $push: {
           badgeCollection: {
 
-            badge: badgeId, count, earnedDate: [earnedDateBadge()], featured, lastModified: Date.now().toString(),
+            badge: badgeId, count, earnedDate:[earnedDateBadge()], featured, lastModified: Date.now().toString(),
 
           },
         },
       },
       (err) => {
         if (err) {
-          throw new Error(err);
+          console.log(err);
         }
       },
     );
@@ -775,7 +774,7 @@ const userHelper = function () {
       },
       (err) => {
         if (err) {
-          throw new Error(err);
+          console.log(err);
         }
       },
     );
@@ -795,7 +794,7 @@ const userHelper = function () {
         },
         (err) => {
           if (err) {
-            throw new Error(err);
+            console.log(err);
           }
         },
       );
@@ -1297,6 +1296,7 @@ const userHelper = function () {
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
+
     const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
 
     const badgesOfType = [];
@@ -1336,6 +1336,7 @@ const userHelper = function () {
 
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
       await badge.find({ type: 'Total Hrs in Category', category: newCatg })
+
         .sort({ totalHrs: -1 })
         .then((results) => {
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
