@@ -185,7 +185,7 @@ const userProfileController = function (UserProfile) {
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
     up.location = req.body.location;
     up.permissions = req.body.permissions;
-    up.permissions = req.body.bioPosted || 'default';
+    up.bioPosted = req.body.bioPosted || 'default';
 
     up.save()
       .then(() => {
