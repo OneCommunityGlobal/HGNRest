@@ -185,6 +185,7 @@ const userProfileController = function (UserProfile) {
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
     up.location = req.body.location;
     up.permissions = req.body.permissions;
+    up.permissions = req.body.bioPosted || 'default';
 
     up.save()
       .then(() => {
@@ -265,7 +266,7 @@ const userProfileController = function (UserProfile) {
       record.totalTangibleHrs = req.body.totalTangibleHrs;
       record.isVisible = req.body.isVisible || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
-      record.bioPosted = req.body.bioPosted || false;
+      record.bioPosted = req.body.bioPosted || 'default';
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -303,7 +304,7 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
-        record.bioPosted = req.body.bioPosted;
+        record.bioPosted = req.body.bioPosted || 'default';
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
