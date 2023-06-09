@@ -187,7 +187,6 @@ const userProfileController = function (UserProfile) {
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
 
-
     up.save()
       .then(() => {
         res.status(200).send({
