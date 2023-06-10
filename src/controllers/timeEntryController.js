@@ -352,24 +352,11 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   const getTimeEntriesForUsersList = function (req, res) {
-    const { members } = req.query;
-    const membersArr = members.split(',');
-
-    const fromDate = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
-
-    const toDate = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
+    const { users, fromDate, toDate } = req.body;
 
     TimeEntry.find(
       {
-        personId: { $in: membersArr },
+        personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
       ' -createdDateTime',
@@ -395,7 +382,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
