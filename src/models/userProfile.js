@@ -60,7 +60,7 @@ const userProfileSchema = new Schema({
     {
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
       count: { type: Number, default: 0 },
-      earnedDate:{type: Array, default:[]},
+      earnedDate: { type: Array, default: [] },
       lastModified: { type: Date, required: true, default: Date.now() },
       featured: {
         type: Boolean,
@@ -143,7 +143,7 @@ const userProfileSchema = new Schema({
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
-  bioPosted: { type: Boolean, default: false },
+  bioPosted: { type: String, default: 'default' },
 });
 
 userProfileSchema.pre('save', function (next) {
