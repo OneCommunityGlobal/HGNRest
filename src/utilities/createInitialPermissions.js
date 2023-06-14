@@ -43,6 +43,8 @@ const permissionsRoles = [
       'dataIsTangibleTimelog',
       'toggleSubmitForm',
       'seePermissionsManagement',
+      'changeBioAnnouncement',
+      'seeAllReports',
     ],
     permissionsBackEnd: [
       'seeBadges',
@@ -228,6 +230,8 @@ const permissionsRoles = [
       'toggleSubmitForm',
       'seePermissionsManagement',
       'putUserProfilePermissions',
+      'changeBioAnnouncement',
+      'seeAllReports'
     ],
     permissionsBackEnd: [
       'seeBadges',
