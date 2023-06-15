@@ -105,7 +105,7 @@ const taskNotificationHelper = function () {
         }
 
         TaskNotification.findByIdAndDelete(notification._id).catch((error) => {
-          console.error(error);
+          throw new Error(error);
         });
       } else {
         newTaskNotification.oldTaskInfos = { ...oldTaskInfosConst };
@@ -115,7 +115,7 @@ const taskNotificationHelper = function () {
     });
 
     Promise.all(notificationPromises).then((data) => {
-      console.log(data);
+      throw new Error(data);
     });
   };
 
