@@ -70,6 +70,7 @@ const taskHelper = function () {
               },
             ],
           },
+          role:1
         },
       },
       {
@@ -101,6 +102,7 @@ const taskHelper = function () {
               },
             },
           },
+          role:1
         },
       },
       {
@@ -132,6 +134,7 @@ const taskHelper = function () {
               false,
             ],
           },
+          role:1
         },
       },
       {
@@ -153,6 +156,7 @@ const taskHelper = function () {
             personId: '$personId',
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
+            role: '$role'
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -174,6 +178,7 @@ const taskHelper = function () {
           totaltangibletime_hrs: {
             $divide: ['$tangibletime', 3600],
           },
+          role: '$_id.role'
         },
       },
       {

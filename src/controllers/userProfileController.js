@@ -185,6 +185,7 @@ const userProfileController = function (UserProfile) {
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
     up.location = req.body.location;
     up.permissions = req.body.permissions;
+    up.bioPosted = req.body.bioPosted || 'default';
 
     up.save()
       .then(() => {
@@ -241,7 +242,6 @@ const userProfileController = function (UserProfile) {
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
-
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
@@ -264,8 +264,9 @@ const userProfileController = function (UserProfile) {
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
       record.isVisible = req.body.isVisible || false;
+      record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
-      record.bioPosted = req.body.bioPosted || false;
+      record.bioPosted = req.body.bioPosted || 'default';
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -281,6 +282,7 @@ const userProfileController = function (UserProfile) {
         hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
       ) {
         record.role = req.body.role;
+        record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
         record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
@@ -303,11 +305,11 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
-        record.bioPosted = req.body.bioPosted;
+        record.bioPosted = req.body.bioPosted || 'default';
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
-        if (yearMonthDayDateValidator(req.body.endDate)) {
+        if (yearMonthDayDateValidator(req.body.endDate) || new Date(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
           if (isUserInCache) {
             userData.endDate = record.endDate.toISOString();
