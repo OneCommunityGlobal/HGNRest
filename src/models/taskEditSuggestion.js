@@ -28,6 +28,7 @@ const TaskEditSuggestion = new Schema({
         userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
         profilePic: { type: String },
         completedTask: { type: Boolean, default: false },
+        followedUp: { type: Boolean, default: false },
       },
     ],
     isAssigned: { type: Boolean, default: true },
@@ -53,6 +54,16 @@ const TaskEditSuggestion = new Schema({
         userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
         profilePic: { type: String },
         completedTask: { type: Boolean, default: false },
+        followedUp: {
+          followUpCheck: {
+            type: Boolean,
+            default: false,
+          },
+          followUpPercentageDeadline: {
+            type: Number,
+            default: 0,
+          },
+        },
       },
     ],
     isAssigned: { type: Boolean, default: true },

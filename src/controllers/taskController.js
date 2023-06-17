@@ -4,6 +4,7 @@ const myteam = require('../helpers/helperModels/myTeam');
 const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const hasPermission = require('../utilities/permissions');
+const task = require('models/task');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1113,7 +1114,10 @@ const taskController = function (Task) {
                   $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
                 },
                 {
-                  $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
+                  $ifNull: [
+                    { $arrayElemAt: ['$persondata.missedHours', 0] },
+                    0,
+                  ],
                 },
               ],
             },
@@ -1380,6 +1384,27 @@ const taskController = function (Task) {
     });
   };
 
+  const setFollowUp = (req, res) => {
+    const { taskId, userId } = req.params;
+    const { followUpCheck, followUpPercentageDeadline } = req.body;
+    Task.findOneAndUpdate(
+      { _id: taskId, 'resources.userID': userId },
+      {
+        $set: {
+          'resources.$.followedUp.followUpCheck': followUpCheck,
+          'resources.$.followedUp.followUpPercentageDeadline': followUpPercentageDeadline,
+        },
+      },
+      { new: true },
+    )
+      .then((response) => {
+        res.status(200).send(response);
+      })
+      .catch((error) => {
+        res.status(500).send(error);
+      });
+  };
+
   return {
     postTask,
     getTasks,
@@ -1396,6 +1421,7 @@ const taskController = function (Task) {
     getTasksByUserList,
     getTasksForTeamsByUser,
     updateChildrenQty,
+    setFollowUp,
   };
 };
 
