@@ -319,36 +319,84 @@ const timeEntrycontroller = function (TimeEntry) {
     const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const { userId } = req.params;
 
-    TimeEntry.find(
+    TimeEntry.aggregate([
       {
-        personId: userId,
-        dateOfWork: { $gte: fromdate, $lte: todate },
+        $match: {
+          personId: mongoose.Types.ObjectId(userId),
+          dateOfWork: { $gte: fromdate, $lte: todate },
+        },
       },
-      ' -createdDateTime',
-    )
-      // allow the task-based timeEntry get its taskId into projectId field when calling this func
-      // .populate('projectId')
-      .sort({ lastModifiedDateTime: -1 })
-      .then((results) => {
-        const data = [];
-        results.forEach((element) => {
-          const record = {};
-
-          record._id = element._id;
-          record.notes = element.notes;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId;
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId
-            ? element.projectId.projectName
-            : '';
-          record.dateOfWork = element.dateOfWork;
-          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          data.push(record);
-        });
-        res.status(200).send(data);
-      })
-      .catch(error => res.status(400).send(error));
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project',
+        },
+      },
+      {
+        $lookup: {
+          from: 'tasks',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'task',
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          notes: 1,
+          isTangible: 1,
+          personId: 1,
+          projectId: 1,
+          projectName: {
+            $arrayElemAt: [
+              '$project.projectName',
+              0,
+            ],
+          },
+          taskName: {
+            $arrayElemAt: [
+              '$task.taskName',
+              0,
+            ],
+          },
+          category: {
+            $arrayElemAt: [
+              '$project.category',
+              0,
+            ],
+          },
+          classification: {
+            $arrayElemAt: [
+              '$task.classification',
+              0,
+            ],
+          },
+          dateOfWork: 1,
+          hours: {
+            $floor: {
+              $divide: ['$totalSeconds', 3600],
+            },
+          },
+          minutes: {
+            $floor: {
+              $divide: [
+                { $mod: ['$totalSeconds', 3600] },
+                60,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          lastModifiedDateTime: -1,
+        },
+      },
+    ]).then((results) => {
+      res.status(200).send(results);
+    }).catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForUsersList = function (req, res) {
