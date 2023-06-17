@@ -44,6 +44,8 @@ const permissionsRoles = [
       'toggleSubmitForm',
       'seePermissionsManagement',
       'changeBioAnnouncement',
+      'changeUserStatus',
+      'submitWeeklySummaryForOthers',
       'seeAllReports',
     ],
     permissionsBackEnd: [
@@ -231,6 +233,8 @@ const permissionsRoles = [
       'seePermissionsManagement',
       'putUserProfilePermissions',
       'changeBioAnnouncement',
+      'changeUserStatus',
+      'submitWeeklySummaryForOthers',
       'seeAllReports'
     ],
     permissionsBackEnd: [
