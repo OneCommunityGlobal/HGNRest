@@ -638,6 +638,10 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+    if (!hasPermission(req.body.requestor.role, 'changeUserStatus')) {
+      res.status(403).send('You are not authorized to change user status');
+      return;
+    }
     cache.removeCache(`user-${userId}`);
     UserProfile.findById(userId, 'isActive')
       .then((user) => {
