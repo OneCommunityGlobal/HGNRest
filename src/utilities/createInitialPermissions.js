@@ -45,6 +45,7 @@ const permissionsRoles = [
       'seePermissionsManagement',
       'changeBioAnnouncement',
       'seeAllReports',
+      'removeUserFromTask',
     ],
     permissionsBackEnd: [
       'seeBadges',
@@ -231,7 +232,8 @@ const permissionsRoles = [
       'seePermissionsManagement',
       'putUserProfilePermissions',
       'changeBioAnnouncement',
-      'seeAllReports'
+      'seeAllReports',
+      'removeUserFromTask',
     ],
     permissionsBackEnd: [
       'seeBadges',
