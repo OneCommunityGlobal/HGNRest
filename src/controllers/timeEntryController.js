@@ -342,6 +342,7 @@ const timeEntrycontroller = function (TimeEntry) {
           isTangible: 1,
           personId: 1,
           projectId: 1,
+          lastModifiedDateTime: 1,
           projectName: {
             $arrayElemAt: [
               '$project.projectName',
