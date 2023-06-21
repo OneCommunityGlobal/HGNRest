@@ -49,14 +49,14 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
     const emailBody = getEditedTimeEntryEmailBody(record.firstName, record.lastName, record.email, originalTime, finalTime, requestor);
     emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${record.firstName} ${record.lastName}`, emailBody);
   } catch (error) {
-    console.log(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
+    throw new Error(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
   }
 };
 
 const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, hoursLogged) => {
   try {
-  const record = await userProfile.findById(personId);
-  const text = `Dear <b>${record.firstName}${record.lastName}</b>,
+    const record = await userProfile.findById(personId);
+    const text = `Dear <b>${record.firstName}${record.lastName}</b>,
       <p>Oops, it looks like  you have logged more hours than estimated for a task </p>
       <p><b>Task Name : ${taskName}</b></p>
       <p><b>Time Estimated : ${estimatedHours}</b></p>
@@ -64,15 +64,24 @@ const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, h
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
       <p>One Community</p>`;
-      emailSender(
-        record.email,
-        'Logged more hours than estimated for a task',
-        text,
-        'onecommunityglobal@gmail.com',
-        null,
+    emailSender(
+      record.email,
+      'Logged more hours than estimated for a task',
+      text,
+      'onecommunityglobal@gmail.com',
+      null,
     );
   } catch (error) {
     console.log(`Failed to send email notification about the overtime for a task belonging to user with id ${personId}`);
+  }
+};
+
+const checkTaskOvertime = async (timeentry, record, currentTask) => {
+  try {
+    // send email notification if logged in hours exceeds estiamted hours for a task
+    if (currentTask.hoursLogged > currentTask.estimatedHours) { notifyTaskOvertimeEmailBody(timeentry.personId.toString(), currentTask.taskName, currentTask.estimatedHours, currentTask.hoursLogged); }
+  } catch (error) {
+    console.log(`Failed to find task whose logged-in hours are more than estimated hours ${record.email}`);
   }
 };
 
@@ -130,14 +139,14 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          throw new Error('Failed to find the initial task by id');
         }
         try {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          throw new Error('Failed to find the edited task by id');
         }
       } else if (initialIsTangible === true && req.body.isTangible === 'false') {
         // Before timeEntry is tangible, after timeEntry is in-tangible
@@ -146,7 +155,7 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          throw new Error('Failed to find the initial task by id');
         }
       } else if (initialIsTangible === false && req.body.isTangible === 'true') {
         // Before timeEntry is in-tangible, after timeEntry is tangible
@@ -155,7 +164,7 @@ const timeEntrycontroller = function (TimeEntry) {
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          throw new Error('Failed to find the edited task by id');
         }
       }
 
@@ -284,7 +293,7 @@ const timeEntrycontroller = function (TimeEntry) {
         currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
         await currentTask.save();
       } catch (error) {
-        console.log('Failed to find the task by id');
+        throw new Error('Failed to find the task by id');
       }
     }
     // checking if logged in hours exceed estimated time after timeentry for a task
@@ -310,7 +319,7 @@ const timeEntrycontroller = function (TimeEntry) {
     const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const { userId } = req.params;
 
-    TimeEntry.find(
+    TimeEntry.aggregate([
       {
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
@@ -343,24 +352,11 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   const getTimeEntriesForUsersList = function (req, res) {
-    const { members } = req.query;
-    const membersArr = members.split(',');
-
-    const fromDate = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
-
-    const toDate = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
+    const { users, fromDate, toDate } = req.body;
 
     TimeEntry.find(
       {
-        personId: { $in: membersArr },
+        personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
       ' -createdDateTime',
@@ -386,7 +382,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -432,7 +428,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
         if (
           record.personId.toString()
-            === req.body.requestor.requestorId.toString()
+          === req.body.requestor.requestorId.toString()
           || hasPermission(req.body.requestor.role, 'deleteTimeEntry')
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
@@ -443,7 +439,7 @@ const timeEntrycontroller = function (TimeEntry) {
                 currentTask.save();
               })
               .catch((error) => {
-                console.log(error);
+                throw new Error(error);
               });
           }
 
@@ -462,15 +458,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .catch((error) => {
         res.status(400).send(error);
       });
-  };
-
-  const checkTaskOvertime = async (timeentry, record, currentTask) => {
-    try {
-      // send email notification if logged in hours exceeds estiamted hours for a task
-      if (currentTask.hoursLogged > currentTask.estimatedHours) { notifyTaskOvertimeEmailBody(timeentry.personId.toString(), currentTask.taskName, currentTask.estimatedHours, currentTask.hoursLogged); }
-    } catch (error) {
-      console.log(`Failed to find task whose logged-in hours are more than estimated hours ${record.email}`);
-    }
   };
 
   return {

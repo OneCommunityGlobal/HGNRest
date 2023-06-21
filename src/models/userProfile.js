@@ -21,6 +21,7 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
+  isRehireable: { type: Boolean, default: false },
   isSet: { type: Boolean, required: true, default: false },
   role: {
     type: String,
@@ -142,7 +143,7 @@ const userProfileSchema = new Schema({
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
-  bioPosted: { type: Boolean, default: false },
+  bioPosted: { type: String, default: 'default' },
 });
 
 userProfileSchema.pre('save', function (next) {
