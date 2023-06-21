@@ -218,8 +218,9 @@ const createInitialPermissions = async () => {
 
   // Get Roles From DB
   const allRoles = await Role.find();
-  const onlyUpdateOwner = true;
+  const onlyUpdateOwner = false;
 
+  const promises = [];
   // Add a new permission if the role has been changed in the  permissionsRoles Array
   for (let i = 0; i < permissionsRoles.length; i += 1) {
     const { roleName, permissions } = permissionsRoles[i];
@@ -235,15 +236,16 @@ const createInitialPermissions = async () => {
         role.save();
 
       // If role exists in db and is not updated, update it
-      } else if (roleDataBase.permissions.every(perm => permissions.includes(perm)) && permissions.every(perm => roleDataBase.permissions.includes(perm))) {
+      } else if (!roleDataBase.permissions.every(perm => permissions.includes(perm)) || !permissions.every(perm => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
-        await Role.findById(roleId, (_, record) => {
+        promises.push(Role.findById(roleId, (_, record) => {
           record.permissions = permissions;
           record.save();
-        });
+        }));
       }
     }
   }
+  await Promise.all(promises);
 };
 module.exports = createInitialPermissions;
