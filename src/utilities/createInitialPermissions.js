@@ -235,7 +235,7 @@ const permissionsRoles = [
       'changeBioAnnouncement',
       'changeUserStatus',
       'submitWeeklySummaryForOthers',
-      'seeAllReports'
+      'seeAllReports',
     ],
     permissionsBackEnd: [
       'seeBadges',
