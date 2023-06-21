@@ -111,6 +111,11 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
+    if (req.body.role === 'Owner' && !hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
+      res.status(403).send('You are not authorized to create new owners');
+      return;
+    }
+
     const userByEmail = await UserProfile.findOne({
       email: {
         $regex: escapeRegex(req.body.email),
@@ -224,6 +229,12 @@ const userProfileController = function (UserProfile) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
+
+    if (req.body.role === 'Owner' && !hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
+      res.status(403).send('You are not authorized to update this user');
+      return;
+    }
+
     cache.removeCache(`user-${userid}`);
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
@@ -355,11 +366,20 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
+    if (!hasPermission(req.body.requestor.role, 'deleteUserProfile')) {
+      res.status(403).send('You are not authorized to delete users');
+      return;
+    }
+
+    if (req.body.role === 'Owner' && !hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
+      res.status(403).send('You are not authorized to delete this user');
+      return;
+    }
+
     if (
       !userId
       || !option
       || (option !== 'delete' && option !== 'archive')
-      || !hasPermission(req.body.requestor.role, 'deleteUserProfile')
     ) {
       res.status(400).send({
         error: 'Bad request',
