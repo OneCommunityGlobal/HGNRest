@@ -236,7 +236,7 @@ const permissionsRoles = [
       'changeBioAnnouncement',
       'changeUserStatus',
       'submitWeeklySummaryForOthers',
-      'seeAllReports'
+      'seeAllReports',
       'removeUserFromTask',
     ],
     permissionsBackEnd: [
