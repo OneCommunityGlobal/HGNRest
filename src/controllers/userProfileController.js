@@ -12,6 +12,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
 function ValidatePassword(req, res) {
@@ -112,7 +113,7 @@ const userProfileController = function (UserProfile) {
 
     const userByEmail = await UserProfile.findOne({
       email: {
-        $regex: req.body.email,
+        $regex: escapeRegex(req.body.email),
         $options: 'i',
       },
     });
@@ -302,6 +303,7 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
+        record.bioPosted = req.body.bioPosted;
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
