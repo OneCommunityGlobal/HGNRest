@@ -53,6 +53,29 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
   }
 };
 
+const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, hoursLogged) => {
+  try {
+  const record = await userProfile.findById(personId);
+  const text = `Dear <b>${record.firstName}${record.lastName}</b>,
+      <p>Oops, it looks like  you have logged more hours than estimated for a task </p>
+      <p><b>Task Name : ${taskName}</b></p>
+      <p><b>Time Estimated : ${estimatedHours}</b></p>
+      <p><b>Hours Logged : ${hoursLogged}</b></p>
+      <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
+      <p>Thank you,</p>
+      <p>One Community</p>`;
+      emailSender(
+        record.email,
+        'Logged more hours than estimated for a task',
+        text,
+        'onecommunityglobal@gmail.com',
+        null,
+    );
+  } catch (error) {
+    console.log(`Failed to send email notification about the overtime for a task belonging to user with id ${personId}`);
+  }
+};
+
 const timeEntrycontroller = function (TimeEntry) {
   const editTimeEntry = async (req, res) => {
     const session = await mongoose.startSession();
@@ -185,6 +208,11 @@ const timeEntrycontroller = function (TimeEntry) {
       await timeEntry.save();
 
       res.status(200).send({ message: 'Successfully updated time entry' });
+
+      // checking if logged in hours exceed estimated time after timeentry edit for a task
+      const record = await userProfile.findById(timeEntry.personId.toString());
+      const currentTask = await task.findById(req.body.projectId);
+      checkTaskOvertime(timeEntry, record, currentTask);
     } catch (err) {
       await session.abortTransaction();
       return res.status(400).send({ error: err.toString() });
@@ -198,7 +226,6 @@ const timeEntrycontroller = function (TimeEntry) {
   const getAllTimeEnteries = function (req, res) {
     TimeEntry.find((err, records) => {
       if (err) {
-        // console.log(err);
         return res.status(404).send(err);
       }
       const items = [];
@@ -260,6 +287,10 @@ const timeEntrycontroller = function (TimeEntry) {
         console.log('Failed to find the task by id');
       }
     }
+    // checking if logged in hours exceed estimated time after timeentry for a task
+    const record = await userProfile.findById(timeentry.personId.toString());
+    const currentTask = await task.findById(req.body.projectId);
+    checkTaskOvertime(timeentry, record, currentTask);
   };
 
   const getTimeEntriesForSpecifiedPeriod = function (req, res) {
@@ -314,7 +345,6 @@ const timeEntrycontroller = function (TimeEntry) {
   const getTimeEntriesForUsersList = function (req, res) {
     const { members } = req.query;
     const membersArr = members.split(',');
-    // console.log(membersArr);
 
     const fromDate = moment()
       .tz('America/Los_Angeles')
@@ -434,6 +464,15 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const checkTaskOvertime = async (timeentry, record, currentTask) => {
+    try {
+      // send email notification if logged in hours exceeds estiamted hours for a task
+      if (currentTask.hoursLogged > currentTask.estimatedHours) { notifyTaskOvertimeEmailBody(timeentry.personId.toString(), currentTask.taskName, currentTask.estimatedHours, currentTask.hoursLogged); }
+    } catch (error) {
+      console.log(`Failed to find task whose logged-in hours are more than estimated hours ${record.email}`);
+    }
+  };
+
   return {
     getAllTimeEnteries,
     postTimeEntry,
@@ -442,6 +481,7 @@ const timeEntrycontroller = function (TimeEntry) {
     editTimeEntry,
     deleteTimeEntry,
     getTimeEntriesForSpecifiedProject,
+    checkTaskOvertime,
   };
 };
 

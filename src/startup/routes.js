@@ -15,6 +15,7 @@ const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const ownerMessage = require('../models/ownerMessage');
+const ownerStandardMessage = require('../models/ownerStandardMessage');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -41,6 +42,7 @@ const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 const roleRouter = require('../routes/roleRouter')(role);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
+const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -66,4 +68,5 @@ module.exports = function (app) {
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
   app.use('/api', ownerMessageRouter);
+  app.use('/api', ownerStandardMessageRouter);
 };
