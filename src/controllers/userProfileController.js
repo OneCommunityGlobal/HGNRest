@@ -495,23 +495,23 @@ const userProfileController = function (UserProfile) {
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) return res.status(400).send({error:'Missing property or value'})
+    if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
 
     return UserProfile.findById(userId)
       .then((user) => {
         user.set({
-          [key] : value
+          [key]: value,
         });
 
         return user
               .save()
-              .then(() =>{
-                res.status(200).send({ message: 'updated property' })
+              .then(() => {
+                res.status(200).send({ message: 'updated property' });
               })
               .catch(error => res.status(500).send(error));
       })
       .catch(error => res.status(500).send(error));
-  }
+  };
 
   const updatepassword = function (req, res) {
     const { userId } = req.params;
