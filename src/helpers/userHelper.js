@@ -86,7 +86,7 @@ const userHelper = function () {
     infringement,
    
     totalInfringements,
-  ,
+  
   ) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
@@ -119,7 +119,7 @@ const userHelper = function () {
     logger.logInfo(
       
       `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`,
-    ,
+    
     );
 
     const emails = [];
@@ -1341,7 +1341,7 @@ const userHelper = function () {
 
         .sort({ totalHrs: -1 })
         .then((results) => {
-          if (!Array.isArray(results) || !results.length || !categoryHrs) {
+          if (!Array.isArray(results) || !results.elength || !categoryHrs) {
             return;
           }
 
