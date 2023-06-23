@@ -1,14 +1,11 @@
 const mongoose = require('mongoose');
 const moment = require('moment');
-// const UserProfile = require('../models/userProfile');
 const projects = require('../models/project');
 const wbs = require('../models/wbs');
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 
 const inventoryController = function (Item, ItemType) {
-  // inventoryRouter.route('/inv/:projectId/wbs/:wbsId') //All By Project seperated into WBS (wbs can be nill which is the unassigned category)
-  //   .get(controller.getAllInvInProjectWBS)
-  //   .post(controller.postInvInProjectWBS); //Can create a new inventory item in a project with a specified wbs
   const getAllInvInProjectWBS = function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'getAllInvInProjectWBS')) {
       return res.status(403).send('You are not authorized to view inventory data.');
@@ -110,9 +107,6 @@ const inventoryController = function (Item, ItemType) {
   };
 
 
-  // inventoryRouter.route('/inv/:projectId') //All By Project seperated into WBS (wbs can be nill which is the unassigned category)
-  //   .get(controller.getAllInvInProject)
-  //   .post(controller.postInvInProject); //Can create a new inventory item in a project with unassigned wbs
   const getAllInvInProject = function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'getAllInvInProject')) {
       return res.status(403).send('You are not authorized to view inventory data.');
@@ -199,8 +193,6 @@ const inventoryController = function (Item, ItemType) {
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
   };
 
-  // inventoryRouter.route('/invtransfer/:invId') //Transfer some or all of the inventory to another project/wbs
-  //   .put(controller.transferInvById);
   const transferInvById = async function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'transferInvById')) {
       return res.status(403).send('You are not authorized to transfer inventory data.');
@@ -290,9 +282,6 @@ const inventoryController = function (Item, ItemType) {
   };
 
 
-  // inventoryRouter.route('/invwaste/:invId') //Waste some or all of the inventory
-  //  .put(controller.unWasteInvById)
-  //   .delete(controller.delInvById);
   const delInvById = async function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'delInvById')) {
       return res.status(403).send('You are not authorized to waste inventory.');
@@ -463,9 +452,6 @@ const inventoryController = function (Item, ItemType) {
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned');
   };
 
-  // inventoryRouter.route('/inv/:invId') //Single Inventory By Inv ID
-  //   .get(controller.getInvIdInfo)
-  //   .put(controller.putInvById);
   const getInvIdInfo = function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'getInvIdInfo')) {
       return res.status(403).send('You are not authorized to get inventory by id.');
@@ -476,7 +462,6 @@ const inventoryController = function (Item, ItemType) {
     return Item.findById({ _id: req.params.invId })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
-    // return res.send('Success');
   };
 
   const putInvById = function (req, res) {
@@ -486,7 +471,6 @@ const inventoryController = function (Item, ItemType) {
     // update the inv by id.
     // send result just sending something now to have it work and not break anything
     const { invId } = req.params;
-    // return res.send('Success');
     const data = {
       quantity: req.body.quantity,
       poNums: [req.body.poNum],
@@ -508,10 +492,6 @@ const inventoryController = function (Item, ItemType) {
     });
   };
 
-
-  //   inventoryRouter.route('/invtype/:typeId')
-  //   .get(controller.getInvTypeById)
-  //   .put(controller.putInvType);
   const getInvTypeById = function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'getInvTypeById')) {
       return res.status(403).send('You are not authorized to get inv type by id.');
@@ -521,7 +501,6 @@ const inventoryController = function (Item, ItemType) {
     return ItemType.findById({ _id: req.params.typeId })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
-    // return res.send('Success');
   };
 
   const putInvType = function (req, res) {
@@ -547,10 +526,6 @@ const inventoryController = function (Item, ItemType) {
     });
   };
 
-
-  //   inventoryRouter.route('/invtype')
-  //   .get(controller.getAllInvType)
-  //   .post(controller.postInvType);
   const getAllInvType = function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'getAllInvType')) {
       return res.status(403).send('You are not authorized to get all inventory.');
@@ -565,7 +540,7 @@ const inventoryController = function (Item, ItemType) {
     if (!hasPermission(req.body.requestor.role, 'postInvType')) {
       return res.status(403).send('You are not authorized to save an inventory type.');
     }
-    return ItemType.find({ name: { $regex: req.body.name, $options: 'i' } })
+    return ItemType.find({ name: { $regex: escapeRegex(req.body.name), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
           res.status(400).send({ error: `Another ItemType with name ${req.body.name} already exists. Sorry, but item names should be like snowflakes, no two should be the same.` });
