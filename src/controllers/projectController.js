@@ -3,6 +3,7 @@ const timeentry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const userProject = require('../helpers/helperModels/userProjects');
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 
 
 const projectController = function (Project) {
@@ -55,7 +56,7 @@ const projectController = function (Project) {
       return;
     }
 
-    Project.find({ projectName: { $regex: req.body.projectName, $options: 'i' } })
+    Project.find({ projectName: { $regex: escapeRegex(req.body.projectName), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
           res.status(400).send({ error: `Project Name must be unique. Another project with name ${result.projectName} already exists. Please note that project names are case insensitive` });
@@ -118,7 +119,6 @@ const projectController = function (Project) {
         res.status(200).send(results.projects);
       })
       .catch((error) => {
-        console.log(error);
         res.status(400).send(error);
       });
   };

@@ -12,6 +12,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
 function ValidatePassword(req, res) {
@@ -37,7 +38,7 @@ function ValidatePassword(req, res) {
     !userId === requestor.requestorId
     && !hasPermission(requestor.role, 'updatePassword')
   ) {
-    res.status(403).send({
+     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
@@ -112,14 +113,15 @@ const userProfileController = function (UserProfile) {
 
     const userByEmail = await UserProfile.findOne({
       email: {
-        $regex: req.body.email,
+        $regex: escapeRegex(req.body.email),
         $options: 'i',
       },
     });
 
     if (userByEmail) {
       res.status(400).send({
-        error: 'That email address is already in use. Please choose another email address.',
+        error:
+          'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
@@ -138,7 +140,8 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error: 'That phone number is already in use. Please choose another number.',
+          error:
+            'That phone number is already in use. Please choose another number.',
           type: 'phoneNumber',
         });
         return;
@@ -152,7 +155,8 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error: 'That name is already in use. Please confirm if you want to use this name.',
+        error:
+          'That name is already in use. Please confirm if you want to use this name.',
         type: 'name',
       });
       return;
@@ -175,6 +179,7 @@ const userProfileController = function (UserProfile) {
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
+    up.weeklySummaryOption = req.body.weeklySummaryOption;
     up.mediaUrl = req.body.mediaUrl || '';
     up.collaborationPreference = req.body.collaborationPreference || '';
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
@@ -188,12 +193,20 @@ const userProfileController = function (UserProfile) {
         });
 
         // update backend cache
-        const userCache = `{"isActive":${true},"weeklycommittedHours":${up.weeklycommittedHours},
-                            "createdDate":"${up.createdDate.toISOString()}","_id":"${up._id}","role":"${up.role}",
-                            "firstName":"${up.firstName}","lastName":"${up.lastName}","email":"${up.email}"}`;
-        const userCacheJson = JSON.parse(userCache);
+
+        const userCache = {
+          permissions: up.permissions,
+          isActive: true,
+          weeklycommittedHours: up.weeklycommittedHours,
+          createdDate: up.createdDate.toISOString(),
+          _id: up._id,
+          role: up.role,
+          firstName: up.firstName,
+          lastName: up.lastName,
+          email: up.email,
+        };
         const allUserCache = JSON.parse(cache.getCache('allusers'));
-        allUserCache.push(userCacheJson);
+        allUserCache.push(userCache);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
       .catch(error => res.status(501).send(error));
@@ -227,12 +240,8 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      // let requested_infringements = (req.body.infringements)? (req.body.infringements): [];
-      const originalinfringements = record.infringements
-        ? record.infringements
-        : [];
+      const originalinfringements = record.infringements ? record.infringements : [];
 
-      // jobTitle,emailPubliclyAccessible,phoneNumberPubliclyAccessible fields
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
@@ -254,6 +263,9 @@ const userProfileController = function (UserProfile) {
       record.timeZone = req.body.timeZone;
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
+      record.isVisible = req.body.isVisible || false;
+      record.totalIntangibleHrs = req.body.totalIntangibleHrs;
+      record.bioPosted = req.body.bioPosted || false;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -265,10 +277,13 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
-      if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
+      if (
+        hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
+      ) {
         record.role = req.body.role;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
+        record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
         record.adminLinks = req.body.adminLinks;
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
@@ -278,18 +293,25 @@ const userProfileController = function (UserProfile) {
         record.weeklySummariesCount = req.body.weeklySummariesCount;
         record.mediaUrl = req.body.mediaUrl;
         record.collaborationPreference = req.body.collaborationPreference;
-        record.weeklySummaryNotReq = req.body.weeklySummaryNotReq ? req.body.weeklySummaryNotReq : record.weeklySummaryNotReq;
-        record.categoryTangibleHrs = req.body.categoryTangibleHrs ? req.body.categoryTangibleHrs : record.categoryTangibleHrs;
+        record.weeklySummaryNotReq = req.body.weeklySummaryNotReq
+          ? req.body.weeklySummaryNotReq
+          : record.weeklySummaryNotReq;
+        record.weeklySummaryOption = req.body.weeklySummaryOption;
+        record.categoryTangibleHrs = req.body.categoryTangibleHrs
+          ? req.body.categoryTangibleHrs
+          : record.categoryTangibleHrs;
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
+        record.bioPosted = req.body.bioPosted;
 
-        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) record.permissions = req.body.permissions;
-
+        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
-          userData.endDate = record.endDate.toISOString();
+          if (isUserInCache) {
+            userData.endDate = record.endDate.toISOString();
+          }
         } else {
           record.set('endDate', undefined, { strict: false });
         }
@@ -407,48 +429,59 @@ const userProfileController = function (UserProfile) {
       userid,
       '-password -refreshTokens -lastModifiedDate -__v',
     )
-      .populate([{
-        path: 'teams',
-        select: '_id teamName',
-        options: {
-          sort: {
-            teamName: 1,
+      .populate([
+        {
+          path: 'teams',
+          select: '_id teamName',
+          options: {
+            sort: {
+              teamName: 1,
+            },
           },
         },
-      }, {
-        path: 'projects',
-        select: '_id projectName category',
-        options: {
-          sort: {
-            projectName: 1,
+        {
+          path: 'projects',
+          select: '_id projectName category',
+          options: {
+            sort: {
+              projectName: 1,
+            },
           },
         },
-      }, {
-        path: 'badgeCollection',
-        populate: {
-          path: 'badge',
-          model: Badge,
-          select: '_id badgeName type imageUrl description ranking',
+        {
+          path: 'badgeCollection',
+          populate: {
+            path: 'badge',
+            model: Badge,
+            select: '_id badgeName type imageUrl description ranking',
+          },
         },
-      }])
+      ])
       .exec()
       .then((results) => {
         if (!results) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, { strict: false });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
+        userHelper
+          .getTangibleHoursReportedThisWeekByUserId(userid)
+          .then((hours) => {
+            results.set('tangibleHoursReportedThisWeek', hours, {
+              strict: false,
+            });
+            cache.setCache(`user-${userid}`, JSON.stringify(results));
+            res.status(200).send(results);
+          });
       })
       .catch(error => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
     const { name } = req.params;
-    UserProfile.find({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }, '_id, profilePic, badgeCollection')
+    UserProfile.find(
+      { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
+      '_id, profilePic, badgeCollection',
+    )
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
@@ -463,11 +496,7 @@ const userProfileController = function (UserProfile) {
     }
 
     // Verify correct params in body
-    if (
-      !req.body.currentpassword
-      || !req.body.newpassword
-      || !req.body.confirmnewpassword
-    ) {
+    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
       });
@@ -532,7 +561,14 @@ const userProfileController = function (UserProfile) {
     const userid = mongoose.Types.ObjectId(req.params.userId);
     const { role } = req.body.requestor;
 
-    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
+    let validroles = [
+      'Volunteer',
+      'Manager',
+      'Administrator',
+      'Core Team',
+      'Owner',
+      'Mentor',
+    ];
 
     if (hasPermission(role, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
@@ -620,7 +656,9 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userIdx = allUserData.findIndex(
+                users => users._id === userId,
+              );
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();
@@ -690,8 +728,8 @@ const userProfileController = function (UserProfile) {
       permissions: user.permissions,
       expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
     };
-    const refreshToken = jwt.sign(jwtPayload, JWT_SECRET);
-    res.status(200).send({ refreshToken });
+    const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
+    res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
   return {
