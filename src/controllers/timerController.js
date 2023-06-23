@@ -144,8 +144,6 @@ const timerController = function (Timer) {
         return res.status(400).send('Timer record not found for the given user ID');
       }
       return adjust(record, (timer) => { res.status(200).send(timer); });
-
-      // return res.status(200).send(record);
     });
   };
 

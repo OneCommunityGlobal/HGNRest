@@ -22,67 +22,84 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
-    const pstStart = moment().tz('America/Los_Angeles').startOf('week').subtract(startWeekIndex, 'week')
+    const pstStart = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .subtract(startWeekIndex, 'week')
       .toDate();
-    const pstEnd = moment().tz('America/Los_Angeles').endOf('week').subtract(endWeekIndex, 'week')
+    const pstEnd = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(endWeekIndex, 'week')
       .toDate();
 
-    const results = await userProfile.aggregate([{
-      $match: {
-        isActive: true,
+    const results = await userProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
       },
-    },
-    {
-      $lookup: {
-        from: 'timeEntries',
-        localField: '_id',
-        foreignField: 'personId',
-        as: 'timeEntries',
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntries',
+        },
       },
-    },
-    {
-      $project: {
-        timeEntries: {
-          $filter: {
-            input: '$timeEntries',
-            as: 'timeEntry',
-            cond: {
-              $and: [
-                {
-                  $gte: ['$$timeEntry.dateOfWork', moment(pstStart).format('YYYY-MM-DD')],
-                },
-                {
-                  $lte: ['$$timeEntry.dateOfWork', moment(pstEnd).format('YYYY-MM-DD')],
-                },
-              ],
+      {
+        $project: {
+          timeEntries: {
+            $filter: {
+              input: '$timeEntries',
+              as: 'timeEntry',
+              cond: {
+                $and: [
+                  {
+                    $gte: [
+                      '$$timeEntry.dateOfWork',
+                      moment(pstStart).format('YYYY-MM-DD'),
+                    ],
+                  },
+                  {
+                    $lte: [
+                      '$$timeEntry.dateOfWork',
+                      moment(pstEnd).format('YYYY-MM-DD'),
+                    ],
+                  },
+                ],
+              },
             },
           },
-        },
-        firstName: 1,
-        lastName: 1,
-        email: 1,
-        mediaUrl: 1,
-        weeklycommittedHours: 1,
-        weeklySummaryNotReq: 1,
-        weeklySummaries: {
-          $filter: {
-            input: '$weeklySummaries',
-            as: 'ws',
-            cond: {
-              $and: [
-                {
-                  $gte: ['$$ws.dueDate', pstStart],
-                }, {
-                  $lte: ['$$ws.dueDate', pstEnd],
-                },
-              ],
+          firstName: 1,
+          lastName: 1,
+          email: 1,
+          mediaUrl: 1,
+          weeklycommittedHours: 1,
+          weeklySummaryNotReq: 1,
+          weeklySummaryOption: 1,
+          adminLinks: 1,
+          bioPosted: 1,
+          weeklySummaries: {
+            $filter: {
+              input: '$weeklySummaries',
+              as: 'ws',
+              cond: {
+                $and: [
+                  {
+                    $gte: ['$$ws.dueDate', pstStart],
+                  },
+                  {
+                    $lte: ['$$ws.dueDate', pstEnd],
+                  },
+                ],
+              },
             },
           },
+          weeklySummariesCount: 1,
+          isTangible: 1,
         },
-        weeklySummariesCount: 1,
-        isTangible: 1,
       },
-    },
     ]);
 
     // Logic too difficult to do using aggregation.
@@ -92,7 +109,10 @@ const reporthelper = function () {
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
+        if (
+          result.totalSeconds[index] === undefined
+          || result.totalSeconds[index] === null
+        ) {
           result.totalSeconds[index] = 0;
         }
 
@@ -107,7 +127,6 @@ const reporthelper = function () {
     return results;
   };
 
-
   /**
    * Checks whether a date belongs to a specific week based on week index.
    *
@@ -117,8 +136,14 @@ const reporthelper = function () {
    * @return {boolean} True if match, false otherwise.
    */
   const doesDateBelongToWeek = function (dueDate, weekIndex) {
-    const pstStartOfWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(weekIndex, 'week');
-    const pstEndOfWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(weekIndex, 'week');
+    const pstStartOfWeek = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .subtract(weekIndex, 'week');
+    const pstEndOfWeek = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(weekIndex, 'week');
     const fromDate = moment(pstStartOfWeek).toDate();
     const toDate = moment(pstEndOfWeek).toDate();
     return moment(dueDate).isBetween(fromDate, toDate, undefined, '[]');
@@ -152,7 +177,7 @@ const reporthelper = function () {
    * @return {Object} An array of user objects with properly sorted weeklySummaries by due date.
    */
   const formatSummaries = function (results) {
-    return (results.map((user) => {
+    return results.map((user) => {
       const { weeklySummaries: wS } = user;
       const wSummaries = [];
 
@@ -165,20 +190,21 @@ const reporthelper = function () {
         }
         // When single entry.
         if (wS.length === 1) {
-        // Special case when first entry belongs to week before last.
+          // Special case when first entry belongs to week before last.
           if (getTheWeek(wS[0].dueDate) === 2) {
             wSummaries[0] = null;
             wSummaries[1] = null;
             wSummaries[2] = { ...wS[0] };
           }
-        } else { // When two entries.
+        } else {
+          // When two entries.
           if (getTheWeek(wS[1].dueDate) === 1) wSummaries[1] = { ...wS[1] };
           if (getTheWeek(wS[1].dueDate) === 2) wSummaries[2] = { ...wS[1] };
         }
         user = { ...user, weeklySummaries: wSummaries };
       }
       return user;
-    }));
+    });
   };
 
   return {

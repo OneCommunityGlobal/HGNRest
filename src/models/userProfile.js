@@ -25,12 +25,10 @@ const userProfileSchema = new Schema({
   role: {
     type: String,
     required: true,
-    // remove enum
-    // enum: ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Mentor', 'Owner'],
   },
   permissions: {
-      frontPermissions: [String],
-      backPermissions: [String],
+    frontPermissions: [String],
+    backPermissions: [String],
   },
   firstName: {
     type: String,
@@ -46,36 +44,53 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [
-      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
-    ],
+    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   weeklycommittedHours: { type: Number, default: 10 },
+  missedHours: { type: Number, default: 0 },
   createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [
-    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
-  ],
+  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
-  badgeCollection: [{
-    badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
-    count: { type: Number, default: 0 },
-    lastModified: { type: Date, required: true, default: Date.now() },
-    featured: {
-      type: Boolean,
-      required: true,
-      default: false,
+  badgeCollection: [
+    {
+      badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
+      count: { type: Number, default: 0 },
+      earnedDate: { type: Array, default: [] },
+      lastModified: { type: Date, required: true, default: Date.now() },
+      featured: {
+        type: Boolean,
+        required: true,
+        default: false,
+      },
     },
-  }],
+  ],
   profilePic: { type: String },
-  infringements: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
+  infringements: [
+    { date: { type: String, required: true }, description: { type: String, required: true } },
+  ],
   location: { type: String, default: '' },
-  oldInfringements: [{ date: { type: String, required: true }, description: { type: String, required: true } }],
-  privacySettings: { blueSquares: { type: Boolean, default: true }, email: { type: Boolean, default: true }, phoneNumber: { type: Boolean, default: true } },
-  weeklySummaries: [{ dueDate: { type: Date, required: true, default: moment().tz('America/Los_Angeles').endOf('week') }, summary: { type: String } }],
+  oldInfringements: [
+    { date: { type: String, required: true }, description: { type: String, required: true } },
+  ],
+  privacySettings: {
+    blueSquares: { type: Boolean, default: true },
+    email: { type: Boolean, default: true },
+    phoneNumber: { type: Boolean, default: true },
+  },
+  weeklySummaries: [
+    {
+      dueDate: {
+        type: Date,
+        required: true,
+        default: moment().tz('America/Los_Angeles').endOf('week'),
+      },
+      summary: { type: String },
+    },
+  ],
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
@@ -83,6 +98,7 @@ const userProfileSchema = new Schema({
   collaborationPreference: { type: String },
   personalBestMaxHrs: { type: Number, default: 0 },
   totalTangibleHrs: { type: Number, default: 0 },
+  totalIntangibleHrs: { type: Number, default: 0 },
   hoursByCategory: {
     housing: { type: Number, default: 0 },
     food: { type: Number, default: 0 },
@@ -94,15 +110,39 @@ const userProfileSchema = new Schema({
     unassigned: { type: Number, default: 0 },
   },
   lastWeekTangibleHrs: { type: Number, default: 0 },
-  categoryTangibleHrs: [{ category: { type: String, enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Other', 'Unspecified'], default: 'Other' }, hrs: { type: Number, default: 0 } }],
+  categoryTangibleHrs: [
+    {
+      category: {
+        type: String,
+        enum: [
+          'Food',
+          'Energy',
+          'Housing',
+          'Education',
+          'Society',
+          'Economics',
+          'Stewardship',
+          'Other',
+          'Unspecified',
+        ],
+        default: 'Other',
+      },
+      hrs: { type: Number, default: 0 },
+    },
+  ],
   savedTangibleHrs: [Number],
-  timeEntryEditHistory: [{
-    date: { type: Date, required: true, default: moment().tz('America/Los_Angeles').toDate() },
-    initialSeconds: { type: Number, required: true },
-    newSeconds: { type: Number, required: true },
-  }],
+  timeEntryEditHistory: [
+    {
+      date: { type: Date, required: true, default: moment().tz('America/Los_Angeles').toDate() },
+      initialSeconds: { type: Number, required: true },
+      newSeconds: { type: Number, required: true },
+    },
+  ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
+  isVisible: { type: Boolean, default: false },
+  weeklySummaryOption: { type: String },
+  bioPosted: { type: Boolean, default: false },
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -119,8 +159,4 @@ userProfileSchema.pre('save', function (next) {
     .catch(error => next(error));
 });
 
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
