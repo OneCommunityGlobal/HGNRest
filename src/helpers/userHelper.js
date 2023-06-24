@@ -14,7 +14,6 @@ const reportHelper = require('./reporthelper')();
 const emailSender = require("../utilities/emailSender");
 
 const logger = require("../startup/logger");
-const hasPermission = require("../utilities/permissions");
 
 const userHelper = function () {
   const getTeamMembers = function (user) {
@@ -109,7 +108,7 @@ const userHelper = function () {
    *
    * @param {int} [weekIndex=1] Numbered representation of a week where 0 is the most recent and 3 the oldest.
    *
-   * @return {void}
+   * @return {void} 
    */
   const emailWeeklySummariesForAllUsers = async (weekIndex = 1) => {
     const currentFormattedDate = moment().tz("America/Los_Angeles").format();
@@ -755,15 +754,16 @@ const userHelper = function () {
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-
     userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
     { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() }, $push: { 'badgeCollection.$.earnedDate': earnedDateBadge() } },
     (err) => {
       if (err) {
         console.log(err);
       }
-    );
-  };
+    }
+    )
+  }
+
 
   const addBadge = async function (
     personId,
