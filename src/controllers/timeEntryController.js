@@ -49,7 +49,7 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
     const emailBody = getEditedTimeEntryEmailBody(record.firstName, record.lastName, record.email, originalTime, finalTime, requestor);
     emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${record.firstName} ${record.lastName}`, emailBody);
   } catch (error) {
-    console.log(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
+    throw new Error(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
   }
 };
 
@@ -73,6 +73,15 @@ const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, h
     );
   } catch (error) {
     console.log(`Failed to send email notification about the overtime for a task belonging to user with id ${personId}`);
+  }
+};
+
+const checkTaskOvertime = async (timeentry, record, currentTask) => {
+  try {
+    // send email notification if logged in hours exceeds estiamted hours for a task
+    if (currentTask.hoursLogged > currentTask.estimatedHours) { notifyTaskOvertimeEmailBody(timeentry.personId.toString(), currentTask.taskName, currentTask.estimatedHours, currentTask.hoursLogged); }
+  } catch (error) {
+    console.log(`Failed to find task whose logged-in hours are more than estimated hours ${record.email}`);
   }
 };
 
@@ -130,14 +139,14 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          throw new Error('Failed to find the initial task by id');
         }
         try {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          throw new Error('Failed to find the edited task by id');
         }
       } else if (initialIsTangible === true && req.body.isTangible === 'false') {
         // Before timeEntry is tangible, after timeEntry is in-tangible
@@ -146,7 +155,7 @@ const timeEntrycontroller = function (TimeEntry) {
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
         } catch (error) {
-          console.log('Failed to find the initial task by id');
+          throw new Error('Failed to find the initial task by id');
         }
       } else if (initialIsTangible === false && req.body.isTangible === 'true') {
         // Before timeEntry is in-tangible, after timeEntry is tangible
@@ -155,7 +164,7 @@ const timeEntrycontroller = function (TimeEntry) {
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
         } catch (error) {
-          console.log('Failed to find the edited task by id');
+          throw new Error('Failed to find the edited task by id');
         }
       }
 
@@ -284,7 +293,7 @@ const timeEntrycontroller = function (TimeEntry) {
         currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
         await currentTask.save();
       } catch (error) {
-        console.log('Failed to find the task by id');
+        throw new Error('Failed to find the task by id');
       }
     }
     // checking if logged in hours exceed estimated time after timeentry for a task
@@ -310,57 +319,93 @@ const timeEntrycontroller = function (TimeEntry) {
     const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const { userId } = req.params;
 
-    TimeEntry.find(
+    TimeEntry.aggregate([
       {
-        personId: userId,
-        dateOfWork: { $gte: fromdate, $lte: todate },
+        $match: {
+          personId: mongoose.Types.ObjectId(userId),
+          dateOfWork: { $gte: fromdate, $lte: todate },
+        },
       },
-      ' -createdDateTime',
-    )
-      // allow the task-based timeEntry get its taskId into projectId field when calling this func
-      // .populate('projectId')
-      .sort({ lastModifiedDateTime: -1 })
-      .then((results) => {
-        const data = [];
-        results.forEach((element) => {
-          const record = {};
-
-          record._id = element._id;
-          record.notes = element.notes;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId;
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId
-            ? element.projectId.projectName
-            : '';
-          record.dateOfWork = element.dateOfWork;
-          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          data.push(record);
-        });
-        res.status(200).send(data);
-      })
-      .catch(error => res.status(400).send(error));
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project',
+        },
+      },
+      {
+        $lookup: {
+          from: 'tasks',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'task',
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          notes: 1,
+          isTangible: 1,
+          personId: 1,
+          projectId: 1,
+          lastModifiedDateTime: 1,
+          projectName: {
+            $arrayElemAt: [
+              '$project.projectName',
+              0,
+            ],
+          },
+          taskName: {
+            $arrayElemAt: [
+              '$task.taskName',
+              0,
+            ],
+          },
+          category: {
+            $arrayElemAt: [
+              '$project.category',
+              0,
+            ],
+          },
+          classification: {
+            $arrayElemAt: [
+              '$task.classification',
+              0,
+            ],
+          },
+          dateOfWork: 1,
+          hours: {
+            $floor: {
+              $divide: ['$totalSeconds', 3600],
+            },
+          },
+          minutes: {
+            $floor: {
+              $divide: [
+                { $mod: ['$totalSeconds', 3600] },
+                60,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          lastModifiedDateTime: -1,
+        },
+      },
+    ]).then((results) => {
+      res.status(200).send(results);
+    }).catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForUsersList = function (req, res) {
-    const { members } = req.query;
-    const membersArr = members.split(',');
-
-    const fromDate = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
-
-    const toDate = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
+    const { users, fromDate, toDate } = req.body;
 
     TimeEntry.find(
       {
-        personId: { $in: membersArr },
+        personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
       ' -createdDateTime',
@@ -386,7 +431,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -443,7 +488,7 @@ const timeEntrycontroller = function (TimeEntry) {
                 currentTask.save();
               })
               .catch((error) => {
-                console.log(error);
+                throw new Error(error);
               });
           }
 
@@ -464,14 +509,6 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const checkTaskOvertime = async (timeentry, record, currentTask) => {
-    try {
-      // send email notification if logged in hours exceeds estiamted hours for a task
-      if (currentTask.hoursLogged > currentTask.estimatedHours) { notifyTaskOvertimeEmailBody(timeentry.personId.toString(), currentTask.taskName, currentTask.estimatedHours, currentTask.hoursLogged); }
-    } catch (error) {
-      console.log(`Failed to find task whose logged-in hours are more than estimated hours ${record.email}`);
-    }
-  };
 
   return {
     getAllTimeEnteries,
