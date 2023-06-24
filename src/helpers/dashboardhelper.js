@@ -22,6 +22,15 @@ const dashboardhelper = function () {
       .endOf('week')
       .format('YYYY-MM-DD');
 
+    /**
+     * Previous aggregate pipeline had two issues:
+     *  1. personId is not in the userProfile field, it is from timeEntries
+     *  2. '$unwind' stage creates some documents for the same user, but later when using '$group' to get the user number and totalcommitedhours,
+     *    it didn't account for this. I think that is why it used `USERS = await userProfile.find()` to get the actual users number,
+     *    but this USER object is Huge, which is causing minutes to process.
+     *
+     * This update resolves these issues.
+     */
     const output = await userProfile.aggregate([
       {
         $match: {
@@ -44,7 +53,7 @@ const dashboardhelper = function () {
       },
       {
         $project: {
-          personId: 1,
+          personId: '$_id',
           name: 1,
           weeklycommittedHours: 1,
           role: 1,
@@ -85,34 +94,21 @@ const dashboardhelper = function () {
               0,
             ],
           },
-          isTangible: {
-            $cond: [
-              {
-                $gte: ['$timeEntryData.totalSeconds', 0],
-              },
-              '$timeEntryData.isTangible',
-              false,
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
           tangibletime: {
             $cond: [
               {
-                $eq: ['$isTangible', true],
+                $eq: ['$timeEntryData.isTangible', true],
               },
-              '$totalSeconds',
+              '$timeEntryData.totalSeconds',
               0,
             ],
           },
           intangibletime: {
             $cond: [
               {
-                $eq: ['$isTangible', false],
+                $eq: ['$timeEntryData.isTangible', false],
               },
-              '$totalSeconds',
+              '$timeEntryData.totalSeconds',
               0,
             ],
           },
@@ -120,70 +116,38 @@ const dashboardhelper = function () {
       },
       {
         $group: {
-          _id: 0,
-          member_count: {
-            $sum: 1,
+          _id: {
+            personId: '$personId',
+            weeklycommittedHours: '$weeklycommittedHours',
           },
-          totalSeconds: {
-            $sum: '$totalSeconds',
+          time_hrs: {
+            $sum: { $divide: ['$totalSeconds', 3600] },
           },
-          tangibletime: {
-            $sum: '$tangibletime',
+          tangibletime_hrs: {
+            $sum: { $divide: ['$tangibletime', 3600] },
           },
-          intangibletime: {
-            $sum: '$intangibletime',
-          },
-          totalweeklycommittedHours: {
-            $sum: '$weeklycommittedHours',
+          intangibletime_hrs: {
+            $sum: { $divide: ['$intangibletime', 3600] },
           },
         },
       },
       {
-        $project: {
+        $group: {
           _id: 0,
-          memberCount: '$member_count',
-          totalweeklycommittedHours: '$totalweeklycommittedHours',
+          memberCount: { $sum: 1 },
+          totalweeklycommittedHours: { $sum: '$_id.weeklycommittedHours' },
           totaltime_hrs: {
-            $divide: ['$totalSeconds', 3600],
+            $sum: '$time_hrs',
           },
           totaltangibletime_hrs: {
-            $divide: ['$tangibletime', 3600],
+            $sum: '$tangibletime_hrs',
           },
           totalintangibletime_hrs: {
-            $divide: ['$intangibletime', 3600],
-          },
-          percentagespentintangible: {
-            $cond: [
-              {
-                $eq: ['$totalSeconds', 0],
-              },
-              0,
-              {
-                $multiply: [
-                  {
-                    $divide: ['$tangibletime', '$totalSeconds'],
-                  },
-                  100,
-                ],
-              },
-            ],
+            $sum: '$intangibletime_hrs',
           },
         },
       },
     ]);
-
-    // This is a temporary band aid. I can't figure out why, but intangible time entries
-    // somehow increment the total weekly committted hours across all users. ???
-    const USERS = await userProfile.find({ isActive: true, role: { $ne: 'Mentor' }, weeklycommittedHours: { $gt: 0 } });
-    let totalCommittedHours = 0;
-    let MEMBER_COUNT = 0;
-    USERS.forEach((user) => {
-      totalCommittedHours += user.weeklycommittedHours;
-      MEMBER_COUNT += 1;
-    });
-
-    output[0].totalweeklycommittedHours = totalCommittedHours;
-    output[0].memberCount = MEMBER_COUNT;
 
     return output;
   };
@@ -228,11 +192,7 @@ const dashboardhelper = function () {
           $or: [
             {
               role: {
-                $in: [
-                  'Core Team',
-                  'Administrator',
-                  'Owner',
-                ],
+                $in: ['Core Team', 'Administrator', 'Owner'],
               },
             },
             { 'persondata.0._id': userid },
@@ -247,6 +207,9 @@ const dashboardhelper = function () {
           name: 1,
           role: {
             $arrayElemAt: ['$persondata.role', 0],
+          },
+          isVisible: {
+            $arrayElemAt: ['$persondata.isVisible', 0],
           },
           weeklycommittedHours: {
             $sum: [
@@ -273,6 +236,7 @@ const dashboardhelper = function () {
           personId: 1,
           name: 1,
           role: 1,
+          isVisible: 1,
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
@@ -303,6 +267,7 @@ const dashboardhelper = function () {
           personId: 1,
           name: 1,
           role: 1,
+          isVisible: 1,
           weeklycommittedHours: 1,
           totalSeconds: {
             $cond: [
@@ -353,6 +318,7 @@ const dashboardhelper = function () {
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
             role: '$role',
+            isVisible: '$isVisible',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -371,6 +337,7 @@ const dashboardhelper = function () {
           personId: '$_id.personId',
           name: '$_id.name',
           role: '$_id.role',
+          isVisible: '$_id.isVisible',
           weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
@@ -453,6 +420,7 @@ const dashboardhelper = function () {
         {
           personId: userId,
           role: user.role,
+          isVisible: user.isVisible,
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
