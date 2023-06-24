@@ -5,7 +5,7 @@ const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
-    '*/2 * * * *', // Every day, 1 minute past midnight (PST).
+    '1 0 * * *', // Every day, 1 minute past midnight (PST).
     async () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
@@ -13,8 +13,8 @@ const userProfileJobs = () => {
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.deleteBlueSquareAfterYear();
+        await userhelper.awardNewBadges();
       }
-      await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
     },
