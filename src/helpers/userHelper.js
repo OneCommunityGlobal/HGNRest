@@ -756,7 +756,7 @@ const userHelper = function () {
   const changeBadgeCount = async function (personId, badgeId, count) {
     if (count === 0) {
       removeDupBadge(personId, badgeId);
-    } else {
+    } else if (count) {
       userProfile.updateOne(
         { _id: personId, 'badgeCollection.badge': badgeId },
         {
