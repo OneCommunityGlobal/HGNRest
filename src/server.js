@@ -1,7 +1,6 @@
 /* eslint-disable quotes */
 require("dotenv").load();
 
-
 const express = require("express");
 const websockets = require("./websockets").default;
 
