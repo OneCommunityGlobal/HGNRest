@@ -5,9 +5,11 @@ const routes = function (TimeEntry) {
 
   const controller = require('../controllers/timeEntryController')(TimeEntry);
 
+
   TimeEntryRouter.route('/TimeEntry')
     .get(controller.getAllTimeEnteries)
     .post(controller.postTimeEntry);
+
 
   TimeEntryRouter.route('/TimeEntry/:timeEntryId')
     .put(controller.editTimeEntry)
@@ -17,10 +19,11 @@ const routes = function (TimeEntry) {
     .get(controller.getTimeEntriesForSpecifiedPeriod);
 
   TimeEntryRouter.route('/TimeEntry/users')
-    .post(controller.getTimeEntriesForUsersList);
+    .get(controller.getTimeEntriesForUsersList);
 
   TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
     .get(controller.getTimeEntriesForSpecifiedProject);
+
 
   return TimeEntryRouter;
 };
