@@ -1,6 +1,7 @@
 /* eslint-disable quotes */
 require("dotenv").load();
 
+
 const express = require("express");
 const websockets = require("./websockets").default;
 
@@ -15,7 +16,7 @@ require("./startup/middleware")(app);
 require("./cronjobs/userProfileJobs")();
 require("./startup/routes")(app);
 
-const port = process.env.PORT || 4500;
+const port = 4500;
 
 const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
