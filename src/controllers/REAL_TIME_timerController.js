@@ -1,6 +1,6 @@
 
 const logger = require('../startup/logger');
-const OldTimer = require('../models/oldTimer');
+const OldTimer = require('../models/timer');
 
 const timerController = function (Timer) {
   const getTimerFromDatabase = async ({ userId }) => {
