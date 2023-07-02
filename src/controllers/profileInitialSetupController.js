@@ -1,35 +1,57 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
-const { error } = require('console');
+const emailSender = require('../utilities/emailSender');
+
+
+function sendLinkMessage(Link) {
+    const message = `<p>Hello,</p>
+    <p>Welcome to the Highest Good Network! We're excited to have you as a new member.<br> To get started, we kindly request you to complete your profile setup.</p>
+    <p>Please click on the following link to access your profile setup page:</p>
+    <p><a href="${Link}">Profile Setup Page</a></p>
+    <p>On the profile setup page, you'll be able to provide the necessary information to setup your user account. We encourage you to fill in all the requested details accurately.</p>
+    <p>If you have any questions or need assistance during the profile setup process, please don't hesitate to reach out to your manager.</p>
+    <p>Thank you for choosing One Community.</p>
+    <p>Best regards,<br>
+    One Community<br>
+    Highest Good Network Team</p>`;
+    return message;
+}
 
 const profileInitialSetupController = function (ProfileInitialSetupToken, userProfile) {
 
-    const getSetupToken = (req, res) => {
-        const { email } = req.body
+    const getSetupToken = async (req, res) => {
+        const { email, baseUrl } = req.body
+        email = email.toLowerCase()
         const token = uuidv4();
         const expiration = moment().tz('America/Los_Angeles').add(1, 'week')
-        ProfileInitialSetupToken.findOneAndDelete({ email })
-            .then((deletedToken) => {
-                if (deletedToken) {
-                    console.log('Existing token entry deleted:', deletedToken);
-                } else {
-                    console.log('No existing token entry found');
-                }
-                const newToken = new ProfileInitialSetupToken({
-                    token,
-                    email,
-                    expiration: expiration.toDate(),
-                });
 
-                return newToken.save();
-            })
-            .then((savedToken) => {
-                res.status(200).send(savedToken)
-            })
-            .catch((error) => {
-                res.status(400).send(error);
+        try {
+            await ProfileInitialSetupToken.findOneAndDelete({ email });
+
+            const newToken = new ProfileInitialSetupToken({
+                token,
+                email,
+                expiration: expiration.toDate(),
             });
+
+            const savedToken = await newToken.save();
+            const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`
+
+            emailSender(
+                email,
+                'Complete your profile setup for Highest Good Network App',
+                sendLinkMessage(link),
+                null,
+                null,
+            );
+
+            res.status(200).send(`${baseUrl}/ProfileInitialSetup/${savedToken.token}`);
+
+        } catch (err) {
+            res.status(400).send(error);
+        }
+
     }
 
     const setUpNewUser = (req, res) => {
