@@ -132,40 +132,21 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // Update the hoursLogged field of related tasks based on before and after timeEntries
       // initialIsTangible is a bealoon value, req.body.isTangible is a string
-      if (initialIsTangible === true && req.body.isTangible === 'true') {
-        // Before timeEntry is tangible, after timeEntry is also tangible
-        try {
+      // initialProjectId may be a task id or project id, so do not throw error.
+      try {
+        if (initialIsTangible === true) {
           const initialTask = await task.findById(initialProjectId);
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the initial task by id');
         }
-        try {
+
+        if (req.body.isTangible === true) {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the edited task by id');
         }
-      } else if (initialIsTangible === true && req.body.isTangible === 'false') {
-        // Before timeEntry is tangible, after timeEntry is in-tangible
-        try {
-          const initialTask = await task.findById(initialProjectId);
-          initialTask.hoursLogged -= (initialSeconds / 3600);
-          await initialTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the initial task by id');
-        }
-      } else if (initialIsTangible === false && req.body.isTangible === 'true') {
-        // Before timeEntry is in-tangible, after timeEntry is tangible
-        try {
-          const editedTask = await task.findById(req.body.projectId);
-          editedTask.hoursLogged += (totalSeconds / 3600);
-          await editedTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the edited task by id');
-        }
+      } catch (error) {
+        console.log('Failed to find task by id');
       }
 
       // Update edit history

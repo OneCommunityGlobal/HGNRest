@@ -47,6 +47,7 @@ const permissionsRoles = [
       'changeUserStatus',
       'submitWeeklySummaryForOthers',
       'seeAllReports',
+      'removeUserFromTask',
     ],
     permissionsBackEnd: [
       'seeBadges',
@@ -236,6 +237,7 @@ const permissionsRoles = [
       'changeUserStatus',
       'submitWeeklySummaryForOthers',
       'seeAllReports',
+      'removeUserFromTask',
     ],
     permissionsBackEnd: [
       'seeBadges',
@@ -306,32 +308,32 @@ const createInitialPermissionsFront = async () => {
   const updatedOwnerPermissions = {};
 
   for (let i = 0; i < permissionsRoles.length; i += 1) {
-      const { roleName, permissions, permissionsBackEnd } = permissionsRoles[i];
+    const { roleName, permissions, permissionsBackEnd } = permissionsRoles[i];
 
-      // Add a new permission if the role Owner has been changed in the  permissionsRoles Array
-      if (roleName === 'Owner' && ownerRoleDataBase) {
-        ownerRoleId = ownerRoleDataBase._id;
-        const permissionsBackOwnerDataBase = ownerRoleDataBase.permissionsBackEnd;
-        const permissionsFrontOwnerDataBase = ownerRoleDataBase.permissions;
-         IsAllBackPermissionsOwnerUpdated = permissionsBackOwnerDataBase.every(perm => permissions.includes(perm));
-         IsAllFrontPermissionsOwnerUpdated = permissionsFrontOwnerDataBase.every(perm => permissionsBackEnd.includes(perm));
+    // Add a new permission if the role Owner has been changed in the  permissionsRoles Array
+    if (roleName === 'Owner' && ownerRoleDataBase) {
+      ownerRoleId = ownerRoleDataBase._id;
+      const permissionsBackOwnerDataBase = ownerRoleDataBase.permissionsBackEnd;
+      const permissionsFrontOwnerDataBase = ownerRoleDataBase.permissions;
+      IsAllBackPermissionsOwnerUpdated = permissionsBackOwnerDataBase.every(perm => permissions.includes(perm));
+      IsAllFrontPermissionsOwnerUpdated = permissionsFrontOwnerDataBase.every(perm => permissionsBackEnd.includes(perm));
 
-        if (!IsAllFrontPermissionsOwnerUpdated) {
+      if (!IsAllFrontPermissionsOwnerUpdated) {
         updatedOwnerPermissions.permissions = permissions;
-        }
-        if (!IsAllBackPermissionsOwnerUpdated) {
+      }
+      if (!IsAllBackPermissionsOwnerUpdated) {
         updatedOwnerPermissions.permissionsBackEnd = permissionsBackEnd;
-        }
       }
+    }
 
-      const hasRoleInDataBase = allRoles.some(role => role.roleName === roleName);
-      if (!hasRoleInDataBase) {
-        const role = new Role();
-        role.roleName = roleName;
-        role.permissions = permissions;
-        role.permissionsBackEnd = permissionsBackEnd;
-        role.save();
-      }
+    const hasRoleInDataBase = allRoles.some(role => role.roleName === roleName);
+    if (!hasRoleInDataBase) {
+      const role = new Role();
+      role.roleName = roleName;
+      role.permissions = permissions;
+      role.permissionsBackEnd = permissionsBackEnd;
+      role.save();
+    }
   }
 
   if (!IsAllFrontPermissionsOwnerUpdated) {
@@ -341,11 +343,11 @@ const createInitialPermissionsFront = async () => {
     });
   }
 
-if (!IsAllBackPermissionsOwnerUpdated) {
-  await Role.findById(ownerRoleId, (_, record) => {
-    record.permissionsBackEnd = updatedOwnerPermissions.permissionsBackEnd;
-    record.save();
-  });
-}
+  if (!IsAllBackPermissionsOwnerUpdated) {
+    await Role.findById(ownerRoleId, (_, record) => {
+      record.permissionsBackEnd = updatedOwnerPermissions.permissionsBackEnd;
+      record.save();
+    });
+  }
 };
 module.exports = createInitialPermissionsFront;
