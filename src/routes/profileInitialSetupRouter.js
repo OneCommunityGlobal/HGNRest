@@ -6,6 +6,7 @@ const routes = function (ProfileInitialSetupToken, userProfile) {
     ProfileInitialSetup.route('/getInitialSetuptoken')
         .post(controller.getSetupToken);
     ProfileInitialSetup.route('/ProfileInitialSetup').post(controller.setUpNewUser)
+    ProfileInitialSetup.route('/validateToken').post(controller.validateSetupToken)
 
     return ProfileInitialSetup;
 };
