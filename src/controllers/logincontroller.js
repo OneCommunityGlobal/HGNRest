@@ -22,10 +22,11 @@ const logincontroller = function () {
       .catch(error => res.status(400).send(error));
 
     // returning 403 if the user not found or the found user is inactive.
-    if (!user || user.isActive === false) {
+    if (!user) {
       res.status(403).send({ message: 'Invalid email and/ or password.' });
-      return;
-    }
+    } else if (user.isActive === false) {
+        res.status(403).send({ message: 'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.' });
+      }
 
     let isPasswordMatch = false;
     let isNewUser = false;
