@@ -211,6 +211,19 @@ const dashboardhelper = function () {
           isVisible: {
             $arrayElemAt: ['$persondata.isVisible', 0],
           },
+          hasSummary: {
+            $ne: [
+              {
+                $arrayElemAt: [
+                  {
+                    $arrayElemAt: ['$persondata.weeklySummaries.summary', 0],
+                  },
+                  0,
+                ],
+              },
+              '',
+            ],
+          },
           weeklycommittedHours: {
             $sum: [
               {
@@ -237,6 +250,7 @@ const dashboardhelper = function () {
           name: 1,
           role: 1,
           isVisible: 1,
+          hasSummary: 1,
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
@@ -268,6 +282,7 @@ const dashboardhelper = function () {
           name: 1,
           role: 1,
           isVisible: 1,
+          hasSummary: 1,
           weeklycommittedHours: 1,
           totalSeconds: {
             $cond: [
@@ -319,6 +334,7 @@ const dashboardhelper = function () {
             name: '$name',
             role: '$role',
             isVisible: '$isVisible',
+            hasSummary: '$hasSummary',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -338,6 +354,7 @@ const dashboardhelper = function () {
           name: '$_id.name',
           role: '$_id.role',
           isVisible: '$_id.isVisible',
+          hasSummary: '$_id.hasSummary',
           weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
@@ -421,6 +438,7 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
+          hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
