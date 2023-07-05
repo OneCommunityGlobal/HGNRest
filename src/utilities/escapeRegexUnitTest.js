@@ -1,53 +1,53 @@
-const assert = require('assert');
-const escapeRegex = require('./escapeRegex');
+const assert = require("assert");
+const escapeRegex = require("./escapeRegex");
 
-
-let str = '.';
+let str = ".";
 let regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'.' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'.' not escaped");
 
-str = 'a+';
+str = "a+";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'+' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'+' not escaped");
 
-str = 'a?a';
+str = "a?a";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'?' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'?' not escaped");
 
-str = '(a)';
+str = "(a)";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'()' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'()' not escaped");
 
-str = 'a{2,3}';
+str = "a{2,3}";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('aa') && !regex.test('aaa'), "'{}' not escaped");
+assert(
+  regex.test(str) && !regex.test("aa") && !regex.test("aaa"),
+  "'{}' not escaped"
+);
 
-str = '[a-c]';
+str = "[a-c]";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('b'), "'[]' not escaped");
+assert(regex.test(str) && !regex.test("b"), "'[]' not escaped");
 
-str = '^a';
+str = "^a";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'^' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'^' not escaped");
 
-str = 'a$';
+str = "a$";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'$' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'$' not escaped");
 
-str = 'a*';
+str = "a*";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test(''), "'*' not escaped");
+assert(regex.test(str) && !regex.test(""), "'*' not escaped");
 
-str = 'a|b';
+str = "a|b";
 regex = new RegExp(escapeRegex(str));
-assert(regex.test(str) && !regex.test('a'), "'|' not escaped");
+assert(regex.test(str) && !regex.test("a"), "'|' not escaped");
 
-str = '-';
+str = "-";
 regex = new RegExp(escapeRegex(str));
 assert(regex.test(str), "'-' not escaped");
 
-str = ',';
+str = ",";
 regex = new RegExp(escapeRegex(str));
 assert(regex.test(str), "',' not escaped");
-
-console.log('All escapeRegex unit tests have passed.');
