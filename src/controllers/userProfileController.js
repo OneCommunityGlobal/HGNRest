@@ -64,10 +64,10 @@ const userProfileController = function (UserProfile) {
       res.status(200).send(getData);
       return;
     }
-
+    
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate location jobTitle',
     )
       .sort({
         lastName: 1,
