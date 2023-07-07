@@ -309,7 +309,7 @@ const userProfileController = function (UserProfile) {
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
-        if (yearMonthDayDateValidator(req.body.endDate) || new Date(req.body.endDate)) {
+        if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
           if (isUserInCache) {
             userData.endDate = record.endDate.toISOString();
@@ -488,6 +488,31 @@ const userProfileController = function (UserProfile) {
       .catch(error => res.status(404).send(error));
   };
 
+
+  const updateOneProperty = function (req, res) {
+    const { userId } = req.params;
+    const { key, value } = req.body;
+
+    // remove user from cache, it should be loaded next time
+    cache.removeCache(`user-${userId}`);
+    if (!key || value === undefined) return res.status(400).send({error:'Missing property or value'})
+
+    return UserProfile.findById(userId)
+      .then((user) => {
+        user.set({
+          [key] : value
+        });
+
+        return user
+              .save()
+              .then(() =>{
+                res.status(200).send({ message: 'updated property' })
+              })
+              .catch(error => res.status(500).send(error));
+      })
+      .catch(error => res.status(500).send(error));
+  }
+
   const updatepassword = function (req, res) {
     const { userId } = req.params;
     const { requestor } = req.body;
@@ -643,6 +668,10 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+    if (!hasPermission(req.body.requestor.role, 'changeUserStatus')) {
+      res.status(403).send('You are not authorized to change user status');
+      return;
+    }
     cache.removeCache(`user-${userId}`);
     UserProfile.findById(userId, 'isActive')
       .then((user) => {
@@ -741,6 +770,7 @@ const userProfileController = function (UserProfile) {
     deleteUserProfile,
     getUserById,
     getreportees,
+    updateOneProperty,
     updatepassword,
     getUserName,
     getTeamMembersofUser,
