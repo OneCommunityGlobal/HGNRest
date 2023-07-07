@@ -298,6 +298,7 @@ const taskHelper = function () {
       {
         $project: {
           personId: '$_id',
+          role: '$role',
           name: {
             $concat: [
             '$firstName',
@@ -328,6 +329,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
+          role:1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -357,6 +359,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
+          role:1,
           totalSeconds: {
             $cond: [
               {
@@ -396,6 +399,7 @@ const taskHelper = function () {
             personId: '$personId',
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
+            role: '$role'
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -411,6 +415,7 @@ const taskHelper = function () {
           personId: '$_id.personId',
           name: '$_id.name',
           weeklycommittedHours: '$_id.weeklycommittedHours',
+          role: '$_id.role',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
           },

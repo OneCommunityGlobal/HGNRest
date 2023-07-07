@@ -132,40 +132,21 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // Update the hoursLogged field of related tasks based on before and after timeEntries
       // initialIsTangible is a bealoon value, req.body.isTangible is a string
-      if (initialIsTangible === true && req.body.isTangible === 'true') {
-        // Before timeEntry is tangible, after timeEntry is also tangible
-        try {
+      // initialProjectId may be a task id or project id, so do not throw error.
+      try {
+        if (initialIsTangible === true) {
           const initialTask = await task.findById(initialProjectId);
           initialTask.hoursLogged -= (initialSeconds / 3600);
           await initialTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the initial task by id');
         }
-        try {
+
+        if (req.body.isTangible === true) {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the edited task by id');
         }
-      } else if (initialIsTangible === true && req.body.isTangible === 'false') {
-        // Before timeEntry is tangible, after timeEntry is in-tangible
-        try {
-          const initialTask = await task.findById(initialProjectId);
-          initialTask.hoursLogged -= (initialSeconds / 3600);
-          await initialTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the initial task by id');
-        }
-      } else if (initialIsTangible === false && req.body.isTangible === 'true') {
-        // Before timeEntry is in-tangible, after timeEntry is tangible
-        try {
-          const editedTask = await task.findById(req.body.projectId);
-          editedTask.hoursLogged += (totalSeconds / 3600);
-          await editedTask.save();
-        } catch (error) {
-          throw new Error('Failed to find the edited task by id');
-        }
+      } catch (error) {
+        console.log('Failed to find task by id');
       }
 
       // Update edit history
@@ -319,57 +300,93 @@ const timeEntrycontroller = function (TimeEntry) {
     const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const { userId } = req.params;
 
-    TimeEntry.find(
+    TimeEntry.aggregate([
       {
-        personId: userId,
-        dateOfWork: { $gte: fromdate, $lte: todate },
+        $match: {
+          personId: mongoose.Types.ObjectId(userId),
+          dateOfWork: { $gte: fromdate, $lte: todate },
+        },
       },
-      ' -createdDateTime',
-    )
-      // allow the task-based timeEntry get its taskId into projectId field when calling this func
-      // .populate('projectId')
-      .sort({ lastModifiedDateTime: -1 })
-      .then((results) => {
-        const data = [];
-        results.forEach((element) => {
-          const record = {};
-
-          record._id = element._id;
-          record.notes = element.notes;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId;
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId
-            ? element.projectId.projectName
-            : '';
-          record.dateOfWork = element.dateOfWork;
-          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          data.push(record);
-        });
-        res.status(200).send(data);
-      })
-      .catch(error => res.status(400).send(error));
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project',
+        },
+      },
+      {
+        $lookup: {
+          from: 'tasks',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'task',
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          notes: 1,
+          isTangible: 1,
+          personId: 1,
+          projectId: 1,
+          lastModifiedDateTime: 1,
+          projectName: {
+            $arrayElemAt: [
+              '$project.projectName',
+              0,
+            ],
+          },
+          taskName: {
+            $arrayElemAt: [
+              '$task.taskName',
+              0,
+            ],
+          },
+          category: {
+            $arrayElemAt: [
+              '$project.category',
+              0,
+            ],
+          },
+          classification: {
+            $arrayElemAt: [
+              '$task.classification',
+              0,
+            ],
+          },
+          dateOfWork: 1,
+          hours: {
+            $floor: {
+              $divide: ['$totalSeconds', 3600],
+            },
+          },
+          minutes: {
+            $floor: {
+              $divide: [
+                { $mod: ['$totalSeconds', 3600] },
+                60,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          lastModifiedDateTime: -1,
+        },
+      },
+    ]).then((results) => {
+      res.status(200).send(results);
+    }).catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForUsersList = function (req, res) {
-    const { members } = req.query;
-    const membersArr = members.split(',');
-
-    const fromDate = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
-
-    const toDate = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(0, 'weeks')
-      .format('YYYY-MM-DD');
+    const { users, fromDate, toDate } = req.body;
 
     TimeEntry.find(
       {
-        personId: { $in: membersArr },
+        personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
       ' -createdDateTime',
@@ -395,7 +412,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {

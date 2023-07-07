@@ -90,6 +90,7 @@ const userProfileSchema = new Schema({
         default: moment().tz('America/Los_Angeles').endOf('week'),
       },
       summary: { type: String },
+      uploadDate: { type: Date },
     },
   ],
   weeklySummariesCount: { type: Number, default: 0 },
