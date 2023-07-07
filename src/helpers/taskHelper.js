@@ -521,9 +521,18 @@ const taskHelper = function () {
       },
     ]);
   };
+  const getUserProfileFirstAndLastName = function (userId) {
+    return userProfile.findById(userId).then((results) => {
+      if (!results) {
+        return ' ';
+      }
+      return `${results.firstName} ${results.lastName}`;
+    });
+  };
   return {
     getTasksForTeams,
     getTasksForSingleUser,
+    getUserProfileFirstAndLastName,
   };
 };
 
