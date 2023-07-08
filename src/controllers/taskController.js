@@ -654,6 +654,7 @@ const taskController = function (Task) {
     _task.hoursMost = req.body.hoursMost;
     _task.hoursLogged = req.body.hoursLogged;
     _task.estimatedHours = req.body.estimatedHours;
+    _task.deadlineCount = req.body.deadlineCount || 0.0;
     _task.startedDatetime = req.body.startedDatetime;
     _task.dueDatetime = req.body.dueDatetime;
     _task.links = req.body.links;
