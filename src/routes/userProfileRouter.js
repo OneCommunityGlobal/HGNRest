@@ -28,6 +28,9 @@ const routes = function (userProfile) {
   userProfileRouter.route('/userProfile/teammembers/:userId')
     .get(controller.getTeamMembersofUser);
 
+    userProfileRouter.route('/userProfile/:userId/property')
+    .patch(controller.updateOneProperty);
+
   userProfileRouter.route('/userProfile/:userId/updatePassword')
     .patch(controller.updatepassword);
 
