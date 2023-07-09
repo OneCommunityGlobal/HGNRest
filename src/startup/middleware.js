@@ -22,7 +22,7 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (req.originalUrl === '/api/ProfileInitialSetup' || '/api/validateToken' && req.method === 'POST'
+    if (req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' && req.method === 'POST'
     ) {
       next();
       return;
