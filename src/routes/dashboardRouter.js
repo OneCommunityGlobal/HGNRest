@@ -21,8 +21,18 @@ const route = function () {
   Dashboardrouter.route('/dashboard/leaderboard/org/data')
     .get(controller.orgData);
 
+  Dashboardrouter.route('/dashboard/suggestionoption/:userId')
+    .get(controller.getSuggestionOption);
+
   Dashboardrouter.route('/dashboard/bugreport/:userId')
     .post(controller.sendBugReport);
+
+  Dashboardrouter.route('/dashboard/suggestionoption/:userId')
+    .post(controller.addSuggestionOption);
+
+  Dashboardrouter.route('/dashboard/makesuggestion/:userId')
+    .post(controller.sendMakeSuggestion);
+
 
   return Dashboardrouter;
 };
