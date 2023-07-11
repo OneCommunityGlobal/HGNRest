@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs/promises');
 const dashboardhelper = require('../helpers/dashboardhelper')();
 const emailSender = require('../utilities/emailSender');
 
@@ -83,7 +85,7 @@ const dashboardcontroller = function () {
     const {
       firstName, lastName, title, environment, reproduction, expected, actual, visual, severity, email,
     } = req.body;
-    const emailBody = getBugReportEmailBody(firstName, lastName, title, environment, reproduction, expected, actual, visual, severity);
+   const emailBody = getBugReportEmailBody(firstName, lastName, title, environment, reproduction, expected, actual, visual, severity);
 
     try {
       emailSender(
@@ -98,6 +100,30 @@ const dashboardcontroller = function () {
     }
   };
 
+  const readSuggestionFile = async () => {
+    const filepath = path.join(process.cwd(), 'src', 'constants', 'suggestionModalData.json');
+    let readfile = await fs.readFile(filepath).catch(err => console.log(err));
+    readfile = JSON.parse(readfile);
+    return readfile;
+  };
+
+
+  const getSuggestionOption = async (req, res) => {
+    const readfile = await readSuggestionFile();
+    res.status(200).send(readfile);
+  };
+
+  const addSuggestionOption = async (req, res) => {
+    const readfile = await readSuggestionFile();
+    if (req.body.suggestion) {
+      readfile.suggestion.unshift(req.body.newField);
+    } else {
+      readfile.field.unshift(req.body.newField);
+    }
+    const filepath = path.join(process.cwd(), 'src', 'constants', 'suggestionModalData.json');
+    await fs.writeFile(filepath, JSON.stringify(readfile)).catch(err => console.log(err));
+    res.status(200).send('success');
+  };
 
   return {
     dashboarddata,
@@ -106,6 +132,8 @@ const dashboardcontroller = function () {
     leaderboarddata,
     orgData,
     sendBugReport,
+    getSuggestionOption,
+    addSuggestionOption,
   };
 };
 
