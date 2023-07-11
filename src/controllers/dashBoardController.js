@@ -107,6 +107,47 @@ const dashboardcontroller = function () {
     return readfile;
   };
 
+  const getsuggestionEmailBody = async (...args) => {
+    const readfile = await readSuggestionFile();
+    let fieldaaray;
+    if (readfile.field.length) {
+      fieldaaray = readfile.field.map(item => `<p>${item}</p>
+                                               <p>${args[3][item]}</p>`);
+    }
+    console.log('emailcreate', fieldaaray, args);
+    const text = `New Suggestion:
+        <p>Suggestion Category:</p>
+        <p>${args[0]}</p>
+        <p>Suggestion</p>
+        <p>${args[1]}</p>
+        ${fieldaaray}
+        <p>Wants Feedback:</p>
+        <p>${args[2]}</p>
+        <p>Thank you,<br />
+        One Community</p>`;
+
+    return text;
+  };
+
+  const sendMakeSuggestion = async (req, res) => {
+    const {
+      suggestioncate, suggestion, confirm, email, ...rest
+    } = req.body;
+    const emailBody = await getsuggestionEmailBody(suggestioncate, suggestion, confirm, rest);
+     console.log('emailbody', emailBody);
+    try {
+      emailSender(
+        'onecommunityglobal@gmail.com',
+        'A new suggestion',
+        emailBody,
+        email,
+      );
+      res.status(200).send('Success');
+    } catch {
+      res.status(500).send('Failed');
+    }
+  };
+
 
   const getSuggestionOption = async (req, res) => {
     const readfile = await readSuggestionFile();
@@ -134,6 +175,7 @@ const dashboardcontroller = function () {
     sendBugReport,
     getSuggestionOption,
     addSuggestionOption,
+    sendMakeSuggestion,
   };
 };
 
