@@ -109,18 +109,17 @@ const dashboardcontroller = function () {
 
   const getsuggestionEmailBody = async (...args) => {
     const readfile = await readSuggestionFile();
-    let fieldaaray;
+    let fieldaaray = [];
     if (readfile.field.length) {
       fieldaaray = readfile.field.map(item => `<p>${item}</p>
                                                <p>${args[3][item]}</p>`);
     }
-    console.log('emailcreate', fieldaaray, args);
     const text = `New Suggestion:
         <p>Suggestion Category:</p>
         <p>${args[0]}</p>
-        <p>Suggestion</p>
+        <p>Suggestion:</p>
         <p>${args[1]}</p>
-        ${fieldaaray}
+        ${fieldaaray.length > 0 ? fieldaaray : ''}
         <p>Wants Feedback:</p>
         <p>${args[2]}</p>
         <p>Thank you,<br />
@@ -131,16 +130,14 @@ const dashboardcontroller = function () {
 
   const sendMakeSuggestion = async (req, res) => {
     const {
-      suggestioncate, suggestion, confirm, email, ...rest
+      suggestioncate, suggestion, confirm, ...rest
     } = req.body;
     const emailBody = await getsuggestionEmailBody(suggestioncate, suggestion, confirm, rest);
-     console.log('emailbody', emailBody);
     try {
       emailSender(
         'onecommunityglobal@gmail.com',
         'A new suggestion',
         emailBody,
-        email,
       );
       res.status(200).send('Success');
     } catch {
