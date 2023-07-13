@@ -21,8 +21,13 @@ const logincontroller = function () {
     const user = await userprofile.findOne({ email: { $regex: "^" + escapeRegex(_email) + "$", $options: 'i' } })
       .catch(error => res.status(400).send(error));
 
-    // returning 403 if the user not found or the found user is inactive.
-    if (!user || user.isActive === false) {
+    // returning 403 if the user not found
+    if (!user) {
+      res.status(403).send({ message: 'Username not found.' });
+      return;
+    }
+    // returning 403 if the found user is inactive (Message is taken care of in PR438).
+    if (user.isActive === false) {
       res.status(403).send({ message: 'Invalid email and/ or password.' });
       return;
     }
@@ -60,7 +65,7 @@ const logincontroller = function () {
       res.send({ token }).status(200);
     } else {
       res.status(403).send({
-        message: 'Invalid email and/ or password.',
+        message: 'Invalid password.',
       });
     }
   };
