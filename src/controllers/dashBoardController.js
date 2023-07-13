@@ -99,14 +99,14 @@ const dashboardcontroller = function () {
       res.status(500).send('Failed');
     }
   };
-
+ // read suggestion data from file
   const readSuggestionFile = async () => {
     const filepath = path.join(process.cwd(), 'src', 'constants', 'suggestionModalData.json');
     let readfile = await fs.readFile(filepath).catch(err => console.log(err));
     readfile = JSON.parse(readfile);
     return readfile;
   };
-
+  // create suggestion emailbody
   const getsuggestionEmailBody = async (...args) => {
     const readfile = await readSuggestionFile();
     let fieldaaray = [];
@@ -128,6 +128,7 @@ const dashboardcontroller = function () {
     return text;
   };
 
+  // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
     const {
       suggestioncate, suggestion, confirm, ...rest
@@ -150,7 +151,7 @@ const dashboardcontroller = function () {
     const readfile = await readSuggestionFile();
     res.status(200).send(readfile);
   };
-
+  // add new suggestion category or field
   const addSuggestionOption = async (req, res) => {
     const readfile = await readSuggestionFile();
     if (req.body.suggestion) {
