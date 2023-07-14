@@ -2,23 +2,32 @@ const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const emailSender = require('../utilities/emailSender');
+const project = require('models/project');
+const { request } = require('http');
 
+// Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.
+// To work as a member of our volunteer team, you need to complete the following profile setup:
+// Click to Complete Profile
+// Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.
+// Thank you and welcome!
+// With Gratitude,
+// One Community
 
 function sendLinkMessage(Link) {
     const message = `<p>Hello,</p>
-    <p>Welcome to the Highest Good Network! We're excited to have you as a new member.<br> To get started, we kindly request you to complete your profile setup.</p>
-    <p>Please click on the following link to access your profile setup page:</p>
-    <p><a href="${Link}">Profile Setup Page</a></p>
-    <p>On the profile setup page, you'll be able to provide the necessary information to setup your user account. We encourage you to fill in all the requested details accurately.</p>
+    <p>Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
+    To work as a member of our volunteer team, you need to complete the following profile setup:</p>
+    
+    <p><a href="${Link}">Click to Complete Profile</a></p>
+    <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>If you have any questions or need assistance during the profile setup process, please don't hesitate to reach out to your manager.</p>
-    <p>Thank you for choosing One Community.</p>
-    <p>Best regards,<br>
-    One Community<br>
-    Highest Good Network Team</p>`;
+    <p>Thank you and welcome!</p>
+    <p>With Gratitude,<br>
+    One Community.</p>`;
     return message;
 }
 
-const profileInitialSetupController = function (ProfileInitialSetupToken, userProfile) {
+const profileInitialSetupController = function (ProfileInitialSetupToken, userProfile, Project) {
 
     const getSetupToken = async (req, res) => {
         let { email, baseUrl } = req.body
@@ -89,24 +98,32 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                 const expirationMoment = moment(foundToken.expiration);
 
                 if (expirationMoment.isAfter(currentMoment)) {
+                    const defaultProject = await Project.findOne({ projectName: "Orientation and Initial Setup" })
                     const newUser = new userProfile();
                     newUser.password = req.body.password;
-                    newUser.role = req.body.role;
+                    newUser.role = "Volunteer";
                     newUser.firstName = req.body.firstName;
                     newUser.lastName = req.body.lastName;
                     newUser.jobTitle = req.body.jobTitle;
                     newUser.phoneNumber = req.body.phoneNumber;
-                    newUser.bio = req.body.bio;
+                    newUser.bio = "";
                     newUser.weeklycommittedHours = req.body.weeklycommittedHours;
-                    newUser.weeklySummaryOption = req.body.weeklySummaryOption;
-                    newUser.personalLinks = req.body.personalLinks;
-                    newUser.adminLinks = req.body.adminLinks;
-                    newUser.email = req.body.email;
-                    newUser.location = req.body.location;
-                    newUser.teams = Array.from(new Set(req.body.teams));
-                    newUser.projects = Array.from(new Set(req.body.projects));
+                    newUser.personalLinks = [];
+                    newUser.adminLinks = [];
+                    newUser.teams = Array.from(new Set([]));
+                    newUser.projects = Array.from(new Set([defaultProject]));
                     newUser.createdDate = Date.now();
-
+                    newUser.email = req.body.email;
+                    newUser.weeklySummaries = [{ summary: '' }];
+                    newUser.weeklySummariesCount = 0;
+                    newUser.weeklySummaryOption = 'Required';
+                    newUser.mediaUrl = '';
+                    newUser.collaborationPreference = req.body.collaborationPreference;
+                    newUser.timeZone = req.body.timeZone || 'America/Los_Angeles';
+                    newUser.location = req.body.location;
+                    newUser.bioPosted = 'default';
+                    newUser.privacySettings.email = req.body.privacySettings.email
+                    newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber
                     const savedUser = await newUser.save();
                     await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
 
