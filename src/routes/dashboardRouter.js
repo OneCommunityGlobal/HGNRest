@@ -6,8 +6,14 @@ const route = function () {
 
   const Dashboardrouter = express.Router();
 
+  Dashboardrouter.route('/dashboard')
+    .get(controller.getDashBoardData);
+
   Dashboardrouter.route('/dashboard/:userId')
-    .get(controller.dashboarddata);
+    .put(controller.updateDashboardData);
+
+  Dashboardrouter.route('/dashboard/:userId')
+    .get(controller.dashboarduserdata);
 
   Dashboardrouter.route('/dashboard/monthlydata/:userId/:fromDate/:toDate')
     .get(controller.monthlydata);

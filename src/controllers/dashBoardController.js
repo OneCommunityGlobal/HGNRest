@@ -1,9 +1,42 @@
 const mongoose = require('mongoose');
 const dashboardhelper = require('../helpers/dashboardhelper')();
 const emailSender = require('../utilities/emailSender');
+const DashboardData = require('../models/dashboardData');
 
 const dashboardcontroller = function () {
-  const dashboarddata = function (req, res) {
+
+  const getDashBoardData = function (req, res) {
+    DashboardData.findOne({dataId: "ai-prompt"})
+      .then(results => {
+        console.log("GETTTTTTTTT")
+        res.status(200).send(results)
+      })
+      .catch(error => res.status(404).send(error));
+  };
+  
+
+  const updateDashboardData = function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    const snapshot = dashboardhelper.personaldetails(userId);
+
+    snapshot.then((userData) => { 
+      if (userData.role === 'Owner') {
+        const dashboardDataModel = new DashboardData();
+        dashboardDataModel.dataId = 'ai-prompt';
+        dashboardDataModel.aIPromptText = 'test';
+        dashboardDataModel.save().then(() => {
+          console.log("dashboard", dashboardDataModel)
+          console.log('SAVED!!!');
+          res.status(200).send({
+            aIPromptText: 'test' 
+          });
+        })
+      }
+     });
+  };
+
+  const dashboarduserdata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
     const snapshot = dashboardhelper.personaldetails(userId);
@@ -100,7 +133,9 @@ const dashboardcontroller = function () {
 
 
   return {
-    dashboarddata,
+    getDashBoardData,
+    updateDashboardData,
+    dashboarduserdata,
     monthlydata,
     weeklydata,
     leaderboarddata,
