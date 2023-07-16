@@ -53,6 +53,7 @@ const taskschema = new Schema({
   intentInfo: { type: String },
   endstateInfo: { type: String },
   classification: { type: String },
+  reviewStatus: { type: String, default: 'Unsubmitted' },
 });
 
 module.exports = mongoose.model('task', taskschema, 'tasks');
