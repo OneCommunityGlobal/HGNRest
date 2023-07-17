@@ -17,53 +17,57 @@ const logincontroller = function () {
       return;
     }
 
+    try {
+      const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } })
 
-    const user = await userprofile.findOne({ email: { $regex: "^" + escapeRegex(_email) + "$", $options: 'i' } })
-      .catch(error => res.status(400).send(error));
+      // returning 403 if the user not found or the found user is inactive.
+      if (!user) {
+        res.status(403).send({ message: 'Invalid email and/ or password.' });
+      } else if (user.isActive === false) {
+        res.status(403).send({ message: 'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.' });
+      } else {
 
-    // returning 403 if the user not found or the found user is inactive.
-    if (!user || user.isActive === false) {
-      res.status(403).send({ message: 'Invalid email and/ or password.' });
-      return;
-    }
+        let isPasswordMatch = false;
+        let isNewUser = false;
+        if (_password === _defPwd) {
+          isNewUser = true;
+        }
 
-    let isPasswordMatch = false;
-    let isNewUser = false;
-    if (_password === _defPwd) {
-      isNewUser = true;
-    }
+        isPasswordMatch = await bcrypt.compare(_password, user.password);
 
-    isPasswordMatch = await bcrypt.compare(_password, user.password);
+        if (!isPasswordMatch && user.resetPwd !== '') {
+          isPasswordMatch = (_password === user.resetPwd);
+          isNewUser = true;
+        }
 
-    if (!isPasswordMatch && user.resetPwd !== '') {
-      isPasswordMatch = (_password === user.resetPwd);
-      isNewUser = true;
-    }
+      if (isNewUser && isPasswordMatch) {
+        const result = {
+          new: true,
+          userId: user._id,
+        };
+        res.send(result).status(200);
+      } else if (isPasswordMatch && !isNewUser) {
+        const jwtPayload = {
+          userid: user._id,
+          role: user.role,
+          permissions: user.permissions,
+          expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+        };
 
-    if (isNewUser && isPasswordMatch) {
-      const result = {
-        new: true,
-        userId: user._id,
-      };
-      res.send(result).status(200);
-    } else if (isPasswordMatch && !isNewUser) {
-      const jwtPayload = {
-        userid: user._id,
-        role: user.role,
-        permissions: user.permissions,
-        expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
-      };
+        const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-
-      const token = jwt.sign(jwtPayload, JWT_SECRET);
-
-      res.send({ token }).status(200);
-    } else {
-      res.status(403).send({
-        message: 'Invalid email and/ or password.',
-      });
-    }
-  };
+        res.send({ token }).status(200);
+      } else {
+        res.status(403).send({
+          message: 'Invalid email and/ or password.',
+        });
+      }
+      }
+        } catch (err){
+    console.log(err);
+    res.json(err)
+  }
+};
 
   const getUser = function (req, res) {
     const { requestor } = req.body;
