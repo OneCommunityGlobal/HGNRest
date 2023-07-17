@@ -152,12 +152,24 @@ const dashboardcontroller = function () {
     res.status(200).send(readfile);
   };
   // add new suggestion category or field
-  const addSuggestionOption = async (req, res) => {
-    const readfile = await readSuggestionFile();
+  const editSuggestionOption = async (req, res) => {
+    let readfile = await readSuggestionFile();
     if (req.body.suggestion) {
-      readfile.suggestion.unshift(req.body.newField);
+      if (req.body.action === 'add') readfile.suggestion.unshift(req.body.newField);
+      if (req.body.action === 'delete') {
+        readfile = {
+                    ...readfile,
+                    suggestion: readfile.suggestion.filter((item, index) => index + 1 !== +req.body.newField),
+                   };
+        }
     } else {
-      readfile.field.unshift(req.body.newField);
+      if (req.body.action === 'add') readfile.field.unshift(req.body.newField);
+      if (req.body.action === 'delete') {
+        readfile = {
+                    ...readfile,
+                    field: readfile.field.filter(item => item !== req.body.newField),
+                   };
+        }
     }
     const filepath = path.join(process.cwd(), 'src', 'constants', 'suggestionModalData.json');
     await fs.writeFile(filepath, JSON.stringify(readfile)).catch(err => console.log(err));
@@ -172,7 +184,7 @@ const dashboardcontroller = function () {
     orgData,
     sendBugReport,
     getSuggestionOption,
-    addSuggestionOption,
+    editSuggestionOption,
     sendMakeSuggestion,
   };
 };
