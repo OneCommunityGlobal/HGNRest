@@ -28,7 +28,7 @@ const route = function () {
     .post(controller.sendBugReport);
 
   Dashboardrouter.route('/dashboard/suggestionoption/:userId')
-    .post(controller.addSuggestionOption);
+    .post(controller.editSuggestionOption);
 
   Dashboardrouter.route('/dashboard/makesuggestion/:userId')
     .post(controller.sendMakeSuggestion);
