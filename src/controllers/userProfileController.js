@@ -355,6 +355,7 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
+    const { TIME_ARCHIVE_FIRST_NAME, TIME_ARCHIVE_LAST_NAME } = config;
     if (
       !userId
       || !option
@@ -378,8 +379,8 @@ const userProfileController = function (UserProfile) {
     if (option === 'archive') {
       const timeArchiveUser = await UserProfile.findOne(
         {
-          firstName: 'TimeArchiveAccount',
-          lastName: 'TimeArchiveAccount',
+          firstName: TIME_ARCHIVE_FIRST_NAME,
+          lastName: TIME_ARCHIVE_LAST_NAME,
         },
         '_id',
       );
