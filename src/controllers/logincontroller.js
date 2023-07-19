@@ -7,12 +7,11 @@ const escapeRegex = require('../utilities/escapeRegex');
 
 const logincontroller = function () {
   const { JWT_SECRET } = config;
-  const { DEF_PWD } = config;
 
   const login = async function _login(req, res) {
     const _email = req.body.email;
     const _password = req.body.password;
-    const _defPwd = DEF_PWD;
+    const _defPwd = process.env.DEF_PWD;
     if (!_email || !_password) {
       res.status(400).send({ error: 'Invalid request' });
       return;
