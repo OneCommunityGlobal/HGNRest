@@ -16,10 +16,11 @@ const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const ownerMessage = require('../models/ownerMessage');
 const ownerStandardMessage = require('../models/ownerStandardMessage');
+const dashboardData = require('../models/dashboardData');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
-const dashboardRouter = require('../routes/dashboardRouter')();
+const dashboardRouter = require('../routes/dashboardRouter')(dashboardData);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const teamRouter = require('../routes/teamRouter')(team);

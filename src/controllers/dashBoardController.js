@@ -4,36 +4,21 @@ const emailSender = require('../utilities/emailSender');
 const DashboardData = require('../models/dashboardData');
 
 const dashboardcontroller = function () {
+  const updateDashboardData = function (req, res) {
+      if (req.body.requestor.role === 'Owner') {
+         DashboardData.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
+        .then(() => {
+          res.status(200).send();
+        }).catch(error => res.status(404).send(error));
+      }
+  };
 
   const getDashBoardData = function (req, res) {
-    DashboardData.findOne({dataId: "ai-prompt"})
-      .then(results => {
-        console.log("GETTTTTTTTT")
-        res.status(200).send(results)
+    DashboardData.findById({ _id: 'ai-prompt' })
+      .then((results) => {
+        res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
-  };
-  
-
-  const updateDashboardData = function (req, res) {
-    const userId = mongoose.Types.ObjectId(req.params.userId);
-
-    const snapshot = dashboardhelper.personaldetails(userId);
-
-    snapshot.then((userData) => { 
-      if (userData.role === 'Owner') {
-        const dashboardDataModel = new DashboardData();
-        dashboardDataModel.dataId = 'ai-prompt';
-        dashboardDataModel.aIPromptText = 'test';
-        dashboardDataModel.save().then(() => {
-          console.log("dashboard", dashboardDataModel)
-          console.log('SAVED!!!');
-          res.status(200).send({
-            aIPromptText: 'test' 
-          });
-        })
-      }
-     });
   };
 
   const dashboarduserdata = function (req, res) {
@@ -133,8 +118,8 @@ const dashboardcontroller = function () {
 
 
   return {
-    getDashBoardData,
     updateDashboardData,
+    getDashBoardData,
     dashboarduserdata,
     monthlydata,
     weeklydata,
