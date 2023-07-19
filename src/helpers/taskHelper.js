@@ -329,7 +329,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
-          role:1,
+          role: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -359,7 +359,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
-          role:1,
+          role: 1,
           totalSeconds: {
             $cond: [
               {
@@ -399,7 +399,7 @@ const taskHelper = function () {
             personId: '$personId',
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
-            role: '$role'
+            role: '$role',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
