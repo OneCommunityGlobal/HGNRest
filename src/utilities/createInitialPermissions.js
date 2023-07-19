@@ -234,7 +234,6 @@ const permissionsRoles = [
       'seePermissionsManagement',
       'putUserProfilePermissions',
       'changeBioAnnouncement',
-      'seeAllReports',
       'changeUserStatus',
       'submitWeeklySummaryForOthers',
       'seeAllReports',
