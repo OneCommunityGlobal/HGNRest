@@ -45,6 +45,12 @@ const routes = function (userProfile) {
 
   userProfileRouter.route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
+  
+  userProfileRouter.route('/userProfile/infoCollections')
+    .get(controller.getInfoCollections)
+    .put(controller.putInfoCollections)
+    .delete(controller.deleteInfoCollections)
+    .post(controller.postInfoCollections)
 
   return userProfileRouter;
 };
