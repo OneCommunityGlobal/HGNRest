@@ -18,14 +18,24 @@ const teamcontroller = function (Team) {
   };
   const postTeam = function (req, res) {
     const team = new Team();
-
     team.teamName = req.body.teamName;
-    team.isACtive = req.body.isActive;
+    team.isActive = req.body.isActive;
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    team.save()
-      .then(results => res.send(results).status(200))
+    // Check if a team with the same name already exists
+    Team.findOne({ teamName: team.teamName })
+      .then((existingTeam) => {
+        if (existingTeam) {
+          // If a team with the same name exists, return an error
+          res.status(400).send({ error: 'A team with this name already exists' });
+        } else {
+          // If no team with the same name exists, save the new team
+          team.save()
+            .then(results => res.send(results).status(200))
+            .catch(error => res.send(error).status(404));
+        }
+      })
       .catch(error => res.send(error).status(404));
   };
   const deleteTeam = function (req, res) {
