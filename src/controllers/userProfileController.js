@@ -67,7 +67,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate infoCollections',
     )
       .sort({
         lastName: 1,
@@ -186,6 +186,7 @@ const userProfileController = function (UserProfile) {
     up.location = req.body.location;
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
+    up.infoCollections =  Array.from(new Set(req.body.infoCollections)); 
 
     up.save()
       .then(() => {
@@ -205,6 +206,7 @@ const userProfileController = function (UserProfile) {
           firstName: up.firstName,
           lastName: up.lastName,
           email: up.email,
+          infoCollections: up.infoCollections,
         };
         const allUserCache = JSON.parse(cache.getCache('allusers'));
         allUserCache.push(userCache);
@@ -267,6 +269,7 @@ const userProfileController = function (UserProfile) {
       record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || 'default';
+      record.infoCollections = req.body.infoCollections;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -306,6 +309,7 @@ const userProfileController = function (UserProfile) {
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
         record.bioPosted = req.body.bioPosted || 'default';
+        record.infoCollections = req.body.infoCollections;
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
@@ -323,6 +327,7 @@ const userProfileController = function (UserProfile) {
           userData.email = record.email;
           userData.isActive = record.isActive;
           userData.createdDate = record.createdDate.toISOString();
+          userData.infoCollections = record.infoCollections;
         }
       }
       if (hasPermission(req.body.requestor.role, 'infringementAuthorizer')) {
@@ -763,6 +768,80 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
+  const getInfoCollections = function (req, res) {
+    UserProfile.find({}, 'infoCollections')
+      .then((users) => {
+        const infoCollections = users.map((user) => user.infoCollections);
+        res.status(200).json(infoCollections);
+      })
+      .catch((error) => {
+        res.status(500).send({ error: error.message });
+      });
+  };
+  
+  const putInfoCollections = function (req, res) {
+    if (req.body.requestor.role !== 'Owner') {
+      res.status(403).send('You are not authorized to update infoCollections!');
+      return;
+    }
+  
+    const { infoCollections } = req.body;
+    if (!Array.isArray(infoCollections)) {
+      res.status(400).send('InfoCollections must be an array of objects!');
+      return;
+    }
+  
+    UserProfile.updateMany({}, { $set: { infoCollections } })
+      .then(() => {
+        res.status(200).json({
+          _serverMessage: 'InfoCollections successfully updated for all users!',
+        });
+      })
+      .catch((error) => {
+        res.status(500).send({ error: error.message});
+      });
+  };
+  const postInfoCollections = function (req, res) {
+    if (req.body.requestor.role !== 'Owner') {
+      return res.status(403).send('You are not authorized to create infoCollections!');
+    }
+  
+    const { infoCollections } = req.body;
+    if (!Array.isArray(infoCollections)) {
+      return res.status(400).send('InfoCollections must be an array of objects!');
+    }
+  
+    UserProfile.updateMany({}, { $set: { infoCollections } })
+      .then(() => {
+        res.status(200).json({
+          _serverMessage: 'InfoCollections successfully created for all users!',
+        });
+      })
+      .catch((error) => {
+        res.status(500).send({ error: error.message });
+      });
+  };
+  
+  
+  const deleteInfoCollections = function (req, res) {
+    if (req.body.requestor.role !== 'Owner') {
+      res.status(403).send('You are not authorized to delete infoCollections!');
+      return;
+    }
+  
+    UserProfile.updateMany({}, { $unset: { infoCollections: 1 } })
+      .then(() => {
+        res.status(200).json({
+          _serverMessage: 'InfoCollections successfully deleted for all users!',
+        });
+      })
+      .catch((error) => {
+        res.status(500).send({ error });
+      });
+  };
+  
+  
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -780,6 +859,10 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
+    getInfoCollections,
+    putInfoCollections,
+    deleteInfoCollections,
+    postInfoCollections,
   };
 };
 
