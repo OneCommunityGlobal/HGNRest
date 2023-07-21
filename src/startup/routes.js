@@ -72,4 +72,5 @@ module.exports = function (app) {
   app.use('/api', roleRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
+  app.use('/api', reasonRouter)
 };
