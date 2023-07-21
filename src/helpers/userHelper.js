@@ -746,7 +746,7 @@ const userHelper = function () {
     count = 1,
     featured = false,
   ) {
-    console.log('Adding Badge');
+    console.log("Adding Badge");
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -1052,12 +1052,12 @@ const userHelper = function () {
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
     if (
-      user.weeklycommittedHours > 0
-      && user.lastWeekTangibleHrs > user.weeklycommittedHours
+      user.weeklycommittedHours > 0 &&
+      user.lastWeekTangibleHrs > user.weeklycommittedHours
     ) {
       const badgeOfType = badgeCollection
-        .filter(object => object.badge.type === 'Most Hrs in Week')
-        .map(object => object.badge);
+        .filter((object) => object.badge.type === "Most Hrs in Week")
+        .map((object) => object.badge);
       await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
         userProfile
           .aggregate([
@@ -1067,7 +1067,7 @@ const userHelper = function () {
           .then((userResults) => {
             if (badgeOfType.length > 1) {
               removeDupBadge(user._id, badgeOfType[0]._id);
-            }
+            } 
 
             if (
               user.lastWeekTangibleHrs
