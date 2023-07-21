@@ -186,6 +186,8 @@ const route = (ReasonModel, UserModel) => {
       })
     }
   })
+
+  return reasonRouter
 };
 
 module.exports = route;
