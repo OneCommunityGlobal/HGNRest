@@ -7,6 +7,7 @@ const routes = function (ProfileInitialSetupToken, userProfile, Project) {
         .post(controller.getSetupToken);
     ProfileInitialSetup.route('/ProfileInitialSetup').post(controller.setUpNewUser)
     ProfileInitialSetup.route('/validateToken').post(controller.validateSetupToken)
+    ProfileInitialSetup.route('/getTimeZoneAPIKeyByToken').post(controller.getTimeZoneAPIKeyByToken)
 
     return ProfileInitialSetup;
 };
