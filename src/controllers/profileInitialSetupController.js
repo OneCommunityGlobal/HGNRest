@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const emailSender = require('../utilities/emailSender');
-const project = require('models/project');
-const { request } = require('http');
+
 
 // Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.
 // To work as a member of our volunteer team, you need to complete the following profile setup:
@@ -62,6 +61,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
         }
 
     }
+
     const validateSetupToken = async (req, res) => {
         const { token } = req.body
         const currentMoment = moment.tz('America/Los_Angeles');
@@ -100,7 +100,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                 if (expirationMoment.isAfter(currentMoment)) {
                     const defaultProject = await Project.findOne({ projectName: "Orientation and Initial Setup" })
                     const newUser = new userProfile();
-                    newUser.password = req.body.password;
+                    newUser.password = '123Welcome!';
                     newUser.role = "Volunteer";
                     newUser.firstName = req.body.firstName;
                     newUser.lastName = req.body.lastName;
@@ -127,6 +127,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                     const savedUser = await newUser.save();
                     await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
 
+
                     res.status(200).send(savedUser);
                 } else {
                     res.status(400).send("Token has expired");
@@ -140,11 +141,27 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
 
     }
 
+    const getTimeZoneAPIKeyByToken = async (req, res) => {
+        const token = req.body.token;
+        const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
+
+        const foundToken = await ProfileInitialSetupToken.findOne({ token });
+
+        if (foundToken) {
+            res.status(200).send({ userAPIKey: premiumKey });
+            return;
+        } else {
+            res.status(403).send('Unauthorized Request');
+            return;
+        }
+
+    };
 
     return {
         getSetupToken,
         setUpNewUser,
-        validateSetupToken
+        validateSetupToken,
+        getTimeZoneAPIKeyByToken
     }
 };
 
