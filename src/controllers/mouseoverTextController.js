@@ -32,7 +32,7 @@ const mouseoverTextController = (function (MouseoverText) {
                 .then(results => res.status(201).send(results))
                 .catch(errors => res.status(400).send(errors));
         });
-    }
+    };
 
     return {
         createMouseoverText,
