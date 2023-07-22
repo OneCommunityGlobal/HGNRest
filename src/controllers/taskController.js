@@ -554,6 +554,8 @@ const taskController = function (Task) {
       const fromNumArr = req.body.fromNum.replace(/\.0/g, '').split('.');
       const toNumArr = req.body.toNum.replace(/\.0/g, '').split('.');
 
+      const changedLvl = fromNumArr.length;
+
       const fromLastLvl = parseInt(fromNumArr.pop(), 10);
       const toLastLvl = parseInt(toNumArr.pop(), 10);
 
@@ -563,20 +565,23 @@ const taskController = function (Task) {
       for (let i = Math.min(fromLastLvl, toLastLvl); i <= Math.max(fromLastLvl, toLastLvl); i += 1) {
         changingNums.push(leadingLvls.concat(`${i}`));
       }
-      const changingNumTasks = tasks.filter(task => changingNums.includes(task.num));
+      const changingNumTasks = tasks.filter((task) => {
+        const taskLeadingNum = task.num.split('.').slice(0, changedLvl).join('.');
+        return changingNums.includes(taskLeadingNum);
+      });
 
       const queries = [];
 
       changingNumTasks.forEach((task) => {
         const taskNumArr = task.num.split('.');
-        const taskLastLvl = parseInt(taskNumArr.pop(), 10);
+        const taskChanedLvlNum = parseInt(taskNumArr[changedLvl - 1], 10);
         let newTaskLastLvl;
         if (fromLastLvl > toLastLvl) {
-          newTaskLastLvl = taskLastLvl === fromLastLvl ? toLastLvl : taskLastLvl + 1;
+          newTaskLastLvl = taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum + 1;
         } else {
-          newTaskLastLvl = taskLastLvl === fromLastLvl ? toLastLvl : taskLastLvl - 1;
+          newTaskLastLvl = taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum - 1;
         }
-        taskNumArr.push(String(newTaskLastLvl));
+        taskNumArr[changedLvl - 1] = String(newTaskLastLvl);
         task.num = taskNumArr.join('.');
         queries.push(task.save());
       });
