@@ -4,13 +4,6 @@ const moment = require('moment-timezone');
 const emailSender = require('../utilities/emailSender');
 
 
-// Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.
-// To work as a member of our volunteer team, you need to complete the following profile setup:
-// Click to Complete Profile
-// Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.
-// Thank you and welcome!
-// With Gratitude,
-// One Community
 
 function sendLinkMessage(Link) {
     const message = `<p>Hello,</p>
@@ -19,7 +12,6 @@ function sendLinkMessage(Link) {
     
     <p><a href="${Link}">Click to Complete Profile</a></p>
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
-    <p>If you have any questions or need assistance during the profile setup process, please don't hesitate to reach out to your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,<br>
     One Community.</p>`;
@@ -48,7 +40,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
 
             emailSender(
                 email,
-                'Complete your profile setup for Highest Good Network App',
+                'NEEDED: Complete your One Community profile setup',
                 sendLinkMessage(link),
                 null,
                 null,
