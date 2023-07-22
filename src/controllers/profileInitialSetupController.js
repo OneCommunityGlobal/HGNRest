@@ -100,7 +100,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                 if (expirationMoment.isAfter(currentMoment)) {
                     const defaultProject = await Project.findOne({ projectName: "Orientation and Initial Setup" })
                     const newUser = new userProfile();
-                    newUser.password = '123Welcome!';
+                    newUser.password = req.body.password
                     newUser.role = "Volunteer";
                     newUser.firstName = req.body.firstName;
                     newUser.lastName = req.body.lastName;
