@@ -9,6 +9,7 @@ const badge = require('../models/badge');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
+const token = require("../models/profileInitialSetupToken")
 
 const emailSender = require('../utilities/emailSender');
 
@@ -34,9 +35,9 @@ const userHelper = function () {
     let mm = today.getMonth() + 1;
     let dd = today.getDate();
 
-    mm < 10 ? mm = `0${ mm}` : mm;
-    dd < 10 ? dd = `0${ dd}` : dd;
-    const formatedDate = `${yyyy }-${ mm }-${ dd}`;
+    mm < 10 ? mm = `0${mm}` : mm;
+    dd < 10 ? dd = `0${dd}` : dd;
+    const formatedDate = `${yyyy}-${mm}-${dd}`;
 
     return formatedDate;
   };
@@ -90,8 +91,8 @@ const userHelper = function () {
         <p><b>Date Assigned:</b> ${infringement.date}</p>
         <p><b>Description:</b> ${infringement.description}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
-          .localeData()
-          .ordinal(totalInfringements)}</b> blue square of 5.</p>
+        .localeData()
+        .ordinal(totalInfringements)}</b> blue square of 5.</p>
         <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
         <p>Thank you,<br />
         One Community</p>`;
@@ -127,8 +128,8 @@ const userHelper = function () {
       const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(
-          `${b.firstName} ${b.lastname}`,
-        ));
+        `${b.firstName} ${b.lastname}`,
+      ));
 
       for (let i = 0; i < results.length; i += 1) {
         const result = results[i];
@@ -178,8 +179,8 @@ const userHelper = function () {
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate)
-                  .tz('America/Los_Angeles')
-                  .format('YYYY-MMM-DD')}</b>):
+                .tz('America/Los_Angeles')
+                .format('YYYY-MMM-DD')}</b>):
               </div>
               <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
@@ -195,25 +196,21 @@ const userHelper = function () {
         <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
           <p>
-            <b>Media URL:</b> ${
-              mediaUrlLink || '<span style="color: red;">Not provided!</span>'
-            }
-          </p>
-          ${
-            weeklySummariesCount === 8
-              ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
-              : `<p><b>Total Valid Weekly Summaries</b>: ${
-                  weeklySummariesCount || 'No valid submissions yet!'
-                }</p>`
+            <b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'
           }
-          ${
-            hoursLogged >= weeklycommittedHours
-              ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(
-                  2,
-                )} / ${weeklycommittedHours}</p>`
-              : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
-                  2,
-                )} / ${weeklycommittedHours}</p>`
+          </p>
+          ${weeklySummariesCount === 8
+            ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
+            : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'
+            }</p>`
+          }
+          ${hoursLogged >= weeklycommittedHours
+            ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(
+              2,
+            )} / ${weeklycommittedHours}</p>`
+            : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
+              2,
+            )} / ${weeklycommittedHours}</p>`
           }
           ${weeklySummaryMessage}
         </div>`;
@@ -493,16 +490,16 @@ const userHelper = function () {
       logger.logInfo(`Job for applying missed hours for Core Team members starting at ${currentDate}`);
 
       const startOfLastWeek = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(1, 'week')
-      .format('YYYY-MM-DD');
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week')
+        .format('YYYY-MM-DD');
 
       const endOfLastWeek = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(1, 'week')
-      .format('YYYY-MM-DD');
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .subtract(1, 'week')
+        .format('YYYY-MM-DD');
 
       const missedHours = await userProfile.aggregate([
         {
@@ -649,8 +646,7 @@ const userHelper = function () {
           const person = await userProfile.findById(id);
           const endDate = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(
-            `User with id: ${
-              user._id
+            `User with id: ${user._id
             } was re-acticated at ${moment().format()}.`,
           );
           const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been RE-activated in the Highest Good Network`;
@@ -732,12 +728,12 @@ const userHelper = function () {
 
   const increaseBadgeCount = async function (personId, badgeId) {
     userProfile.updateOne({ _id: personId, 'badgeCollection.badge': badgeId },
-    { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() }, $push: { 'badgeCollection.$.earnedDate': earnedDateBadge() } },
-    (err) => {
-      if (err) {
-        console.log(err);
-      }
-    });
+      { $inc: { 'badgeCollection.$.count': 1 }, $set: { 'badgeCollection.$.lastModified': Date.now().toString() }, $push: { 'badgeCollection.$.earnedDate': earnedDateBadge() } },
+      (err) => {
+        if (err) {
+          console.log(err);
+        }
+      });
   };
 
   const addBadge = async function (
@@ -840,7 +836,7 @@ const userHelper = function () {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type
-                  === 'X Hours for X Week Streak'
+                === 'X Hours for X Week Streak'
                 && badgeCollection[i].badge?.weeks === bdge.weeks
                 && bdge.hrs === hrs
                 && !removed
@@ -944,7 +940,7 @@ const userHelper = function () {
                     true,
                   ),
                 )
-                  >= elem.months - 12
+                >= elem.months - 12
               ) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
@@ -1134,7 +1130,7 @@ const userHelper = function () {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type
-                  === 'X Hours for X Week Streak'
+                === 'X Hours for X Week Streak'
                 && badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (
@@ -1452,8 +1448,7 @@ const userHelper = function () {
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(
-            `User with id: ${
-              user._id
+            `User with id: ${user._id
             } was de-acticated at ${moment().format()}.`,
           );
           const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
@@ -1481,6 +1476,17 @@ const userHelper = function () {
       logger.logException(err);
     }
   };
+
+  const deleteExpiredTokens = async () => {
+    const currentDate = new Date();
+    try {
+      await token.deleteMany({ expiration: { $lt: currentDate } });
+    } catch (error) {
+      logger.logException(err);
+    }
+  }
+
+
   return {
     getUserName,
     getTeamMembers,
@@ -1495,6 +1501,7 @@ const userHelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
+    deleteExpiredTokens
   };
 };
 
