@@ -10,19 +10,19 @@ const afterConnect = async () => {
   try {
     const user = await userProfile.findOne(
       {
-        firstName: { $regex: process.env.TIME_ARCHIVE_FIRST_NAME, $options: 'i' },
-        lastName: { $regex: process.env.TIME_ARCHIVE_LAST_NAME, $options: 'i' },
+        firstName: { $regex: 'TimeArchiveAccount', $options: 'i' },
+        lastName: { $regex: 'TimeArchiveAccount', $options: 'i' },
       },
     );
 
     await initialPermissions();
     if (!user) {
       userProfile.create({
-        firstName: process.env.TIME_ARCHIVE_FIRST_NAME,
-        lastName: process.env.TIME_ARCHIVE_LAST_NAME,
-        email: process.env.TIME_ARCHIVE_EMAIL,
+        firstName: 'TimeArchiveAccount',
+        lastName: 'TimeArchiveAccount',
+        email: 'TimeArchiveAccount@yopmail.com',
         role: 'Volunteer',
-        password: process.env.DEF_PWD,
+        password: '123Welcome!',
       })
         .then(result => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
         .catch(error => logger.logException(error));
