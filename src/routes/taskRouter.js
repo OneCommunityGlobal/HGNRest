@@ -46,6 +46,9 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/user/:userId/teams/tasks')
     .get(controller.getTasksForTeamsByUser);
 
+  wbsRouter.route('/dashboard/reviewreq/:userId')
+    .post(controller.sendReviewReq);
+
   return wbsRouter;
 };
 
