@@ -11,18 +11,19 @@ const logincontroller = function () {
   const login = async function _login(req, res) {
     const _email = req.body.email;
     const _password = req.body.password;
-    const _defPwd = '123Welcome!';
+    const _defPwd = process.env.DEF_PWD;
     if (!_email || !_password) {
       res.status(400).send({ error: 'Invalid request' });
       return;
     }
+
 
     try {
       const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } })
 
       // returning 403 if the user not found or the found user is inactive.
       if (!user) {
-        res.status(403).send({ message: 'Invalid email and/ or password.' });
+        res.status(403).send({ message: 'Username not found.' });
       } else if (user.isActive === false) {
         res.status(403).send({ message: 'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.' });
       } else {
@@ -59,7 +60,7 @@ const logincontroller = function () {
         res.send({ token }).status(200);
       } else {
         res.status(403).send({
-          message: 'Invalid email and/ or password.',
+          message: 'Invalid password.',
         });
       }
       }
@@ -68,6 +69,7 @@ const logincontroller = function () {
     res.json(err)
   }
 };
+
 
   const getUser = function (req, res) {
     const { requestor } = req.body;
