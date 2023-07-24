@@ -3,6 +3,8 @@ const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
 const hasPermission = require('../utilities/permissions');
+const emailSender = require('../utilities/emailSender');
+const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1098,6 +1100,37 @@ const taskController = function (Task) {
     });
   };
 
+  const getReviewReqEmailBody = function (name, taskName) {
+    const text = `New Task Review Request From <b>${name}</b>:
+        <p>The following task is available to review:</p>
+        <p><b>${taskName}</b></p>
+        <p>Thank you,<br />
+        One Community</p>`;
+
+    return text;
+  };
+
+  const sendReviewReq = async function (req, res) {
+    const {
+      myUserId, name, taskName,
+    } = req.body;
+    const emailBody = getReviewReqEmailBody(name, taskName);
+
+    try {
+      const user = await userProfile.findById(myUserId);
+      emailSender(
+        user.email,
+        `Review Request from ${name}`,
+        emailBody,
+        'highestgoodnetwork@gmail.com',
+        null,
+      );
+      res.status(200).send('Success');
+    } catch (err) {
+      res.status(500).send('Failed');
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1114,6 +1147,7 @@ const taskController = function (Task) {
     getTasksByUserList,
     getTasksForTeamsByUser,
     updateChildrenQty,
+    sendReviewReq,
   };
 };
 
