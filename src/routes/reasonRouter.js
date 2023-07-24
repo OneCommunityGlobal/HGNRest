@@ -1,4 +1,5 @@
 const express = require("express");
+const moment = require('moment-timezone')
 
 const route = (ReasonModel, UserModel) => {
   const reasonRouter = express.Router();
@@ -49,13 +50,14 @@ const route = (ReasonModel, UserModel) => {
       }
 
       const newReason = new ReasonModel({
-        reason: reasonData.reason,
+        reason: reasonData.message,
         date: reasonData.date,
-        userId: foundUser.userId,
+        userId: userId,
       });
       await newReason.save();
       return res.sendStatus(200);
     } catch (error) {
+      console.log(error)
       return res.status(400).json({
         errMessage: "Something went wrong",
       });
@@ -86,7 +88,7 @@ const route = (ReasonModel, UserModel) => {
       }
 
       const reasons = await ReasonModel.find({
-        userId: foundUser.userId,
+        userId: userId,
       });
 
       return res.status(200).json({
@@ -103,7 +105,7 @@ const route = (ReasonModel, UserModel) => {
   reasonRouter.get("/reason/single/:userId", async (req, res) => {
     try {
       const { requestor, queryDate } = req.body;
-      const { userId } = req.params.id;
+      const { userId } = req.params;
 
       //error case 1
       if (requestor.role !== "Administrator" && requestor.role !== "Owner") {
@@ -124,7 +126,7 @@ const route = (ReasonModel, UserModel) => {
       }
 
       const foundReason = await ReasonModel.findOne({
-        date: queryDate,
+        date: moment(queryDate),
         userId: userId,
       });
 
@@ -138,6 +140,7 @@ const route = (ReasonModel, UserModel) => {
 
       return res.status(200).json(foundReason);
     } catch (error) {
+      console.log(error)
       return res.status(400).json({
         message: "Something went wrong while fetching single reason",
       });
