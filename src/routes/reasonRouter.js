@@ -18,7 +18,7 @@ const route = (ReasonModel, UserModel) => {
       }
 
       //error case 1
-      if (requestor.role !== "Owner" || requestor.role !== "Administrator") {
+      if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
         return res.status(403).json({
           message:
             "You must be an Owner or Administrator to schedule a reason for a Blue Square",
@@ -69,7 +69,7 @@ const route = (ReasonModel, UserModel) => {
       const { userId } = req.params;
 
       //error case 1
-      if (requestor.role !== "Owner" || requestor.role !== "Administrator") {
+      if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
         return res.status(403).json({
           message:
             "You must be an Owner or Administrator to get a reason for a Blue Square",
@@ -106,7 +106,7 @@ const route = (ReasonModel, UserModel) => {
       const { userId } = req.params.id;
 
       //error case 1
-      if (requestor.role !== "Administrator" || requestor.role !== "Owner") {
+      if (requestor.role !== "Administrator" && requestor.role !== "Owner") {
         return res.status(403).json({
           message:
             "You must be an Administrator or Owner to be able to get a single reason by the user's ID",
@@ -151,7 +151,7 @@ const route = (ReasonModel, UserModel) => {
       const {userId} = req.params
 
       //error case 1
-      if (requestor.role !== "Owner" || requestor.role !== "Administrator") {
+      if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
         return res.status(403).json({
           message:
             "You must be an Owner or Administrator to schedule a reason for a Blue Square",
