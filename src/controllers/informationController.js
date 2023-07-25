@@ -6,7 +6,7 @@ const escapeRegex = require('../utilities/escapeRegex');
 
 const informationController = function (Information) {
   const getInformations = function (req, res) {
-    Information.find({}, 'infoName infoContent')
+    Information.find({}, 'infoName infoContent visibility')
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
@@ -20,12 +20,13 @@ const informationController = function (Information) {
       Information.find({ infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
-          res.status(400).send({ error: `Info Name must be unique. Another project with name ${result.infoName} already exists. Please note that info names are case insensitive` });
+          res.status(400).send({ error: `Info Name must be unique. Another infoName with name ${result.infoName} already exists. Please note that info names are case insensitive` });
           return;
         }
         const _info = new Information();
         _info.infoName = req.body.infoName;
         _info.infoContent = req.body.infoContent || 'Unspecified';
+        _info.visibility = req.body.visibility || '0';
         _info.save()
           .then(results => res.status(201).send(results))
           .catch(error => res.status(500).send({ error }));
