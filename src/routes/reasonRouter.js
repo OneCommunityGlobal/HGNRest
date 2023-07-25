@@ -10,7 +10,7 @@ const route = (ReasonModel, UserModel) => {
       const { userId, requestor, reasonData } = req.body;
 
       //error case 0
-      if (moment(reasonData.date).day() !== 0) {
+      if (moment.tz(reasonData.date, 'America/Los_Angeles').day() !== 0) {
         return res.status(400).json({
           message:
             "The selected day must be a sunday so the code can work properly",
@@ -38,7 +38,7 @@ const route = (ReasonModel, UserModel) => {
       }
 
       const foundReason = await ReasonModel.findOne({
-        date: reasonData.date,
+        date: moment.tz(reasonData.date,'America/Los_Angeles').startOf('day').toISOString(),
       });
 
       //error case 3
@@ -49,9 +49,11 @@ const route = (ReasonModel, UserModel) => {
         });
       }
 
+      const savingDate = moment.tz(reasonData.date,'America/Los_Angeles').startOf('day').toISOString()
+
       const newReason = new ReasonModel({
         reason: reasonData.message,
-        date: reasonData.date,
+        date: savingDate,
         userId: userId,
       });
       await newReason.save();
@@ -95,6 +97,7 @@ const route = (ReasonModel, UserModel) => {
         reasons,
       });
     } catch (error) {
+      console.log(error)
       return res.status(400).json({
         errMessage: "Something went wrong while fetching the user",
       });
@@ -126,7 +129,7 @@ const route = (ReasonModel, UserModel) => {
       }
 
       const foundReason = await ReasonModel.findOne({
-        date: moment(queryDate),
+        date: moment.tz(queryDate,'America/Los_Angeles').startOf('day').toISOString(),
         userId: userId,
       });
 
@@ -172,12 +175,20 @@ const route = (ReasonModel, UserModel) => {
         });
       }
 
-      const foundReason = await ReasonModel.findOneAndUpdate({
-        userId: userId,
-        date: reasonData.date
-      },{
-        ...reasonData
+      const foundReason = await ReasonModel.findOne({
+        date: moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day').toISOString(),
+        userId: userId
       })
+      //error case 4
+      if(!foundReason){
+        return res.status(404).json({
+          message: 'Reason not found',
+          errorCode: 4
+        })
+      }
+
+      foundReason.reason = reasonData.message
+      await foundReason.save()
 
       return res.status(200).json({
         message: 'Reason Updated!'
@@ -189,6 +200,61 @@ const route = (ReasonModel, UserModel) => {
       })
     }
   })
+
+  reasonRouter.delete('/reason/:userId', async (req, res) => {
+    try {
+      const {reasonData, requestor} = req.body
+      const {userId} = req.params
+
+      //error case 1
+      if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
+        return res.status(403).json({
+          message:
+            "You must be an Owner or Administrator to schedule a reason for a Blue Square",
+          errorCode: 1,
+        });
+      }
+
+      const foundUser = await UserModel.findById(userId);
+
+      //error case 2
+      if (!foundUser) {
+        return res.status(404).json({
+          message: "User not found",
+          errorCode: 2,
+        });
+      }
+
+      const foundReason = await ReasonModel.findOne({
+        date: moment.tz(reasonData.date,'America/Los_Angeles').startOf('day').toISOString(),
+      });
+
+      if(!foundReason){
+        return res.status(404).json({
+          message: "Reason not found",
+          errorCode: 4
+        })
+      }
+
+      foundReason.remove((err) => {
+        if(err){
+          return res.status(500).json({
+            message: "Error while deleting document",
+            errorCode: 5
+          })
+        }
+
+        return res.status(200).json({
+          message: "Document deleted"
+        })
+      })
+
+
+    } catch (error) {
+      
+    }
+  })
+
 
   return reasonRouter
 };
