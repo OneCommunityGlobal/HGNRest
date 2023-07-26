@@ -918,34 +918,41 @@ const userHelper = function () {
 
   // 'Minimum Hours Multiple',
   const checkMinHoursMultiple = async function (personId, user, badgeCollection) {
-    if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
-      const badgesOfType = badgeCollection
-        .filter(object => object.badge.type === 'Minimum Hours Multiple')
-        .map(object => object.badge);
-
-      await badge
-        .find({ type: 'Minimum Hours Multiple' })
-        .sort({ multiple: -1 })
-        .then((results) => {
-          if (!Array.isArray(results) || !results.length) {
-            return;
-          }
-          for (let i = 0; i < results.length; i += 1) {
-            // this needs to be a for loop so that the returns break before assigning badges for lower multiples
-            const elem = results[i]; // making variable elem accessible for below code
-
-
-            if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
-              const theBadge = badgesOfType.find(
-                badge => badge._id.toString() === elem._id.toString(),
-              );
-              return theBadge
-                ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
-                : addBadge(personId, mongoose.Types.ObjectId(elem._id));
-            }
-          }
-        });
+    const badgesOfType = [];
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (badgeCollection[i].badge?.type === 'Minimum Hours Multiple') {
+        badgesOfType.push(badgeCollection[i].badge);
+      }
     }
+    await badge
+      .find({ type: 'Minimum Hours Multiple' })
+      .sort({ multiple: -1 })
+      .then((results) => {
+        if (!Array.isArray(results) || !results.length) {
+          return;
+        }
+
+        for (let i = 0; i < results.length; i += 1) {
+          // this needs to be a for loop so that the returns break before assigning badges for lower multiples
+          const elem = results[i]; // making variable elem accessible for below code
+          if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
+            let theBadge;
+            for (let j = 0; j < badgesOfType.length; j += 1) {
+              if (badgesOfType[j]._id.toString() === elem._id.toString()) {
+                theBadge = badgesOfType[j]._id;
+                break;
+              }
+            }
+
+            if (theBadge) {
+              increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
+              return; // don't need to return a value, just break the loop
+            }
+            addBadge(personId, mongoose.Types.ObjectId(elem._id));
+            return; // don't need to return a value, just break the loop
+          }
+        }
+      });
   };
 
   // 'Personal Max',
@@ -1272,6 +1279,7 @@ const userHelper = function () {
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
+
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
         await checkPersonalMax(personId, user, badgeCollection);
