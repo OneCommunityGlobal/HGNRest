@@ -1111,10 +1111,15 @@ const taskController = function (Task) {
   };
 
   const getRecipients = async function (myUserId) {
+    const recipients = [];
     const user = await userProfile.findById(myUserId);
-    const membership = await userProfile.find({ teams: user.teams, role: ['Administrator', 'Manager', 'Mentor'] });
-    const emails = membership.map(a => a.email);
-    return emails;
+    const membership = await userProfile.find({ role: ['Administrator', 'Manager', 'Mentor'] });
+    membership.forEach((member) => {
+      if (member.teams.some(team => user.teams.includes(team))) {
+        recipients.push(member.email);
+      }
+    });
+    return recipients;
   };
 
   const sendReviewReq = async function (req, res) {
