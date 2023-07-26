@@ -16,6 +16,11 @@ const reasonSchema = new mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: User,
         required: true
+    },
+    isSet: {
+        type: Boolean,
+        required: true,
+        default: true
     }
 })
 
