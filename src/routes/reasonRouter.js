@@ -107,8 +107,9 @@ const route = (ReasonModel, UserModel) => {
   //get user reason by date
   reasonRouter.get("/reason/single/:userId", async (req, res) => {
     try {
-      const { requestor, queryDate } = req.body;
+      const { requestor } = req.body;
       const { userId } = req.params;
+      const queryDate = req.query['queryDate']
 
       //error case 1
       if (requestor.role !== "Administrator" && requestor.role !== "Owner") {
