@@ -139,6 +139,7 @@ const route = (ReasonModel, UserModel) => {
           reason: "",
           date: "",
           userId: "",
+          isSet: false
         });
       }
 
