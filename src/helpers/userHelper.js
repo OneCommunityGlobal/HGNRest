@@ -15,6 +15,8 @@ const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const hasPermission = require('../utilities/permissions');
 
+const Reason = require('../models/reason')
+
 const userHelper = function () {
   const getTeamMembers = function (user) {
     const userId = mongoose.Types.ObjectId(user._id);
@@ -279,7 +281,10 @@ const userHelper = function () {
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
+      console.log('entrou na função')
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+      const currentUTCDate = moment.tz('America/Los_Angeles').startOf('day').toISOString()
+      console.log(currentUTCDate)
 
       logger.logInfo(
         `Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`,
@@ -297,8 +302,19 @@ const userHelper = function () {
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
+      const usersPromises = users.map(async (user) => {
+        
+          const foundReason = await Reason.findOne({
+            date:currentUTCDate,
+            userId: user._id
+          })
+          if(foundReason){
+
+            console.log(foundReason)
+            console.log(user)
+            console.log(user._id === '6407e8094127e7bf2e950f66')
+          }
+        
 
         const personId = mongoose.Types.ObjectId(user._id);
 
@@ -380,18 +396,22 @@ const userHelper = function () {
         }
 
         if (timeNotMet || !hasWeeklySummary) {
-          if (timeNotMet && !hasWeeklySummary) {
-            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-          } else if (timeNotMet) {
-            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-          } else {
-            description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+          if(foundReason){
+            description = foundReason.reason
+          }else{
+            if (timeNotMet && !hasWeeklySummary) {
+              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            } else if (timeNotMet) {
+              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            } else {
+              description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+            }
           }
 
           const infringement = {
@@ -434,7 +454,7 @@ const userHelper = function () {
               { $set: { categoryTangibleHrs: [] } },
             );
           } else {
-            continue;
+            return;
           }
 
           for (let j = 0; j < categories.length; j += 1) {
@@ -468,7 +488,7 @@ const userHelper = function () {
             }
           }
         }
-      }
+      })
     } catch (err) {
       logger.logException(err);
     }
