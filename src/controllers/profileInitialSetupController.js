@@ -6,6 +6,7 @@ const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 
 
+
 function sendLinkMessage(Link) {
     const message = `<p>Hello,</p>
     <p>Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
@@ -15,6 +16,54 @@ function sendLinkMessage(Link) {
     <p>Thank you and welcome!</p>
     <p>With Gratitude,<br>
     One Community.</p>`;
+    return message;
+}
+
+function informManagerMessage(user) {
+    const message = `
+    <p>Hello,</p>
+    <p>A new user has created their profile on our platform. Below is the information provided by the user:</p> 
+    <table border="1" cellpadding="10">
+        <tr>
+            <td><strong>First Name:</strong></td>
+            <td>${user.firstName}</td>
+        </tr>
+        <tr>
+            <td><strong>Last Name:</strong></td>
+            <td>${user.lastName}</td>
+        </tr>
+        <tr>
+            <td><strong>Email:</strong></td>
+            <td>${user.email}</td>
+        </tr>
+        <tr>
+            <td><strong>Phone Number:</strong></td>
+            <td>${user.phoneNumber}</td>
+        </tr>
+        <tr>
+            <td><strong>Weekly Committed Hours:</strong></td>
+            <td>${user.weeklycommittedHours}</td>
+        </tr>
+        <tr>
+            <td><strong>Collaboration Preference:</strong></td>
+            <td>${user.collaborationPreference}</td>
+        </tr>
+        <tr>
+            <td><strong>Job Title:</strong></td>
+            <td>${user.jobTitle}</td>
+        </tr>
+        <tr>
+            <td><strong>Time Zone:</strong></td>
+            <td>${user.timeZone}</td>
+        </tr>
+        <tr>
+            <td><strong>Location:</strong></td>
+            <td>${user.location}</td>
+        </tr>
+    </table> 
+    <p>Please check the details provided by the user. If any errors were made, kindly ask them to correct the information accordingly.</p> 
+    <p>Thank you,</p>
+    <p>One Community.</p>`;
     return message;
 }
 
@@ -118,6 +167,13 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                     newUser.privacySettings.email = req.body.privacySettings.email
                     newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber
                     const savedUser = await newUser.save();
+                    emailSender(
+                        process.env.MANAGER_EMAIL,
+                        'New User Profile Created',
+                        informManagerMessage(savedUser),
+                        null,
+                        null,
+                    );
                     await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
                     const jwtPayload = {
                         userid: savedUser._id,
