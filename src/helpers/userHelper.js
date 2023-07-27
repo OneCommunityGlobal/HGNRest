@@ -319,17 +319,11 @@ const userHelper = function () {
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        if(user._id == '6407e8094127e7bf2e950f66'){
-          console.log('foi')
-        }
+      
         const foundReason = await Reason.findOne({
           date: currentUTCDate,
           userId: user._id,
         });
-
-        if(foundReason){
-          console.log(foundReason)
-        }
 
         const personId = mongoose.Types.ObjectId(user._id);
 
