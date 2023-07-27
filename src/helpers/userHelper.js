@@ -317,6 +317,9 @@ const userHelper = function () {
         "_id weeklycommittedHours weeklySummaries missedHours"
       );
 
+      //this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
+      //targeted as spam
+      //There's no need to put Promise.all here
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
       
