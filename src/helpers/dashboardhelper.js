@@ -198,6 +198,7 @@ const dashboardhelper = function () {
             { 'persondata.0._id': userid },
             { 'persondata.0.role': 'Volunteer' },
             { 'persondata.0.isVisible': true },
+
           ],
         },
       },
@@ -210,6 +211,9 @@ const dashboardhelper = function () {
           },
           isVisible: {
             $arrayElemAt: ['$persondata.isVisible', 0],
+          },
+          createdDate: {
+            $arrayElemAt: ['$persondata.createdDate', 0],
           },
           hasSummary: {
             $ne: [
@@ -250,6 +254,7 @@ const dashboardhelper = function () {
           name: 1,
           role: 1,
           isVisible: 1,
+          createdDate: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
           timeEntryData: {
@@ -282,6 +287,7 @@ const dashboardhelper = function () {
           name: 1,
           role: 1,
           isVisible: 1,
+          createdDate: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
           totalSeconds: {
@@ -334,6 +340,7 @@ const dashboardhelper = function () {
             name: '$name',
             role: '$role',
             isVisible: '$isVisible',
+            createdDate: '$createdDate',
             hasSummary: '$hasSummary',
           },
           totalSeconds: {
@@ -354,6 +361,7 @@ const dashboardhelper = function () {
           name: '$_id.name',
           role: '$_id.role',
           isVisible: '$_id.isVisible',
+          createdDate: '$_id.createdDate',
           hasSummary: '$_id.hasSummary',
           weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
@@ -438,6 +446,7 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
+          createdDate: user.createdDate,
           hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
