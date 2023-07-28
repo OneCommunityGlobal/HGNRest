@@ -48,6 +48,12 @@ const userProfileSchema = new Schema({
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   weeklycommittedHours: { type: Number, default: 10 },
+  weeklycommittedHoursHistory: [
+    {
+      hours: { type: Number, required: true },
+      dateChanged: { type: Date, required: true },
+    },
+  ],
   missedHours: { type: Number, default: 0 },
   createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
@@ -153,12 +159,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then(result => bcrypt.hash(user.password, result))
+    .then((result) => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch(error => next(error));
+    .catch((error) => next(error));
 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
