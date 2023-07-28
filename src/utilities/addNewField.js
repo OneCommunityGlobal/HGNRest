@@ -51,9 +51,6 @@ const addNewField = async () => {
           { _id: user._id },
           { $push: { weeklycommittedHoursHistory: newEntry } },
         );
-
-        // // 5. Save the updated user profile
-        // await user.save();
       }),
     );
   } catch (error) {
@@ -77,13 +74,13 @@ const checkNewField = async () => {
       }),
     );
   } catch (error) {
-    console.log('Error checking new field', error);
+    // console.log('Error checking new field', error);
     logger.logException('Checking new field:', error);
   }
 };
 
 const run = function () {
-  console.log('connect db');
+  //   console.log('connect db');
   const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${
     process.env.cluster
   }/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;

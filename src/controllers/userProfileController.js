@@ -9,6 +9,7 @@ const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
@@ -215,6 +216,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = function (req, res) {
+    console.log('put user profile');
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
       hasPermission(req.body.requestor.role, 'putUserProfile') ||
@@ -283,11 +285,22 @@ const userProfileController = function (UserProfile) {
         record.role = req.body.role;
         record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
-        record.weeklycommittedHours = req.body.weeklycommittedHours;
 
         // assign the new committedHours, but also assign the old one with new time stamp
         if (record.weeklycommittedHours !== req.body.weeklycommittedHours) {
-          // add the new one history too, in reversed chronological index 0 is the oldest committedHours
+          record.weeklycommittedHours = req.body.weeklycommittedHours;
+
+          // TODO: if they just changed that today, remove that changed
+          const lasti = record.weeklycommittedHoursHistory.length - 1;
+          const lastChangeDate = moment(record.weeklycommittedHoursHistory[lasti].dateChanged);
+          const now = moment();
+
+          if (lastChangeDate.isSame(now, 'day')) {
+            // If they just changed that today, remove the last entry
+            record.weeklycommittedHoursHistory.pop();
+          }
+
+          // -- then add a new entry to history
           const newEntry = {
             hours: record.weeklycommittedHours,
             dateChanged: Date.now(),
@@ -315,6 +328,14 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
+
+        if (record.createdDate !== req.body.createdDate) {
+          record.createdDate = moment(req.body.createdDate).toDate();
+
+          // then also change the first committed history (index 0)
+          record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
+        }
+
         record.bioPosted = req.body.bioPosted || 'default';
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) {
@@ -344,6 +365,9 @@ const userProfileController = function (UserProfile) {
       record
         .save()
         .then((results) => {
+          userProfile.findById(record._id).then((updatedRecord) => {
+            console.log(`found=${updatedRecord.weeklycommittedHoursHistory}`); // log the history
+          });
           userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
