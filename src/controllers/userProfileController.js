@@ -34,11 +34,8 @@ function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (
-    !userId === requestor.requestorId
-    && !hasPermission(requestor.role, 'updatePassword')
-  ) {
-     res.status(403).send({
+  if (!userId === requestor.requestorId && !hasPermission(requestor.role, 'updatePassword')) {
+    res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
@@ -80,7 +77,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getProjectMembers = function (req, res) {
@@ -120,8 +117,7 @@ const userProfileController = function (UserProfile) {
 
     if (userByEmail) {
       res.status(400).send({
-        error:
-          'That email address is already in use. Please choose another email address.',
+        error: 'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
@@ -140,8 +136,7 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error:
-            'That phone number is already in use. Please choose another number.',
+          error: 'That phone number is already in use. Please choose another number.',
           type: 'phoneNumber',
         });
         return;
@@ -155,13 +150,13 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error:
-          'That name is already in use. Please confirm if you want to use this name.',
+        error: 'That name is already in use. Please confirm if you want to use this name.',
         type: 'name',
       });
       return;
     }
 
+    // create new user
     const up = new UserProfile();
     up.password = req.body.password;
     up.role = req.body.role;
@@ -171,6 +166,12 @@ const userProfileController = function (UserProfile) {
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
     up.weeklycommittedHours = req.body.weeklycommittedHours;
+    up.weeklycommittedHoursHistory = [
+      {
+        hours: up.weeklycommittedHours,
+        dateChanged: Date.now(),
+      },
+    ];
     up.personalLinks = req.body.personalLinks;
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
@@ -210,14 +211,14 @@ const userProfileController = function (UserProfile) {
         allUserCache.push(userCache);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch(error => res.status(501).send(error));
+      .catch((error) => res.status(501).send(error));
   };
 
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      hasPermission(req.body.requestor.role, 'putUserProfile')
-      || req.body.requestor.requestorId === userid
+      hasPermission(req.body.requestor.role, 'putUserProfile') ||
+      req.body.requestor.requestorId === userid
     );
 
     if (!isRequestorAuthorized) {
@@ -275,17 +276,26 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex(users => users._id === userid);
+        userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
-      if (
-        hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
-      ) {
+      if (hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')) {
         record.role = req.body.role;
         record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
-        record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
+
+        // assign the new committedHours, but also assign the old one with new time stamp
+        if (record.weeklycommittedHours !== req.body.weeklycommittedHours) {
+          // add the new one history too, in reversed chronological index 0 is the oldest committedHours
+          const newEntry = {
+            hours: record.weeklycommittedHours,
+            dateChanged: Date.now(),
+          };
+          record.weeklycommittedHoursHistory.push(newEntry);
+        }
+
+        record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
         record.adminLinks = req.body.adminLinks;
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
@@ -307,7 +317,9 @@ const userProfileController = function (UserProfile) {
         record.createdDate = moment(req.body.createdDate).toDate();
         record.bioPosted = req.body.bioPosted || 'default';
 
-        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
+        if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) {
+          record.permissions = req.body.permissions;
+        }
 
         if (yearMonthDayDateValidator(req.body.endDate)) {
           record.endDate = moment(req.body.endDate).toDate();
@@ -349,7 +361,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     });
   };
 
@@ -357,10 +369,10 @@ const userProfileController = function (UserProfile) {
     const { option, userId } = req.body;
 
     if (
-      !userId
-      || !option
-      || (option !== 'delete' && option !== 'archive')
-      || !hasPermission(req.body.requestor.role, 'deleteUserProfile')
+      !userId ||
+      !option ||
+      (option !== 'delete' && option !== 'archive') ||
+      !hasPermission(req.body.requestor.role, 'deleteUserProfile')
     ) {
       res.status(400).send({
         error: 'Bad request',
@@ -386,9 +398,7 @@ const userProfileController = function (UserProfile) {
       );
 
       if (!timeArchiveUser) {
-        logger.logException(
-          'Time Archive user was not found. Please check the database',
-        );
+        logger.logException('Time Archive user was not found. Please check the database');
         res.status(500).send({
           error:
             'Time Archive User not found. Please contact your developement team on why that happened',
@@ -410,7 +420,7 @@ const userProfileController = function (UserProfile) {
 
     cache.removeCache(`user-${userId}`);
     const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex(users => users._id === userId);
+    const userIdx = allUserData.findIndex((users) => users._id === userId);
     allUserData.splice(userIdx, 1);
     cache.setCache('allusers', JSON.stringify(allUserData));
 
@@ -428,10 +438,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.findById(
-      userid,
-      '-password -refreshTokens -lastModifiedDate -__v',
-    )
+    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
           path: 'teams',
@@ -466,17 +473,15 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userHelper
-          .getTangibleHoursReportedThisWeekByUserId(userid)
-          .then((hours) => {
-            results.set('tangibleHoursReportedThisWeek', hours, {
-              strict: false,
-            });
-            cache.setCache(`user-${userid}`, JSON.stringify(results));
-            res.status(200).send(results);
+        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
+          results.set('tangibleHoursReportedThisWeek', hours, {
+            strict: false,
           });
+          cache.setCache(`user-${userid}`, JSON.stringify(results));
+          res.status(200).send(results);
+        });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -485,10 +490,9 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
-
 
   const updateOneProperty = function (req, res) {
     const { userId } = req.params;
@@ -496,23 +500,24 @@ const userProfileController = function (UserProfile) {
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) return res.status(400).send({error:'Missing property or value'})
+    if (!key || value === undefined)
+      return res.status(400).send({ error: 'Missing property or value' });
 
     return UserProfile.findById(userId)
       .then((user) => {
         user.set({
-          [key] : value
+          [key]: value,
         });
 
         return user
-              .save()
-              .then(() =>{
-                res.status(200).send({ message: 'updated property' })
-              })
-              .catch(error => res.status(500).send(error));
+          .save()
+          .then(() => {
+            res.status(200).send({ message: 'updated property' });
+          })
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
-  }
+      .catch((error) => res.status(500).send(error));
+  };
 
   const updatepassword = function (req, res) {
     const { userId } = req.params;
@@ -530,10 +535,7 @@ const userProfileController = function (UserProfile) {
       });
     }
     // Verify request is authorized by self or adminsitrator
-    if (
-      !userId === requestor.requestorId
-      && !hasPermission(requestor.role, 'updatePassword')
-    ) {
+    if (!userId === requestor.requestorId && !hasPermission(requestor.role, 'updatePassword')) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -571,11 +573,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
+              .catch((error) => res.status(500).send(error));
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = function (req, res) {
@@ -589,14 +591,7 @@ const userProfileController = function (UserProfile) {
     const userid = mongoose.Types.ObjectId(req.params.userId);
     const { role } = req.body.requestor;
 
-    let validroles = [
-      'Volunteer',
-      'Manager',
-      'Administrator',
-      'Core Team',
-      'Owner',
-      'Mentor',
-    ];
+    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
 
     if (hasPermission(role, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
@@ -615,7 +610,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -632,7 +627,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -688,9 +683,7 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(
-                users => users._id === userId,
-              );
+              const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();
