@@ -1477,6 +1477,7 @@ const userHelper = function () {
     }
   };
 
+  /* Function for deleting expired tokens used in new user setup from database  */
   const deleteExpiredTokens = async () => {
     const currentDate = new Date();
     try {
