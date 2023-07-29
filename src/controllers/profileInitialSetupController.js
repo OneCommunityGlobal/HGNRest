@@ -6,7 +6,7 @@ const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 
 
-
+// returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
     const message = `<p>Hello,</p>
     <p>Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
@@ -19,6 +19,7 @@ function sendLinkMessage(Link) {
     return message;
 }
 
+// returns the email body containing the details of the newly created user.
 function informManagerMessage(user) {
     const message = `
     <p>Hello,</p>
@@ -70,12 +71,18 @@ function informManagerMessage(user) {
 const profileInitialSetupController = function (ProfileInitialSetupToken, userProfile, Project) {
     const { JWT_SECRET } = config;
 
+    /*
+  Function to handle token generation and email process:
+  - Generates a new token and saves it to the database.
+  - If the email already has a token, the old one is deleted.
+  - Sets the token expiration to one week.
+  - Generates a link using the token and emails it to the recipient.
+   */
     const getSetupToken = async (req, res) => {
         let { email, baseUrl } = req.body
         email = email.toLowerCase()
         const token = uuidv4();
         const expiration = moment().tz('America/Los_Angeles').add(1, 'week')
-
         try {
             await ProfileInitialSetupToken.findOneAndDelete({ email });
 
@@ -96,21 +103,24 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                 null,
             );
 
-            res.status(200).send(`${baseUrl}/ProfileInitialSetup/${savedToken.token}`);
+            res.status(200).send(link);
 
-        } catch (err) {
-            res.status(400).send(error);
+        } catch (error) {
+            res.status(400).send(`Error: ${error}`);
         }
 
     }
 
+    /*
+  Function to validate a token:
+  - Checks if the token exists in the database.
+  - Verifies that the token's expiration date has not passed yet.
+    */
     const validateSetupToken = async (req, res) => {
         const { token } = req.body
         const currentMoment = moment.tz('America/Los_Angeles');
         try {
-
             const foundToken = await ProfileInitialSetupToken.findOne({ token });
-
             if (foundToken) {
                 const expirationMoment = moment(foundToken.expiration);
 
@@ -128,19 +138,27 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
 
     }
 
+    /*
+ Function for creating and authenticating a new user:
+ - Validates the token used to submit the form.
+ - Creates a new user using the information received through req.body.
+ - Sends an email to the manager to inform them of the new user creation.
+ - Deletes the token used for user creation from the database.
+ - Generates a JWT token using the newly created user information.
+ - Sends the JWT as a response.
+*/
     const setUpNewUser = async (req, res) => {
-
+        const { token } = req.body;
+        const currentMoment = moment.tz('America/Los_Angeles');
         try {
-            const { token } = req.body;
-            const currentMoment = moment.tz('America/Los_Angeles');
-
             const foundToken = await ProfileInitialSetupToken.findOne({ token });
-
             if (foundToken) {
                 const expirationMoment = moment(foundToken.expiration);
 
                 if (expirationMoment.isAfter(currentMoment)) {
+
                     const defaultProject = await Project.findOne({ projectName: "Orientation and Initial Setup" })
+
                     const newUser = new userProfile();
                     newUser.password = req.body.password
                     newUser.role = "Volunteer";
@@ -167,6 +185,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                     newUser.privacySettings.email = req.body.privacySettings.email
                     newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber
                     const savedUser = await newUser.save();
+
                     emailSender(
                         process.env.MANAGER_EMAIL,
                         'New User Profile Created',
@@ -175,6 +194,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                         null,
                     );
                     await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
+
                     const jwtPayload = {
                         userid: savedUser._id,
                         role: savedUser.role,
@@ -186,7 +206,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
 
                     res.send({ token }).status(200);
                 } else {
-                    res.status(400).send("Token has expired");
+                    res.status(400).send("Token is expired");
                 }
             } else {
                 res.status(400).send("Invalid token");
@@ -197,6 +217,11 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
 
     }
 
+    /*
+  Function for sending https://opencagedata.com API key:
+  - Checks if token used in the request is valid.
+  - sends the API Key as response
+ */
     const getTimeZoneAPIKeyByToken = async (req, res) => {
         const token = req.body.token;
         const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
