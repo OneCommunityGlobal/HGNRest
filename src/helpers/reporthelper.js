@@ -1,6 +1,5 @@
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
-
 /**
  *
  * @param {*} dateOfWork
@@ -12,7 +11,6 @@ const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
   pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
   return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
 };
-
 const reporthelper = function () {
   /**
    * Get an array of objects, each containing selected fields from
@@ -32,7 +30,6 @@ const reporthelper = function () {
       .endOf('week')
       .subtract(endWeekIndex, 'week')
       .toDate();
-
     const results = await userProfile.aggregate([
       {
         $match: {
@@ -80,7 +77,6 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
-          role: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -102,32 +98,25 @@ const reporthelper = function () {
         },
       },
     ]);
-
     // Logic too difficult to do using aggregation.
     results.forEach((result) => {
       result.totalSeconds = [];
-
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-
         if (
           result.totalSeconds[index] === undefined
           || result.totalSeconds[index] === null
         ) {
           result.totalSeconds[index] = 0;
         }
-
         if (entry.isTangible === true) {
           result.totalSeconds[index] += entry.totalSeconds;
         }
       });
-
       delete result.timeEntries;
     });
-
     return results;
   };
-
   /**
    * Checks whether a date belongs to a specific week based on week index.
    *
@@ -149,7 +138,6 @@ const reporthelper = function () {
     const toDate = moment(pstEndOfWeek).toDate();
     return moment(dueDate).isBetween(fromDate, toDate, undefined, '[]');
   };
-
   /**
    * Get the week index relative to this week, eg. 0 (this week),
    * 1 (last week), 2 (the week before last) or 3 (three weeks ago).
@@ -164,7 +152,6 @@ const reporthelper = function () {
     if (doesDateBelongToWeek(dueDate, 3)) return 3;
     return -1;
   };
-
   /**
    * This function will make sure the weeklySummaries' array
    * has its entries always in the right position based on the dueDate.
@@ -179,39 +166,61 @@ const reporthelper = function () {
    */
   const formatSummaries = function (results) {
     return results.map((user) => {
-      const { weeklySummaries: wS } = user;
-      const wSummaries = [];
-
-      if (Array.isArray(wS) && wS.length && wS.length < 3) {
-        // Common cases for the first entry.
-        if (getTheWeek(wS[0].dueDate) === 0) wSummaries[0] = { ...wS[0] };
-        if (getTheWeek(wS[0].dueDate) === 1) {
-          wSummaries[0] = null;
-          wSummaries[1] = { ...wS[0] };
+      let { weeklySummaries: wS } = user;
+      const wSummaries = [null, null, null, null];
+      wS = wS.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+      wS.forEach((summary) => {
+        const week = getTheWeek(summary.dueDate);
+        if (week >= 0 && week <= 3) {
+          wSummaries[week] = summary;
         }
-        // When single entry.
-        if (wS.length === 1) {
-          // Special case when first entry belongs to week before last.
-          if (getTheWeek(wS[0].dueDate) === 2) {
-            wSummaries[0] = null;
-            wSummaries[1] = null;
-            wSummaries[2] = { ...wS[0] };
-          }
-        } else {
-          // When two entries.
-          if (getTheWeek(wS[1].dueDate) === 1) wSummaries[1] = { ...wS[1] };
-          if (getTheWeek(wS[1].dueDate) === 2) wSummaries[2] = { ...wS[1] };
-        }
-        user = { ...user, weeklySummaries: wSummaries };
-      }
-      return user;
+      });
+      return { ...user, weeklySummaries: wSummaries };
     });
   };
-
   return {
     weeklySummaries,
     formatSummaries,
   };
 };
-
 module.exports = reporthelper;
+const reporthelperInstance = reporthelper();
+console.log('Testing formatSummaries:');
+const sampleData1 = [
+  {
+    weeklySummaries: [
+      { dueDate: new Date() },
+      { dueDate: new Date(new Date().setDate(new Date().getDate() - 7)) },
+      { dueDate: new Date(new Date().setDate(new Date().getDate() - 14)) },
+      { dueDate: new Date(new Date().setDate(new Date().getDate() - 21)) },
+    ],
+  },
+];
+console.log('Test 1: all weeks present');
+console.log(
+  JSON.stringify(reporthelperInstance.formatSummaries(sampleData1), null, 2),
+);
+const sampleData2 = [
+  {
+    weeklySummaries: [
+      { dueDate: new Date() },
+      { dueDate: new Date(new Date().setDate(new Date().getDate() - 7)) },
+      { dueDate: new Date(new Date().setDate(new Date().getDate() - 21)) },
+    ],
+  },
+];
+console.log('Test 2: one week missing');
+console.log(
+  JSON.stringify(reporthelperInstance.formatSummaries(sampleData2), null, 2),
+);
+const sampleData3 = [
+  {
+    weeklySummaries: [
+      { dueDate: new Date(new Date().setDate(new Date().getDate() - 14)) },
+    ],
+  },
+];
+console.log('Test 3: multiple weeks missing');
+console.log(
+  JSON.stringify(reporthelperInstance.formatSummaries(sampleData3), null, 2),
+);
