@@ -18,7 +18,7 @@ const logincontroller = function () {
     }
 
     try {
-      const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } })
+      const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } });
 
       // returning 403 if the user not found or the found user is inactive.
       if (!user) {
@@ -26,7 +26,6 @@ const logincontroller = function () {
       } else if (user.isActive === false) {
         res.status(403).send({ message: 'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.' });
       } else {
-
         let isPasswordMatch = false;
         let isNewUser = false;
         if (_password === _defPwd) {
@@ -63,9 +62,9 @@ const logincontroller = function () {
         });
       }
       }
-        } catch (err){
+        } catch (err) {
     console.log(err);
-    res.json(err)
+    res.json(err);
   }
 };
 
