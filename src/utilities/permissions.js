@@ -21,7 +21,7 @@ const canRequestorUpdateUser = (requestorId, userId) => {
                     '63fe855b7186de1898fa8ab7', // jsabol@me.com
                   ];
   return !(userId === '64c17eb8c737b05dd4ac4e28' // 'devadmin@hgn.net'
-    && allowedIds.contains(requestorId));
+    && allowedIds.includes(requestorId));
 };
 
 module.exports = { hasPermission, canRequestorUpdateUser };
