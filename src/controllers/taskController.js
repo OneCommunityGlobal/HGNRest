@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
