@@ -10,7 +10,6 @@ const reasonSchema = new mongoose.Schema({
     date: {
         type: Date,
         default: moment().tz('America/Los_Angeles').endOf('week'),
-        unique: true
     },
     userId: {
         type: mongoose.Types.ObjectId,
