@@ -76,28 +76,6 @@ const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, h
   }
 };
 
-const notifyBlueSquareRemoval = async (personId) => {
-  try {
-    const record = await userProfile.findById(personId);
-    const emailSubject = `${record.firstName} ${record.lastName} blue square removed`;
-    const emailBody = `Dear <b>${record.firstName} ${record.lastName}</b>,
-    <p>You were issued a blue square for not completing your hours this week.</p>
-    <p>Since you are a new user, this square has been automatically removed.</p>
-    <p>No further action is required.</p>
-    <p>Thank you,</p>
-    <p>One Community</p>`;
-    emailSender(
-      record.email,
-      emailSubject,
-      emailBody,
-      'onecommunityglobal@gmail.com',
-      null,
-    );
-  } catch (error) {
-    console.log('Failed to send email notification about removing a new user\'s blue square.');
-  }
-};
-
 const checkTaskOvertime = async (timeentry, record, currentTask) => {
   try {
     // send email notification if logged in hours exceeds estiamted hours for a task
