@@ -40,6 +40,7 @@ const postReason = async (req, res) => {
         .tz(reasonData.date, "America/Los_Angeles")
         .startOf("day")
         .toISOString(),
+      userId: userId
     });
 
     //error case 3
