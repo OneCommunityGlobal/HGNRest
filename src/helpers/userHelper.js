@@ -719,8 +719,8 @@ const userHelper = function () {
       if (err) {
         console.log(err);
       }
-    );
-  };
+    });
+};
 
   const addBadge = async function (
     personId,
