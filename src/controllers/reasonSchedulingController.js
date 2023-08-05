@@ -16,6 +16,13 @@ const postReason = async (req, res) => {
       });
     }
 
+    if (!reasonData.message) {
+      return res.status(400).json({
+        message: "You must provide a reason.",
+        errorCode: 6,
+      });
+    }
+
     //error case 1
     if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
       return res.status(403).json({
@@ -40,7 +47,7 @@ const postReason = async (req, res) => {
         .tz(reasonData.date, "America/Los_Angeles")
         .startOf("day")
         .toISOString(),
-      userId: userId
+      userId: userId,
     });
 
     //error case 3
@@ -172,6 +179,13 @@ const patchReason = async (req, res) => {
       });
     }
 
+    if (!reasonData.message) {
+      return res.status(400).json({
+        message: "You must provide a reason.",
+        errorCode: 6,
+      });
+    }
+
     const foundUser = await UserModel.findById(userId);
 
     //error case 2
@@ -268,5 +282,5 @@ module.exports = {
   getAllReasons,
   getSingleReason,
   patchReason,
-  deleteReason
+  deleteReason,
 };
