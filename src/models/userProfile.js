@@ -21,6 +21,7 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
+  isRehireable: { type: Boolean, default: false },
   isSet: { type: Boolean, required: true, default: false },
   role: {
     type: String,
@@ -67,7 +68,7 @@ const userProfileSchema = new Schema({
     {
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
       count: { type: Number, default: 0 },
-      earnedDate:{type: Array, default:[]},
+      earnedDate: { type: Array, default: [] },
       lastModified: { type: Date, required: true, default: Date.now() },
       featured: {
         type: Boolean,
@@ -97,6 +98,7 @@ const userProfileSchema = new Schema({
         default: moment().tz('America/Los_Angeles').endOf('week'),
       },
       summary: { type: String },
+      uploadDate: { type: Date },
     },
   ],
   weeklySummariesCount: { type: Number, default: 0 },
@@ -150,7 +152,7 @@ const userProfileSchema = new Schema({
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
-  bioPosted: { type: Boolean, default: false },
+  bioPosted: { type: String, default: 'default' },
 });
 
 userProfileSchema.pre('save', function (next) {

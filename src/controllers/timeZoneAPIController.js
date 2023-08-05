@@ -11,7 +11,7 @@ const timeZoneAPIController = function () {
     }
     if (hasPermission(requestorRole, "getTimeZoneAPIKey")) {
       res.status(200).send({ userAPIKey: premiumKey });
-      return; // I added this
+      return;
     }
     res.status(200).send({ userAPIKey: commonKey });
   };

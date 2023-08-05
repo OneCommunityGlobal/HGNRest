@@ -79,6 +79,8 @@ const reporthelper = function () {
           weeklySummaryNotReq: 1,
           weeklySummaryOption: 1,
           adminLinks: 1,
+          bioPosted: 1,
+          role: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -109,8 +111,8 @@ const reporthelper = function () {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
         if (
-          result.totalSeconds[index] === undefined ||
-          result.totalSeconds[index] === null
+          result.totalSeconds[index] === undefined
+          || result.totalSeconds[index] === null
         ) {
           result.totalSeconds[index] = 0;
         }

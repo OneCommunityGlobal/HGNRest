@@ -12,6 +12,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
 function ValidatePassword(req, res) {
@@ -112,7 +113,7 @@ const userProfileController = function (UserProfile) {
 
     const userByEmail = await UserProfile.findOne({
       email: {
-        $regex: req.body.email,
+        $regex: escapeRegex(req.body.email),
         $options: 'i',
       },
     });
@@ -184,6 +185,7 @@ const userProfileController = function (UserProfile) {
     up.timeZone = req.body.timeZone || 'America/Los_Angeles';
     up.location = req.body.location;
     up.permissions = req.body.permissions;
+    up.bioPosted = req.body.bioPosted || 'default';
 
     up.save()
       .then(() => {
@@ -240,7 +242,6 @@ const userProfileController = function (UserProfile) {
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
-
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
       record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
@@ -263,8 +264,9 @@ const userProfileController = function (UserProfile) {
       record.hoursByCategory = req.body.hoursByCategory;
       record.totalTangibleHrs = req.body.totalTangibleHrs;
       record.isVisible = req.body.isVisible || false;
+      record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
-      record.bioPosted = req.body.bioPosted || false;
+      record.bioPosted = req.body.bioPosted || 'default';
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -280,6 +282,7 @@ const userProfileController = function (UserProfile) {
         hasPermission(req.body.requestor.role, 'putUserProfileImportantInfo')
       ) {
         record.role = req.body.role;
+        record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
         record.weeklycommittedHours = req.body.weeklycommittedHours;
         record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
@@ -302,6 +305,7 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
+        record.bioPosted = req.body.bioPosted || 'default';
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 
@@ -351,6 +355,7 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
+
     if (
       !userId
       || !option
@@ -374,8 +379,8 @@ const userProfileController = function (UserProfile) {
     if (option === 'archive') {
       const timeArchiveUser = await UserProfile.findOne(
         {
-          firstName: 'TimeArchiveAccount',
-          lastName: 'TimeArchiveAccount',
+          firstName: process.env.TIME_ARCHIVE_FIRST_NAME,
+          lastName: process.env.TIME_ARCHIVE_LAST_NAME,
         },
         '_id',
       );
@@ -483,6 +488,31 @@ const userProfileController = function (UserProfile) {
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
+
+
+  const updateOneProperty = function (req, res) {
+    const { userId } = req.params;
+    const { key, value } = req.body;
+
+    // remove user from cache, it should be loaded next time
+    cache.removeCache(`user-${userId}`);
+    if (!key || value === undefined) return res.status(400).send({error:'Missing property or value'})
+
+    return UserProfile.findById(userId)
+      .then((user) => {
+        user.set({
+          [key] : value
+        });
+
+        return user
+              .save()
+              .then(() =>{
+                res.status(200).send({ message: 'updated property' })
+              })
+              .catch(error => res.status(500).send(error));
+      })
+      .catch(error => res.status(500).send(error));
+  }
 
   const updatepassword = function (req, res) {
     const { userId } = req.params;
@@ -639,6 +669,10 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+    if (!hasPermission(req.body.requestor.role, 'changeUserStatus')) {
+      res.status(403).send('You are not authorized to change user status');
+      return;
+    }
     cache.removeCache(`user-${userId}`);
     UserProfile.findById(userId, 'isActive')
       .then((user) => {
@@ -737,6 +771,7 @@ const userProfileController = function (UserProfile) {
     deleteUserProfile,
     getUserById,
     getreportees,
+    updateOneProperty,
     updatepassword,
     getUserName,
     getTeamMembersofUser,
