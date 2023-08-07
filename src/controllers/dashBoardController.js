@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs/promises');
 const dashboardhelper = require('../helpers/dashboardhelper')();
 const emailSender = require('../utilities/emailSender');
 
@@ -83,7 +85,7 @@ const dashboardcontroller = function () {
     const {
       firstName, lastName, title, environment, reproduction, expected, actual, visual, severity, email,
     } = req.body;
-    const emailBody = getBugReportEmailBody(firstName, lastName, title, environment, reproduction, expected, actual, visual, severity);
+   const emailBody = getBugReportEmailBody(firstName, lastName, title, environment, reproduction, expected, actual, visual, severity);
 
     try {
       emailSender(
@@ -97,7 +99,82 @@ const dashboardcontroller = function () {
       res.status(500).send('Failed');
     }
   };
+ // read suggestion data from file
+  const readSuggestionFile = async () => {
+    const filepath = path.join(process.cwd(), 'src', 'constants', 'suggestionModalData.json');
+    let readfile = await fs.readFile(filepath).catch(err => console.log(err));
+    readfile = JSON.parse(readfile);
+    return readfile;
+  };
+  // create suggestion emailbody
+  const getsuggestionEmailBody = async (...args) => {
+    const readfile = await readSuggestionFile();
+    let fieldaaray = [];
+    if (readfile.field.length) {
+      fieldaaray = readfile.field.map(item => `<p>${item}</p>
+                                               <p>${args[3][item]}</p>`);
+    }
+    const text = `New Suggestion:
+        <p>Suggestion Category:</p>
+        <p>${args[0]}</p>
+        <p>Suggestion:</p>
+        <p>${args[1]}</p>
+        ${fieldaaray.length > 0 ? fieldaaray : ''}
+        <p>Wants Feedback:</p>
+        <p>${args[2]}</p>
+        <p>Thank you,<br />
+        One Community</p>`;
 
+    return text;
+  };
+
+  // send suggestion email
+  const sendMakeSuggestion = async (req, res) => {
+    const {
+      suggestioncate, suggestion, confirm, ...rest
+    } = req.body;
+    const emailBody = await getsuggestionEmailBody(suggestioncate, suggestion, confirm, rest);
+    try {
+      emailSender(
+        'onecommunityglobal@gmail.com',
+        'A new suggestion',
+        emailBody,
+      );
+      res.status(200).send('Success');
+    } catch {
+      res.status(500).send('Failed');
+    }
+  };
+
+
+  const getSuggestionOption = async (req, res) => {
+    const readfile = await readSuggestionFile();
+    res.status(200).send(readfile);
+  };
+  // add new suggestion category or field
+  const editSuggestionOption = async (req, res) => {
+    let readfile = await readSuggestionFile();
+    if (req.body.suggestion) {
+      if (req.body.action === 'add') readfile.suggestion.unshift(req.body.newField);
+      if (req.body.action === 'delete') {
+        readfile = {
+                    ...readfile,
+                    suggestion: readfile.suggestion.filter((item, index) => index + 1 !== +req.body.newField),
+                   };
+        }
+    } else {
+      if (req.body.action === 'add') readfile.field.unshift(req.body.newField);
+      if (req.body.action === 'delete') {
+        readfile = {
+                    ...readfile,
+                    field: readfile.field.filter(item => item !== req.body.newField),
+                   };
+        }
+    }
+    const filepath = path.join(process.cwd(), 'src', 'constants', 'suggestionModalData.json');
+    await fs.writeFile(filepath, JSON.stringify(readfile)).catch(err => console.log(err));
+    res.status(200).send('success');
+  };
 
   return {
     dashboarddata,
@@ -106,6 +183,9 @@ const dashboardcontroller = function () {
     leaderboarddata,
     orgData,
     sendBugReport,
+    getSuggestionOption,
+    editSuggestionOption,
+    sendMakeSuggestion,
   };
 };
 
