@@ -19,14 +19,14 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/task/del/:taskId/:mother')
     .post(controller.deleteTask);
 
+  wbsRouter.route('/task/wbs/:wbsId')
+    .get(controller.getWBSId);
+
   wbsRouter.route('/task/wbs/del/:wbsId')
     .post(controller.deleteTaskByWBS);
 
   wbsRouter.route('/task/update/:taskId')
     .put(controller.updateTask);
-
-  wbsRouter.route('/task/delete/children/:taskId')
-    .post(controller.updateChildrenQty);
 
   wbsRouter.route('/task/updateAllParents/:wbsId/')
     .put(controller.updateAllParents);
