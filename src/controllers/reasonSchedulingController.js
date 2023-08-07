@@ -7,12 +7,26 @@ const postReason = async (req, res) => {
   try {
     const { userId, requestor, reasonData } = req.body;
 
+    const newDate = moment
+      .tz(reasonData.date, "America/Los_Angeles")
+      .startOf("day")
+    const currentDate = moment
+      .tz("America/Los_Angeles")
+      .startOf("day")
+
     //error case 0
     if (moment.tz(reasonData.date, "America/Los_Angeles").day() !== 0) {
       return res.status(400).json({
         message:
           "The selected day must be a sunday so the code can work properly",
         errorCode: 0,
+      });
+    }
+
+    if (newDate.isBefore(currentDate)) {
+      return res.status(400).json({
+        message: "You should select a date that is yet to come",
+        errorCode: 7,
       });
     }
 
