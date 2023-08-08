@@ -175,7 +175,7 @@ const userProfileController = function (UserProfile) {
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
-    up.createdDate = Date.now();
+    up.createdDate = req.body.startDate;
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
@@ -186,7 +186,6 @@ const userProfileController = function (UserProfile) {
     up.location = req.body.location;
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
-    up.startDate = req.body.startDate;
 
     up.save()
       .then(() => {
