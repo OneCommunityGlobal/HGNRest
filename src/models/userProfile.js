@@ -147,6 +147,7 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  isFirstLogin: { type: Boolean, default: true},
 });
 
 userProfileSchema.pre('save', function (next) {
