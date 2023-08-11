@@ -663,10 +663,9 @@ const userHelper = function () {
     }
   };
 
-  const notifyBlueSquareRemoval = async (personId) => {
+  const notifyBlueSquareRemoval = async () => {
     try {
-      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
-
+      const currentFormattedDate = Date.now();
       logger.logInfo(
         `Job for removing blue square for new users who start after ${currentFormattedDate}`,
       );
@@ -680,7 +679,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklySummaries missedHours infringements createdDate',
       );
 
       for (let i = 0; i < users.length; i += 1) {
@@ -691,36 +690,37 @@ const userHelper = function () {
         // find users who've received a blue square before their start date
         if (user.createdDate >= currentFormattedDate) {
 
-          if (user.infringements) {
+          if (user.infringements.length) {
 
-          const status = await userProfile.findByIdAndUpdate(
-            personId,
-            {
-              $pop: {
-                infringements: 1,
+            const status = await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $pop: {
+                  infringements: 1,
+                },
               },
-            },
-            { new: true },
-          );
+              { new: true },
+            );
+
+            // const record = await userProfile.findById(personId);
+            const emailSubject = `${status.firstName} ${status.lastName} blue square removed`;
+            const emailBody = `Dear <b>${status.firstName} ${status.lastName}</b>,
+            <p>You were issued a blue square for not completing your hours this week.</p>
+            <p>Since you are a new user, this square has been automatically removed.</p>
+            <p>No further action is required.</p>
+            <p>Thank you,</p>
+            <p>One Community</p>`;
+            emailSender(
+              status.email,
+              emailSubject,
+              emailBody,
+              'onecommunityglobal@gmail.com',
+              null,
+            );
           }
         }
       };
 
-      const record = await userProfile.findById(personId);
-      const emailSubject = `${record.firstName} ${record.lastName} blue square removed`;
-      const emailBody = `Dear <b>${record.firstName} ${record.lastName}</b>,
-      <p>You were issued a blue square for not completing your hours this week.</p>
-      <p>Since you are a new user, this square has been automatically removed.</p>
-      <p>No further action is required.</p>
-      <p>Thank you,</p>
-      <p>One Community</p>`;
-      emailSender(
-        record.email,
-        emailSubject,
-        emailBody,
-        'onecommunityglobal@gmail.com',
-        null,
-      );
     } catch (error) {
       console.log('Failed to send email notification about removing a new user\'s blue square.');
     }
