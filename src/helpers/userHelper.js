@@ -35,8 +35,8 @@ const userHelper = function () {
     let mm = today.getMonth() + 1;
     let dd = today.getDate();
 
-    mm < 10 ? mm = `0${ mm}` : mm;
-    dd < 10 ? dd = `0${ dd}` : dd;
+    mm = mm < 10 ? `0${ mm}` : mm;
+    dd = dd < 10 ? `0${ dd}` : dd;
     const formatedDate = `${yyyy }-${ mm }-${ dd}`;
 
     return formatedDate;
@@ -124,15 +124,11 @@ const userHelper = function () {
 
       let emailBody = "<h2>Weekly Summaries for all active users:</h2>";
 
-      const weeklySummaryNotProvidedMessage =
-        '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
+      const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
 
-      const weeklySummaryNotRequiredMessage =
-        '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
+      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-      results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
-      );
+      results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`));
 
       for (let i = 0; i < results.length; i += 1) {
         const result = results[i];
@@ -188,8 +184,8 @@ const userHelper = function () {
               </div>
             `;
           } else if (
-            weeklySummaryOption === 'Not Required' ||
-            (!weeklySummaryOption && result.weeklySummaryNotReq)
+            weeklySummaryOption === 'Not Required'
+            || (!weeklySummaryOption && result.weeklySummaryNotReq)
           ) {
             weeklySummaryMessage = weeklySummaryNotRequiredMessage;
           }
@@ -271,7 +267,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch((error) => logger.logException(error));
+      .catch(error => logger.logException(error));
   };
 
   /**
@@ -351,8 +347,8 @@ const userHelper = function () {
         );
 
         if (
-          updateResult?.weeklySummaryOption === 'Not Required' ||
-          updateResult?.weeklySummaryNotReq
+          updateResult?.weeklySummaryOption === 'Not Required'
+          || updateResult?.weeklySummaryNotReq
         ) {
           hasWeeklySummary = true;
         }
@@ -362,8 +358,8 @@ const userHelper = function () {
         const oldInfringements = [];
         for (let k = 0; k < updateResult?.infringements.length; k += 1) {
           if (
-            updateResult?.infringements &&
-            moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0
+            updateResult?.infringements
+            && moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0
           ) {
             oldInfringements.push(updateResult.infringements[k]);
           } else {
@@ -680,9 +676,7 @@ const userHelper = function () {
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
-    newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
-      arrVal._id.equals(othVal._id),
-    );
+    newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) => arrVal._id.equals(othVal._id));
     newInfringements.forEach((element) => {
       emailSender(
         emailAddress,
@@ -728,7 +722,7 @@ const userHelper = function () {
     count = 1,
     featured = false
   ) {
-    console.log("Adding Badge");
+    console.log('Adding Badge');
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -814,10 +808,10 @@ const userHelper = function () {
           streak.badges.every((bdge) => {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
-                badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
-                badgeCollection[i].badge?.weeks === bdge.weeks &&
-                bdge.hrs === hrs &&
-                !removed
+                badgeCollection[i].badge?.type === 'X Hours for X Week Streak'
+                && badgeCollection[i].badge?.weeks === bdge.weeks
+                && bdge.hrs === hrs
+                && !removed
               ) {
                 changeBadgeCount(
                   personId,
@@ -863,8 +857,8 @@ const userHelper = function () {
           if (elem.months <= 12) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (
-                user.infringements.length === 0 ||
-                Math.abs(
+                user.infringements.length === 0
+                || Math.abs(
                   moment().diff(
                     moment(user.infringements[user.infringements?.length - 1].date),
                     'months',
@@ -889,15 +883,15 @@ const userHelper = function () {
           } else if (user?.infringements?.length === 0) {
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (
-                user.oldInfringements.length === 0 ||
-                Math.abs(
+                user.oldInfringements.length === 0
+                || Math.abs(
                   moment().diff(
                     moment(user.oldInfringements[user.oldInfringements?.length - 1].date),
                     'months',
                     true,
                   ),
-                ) >=
-                  elem.months - 12
+                )
+                  >= elem.months - 12
               ) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
@@ -966,9 +960,9 @@ const userHelper = function () {
     }
     await badge.findOne({ type: "Personal Max" }).then((results) => {
       if (
-        user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+        user.lastWeekTangibleHrs
+        && user.lastWeekTangibleHrs >= 1
+        && user.lastWeekTangibleHrs === user.personalBestMaxHrs
       ) {
         if (badgeOfType) {
           changeBadgeCount(
@@ -986,12 +980,12 @@ const userHelper = function () {
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
     if (
-      user.weeklycommittedHours > 0 &&
-      user.lastWeekTangibleHrs > user.weeklycommittedHours
+      user.weeklycommittedHours > 0
+      && user.lastWeekTangibleHrs > user.weeklycommittedHours
     ) {
       const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === "Most Hrs in Week")
-        .map((object) => object.badge);
+        .filter(object => object.badge.type === 'Most Hrs in Week')
+        .map(object => object.badge);
       await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
         userProfile
           .aggregate([
@@ -1001,7 +995,7 @@ const userHelper = function () {
           .then((userResults) => {
             if (badgeOfType.length > 1) {
               removeDupBadge(user._id, badgeOfType[0]._id);
-            } 
+            }
 
             if (
               user.lastWeekTangibleHrs
@@ -1074,15 +1068,15 @@ const userHelper = function () {
             let badgeOfType;
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
-                badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
-                badgeCollection[i].badge?.weeks === bdge.weeks
+                badgeCollection[i].badge?.type === 'X Hours for X Week Streak'
+                && badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
                   removeDupBadge(personId, badgeOfType._id);
                   badgeOfType = badgeCollection[i].badge;
                 } else if (
-                  badgeOfType &&
-                  badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
+                  badgeOfType
+                  && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
                 ) {
                   removeDupBadge(personId, badgeCollection[i].badge._id);
                 } else if (!badgeOfType) {
@@ -1173,8 +1167,8 @@ const userHelper = function () {
           if (teamMembers && teamMembers.length >= badge.people) {
             if (badgeOfType) {
               if (
-                badgeOfType._id.toString() !== badge._id.toString() &&
-                badgeOfType.people < badge.people
+                badgeOfType._id.toString() !== badge._id.toString()
+                && badgeOfType.people < badge.people
               ) {
                 replaceBadge(
                   personId,
@@ -1214,13 +1208,13 @@ const userHelper = function () {
     }
 
     categories.forEach(async (category) => {
-      const categoryHrs = Object.keys(hoursByCategory).find((elem) => elem === category);
+      const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
 
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
         if (
-          badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
-          badgeCollection[i].badge?.category === category
+          badgeCollection[i].badge?.type === 'Total Hrs in Category'
+          && badgeCollection[i].badge?.category === category
         ) {
           if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
             removeDupBadge(personId, badgeOfType._id);
@@ -1259,8 +1253,8 @@ const userHelper = function () {
               }
               if (badgeOfType) {
                 if (
-                  badgeOfType._id.toString() !== elem._id.toString() &&
-                  badgeOfType.totalHrs < elem.totalHrs
+                  badgeOfType._id.toString() !== elem._id.toString()
+                  && badgeOfType.totalHrs < elem.totalHrs
                 ) {
                   replaceBadge(
                     personId,
