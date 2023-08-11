@@ -677,9 +677,17 @@ const userHelper = function () {
 
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
+      // logging time on or after the previous Tuesday qualifies the user for a "short week"
+      const pdtPreviousTuesday = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1,'week')
+        .add(2,'day');
+      
+
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklySummaries missedHours infringements createdDate',
+        '_id infringements createdDate lastWeekTangibleHrs weeklycommittedHours',
       );
 
       for (let i = 0; i < users.length; i += 1) {
@@ -687,8 +695,9 @@ const userHelper = function () {
 
         const personId = mongoose.Types.ObjectId(user._id);
 
-        // find users who've received a blue square before their start date
-        if (user.createdDate >= currentFormattedDate) {
+        // find users who've received a blue square before their start date 
+        // or users who logged time after the previous Tuesday but didn't complete their hours 
+        if (user.createdDate >= currentFormattedDate || (user.createdDate >= pdtPreviousTuesday && user.lastWeekTangibleHrs < user.weeklycommittedHours)) {
 
           if (user.infringements.length) {
 
