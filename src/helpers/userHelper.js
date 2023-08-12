@@ -670,13 +670,6 @@ const userHelper = function () {
         `Job for removing blue square for new users who start after ${currentFormattedDate}`,
       );
 
-      const pdtStartOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .subtract(1, 'week');
-
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-
       // logging time on or after the previous Tuesday qualifies the user for a "short week"
       const pdtPreviousTuesday = moment()
         .tz('America/Los_Angeles')
