@@ -35,8 +35,9 @@ const userHelper = function () {
     let dd = today.getDate();
 
 
-    mm < 10 ? mm = `0${ mm}` : mm;
-    dd < 10 ? dd = `0${ dd}` : dd;
+    mm = mm < 10 ? `0${ mm}` : mm;
+    dd = dd < 10 ? `0${ dd}` : dd;
+
     const formatedDate = `${yyyy }-${ mm }-${ dd}`;
 
     return formatedDate;
