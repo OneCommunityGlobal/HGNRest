@@ -17,6 +17,7 @@ const role = require('../models/role');
 const ownerMessage = require('../models/ownerMessage');
 const ownerStandardMessage = require('../models/ownerStandardMessage');
 const mouseoverText = require('../models/mouseoverText');
+const timeOffRequest = require('../models/timeOffRequest');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -45,6 +46,7 @@ const roleRouter = require('../routes/roleRouter')(role);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -72,4 +74,5 @@ module.exports = function (app) {
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
   app.use('/api', mouseoverTextRouter);
+  app.use('/api', timeOffRequestRouter);
 };
