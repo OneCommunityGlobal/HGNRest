@@ -14,8 +14,11 @@ const routes = function (timeOffRequest) {
     timeOffRequestRouter.route('/getTimeOffRequest/:id')
         .get(controller.getTimeOffRequestbyId);
 
-    timeOffRequestRouter.route('/updateTimeOffRequest')
-        .post(controller.updateTimeOffRequest);
+    timeOffRequestRouter.route('/updateTimeOffRequest/:id')
+        .post(controller.updateTimeOffRequestById);
+
+    timeOffRequestRouter.route('/deleteTimeOffRequest/:id')
+        .delete(controller.deleteTimeOffRequestById);
 
     return timeOffRequestRouter;
 };

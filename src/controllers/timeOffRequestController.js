@@ -35,7 +35,7 @@ const timeOffRequestController = function (TimeOffRequest) {
     const getTimeOffRequests = async (req, res) => {
         try {
             const allRequests = await TimeOffRequest.find();
-            res.status(200).json(allRequests);
+            res.status(200).send(allRequests);
         } catch (error) {
             res.status(500).send(error);
         }
@@ -48,25 +48,76 @@ const timeOffRequestController = function (TimeOffRequest) {
             const request = await TimeOffRequest.findById(requestId);
 
             if (!request) {
-                res.status(404).json({ error: 'Time off request not found' });
+                res.status(404).send('Time off request not found');
                 return;
             }
 
-            res.status(200).json(request);
+            res.status(200).send(request);
         } catch (error) {
             res.status(500).send(error);
         }
     };
 
-    const updateTimeOffRequest = async (req, res) => {
-        res.status(200).send("test")
+    const updateTimeOffRequestById = async (req, res) => {
+        const requestId = req.params.id;
+        const { duration, startingDate, reason, requestFor } = req.body
+        if (!duration || !startingDate || !reason || !requestFor) {
+            res.status(400).send("bad request")
+            return;
+        }
+        const startDate = moment(startingDate, 'MM/DD/YY');
+
+        const endDate = startDate.clone().add(Number(duration), 'weeks');
+
+        const endingDate = endDate.format('MM/DD/YY');
+
+        const updateData = {
+            requestFor: mongoose.Types.ObjectId(requestFor),
+            reason: reason,
+            startingDate: new Date(startingDate),
+            endingDate: new Date(endingDate),
+            duration: duration,
+        };
+
+        try {
+            const updatedRequest = await TimeOffRequest.findByIdAndUpdate(requestId, updateData, {
+                new: true,
+            });
+
+            if (!updatedRequest) {
+                res.status(404).send('Time off request not found');
+                return;
+            }
+
+            res.status(200).send(updatedRequest);
+        } catch (error) {
+            res.status(500).send(error);
+        }
+    };
+
+    const deleteTimeOffRequestById = async (req, res) => {
+        const requestId = req.params.id;
+
+        try {
+            const deletedRequest = await TimeOffRequest.findByIdAndDelete(requestId);
+
+            if (!deletedRequest) {
+                res.status(404).send('Time off request not found');
+                return;
+            }
+
+            res.status(200).send('Time off request deleted successfully');
+        } catch (error) {
+            res.status(500).send(error);
+        }
     };
 
     return {
         setTimeOffRequest,
         getTimeOffRequests,
         getTimeOffRequestbyId,
-        updateTimeOffRequest
+        updateTimeOffRequestById,
+        deleteTimeOffRequestById
     };
 };
 
