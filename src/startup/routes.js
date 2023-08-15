@@ -17,6 +17,7 @@ const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const ownerMessage = require('../models/ownerMessage');
 const ownerStandardMessage = require('../models/ownerStandardMessage');
+const mouseoverText = require('../models/mouseoverText');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -45,6 +46,7 @@ const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(t
 const roleRouter = require('../routes/roleRouter')(role);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
+const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 
 module.exports = function (app) {
@@ -73,4 +75,5 @@ module.exports = function (app) {
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
   app.use('/api', informationRouter);
+  app.use('/api', mouseoverTextRouter);
 };
