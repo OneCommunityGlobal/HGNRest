@@ -56,16 +56,10 @@ const reporthelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: [
-                      '$$timeEntry.dateOfWork',
-                      moment(pstStart).format('YYYY-MM-DD'),
-                    ],
+                    $gte: ['$$timeEntry.dateOfWork', moment(pstStart).format('YYYY-MM-DD')],
                   },
                   {
-                    $lte: [
-                      '$$timeEntry.dateOfWork',
-                      moment(pstEnd).format('YYYY-MM-DD'),
-                    ],
+                    $lte: ['$$timeEntry.dateOfWork', moment(pstEnd).format('YYYY-MM-DD')],
                   },
                 ],
               },
@@ -77,10 +71,12 @@ const reporthelper = function () {
           email: 1,
           mediaUrl: 1,
           weeklycommittedHours: 1,
+          weeklycommittedHoursHistory: 1,
           weeklySummaryNotReq: 1,
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          role: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -110,10 +106,7 @@ const reporthelper = function () {
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
-        if (
-          result.totalSeconds[index] === undefined
-          || result.totalSeconds[index] === null
-        ) {
+        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
           result.totalSeconds[index] = 0;
         }
 
