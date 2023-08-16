@@ -690,7 +690,7 @@ const userHelper = function () {
 
         // find users who've received a blue square before their start date 
         // or users who logged time after the previous Tuesday but didn't complete their hours 
-        if (user.createdDate >= currentFormattedDate || (user.createdDate >= pdtPreviousTuesday && user.lastWeekTangibleHrs < user.weeklycommittedHours)) {
+        if ((user.createdDate >= currentFormattedDate || user.createdDate >= pdtPreviousTuesday) && user.lastWeekTangibleHrs < user.weeklycommittedHours) {
 
           if (user.infringements.length) {
 
