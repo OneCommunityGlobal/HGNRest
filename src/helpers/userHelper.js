@@ -663,12 +663,9 @@ const userHelper = function () {
     }
   };
 
-  const notifyBlueSquareRemoval = async () => {
+  const removeBlueSquareAndSendEmail = async () => {
     try {
       const currentFormattedDate = Date.now();
-      logger.logInfo(
-        `Job for removing blue square for new users who start after ${currentFormattedDate}`,
-      );
 
       // logging time on or after the previous Tuesday qualifies the user for a "short week"
       const pdtPreviousTuesday = moment()
@@ -676,6 +673,10 @@ const userHelper = function () {
         .startOf('week')
         .subtract(1,'week')
         .add(2,'day');
+
+      logger.logInfo(
+        `Job for removing blue square for new users who start after ${currentFormattedDate} or after ${pdtPreviousTuesday} but didn't complete their hours`,
+      );
       
 
       const users = await userProfile.find(
@@ -704,19 +705,16 @@ const userHelper = function () {
               { new: true },
             );
 
-            // const record = await userProfile.findById(personId);
             const emailSubject = `${status.firstName} ${status.lastName} blue square removed`;
             const emailBody = `Dear <b>${status.firstName} ${status.lastName}</b>,
-            <p>You were issued a blue square for not completing your hours this week.</p>
-            <p>Since you are a new user, this square has been automatically removed.</p>
-            <p>No further action is required.</p>
+            <p>You were issued a blue square for not completing your hours this week. Since you were not required to complete your hours this week, this square has been automatically removed. No further action is required.</p>
             <p>Thank you,</p>
             <p>One Community</p>`;
             emailSender(
               status.email,
               emailSubject,
               emailBody,
-              'onecommunityglobal@gmail.com',
+              null,
               null,
             );
           }
@@ -1418,7 +1416,7 @@ const userHelper = function () {
     deleteBlueSquareAfterYear,
     reActivateUser,
     deActivateUser,
-    notifyBlueSquareRemoval,
+    removeBlueSquareAndSendEmail,
     notifyInfringements,
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,

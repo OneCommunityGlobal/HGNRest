@@ -6,7 +6,7 @@ const removeBlueSquareJob = () => {
     const removeBlueSquareForNewUserJob = new CronJob(
         '0 2 * * 0', // Every sunday, at 2:00AM (PST).
         async () => {
-            await userhelper.notifyBlueSquareRemoval();
+            await userhelper.removeBlueSquareAndSendEmail();
         },
         null,
         false,
