@@ -1,14 +1,14 @@
 /* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
-const mongoose = require('mongoose');
-const moment = require('moment-timezone');
-const _ = require('lodash');
-const userProfile = require('../models/userProfile');
-const timeEntries = require('../models/timeentry');
-const badge = require('../models/badge');
-const myTeam = require('./helperModels/myTeam');
-const dashboardHelper = require('./dashboardhelper')();
-const reportHelper = require('./reporthelper')();
+const mongoose = require("mongoose");
+const moment = require("moment-timezone");
+const _ = require("lodash");
+const userProfile = require("../models/userProfile");
+const timeEntries = require("../models/timeentry");
+const badge = require("../models/badge");
+const myTeam = require("./helperModels/myTeam");
+const dashboardHelper = require("./dashboardhelper")();
+const reportHelper = require("./reporthelper")();
 
 const emailSender = require("../utilities/emailSender");
 
@@ -1348,7 +1348,15 @@ const userHelper = function() {
   // 'Total Hrs in Category'
   const checkTotalHrsInCat = async function(personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
-    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
+    const categories = [
+      "food",
+      "energy",
+      "housing",
+      "education",
+      "society",
+      "economics",
+      "stewardship"
+    ];
 
     const badgesOfType = badgeCollection
       .filter(object => object.badge.type === "Total Hrs in Category")
@@ -1383,7 +1391,8 @@ const userHelper = function() {
       }
 
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
-      await badge.find({ type: 'Total Hrs in Category', category: newCatg })
+      await badge
+        .find({ type: "Total Hrs in Category", category: newCatg })
         .sort({ totalHrs: -1 })
         .then(results => {
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
