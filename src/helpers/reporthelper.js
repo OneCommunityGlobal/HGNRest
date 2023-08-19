@@ -81,6 +81,8 @@ const reporthelper = function () {
           adminLinks: 1,
           bioPosted: 1,
           createdDate: 1,
+          trophyIconPresent: 1,
+          toggleTrophyIcon: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',

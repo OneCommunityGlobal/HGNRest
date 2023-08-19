@@ -145,6 +145,8 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  trophyIconPresent: { type: Boolean, default: true },
+  hideTrophyIcon: { type: Boolean, default: false },
 });
 
 userProfileSchema.pre('save', function (next) {

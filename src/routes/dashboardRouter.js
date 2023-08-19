@@ -9,6 +9,12 @@ const route = function () {
   Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);
 
+    // Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId')
+    // .get(controller.getTrophyIcon);
+
+  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId')
+    .post(controller.postTrophyIcon);
+
   Dashboardrouter.route('/dashboard/monthlydata/:userId/:fromDate/:toDate')
     .get(controller.monthlydata);
 

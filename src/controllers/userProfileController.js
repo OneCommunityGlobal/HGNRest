@@ -2,7 +2,6 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
@@ -14,6 +13,7 @@ const cache = require('../utilities/nodeCache')();
 const hasPermission = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
+import { showTrophyIcon } from 'utilities/trophyPermissions';
 
 function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -240,7 +240,6 @@ const userProfileController = function (UserProfile) {
           return;
         }
       }
-
       const originalinfringements = record.infringements ? record.infringements : [];
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
@@ -267,7 +266,9 @@ const userProfileController = function (UserProfile) {
       record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || 'default';
-
+      //record.trophyIconPresent = req.body.trophyIconPresent || showTrophyIcon(todaysDate, record.createdDate.split('T')[0]) ;
+      //record.toggleTrophyIcon =  req.body.toggleTrophyIcon || showTrophyIcon(todaysDate, record.createdDate.split('T')[0]);
+      
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -306,6 +307,7 @@ const userProfileController = function (UserProfile) {
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
         record.bioPosted = req.body.bioPosted || 'default';
+        //record.toggleTrophyIcon = showTrophyIcon(todaysDate, record.createdDate.split('T')[0]);
 
         if (hasPermission(req.body.requestor.role, 'putUserProfilePermissions')) { record.permissions = req.body.permissions; }
 

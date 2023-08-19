@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
 const myTeam = require('../helpers/helperModels/myTeam');
+const { showTrophyIcon } = require('utilities/trophyPermissions');
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
@@ -153,6 +154,7 @@ const dashboardhelper = function () {
   };
 
   const getLeaderboard = function (userId) {
+    const todaysDate = moment().tz('America/Los_Angeles').format('YYYY-MM-DD');
     const userid = mongoose.Types.ObjectId(userId);
     const pdtstart = moment()
       .tz('America/Los_Angeles')
@@ -215,6 +217,12 @@ const dashboardhelper = function () {
           createdDate: {
             $arrayElemAt: ['$persondata.createdDate', 0],
           },
+          trophyIconPresent: {
+            $arrayElemAt: ['$persondata.trophyIconPresent', 0],
+          },
+          hideTrophyIcon: {
+            $arrayElemAt: ['$persondata.hideTrophyIcon', 0],
+          },
           hasSummary: {
             $ne: [
               {
@@ -255,6 +263,8 @@ const dashboardhelper = function () {
           role: 1,
           isVisible: 1,
           createdDate: 1,
+          trophyIconPresent: 1,
+          hideTrophyIcon: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
           timeEntryData: {
@@ -288,6 +298,8 @@ const dashboardhelper = function () {
           role: 1,
           isVisible: 1,
           createdDate: 1,
+          trophyIconPresent: 1,
+          hideTrophyIcon: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
           totalSeconds: {
@@ -341,6 +353,8 @@ const dashboardhelper = function () {
             role: '$role',
             isVisible: '$isVisible',
             createdDate: '$createdDate',
+            trophyIconPresent: '$trophyIconPresent',
+            hideTrophyIcon: '$hideTrophyIcon',
             hasSummary: '$hasSummary',
           },
           totalSeconds: {
@@ -362,6 +376,8 @@ const dashboardhelper = function () {
           role: '$_id.role',
           isVisible: '$_id.isVisible',
           createdDate: '$_id.createdDate',
+          trophyIconPresent: '$_id.trophyIconPresent',
+          hideTrophyIcon: '$_id.hideTrophyIcon',
           hasSummary: '$_id.hasSummary',
           weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
@@ -447,6 +463,8 @@ const dashboardhelper = function () {
           role: user.role,
           isVisible: user.isVisible,
           createdDate: user.createdDate,
+          trophyIconPresent: user.trophyIconPresent,
+          hideTrophyIcon: user.hideTrophyIcon,
           hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
