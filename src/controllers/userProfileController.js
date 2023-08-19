@@ -776,7 +776,7 @@ const userProfileController = function (UserProfile) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-
+  
   return {
     postUserProfile,
     getUserProfiles,
