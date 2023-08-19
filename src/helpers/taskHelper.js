@@ -70,7 +70,7 @@ const taskHelper = function () {
               },
             ],
           },
-          role:1
+          role: 1,
         },
       },
       {
@@ -102,7 +102,7 @@ const taskHelper = function () {
               },
             },
           },
-          role:1
+          role: 1,
         },
       },
       {
@@ -134,7 +134,7 @@ const taskHelper = function () {
               false,
             ],
           },
-          role:1
+          role: 1,
         },
       },
       {
@@ -156,7 +156,7 @@ const taskHelper = function () {
             personId: '$personId',
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
-            role: '$role'
+            role: '$role',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -178,7 +178,7 @@ const taskHelper = function () {
           totaltangibletime_hrs: {
             $divide: ['$tangibletime', 3600],
           },
-          role: '$_id.role'
+          role: '$_id.role',
         },
       },
       {
@@ -329,7 +329,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
-          role:1,
+          role: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -359,7 +359,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
-          role:1,
+          role: 1,
           totalSeconds: {
             $cond: [
               {
@@ -399,7 +399,7 @@ const taskHelper = function () {
             personId: '$personId',
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
-            role: '$role'
+            role: '$role',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
