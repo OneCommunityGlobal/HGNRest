@@ -4,8 +4,6 @@ const moment = require('moment-timezone');
 const { Schema } = mongoose;
 const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
-const nextDay = new Date();
-nextDay.setDate(nextDay.getDate()+1);
 
 const SALT_ROUNDS = 10;
 
@@ -51,7 +49,7 @@ const userProfileSchema = new Schema({
   },
   weeklycommittedHours: { type: Number, default: 10 },
   missedHours: { type: Number, default: 0 },
-  createdDate: { type: Date, required: true, default: nextDay },
+  createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
