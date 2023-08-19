@@ -186,7 +186,6 @@ const userProfileController = function (UserProfile) {
     up.location = req.body.location;
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
-    up.isFirstLogin = true;
 
     up.save()
       .then(() => {
