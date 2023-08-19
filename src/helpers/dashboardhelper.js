@@ -1,9 +1,9 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { showTrophyIcon } = require('utilities/trophyPermissions');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
 const myTeam = require('../helpers/helperModels/myTeam');
-const { showTrophyIcon } = require('utilities/trophyPermissions');
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
