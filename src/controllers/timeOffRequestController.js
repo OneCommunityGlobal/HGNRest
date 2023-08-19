@@ -34,8 +34,31 @@ const timeOffRequestController = function (TimeOffRequest) {
 
     const getTimeOffRequests = async (req, res) => {
         try {
-            const allRequests = await TimeOffRequest.find();
-            res.status(200).send(allRequests);
+            const allRequests = await TimeOffRequest.aggregate([
+                {
+                    $sort: { requestFor: 1 } // Sort by requestFor in ascending order
+                },
+                {
+                    $group: {
+                        _id: "$requestFor",
+                        requests: { $push: "$$ROOT" } // Group requests by requestFor
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        requestFor: "$_id",
+                        requests: 1
+                    }
+                }
+            ]);
+
+            const formattedRequests = {};
+            allRequests.forEach(request => {
+                formattedRequests[request.requestFor] = request.requests;
+            });
+
+            res.status(200).send(formattedRequests);
         } catch (error) {
             res.status(500).send(error);
         }
