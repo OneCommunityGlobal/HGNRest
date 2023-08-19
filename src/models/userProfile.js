@@ -48,6 +48,12 @@ const userProfileSchema = new Schema({
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   weeklycommittedHours: { type: Number, default: 10 },
+  weeklycommittedHoursHistory: [
+    {
+      hours: { type: Number, required: true },
+      dateChanged: { type: Date, required: true },
+    },
+  ],
   missedHours: { type: Number, default: 0 },
   createdDate: { type: Date, required: true, default: Date.now() },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
@@ -90,6 +96,7 @@ const userProfileSchema = new Schema({
         default: moment().tz('America/Los_Angeles').endOf('week'),
       },
       summary: { type: String },
+      uploadDate: { type: Date },
     },
   ],
   weeklySummariesCount: { type: Number, default: 0 },
@@ -144,6 +151,10 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  infoCollections: [
+    { areaName:{type: String},
+      areaContent:{type:String},
+  }],
 });
 
 userProfileSchema.pre('save', function (next) {
