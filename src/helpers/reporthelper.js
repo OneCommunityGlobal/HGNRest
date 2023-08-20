@@ -67,7 +67,6 @@ const reporthelper = function () {
           },
           firstName: 1,
           lastName: 1,
-          role: 1,
           email: 1,
           mediaUrl: 1,
           weeklycommittedHours: 1,

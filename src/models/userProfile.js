@@ -151,10 +151,6 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
-  infoCollections: [
-    { areaName:{type: String},
-      areaContent:{type:String},
-  }],
 });
 
 userProfileSchema.pre('save', function (next) {

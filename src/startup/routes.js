@@ -1,7 +1,6 @@
 const timeEntry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const project = require('../models/project');
-const information = require('../models/information');
 const team = require('../models/team');
 const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
@@ -24,7 +23,6 @@ const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')();
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
-const informationRouter = require('../routes/informationRouter')(information)
 const teamRouter = require('../routes/teamRouter')(team);
 const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')(notification);
@@ -47,7 +45,6 @@ const roleRouter = require('../routes/roleRouter')(role);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
-
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -74,6 +71,5 @@ module.exports = function (app) {
   app.use('/api', roleRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
-  app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
 };
