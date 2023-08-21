@@ -593,6 +593,13 @@ const taskController = function (Task) {
   };
 
   const deleteTask = (req, res) => {
+    if (!hasPermission(req.body.requestor.role, 'deleteTask')) {
+      res
+        .status(403)
+        .send({ error: 'You are not authorized to deleteTasks.' });
+      return;
+    }
+
     const { taskId } = req.params;
     const { mother } = req.params;
 
@@ -635,6 +642,13 @@ const taskController = function (Task) {
   };
 
   const deleteTaskByWBS = (req, res) => {
+    if (!hasPermission(req.body.requestor.role, 'deleteTask')) {
+      res
+        .status(403)
+        .send({ error: 'You are not authorized to deleteTasks.' });
+      return;
+    }
+
     const { wbsId } = req.params;
 
     Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
