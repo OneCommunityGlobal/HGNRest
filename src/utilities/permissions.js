@@ -5,7 +5,7 @@ const hasPermission = async (role, action) => {
   let isAllowed;
   const allPermissions = await Role.find({});
 
-  const permissions = allPermissions.filter(({ roleName }) => roleName === role)[0].permissionsBackEnd;
+  const { permissions } = allPermissions.find(({ roleName }) => roleName === role);
 
   if (permissions.includes(action)) {
     isAllowed = true;
