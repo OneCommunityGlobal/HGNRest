@@ -758,10 +758,46 @@ const taskController = function (Task) {
           .getAllHoursLoggedForSpecifiedProject(taskId)
           .then((hours) => {
             results.set('hoursLogged', hours, { strict: false });
+          })
+          .catch(error => res.status(404).send(error))
+          .then(() => {
+            // Retrieve and update resource names for task
+            const resources = results?.resources;
+            const resourcesLength = resources.length;
+            const promiseArray = [];
+            for (let i = 0; i < resourcesLength; i += 1) {
+              promiseArray.push(
+                  taskHelper.getUserProfileFirstAndLastName(resources[i].userID),
+                );
+            }
+            Promise.all(promiseArray)
+              .then((resourceNames) => {
+                // Create a deep copy of resources
+                const editedResources = [];
+                for (let i = 0; i < resourcesLength; i += 1) {
+                  editedResources[i] = {};
+                  editedResources[i].completedTask = results.resources[i].completedTask;
+                  editedResources[i]._id = results.resources[i]._id;
+                  editedResources[i].userID = results.resources[i].userID;
+                  editedResources[i].name = results.resources[i].name;
+                }
+                // Update deep copy array's resource names
+                for (let i = 0; i < resourcesLength; i += 1) {
+                  // taskHelper.getUserProfileFirstAndLastName() will return an empty string if the results are null
+                  // If that's the case, do not update the resource's name
+                  editedResources[i].name = resourceNames[i] !== ' ' ? resourceNames[i] : editedResources[i].name;
+                }
+                results.resources = editedResources;
+              })
+              .finally(() => {
+                res.status(200).send(results);
+              });
+          })
+          .catch(() => {
+            // If there's an error, send potentially outdated resource names
             res.status(200).send(results);
           });
-      })
-      .catch(error => res.status(404).send(error));
+      });
   };
 
   const updateAllParents = (req, res) => {
