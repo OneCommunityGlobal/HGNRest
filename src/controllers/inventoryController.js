@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const moment = require('moment');
 const projects = require('../models/project');
 const wbs = require('../models/wbs');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 const inventoryController = function (Item, ItemType) {

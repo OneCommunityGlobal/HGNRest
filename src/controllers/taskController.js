@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -593,6 +593,13 @@ const taskController = function (Task) {
   };
 
   const deleteTask = (req, res) => {
+    if (!hasPermission(req.body.requestor.role, 'deleteTask')) {
+      res
+        .status(403)
+        .send({ error: 'You are not authorized to deleteTasks.' });
+      return;
+    }
+
     const { taskId } = req.params;
     const { mother } = req.params;
 
@@ -635,6 +642,13 @@ const taskController = function (Task) {
   };
 
   const deleteTaskByWBS = (req, res) => {
+    if (!hasPermission(req.body.requestor.role, 'deleteTask')) {
+      res
+        .status(403)
+        .send({ error: 'You are not authorized to deleteTasks.' });
+      return;
+    }
+
     const { wbsId } = req.params;
 
     Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
