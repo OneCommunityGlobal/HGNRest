@@ -1,6 +1,6 @@
 const UserProfile = require('../models/userProfile');
 const cache = require('../utilities/nodeCache')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const rolesController = function (Role) {
   const getAllRoles = function (req, res) {

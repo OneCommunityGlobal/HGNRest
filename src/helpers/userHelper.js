@@ -12,8 +12,9 @@ const reportHelper = require("./reporthelper")();
 
 const emailSender = require("../utilities/emailSender");
 
+
 const logger = require("../startup/logger");
-const hasPermission = require("../utilities/permissions");
+const { hasPermission } = require("../utilities/permissions");
 
 const Reason = require("../models/reason");
 

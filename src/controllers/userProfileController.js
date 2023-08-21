@@ -12,7 +12,7 @@ const Badge = require('../models/badge');
 const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -223,8 +223,10 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      hasPermission(req.body.requestor.role, 'putUserProfile')
+      canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
+        hasPermission(req.body.requestor.role, 'putUserProfile')
       || req.body.requestor.requestorId === userid
+      )
     );
 
     if (!isRequestorAuthorized) {
@@ -579,6 +581,13 @@ const userProfileController = function (UserProfile) {
         error: "You are unauthorized to update this user's password",
       });
     }
+
+    if (canRequestorUpdateUser(requestor.requestorId, userId)) {
+      return res.status(403).send({
+        error: "You are unauthorized to update this user's password",
+      });
+    }
+
     // Verify new and confirm new password are correct
 
     if (req.body.newpassword !== req.body.confirmnewpassword) {
