@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -17,6 +17,10 @@ const teamcontroller = function (Team) {
       .catch(error => res.send(error).status(404));
   };
   const postTeam = function (req, res) {
+    if (!hasPermission(req.body.requestor.role, 'postTeam')) {
+      res.status(403).send({ error: 'You are not authorized to create teams.' });
+      return;
+    }
     const team = new Team();
 
     team.teamName = req.body.teamName;
