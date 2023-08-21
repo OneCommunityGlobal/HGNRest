@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
