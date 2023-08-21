@@ -412,7 +412,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
