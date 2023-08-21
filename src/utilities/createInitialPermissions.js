@@ -36,6 +36,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       // 'postTimeEntry',?
       // User Profile
+      'putRole',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
