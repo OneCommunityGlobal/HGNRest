@@ -76,6 +76,9 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          teamCode: {
+            $ifNull: ['$teamCode', ''],
+          },
           role: 1,
           weeklySummaries: {
             $filter: {

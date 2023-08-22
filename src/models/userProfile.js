@@ -151,6 +151,7 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  teamCode: { type: String, default: '' },
   infoCollections: [
     { areaName:{type: String},
       areaContent:{type:String},
