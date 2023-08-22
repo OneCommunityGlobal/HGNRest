@@ -282,6 +282,7 @@ const userProfileController = function (UserProfile) {
       record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || 'default';
+      record.teamCode = req.body.teamCode;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
