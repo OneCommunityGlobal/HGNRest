@@ -35,9 +35,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: {
-          isActive: true,
-        },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -48,6 +46,9 @@ const reporthelper = function () {
         },
       },
       {
+        $set: { totalTangibleHrs: { $objectToArray: '$hoursByCategory' } },
+      },
+      {
         $project: {
           timeEntries: {
             $filter: {
@@ -56,10 +57,16 @@ const reporthelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$timeEntry.dateOfWork', moment(pstStart).format('YYYY-MM-DD')],
+                    $gte: [
+                      '$$timeEntry.dateOfWork',
+                      moment(pstStart).format('YYYY-MM-DD'),
+                    ],
                   },
                   {
-                    $lte: ['$$timeEntry.dateOfWork', moment(pstEnd).format('YYYY-MM-DD')],
+                    $lte: [
+                      '$$timeEntry.dateOfWork',
+                      moment(pstEnd).format('YYYY-MM-DD'),
+                    ],
                   },
                 ],
               },
@@ -70,6 +77,7 @@ const reporthelper = function () {
           role: 1,
           email: 1,
           mediaUrl: 1,
+          createdDate: 1,
           weeklycommittedHours: 1,
           weeklycommittedHoursHistory: 1,
           weeklySummaryNotReq: 1,
@@ -95,6 +103,15 @@ const reporthelper = function () {
           },
           weeklySummariesCount: 1,
           isTangible: 1,
+          totalTangibleHrs: { $sum: '$totalTangibleHrs.v' },
+          daysInTeam: {
+            $dateDiff: {
+              startDate: '$createdDate',
+              endDate: new Date(),
+              unit: 'day',
+              timezone: 'America/Los_Angeles',
+            },
+          },
         },
       },
     ]);
@@ -106,7 +123,10 @@ const reporthelper = function () {
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
+        if (
+          result.totalSeconds[index] === undefined
+          || result.totalSeconds[index] === null
+        ) {
           result.totalSeconds[index] = 0;
         }
 
