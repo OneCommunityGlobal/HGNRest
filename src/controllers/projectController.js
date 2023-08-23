@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const timeentry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const userProject = require('../helpers/helperModels/userProjects');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 

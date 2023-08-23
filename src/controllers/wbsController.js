@@ -1,4 +1,4 @@
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
