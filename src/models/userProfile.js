@@ -152,8 +152,9 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   infoCollections: [
-    { areaName:{type: String},
-      areaContent:{type:String},
+    {
+ areaName: { type: String },
+      areaContent: { type: String },
   }],
 });
 
