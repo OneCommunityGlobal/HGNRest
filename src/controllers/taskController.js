@@ -5,6 +5,8 @@ const taskHelper = require('../helpers/taskHelper')();
 const emailSender = require('../utilities/emailSender');
 const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
+const emailSender = require('../utilities/emailSender');
+const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -1131,24 +1133,6 @@ const taskController = function (Task) {
       res.status(400).send(error);
     }
   };
-  const updateChildrenQty = (req) => {
-    const { taskId } = req.params;
-    Task.findById(taskId, (error, task) => {
-      if (task) {
-        let newQty = 0;
-        let child = true;
-        if (task.childrenQty > 0) {
-          newQty = task.childrenQty - 1;
-          if (newQty === 0) {
-            child = false;
-          }
-        }
-        task.hasChild = child;
-        task.childrenQty = newQty;
-        task.save();
-      }
-    });
-  };
 
   const getReviewReqEmailBody = function (name, taskName) {
     const text = `New Task Review Request From <b>${name}</b>:
@@ -1161,15 +1145,10 @@ const taskController = function (Task) {
   };
 
   const getRecipients = async function (myUserId) {
-    const recipients = [];
     const user = await userProfile.findById(myUserId);
-    const membership = await userProfile.find({ role: ['Administrator', 'Manager', 'Mentor'] });
-    membership.forEach((member) => {
-      if (member.teams.some(team => user.teams.includes(team))) {
-        recipients.push(member.email);
-      }
-    });
-    return recipients;
+    const membership = await userProfile.find({ teams: user.teams, role: ['Administrator', 'Manager', 'Mentor'] });
+    const emails = membership.map(a => a.email);
+    return emails;
   };
 
   const sendReviewReq = async function (req, res) {
@@ -1208,7 +1187,6 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
-    updateChildrenQty,
     sendReviewReq,
   };
 };
