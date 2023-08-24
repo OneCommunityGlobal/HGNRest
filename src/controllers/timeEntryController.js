@@ -4,7 +4,7 @@ const { getInfringementEmailBody } = require('../helpers/userHelper')();
 const userProfile = require('../models/userProfile');
 const task = require('../models/task');
 const emailSender = require('../utilities/emailSender');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -412,7 +412,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -489,6 +489,7 @@ const timeEntrycontroller = function (TimeEntry) {
         res.status(400).send(error);
       });
   };
+
 
   return {
     getAllTimeEnteries,
