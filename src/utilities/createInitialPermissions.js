@@ -72,7 +72,10 @@ const permissionsRoles = [
   },
   {
     roleName: 'Volunteer',
-    permissions: ['getReporteesLimitRoles'],
+    permissions: [
+      'getReporteesLimitRoles',
+      'suggestTask',
+    ],
   },
   {
     roleName: 'Core Team',
@@ -105,7 +108,8 @@ const permissionsRoles = [
       'putUserProfile',
       'infringementAuthorizer',
       'getReporteesLimitRoles',
-      'suggestTask',
+      'updateTask',
+      'putTeam',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
       'getAllInvInProject',
@@ -239,12 +243,16 @@ const createInitialPermissions = async () => {
         role.permissions = permissions;
         role.save();
 
-      // If role exists in db and is not updated, update it
-      } else if (!roleDataBase.permissions.every(perm => permissions.includes(perm)) || !permissions.every(perm => roleDataBase.permissions.includes(perm))) {
+      // If role exists in db and does not have every permission, add the missing permissions
+      } else if (!permissions.every(perm => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
         promises.push(Role.findById(roleId, (_, record) => {
-          record.permissions = permissions;
+          permissions.forEach((perm) => {
+            if (!record.permissions.includes(perm)) {
+              record.permissions.push(perm);
+            }
+          });
           record.save();
         }));
       }
