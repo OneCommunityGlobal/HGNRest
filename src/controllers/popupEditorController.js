@@ -1,4 +1,4 @@
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const popupEditorController = function (PopupEditors) {
   const getAllPopupEditors = function (req, res) {

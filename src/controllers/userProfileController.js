@@ -11,7 +11,7 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -108,6 +108,11 @@ const userProfileController = function (UserProfile) {
   const postUserProfile = async function (req, res) {
     if (!hasPermission(req.body.requestor.role, 'postUserProfile')) {
       res.status(403).send('You are not authorized to create new users');
+      return;
+    }
+
+    if (req.body.role === 'Owner' && !hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
+      res.status(403).send('You are not authorized to create new owners');
       return;
     }
 
@@ -216,14 +221,22 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      hasPermission(req.body.requestor.role, 'putUserProfile')
+      canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
+        hasPermission(req.body.requestor.role, 'putUserProfile')
       || req.body.requestor.requestorId === userid
+      )
     );
 
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
+
+    if (req.body.role === 'Owner' && !hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
+      res.status(403).send('You are not authorized to update this user');
+      return;
+    }
+
     cache.removeCache(`user-${userid}`);
     UserProfile.findById(userid, (err, record) => {
       if (err || !record) {
@@ -355,12 +368,20 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
+    if (!hasPermission(req.body.requestor.role, 'deleteUserProfile')) {
+      res.status(403).send('You are not authorized to delete users');
+      return;
+    }
+
+    if (req.body.role === 'Owner' && !hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
+      res.status(403).send('You are not authorized to delete this user');
+      return;
+    }
 
     if (
       !userId
       || !option
       || (option !== 'delete' && option !== 'archive')
-      || !hasPermission(req.body.requestor.role, 'deleteUserProfile')
     ) {
       res.status(400).send({
         error: 'Bad request',
@@ -538,6 +559,13 @@ const userProfileController = function (UserProfile) {
         error: "You are unauthorized to update this user's password",
       });
     }
+
+    if (canRequestorUpdateUser(requestor.requestorId, userId)) {
+      return res.status(403).send({
+        error: "You are unauthorized to update this user's password",
+      });
+    }
+
     // Verify new and confirm new password are correct
 
     if (req.body.newpassword !== req.body.confirmnewpassword) {
@@ -763,7 +791,7 @@ const userProfileController = function (UserProfile) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-
+  
   return {
     postUserProfile,
     getUserProfiles,
