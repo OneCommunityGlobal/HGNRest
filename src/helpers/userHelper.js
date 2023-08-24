@@ -1007,15 +1007,7 @@ badgesOfType.forEach(badge => {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
-
-      await badge
-        .find({ type: "Minimum Hours Multiple" })
-        .sort({ multiple: -1 })
-        .then((results) => {
-          if (!Array.isArray(results) || !results.length) {
-            return;
-          }
-          for (let i = 0; i < results.length; i += 1) {
+        for (let i = 0; i < results.length; i += 1) {
             // this needs to be a for loop so that the returns break before assigning badges for lower multiples
             const elem = results[i]; // making variable elem accessible for below code
 
@@ -1034,8 +1026,7 @@ badgesOfType.forEach(badge => {
                 : addBadge(personId, mongoose.Types.ObjectId(elem._id));
             }
           }
-        });
-    }
+      })
   };
 
   // 'Personal Max',
