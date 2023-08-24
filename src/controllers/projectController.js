@@ -26,7 +26,7 @@ const projectController = function (Project) {
         return;
       }
 
-      // find if project has any time enteries associated with it
+      // find if project has any time entries associated with it
 
       timeentry.find({ projectId: record._id }, '_id')
         .then((timeentries) => {
