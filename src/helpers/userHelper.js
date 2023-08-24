@@ -604,16 +604,12 @@ const userHelper = function () {
         },
       ]);
 
-      const bulkOps = [];
-
-      missedHours.forEach((obj) => {
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: obj._id },
-            update: { missedHours: obj.missedHours },
-          },
-        });
-      });
+      const bulkOps = missedHours.map(obj => ({
+        updateOne: {
+          filter: { _id: obj._id },
+          update: { missedHours: obj.missedHours },
+        },
+      }));
 
       await userProfile.bulkWrite(bulkOps);
     } catch (err) {
@@ -841,7 +837,6 @@ const userHelper = function () {
   // remove the last badge you earned on this streak(not including 1)
   const removePrevHrBadge = async function (
     personId,
-    user,
     badgeCollection,
     hrs,
     weeks
@@ -883,7 +878,7 @@ const userHelper = function () {
                 changeBadgeCount(
                   personId,
                   badgeCollection[i].badge._id,
-                  badgeCollection[i].badge.count - 1
+                  badgeCollection[i].count - 1,
                 );
                 removed = true;
                 return false;
@@ -901,25 +896,26 @@ const userHelper = function () {
     user,
     badgeCollection
   ) {
-    let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "No Infringement Streak") {
-        if (
-          badgeOfType &&
-          badgeOfType.months <= badgeCollection[i].badge.months
-        ) {
-          removeDupBadge(personId, badgeOfType._id);
-          badgeOfType = badgeCollection[i].badge;
-        } else if (
-          badgeOfType &&
-          badgeOfType.months > badgeCollection[i].badge.months
-        ) {
-          removeDupBadge(personId, badgeCollection[i].badge._id);
-        } else if (!badgeOfType) {
-          badgeOfType = badgeCollection[i].badge;
-        }
-      }
-    }
+    
+const badgesOfType = badgeCollection
+  .map(badgeObj => badgeObj.badge)
+  .filter(badge => badge?.type === 'No Infringement Streak');
+
+let badgeOfType;
+
+badgesOfType.forEach(badge => {
+  if (!badgeOfType || badgeOfType.months > badge.months) {
+    removeDupBadge(personId, badge._id);
+  } else if (badgeOfType) {
+    removeDupBadge(personId, badgeOfType._id);
+    badgeOfType = badge;
+  }
+
+  if (!badgeOfType) {
+    badgeOfType = badge;
+  }
+});
+
     await badge
       .find({ type: "No Infringement Streak" })
       .sort({ months: -1 })
@@ -1001,22 +997,17 @@ const userHelper = function () {
     user,
     badgeCollection
   ) {
-    if (
-      user.weeklycommittedHours > 0 &&
-      user.lastWeekTangibleHrs > user.weeklycommittedHours
-    ) {
-      const badgesOfType = badgeCollection
-        .filter((object) => object.badge.type === "Minimum Hours Multiple")
-        .map((object) => object.badge);
-
-      await badge
-        .find({ type: "Minimum Hours Multiple" })
-        .sort({ multiple: -1 })
-        .then((results) => {
-          if (!Array.isArray(results) || !results.length) {
-            return;
-          }
-          for (let i = 0; i < results.length; i += 1) {
+    const badgesOfType = badgeCollection
+     .map(obj=>obj.badge)
+     .filter(badge=> badge.type === 'Minimum Hours Multiple')
+    await badge
+      .find({ type: 'Minimum Hours Multiple' })
+      .sort({ multiple: -1 })
+      .then((results) => {
+        if (!Array.isArray(results) || !results.length) {
+          return;
+        }
+        for (let i = 0; i < results.length; i += 1) {
             // this needs to be a for loop so that the returns break before assigning badges for lower multiples
             const elem = results[i]; // making variable elem accessible for below code
 
@@ -1035,24 +1026,24 @@ const userHelper = function () {
                 : addBadge(personId, mongoose.Types.ObjectId(elem._id));
             }
           }
-        });
-    }
+      })
   };
 
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "Personal Max") {
+
+    for (const badgeObj of badgeCollection) {
+      const badge = badgeObj.badge;
+    
+      if (badge?.type === 'Personal Max') {
         if (badgeOfType) {
           removeDupBadge(personId, badgeOfType._id);
-          badgeOfType = badgeCollection[i].badge;
-        } else if (!badgeOfType) {
-          badgeOfType = badgeCollection[i].badge;
         }
-      }
-    }
-    await badge.findOne({ type: "Personal Max" }).then((results) => {
+        
+        badgeOfType = badge;
+      }}
+    await badge.findOne({ type: 'Personal Max' }).then((results) => {
       if (
         user.lastWeekTangibleHrs
         && user.lastWeekTangibleHrs >= 1
@@ -1116,12 +1107,10 @@ const userHelper = function () {
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
     // Handle Increasing the 1 week streak badges
-    const badgesOfType = [];
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "X Hours for X Week Streak") {
-        badgesOfType.push(badgeCollection[i].badge);
-      }
-    }
+    const badgesOfType = badgeCollection
+     .map(obj=>obj.badge)
+     .filter(badge=> badge.type === 'X Hours for X Week Streak')
+
     await badge
       .find({ type: "X Hours for X Week Streak", weeks: 1 })
       .sort({ totalHrs: -1 })
@@ -1338,12 +1327,9 @@ const userHelper = function () {
       "stewardship",
     ];
 
-    const badgesOfType = [];
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "Total Hrs in Category") {
-        badgesOfType.push(badgeCollection[i].badge);
-      }
-    }
+    const badgesOfType = badgeCollection
+      .map(obj=> obj.badge)
+      .filter(badge=> badge.type === 'Total Hrs in Category' )
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(elem => elem === category);
