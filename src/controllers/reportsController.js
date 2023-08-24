@@ -1,5 +1,5 @@
 const reporthelper = require('../helpers/reporthelper')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const reportsController = function () {
   const getWeeklySummaries = function (req, res) {

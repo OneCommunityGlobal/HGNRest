@@ -13,8 +13,8 @@ const userProfileJobs = () => {
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.deleteBlueSquareAfterYear();
-        await userhelper.awardNewBadges();
       }
+      await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
     },

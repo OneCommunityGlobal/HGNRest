@@ -4,7 +4,7 @@ const { getInfringementEmailBody } = require('../helpers/userHelper')();
 const userProfile = require('../models/userProfile');
 const task = require('../models/task');
 const emailSender = require('../utilities/emailSender');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
