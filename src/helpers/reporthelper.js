@@ -105,7 +105,6 @@ const reporthelper = function () {
 
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-
         if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
           result.totalSeconds[index] = 0;
         }
