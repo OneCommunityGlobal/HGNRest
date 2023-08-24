@@ -490,6 +490,7 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+
   return {
     getAllTimeEnteries,
     postTimeEntry,
