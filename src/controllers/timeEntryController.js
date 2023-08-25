@@ -140,7 +140,7 @@ const timeEntrycontroller = function (TimeEntry) {
           await initialTask.save();
         }
 
-        if (req.body.isTangible === true) {
+        if (req.body.isTangible === "true") {
           const editedTask = await task.findById(req.body.projectId);
           editedTask.hoursLogged += (totalSeconds / 3600);
           await editedTask.save();
