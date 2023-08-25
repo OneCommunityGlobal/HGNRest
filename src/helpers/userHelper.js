@@ -85,17 +85,28 @@ const userHelper = function () {
     lastName,
     infringement,
     totalInfringements,
+    timeRemaining,
   ) {
+    let final_paragraph = '';
+
+    if (timeRemaining == undefined) {
+      final_paragraph = '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
+    } else {
+      final_paragraph = `<p>Life happens and we understand that. Please make up the missed hours this following week though to avoid getting another blue square. So you know what’s needed, the missing/incomplete hours (${timeRemaining} hours) have been added to your current week and this new weekly total can be seen at the top of your dashboard.</p>
+      <p>Reminder also that each blue square is removed from your profile 1 year after it was issued.</p>`;
+    }
+
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>
         <p><b>Description:</b> ${infringement.description}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
-          .localeData()
-          .ordinal(totalInfringements)}</b> blue square of 5.</p>
-        <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
+        .localeData()
+        .ordinal(totalInfringements)}</b> blue square of 5.</p>
+        ${final_paragraph}
         <p>Thank you,<br />
         One Community</p>`;
+
     return text;
   };
 
@@ -299,7 +310,7 @@ const userHelper = function () {
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-
+        const person = await userProfile.findById(user._id);
         const personId = mongoose.Types.ObjectId(user._id);
 
         let hasWeeklySummary = false;
@@ -326,6 +337,9 @@ const userHelper = function () {
 
         const timeNotMet = timeSpent < weeklycommittedHours;
         let description;
+
+        const timeRemaining = weeklycommittedHours - timeSpent;
+
 
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
@@ -409,15 +423,28 @@ const userHelper = function () {
             { new: true },
           );
 
-          emailSender(
-            status.email,
-            'New Infringement Assigned',
-            getInfringementEmailBody(
+          let emailBody = '';
+          if (person.role == 'Core Team' && timeRemaining > 0) {
+            emailBody = getInfringementEmailBody(
               status.firstName,
               status.lastName,
               infringement,
               status.infringements.length,
-            ),
+              timeRemaining,
+            );
+          } else {
+            emailBody = getInfringementEmailBody(
+              status.firstName,
+              status.lastName,
+              infringement,
+              status.infringements.length,
+            );
+          }
+
+          emailSender(
+            status.email,
+            'New Infringement Assigned',
+            emailBody,
             null,
             'onecommunityglobal@gmail.com',
           );
