@@ -14,8 +14,8 @@ const userProfileJobs = () => {
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.executeSummaryGroupHelper();
         await userhelper.deleteBlueSquareAfterYear();
-        await userhelper.awardNewBadges();
       }
+      await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
     },

@@ -5,83 +5,50 @@ const permissionsRoles = [
   {
     roleName: 'Administrator',
     permissions: [
-      'seeWeeklySummaryReports',
-      'seeUserManagement',
-      'seeSummaryManagement',
-      'seeBadgeManagement',
-      'seePopupManagement',
-      'seeProjectManagement',
-      'seeTeamsManagement',
-      'deleteOwnBadge',
-      'modifyOwnBadgeAmount',
-      'assignBadgeOthers',
-      'editTimelogInfo',
-      'addTimeEntryOthers',
-      'deleteTimeEntryOthers',
-      'toggleTangibleTime',
-      'changeIntangibleTimeEntryDate',
-      'editTimeEntry',
-      'deleteTimeEntry',
-      'deleteWbs',
-      'addTask',
-      'deleteTask',
-      'editTask',
-      'addWbs',
-      'addProject',
-      'deleteProject',
-      'editProject',
-      'findUserInProject',
-      'assignUserInProject',
-      'unassignUserInProject',
-      'adminLinks',
-      'editUserProfile',
-      'assignTeamToUser',
-      'seeUserProfileInProjects',
-      'createTeam',
-      'editDeleteTeam',
-      'handleBlueSquare',
-      'resetPasswordOthers',
-      'dataIsTangibleTimelog',
-      'toggleSubmitForm',
-      'seePermissionsManagement',
-      'changeBioAnnouncement',
-      'changeUserStatus',
-      'submitWeeklySummaryForOthers',
-      'seeAllReports',
-      'removeUserFromTask',
-    ],
-    permissionsBackEnd: [
+      // Badges
       'seeBadges',
       'assignBadges',
       'createBadges',
       'deleteBadges',
       'updateBadges',
+      // Popups
       'createPopup',
       'updatePopup',
+      // Projects
       'deleteProject',
       'postProject',
       'putProject',
       'assignProjectToUsers',
+      // Tasks
       'importTask',
       'postTask',
-      'updateNum',
       'updateTask',
       'swapTask',
+      'deleteTask',
+      'updateNum',
+      // Teams
+      'postTeam',
       'deleteTeam',
       'putTeam',
       'assignTeamToUsers',
+      // Time Entries
       'editTimeEntry',
       'deleteTimeEntry',
-      'updatePassword',
-      'getUserProfiles',
-      'getProjectMembers',
+      // 'postTimeEntry',?
+      // User Profile
+      'putRole',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
-      'infringementAuthorizer',
+      'changeUserStatus',
+      'updatePassword',
       'deleteUserProfile',
+      'infringementAuthorizer',
+      'seeSummaryManagement',
+      // WBS
       'postWbs',
       'deleteWbs',
+      // Inv
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
       'getAllInvInProject',
@@ -95,20 +62,25 @@ const permissionsRoles = [
       'putInvType',
       'getAllInvType',
       'postInvType',
+      // General
+      'getUserProfiles',
+      'getProjectMembers',
       'getWeeklySummaries',
+      // 'getReportsPage',?
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
     ],
   },
   {
     roleName: 'Volunteer',
-    permissions: ['V'],
-    permissionsBackEnd: ['getReporteesLimitRoles'],
+    permissions: [
+      'getReporteesLimitRoles',
+      'suggestTask',
+    ],
   },
   {
     roleName: 'Core Team',
-    permissions: ['seeWeeklySummaryReports'],
-    permissionsBackEnd: [
+    permissions: [
       'getUserProfiles',
       'getProjectMembers',
       'getAllInvInProjectWBS',
@@ -132,16 +104,13 @@ const permissionsRoles = [
   {
     roleName: 'Manager',
     permissions: [
-      'seeWeeklySummaryReports',
-      'assignOnlyBlueSquares',
-      'suggestTask',
-    ],
-    permissionsBackEnd: [
       'getUserProfiles',
       'getProjectMembers',
       'putUserProfile',
       'infringementAuthorizer',
       'getReporteesLimitRoles',
+      'updateTask',
+      'putTeam',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
       'getAllInvInProject',
@@ -163,11 +132,7 @@ const permissionsRoles = [
   {
     roleName: 'Mentor',
     permissions: [
-      'seeWeeklySummaryReports',
-      'assignOnlyBlueSquares',
       'suggestTask',
-    ],
-    permissionsBackEnd: [
       'getUserProfiles',
       'getProjectMembers',
       'putUserProfile',
@@ -194,54 +159,12 @@ const permissionsRoles = [
   {
     roleName: 'Owner',
     permissions: [
-      'seeWeeklySummaryReports',
-      'seeUserManagement',
-      'seeBadgeManagement',
-      'seePopupManagement',
-      'seeProjectManagement',
-      'seeTeamsManagement',
-      'deleteOwnBadge',
-      'modifyOwnBadgeAmount',
-      'assignBadgeOthers',
-      'editTimelogInfo',
-      'addTimeEntryOthers',
-      'deleteTimeEntryOthers',
-      'toggleTangibleTime',
-      'changeIntangibleTimeEntryDate',
-      'editTimeEntry',
-      'deleteTimeEntry',
-      'deleteWbs',
-      'addTask',
-      'deleteTask',
-      'editTask',
-      'addWbs',
-      'addProject',
-      'deleteProject',
-      'editProject',
-      'findUserInProject',
-      'assignUserInProject',
-      'unassignUserInProject',
-      'adminLinks',
-      'editUserProfile',
-      'assignTeamToUser',
-      'createTeam',
-      'editDeleteTeam',
-      'seeUserProfileInProjects',
-      'handleBlueSquare',
-      'resetPasswordOthers',
-      'dataIsTangibleTimelog',
+      'postRole',
+      'deleteRole',
+      'putRole',
       'addDeleteEditOwners',
-      'toggleSubmitForm',
-      'seePermissionsManagement',
       'putUserProfilePermissions',
-      'changeBioAnnouncement',
-      'seeAllReports',
       'changeUserStatus',
-      'submitWeeklySummaryForOthers',
-      'seeAllReports',
-      'removeUserFromTask',
-    ],
-    permissionsBackEnd: [
       'seeBadges',
       'assignBadges',
       'createBadges',
@@ -258,6 +181,8 @@ const permissionsRoles = [
       'updateNum',
       'updateTask',
       'swapTask',
+      'deleteTask',
+      'postTeam',
       'deleteTeam',
       'putTeam',
       'assignTeamToUsers',
@@ -294,62 +219,46 @@ const permissionsRoles = [
 ];
 
 
-const createInitialPermissionsFront = async () => {
+const createInitialPermissions = async () => {
+  // Create Initial Owner
   const userEmail = { email: 'jae@onecommunityglobal.org' };
   const update = { role: 'Owner' };
   await User.findOneAndUpdate(userEmail, update);
 
+  // Get Roles From DB
   const allRoles = await Role.find();
-  const ownerRoleDataBase = allRoles.find(
-    role => role.roleName === 'Owner',
-  );
+  const onlyUpdateOwner = false;
 
-  let ownerRoleId;
-  let IsAllBackPermissionsOwnerUpdated = true;
-  let IsAllFrontPermissionsOwnerUpdated = true;
-  const updatedOwnerPermissions = {};
-
+  const promises = [];
+  // Add a new permission if the role has been changed in the  permissionsRoles Array
   for (let i = 0; i < permissionsRoles.length; i += 1) {
-      const { roleName, permissions, permissionsBackEnd } = permissionsRoles[i];
+    const { roleName, permissions } = permissionsRoles[i];
 
-      // Add a new permission if the role Owner has been changed in the  permissionsRoles Array
-      if (roleName === 'Owner' && ownerRoleDataBase) {
-        ownerRoleId = ownerRoleDataBase._id;
-        const permissionsBackOwnerDataBase = ownerRoleDataBase.permissionsBackEnd;
-        const permissionsFrontOwnerDataBase = ownerRoleDataBase.permissions;
-         IsAllBackPermissionsOwnerUpdated = permissionsBackOwnerDataBase.every(perm => permissions.includes(perm));
-         IsAllFrontPermissionsOwnerUpdated = permissionsFrontOwnerDataBase.every(perm => permissionsBackEnd.includes(perm));
+    if (!onlyUpdateOwner || roleName === 'Owner') {
+      const roleDataBase = allRoles.find(role => role.roleName === roleName);
 
-        if (!IsAllFrontPermissionsOwnerUpdated) {
-        updatedOwnerPermissions.permissions = permissions;
-        }
-        if (!IsAllBackPermissionsOwnerUpdated) {
-        updatedOwnerPermissions.permissionsBackEnd = permissionsBackEnd;
-        }
-      }
-
-      const hasRoleInDataBase = allRoles.some(role => role.roleName === roleName);
-      if (!hasRoleInDataBase) {
+      // If role does not exist in db, create it
+      if (!roleDataBase) {
         const role = new Role();
         role.roleName = roleName;
         role.permissions = permissions;
-        role.permissionsBackEnd = permissionsBackEnd;
         role.save();
+
+      // If role exists in db and does not have every permission, add the missing permissions
+      } else if (!permissions.every(perm => roleDataBase.permissions.includes(perm))) {
+        const roleId = roleDataBase._id;
+
+        promises.push(Role.findById(roleId, (_, record) => {
+          permissions.forEach((perm) => {
+            if (!record.permissions.includes(perm)) {
+              record.permissions.push(perm);
+            }
+          });
+          record.save();
+        }));
       }
+    }
   }
-
-  if (!IsAllFrontPermissionsOwnerUpdated) {
-    await Role.findById(ownerRoleId, (_, record) => {
-      record.permissions = updatedOwnerPermissions.permissions;
-      record.save();
-    });
-  }
-
-if (!IsAllBackPermissionsOwnerUpdated) {
-  await Role.findById(ownerRoleId, (_, record) => {
-    record.permissionsBackEnd = updatedOwnerPermissions.permissionsBackEnd;
-    record.save();
-  });
-}
+  await Promise.all(promises);
 };
-module.exports = createInitialPermissionsFront;
+module.exports = createInitialPermissions;
