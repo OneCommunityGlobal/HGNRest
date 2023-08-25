@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 const badgeController = function (Badge) {
