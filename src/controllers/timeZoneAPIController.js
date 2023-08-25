@@ -1,4 +1,4 @@
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const timeZoneAPIController = function () {
   const getTimeZoneAPIKey = (req, res) => {
