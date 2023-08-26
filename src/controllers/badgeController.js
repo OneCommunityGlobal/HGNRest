@@ -12,7 +12,7 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description',
     ).populate({
       path: 'project',
       select: '_id projectName',
@@ -82,7 +82,6 @@ const badgeController = function (Badge) {
         badge.imageUrl = req.body.imageUrl;
         badge.ranking = req.body.ranking;
         badge.description = req.body.description;
-        badge.showReport = req.body.showReport;
 
         badge.save()
           .then(results => res.status(201).send(results))
@@ -140,7 +139,6 @@ const badgeController = function (Badge) {
       project: req.body.project,
       imageUrl: imageUrl || req.body.imageUrl || req.body.imageURL,
       ranking: req.body.ranking,
-      showReport: req.body.showReport,
     };
 
     Badge.findByIdAndUpdate(badgeId, data, (error, record) => {

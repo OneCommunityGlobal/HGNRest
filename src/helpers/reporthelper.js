@@ -76,42 +76,6 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
-          badgeCollection: {
-            $filter: {
-              input: "$badgeCollection",
-              as: "badge",
-              cond: {
-                $or: [
-                  {
-                    $and: [
-                      {
-                        $gte: [
-                          "$$badge.earnedDate",
-                          moment(pstStart).format("YYYY-MM-DD"),
-                        ],
-                      },
-                      {
-                        $lte: [
-                          "$$badge.earnedDate",
-                          moment(pstEnd).format("YYYY-MM-DD"),
-                        ],
-                      },
-                    ],
-                  },
-                  {
-                    $and: [
-                      {
-                        $gte: ["$$badge.lastModified", pstStart],
-                      },
-                      {
-                        $lte: ["$$badge.lastModified", pstEnd],
-                      },
-                    ],
-                  },
-                ],
-              },
-            },
-          },
           role: 1,
           weeklySummaries: {
             $filter: {
