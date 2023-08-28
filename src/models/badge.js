@@ -19,6 +19,7 @@ const Badge = new Schema({
   imageUrl: { type: String },
   ranking: { type: Number },
   description: { type: String },
+  showReport: {type: Boolean},
 });
 
 module.exports = mongoose.model('badge', Badge, 'badges');
