@@ -76,6 +76,42 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          badgeCollection: {
+            $filter: {
+              input: "$badgeCollection",
+              as: "badge",
+              cond: {
+                $or: [
+                  {
+                    $and: [
+                      {
+                        $gte: [
+                          "$$badge.earnedDate",
+                          moment(pstStart).format("YYYY-MM-DD"),
+                        ],
+                      },
+                      {
+                        $lte: [
+                          "$$badge.earnedDate",
+                          moment(pstEnd).format("YYYY-MM-DD"),
+                        ],
+                      },
+                    ],
+                  },
+                  {
+                    $and: [
+                      {
+                        $gte: ["$$badge.lastModified", pstStart],
+                      },
+                      {
+                        $lte: ["$$badge.lastModified", pstEnd],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
           teamCode: {
             $ifNull: ['$teamCode', ''],
           },
@@ -108,7 +144,6 @@ const reporthelper = function () {
 
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-
         if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
           result.totalSeconds[index] = 0;
         }
