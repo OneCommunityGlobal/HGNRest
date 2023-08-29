@@ -182,7 +182,7 @@ const userProfileController = function (UserProfile) {
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
-    up.createdDate = Date.now();
+    up.createdDate = req.body.createdDate;
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
@@ -193,6 +193,7 @@ const userProfileController = function (UserProfile) {
     up.location = req.body.location;
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
+    up.isFirstTimelog = true;
 
     up.save()
       .then(() => {
@@ -282,6 +283,7 @@ const userProfileController = function (UserProfile) {
       record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || 'default';
+      record.isFirstTimelog = req.body.isFirstTimelog;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
