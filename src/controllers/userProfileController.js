@@ -284,6 +284,7 @@ const userProfileController = function (UserProfile) {
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || 'default';
       record.isFirstTimelog = req.body.isFirstTimelog;
+      record.teamCode = req.body.teamCode;
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');

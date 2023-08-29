@@ -112,6 +112,9 @@ const reporthelper = function () {
               },
             },
           },
+          teamCode: {
+            $ifNull: ['$teamCode', ''],
+          },
           role: 1,
           weeklySummaries: {
             $filter: {
