@@ -16,8 +16,8 @@ const teamcontroller = function (Team) {
       .then(results => res.send(results).status(200))
       .catch(error => res.send(error).status(404));
   };
-  const postTeam = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'postTeam')) {
+  const postTeam = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'postTeam')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -33,8 +33,8 @@ const teamcontroller = function (Team) {
       .then(results => res.send(results).status(200))
       .catch(error => res.send(error).status(404));
   };
-  const deleteTeam = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'deleteTeam')) {
+  const deleteTeam = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'deleteTeam')) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
       return;
     }
@@ -56,8 +56,8 @@ const teamcontroller = function (Team) {
       res.status(400).send(error);
     });
   };
-  const putTeam = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'putTeam')) {
+  const putTeam = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'putTeam')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -81,10 +81,10 @@ const teamcontroller = function (Team) {
     });
   };
 
-  const assignTeamToUsers = function (req, res) {
+  const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!hasPermission(req.body.requestor.role, 'assignTeamToUsers')) {
+    if (!await hasPermission(req.body.requestor.role, 'assignTeamToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
