@@ -1,19 +1,9 @@
 const Role = require('../models/role');
 
-const hasPermission = async (role, action) => {
-  // Permissions depending on the back-end of the
-  let isAllowed;
-  const allPermissions = await Role.find({});
+const hasPermission = async (role, action) => Role.findOne({ roleName: role })
+    .exec()
+    .then(({ permissions }) => permissions.includes(action));
 
-  const { permissions } = allPermissions.find(({ roleName }) => roleName === role);
-
-  if (permissions.includes(action)) {
-    isAllowed = true;
-  } else {
-    isAllowed = false;
-  }
-  return isAllowed;
-};
 
 const canRequestorUpdateUser = (requestorId, userId) => {
   const allowedIds = ['63feae337186de1898fa8f51', // dev jae@onecommunityglobal.org
