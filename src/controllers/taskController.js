@@ -389,8 +389,8 @@ const taskController = function (Task) {
     return tasksFromSameLevelArr.flat();
   };
 
-  const importTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'importTask')) {
+  const importTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'importTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -419,8 +419,8 @@ const taskController = function (Task) {
     res.status(201).send('done');
   };
 
-  const postTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'postTask')) {
+  const postTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'postTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -455,8 +455,8 @@ const taskController = function (Task) {
       });
   };
 
-  const updateNum = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'updateNum')) {
+  const updateNum = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'updateNum')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -592,8 +592,8 @@ const taskController = function (Task) {
     });
   };
 
-  const deleteTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'deleteTask')) {
+  const deleteTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to deleteTasks.' });
@@ -641,8 +641,8 @@ const taskController = function (Task) {
     .catch(errors => res.status(400).send(errors));
   };
 
-  const deleteTaskByWBS = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'deleteTask')) {
+  const deleteTaskByWBS = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to deleteTasks.' });
@@ -672,8 +672,8 @@ const taskController = function (Task) {
     });
   };
 
-  const updateTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'updateTask')) {
+  const updateTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'updateTask')) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
     }
@@ -688,8 +688,8 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
-  const swap = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'swapTask')) {
+  const swap = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'swapTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
