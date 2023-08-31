@@ -19,8 +19,8 @@ const popupEditorBackupController = function (PopupEditorBackups) {
   };
 
 
-  const createPopupEditorBackup = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'createPopup')) {
+  const createPopupEditorBackup = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'createPopup')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new popup' });
@@ -45,8 +45,8 @@ const popupEditorBackupController = function (PopupEditorBackups) {
       .catch(error => res.status(500).send({ error }));
   };
 
-  const updatePopupEditorBackup = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'updatePopup')) {
+  const updatePopupEditorBackup = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'updatePopup')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new popup' });

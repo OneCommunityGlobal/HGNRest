@@ -14,8 +14,8 @@ const projectController = function (Project) {
       .catch(error => res.status(404).send(error));
   };
 
-  const deleteProject = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'deleteProject')) {
+  const deleteProject = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'deleteProject')) {
       res.status(403).send({ error: 'You are  not authorized to delete projects.' });
       return;
     }
@@ -45,8 +45,8 @@ const projectController = function (Project) {
       .catch((errors) => { res.status(400).send(errors); });
   };
 
-  const postProject = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'postProject')) {
+  const postProject = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'postProject')) {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
     }
@@ -77,8 +77,8 @@ const projectController = function (Project) {
   };
 
 
-  const putProject = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'putProject')) {
+  const putProject = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'putProject')) {
       res.status(403).send('You are not authorized to make changes in the projects.');
       return;
     }
@@ -123,10 +123,10 @@ const projectController = function (Project) {
       });
   };
 
-  const assignProjectToUsers = function (req, res) {
+  const assignProjectToUsers = async function (req, res) {
     // verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!hasPermission(req.body.requestor.role, 'assignProjectToUsers')) {
+    if (!await hasPermission(req.body.requestor.role, 'assignProjectToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
