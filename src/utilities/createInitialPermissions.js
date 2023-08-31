@@ -209,6 +209,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'editTeamCode',
     ],
   },
 ];
