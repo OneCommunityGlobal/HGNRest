@@ -341,6 +341,7 @@ const userHelper = function() {
         //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
         await processWeeklySummariesByUserId(personId);
 
+
         const results = await dashboardHelper.laborthisweek(
           personId,
           pdtStartOfLastWeek,
