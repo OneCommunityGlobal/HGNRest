@@ -155,8 +155,9 @@ const userProfileSchema = new Schema({
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true},
   infoCollections: [
-    { areaName:{type: String},
-      areaContent:{type:String},
+    {
+ areaName: { type: String },
+      areaContent: { type: String },
   }],
 });
 
