@@ -13,6 +13,7 @@ require("./startup/db")();
 require("./startup/bodyParser")(app);
 require("./startup/middleware")(app);
 require("./cronjobs/userProfileJobs")();
+require("./cronjobs/tempJob")();
 require("./startup/routes")(app);
 
 const port = process.env.PORT || 4500;
