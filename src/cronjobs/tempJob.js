@@ -4,7 +4,7 @@ const userhelper = require('../helpers/userHelper')();
 
 const tempJob = () => {
     const shiftSummary = new CronJob(
-        '55 * * * *', // Every hh:45.
+        '15 * * * *', // Every hh:05.
         async () => {
             await userhelper.assignBlueSquareForTimeNotMet();
         },
