@@ -8,7 +8,7 @@ const routes = function (information) {
 
   informationRouter.route('/informations')
     .get(controller.getInformations)
-    .post(controller.addInformation)
+    .post(controller.addInformation);
   informationRouter.route('/informations/:id')
     .put(controller.updateInformation)
     .delete(controller.deleteInformation);
