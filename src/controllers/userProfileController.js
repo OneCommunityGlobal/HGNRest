@@ -346,7 +346,7 @@ const userProfileController = function (UserProfile) {
         if (record.createdDate !== req.body.createdDate) {
           record.createdDate = moment(req.body.createdDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
-          if (record.weeklycommittedHoursHistory.length() === 0) {
+          if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
               hours: record.weeklycommittedHours,
               dateChanged: Date.now(),
