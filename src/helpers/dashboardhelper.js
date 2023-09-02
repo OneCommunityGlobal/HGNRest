@@ -192,7 +192,7 @@ const dashboardhelper = function () {
           // leaderboard user roles hierarchy
           $or: [
             {
-              role: 'Owner',
+              role:  { $in: ['Owner', 'Core Team'] },
             },
             {
               $and: [
@@ -201,14 +201,6 @@ const dashboardhelper = function () {
                 },
                 { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
               ]
-            },
-            {
-              $and: [
-                {
-                  role: 'Core Team',
-                },
-                { 'persondata.0.role': { $nin: ['Owner', 'Administrator', 'Core Team'] } },
-              ],
             },
             {
               $and: [
