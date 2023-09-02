@@ -189,7 +189,7 @@ const dashboardhelper = function () {
       },
       {
         $match: {
-          // leaderboard tasks hierarchy
+          // leaderboard user roles hierarchy
           $or: [
             {
               role: 'Owner',
