@@ -40,7 +40,7 @@ const taskHelper = function () {
       },
       {
         $match: {
-          // dashboard tasks hierarchy
+          // dashboard tasks user roles hierarchy
           $or: [
             {
               role: 'Owner',
@@ -86,10 +86,10 @@ const taskHelper = function () {
           weeklycommittedHours: {
             $sum: [
               {
-              $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+                $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
               },
               {
-              $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
+                $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
               },
             ],
           },
@@ -142,7 +142,7 @@ const taskHelper = function () {
           totalSeconds: {
             $cond: [
               {
-              $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ['$timeEntryData.totalSeconds', 0],
               },
               '$timeEntryData.totalSeconds',
               0,
@@ -151,7 +151,7 @@ const taskHelper = function () {
           isTangible: {
             $cond: [
               {
-              $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ['$timeEntryData.totalSeconds', 0],
               },
               '$timeEntryData.isTangible',
               false,
@@ -165,7 +165,7 @@ const taskHelper = function () {
           tangibletime: {
             $cond: [
               {
-              $eq: ['$isTangible', true],
+                $eq: ['$isTangible', true],
               },
               '$totalSeconds',
               0,
@@ -324,9 +324,9 @@ const taskHelper = function () {
           role: '$role',
           name: {
             $concat: [
-            '$firstName',
-            ' ',
-            '$lastName',
+              '$firstName',
+              ' ',
+              '$lastName',
             ],
           },
           weeklycommittedHours: {
@@ -359,12 +359,12 @@ const taskHelper = function () {
               as: 'timeentry',
               cond: {
                 $and: [
-                {
-                  $gte: ['$$timeentry.dateOfWork', pdtstart],
-                },
-                {
-                  $lte: ['$$timeentry.dateOfWork', pdtend],
-                },
+                  {
+                    $gte: ['$$timeentry.dateOfWork', pdtstart],
+                  },
+                  {
+                    $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
                 ],
               },
             },
@@ -459,7 +459,7 @@ const taskHelper = function () {
         $project: {
           tasks: {
             resources: {
-            profilePic: 0,
+              profilePic: 0,
             },
           },
         },
@@ -482,9 +482,9 @@ const taskHelper = function () {
         $addFields: {
           'tasks.projectId': {
             $cond: [
-            { $ne: ['$projectId', []] },
-            { $arrayElemAt: ['$projectId', 0] },
-            '$tasks.projectId',
+              { $ne: ['$projectId', []] },
+              { $arrayElemAt: ['$projectId', 0] },
+              '$tasks.projectId',
             ],
           },
         },
@@ -494,12 +494,12 @@ const taskHelper = function () {
           projectId: 0,
           tasks: {
             projectId: {
-            _id: 0,
-            isActive: 0,
-            modifiedDatetime: 0,
-            wbsName: 0,
-            createdDatetime: 0,
-            __v: 0,
+              _id: 0,
+              isActive: 0,
+              modifiedDatetime: 0,
+              wbsName: 0,
+              createdDatetime: 0,
+              __v: 0,
             },
           },
         },
@@ -530,9 +530,9 @@ const taskHelper = function () {
         $addFields: {
           'data.tasks': {
             $filter: {
-            input: '$tasks',
-            as: 'task',
-            cond: { $ne: ['$$task', {}] },
+              input: '$tasks',
+              as: 'task',
+              cond: { $ne: ['$$task', {}] },
             },
           },
         },
