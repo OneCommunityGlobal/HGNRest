@@ -40,15 +40,38 @@ const taskHelper = function () {
       },
       {
         $match: {
+          // dashboard tasks hierarchy
           $or: [
             {
-              role: {
-                $in: [
-                  'Core Team',
-                  'Administrator',
-                  'Owner',
-                ],
-              },
+              role: 'Owner',
+            },
+            {
+              $and: [
+                {
+                  role: 'Administrator',
+                },
+                { 'persondata.0.role': { $nin: ['Owner'] } },
+              ]
+            },
+            {
+              $and: [
+                {
+                  role: 'Core Team',
+                },
+                { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
+              ],
+            },
+            {
+              $and: [
+                {
+                  role: { $in: ['Manager', 'Mentor'] },
+                },
+                {
+                  'persondata.0.role': {
+                    $nin: ['Manager', 'Mentor', 'Core Team', 'Administrator', 'Owner'],
+                  },
+                },
+              ],
             },
             { 'persondata.0._id': userId },
             { 'persondata.0.role': 'Volunteer' },
