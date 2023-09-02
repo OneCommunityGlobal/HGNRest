@@ -199,7 +199,7 @@ const dashboardhelper = function () {
                 {
                   role: 'Administrator',
                 },
-                { 'persondata.0.role': { $nin: ['Owner'] } },
+                { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
               ]
             },
             {
@@ -207,7 +207,7 @@ const dashboardhelper = function () {
                 {
                   role: 'Core Team',
                 },
-                { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
+                { 'persondata.0.role': { $nin: ['Owner', 'Administrator', 'Core Team'] } },
               ],
             },
             {
