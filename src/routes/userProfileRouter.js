@@ -45,7 +45,7 @@ const routes = function (userProfile) {
 
   userProfileRouter.route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
-  
+
   return userProfileRouter;
 };
 

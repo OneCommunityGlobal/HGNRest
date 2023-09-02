@@ -34,7 +34,7 @@ const informationController = function (Information) {
       .then(deletedInformation => res.status(200).send(deletedInformation))
       .catch(error => res.status(400).send(error));
   };
-  
+
   // Update existing information by id
   const updateInformation = function (req, res) {
     Information.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true })
