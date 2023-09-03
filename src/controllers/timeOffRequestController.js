@@ -3,7 +3,6 @@ const moment = require('moment');
 
 const timeOffRequestController = function (TimeOffRequest) {
     const setTimeOffRequest = async (req, res) => {
-
         const { duration, startingDate, reason, requestFor } = req.body
         if (!duration || !startingDate || !reason || !requestFor) {
             res.status(400).send("bad request")
@@ -27,6 +26,7 @@ const timeOffRequestController = function (TimeOffRequest) {
             const savedRequest = await newTimeOffRequest.save();
             res.status(201).send(savedRequest)
         } catch (error) {
+            console.log(error)
             res.status(500).send(error)
         }
 
@@ -83,8 +83,8 @@ const timeOffRequestController = function (TimeOffRequest) {
 
     const updateTimeOffRequestById = async (req, res) => {
         const requestId = req.params.id;
-        const { duration, startingDate, reason, requestFor } = req.body
-        if (!duration || !startingDate || !reason || !requestFor) {
+        const { duration, startingDate, reason } = req.body
+        if (!duration || !startingDate || !reason || !requestId) {
             res.status(400).send("bad request")
             return;
         }
@@ -95,7 +95,6 @@ const timeOffRequestController = function (TimeOffRequest) {
         const endingDate = endDate.format('MM/DD/YY');
 
         const updateData = {
-            requestFor: mongoose.Types.ObjectId(requestFor),
             reason: reason,
             startingDate: new Date(startingDate),
             endingDate: new Date(endingDate),
@@ -129,7 +128,7 @@ const timeOffRequestController = function (TimeOffRequest) {
                 return;
             }
 
-            res.status(200).send('Time off request deleted successfully');
+            res.status(200).send(deletedRequest);
         } catch (error) {
             res.status(500).send(error);
         }

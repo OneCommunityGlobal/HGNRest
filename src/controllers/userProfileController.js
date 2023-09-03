@@ -38,7 +38,7 @@ function ValidatePassword(req, res) {
     !userId === requestor.requestorId
     && !hasPermission(requestor.role, 'updatePassword')
   ) {
-     res.status(403).send({
+    res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
@@ -505,11 +505,11 @@ const userProfileController = function (UserProfile) {
         });
 
         return user
-              .save()
-              .then(() => {
-                res.status(200).send({ message: 'updated property' });
-              })
-              .catch(error => res.status(500).send(error));
+          .save()
+          .then(() => {
+            res.status(200).send({ message: 'updated property' });
+          })
+          .catch(error => res.status(500).send(error));
       })
       .catch(error => res.status(500).send(error));
   };
