@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
@@ -7,7 +7,7 @@ const mouseoverText = new Schema({
 });
 
 module.exports = mongoose.model(
-  "mouseoverText",
+  'mouseoverText',
   mouseoverText,
-  "mouseoverText"
+  'mouseoverText',
 );

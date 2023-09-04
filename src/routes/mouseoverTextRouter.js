@@ -1,18 +1,18 @@
-const express = require("express");
+const express = require('express');
 
 const routes = function (mouseoverText) {
-  const controller = require("../controllers/mouseoverTextcontroller")(
-    mouseoverText
+  const controller = require('../controllers/mouseoverTextcontroller')(
+    mouseoverText,
   );
   const mouseoverTextRouter = express.Router();
 
   mouseoverTextRouter
-    .route("/mouseoverText")
+    .route('/mouseoverText')
     .post(controller.createMouseoverText)
     .get(controller.getMouseoverText);
 
   mouseoverTextRouter
-    .route("/mouseoverText/:id")
+    .route('/mouseoverText/:id')
     .put(controller.updateMouseoverText);
 
   return mouseoverTextRouter;
