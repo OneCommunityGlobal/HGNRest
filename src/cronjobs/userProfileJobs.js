@@ -16,6 +16,7 @@ const userProfileJobs = () => {
         await userhelper.awardNewBadges();
         await userhelper.deleteExpiredTokens();
       }
+      await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
     },
