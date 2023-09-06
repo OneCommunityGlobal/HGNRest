@@ -9,11 +9,10 @@ const badge = require("../models/badge");
 const myTeam = require("./helperModels/myTeam");
 const dashboardHelper = require("./dashboardhelper")();
 const reportHelper = require("./reporthelper")();
-
 const emailSender = require("../utilities/emailSender");
-
 const logger = require("../startup/logger");
 const hasPermission = require("../utilities/permissions");
+const Reason = require("../models/reason");
 
 const userHelper = function() {
   const getTeamMembers = function(user) {
@@ -34,12 +33,10 @@ const userHelper = function() {
     let mm = today.getMonth() + 1;
     let dd = today.getDate();
 
-
     mm = mm < 10 ? `0${ mm}` : mm;
     dd = dd < 10 ? `0${ dd}` : dd;
 
     const formatedDate = `${yyyy }-${ mm }-${ dd}`;
-
 
     return formatedDate;
   };
@@ -85,9 +82,7 @@ const userHelper = function() {
 
   const getInfringementEmailBody = function(
     firstName,
-
     lastName,
-
     infringement,
     totalInfringements
   ) {
@@ -96,9 +91,7 @@ const userHelper = function() {
         <p><b>Date Assigned:</b> ${infringement.date}</p>
         <p><b>Description:</b> ${infringement.description}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
-
           .localeData()
-
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
         <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
         <p>Thank you,<br />
@@ -138,26 +131,17 @@ const userHelper = function() {
       const weeklySummaryNotRequiredMessage =
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-
       results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`));
-
 
       for (let i = 0; i < results.length; i += 1) {
         const result = results[i];
-
         const {
           firstName,
-
           lastName,
-
           email,
-
           weeklySummaries,
-
           mediaUrl,
-
           weeklySummariesCount,
-
           weeklycommittedHours,
           weeklySummaryOption
         } = result;
@@ -171,9 +155,7 @@ const userHelper = function() {
         // hence totalSeconds[0] should be used
         const hoursLogged = result.totalSeconds[0] / 3600 || 0;
 
-
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
         const colorStyle = (() => {
@@ -204,7 +186,6 @@ const userHelper = function() {
               </div>
             `;
           } else if (
-
             weeklySummaryOption === 'Not Required'
             || (!weeklySummaryOption && result.weeklySummaryNotReq)
           ) {
@@ -307,6 +288,10 @@ const userHelper = function() {
       const currentFormattedDate = moment()
         .tz("America/Los_Angeles")
         .format();
+      const currentUTCDate = moment
+        .tz("America/Los_Angeles")
+        .startOf("day")
+        .toISOString();
 
       logger.logInfo(
 
@@ -425,20 +410,22 @@ const userHelper = function() {
         }
 
         if (timeNotMet || !hasWeeklySummary) {
-          if (timeNotMet && !hasWeeklySummary) {
-            description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-          } else if (timeNotMet) {
-            description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
-
+          if (foundReason) {
+            description = foundReason.reason;
           } else {
-            description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-              "dddd YYYY-MM-DD"
-            )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+            if (timeNotMet && !hasWeeklySummary) {
+              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                "dddd YYYY-MM-DD"
+              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+            } else if (timeNotMet) {
+              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                "dddd YYYY-MM-DD"
+              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+            } else {
+              description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
+                "dddd YYYY-MM-DD"
+              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+            }
           }
 
           const infringement = {
@@ -557,7 +544,6 @@ const userHelper = function() {
         .endOf("week")
         .subtract(1, "week")
         .format("YYYY-MM-DD");
-
 
       const missedHours = await userProfile.aggregate([
         {
@@ -802,14 +788,9 @@ const userHelper = function() {
       {
         $push: {
           badgeCollection: {
-
-
-
             badge: badgeId, count, earnedDate: [earnedDateBadge()], featured, lastModified: Date.now().toString(),
-
           },
         },
-
       },
       err => {
         if (err) {

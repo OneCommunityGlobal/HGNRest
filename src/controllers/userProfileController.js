@@ -346,7 +346,14 @@ const userProfileController = function (UserProfile) {
 
         if (record.createdDate !== req.body.createdDate) {
           record.createdDate = moment(req.body.createdDate).toDate();
-
+          // Make sure weeklycommittedHoursHistory isn't empty
+          if (record.weeklycommittedHoursHistory.length === 0) {
+            const newEntry = {
+              hours: record.weeklycommittedHours,
+              dateChanged: Date.now(),
+            };
+            record.weeklycommittedHoursHistory.push(newEntry);
+          }
           // then also change the first committed history (index 0)
           record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
         }
@@ -807,7 +814,7 @@ const userProfileController = function (UserProfile) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-  
+
   return {
     postUserProfile,
     getUserProfiles,
