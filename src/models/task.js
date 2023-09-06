@@ -14,6 +14,7 @@ const taskschema = new Schema({
       userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
       profilePic: { type: String },
       completedTask: { type: Boolean, default: false },
+      reviewStatus: { type: String, default: 'Unsubmitted' },
     },
   ],
   isAssigned: { type: Boolean, default: true },
