@@ -13,6 +13,7 @@ const team = new Schema({
       addDateTime: { type: Date, default: Date.now(), ref: 'userProfile' },
     },
   ],
+  teamCode: { type: 'String', default: '' },
 });
 
 module.exports = mongoose.model('team', team, 'teams');
