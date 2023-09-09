@@ -1,15 +1,15 @@
 const reporthelper = require('../helpers/reporthelper')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
 
 const reportsController = function () {
-  const getWeeklySummaries = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'getWeeklySummaries')) {
+  const getWeeklySummaries = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'getWeeklySummaries') && !await hasIndividualPermission(req.body.requestor.requestorId, 'getWeeklySummaries')) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
 
-    const weeklySummaries = reporthelper.weeklySummaries(3, 0);
-    weeklySummaries
+    reporthelper
+      .weeklySummaries(3, 0)
       .then((results) => {
         const summaries = reporthelper.formatSummaries(results);
         res.status(200).send(summaries);

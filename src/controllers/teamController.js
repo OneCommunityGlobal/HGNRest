@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -16,7 +16,11 @@ const teamcontroller = function (Team) {
       .then(results => res.send(results).status(200))
       .catch(error => res.send(error).status(404));
   };
-  const postTeam = function (req, res) {
+  const postTeam = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'postTeam')) {
+      res.status(403).send({ error: 'You are not authorized to create teams.' });
+      return;
+    }
     const team = new Team();
 
     team.teamName = req.body.teamName;
@@ -24,12 +28,13 @@ const teamcontroller = function (Team) {
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    team.save()
+    team
+      .save()
       .then(results => res.send(results).status(200))
       .catch(error => res.send(error).status(404));
   };
-  const deleteTeam = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'deleteTeam')) {
+  const deleteTeam = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'deleteTeam')) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
       return;
     }
@@ -44,12 +49,15 @@ const teamcontroller = function (Team) {
 
       Promise.all([removeteamfromprofile, deleteteam])
         .then(res.status(200).send({ message: ' Team successfully deleted and user profiles updated' }))
-        .catch((errors) => { res.status(400).send(errors); });
-    })
-      .catch((error) => { res.status(400).send(error); });
+        .catch((errors) => {
+          res.status(400).send(errors);
+        });
+    }).catch((error) => {
+      res.status(400).send(error);
+    });
   };
-  const putTeam = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'putTeam')) {
+  const putTeam = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'putTeam')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -66,21 +74,27 @@ const teamcontroller = function (Team) {
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
-      record.save()
+      record
+        .save()
         .then(results => res.status(201).send(results._id))
         .catch(errors => res.status(400).send(errors));
     });
   };
 
-  const assignTeamToUsers = function (req, res) {
+  const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!hasPermission(req.body.requestor.role, 'assignTeamToUsers')) {
+    if (!await hasPermission(req.body.requestor.role, 'assignTeamToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
 
-    if (!req.params.teamId || !mongoose.Types.ObjectId.isValid(req.params.teamId) || !req.body.users || (req.body.users.length === 0)) {
+    if (
+      !req.params.teamId
+      || !mongoose.Types.ObjectId.isValid(req.params.teamId)
+      || !req.body.users
+      || req.body.users.length === 0
+    ) {
       res.status(400).send({ error: 'Invalid request' });
       return;
     }
@@ -89,7 +103,7 @@ const teamcontroller = function (Team) {
 
     Team.findById(req.params.teamId)
       .then((team) => {
-        if (!team || (team.length === 0)) {
+        if (!team || team.length === 0) {
           res.status(400).send({ error: 'Invalid team' });
           return;
         }
@@ -100,13 +114,29 @@ const teamcontroller = function (Team) {
         users.forEach((element) => {
           const { userId, operation } = element;
 
-          if (operation === 'Assign') { assignlist.push(userId); } else { unassignlist.push(userId); }
+          if (operation === 'Assign') {
+            assignlist.push(userId);
+          } else {
+            unassignlist.push(userId);
+          }
         });
 
-        const assignPromise = userProfile.updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: team._id } }).exec();
-        const unassignPromise = userProfile.updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: team._id } }).exec();
+        const addTeamToUserProfile = userProfile
+          .updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: team._id } })
+          .exec();
+        const removeTeamFromUserProfile = userProfile
+          .updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: team._id } })
+          .exec();
+        const addUserToTeam = Team.updateOne(
+          { _id: team._id },
+          { $addToSet: { members: { $each: assignlist.map(userId => ({ userId })) } } },
+        ).exec();
+        const removeUserFromTeam = Team.updateOne(
+          { _id: team._id },
+          { $pull: { members: { userId: { $in: unassignlist } } } },
+        ).exec();
 
-        Promise.all([assignPromise, unassignPromise])
+        Promise.all([addTeamToUserProfile, removeTeamFromUserProfile, addUserToTeam, removeUserFromTeam])
           .then(() => {
             res.status(200).send({ result: 'Done' });
           })
@@ -125,9 +155,30 @@ const teamcontroller = function (Team) {
       res.status(400).send({ error: 'Invalid request' });
       return;
     }
-    userProfile.find({ teams: teamId })
-      .then((results) => { res.status(200).send(results); })
-      .catch((error) => { res.status(500).send(error); });
+    Team.aggregate([
+      {
+        $match: { _id: mongoose.Types.ObjectId(teamId) },
+      },
+      { $unwind: '$members' },
+      {
+        $lookup: {
+          from: 'userProfiles',
+          localField: 'members.userId',
+          foreignField: '_id',
+          as: 'userProfile',
+        },
+      },
+      { $unwind: '$userProfile' },
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: [{ addDateTime: '$members.addDateTime' }, '$userProfile'],
+          },
+        },
+      },
+    ])
+      .then(result => res.status(200).send(result))
+      .catch(error => res.status(500).send(error));
   };
 
   return {
