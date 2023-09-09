@@ -54,39 +54,41 @@ const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
     if (
       !(await hasPermission(req.body.requestor.role, "getUserProfiles")) &&
-      !req.body.requestor.permissions?.frontPermissions.includes("manageUser")
+      !req.body.requestor.permissions?.frontPermissions.includes(
+        "putUserProfilePermissions"
+      )
     ) {
       res.status(403).send("You are not authorized to view all users");
       return;
     }
 
-    if (cache.getCache('allusers')) {
-      const getData = JSON.parse(cache.getCache('allusers'));
+    if (cache.getCache("allusers")) {
+      const getData = JSON.parse(cache.getCache("allusers"));
       res.status(200).send(getData);
       return;
     }
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      "_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate"
     )
       .sort({
         lastName: 1,
       })
       .then((results) => {
         if (!results) {
-          res.status(500).send({ error: 'User result was invalid' });
+          res.status(500).send({ error: "User result was invalid" });
           return;
         }
-        cache.setCache('allusers', JSON.stringify(results));
+        cache.setCache("allusers", JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getProjectMembers = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getProjectMembers')) {
-      res.status(403).send('You are not authorized to view all users');
+    if (!(await hasPermission(req.body.requestor.role, "getProjectMembers"))) {
+      res.status(403).send("You are not authorized to view all users");
       return;
     }
     UserProfile.find(
@@ -95,39 +97,43 @@ const userProfileController = function (UserProfile) {
           $in: [req.params.projectId],
         },
       },
-      '_id firstName email',
+      "_id firstName email",
       (err, profiles) => {
         if (err) {
-          res.status(404).send('Error finding user profiles');
+          res.status(404).send("Error finding user profiles");
           return;
         }
         res.json(profiles);
-      },
+      }
     );
   };
 
   const postUserProfile = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'postUserProfile')) {
-      res.status(403).send('You are not authorized to create new users');
+    if (!(await hasPermission(req.body.requestor.role, "postUserProfile"))) {
+      res.status(403).send("You are not authorized to create new users");
       return;
     }
 
-    if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
-      res.status(403).send('You are not authorized to create new owners');
+    if (
+      req.body.role === "Owner" &&
+      !(await hasPermission(req.body.requestor.role, "addDeleteEditOwners"))
+    ) {
+      res.status(403).send("You are not authorized to create new owners");
       return;
     }
 
     const userByEmail = await UserProfile.findOne({
       email: {
         $regex: escapeRegex(req.body.email),
-        $options: 'i',
+        $options: "i",
       },
     });
 
     if (userByEmail) {
       res.status(400).send({
-        error: 'That email address is already in use. Please choose another email address.',
-        type: 'email',
+        error:
+          "That email address is already in use. Please choose another email address.",
+        type: "email",
       });
       return;
     }
@@ -145,8 +151,9 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error: 'That phone number is already in use. Please choose another number.',
-          type: 'phoneNumber',
+          error:
+            "That phone number is already in use. Please choose another number.",
+          type: "phoneNumber",
         });
         return;
       }
@@ -159,8 +166,9 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error: 'That name is already in use. Please confirm if you want to use this name.',
-        type: 'name',
+        error:
+          "That name is already in use. Please confirm if you want to use this name.",
+        type: "name",
       });
       return;
     }
@@ -187,15 +195,15 @@ const userProfileController = function (UserProfile) {
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = req.body.createdDate;
     up.email = req.body.email;
-    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummaries = req.body.weeklySummaries || [{ summary: "" }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.weeklySummaryOption = req.body.weeklySummaryOption;
-    up.mediaUrl = req.body.mediaUrl || '';
-    up.collaborationPreference = req.body.collaborationPreference || '';
-    up.timeZone = req.body.timeZone || 'America/Los_Angeles';
+    up.mediaUrl = req.body.mediaUrl || "";
+    up.collaborationPreference = req.body.collaborationPreference || "";
+    up.timeZone = req.body.timeZone || "America/Los_Angeles";
     up.location = req.body.location;
     up.permissions = req.body.permissions;
-    up.bioPosted = req.body.bioPosted || 'default';
+    up.bioPosted = req.body.bioPosted || "default";
     up.isFirstTimelog = true;
 
     up.save()
@@ -217,11 +225,11 @@ const userProfileController = function (UserProfile) {
           lastName: up.lastName,
           email: up.email,
         };
-        const allUserCache = JSON.parse(cache.getCache('allusers'));
+        const allUserCache = JSON.parse(cache.getCache("allusers"));
         allUserCache.push(userCache);
-        cache.setCache('allusers', JSON.stringify(allUserCache));
+        cache.setCache("allusers", JSON.stringify(allUserCache));
       })
-      .catch(error => res.status(501).send(error));
+      .catch((error) => res.status(501).send(error));
   };
 
   const putUserProfile = async function (req, res) {
@@ -230,7 +238,9 @@ const userProfileController = function (UserProfile) {
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
       ((await hasPermission(req.body.requestor.role, "putUserProfile")) ||
         req.body.requestor.requestorId === userid ||
-        req.body.requestor.permissions?.frontPermissions.includes("manageUser"))
+        req.body.requestor.permissions?.frontPermissions.includes(
+          "putUserProfilePermissions"
+        ))
     );
 
     if (!isRequestorAuthorized) {
@@ -309,7 +319,9 @@ const userProfileController = function (UserProfile) {
           req.body.requestor.role,
           "putUserProfileImportantInfo"
         )) ||
-        req.body.requestor.permissions?.frontPermissions.includes("manageUser")
+        req.body.requestor.permissions?.frontPermissions.includes(
+          "putUserProfilePermissions"
+        )
       ) {
         record.role = req.body.role;
         record.isRehireable = req.body.isRehireable;
@@ -383,7 +395,7 @@ const userProfileController = function (UserProfile) {
             "putUserProfilePermissions"
           )) ||
           req.body.requestor.permissions?.frontPermissions.includes(
-            "manageUser"
+            "putUserProfilePermissions"
           )
         ) {
           record.permissions = req.body.permissions;
