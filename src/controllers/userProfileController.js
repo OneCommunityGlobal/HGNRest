@@ -12,7 +12,7 @@ const Badge = require('../models/badge');
 const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -53,8 +53,10 @@ async function ValidatePassword(req, res) {
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
     if (!await hasPermission(req.body.requestor.role, 'getUserProfiles')) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to view all users');
+        return;
+      }
     }
 
     if (cache.getCache('allusers')) {
@@ -105,13 +107,17 @@ const userProfileController = function (UserProfile) {
 
   const postUserProfile = async function (req, res) {
     if (!await hasPermission(req.body.requestor.role, 'postUserProfile')) {
-      res.status(403).send('You are not authorized to create new users');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to create new users');
+        return;
+      }
     }
 
     if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
-      res.status(403).send('You are not authorized to create new owners');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to create new owners');
+        return;
+      }
     }
 
     const userByEmail = await UserProfile.findOne({
@@ -231,13 +237,17 @@ const userProfileController = function (UserProfile) {
     );
 
     if (!isRequestorAuthorized) {
-      res.status(403).send('You are not authorized to update this user');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to update this user');
+        return;
+      }
     }
 
     if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
-      res.status(403).send('You are not authorized to update this user');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to update this user');
+        return;
+      }
     }
 
     cache.removeCache(`user-${userid}`);
@@ -410,13 +420,17 @@ const userProfileController = function (UserProfile) {
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
     if (!await hasPermission(req.body.requestor.role, 'deleteUserProfile')) {
-      res.status(403).send('You are not authorized to delete users');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to delete users');
+        return;
+      }
     }
 
     if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor.role, 'addDeleteEditOwners')) {
-      res.status(403).send('You are not authorized to delete this user');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+        res.status(403).send('You are not authorized to delete this user');
+        return;
+      }
     }
 
     if (
