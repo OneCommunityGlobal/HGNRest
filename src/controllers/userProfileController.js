@@ -52,7 +52,8 @@ async function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getUserProfiles')) {
+    if (!await hasPermission(req.body.requestor.role, 'getUserProfiles') 
+    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagementTab')) {
       if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
         res.status(403).send('You are not authorized to view all users');
         return;
@@ -107,7 +108,8 @@ const userProfileController = function (UserProfile) {
 
   const postUserProfile = async function (req, res) {
     if (!await hasPermission(req.body.requestor.role, 'postUserProfile')) {
-      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement')) {
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagement') 
+        && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeUserManagementTab')) {
         res.status(403).send('You are not authorized to create new users');
         return;
       }
