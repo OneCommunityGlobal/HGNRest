@@ -237,7 +237,7 @@ const userProfileController = function (UserProfile) {
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
       ((await hasPermission(req.body.requestor.role, "putUserProfile")) ||
-        req.body.requestor.requestorId === userid ||
+          req.body.requestor.requestorId === userid ||
         req.body.requestor.permissions?.frontPermissions.includes(
           "putUserProfilePermissions"
         ))
