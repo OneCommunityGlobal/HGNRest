@@ -50,6 +50,7 @@ const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter
 
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile)
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
+const emailRouter = require('../routes/emailRouter')();
 
 
 module.exports = function (app) {
@@ -80,4 +81,5 @@ module.exports = function (app) {
   app.use('/api', reasonRouter)
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
+  app.use('/api', emailRouter);
 };
