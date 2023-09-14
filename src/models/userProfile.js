@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
 const nextDay = new Date();
-nextDay.setDate(nextDay.getDate()+1);
+nextDay.setDate(nextDay.getDate() + 1);
 
 const userProfileSchema = new Schema({
   password: {
@@ -81,7 +81,16 @@ const userProfileSchema = new Schema({
   infringements: [
     { date: { type: String, required: true }, description: { type: String, required: true } },
   ],
-  location: { type: String, default: '' },
+  location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' }
+
+  },
   oldInfringements: [
     { date: { type: String, required: true }, description: { type: String, required: true } },
   ],
@@ -153,12 +162,12 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
-  isFirstTimelog: { type: Boolean, default: true},
+  isFirstTimelog: { type: Boolean, default: true },
   infoCollections: [
     {
- areaName: { type: String },
+      areaName: { type: String },
       areaContent: { type: String },
-  }],
+    }],
 });
 
 userProfileSchema.pre('save', function (next) {
