@@ -59,7 +59,7 @@ function informManagerMessage(user) {
         </tr>
         <tr>
             <td><strong>Location:</strong></td>
-            <td>${user.location}</td>
+            <td>${user.location.userProvided}, ${user.location.country}</td>
         </tr>
     </table> 
     <p>Please check the details provided by the user. If any errors were made, kindly ask them to correct the information accordingly.</p> 
@@ -184,8 +184,8 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                     newUser.bioPosted = 'default';
                     newUser.privacySettings.email = req.body.privacySettings.email
                     newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber
-                    const savedUser = await newUser.save();
 
+                    const savedUser = await newUser.save();
                     emailSender(
                         process.env.MANAGER_EMAIL,
                         'New User Profile Created',
