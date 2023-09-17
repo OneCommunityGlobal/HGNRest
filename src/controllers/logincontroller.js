@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 const userprofile = require('../models/userProfile');
-const escapeRegex = require('../utilities/escapeRegex');
 
 const logincontroller = function () {
   const { JWT_SECRET } = config;
@@ -17,9 +16,8 @@ const logincontroller = function () {
       return;
     }
 
-
     try {
-      const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } })
+      const user = await userprofile.findOne({ email: _email });
 
       // returning 403 if the user not found or the found user is inactive.
       if (!user) {
@@ -27,7 +25,6 @@ const logincontroller = function () {
       } else if (user.isActive === false) {
         res.status(403).send({ message: 'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.' });
       } else {
-
         let isPasswordMatch = false;
         let isNewUser = false;
         if (_password === _defPwd) {
@@ -64,9 +61,9 @@ const logincontroller = function () {
         });
       }
       }
-        } catch (err){
+        } catch (err) {
     console.log(err);
-    res.json(err)
+    res.json(err);
   }
 };
 
