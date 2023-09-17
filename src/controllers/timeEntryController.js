@@ -4,7 +4,7 @@ const { getInfringementEmailBody } = require('../helpers/userHelper')();
 const userProfile = require('../models/userProfile');
 const task = require('../models/task');
 const emailSender = require('../utilities/emailSender');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -106,7 +106,7 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error: `No valid records found for ${req.params.timeEntryId}` });
       }
 
-      if (!(hasPermission(req.body.requestor.role, 'editTimeEntry') || timeEntry.personId.toString() === req.body.requestor.requestorId.toString())) {
+      if (!(await hasPermission(req.body.requestor.role, 'editTimeEntry') || timeEntry.personId.toString() === req.body.requestor.requestorId.toString())) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
@@ -150,7 +150,11 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // Update edit history
-      if (initialSeconds !== totalSeconds && timeEntry.isTangible && req.body.requestor.requestorId === timeEntry.personId.toString() && !hasPermission(req.body.requestor.role, 'editTimeEntry')) {
+      if (initialSeconds !== totalSeconds
+        && timeEntry.isTangible
+        && req.body.requestor.requestorId === timeEntry.personId.toString()
+        && !await hasPermission(req.body.requestor.role, 'editTimeEntry')
+        ) {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
@@ -412,7 +416,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -443,14 +447,14 @@ const timeEntrycontroller = function (TimeEntry) {
       .catch(error => res.status(400).send(error));
   };
 
-  const deleteTimeEntry = function (req, res) {
+  const deleteTimeEntry = async function (req, res) {
     if (!req.params.timeEntryId) {
       res.status(400).send({ error: 'Bad request' });
       return;
     }
 
     TimeEntry.findById(req.params.timeEntryId)
-      .then((record) => {
+      .then(async (record) => {
         if (!record) {
           res.status(400).send({ message: 'No valid record found' });
           return;
@@ -459,7 +463,7 @@ const timeEntrycontroller = function (TimeEntry) {
         if (
           record.personId.toString()
             === req.body.requestor.requestorId.toString()
-          || hasPermission(req.body.requestor.role, 'deleteTimeEntry')
+          || await hasPermission(req.body.requestor.role, 'deleteTimeEntry')
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
           if (record.isTangible === true) {
@@ -489,6 +493,7 @@ const timeEntrycontroller = function (TimeEntry) {
         res.status(400).send(error);
       });
   };
+
 
   return {
     getAllTimeEnteries,

@@ -2,12 +2,12 @@ const mongoose = require('mongoose');
 const moment = require('moment');
 const projects = require('../models/project');
 const wbs = require('../models/wbs');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 const inventoryController = function (Item, ItemType) {
-  const getAllInvInProjectWBS = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'getAllInvInProjectWBS')) {
+  const getAllInvInProjectWBS = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'getAllInvInProjectWBS')) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.params.projectId and wbsId
@@ -40,7 +40,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const postInvInProjectWBS = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'postInvInProjectWBS')) {
+    if (!await hasPermission(req.body.requestor.role, 'postInvInProjectWBS')) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.body.projectId and req.body.wbsId req.body.quantity,
@@ -107,8 +107,8 @@ const inventoryController = function (Item, ItemType) {
   };
 
 
-  const getAllInvInProject = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'getAllInvInProject')) {
+  const getAllInvInProject = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'getAllInvInProject')) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // same as getAllInvInProjectWBS but just using only the project to find the items of inventory
@@ -140,7 +140,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const postInvInProject = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'postInvInProject')) {
+    if (!await hasPermission(req.body.requestor.role, 'postInvInProject')) {
       return res.status(403).send('You are not authorized to post new inventory data.');
     }
     // same as posting an item inProjectWBS but the WBS is uanassigned(i.e. null)
@@ -194,7 +194,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const transferInvById = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'transferInvById')) {
+    if (!await hasPermission(req.body.requestor.role, 'transferInvById')) {
       return res.status(403).send('You are not authorized to transfer inventory data.');
     }
     // This function transfer inventory by id
@@ -283,7 +283,7 @@ const inventoryController = function (Item, ItemType) {
 
 
   const delInvById = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'delInvById')) {
+    if (!await hasPermission(req.body.requestor.role, 'delInvById')) {
       return res.status(403).send('You are not authorized to waste inventory.');
     }
     // send result just sending something now to have it work and not break anything
@@ -372,7 +372,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const unWasteInvById = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'unWasteInvById')) {
+    if (!await hasPermission(req.body.requestor.role, 'unWasteInvById')) {
       return res.status(403).send('You are not authorized to unwaste inventory.');
     }
     const properUnWaste = await Item.findOne({ _id: req.params.invId, quantity: { $gte: req.body.quantity }, wasted: true }).select('_id').lean();
@@ -452,8 +452,8 @@ const inventoryController = function (Item, ItemType) {
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned');
   };
 
-  const getInvIdInfo = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'getInvIdInfo')) {
+  const getInvIdInfo = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'getInvIdInfo')) {
       return res.status(403).send('You are not authorized to get inventory by id.');
     }
     // req.params.invId
@@ -464,8 +464,8 @@ const inventoryController = function (Item, ItemType) {
       .catch(error => res.status(404).send(error));
   };
 
-  const putInvById = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'putInvById')) {
+  const putInvById = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'putInvById')) {
       return res.status(403).send('You are not authorized to edit inventory by id.');
     }
     // update the inv by id.
@@ -492,8 +492,8 @@ const inventoryController = function (Item, ItemType) {
     });
   };
 
-  const getInvTypeById = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'getInvTypeById')) {
+  const getInvTypeById = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'getInvTypeById')) {
       return res.status(403).send('You are not authorized to get inv type by id.');
     }
     // send result just sending something now to have it work and not break anything
@@ -503,8 +503,8 @@ const inventoryController = function (Item, ItemType) {
       .catch(error => res.status(404).send(error));
   };
 
-  const putInvType = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'putInvType')) {
+  const putInvType = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'putInvType')) {
       return res.status(403).send('You are not authorized to edit an inventory type.');
     }
     const { typeId } = req.params;
@@ -526,8 +526,8 @@ const inventoryController = function (Item, ItemType) {
     });
   };
 
-  const getAllInvType = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'getAllInvType')) {
+  const getAllInvType = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'getAllInvType')) {
       return res.status(403).send('You are not authorized to get all inventory.');
     }
     // send result just sending something now to have it work and not break anything
@@ -536,8 +536,8 @@ const inventoryController = function (Item, ItemType) {
       .catch(error => res.status(404).send(error));
   };
 
-  const postInvType = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'postInvType')) {
+  const postInvType = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'postInvType')) {
       return res.status(403).send('You are not authorized to save an inventory type.');
     }
     return ItemType.find({ name: { $regex: escapeRegex(req.body.name), $options: 'i' } })

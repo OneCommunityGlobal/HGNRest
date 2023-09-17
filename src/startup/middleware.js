@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 
+
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
     if (req.originalUrl === '/') {
@@ -21,11 +22,15 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' || req.originalUrl === '/api/getTimeZoneAPIKeyByToken' && req.method === 'POST'
+    ) {
+      next();
+      return;
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
     }
-
     const authToken = req.header(config.REQUEST_AUTHKEY);
 
     let payload = '';
