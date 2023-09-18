@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'seeBadges')) {
+    if (!await hasPermission(req.body.requestor.role, 'seeBadges') && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeBadgeManagementTab')) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -57,7 +57,7 @@ const badgeController = function (Badge) {
   };
 
   const postBadge = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'createBadges')) {
+    if (!await hasPermission(req.body.requestor.role, 'createBadges') && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeBadgeManagementTab')) {
       res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
