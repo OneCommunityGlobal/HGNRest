@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'seeBadges')) {
+    if (!await hasPermission(req.body.requestor.role, 'seeBadges') && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeBadges')) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
