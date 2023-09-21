@@ -19,7 +19,6 @@ const findLatestRelatedLog = (roleId) => {
           reject(err);
           return;
         }
-        console.log("🚀 ~ file: logPermissionChangeByAccount.js:20 ~ .exec ~ document:", document);
         resolve(document);
       });
   })
@@ -36,15 +35,10 @@ const logPermissionChangeByAccount = async (requestBody) => {
 
     // Find the latest log related to permission
     const document = await findLatestRelatedLog(roleId)
-    console.log("🚀 ~ file: logPermissionChangeByAccount.js:36 ~ logPermissionChangeByAccount ~ document:", document)
 
     if (document) {
-      // console.log(document);
-      console.log("🚀 ~ file: logPermissionChangeByAccount.js:29 ~ .exec ~ document:", document)
       permissionsRemoved = document.permissions.filter(item => !(permissions.includes(item)))
-      console.log("🚀 ~ file: logPermissionChangeByAccount.js:31 ~ .exec ~ permissionsRemoved:", permissionsRemoved)
       permissionsAdded = permissions.filter(item => !(document.permissions.includes(item)))
-      console.log("🚀 ~ file: logPermissionChangeByAccount.js:33 ~ .exec ~ permissionsAdded:", permissionsAdded)
     } else {
       // else this is the first permissions change log for this particular role
       permissionsAdded = permissions
@@ -62,8 +56,6 @@ const logPermissionChangeByAccount = async (requestBody) => {
       requestorRole: role,
       requestorEmail: email,
     })
-      
-    console.log("🚀 ~ file: logPermissionChangeByAccount.js:46 ~ .exec ~ logEntry:", logEntry)
 
     await logEntry.save()
 

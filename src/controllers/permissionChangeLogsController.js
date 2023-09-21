@@ -1,10 +1,25 @@
-const permissionChangeLogController = function (PermissionChangeLog) {
-  const getPermissionChangeLogs = async function (req, res) {
-    // Check if user is Owner here. Skipped for now.
+const UserProfile = require('../models/userProfile');
 
-    const changeLogs = await PermissionChangeLog.find({})
-    console.log("🚀 ~ file: permissionChangeLogsController.js:8 ~ getPermissionChangeLogs ~ changeLogs:", changeLogs)
-    res.status(200).send(changeLogs)
+const permissionChangeLogController = function (PermissionChangeLog) {
+
+  const getPermissionChangeLogs = async function (req, res) {
+
+    try {
+      const userProfile = await UserProfile.findOne({ _id: req.params.userId }).exec()
+
+      if (userProfile) {
+        if (userProfile.role !== 'Owner') {
+          res.status(204).send([])
+        } else {
+          const changeLogs = await PermissionChangeLog.find({})
+          res.status(200).send(changeLogs)
+        }
+      } else {
+        res.status(403).send(`User (${req.params.userId}) not found.`)
+      }
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return {

@@ -5,7 +5,7 @@ const routes = function (permissionChangeLog) {
 
   const permissionChangeLogRouter = express.Router()
 
-  permissionChangeLogRouter.route("/permissionChangeLogs")
+  permissionChangeLogRouter.route("/permissionChangeLogs/:userId")
   .get(controller.getPermissionChangeLogs)
 
   return permissionChangeLogRouter
