@@ -13,6 +13,8 @@ const PermissionChangeLog = new Schema({
   },
   roleName: { type: String },
   permissions: { type: [String], required: true },
+  permissionsAdded: { type: [String], required: true },
+  permissionsRemoved: { type: [String], required: true },
   requestorId: { 
     type: mongoose.Types.ObjectId,
     ref: User
