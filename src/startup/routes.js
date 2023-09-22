@@ -20,6 +20,7 @@ const ownerStandardMessage = require('../models/ownerStandardMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
+const mapLocations = require('../models/mapLocation');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -53,6 +54,8 @@ const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
+const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -83,4 +86,5 @@ module.exports = function (app) {
   app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
+  app.use('/api', mapLocationRouter);
 };
