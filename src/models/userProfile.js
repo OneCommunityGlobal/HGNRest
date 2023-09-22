@@ -156,8 +156,9 @@ const userProfileSchema = new Schema({
   isFirstTimelog: { type: Boolean, default: true},
   teamCode: { type: String, default: '' },
   infoCollections: [
-    { areaName:{type: String},
-      areaContent:{type:String},
+    {
+ areaName: { type: String },
+      areaContent: { type: String },
   }],
 });
 

@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 
 const badgeController = function (Badge) {
-  const getAllBadges = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'seeBadges')) {
+  const getAllBadges = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'seeBadges') && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeBadges')) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -26,7 +26,7 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'assignBadges')) {
+    if (!await hasPermission(req.body.requestor.role, 'assignBadges')) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
     }
@@ -56,8 +56,8 @@ const badgeController = function (Badge) {
     });
   };
 
-  const postBadge = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'createBadges')) {
+  const postBadge = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'createBadges')) {
       res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
@@ -90,8 +90,8 @@ const badgeController = function (Badge) {
       });
   };
 
-  const deleteBadge = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'deleteBadges')) {
+  const deleteBadge = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'deleteBadges')) {
       res.status(403).send({ error: 'You are not authorized to delete badges.' });
       return;
     }
@@ -111,8 +111,8 @@ const badgeController = function (Badge) {
       .catch((error) => { res.status(500).send(error); });
   };
 
-  const putBadge = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'updateBadges')) {
+  const putBadge = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'updateBadges')) {
       res.status(403).send({ error: 'You are not authorized to update badges.' });
       return;
     }
