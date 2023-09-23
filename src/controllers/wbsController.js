@@ -1,4 +1,4 @@
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
@@ -10,8 +10,8 @@ const wbsController = function (WBS) {
       .catch(error => res.status(404).send(error));
   };
 
-  const postWBS = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'postWbs')) {
+  const postWBS = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'postWbs')) {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
     }
@@ -33,8 +33,8 @@ const wbsController = function (WBS) {
       .catch(error => res.status(500).send({ error }));
   };
 
-  const deleteWBS = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'deleteWbs')) {
+  const deleteWBS = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'deleteWbs')) {
       res.status(403).send({ error: 'You are  not authorized to delete projects.' });
       return;
     }

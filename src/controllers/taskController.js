@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -389,8 +389,8 @@ const taskController = function (Task) {
     return tasksFromSameLevelArr.flat();
   };
 
-  const importTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'importTask')) {
+  const importTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'importTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -419,8 +419,8 @@ const taskController = function (Task) {
     res.status(201).send('done');
   };
 
-  const postTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'postTask')) {
+  const postTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'postTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -455,8 +455,8 @@ const taskController = function (Task) {
       });
   };
 
-  const updateNum = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'updateNum')) {
+  const updateNum = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'updateNum')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -592,7 +592,14 @@ const taskController = function (Task) {
     });
   };
 
-  const deleteTask = (req, res) => {
+  const deleteTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
+      res
+        .status(403)
+        .send({ error: 'You are not authorized to deleteTasks.' });
+      return;
+    }
+
     const { taskId } = req.params;
     const { mother } = req.params;
 
@@ -634,7 +641,14 @@ const taskController = function (Task) {
     .catch(errors => res.status(400).send(errors));
   };
 
-  const deleteTaskByWBS = (req, res) => {
+  const deleteTaskByWBS = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
+      res
+        .status(403)
+        .send({ error: 'You are not authorized to deleteTasks.' });
+      return;
+    }
+
     const { wbsId } = req.params;
 
     Task.find({ wbsId: { $in: [wbsId] } }, (error, record) => {
@@ -658,8 +672,8 @@ const taskController = function (Task) {
     });
   };
 
-  const updateTask = (req, res) => {
-    if (!hasPermission(req.body.requestor.role, 'updateTask')) {
+  const updateTask = async (req, res) => {
+    if (!await hasPermission(req.body.requestor.role, 'updateTask')) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
     }
@@ -674,8 +688,8 @@ const taskController = function (Task) {
       .catch(error => res.status(404).send(error));
   };
 
-  const swap = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'swapTask')) {
+  const swap = async function (req, res) {
+    if (!await hasPermission(req.body.requestor.role, 'swapTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -732,22 +746,39 @@ const taskController = function (Task) {
     });
   };
 
-  const getTaskById = function (req, res) {
-    const taskId = req.params.id;
-    Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
-      .then((results) => {
-        if (!results) {
-          res.status(400).send({ error: 'This is not a valid task' });
-          return;
+  const getTaskById = async (req, res) => {
+    try {
+        const taskId = req.params.id;
+
+        // Ensure the task ID is provided
+        if (!taskId || taskId === 'undefined') {
+            return res.status(400).send({ error: 'Task ID is missing' });
         }
-        timeEntryHelper
-          .getAllHoursLoggedForSpecifiedProject(taskId)
-          .then((hours) => {
-            results.set('hoursLogged', hours, { strict: false });
-            res.status(200).send(results);
-          });
-      })
-      .catch(error => res.status(404).send(error));
+
+        const task = await Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime');
+
+        if (!task) {
+            return res.status(400).send({ error: 'This is not a valid task' });
+        }
+
+        const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId);
+        task.set('hoursLogged', hoursLogged, { strict: false });
+
+        // Fetch the resource names for all resources
+        const resourceNamesPromises = task.resources.map(resource => taskHelper.getUserProfileFirstAndLastName(resource.userID));
+        const resourceNames = await Promise.all(resourceNamesPromises);
+
+        // Update the task's resources with the fetched names
+        task.resources.forEach((resource, index) => {
+            resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
+        });
+
+        res.status(200).send(task);
+
+    } catch (error) {
+        // Generic error message, you can adjust as needed
+        res.status(500).send({ error: 'Internal Server Error', details: error.message });
+    }
   };
 
   const updateAllParents = (req, res) => {
