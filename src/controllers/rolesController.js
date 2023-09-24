@@ -10,8 +10,11 @@ const rolesController = function (Role) {
   };
 
   const createNewRole = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'postRole')) {
-      res.status(403).send('You are not authorized to create new roles.');
+    if (
+      !(await hasPermission(req.body.requestor.role, "postRole")) &&
+      !req.body.requestor.permissions?.frontPermissions.includes("postRole")
+    ) {
+      res.status(403).send("You are not authorized to create new roles.");
       return;
     }
 
