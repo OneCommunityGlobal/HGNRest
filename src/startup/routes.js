@@ -29,7 +29,9 @@ const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
 const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
-const notificationRouter = require('../routes/notificationRouter')(notification);
+const notificationRouter = require('../routes/notificationRouter')(
+  notification,
+);
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
@@ -38,16 +40,27 @@ const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
 const timerRouter = require('../routes/timerRouter')(timer);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
-const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
-const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
-const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
+const popupBackupRouter = require('../routes/popupEditorBackupRouter')(
+  popupBackup,
+);
+const taskNotificationRouter = require('../routes/taskNotificationRouter')(
+  taskNotification,
+);
+const inventoryRouter = require('../routes/inventoryRouter')(
+  inventoryItem,
+  inventoryItemType,
+);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project);
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
-const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
+const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(
+  taskEditSuggestion,
+);
 const roleRouter = require('../routes/roleRouter')(role);
-const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
+const ownerMessageRouter = require('../routes/ownerMessageRouter')(
+  ownerMessage,
+);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
 
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);

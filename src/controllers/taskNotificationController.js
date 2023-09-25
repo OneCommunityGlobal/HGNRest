@@ -72,7 +72,6 @@ const taskNotificationController = function (TaskNotification) {
       .populate('taskId')
       .exec((err, result) => {
         if (err) {
-          console.log(err);
           res.status(400).send(err);
         }
         result

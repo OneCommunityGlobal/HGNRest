@@ -156,7 +156,9 @@ const userHelper = function () {
         // hence totalSeconds[0] should be used
         const hoursLogged = result.totalSeconds[0] / 3600 || 0;
 
-        const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+        const mediaUrlLink = mediaUrl
+          ? `<a href="${mediaUrl}">${mediaUrl}</a>`
+          : "Not provided!";
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
         const colorStyle = (() => {
@@ -818,7 +820,7 @@ const userHelper = function () {
   const changeBadgeCount = async function (personId, badgeId, count) {
     if (count === 0) {
       removeDupBadge(personId, badgeId);
-    } else if (count) {
+    } else {
       userProfile.updateOne(
         { _id: personId, "badgeCollection.badge": badgeId },
         {
@@ -896,8 +898,11 @@ const userHelper = function () {
   const checkNoInfringementStreak = async function (personId, user, badgeCollection) {
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'No Infringement Streak') {
-        if (badgeOfType && badgeOfType.months <= badgeCollection[i].badge.months) {
+      if (badgeCollection[i].badge?.type === "No Infringement Streak") {
+        if (
+          badgeOfType &&
+          badgeOfType.months <= badgeCollection[i].badge.months
+        ) {
           removeDupBadge(personId, badgeOfType._id);
           badgeOfType = badgeCollection[i].badge;
         } else if (badgeOfType && badgeOfType.months > badgeCollection[i].badge.months) {
@@ -996,7 +1001,7 @@ const userHelper = function () {
       .map(obj => obj.badge)
       .filter(badge => badge.type === 'Minimum Hours Multiple')
     await badge
-      .find({ type: 'Minimum Hours Multiple' })
+      .find({ type: "Minimum Hours Multiple" })
       .sort({ multiple: -1 })
       .then((results) => {
         if (!Array.isArray(results) || !results.length) {
@@ -1223,7 +1228,7 @@ const userHelper = function () {
       _id: personId
     }).then(results => {
       if (results) {
-        teamMembers = results.myteam;
+        teamMembers = results.myTeam;
       } else {
         teamMembers = [];
       }
@@ -1238,6 +1243,7 @@ const userHelper = function () {
 
       return true;
     });
+
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
 
@@ -1253,6 +1259,7 @@ const userHelper = function () {
         }
       }
     }
+
     await badge
       .find({ type: "Lead a team of X+" })
       .sort({ people: -1 })
@@ -1260,8 +1267,9 @@ const userHelper = function () {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
-        results.every((badge) => {
-          if (teamMembers && teamMembers.length >= badge.people) {
+
+        results.every((elem) => {
+          if (teamMembers && teamMembers.length >= elem.people) {
             if (badgeOfType) {
               if (
                 badgeOfType._id.toString() !== badge._id.toString()
@@ -1278,7 +1286,7 @@ const userHelper = function () {
               }
               return false;
             }
-            addBadge(personId, mongoose.Types.ObjectId(badge._id));
+            addBadge(personId, mongoose.Types.ObjectId(elem._id));
             return false;
           }
           return true;

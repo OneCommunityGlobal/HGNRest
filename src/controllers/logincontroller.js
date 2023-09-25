@@ -31,28 +31,29 @@ const logincontroller = function () {
           isNewUser = true;
         }
 
-        isPasswordMatch = await bcrypt.compare(_password, user.password);
+    isPasswordMatch = await bcrypt.compare(_password, user.password);
 
-        if (!isPasswordMatch && user.resetPwd !== '') {
-          isPasswordMatch = (_password === user.resetPwd);
-          isNewUser = true;
-        }
+    if (!isPasswordMatch && user.resetPwd !== '') {
+      isPasswordMatch = (_password === user.resetPwd);
+      isNewUser = true;
+    }
 
-      if (isNewUser && isPasswordMatch) {
-        const result = {
-          new: true,
-          userId: user._id,
-        };
-        res.send(result).status(200);
-      } else if (isPasswordMatch && !isNewUser) {
-        const jwtPayload = {
-          userid: user._id,
-          role: user.role,
-          permissions: user.permissions,
-          expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
-        };
+    if (isNewUser && isPasswordMatch) {
+      const result = {
+        new: true,
+        userId: user._id,
+      };
+      res.send(result).status(200);
+    } else if (isPasswordMatch && !isNewUser) {
+      const jwtPayload = {
+        userid: user._id,
+        role: user.role,
+        permissions: user.permissions,
+        expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+      };
 
-        const token = jwt.sign(jwtPayload, JWT_SECRET);
+
+      const token = jwt.sign(jwtPayload, JWT_SECRET);
 
         res.send({ token }).status(200);
       } else {
