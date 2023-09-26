@@ -184,6 +184,7 @@ const profileInitialSetupController = function (ProfileInitialSetupToken, userPr
                     newUser.bioPosted = 'default';
                     newUser.privacySettings.email = req.body.privacySettings.email
                     newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber
+                    newUser.teamCode = '';
                     const savedUser = await newUser.save();
 
                     emailSender(
