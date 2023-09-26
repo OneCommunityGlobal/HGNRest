@@ -1,14 +1,18 @@
 const Role = require('../models/role');
-const UserProfile =  require('../models/userProfile');
+const UserProfile = require('../models/userProfile');
 
-const hasPermission = async (role, action) => Role.findOne({ roleName: role })
-    .exec()
-    .then(({ permissions }) => permissions.includes(action));
+
+const hasRolePermission = async (role, action) => Role.findOne({ roleName: role })
+  .exec()
+  .then(({ permissions }) => permissions.includes(action));
 
 const hasIndividualPermission = async (userId, action) => UserProfile.findById(userId)
   .select('permissions')
   .exec()
   .then(({ permissions }) => permissions.frontPermissions.includes(action));
+
+
+const hasPermission = async (requestor, action) => hasRolePermission(requestor.role, action) || hasIndividualPermission(requestor.requestorId, action);
 
 const canRequestorUpdateUser = (requestorId, userId) => {
   const allowedIds = ['63feae337186de1898fa8f51', // dev jae@onecommunityglobal.org
@@ -29,4 +33,4 @@ const canRequestorUpdateUser = (requestorId, userId) => {
   return !(protectedIds.includes(userId) && !allowedIds.includes(requestorId));
 };
 
-module.exports = { hasPermission, hasIndividualPermission, canRequestorUpdateUser };
+module.exports = { hasPermission, canRequestorUpdateUser };
