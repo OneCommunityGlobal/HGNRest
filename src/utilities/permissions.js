@@ -11,8 +11,7 @@ const hasIndividualPermission = async (userId, action) => UserProfile.findById(u
   .exec()
   .then(({ permissions }) => permissions.frontPermissions.includes(action));
 
-
-const hasPermission = async (requestor, action) => hasRolePermission(requestor.role, action) || hasIndividualPermission(requestor.requestorId, action);
+const hasPermission = async (requestor, action) => await hasRolePermission(requestor.role, action) || hasIndividualPermission(requestor.requestorId, action);
 
 const canRequestorUpdateUser = (requestorId, userId) => {
   const allowedIds = ['63feae337186de1898fa8f51', // dev jae@onecommunityglobal.org
