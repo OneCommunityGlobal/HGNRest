@@ -809,6 +809,9 @@ const userProfileController = function (UserProfile) {
       userid: user._id,
       role: user.role,
       permissions: user.permissions,
+      access: {
+        canAccessBMPortal: false,
+      },
       expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
     };
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
