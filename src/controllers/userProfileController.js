@@ -2,6 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const axios = require('axios')
 
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
@@ -121,12 +122,54 @@ const userProfileController = function (UserProfile) {
       },
     });
 
+
     if (userByEmail) {
       res.status(400).send({
         error: 'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
+    }
+
+    // In dev environment, Check if email exists in beta email
+    if (process.env.dbName === 'hgnData_dev') {
+      console.log("🚀 ~ file: userProfileController.js:135 ~ postUserProfile ~ Inside dev environment:")
+
+      const email = "devadmin@hgn.net"
+      const password = "DeveloperPassword100%!"
+      const url = "https://hgn-rest-dev.azurewebsites.net/api/"
+      try {
+        // log in with axios
+        let response = await axios.post(url + "login", {
+          email: email,
+          password: password
+        })
+        console.log("🚀 ~ file: userProfileController.js:146 ~ postUserProfile ~ response.data:", response.data)
+        const token = response.data.token
+
+        response = await axios.get(url + "userprofile", {
+          headers: {
+            Authorization: token
+          }
+        })
+        const userProfiles = response.data
+        const emails = userProfiles.map(profile => profile.email)
+        console.log("🚀 ~ file: userProfileController.js:156 ~ postUserProfile ~ emails:", emails)
+
+
+        // Check if email entered is in this list of real emails
+        if (!(emails.includes(email))) {
+          console.log("🚀 ~ file: userProfileController.js:163 ~ postUserProfile ~ email is NOT in emails")
+          res.status(400).send({
+            error: 'That email address does not match a real email address in the beta database. Please enter a real email address associated with an account in the beta database.',
+            type: 'email',
+          });
+          return;
+        }
+      } catch (error) {
+        console.log("🚀 ~ file: userProfileController.js:147 ~ postUserProfile ~ error:", error)
+      }
+
     }
 
     /** *
@@ -814,6 +857,19 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
+  const getUserEmails = async (req, res) => {
+    try {
+      const userProfiles = await UserProfile.find({}, 'email').lean();
+      const userEmails = userProfiles.map(profile => profile.email)
+      console.log("🚀 ~ file: userProfileController.js:821 ~ getUserEmails ~ userEmails:", userEmails)
+      res.status(200).send(userEmails);
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Internal Server Error');
+    }
+  };
+  
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -831,6 +887,7 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
+    getUserEmails,
   };
 };
 
