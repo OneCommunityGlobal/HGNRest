@@ -10,6 +10,9 @@ const routes = function (userProfile) {
     .get(controller.getUserProfiles)
     .post(controller.postUserProfile);
 
+  userProfileRouter.route('/userProfile/emails')
+    .get(controller.getUserEmails)
+
   userProfileRouter.route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(controller.putUserProfile)
