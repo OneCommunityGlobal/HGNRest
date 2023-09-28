@@ -154,6 +154,7 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true},
+  teamCode: { type: String, default: '' },
   infoCollections: [
     {
  areaName: { type: String },
