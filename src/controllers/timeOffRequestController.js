@@ -1,146 +1,146 @@
-const mongoose = require('mongoose');
-const moment = require('moment');
+const mongoose = require("mongoose");
+const moment = require("moment-timezone");
 
 const timeOffRequestController = function (TimeOffRequest) {
-    const setTimeOffRequest = async (req, res) => {
-        const { duration, startingDate, reason, requestFor } = req.body
-        if (!duration || !startingDate || !reason || !requestFor) {
-            res.status(400).send("bad request")
-            return;
-        }
-        try {
-            const startDate = moment(startingDate, 'MM/DD/YY');
+  const setTimeOffRequest = async (req, res) => {
+    const { duration, startingDate, reason, requestFor } = req.body;
+    if (!duration || !startingDate || !reason || !requestFor) {
+      res.status(400).send("bad request");
+      return;
+    }
+    moment.tz.setDefault("America/Los_Angeles");
 
-            const endDate = startDate.clone().add(Number(duration), 'weeks');
+    const startDate = moment(startingDate);
+    const endDate = startDate.clone().add(Number(duration), "weeks");
 
-            const endingDate = endDate.format('MM/DD/YY');
+    const newTimeOffRequest = new TimeOffRequest();
 
-            const newTimeOffRequest = new TimeOffRequest();
+    newTimeOffRequest.requestFor = mongoose.Types.ObjectId(requestFor);
+    newTimeOffRequest.reason = reason;
+    newTimeOffRequest.startingDate = startDate.toDate();
+    newTimeOffRequest.endingDate = endDate.toDate();
+    newTimeOffRequest.duration = Number(duration);
 
-            newTimeOffRequest.requestFor = mongoose.Types.ObjectId(requestFor)
-            newTimeOffRequest.reason = reason
-            newTimeOffRequest.startingDate = new Date(startingDate)
-            newTimeOffRequest.endingDate = new Date(endingDate)
-            newTimeOffRequest.duration = Number(duration)
+    try {
+      const savedRequest = await newTimeOffRequest.save();
+      res.status(201).send(savedRequest);
+    } catch (error) {
+      res.status(500).send("Error saving the request.");
+    }
+  };
 
-            const savedRequest = await newTimeOffRequest.save();
-            res.status(201).send(savedRequest)
-        } catch (error) {
-            console.log(error)
-            res.status(500).send(error)
-        }
+  const getTimeOffRequests = async (req, res) => {
+    try {
+      const allRequests = await TimeOffRequest.aggregate([
+        {
+          $sort: { requestFor: 1 }, // Sort by requestFor in ascending order
+        },
+        {
+          $group: {
+            _id: "$requestFor",
+            requests: { $push: "$$ROOT" }, // Group requests by requestFor
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            requestFor: "$_id",
+            requests: 1,
+          },
+        },
+      ]);
 
+      const formattedRequests = {};
+      allRequests.forEach((request) => {
+        formattedRequests[request.requestFor] = request.requests;
+      });
+
+      res.status(200).send(formattedRequests);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const getTimeOffRequestbyId = async (req, res) => {
+    const requestId = req.params.id;
+
+    try {
+      const request = await TimeOffRequest.findById(requestId);
+
+      if (!request) {
+        res.status(404).send("Time off request not found");
+        return;
+      }
+
+      res.status(200).send(request);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const updateTimeOffRequestById = async (req, res) => {
+    const requestId = req.params.id;
+    const { duration, startingDate, reason } = req.body;
+    if (!duration || !startingDate || !reason || !requestId) {
+      res.status(400).send("bad request");
+      return;
+    }
+    moment.tz.setDefault("America/Los_Angeles");
+
+    const startDate = moment(startingDate);
+    const endDate = startDate.clone().add(Number(duration), "weeks");
+
+    const updateData = {
+      reason: reason,
+      startingDate: startDate.toDate(),
+      endingDate: endDate.toDate(),
+      duration: duration,
     };
 
-    const getTimeOffRequests = async (req, res) => {
-        try {
-            const allRequests = await TimeOffRequest.aggregate([
-                {
-                    $sort: { requestFor: 1 } // Sort by requestFor in ascending order
-                },
-                {
-                    $group: {
-                        _id: "$requestFor",
-                        requests: { $push: "$$ROOT" } // Group requests by requestFor
-                    }
-                },
-                {
-                    $project: {
-                        _id: 0,
-                        requestFor: "$_id",
-                        requests: 1
-                    }
-                }
-            ]);
-
-            const formattedRequests = {};
-            allRequests.forEach(request => {
-                formattedRequests[request.requestFor] = request.requests;
-            });
-
-            res.status(200).send(formattedRequests);
-        } catch (error) {
-            res.status(500).send(error);
+    try {
+      const updatedRequest = await TimeOffRequest.findByIdAndUpdate(
+        requestId,
+        updateData,
+        {
+          new: true,
         }
-    };
+      );
 
-    const getTimeOffRequestbyId = async (req, res) => {
-        const requestId = req.params.id;
+      if (!updatedRequest) {
+        res.status(404).send("Time off request not found");
+        return;
+      }
 
-        try {
-            const request = await TimeOffRequest.findById(requestId);
+      res.status(200).send(updatedRequest);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
 
-            if (!request) {
-                res.status(404).send('Time off request not found');
-                return;
-            }
+  const deleteTimeOffRequestById = async (req, res) => {
+    const requestId = req.params.id;
 
-            res.status(200).send(request);
-        } catch (error) {
-            res.status(500).send(error);
-        }
-    };
+    try {
+      const deletedRequest = await TimeOffRequest.findByIdAndDelete(requestId);
 
-    const updateTimeOffRequestById = async (req, res) => {
-        const requestId = req.params.id;
-        const { duration, startingDate, reason } = req.body
-        if (!duration || !startingDate || !reason || !requestId) {
-            res.status(400).send("bad request")
-            return;
-        }
-        const startDate = moment(startingDate, 'MM/DD/YY');
+      if (!deletedRequest) {
+        res.status(404).send("Time off request not found");
+        return;
+      }
 
-        const endDate = startDate.clone().add(Number(duration), 'weeks');
+      res.status(200).send(deletedRequest);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
 
-        const endingDate = endDate.format('MM/DD/YY');
-
-        const updateData = {
-            reason: reason,
-            startingDate: new Date(startingDate),
-            endingDate: new Date(endingDate),
-            duration: duration,
-        };
-
-        try {
-            const updatedRequest = await TimeOffRequest.findByIdAndUpdate(requestId, updateData, {
-                new: true,
-            });
-
-            if (!updatedRequest) {
-                res.status(404).send('Time off request not found');
-                return;
-            }
-
-            res.status(200).send(updatedRequest);
-        } catch (error) {
-            res.status(500).send(error);
-        }
-    };
-
-    const deleteTimeOffRequestById = async (req, res) => {
-        const requestId = req.params.id;
-
-        try {
-            const deletedRequest = await TimeOffRequest.findByIdAndDelete(requestId);
-
-            if (!deletedRequest) {
-                res.status(404).send('Time off request not found');
-                return;
-            }
-
-            res.status(200).send(deletedRequest);
-        } catch (error) {
-            res.status(500).send(error);
-        }
-    };
-
-    return {
-        setTimeOffRequest,
-        getTimeOffRequests,
-        getTimeOffRequestbyId,
-        updateTimeOffRequestById,
-        deleteTimeOffRequestById
-    };
+  return {
+    setTimeOffRequest,
+    getTimeOffRequests,
+    getTimeOffRequestbyId,
+    updateTimeOffRequestById,
+    deleteTimeOffRequestById,
+  };
 };
 
 module.exports = timeOffRequestController;
