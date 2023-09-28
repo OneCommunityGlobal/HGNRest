@@ -29,7 +29,7 @@ const rolePresetsController = function (Preset) {
     preset.presetName = req.body.presetName;
     preset.permissions = req.body.permissions;
     preset.save()
-      .then(res.status(200).send({ message: 'New preset created' }))
+      .then(result => res.status(201).send({ newPreset: result, message: 'New preset created' }))
       .catch(error => res.status(400).send({ error }));
   };
 
@@ -46,7 +46,7 @@ const rolePresetsController = function (Preset) {
         record.presetName = req.body.presetName;
         record.permissions = req.body.permissions;
         record.save()
-        .then(results => res.status(201).send(results))
+        .then(results => res.status(200).send(results))
         .catch(errors => res.status(400).send(errors));
       })
       .catch(error => res.status(400).send({ error }));
