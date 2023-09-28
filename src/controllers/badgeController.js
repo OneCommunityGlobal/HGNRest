@@ -6,8 +6,10 @@ const escapeRegex = require('../utilities/escapeRegex');
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
     if (!await hasPermission(req.body.requestor.role, 'seeBadges') && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeBadges')) {
-      res.status(403).send('You are not authorized to view all badge data.');
-      return;
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeOnlyWeeklySummariesReports')) {
+        res.status(403).send('You are not authorized to view all badge data.');
+        return;
+      }
     }
 
     Badge.find(
