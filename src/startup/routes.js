@@ -53,6 +53,9 @@ const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
+// bm dashboard
+const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -79,8 +82,10 @@ module.exports = function (app) {
   app.use('/api', roleRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
-  app.use('/api', profileInitialSetupRouter)
+  app.use('/api', profileInitialSetupRouter);
   app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
+  // bm dashboard
+  app.use('/api/bm', bmLoginRouter);
 };
