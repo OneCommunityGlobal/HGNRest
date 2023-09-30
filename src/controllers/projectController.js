@@ -65,7 +65,7 @@ const projectController = function (Project) {
         const _project = new Project();
 
         _project.projectName = req.body.projectName;
-        _project.category = req.body.category || 'Unspecified';
+        _project.category = req.body.projectCategory || 'Unspecified';
         _project.isActive = req.body.isActive;
         _project.createdDatetime = Date.now();
         _project.modifiedDatetime = Date.now();
