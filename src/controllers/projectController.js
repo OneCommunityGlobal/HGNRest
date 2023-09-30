@@ -14,9 +14,9 @@ const projectController = function (Project) {
       .catch(error => res.status(404).send(error));
   };
 
-  const deleteProject = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'deleteProject')) {
-      res.status(403).send({ error: 'You are  not authorized to delete projects.' });
+  const deleteProject = function (req, res) {
+    if (!hasPermission(req.body.requestor.role, 'deleteProject')) {
+      res.status(403).send({ error: 'You are not authorized to delete projects.' });
       return;
     }
     const { projectId } = req.params;
@@ -26,7 +26,7 @@ const projectController = function (Project) {
         return;
       }
 
-      // find if project has any time enteries associated with it
+      // find if project has any time entries associated with it
 
       timeentry.find({ projectId: record._id }, '_id')
         .then((timeentries) => {
@@ -37,7 +37,7 @@ const projectController = function (Project) {
             const removeproject = record.remove();
 
             Promise.all([removeprojectfromprofile, removeproject])
-              .then(res.status(200).send({ message: ' Project successfully deleted and user profiles updated' }))
+              .then(res.status(200).send({ message: 'Project successfully deleted and user profiles updated.' }))
               .catch((errors) => { res.status(400).send(errors); });
           }
         });
@@ -52,18 +52,17 @@ const projectController = function (Project) {
     }
 
     if (!req.body.projectName || !req.body.isActive) {
-      res.status(400).send({ error: 'Project Name and active status are mandatory fields' });
+      res.status(400).send({ error: 'Project Name and active status are mandatory fields.' });
       return;
     }
 
     Project.find({ projectName: { $regex: escapeRegex(req.body.projectName), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
-          res.status(400).send({ error: `Project Name must be unique. Another project with name ${result.projectName} already exists. Please note that project names are case insensitive` });
+          res.status(400).send({ error: `Project Name must be unique. Another project with name ${result.projectName} already exists. Please note that project names are case insensitive.` });
           return;
         }
         const _project = new Project();
-
         _project.projectName = req.body.projectName;
         _project.category = req.body.projectCategory || 'Unspecified';
         _project.isActive = req.body.isActive;
@@ -84,7 +83,6 @@ const projectController = function (Project) {
     }
 
     const { projectId } = req.params;
-
     Project.findById(projectId, (error, record) => {
       if (error || record === null) {
         res.status(400).send('No valid records found');
