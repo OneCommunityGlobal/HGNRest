@@ -21,10 +21,10 @@ function sendLinkMessage(Link) {
 // returns the email body containing the details of the newly created user.
 function informManagerMessage(user) {
   const message = `
-    <p>Hello,</p>
-  <p>New User <b>${user.firstName} ${user.lastName}</b> has completed their part of setup.</p>
+  <p>Hello,</p>
+  <p>New User <b style="text-transform: capitalize;">${user.firstName} ${user.lastName}</b> has completed their part of setup.</p>
   <p>These areas need to now be completed by an Admin:</p>
-  <ul>
+  <ul style="padding-left: 20px;padding-bottom:10px;">
     <li>Weekly Committed Hours</li>
     <li>Admin Document</li>
     <li>Link to Media Files</li>
