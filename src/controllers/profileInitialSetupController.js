@@ -14,7 +14,7 @@ function sendLinkMessage(Link) {
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community.</p>`;
+    <p>One Community</p>`;
   return message;
 }
 
@@ -59,7 +59,7 @@ function informManagerMessage(user) {
     </table> 
     <br>
     <p>Thank you,</p>
-    <p>One Community.</p>`;
+    <p>One Community</p>`;
   return message;
 }
 
@@ -201,7 +201,7 @@ const profileInitialSetupController = function (
 
             emailSender(
               process.env.MANAGER_EMAIL || "jae@onecommunityglobal.org", // "jae@onecommunityglobal.org"
-              "NEW USER REGISTERED",
+              `NEW USER REGISTERED: ${savedUser.firstName} ${savedUser.lastName}`,
               informManagerMessage(savedUser),
               null,
               null
