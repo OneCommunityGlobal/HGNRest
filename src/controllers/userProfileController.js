@@ -12,7 +12,7 @@ const Badge = require('../models/badge');
 const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -52,14 +52,16 @@ async function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
-    if (
-      !(await hasPermission(req.body.requestor.role, "getUserProfiles")) &&
+    if (!await hasPermission(req.body.requestor.role, 'getUserProfiles') &&
       !req.body.requestor.permissions?.frontPermissions.includes(
         "putUserProfilePermissions"
       )
     ) {
-      res.status(403).send("You are not authorized to view all users");
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement') 
+        && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagementTab')) {
+      res.status(403).send('You are not authorized to view all users');
       return;
+      }
     }
 
     if (cache.getCache("allusers")) {
