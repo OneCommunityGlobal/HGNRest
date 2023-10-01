@@ -1591,6 +1591,16 @@ const userHelper = function () {
     }
   };
 
+  const deleteOldTimeOffRequests =async () =>{
+    try {
+      const currentTime = moment().tz('America/Los_Angeles');
+      await TimeOffRequest.deleteMany({ endingDate: { $lt: currentTime } });
+      console.log('Deleted expired time off requests.');
+    } catch (error) {
+      console.error('Error deleting expired time off requests:', error);
+    }
+  }
+
   return {
     getUserName,
     getTeamMembers,
@@ -1606,6 +1616,7 @@ const userHelper = function () {
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
+    deleteOldTimeOffRequests
   };
 };
 
