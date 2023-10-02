@@ -11,32 +11,38 @@ const mapLocation = new Schema({
         type: String,
         default: 'Prior to HGN Data Collection',
     },
-    title: {
+    jobTitle: {
         type: String,
         default: 'Prior to HGN Data Collection',
     },
-    userProvided: {
-        type: String,
-        required: true,
+    isActive: {
+        type: Boolean,
+        default: false,
     },
-    coords: {
-        lat: {
+    location: {
+        userProvided: {
             type: String,
             required: true,
         },
-        lng: {
+        coords: {
+            lat: {
+                type: String,
+                required: true,
+            },
+            lng: {
+                type: String,
+                required: true,
+            }
+        },
+        country: {
             type: String,
             required: true,
-        }
+        },
+        city: {
+            type: String,
+            default: '',
+        },
     },
-    country: {
-        type: String,
-        required: true,
-    },
-    city: {
-        type: String,
-        default: '',
-    }
 });
 
 module.exports = mongoose.model('MapLocation', mapLocation, 'maplocations');
