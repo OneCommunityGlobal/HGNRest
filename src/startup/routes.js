@@ -55,6 +55,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')();
 
 
 module.exports = function (app) {
@@ -88,4 +89,5 @@ module.exports = function (app) {
   app.use('/api', mouseoverTextRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
+  app.use('/api/bm', bmMaterialsRouter);
 };
