@@ -1,7 +1,11 @@
-const bmMaterialsController = function () {
+const mongoose = require('mongoose')
+
+const bmMaterialsController = function (ItemMaterial, ItemType) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
-      return res.json({ message: "Hello World" })
+      ItemMaterial.find()
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(500).send(error))
     } catch (err) {
       res.json(err);
     }
