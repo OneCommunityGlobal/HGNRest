@@ -127,6 +127,7 @@ const projectController = function (Project) {
     if (!await hasPermission(req.body.requestor, 'assignProjectToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
+        }
     }
 
     if (!req.params.projectId || !mongoose.Types.ObjectId.isValid(req.params.projectId) || !req.body.users || (req.body.users.length === 0)) {

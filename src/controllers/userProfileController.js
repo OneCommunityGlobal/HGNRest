@@ -55,6 +55,7 @@ const userProfileController = function (UserProfile) {
     if (!await hasPermission(req.body.requestor, 'getUserProfiles')) {
       res.status(403).send('You are not authorized to view all users');
       return;
+      }
     }
 
     if (cache.getCache("allusers")) {

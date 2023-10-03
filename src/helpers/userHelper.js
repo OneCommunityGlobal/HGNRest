@@ -34,7 +34,9 @@ const userHelper = function () {
     let mm = today.getMonth() + 1;
     let dd = today.getDate();
 
+    // eslint-disable-next-line no-unused-expressions
     mm = mm < 10 ? `0${mm}` : mm;
+    // eslint-disable-next-line no-unused-expressions
     dd = dd < 10 ? `0${dd}` : dd;
 
     const formatedDate = `${yyyy}-${mm}-${dd}`;
@@ -413,11 +415,11 @@ const userHelper = function () {
             description = foundReason.reason;
           } else {
             if (timeNotMet && !hasWeeklySummary) {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
               )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
             } else if (timeNotMet) {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
               )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
             } else {
