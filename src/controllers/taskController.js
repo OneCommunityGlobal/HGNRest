@@ -746,58 +746,39 @@ const taskController = function (Task) {
     });
   };
 
-  const getTaskById = function (req, res) {
-    const taskId = req.params.id;
-    Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
-      .then((results) => {
-        if (!results) {
-          res.status(400).send({ error: 'This is not a valid task' });
-          return;
+  const getTaskById = async (req, res) => {
+    try {
+        const taskId = req.params.id;
+
+        // Ensure the task ID is provided
+        if (!taskId || taskId === 'undefined') {
+            return res.status(400).send({ error: 'Task ID is missing' });
         }
-        timeEntryHelper
-          .getAllHoursLoggedForSpecifiedProject(taskId)
-          .then((hours) => {
-            results.set('hoursLogged', hours, { strict: false });
-          })
-          .catch(error => res.status(404).send(error))
-          .then(() => {
-            // Retrieve and update resource names for task
-            const resources = results?.resources;
-            const resourcesLength = resources.length;
-            const promiseArray = [];
-            for (let i = 0; i < resourcesLength; i += 1) {
-              promiseArray.push(
-                  taskHelper.getUserProfileFirstAndLastName(resources[i].userID),
-                );
-            }
-            Promise.all(promiseArray)
-              .then((resourceNames) => {
-                // Create a deep copy of resources
-                const editedResources = [];
-                for (let i = 0; i < resourcesLength; i += 1) {
-                  editedResources[i] = {};
-                  editedResources[i].completedTask = results.resources[i].completedTask;
-                  editedResources[i]._id = results.resources[i]._id;
-                  editedResources[i].userID = results.resources[i].userID;
-                  editedResources[i].name = results.resources[i].name;
-                }
-                // Update deep copy array's resource names
-                for (let i = 0; i < resourcesLength; i += 1) {
-                  // taskHelper.getUserProfileFirstAndLastName() will return an empty string if the results are null
-                  // If that's the case, do not update the resource's name
-                  editedResources[i].name = resourceNames[i] !== ' ' ? resourceNames[i] : editedResources[i].name;
-                }
-                results.resources = editedResources;
-              })
-              .finally(() => {
-                res.status(200).send(results);
-              });
-          })
-          .catch(() => {
-            // If there's an error, send potentially outdated resource names
-            res.status(200).send(results);
-          });
-      });
+
+        const task = await Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime');
+
+        if (!task) {
+            return res.status(400).send({ error: 'This is not a valid task' });
+        }
+
+        const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId);
+        task.set('hoursLogged', hoursLogged, { strict: false });
+
+        // Fetch the resource names for all resources
+        const resourceNamesPromises = task.resources.map(resource => taskHelper.getUserProfileFirstAndLastName(resource.userID));
+        const resourceNames = await Promise.all(resourceNamesPromises);
+
+        // Update the task's resources with the fetched names
+        task.resources.forEach((resource, index) => {
+            resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
+        });
+
+        res.status(200).send(task);
+
+    } catch (error) {
+        // Generic error message, you can adjust as needed
+        res.status(500).send({ error: 'Internal Server Error', details: error.message });
+    }
   };
 
   const updateAllParents = (req, res) => {
