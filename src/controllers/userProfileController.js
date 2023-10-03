@@ -244,6 +244,9 @@ const userProfileController = function (UserProfile) {
           "putUserProfilePermissions"
         ))
     );
+  
+    const canEditTeamCode = req.body.requestor.role === "Owner" ||
+      req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
 
     if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to update this user");
@@ -305,6 +308,17 @@ const userProfileController = function (UserProfile) {
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || "default";
       record.isFirstTimelog = req.body.isFirstTimelog;
+
+      if(!canEditTeamCode && record.teamCode !== req.body.teamCode){
+        res.status(403).send("You are not authorized to edit team code.");
+        return;
+      }
+
+      const teamcodeRegex = /^[A-Z]-[A-Z]{3}$/;
+      if (!teamcodeRegex.test(req.body.teamCode)) {
+        res.status(400).send("The team code is invalid");
+        return;
+      };
       record.teamCode = req.body.teamCode;
 
       // find userData in cache
@@ -590,6 +604,22 @@ const userProfileController = function (UserProfile) {
   const updateOneProperty = function (req, res) {
     const { userId } = req.params;
     const { key, value } = req.body;
+
+    if (key === "teamCode") {
+      const canEditTeamCode = req.body.requestor.role === "Owner" ||
+        req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+      const teamcodeRegex = /^[A-Z]-[A-Z]{3}$/;
+
+      if(!canEditTeamCode){
+        res.status(403).send("You are not authorized to edit team code.");
+        return;
+      }
+  
+      if (!teamcodeRegex.test(value)) {
+        res.status(400).send("The team code is invalid");
+        return;
+      };
+    }
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
