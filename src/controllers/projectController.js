@@ -15,6 +15,8 @@ const projectController = function (Project) {
   };
 
   const deleteProject = function (req, res) {
+    // verify if the requestor has the necessary permissions
+
     if (!hasPermission(req.body.requestor.role, 'deleteProject')
     && !hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement')) { 
       res.status(403).send({ error: 'You are not authorized to delete projects.' });
@@ -47,6 +49,9 @@ const projectController = function (Project) {
   };
 
   const postProject = async function (req, res) {
+    // verify if the requestor has the necessary permissions and if the projectName and isActie fields
+    // are present in the request body
+
     if (!await hasPermission(req.body.requestor.role, 'postProject') 
     && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement')) { 
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
@@ -79,6 +84,8 @@ const projectController = function (Project) {
 
 
   const putProject = async function (req, res) {
+    // verify if the requestor has the necessary permissions
+
     if (!await hasPermission(req.body.requestor.role, 'putProject')
     && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement')) { 
       res.status(403).send('You are not authorized to make changes in the projects.');
@@ -125,7 +132,7 @@ const projectController = function (Project) {
   };
 
   const assignProjectToUsers = async function (req, res) {
-    // verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
+    // verify requestor is administrator or has necessary permissions, projectId is passed in request params and is valid mongoose objectid, and request body contains an array of users
 
     if (!await hasPermission(req.body.requestor.role, 'assignProjectToUsers')) {
       if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement') 

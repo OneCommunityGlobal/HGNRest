@@ -17,6 +17,8 @@ const teamcontroller = function (Team) {
       .catch(error => res.send(error).status(404));
   };
   const postTeam = async function (req, res) {
+    // verify if the requestor has the necessary permissions
+
     if (!await hasPermission(req.body.requestor.role, 'postTeam') &&
     !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement') &&
     !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagementTab')) {
@@ -36,6 +38,8 @@ const teamcontroller = function (Team) {
       .catch(error => res.send(error).status(404));
   };
   const deleteTeam = async function (req, res) {
+    // verify if the requestor has the necessary permissions and if the teamId is valid
+
     if (!await hasPermission(req.body.requestor.role, 'deleteTeam') &&
     !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement')) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
@@ -60,6 +64,8 @@ const teamcontroller = function (Team) {
     });
   };
   const putTeam = async function (req, res) {
+    // verify if the requestor has the necessary permissions
+
     if (!await hasPermission(req.body.requestor.role, 'putTeam') &&
     !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement') &&
     !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagementTab')) {
@@ -87,7 +93,7 @@ const teamcontroller = function (Team) {
   };
 
   const assignTeamToUsers = async function (req, res) {
-    // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
+    // verify requestor is administrator or has the necessary permissions, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
     if (!await hasPermission(req.body.requestor.role, 'assignTeamToUsers') &&
     !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement') &&

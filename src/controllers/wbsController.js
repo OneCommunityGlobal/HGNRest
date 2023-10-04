@@ -11,6 +11,8 @@ const wbsController = function (WBS) {
   };
 
   const postWBS = async function (req, res) {
+    // verify if the requestor has the necessary permissions
+
     if (!await hasPermission(req.body.requestor.role, 'postWbs')
     && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement')
     && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagementTab')) { 
@@ -36,6 +38,8 @@ const wbsController = function (WBS) {
   };
 
   const deleteWBS = async function (req, res) {
+    // verify if the requestor has the necessary permissions
+    
     if (!await hasPermission(req.body.requestor.role, 'deleteWbs')
     && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement')) {
       res.status(403).send({ error: 'You are  not authorized to delete projects.' });
