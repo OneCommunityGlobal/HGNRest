@@ -60,7 +60,7 @@ const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, h
       <p>Oops, it looks like  you have logged more hours than estimated for a task </p>
       <p><b>Task Name : ${taskName}</b></p>
       <p><b>Time Estimated : ${estimatedHours}</b></p>
-      <p><b>Hours Logged : ${hoursLogged}</b></p>
+      <p><b>Hours Logged : ${hoursLogged.toFixed(2)}</b></p>
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
       <p>One Community</p>`;
