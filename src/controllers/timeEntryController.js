@@ -129,6 +129,7 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.lastModifiedDateTime = moment().utc().toISOString();
       timeEntry.projectId = mongoose.Types.ObjectId(req.body.projectId);
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
+      timeEntry.entryType = req.body.entryType;
 
       // Update the hoursLogged field of related tasks based on before and after timeEntries
       // initialIsTangible is a bealoon value, req.body.isTangible is a string
@@ -224,43 +225,80 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       const items = [];
       records.forEach((element) => {
-        const timeentry = new TimeEntry();
-        timeentry.personId = element.personId;
-        timeentry.projectId = element.projectId;
-        timeentry.dateOfWork = element.dateOfWork;
-        timeentry.timeSpent = moment('1900-01-01 00:00:00')
-          .add(element.totalSeconds, 'seconds')
-          .format('HH:mm:ss');
-        timeentry.notes = element.notes;
-        timeentry.isTangible = element.isTangible;
-        items.push(timeentry);
+        if (element.entryType == 'default' || element.entryType == undefined) {
+          const timeentry = new TimeEntry();
+          timeentry.personId = element.personId;
+          timeentry.projectId = element.projectId;
+          timeentry.dateOfWork = element.dateOfWork;
+          timeentry.timeSpent = moment('1900-01-01 00:00:00')
+            .add(element.totalSeconds, 'seconds')
+            .format('HH:mm:ss');
+          timeentry.notes = element.notes;
+          timeentry.isTangible = element.isTangible;
+          timeentry.entryType = 'default';
+          items.push(timeentry);
+        }
       });
       return res.json(items).status(200);
     });
   };
 
   const postTimeEntry = async function (req, res) {
-    if (
-      !mongoose.Types.ObjectId.isValid(req.body.personId)
-      || !mongoose.Types.ObjectId.isValid(req.body.projectId)
-      || !req.body.dateOfWork
+    const isInvalid = !req.body.dateOfWork
       || !moment(req.body.dateOfWork).isValid()
       || !req.body.timeSpent
-      || !req.body.isTangible
-    ) {
+      || !req.body.isTangible;
+
+    const returnErr = (res) => {
       res.status(400).send({ error: 'Bad request' });
       return;
+    };
+
+    switch (req.body.entryType) {
+      case 'default':
+        if (
+          !mongoose.Types.ObjectId.isValid(req.body.personId)
+          || !mongoose.Types.ObjectId.isValid(req.body.projectId)
+          || isInvalid
+        ) {
+          returnErr(res);
+        }
+        break;
+      case 'person':
+        if (
+          !mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid
+        ) {
+          returnErr(res);
+        }
+        break;
+      case 'project':
+        if (
+          !mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid
+        ) {
+          returnErr(res);
+        }
+        break;
+      case 'team':
+        if (
+          !mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid
+        ) {
+          returnErr(res);
+        }
+        break;
     }
+
     const timeentry = new TimeEntry();
     const { dateOfWork, timeSpent } = req.body;
     timeentry.personId = req.body.personId;
     timeentry.projectId = req.body.projectId;
+    timeentry.teamId = req.body.teamId;
     timeentry.dateOfWork = moment(dateOfWork).format('YYYY-MM-DD');
     timeentry.totalSeconds = moment.duration(timeSpent).asSeconds();
     timeentry.notes = req.body.notes;
     timeentry.isTangible = req.body.isTangible;
     timeentry.createdDateTime = moment().utc().toISOString();
     timeentry.lastModifiedDateTime = moment().utc().toISOString();
+    timeentry.entryType = req.body.entryType;
 
     timeentry
       .save()
@@ -272,7 +310,7 @@ const timeEntrycontroller = function (TimeEntry) {
       .catch(error => res.status(400).send(error));
 
     // Add this tangbile time entry to related task's hoursLogged
-    if (timeentry.isTangible === true) {
+    if ((timeentry.entryType == 'default') && timeentry.isTangible === true) {
       try {
         const currentTask = await task.findById(req.body.projectId);
         currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
@@ -282,9 +320,11 @@ const timeEntrycontroller = function (TimeEntry) {
       }
     }
     // checking if logged in hours exceed estimated time after timeentry for a task
-    const record = await userProfile.findById(timeentry.personId.toString());
-    const currentTask = await task.findById(req.body.projectId);
-    checkTaskOvertime(timeentry, record, currentTask);
+    if (timeentry.entryType == 'default') {
+      const record = await userProfile.findById(timeentry.personId.toString());
+      const currentTask = await task.findById(req.body.projectId);
+      checkTaskOvertime(timeentry, record, currentTask);
+    }
   };
 
   const getTimeEntriesForSpecifiedPeriod = function (req, res) {
@@ -307,6 +347,7 @@ const timeEntrycontroller = function (TimeEntry) {
     TimeEntry.aggregate([
       {
         $match: {
+          entryType: { $in: [ 'default', null ] },
           personId: mongoose.Types.ObjectId(userId),
           dateOfWork: { $gte: fromdate, $lte: todate },
         },
@@ -390,6 +431,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
+        entryType: { $in: [ 'default', null, 'person' ] },
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
@@ -434,6 +476,7 @@ const timeEntrycontroller = function (TimeEntry) {
     const { projectId } = req.params;
     TimeEntry.find(
       {
+        entryType: [ 'default', null ],
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
       },
@@ -494,6 +537,114 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const getLostTimeEntriesForUserList = function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+
+    TimeEntry.find(
+      {
+        entryType: 'person',
+        personId: { $in: users },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('personId')
+      .sort({ lastModifiedDateTime: -1 })
+      .then((results) => {
+        const data = [];
+        results.forEach((element) => {
+          console.log(element);
+          const record = {};
+
+          record._id = element._id;
+          record.notes = element.notes;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId;
+          record.firstName = element.personId
+            ? element.personId.firstName
+            : '';
+          record.lastName = element.personId
+            ? element.personId.lastName
+            : '';
+          record.dateOfWork = element.dateOfWork;
+          record.entryType = element.entryType;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch(error => res.status(400).send(error));
+  };
+
+  const getLostTimeEntriesForProjectList = function (req, res) {
+    const { projects, fromDate, toDate } = req.body;
+
+    TimeEntry.find(
+      {
+        entryType: "project",
+        projectId: { $in: projects },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('projectId')
+      .sort({ lastModifiedDateTime: -1 })
+      .then((results) => {
+        const data = [];
+        results.forEach((element) => {
+          console.log(element);
+          const record = {};
+          record._id = element._id;
+          record.notes = element.notes;
+          record.isTangible = element.isTangible;
+          record.projectId = element.projectId ? element.projectId._id : '';
+          record.projectName = element.projectId
+            ? element.projectId.projectName
+            : '';
+          record.dateOfWork = element.dateOfWork;
+          record.entryType = element.entryType;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch(error => res.status(400).send(error));
+  };
+
+  const getLostTimeEntriesForTeamList = function (req, res) {
+    const { teams, fromDate, toDate } = req.body;
+
+    TimeEntry.find(
+      {
+        entryType: "team",
+        teamId: { $in: teams },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('teamId')
+      .sort({ lastModifiedDateTime: -1 })
+      .then((results) => {
+        const data = [];
+        results.forEach((element) => {
+          console.log(element);
+          const record = {};
+          record._id = element._id;
+          record.notes = element.notes;
+          record.isTangible = element.isTangible;
+          record.teamId = element.teamId;
+          record.teamName = element.teamId
+            ? element.teamId.teamName
+            : '';
+          record.dateOfWork = element.dateOfWork;
+          record.entryType = element.entryType;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch(error => res.status(400).send(error));
+  };
 
   return {
     getAllTimeEnteries,
@@ -504,6 +655,9 @@ const timeEntrycontroller = function (TimeEntry) {
     deleteTimeEntry,
     getTimeEntriesForSpecifiedProject,
     checkTaskOvertime,
+    getLostTimeEntriesForUserList,
+    getLostTimeEntriesForProjectList,
+    getLostTimeEntriesForTeamList,
   };
 };
 
