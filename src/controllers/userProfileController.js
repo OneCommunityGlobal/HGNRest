@@ -59,6 +59,7 @@ const userProfileController = function (UserProfile) {
     ) {
       if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement') 
         && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagementTab')) {
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'getWeeklySummaries'))
       res.status(403).send('You are not authorized to view all users');
       return;
       }
@@ -309,13 +310,13 @@ const userProfileController = function (UserProfile) {
       record.bioPosted = req.body.bioPosted || "default";
       record.isFirstTimelog = req.body.isFirstTimelog;
 
-      if(!canEditTeamCode && record.teamCode !== req.body.teamCode){
+      if(!canEditTeamCode && record.teamCode !== req?.body?.teamCode){
         res.status(403).send("You are not authorized to edit team code.");
         return;
       }
-
+      
       const teamcodeRegex = /^[a-zA-Z]-[a-zA-Z]{3}$/;
-      if (!teamcodeRegex.test(req.body.teamCode)) {
+      if (req.body.teamCode && !(teamcodeRegex.test(req.body.teamCode))) {
         res.status(400).send("The team code is invalid");
         return;
       };
