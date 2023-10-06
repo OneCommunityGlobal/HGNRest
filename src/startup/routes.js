@@ -56,7 +56,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(itemMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(itemMaterial, inventoryItemType);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
