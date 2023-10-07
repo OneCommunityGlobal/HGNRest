@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
 const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
+const cache = require('../utilities/nodeCache')();
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
@@ -47,6 +48,8 @@ const badgeController = function (Badge) {
       if (result) {
         record.badgeCollection = req.body.badgeCollection;
 
+        if (cache.hasCache(`user-${userToBeAssigned}`)) cache.removeCache(`user-${userToBeAssigned}`);
+        
         record.save()
           .then(results => res.status(201).send(results._id))
           .catch(errors => res.status(500).send(errors));
