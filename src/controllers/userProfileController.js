@@ -64,12 +64,6 @@ const userProfileController = function (UserProfile) {
       }
     }
 
-    if (cache.getCache("allusers")) {
-      const getData = JSON.parse(cache.getCache("allusers"));
-      res.status(200).send(getData);
-      return;
-    }
-
     UserProfile.find(
       {},
       "_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate"
@@ -79,13 +73,20 @@ const userProfileController = function (UserProfile) {
       })
       .then((results) => {
         if (!results) {
-          res.status(500).send({ error: "User result was invalid" });
-          return;
+          if (cache.getCache("allusers")) {
+            const getData = JSON.parse(cache.getCache("allusers"));
+            res.status(200).send(getData);
+            return;
+          }else{
+            res.status(500).send({ error: "User result was invalid" });
+            return;
+          }
         }
         cache.setCache("allusers", JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
+      
   };
 
   const getProjectMembers = async function (req, res) {
