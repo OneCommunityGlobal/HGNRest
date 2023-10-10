@@ -69,6 +69,8 @@
     "ws": "^8.8.1"
   },
   "nodemonConfig": {
-    "watch": ["/src/**/*"]
+    "watch": [
+      "/src/**/*"
+    ]
   }
 }
