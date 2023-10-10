@@ -20,9 +20,8 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
   };
   
   const bmAddMaterials = async function (req, res) {
-    console.log(req.body);
     const { material, requestor } = req.body;
-    let itemTypeId = material.material; // if new material: material name / else: itemType id
+    let itemTypeId = material.material; // either new material or existing itemTypeId
     
     // if new material or new measurement, add new inventoryItemType
     if (material.newMaterial || material.newMeasurement) {
@@ -38,20 +37,20 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
           imageUrl: '',
           link: material.link,
         });
-        const newItemType = await itemType.save();
-        itemTypeId = newItemType._id;
-      } catch (err) {
-        res.status(400).send({ error: 'Error saving new material type'});
+        const result = await itemType.save();
+        itemTypeId = result._id;
+      } catch (error) {
+        res.status(500).send(error);
       }
     }
 
     try {
-      const invMaterial = await ItemMaterial.find({ id: material.projectId, inventoryItemType: itemTypeId }).exec();
-      // if material already exists in project, add to it
-      // else, create new material for project
+      const invMaterial = await ItemMaterial.findOne(
+        { project: material.projectId, inventoryItemType: itemTypeId }).exec();
+      console.log(invMaterial);
       if (invMaterial) {
-        // TODO
-        console.log(invMaterial);
+        // TODO: update inventoryMaterial with new purchase record
+        // and updated quantities
       } else {
         const itemMaterial = new ItemMaterial({
           inventoryItemType: itemTypeId,
@@ -62,26 +61,28 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
           updateRecord: [],
           purchaseRecord: [{
             date: material.purchaseDate,
-            createdBy: req.requestor.requestorId,
+            createdBy: requestor.requestorId,
             poId: material.invoice,
             sellerId: material.phone,
             quantity: material.quantity,
             unitPrice: material.unitPrice,
-            subTotal: material.quantity * material.unitPrice,
+            currency: material.currency,
+            subtotal: material.quantity,
             tax: material.taxRate,
             shipping: material.shippingFee,
           }],
         });
         const newItemMaterial = await itemMaterial.save();
+        console.log(newItemMaterial);
       }
-    } catch (err) {
-      res.status(400).send({ error: 'Error adding new material to project'});
+    } catch (error) {
+      res.status(500).send(error);
     }
   };
 
   return { 
     bmMaterialsList,
-    bmAddMaterials 
+    bmAddMaterials,
   };
 };
 
