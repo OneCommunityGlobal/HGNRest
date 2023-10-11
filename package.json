@@ -9,7 +9,8 @@
     "build": "babel src -d dist",
     "buildw": "babel src -d dist --watch",
     "start": "node dist/server.js",
-    "serve": "node src/server.js"
+    "dev": "nodemon --exec babel-node src/server.js",
+    "serve": "babel-node src/server.js"
   },
   "pre-commit": [
     "lint"
@@ -23,7 +24,6 @@
     "@babel/eslint-parser": "^7.15.0",
     "@types/express": "^4.17.6",
     "@types/node": "^8.10.61",
-    "babel-eslint": "^10.1.0",
     "eslint": "^8.47.0",
     "eslint-config-airbnb": "^19.0.4",
     "eslint-config-airbnb-base": "^13.1.0",
@@ -33,6 +33,7 @@
     "eslint-plugin-react": "^7.33.1",
     "eslint-plugin-react-hooks": "^4.6.0",
     "lint-staged": "^13.0.3",
+    "nodemon": "^3.0.1",
     "pre-commit": "^1.2.2"
   },
   "dependencies": {
@@ -66,5 +67,10 @@
     "redis": "^4.2.0",
     "uuid": "^3.4.0",
     "ws": "^8.8.1"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "/src/**/*"
+    ]
   }
 }
