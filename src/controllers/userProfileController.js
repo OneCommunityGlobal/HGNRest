@@ -12,7 +12,7 @@ const Badge = require('../models/badge');
 const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -52,20 +52,16 @@ async function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
-    if (
-      !(await hasPermission(req.body.requestor.role, "getUserProfiles")) &&
+    if (!await hasPermission(req.body.requestor.role, 'getUserProfiles') &&
       !req.body.requestor.permissions?.frontPermissions.includes(
         "putUserProfilePermissions"
       )
     ) {
-      res.status(403).send("You are not authorized to view all users");
+      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement') 
+        && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagementTab')) {
+      res.status(403).send('You are not authorized to view all users');
       return;
-    }
-
-    if (cache.getCache("allusers")) {
-      const getData = JSON.parse(cache.getCache("allusers"));
-      res.status(200).send(getData);
-      return;
+      }
     }
 
     UserProfile.find(
@@ -77,13 +73,20 @@ const userProfileController = function (UserProfile) {
       })
       .then((results) => {
         if (!results) {
-          res.status(500).send({ error: "User result was invalid" });
-          return;
+          if (cache.getCache("allusers")) {
+            const getData = JSON.parse(cache.getCache("allusers"));
+            res.status(200).send(getData);
+            return;
+          }else{
+            res.status(500).send({ error: "User result was invalid" });
+            return;
+          }
         }
         cache.setCache("allusers", JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
+      
   };
 
   const getProjectMembers = async function (req, res) {
@@ -242,6 +245,9 @@ const userProfileController = function (UserProfile) {
           "putUserProfilePermissions"
         ))
     );
+  
+    const canEditTeamCode = req.body.requestor.role === "Owner" ||
+      req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
 
     if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to update this user");
@@ -303,6 +309,12 @@ const userProfileController = function (UserProfile) {
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || "default";
       record.isFirstTimelog = req.body.isFirstTimelog;
+
+      if(!canEditTeamCode && record.teamCode !== req.body.teamCode){
+        res.status(403).send("You are not authorized to edit team code.");
+        return;
+      }
+
       record.teamCode = req.body.teamCode;
 
       // find userData in cache
@@ -588,6 +600,17 @@ const userProfileController = function (UserProfile) {
   const updateOneProperty = function (req, res) {
     const { userId } = req.params;
     const { key, value } = req.body;
+
+    if (key === "teamCode") {
+      const canEditTeamCode = req.body.requestor.role === "Owner" ||
+        req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+
+      if(!canEditTeamCode){
+        res.status(403).send("You are not authorized to edit team code.");
+        return;
+      }
+  
+    }
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
