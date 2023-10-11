@@ -21,39 +21,16 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
   
   const bmAddMaterials = async function (req, res) {
     const { material, requestor } = req.body;
-    let itemTypeId = material.material; // either new material or existing itemTypeId
-    
-    // if new material or new measurement, add new inventoryItemType
-    if (material.newMaterial || material.newMeasurement) {
-      try {
-        const itemType = new ItemType({
-          type: 'material',
-          name: material.material,
-          description: material.description,
-          uom: material.measurement,
-          totalStock: material.quantity,
-          totalAvailable: material.quantity,
-          projectsUsing: [material.projectId],
-          imageUrl: '',
-          link: material.link,
-        });
-        const result = await itemType.save();
-        itemTypeId = result._id;
-      } catch (error) {
-        res.status(500).send(error);
-      }
-    }
 
     try {
-      const invMaterial = await ItemMaterial.findOne(
-        { project: material.projectId, inventoryItemType: itemTypeId }).exec();
-      console.log(invMaterial);
+      const invMaterial = await ItemMaterial.findOne({ project: material.projectId, inventoryItemType: material.material }).exec();
       if (invMaterial) {
+        console.log('found item material in project');
         // TODO: update inventoryMaterial with new purchase record
         // and updated quantities
       } else {
         const itemMaterial = new ItemMaterial({
-          inventoryItemType: itemTypeId,
+          inventoryItemType: material.material,
           project: material.projectId,
           stockBought: material.quantity,
           stockAvailable: material.quantity,
@@ -73,7 +50,7 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
           }],
         });
         const newItemMaterial = await itemMaterial.save();
-        console.log(newItemMaterial);
+        res.status(201).send(newItemMaterial);
       }
     } catch (error) {
       res.status(500).send(error);
