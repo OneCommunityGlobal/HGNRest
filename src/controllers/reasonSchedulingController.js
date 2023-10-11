@@ -38,13 +38,13 @@ const postReason = async (req, res) => {
     }
 
     // error case 1
-    if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
-      return res.status(403).json({
-        message:
-          'You must be an Owner or Administrator to schedule a reason for a Blue Square',
-        errorCode: 1,
-      });
-    }
+    // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
+    //   return res.status(403).json({
+    //     message:
+    //       'You must be an Owner or Administrator to schedule a reason for a Blue Square',
+    //     errorCode: 1,
+    //   });
+    // }
 
     const foundUser = await UserModel.findById(userId);
 
@@ -98,12 +98,12 @@ const getAllReasons = async (req, res) => {
     const { userId } = req.params;
 
     // error case 1
-    if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
-      return res.status(403).json({
-        message:
-          'You must be an Owner or Administrator to get a reason for a Blue Square',
-      });
-    }
+    // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
+    //   return res.status(403).json({
+    //     message:
+    //       'You must be an Owner or Administrator to get a reason for a Blue Square',
+    //   });
+    // }
 
     const foundUser = await UserModel.findById(userId);
 
@@ -136,13 +136,13 @@ const getSingleReason = async (req, res) => {
     const { queryDate } = req.query;
 
     // error case 1
-    if (requestor.role !== 'Administrator' && requestor.role !== 'Owner') {
-      return res.status(403).json({
-        message:
-          "You must be an Administrator or Owner to be able to get a single reason by the user's ID",
-        errorCode: 1,
-      });
-    }
+    // if (requestor.role !== 'Administrator' && requestor.role !== 'Owner') {
+    //   return res.status(403).json({
+    //     message:
+    //       "You must be an Administrator or Owner to be able to get a single reason by the user's ID",
+    //     errorCode: 1,
+    //   });
+    // }
     const foundUser = await UserModel.findById(userId);
 
     // error case 2
@@ -185,13 +185,13 @@ const patchReason = async (req, res) => {
     const { userId } = req.params;
 
     // error case 1
-    if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
-      return res.status(403).json({
-        message:
-          'You must be an Owner or Administrator to schedule a reason for a Blue Square',
-        errorCode: 1,
-      });
-    }
+    // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
+    //   return res.status(403).json({
+    //     message:
+    //       'You must be an Owner or Administrator to schedule a reason for a Blue Square',
+    //     errorCode: 1,
+    //   });
+    // }
 
     if (!reasonData.message) {
       return res.status(400).json({
@@ -244,13 +244,13 @@ const deleteReason = async (req, res) => {
     const { userId } = req.params;
 
     // error case 1
-    if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
-      return res.status(403).json({
-        message:
-          'You must be an Owner or Administrator to schedule a reason for a Blue Square',
-        errorCode: 1,
-      });
-    }
+    // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
+    //   return res.status(403).json({
+    //     message:
+    //       'You must be an Owner or Administrator to schedule a reason for a Blue Square',
+    //     errorCode: 1,
+    //   });
+    // }
 
     const foundUser = await UserModel.findById(userId);
 
