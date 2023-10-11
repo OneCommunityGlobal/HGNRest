@@ -19,7 +19,7 @@ const routes = function (userProfile) {
   userProfileRouter.route('/userProfile/name/:name')
     .get(controller.getUserByName);
 
-    userProfileRouter.route('/refreshToken/:userId')
+  userProfileRouter.route('/refreshToken/:userId')
     .get(controller.refreshToken);
 
   userProfileRouter.route('/userProfile/reportees/:userId')
@@ -28,7 +28,7 @@ const routes = function (userProfile) {
   userProfileRouter.route('/userProfile/teammembers/:userId')
     .get(controller.getTeamMembersofUser);
 
-    userProfileRouter.route('/userProfile/:userId/property')
+  userProfileRouter.route('/userProfile/:userId/property')
     .patch(controller.updateOneProperty);
 
   userProfileRouter.route('/userProfile/:userId/updatePassword')
@@ -46,7 +46,10 @@ const routes = function (userProfile) {
   userProfileRouter.route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
 
-  return userProfileRouter;
+  userProfileRouter.route('/userProfile/authorizeUser/weeeklySummaries')
+    .post(controller.authorizeUser);
+
+  return userProfileRouter; 
 };
 
 

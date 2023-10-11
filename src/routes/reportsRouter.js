@@ -8,6 +8,13 @@ const route = function () {
   reportsRouter.route('/reports/weeklysummaries')
     .get(controller.getWeeklySummaries);
 
+  reportsRouter.route('/reports/recepients/:userid')
+    .patch(controller.saveReportsRecepients)
+    .delete(controller.deleteReportsRecepients);
+
+  reportsRouter.route('/reports/getrecepients')
+    .get(controller.getReportRecipients);
+
   return reportsRouter;
 };
 

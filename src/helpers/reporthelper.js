@@ -1,5 +1,6 @@
 const moment = require("moment-timezone");
 const userProfile = require("../models/userProfile");
+// const reportsController = require("../controllers/reportsController")
 
 /**
  *
@@ -256,9 +257,22 @@ const reporthelper = function () {
     });
   };
 
+  const getReportReceipents = () => {
+    let mappedResults
+    userProfile.find({ getWeeklyReport: true },{'email':1, '_id':0})
+    .then(results => {
+      mappedResults= results.map(ele=>ele.email);
+          mappedResults.push("onecommunityglobal@gmail.com", "onecommunityhospitality@gmail.com")
+      console.log("results:", mappedResults)
+    })
+    return mappedResults
+  }
+
+
   return {
     weeklySummaries,
     formatSummaries,
+    getReportReceipents,
   };
 };
 

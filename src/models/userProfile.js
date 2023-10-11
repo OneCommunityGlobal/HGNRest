@@ -159,6 +159,7 @@ const userProfileSchema = new Schema({
  areaName: { type: String },
       areaContent: { type: String },
   }],
+  getWeeklyReport: { type: Boolean }
 });
 
 userProfileSchema.pre('save', function (next) {

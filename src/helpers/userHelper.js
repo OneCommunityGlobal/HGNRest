@@ -13,6 +13,7 @@ const emailSender = require("../utilities/emailSender");
 const logger = require("../startup/logger");
 const hasPermission = require("../utilities/permissions");
 const Reason = require("../models/reason");
+const sendMail = require("../utilities/nodemailer")
 
 const userHelper = function() {
   const getTeamMembers = function(user) {
@@ -119,9 +120,16 @@ const userHelper = function() {
     );
 
     const emails = [];
+    let mappedResults;
 
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      await userProfile.find({ getWeeklyReport: true }, { 'email': 1, '_id': 0 })
+        .then(results => {
+          mappedResults = results.map(ele => ele.email);
+          mappedResults.push("onecommunityglobal@gmail.com", "onecommunityhospitality@gmail.com")
+          mappedResults = mappedResults.toString()
+        })
 
       let emailBody = "<h2>Weekly Summaries for all active users:</h2>";
 
@@ -174,7 +182,7 @@ const userHelper = function() {
         if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
           const { dueDate, summary } = weeklySummaries[0];
           if (summary) {
-            weeklySummaryMessage = `
+          weeklySummaryMessage = `
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate)
@@ -211,11 +219,11 @@ const userHelper = function() {
           ${
             hoursLogged >= weeklycommittedHours
 
-              ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
+            ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
 
-              : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
-                  2
-                )} / ${weeklycommittedHours}</p>`
+            : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
+              2
+            )} / ${weeklycommittedHours}</p>`
           }
           ${weeklySummaryMessage}
         </div>`;
@@ -237,13 +245,15 @@ const userHelper = function() {
           </p>
         </div>
       `;
+      let mailList = mappedResults;
 
       emailSender(
-        "onecommunityglobal@gmail.com, sangam.pravah@gmail.com, onecommunityhospitality@gmail.com",
+        mailList,
         "Weekly Summaries for all active users...",
         emailBody,
-        null
-      );
+        null,
+      ).then(() => console.log('Email sent...'))
+        .catch((error) => console.log(error.message))
     } catch (err) {
       logger.logException(err);
     }
@@ -320,7 +330,7 @@ const userHelper = function() {
       //There's no need to put Promise.all here
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-      
+
         const foundReason = await Reason.findOne({
           date: currentUTCDate,
           userId: user._id,

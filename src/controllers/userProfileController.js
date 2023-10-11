@@ -226,7 +226,7 @@ const userProfileController = function (UserProfile) {
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
         await hasPermission(req.body.requestor.role, 'putUserProfile')
-      || req.body.requestor.requestorId === userid
+        || req.body.requestor.requestorId === userid
       )
     );
 
@@ -814,6 +814,38 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
+  const authorizeUser = async (req, res) => {
+    try {
+      await UserProfile.findOne(
+        {
+          email: {
+            $regex: escapeRegex("mounica_test20@gmail.com"),
+            $options: 'i',
+          },
+        }).then(async (user) => {
+          await bcrypt
+            .compare(req.body.currentPassword, user.password)
+            .then((passwordMatch) => {
+              if (!passwordMatch) {
+                console.log("Incorrect current password")
+                return res.status(400).send({
+                  error: 'Incorrect current password',
+                });
+              } else {
+                return res.status(200).send({ message: 'Correct Password, Password matches!' })
+              }
+            })
+            .catch(error => {
+              console.log("error in catch", error)
+              res.status(500).send(error)
+            });
+        })
+    } catch (err) {
+      console.log("err in authorizeUser:", err)
+      res.status(500).send(error)
+    }
+  }
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -831,6 +863,7 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
+    authorizeUser
   };
 };
 
