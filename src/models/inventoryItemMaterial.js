@@ -23,7 +23,7 @@ const InventoryItemMaterial = new Schema({
     description: { type: String, required: true, maxLength: 150 },
   }],
   purchaseRecord: [{
-    date: { type: String, required: true },
+    date: { type: Date, required: true, default: Date.now() },
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
     poId: { type: String, required: true },
     sellerId: { type: String, required: true },
