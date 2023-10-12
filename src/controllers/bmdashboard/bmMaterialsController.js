@@ -20,14 +20,33 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
   };
   
   const bmAddMaterials = async function (req, res) {
+    // add permission check...
+
     const { material, requestor } = req.body;
+    const purchaseRecord = {
+      date: material.purchaseDate,
+      createdBy: requestor.requestorId,
+      poId: material.invoice,
+      sellerId: material.phone,
+      quantity: material.quantity,
+      unitPrice: material.unitPrice,
+      currency: material.currency,
+      subtotal: material.quantity,
+      tax: material.taxRate,
+      shipping: material.shippingFee,
+    };
 
     try {
-      const invMaterial = await ItemMaterial.findOne({ project: material.projectId, inventoryItemType: material.material }).exec();
-      if (invMaterial) {
-        console.log('found item material in project');
-        // TODO: update inventoryMaterial with new purchase record
-        // and updated quantities
+      const result = await ItemMaterial.findOneAndUpdate(
+        { project: material.projectId, inventoryItemType: material.material },
+        { 
+          $inc: { stockBought: material.quantity, stockAvailable: material.quantity },
+          $push: { purchaseRecord: purchaseRecord },
+        },
+        { returnDocument: 'after', lean: true }).exec();
+      if (result) {
+        console.log(result);
+        res.status(201).send(result);
       } else {
         const itemMaterial = new ItemMaterial({
           inventoryItemType: material.material,
@@ -36,18 +55,7 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
           stockAvailable: material.quantity,
           usageRecord: [],
           updateRecord: [],
-          purchaseRecord: [{
-            date: material.purchaseDate,
-            createdBy: requestor.requestorId,
-            poId: material.invoice,
-            sellerId: material.phone,
-            quantity: material.quantity,
-            unitPrice: material.unitPrice,
-            currency: material.currency,
-            subtotal: material.quantity,
-            tax: material.taxRate,
-            shipping: material.shippingFee,
-          }],
+          purchaseRecord: [purchaseRecord],
         });
         const newItemMaterial = await itemMaterial.save();
         res.status(201).send(newItemMaterial);
@@ -57,7 +65,7 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
     }
   };
 
-  return { 
+  return {
     bmMaterialsList,
     bmAddMaterials,
   };
