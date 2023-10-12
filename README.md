@@ -30,11 +30,12 @@ JWT_SECRET=<secret value>
 
 To make the process easy create a .env file and put the above text in the file and replace values with the correct values, which you can get from your teammates. Then do an npm run-script build followed by an npm start. By default, the services will start on port 4500 and you can http://localhost:4500/api/<routename> to access the methods. A tools like Postman will be your best friend here, you will need to have an auth token placed in the 'Authorization' header which you can get through the networking tab of the local frontend when you login.
 
-* `npm run lint` command for fixing lint
-* `npm run build` command for building server
-* `npm run buildw` command for auto rebuild upon change of src
-* `npm run start` command for running the server in dist
-* `npm run serve` command for running server in src without build
+* `npm run lint` -- fix lint
+* `npm run build` -- build src server and save in dist
+* `npm run buildw` -- auto rebuild upon change of src
+* `npm run start` -- run the server in dist
+* `npm run serve` -- run the server in src without build
+* `npm run dev` -- run the server in src and auto restart upon change of src
 
 Note: Once you check in the code in github, the application will be publsihed to the following: 
 Developement : https://hgn-rest-dev.herokuapp.com 
