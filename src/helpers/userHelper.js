@@ -245,7 +245,11 @@ const userHelper = function() {
           </p>
         </div>
       `;
-      let mailList = mappedResults;
+      //This mappedResults has the list of email recipients for weekly summary. Commenting it 
+      //on a temporary basis.
+      // let mailList = mappedResults;
+      
+      let mailList='mounica.d19@gmail.com'
 
       emailSender(
         mailList,
