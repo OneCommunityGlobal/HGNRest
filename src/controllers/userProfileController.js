@@ -14,6 +14,7 @@ const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidato
 const cache = require('../utilities/nodeCache')();
 const { hasPermission, hasIndividualPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
+const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 
 async function ValidatePassword(req, res) {
@@ -209,12 +210,44 @@ const userProfileController = function (UserProfile) {
     up.bioPosted = req.body.bioPosted || "default";
     up.isFirstTimelog = true;
 
+    const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
+
     up.save()
       .then(() => {
         res.status(200).send({
           _id: up._id,
         });
+        
+        if(up.role === "Owner"){
 
+          const subject = `New Owner Role Created`;
+
+          const emailBody = `<p> Hi Admin! </p>
+          
+          <p><strong>New Account Details</strong></p>
+          <p>This email is to inform you that <strong>${up.firstName} ${up.lastName}</strong> has been created as a new owner account on the Highest Good Network application.</p>
+                   
+          <p><strong>Here are the details for the new owner account:</strong></p>
+          <ul>
+              <li><strong>Name:</strong> ${up.firstName} ${up.lastName}</li>
+              <li><strong>Email:</strong> <a href="mailto:${up.email}">${up.email}</a></li>
+           </ul>
+
+          <p><strong>Who created this new account?</strong></p>
+          <ul>
+              <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+              <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+           </ul>
+
+           <p>If you have any questions or notice any issues, please investigate further.</p>
+
+           <p>Thank you for your attention to this matter.</p>
+           
+           <p>Sincerely,</p>
+           <p>The HGN A.I. (and One Community)</p>`;
+
+          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
+        }
         // update backend cache
 
         const userCache = {
@@ -826,28 +859,78 @@ const userProfileController = function (UserProfile) {
       });
   };
 
-  const resetPassword = function (req, res) {
-    ValidatePassword(req);
+  const resetPassword = async function (req, res) {
+    try{
 
-    UserProfile.findById(req.params.userId, 'password')
-      .then((user) => {
-        user.set({
-          password: req.body.newpassword,
-        });
-        user
-          .save()
-          .then(() => {
-            res.status(200).send({
-              message: ' password Reset',
-            });
-          })
-          .catch((error) => {
-            res.status(500).send(error);
-          });
-      })
-      .catch((error) => {
-        res.status(500).send(error);
+      ValidatePassword(req);
+
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
+
+      if(!requestor){
+        res.status(404).send({ error: 'Requestor not found' });
+        return;
+      }
+
+      const user = await UserProfile.findById(req.params.userId).select('firstName lastName email role').exec();
+      
+      if(!user){
+        res.status(404).send({ error: 'User not found' });
+        return;
+      }
+
+      if (!await hasPermission(requestor.role, 'putUserProfileImportantInfo')) {
+        res.status(403).send('You are not authorized to reset this users password');
+        return;
+      }
+  
+      if (user.role === 'Owner' && !await hasPermission(requestor.role, 'addDeleteEditOwners')) {
+        res.status(403).send('You are not authorized to reset this user password');
+        return;
+      }
+
+      user.password = req.body.newpassword;
+
+      await user.save();
+
+      if(user.role === "Owner"){
+      const subject = `Owner Password Reset Notification`;
+      const emailBody = `<p>Hi Admin! </p>
+
+      <p><strong>Account Details</strong></p>
+      <p>This email is to inform you that a password reset has been executed for an Owner account:</p>
+  
+      <ul>
+          <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
+      </ul>
+      
+      <p><strong>Account that reset the Owner's password</strong></p>
+      <p>The password reset was made by:</p>
+  
+      <ul>
+          <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+      </ul>
+
+      <p>If you have any questions or need to verify this password reset, please investigate further.</p>
+
+      <p>Thank you for your attention to this matter.</p>
+  
+      <p>Sincerely,</p>
+      <p>The HGN A.I. (and One Community)</p>
+      `;
+
+      emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
+
+      }
+
+      res.status(200).send({
+        message: 'Password Reset',
       });
+
+    }catch(error){
+      res.status(500).send(error);
+    }
   };
 
   const getAllUsersWithFacebookLink = function (req, res) {
