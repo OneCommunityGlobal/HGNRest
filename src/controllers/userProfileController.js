@@ -12,7 +12,7 @@ const Badge = require('../models/badge');
 const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const { hasPermission, hasIndividualPermission, canRequestorUpdateUser } = require('../utilities/permissions');
+const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -35,7 +35,20 @@ async function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (!userId === requestor.requestorId && !await hasPermission(requestor.role, 'updatePassword')) {
+  if (userId !== requestor.requestorId && !await hasPermission(requestor.role, 'updatePassword')) {
+    console.log('User ID:', userId);
+    console.log('Requestor ID:', requestor.requestorId);
+    res.status(403).send({
+      error: "You are unauthorized to update this user's password",
+    });
+    return;
+  }
+
+
+  // Check permissions
+  if (userId === requestor.requestorId || !await hasPermission(requestor.role, 'updatePasswordForOthers')) {
+    console.log('User ID:', userId);
+    console.log('Requestor ID:', requestor.requestorId);
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -52,16 +65,20 @@ async function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getUserProfiles') &&
+    if (
+      !(await hasPermission(req.body.requestor.role, "getUserProfiles")) &&
       !req.body.requestor.permissions?.frontPermissions.includes(
         "putUserProfilePermissions"
       )
     ) {
-      if (!await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement') 
-        && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagementTab')) {
-      res.status(403).send('You are not authorized to view all users');
+      res.status(403).send("You are not authorized to view all users");
       return;
-      }
+    }
+
+    if (cache.getCache("allusers")) {
+      const getData = JSON.parse(cache.getCache("allusers"));
+      res.status(200).send(getData);
+      return;
     }
 
     UserProfile.find(
@@ -73,20 +90,13 @@ const userProfileController = function (UserProfile) {
       })
       .then((results) => {
         if (!results) {
-          if (cache.getCache("allusers")) {
-            const getData = JSON.parse(cache.getCache("allusers"));
-            res.status(200).send(getData);
-            return;
-          }else{
-            res.status(500).send({ error: "User result was invalid" });
-            return;
-          }
+          res.status(500).send({ error: "User result was invalid" });
+          return;
         }
         cache.setCache("allusers", JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
-      
   };
 
   const getProjectMembers = async function (req, res) {
@@ -245,9 +255,6 @@ const userProfileController = function (UserProfile) {
           "putUserProfilePermissions"
         ))
     );
-  
-    const canEditTeamCode = req.body.requestor.role === "Owner" ||
-      req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
 
     if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to update this user");
@@ -309,12 +316,6 @@ const userProfileController = function (UserProfile) {
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || "default";
       record.isFirstTimelog = req.body.isFirstTimelog;
-
-      if(!canEditTeamCode && record.teamCode !== req.body.teamCode){
-        res.status(403).send("You are not authorized to edit team code.");
-        return;
-      }
-
       record.teamCode = req.body.teamCode;
 
       // find userData in cache
@@ -601,17 +602,6 @@ const userProfileController = function (UserProfile) {
     const { userId } = req.params;
     const { key, value } = req.body;
 
-    if (key === "teamCode") {
-      const canEditTeamCode = req.body.requestor.role === "Owner" ||
-        req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
-
-      if(!canEditTeamCode){
-        res.status(403).send("You are not authorized to edit team code.");
-        return;
-      }
-  
-    }
-
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
@@ -636,70 +626,71 @@ const userProfileController = function (UserProfile) {
   const updatepassword = async function (req, res) {
     const { userId } = req.params;
     const { requestor } = req.body;
+
+    console.log('User ID:', userId);
+    console.log('Requestor ID:', requestor.requestorId);
+
+    // Check if userId is valid.
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).send({
-        error: 'Bad Request',
-      });
+        return res.status(400).send({
+            error: 'Bad Request',
+        });
     }
 
     // Verify correct params in body
     if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
-      return res.status(400).send({
-        error: 'One of more required fields are missing',
-      });
-    }
-    // Verify request is authorized by self or adminsitrator
-    if (!userId === requestor.requestorId && !await hasPermission(requestor.role, 'updatePassword')) {
-      return res.status(403).send({
-        error: "You are unauthorized to update this user's password",
-      });
+        return res.status(400).send({
+            error: 'One or more required fields are missing',
+        });
     }
 
-    if (canRequestorUpdateUser(requestor.requestorId, userId)) {
-      return res.status(403).send({
-        error: "You are unauthorized to update this user's password",
-      });
+    // Check if the requestor has the permission to update passwords.
+    const hasUpdatePasswordPermission = await hasPermission(requestor.role, 'updatePassword');
+
+    // If the requestor is updating their own password, allow them to proceed.
+    if (userId === requestor.requestorId) {
+        console.log('Requestor is updating their own password');
+    }
+    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
+    else if (!hasUpdatePasswordPermission) {
+        console.log("Requestor is trying to update someone else's password but lacks the 'updatePassword' permission");
+        return res.status(403).send({
+            error: "You are unauthorized to update this user's password",
+        });
     }
 
     // Verify new and confirm new password are correct
-
     if (req.body.newpassword !== req.body.confirmnewpassword) {
-      res.status(400).send({
-        error: 'New and confirm new passwords are not same',
-      });
+        return res.status(400).send({
+            error: 'New and confirm new passwords are not the same',
+        });
     }
 
-    // Verify old and new passwords are not same
-    if (req.body.currentpassword === req.body.newpassword) {
-      res.status(400).send({
-        error: 'Old and new passwords should not be same',
-      });
-    }
+    // Process the password change
+    try {
+        const user = await UserProfile.findById(userId, 'password');
+        const passwordMatch = await bcrypt.compare(req.body.currentpassword, user.password);
 
-    return UserProfile.findById(userId, 'password')
-      .then((user) => {
-        bcrypt
-          .compare(req.body.currentpassword, user.password)
-          .then((passwordMatch) => {
-            if (!passwordMatch) {
-              return res.status(400).send({
+        if (!passwordMatch) {
+            return res.status(400).send({
                 error: 'Incorrect current password',
-              });
-            }
-
-            user.set({
-              password: req.body.newpassword,
-              resetPwd: undefined,
             });
-            return user
-              .save()
-              .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
-          })
-          .catch(error => res.status(500).send(error));
-      })
-      .catch(error => res.status(500).send(error));
-  };
+        }
+
+        user.set({
+            password: req.body.newpassword,
+            resetPwd: undefined,
+        });
+
+        await user.save();
+
+        return res.status(200).send({ message: 'Updated password successfully' });
+
+    } catch (error) {
+        return res.status(500).send(error);
+    }
+};
+
 
   const getreportees = async function (req, res) {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
