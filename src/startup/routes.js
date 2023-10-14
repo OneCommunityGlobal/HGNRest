@@ -15,6 +15,7 @@ const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
+const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const ownerStandardMessage = require('../models/ownerStandardMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
@@ -43,10 +44,13 @@ const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskN
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project);
+const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
+
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 const roleRouter = require('../routes/roleRouter')(role);
+const rolePresetRouter = require('../routes/rolePresetRouter')(rolePreset);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
 
@@ -80,12 +84,14 @@ module.exports = function (app) {
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
+  app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
   app.use('/api', profileInitialSetupRouter);
   app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
+  app.use('/api', isEmailExistsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
 };

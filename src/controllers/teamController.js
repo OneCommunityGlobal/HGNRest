@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
+const cache = require('../utilities/nodeCache')();
+
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -126,6 +128,8 @@ const teamcontroller = function (Team) {
 
         users.forEach((element) => {
           const { userId, operation } = element;
+          // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
+          if(cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
           if (operation === 'Assign') {
             assignlist.push(userId);
