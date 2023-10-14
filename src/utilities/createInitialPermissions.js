@@ -266,9 +266,9 @@ const createInitialPermissions = async () => {
 
     // If role exists in db and is not updated, update default
     } else if (!presetDataBase.permissions.every(perm => permissions.includes(perm)) || !permissions.every(perm => presetDataBase.permissions.includes(perm))) {
-      const roleId = presetDataBase._id;
+      const presetId = presetDataBase._id;
 
-      promises.push(Role.findById(roleId, (_, record) => {
+      promises.push(RolePreset.findById(presetId, (_, record) => {
         record.permissions = permissions;
         record.save();
       }));
