@@ -1,6 +1,8 @@
+
 const moment = require('moment-timezone');
 const UserModel = require('../models/userProfile');
 const ReasonModel = require('../models/reason');
+const emailSender = require("../utilities/emailSender");
 
 
 const postReason = async (req, res) => {
@@ -37,6 +39,7 @@ const postReason = async (req, res) => {
       });
     }
 
+     //Commented this condition to make reason scheduler available to all the users.
     // error case 1
     // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
     //   return res.status(403).json({
@@ -82,8 +85,33 @@ const postReason = async (req, res) => {
       date: savingDate,
       userId,
     });
-    await newReason.save();
+
+    
+    //await newReason.save();
+    console.log("Inside post sending email function.");
+    const savedData = await newReason.save();
+    if(savedData)
+    {
+     console.log("Inside if.");
+      //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
+     const subject = `Blue Square Reason for :${foundUser.firstName} ${foundUser.lastName} has been set`;
+
+          const emailBody = `<p> Hi ! </p>
+
+          <p>This email is to let you know that ${foundUser.firstName} ${foundUser.lastName} has set their Blue Square Reason.</p>
+          
+          <p>Blue Square Reason : ${newReason.reason} </p>
+          <p>Scheduled date for the Blue Square Reason: : ${newReason.date}  </p>
+          
+          <p>Thank you,<br />
+          One Community</p>`;
+          console.log("line before email sender")
+          
+          emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+     }
+  
     return res.sendStatus(200);
+
   } catch (error) {
     console.log(error);
     return res.status(400).json({
@@ -226,7 +254,27 @@ const patchReason = async (req, res) => {
     }
 
     foundReason.reason = reasonData.message;
-    await foundReason.save();
+   console.log("patchReason----------");
+    const savedData = await foundReason.save();
+    if(savedData)
+    {
+     console.log(" Patch - Inside if.");
+      //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
+     const subject = `Blue Square Reason for :${foundUser.firstName} ${foundUser.lastName} has been updated`;
+
+          const emailBody = `<p> Hi ! </p>
+
+          <p>This email is to let you know that ${foundUser.firstName} ${foundUser.lastName} has updated their Blue Square Reason.</p>
+          
+          <p>Updated Blue Square Reason : ${foundReason.reason} </p>
+          <p>Scheduled date for the Blue Square Reason: : ${foundReason.date}  </p>
+          
+          <p>Thank you,<br />
+          One Community</p>`;
+          console.log("line before email sender")
+          
+          emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+     }
 
     return res.status(200).json({
       message: 'Reason Updated!',
@@ -243,14 +291,14 @@ const deleteReason = async (req, res) => {
     const { reasonData, requestor } = req.body;
     const { userId } = req.params;
 
-    // error case 1
-    // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
-    //   return res.status(403).json({
-    //     message:
-    //       'You must be an Owner or Administrator to schedule a reason for a Blue Square',
-    //     errorCode: 1,
-    //   });
-    // }
+    //error case 1
+    if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
+      return res.status(403).json({
+        message:
+          'You must be an Owner or Administrator to schedule a reason for a Blue Square',
+        errorCode: 1,
+      });
+    }
 
     const foundUser = await UserModel.findById(userId);
 
