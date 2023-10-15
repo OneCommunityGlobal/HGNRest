@@ -65,7 +65,7 @@ const userProfileController = function (UserProfile) {
     
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate location jobTitle',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate location jobTitle totalTangibleHrs',
     )
       .sort({
         lastName: 1,
