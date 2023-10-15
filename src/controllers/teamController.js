@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const teamDetails=require('../models/team');
 const { hasPermission } = require('../utilities/permissions');
 
 const teamcontroller = function (Team) {
@@ -111,14 +112,16 @@ const teamcontroller = function (Team) {
         const assignlist = [];
         const unassignlist = [];
 
+
         users.forEach((element) => {
           const { userId, operation } = element;
 
-          if (operation === 'Assign') {
+          if (operation === 'Assign' ) {
             assignlist.push(userId);
           } else {
             unassignlist.push(userId);
           }
+          if(oper)
         });
 
         const addTeamToUserProfile = userProfile
@@ -131,6 +134,7 @@ const teamcontroller = function (Team) {
           { _id: team._id },
           { $addToSet: { members: { $each: assignlist.map(userId => ({ userId })) } } },
         ).exec();
+
         const removeUserFromTeam = Team.updateOne(
           { _id: team._id },
           { $pull: { members: { userId: { $in: unassignlist } } } },
@@ -181,6 +185,38 @@ const teamcontroller = function (Team) {
       .catch(error => res.status(500).send(error));
   };
 
+  const updateTeamVisiblity= async function(req,res){
+      if (!await hasPermission(req.body.requestor.role, 'updateTeamVisiblity')) {
+        res.status(403).send('You are not authorized to make changes in the teams.');
+        return;
+      }
+  
+      const { teamId } = req.params;
+      const { userId, visibility } = req.body;
+
+  
+      Team.findById(teamId, (error, record) => {
+        if (error || record === null) {
+          res.status(400).send('No valid records found');
+          return;
+        }
+        
+        const memberToUpdate = record.members.find(member => member.userId.toString() === userId);
+        
+        if (!memberToUpdate) {
+          res.status(404).send('Member not found in the team.');
+          return;
+        }
+    
+        memberToUpdate.visibility = visibility;
+  
+        record
+          .save()
+          .then(results => res.status(201).send(results._id))
+          .catch(errors => res.status(400).send(errors));
+      }); 
+  }
+
   return {
     getAllTeams,
     getTeamById,
@@ -189,6 +225,7 @@ const teamcontroller = function (Team) {
     putTeam,
     assignTeamToUsers,
     getTeamMembership,
+    updateTeamVisiblity,
   };
 };
 
