@@ -7,7 +7,8 @@ const router = function (mapLocations) {
 
     mapRouter.route('/mapLocations')
         .get(controller.getAllLocations)
-        .put(controller.putUserLocation);
+        .put(controller.putUserLocation)
+        .patch(controller.updateUserLocation);
 
     mapRouter.route('/mapLocations/:locationId')
         .delete(controller.deleteLocation)
