@@ -1,4 +1,5 @@
 const Role = require('../models/role');
+const RolePreset = require('../models/rolePreset');
 const User = require('../models/userProfile');
 
 const permissionsRoles = [
@@ -209,6 +210,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'editTeamCode',
     ],
   },
 ];
@@ -222,6 +224,7 @@ const createInitialPermissions = async () => {
 
   // Get Roles From DB
   const allRoles = await Role.find();
+  const allPresets = await RolePreset.find();
   const onlyUpdateOwner = false;
 
   const promises = [];
@@ -248,6 +251,27 @@ const createInitialPermissions = async () => {
           record.save();
         }));
       }
+    }
+
+    // Update Default presets
+    const presetDataBase = allPresets.find(preset => preset.roleName === roleName && preset.presetName === 'default');
+
+    // If role does not exist in db, create it
+    if (!presetDataBase) {
+      const defaultPreset = new RolePreset();
+      defaultPreset.roleName = roleName;
+      defaultPreset.presetName = 'default';
+      defaultPreset.permissions = permissions;
+      defaultPreset.save();
+
+    // If role exists in db and is not updated, update default
+    } else if (!presetDataBase.permissions.every(perm => permissions.includes(perm)) || !permissions.every(perm => presetDataBase.permissions.includes(perm))) {
+      const presetId = presetDataBase._id;
+
+      promises.push(RolePreset.findById(presetId, (_, record) => {
+        record.permissions = permissions;
+        record.save();
+      }));
     }
   }
   await Promise.all(promises);
