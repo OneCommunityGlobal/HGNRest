@@ -189,13 +189,32 @@ const dashboardhelper = function () {
       },
       {
         $match: {
+          // leaderboard user roles hierarchy
           $or: [
             {
-              role: {
-                $in: ['Core Team', 'Administrator', 'Owner'],
-              },
+              role:  { $in: ['Owner', 'Core Team'] },
             },
-            { 'persondata.0._id': userid },
+            {
+              $and: [
+                {
+                  role: 'Administrator',
+                },
+                { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
+              ]
+            },
+            {
+              $and: [
+                {
+                  role: { $in: ['Manager', 'Mentor'] },
+                },
+                {
+                  'persondata.0.role': {
+                    $nin: ['Manager', 'Mentor', 'Core Team', 'Administrator', 'Owner'],
+                  },
+                },
+              ],
+            },
+            { 'persondata.0._id': userId },
             { 'persondata.0.role': 'Volunteer' },
             { 'persondata.0.isVisible': true },
           ],

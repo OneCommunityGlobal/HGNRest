@@ -15,7 +15,7 @@ const popupEditorController = function (PopupEditors) {
 
 
   const createPopupEditor = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'createPopup')) {
+    if (!await hasPermission(req.body.requestor, 'createPopup')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new popup' });
@@ -38,7 +38,7 @@ const popupEditorController = function (PopupEditors) {
   };
 
   const updatePopupEditor = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'updatePopup')) {
+    if (!await hasPermission(req.body.requestor, 'updatePopup')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new popup' });

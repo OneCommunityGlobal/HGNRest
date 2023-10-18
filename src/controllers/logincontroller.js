@@ -49,6 +49,9 @@ const logincontroller = function () {
           userid: user._id,
           role: user.role,
           permissions: user.permissions,
+          access: {
+            canAccessBMPortal: false,
+          },
           expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
         };
 
