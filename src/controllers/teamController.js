@@ -21,7 +21,6 @@ const teamcontroller = function (Team) {
       .catch(error => res.send(error).status(404));
   };
   const postTeam = async function (req, res) {
-    console.log("==============>   3 ");
 
     if (!await hasPermission(req.body.requestor.role, 'postTeam')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
@@ -196,6 +195,8 @@ const teamcontroller = function (Team) {
 
   
   const updateTeamVisibility = async (req, res) => {
+    console.log("==============>   9 ");
+
     const { visibility, teamId, userId } = req.body;
   
     try {
@@ -215,9 +216,7 @@ const teamcontroller = function (Team) {
         team.modifiedDatetime = Date.now();
   
         team.save()
-          .then(updatedTeam => {
-            console.log('Team updated successfully:');
-  
+          .then(updatedTeam => {  
             // Additional operations after team.save() 
             const assignlist = [];
             const unassignlist = [];
@@ -256,70 +255,9 @@ const teamcontroller = function (Team) {
   
       });
     } catch (error) {
-      console.log('Exception');
       res.status(500).send('Error updating team visibility: ' + error.message);
     }
   };
-          
-  //  const updateTeamVisibility = async (req, res) => {
-  //     const { visibility, teamId, userId } = req.body;
-    
-  //     try {
-  //       Team.findById(teamId, (error, team) => {
-  //         if (error || team === null) {
-  //           res.status(400).send('No valid records found');
-  //           return;
-  //         }
-    
-  //         const memberIndex = team.members.findIndex(member => member.userId.toString() === userId);
-  //         if (memberIndex === -1) {
-  //           res.status(400).send('Member not found in the team.');
-  //           return;
-  //         }
-    
-  //         team.members[memberIndex].visible = visibility;
-  //         team.modifiedDatetime = Date.now();
-    
-  //         team.save()
-  //           .then(updatedTeam => {
-  //             console.log('Team updated successfully:');
-    
-  //             // Additional operations after team.save() if needed
-  //         if (!visibility) {
-  //           const otherUserIds = team.members
-  //             .filter(member => member.userId.toString() !== userId)
-  //             .map(member => member.userId);
-
-  //           // Remove the other user IDs from the myteam array
-  //           const removeMember = myTeam.updateOne({ _id: teamId }, { $pull: { myteam: { _id: { $in: otherUserIds } } } }).exec();
-
-  //           // Wait for the removal to complete using Promise.all
-  //           Promise.all([removeMember])
-  //             .then(() => {
-  //               res.status(200).send({ result: 'Done' });
-  //             })
-  //             .catch(error => {
-  //               console.error('Error removing users from myteam:', error);
-  //               res.status(500).send('Error removing users from myteam: ' + error.message);
-  //             });
-  //         } else {
-  //           res.status(200).send({ result: 'Done' });
-  //         }
-  //       })
-  //       .catch(error => {
-  //         console.error('Error saving team:', error);
-  //         res.status(400).send('Error saving team: ' + error.message);
-  //       });
-  //   });}
-  //      catch (error) {
-  //       console.log('Exception');
-  //       res.status(500).send('Error updating team visibility: ' + error.message);
-  //     };
-  //   };
-  
-  // // };
-  
-
   return {
     getAllTeams,
     getTeamById,
