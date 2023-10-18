@@ -94,7 +94,7 @@ const postReason = async (req, res) => {
     {
      console.log("Inside if.");
       //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
-     const subject = `Blue Square Reason for :${foundUser.firstName} ${foundUser.lastName} has been set`;
+     const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been set`;
 
           const emailBody = `<p> Hi ! </p>
 
@@ -107,7 +107,13 @@ const postReason = async (req, res) => {
           One Community</p>`;
           console.log("line before email sender")
           
-          emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+          // 1 hardcoded email- emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+
+          // 2 user email - 
+          emailSender(`${foundUser.email}`, subject, emailBody, null, null);
+
+          //3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
+          //  emailSender(`${foundUser.email},shreetesting4@gmail.com`, subject, emailBody, null, null);
      }
   
     return res.sendStatus(200);
@@ -260,7 +266,7 @@ const patchReason = async (req, res) => {
     {
      console.log(" Patch - Inside if.");
       //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
-     const subject = `Blue Square Reason for :${foundUser.firstName} ${foundUser.lastName} has been updated`;
+     const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been updated`;
 
           const emailBody = `<p> Hi ! </p>
 
@@ -273,7 +279,15 @@ const patchReason = async (req, res) => {
           One Community</p>`;
           console.log("line before email sender")
           
-          emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+          // 1 hardcoded email- emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+
+          // 2 user email - 
+          emailSender(`${foundUser.email}`, subject, emailBody, null, null);
+
+          //3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
+          //  emailSender(`${foundUser.email},shreetesting4@gmail.com`, subject, emailBody, null, null);
+         
+          
      }
 
     return res.status(200).json({
