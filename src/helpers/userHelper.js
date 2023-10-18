@@ -565,7 +565,8 @@ const userHelper = function () {
                     $and: [
                       { $eq: ["$isTangible", true] },
                       { $gte: ["$dateOfWork", startOfLastWeek] },
-                      { $lte: ["$dateOfWork", endOfLastWeek] }
+                      { $lte: ["$dateOfWork", endOfLastWeek] },
+                      { $in: ['$entryType', 'default', null] }
                     ]
                   }
                 }
