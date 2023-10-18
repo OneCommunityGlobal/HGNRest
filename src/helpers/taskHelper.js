@@ -113,6 +113,9 @@ const taskHelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  },
                 ],
               },
             },
@@ -356,6 +359,9 @@ const taskHelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
                   },
                 ],
               },

@@ -69,6 +69,9 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  },
                 ],
               },
             },
@@ -162,6 +165,7 @@ const dashboardhelper = function () {
       .tz('America/Los_Angeles')
       .endOf('week')
       .format('YYYY-MM-DD');
+    const entryTypes = ['default', null];
     return myTeam.aggregate([
       {
         $match: {
@@ -283,6 +287,9 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  }
                 ],
               },
             },
@@ -438,6 +445,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
+        eentryType: { $in: [ 'default', null ] },
         personId: userId,
       });
 
@@ -575,6 +583,9 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  },
                 ],
               },
             },
@@ -651,6 +662,9 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
+                  },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
                   },
                 ],
               },

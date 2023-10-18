@@ -553,7 +553,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .then((results) => {
         const data = [];
         results.forEach((element) => {
-          console.log(element);
           const record = {};
 
           record._id = element._id;
@@ -592,7 +591,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .then((results) => {
         const data = [];
         results.forEach((element) => {
-          console.log(element);
           const record = {};
           record._id = element._id;
           record.notes = element.notes;
@@ -627,7 +625,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .then((results) => {
         const data = [];
         results.forEach((element) => {
-          console.log(element);
           const record = {};
           record._id = element._id;
           record.notes = element.notes;
