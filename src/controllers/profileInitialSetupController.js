@@ -4,6 +4,7 @@ const moment = require("moment-timezone");
 const jwt = require("jsonwebtoken");
 const emailSender = require("../utilities/emailSender");
 const config = require("../config");
+const cache = require('../utilities/nodeCache')();
 
 // returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
@@ -25,7 +26,6 @@ function informManagerMessage(user) {
   <p>New User <b style="text-transform: capitalize;">${user.firstName} ${user.lastName}</b> has completed their part of setup.</p>
   <p>These areas need to now be completed by an Admin:</p>
   <ul style="padding-left: 20px;padding-bottom:10px;">
-    <li>Weekly Committed Hours</li>
     <li>Admin Document</li>
     <li>Link to Media Files</li>
     <li>Assign Projects</li>
@@ -58,6 +58,10 @@ function informManagerMessage(user) {
             <td>${user.jobTitle}</td>
         </tr>
         <tr>
+            <td><strong>Weekly Commited Hours:</strong></td>
+            <td>${user.weeklycommittedHours}</td>
+        </tr>
+        <tr>
             <td><strong>Time Zone:</strong></td>
             <td>${user.timeZone}</td>
         </tr>
@@ -87,7 +91,7 @@ const profileInitialSetupController = function (
   - Generates a link using the token and emails it to the recipient.
    */
   const getSetupToken = async (req, res) => {
-    let { email, baseUrl } = req.body;
+    let { email, baseUrl,weeklyCommittedHours } = req.body;
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().tz("America/Los_Angeles").add(1, "week");
@@ -103,6 +107,7 @@ const profileInitialSetupController = function (
         const newToken = new ProfileInitialSetupToken({
           token,
           email,
+          weeklyCommittedHours,
           expiration: expiration.toDate(),
         });
 
@@ -187,7 +192,13 @@ const profileInitialSetupController = function (
             newUser.jobTitle = req.body.jobTitle;
             newUser.phoneNumber = req.body.phoneNumber;
             newUser.bio = "";
-            newUser.weeklycommittedHours = req.body.weeklycommittedHours;
+            newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
+            newUser.weeklycommittedHoursHistory = [
+                {
+                  hours: newUser.weeklycommittedHours,
+                  dateChanged: Date.now(),
+                },
+            ];
             newUser.personalLinks = [];
             newUser.adminLinks = [];
             newUser.teams = Array.from(new Set([]));
@@ -201,11 +212,17 @@ const profileInitialSetupController = function (
             newUser.collaborationPreference = req.body.collaborationPreference;
             newUser.timeZone = req.body.timeZone || "America/Los_Angeles";
             newUser.location = req.body.location;
+            newUser.permissions = {
+                frontPermissions: [],
+                backPermissions: []
+            }
             newUser.bioPosted = "default";
             newUser.privacySettings.email = req.body.privacySettings.email;
             newUser.privacySettings.phoneNumber =
               req.body.privacySettings.phoneNumber;
             newUser.teamCode = "";
+            newUser.isFirstTimelog = true;
+
             const savedUser = await newUser.save();
 
             emailSender(
@@ -230,6 +247,24 @@ const profileInitialSetupController = function (
             const token = jwt.sign(jwtPayload, JWT_SECRET);
 
             res.send({ token }).status(200);
+            
+            const NewUserCache = {
+                permissions: savedUser.permissions,
+                isActive: true,
+                weeklycommittedHours: savedUser.weeklycommittedHours,
+                createdDate: savedUser.createdDate.toISOString(),
+                _id: savedUser._id,
+                role: savedUser.role,
+                firstName: savedUser.firstName,
+                lastName: savedUser.lastName,
+                email: savedUser.email,
+              };
+
+              const allUserCache = JSON.parse(cache.getCache("allusers"));
+              allUserCache.push(NewUserCache);
+              cache.setCache("allusers", JSON.stringify(allUserCache));
+
+
           } else {
             res.status(400).send("Token is expired");
           }
