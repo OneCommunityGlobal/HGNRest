@@ -13,7 +13,18 @@ const team = new Schema({
       addDateTime: { type: Date, default: Date.now(), ref: 'userProfile' },
     },
   ],
-  teamCode: { type: 'String', default: '' },
+  teamCode: {
+    type: 'String',
+    default: '',
+    validate: {
+      validator(v) {
+        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$/;
+        return teamCoderegex.test(v);
+      },
+      message:
+        'Please enter a code in the format of A-AAA or AAAAA',
+    },
+  },
 });
 
 module.exports = mongoose.model('team', team, 'teams');
