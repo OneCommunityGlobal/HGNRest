@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 const userprofile = require('../models/userProfile');
-const escapeRegex = require('../utilities/escapeRegex');
 
 const logincontroller = function () {
   const { JWT_SECRET } = config;
@@ -17,9 +16,8 @@ const logincontroller = function () {
       return;
     }
 
-
     try {
-      const user = await userprofile.findOne({ email: { $regex: escapeRegex(_email), $options: 'i' } });
+      const user = await userprofile.findOne({ email: _email });
 
       // returning 403 if the user not found or the found user is inactive.
       if (!user) {
@@ -51,6 +49,9 @@ const logincontroller = function () {
           userid: user._id,
           role: user.role,
           permissions: user.permissions,
+          access: {
+            canAccessBMPortal: false,
+          },
           expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
         };
 
