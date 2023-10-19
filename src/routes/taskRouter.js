@@ -28,6 +28,9 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/task/update/:taskId')
     .put(controller.updateTask);
 
+  wbsRouter.route('/task/updateStatus/:taskId')
+    .put(controller.updateTaskStatus);
+
   wbsRouter.route('/task/updateAllParents/:wbsId/')
     .put(controller.updateAllParents);
 
