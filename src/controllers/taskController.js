@@ -390,7 +390,7 @@ const taskController = function (Task) {
   };
 
   const importTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'importTask')) {
+    if (!await hasPermission(req.body.requestor, 'importTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -420,7 +420,7 @@ const taskController = function (Task) {
   };
 
   const postTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'postTask')) {
+    if (!await hasPermission(req.body.requestor, 'postTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -456,7 +456,7 @@ const taskController = function (Task) {
   };
 
   const updateNum = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'updateNum')) {
+    if (!await hasPermission(req.body.requestor, 'updateNum')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -593,7 +593,7 @@ const taskController = function (Task) {
   };
 
   const deleteTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
+    if (!await hasPermission(req.body.requestor, 'deleteTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to deleteTasks.' });
@@ -642,7 +642,7 @@ const taskController = function (Task) {
   };
 
   const deleteTaskByWBS = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
+    if (!await hasPermission(req.body.requestor, 'deleteTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to deleteTasks.' });
@@ -673,7 +673,7 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'updateTask')) {
+    if (!await hasPermission(req.body.requestor, 'updateTask')) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
     }
@@ -689,7 +689,7 @@ const taskController = function (Task) {
   };
 
   const swap = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'swapTask')) {
+    if (!await hasPermission(req.body.requestor, 'swapTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
