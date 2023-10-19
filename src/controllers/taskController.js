@@ -776,7 +776,6 @@ const taskController = function (Task) {
         });
 
         res.status(200).send(task);
-
     } catch (error) {
         // Generic error message, you can adjust as needed
         res.status(500).send({ error: 'Internal Server Error', details: error.message });
@@ -850,6 +849,17 @@ const taskController = function (Task) {
     }
   };
 
+  const updateTaskStatus = async (req, res) => {
+    const { taskId } = req.params;
+
+    Task.findOneAndUpdate(
+      { _id: mongoose.Types.ObjectId(taskId) },
+      { ...req.body, modifiedDatetime: Date.now() },
+    )
+      .then(() => res.status(201).send())
+      .catch(error => res.status(404).send(error));
+  };
+
   const getReviewReqEmailBody = function (name, taskName) {
     const text = `New Task Review Request From <b>${name}</b>:
         <p>The following task is available to review:</p>
@@ -863,7 +873,7 @@ const taskController = function (Task) {
   const getRecipients = async function (myUserId) {
     const recipients = [];
     const user = await userProfile.findById(myUserId);
-    const membership = await userProfile.find({ role: ['Administrator', 'Manager', 'Mentor'] });
+    const membership = await userProfile.find({ role: { $in: ['Administrator', 'Manager', 'Mentor'] } });
     membership.forEach((member) => {
       if (member.teams.some(team => user.teams.includes(team))) {
         recipients.push(member.email);
@@ -909,6 +919,7 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
+    updateTaskStatus,
     sendReviewReq,
   };
 };
