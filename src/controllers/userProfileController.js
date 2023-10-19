@@ -106,6 +106,10 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
+
+    console.log("🚀 ~ file: userProfileController.js:110 ~ postUserProfile ~ req.body.betaEmail:", req.body.betaEmail)
+    console.log("🚀 ~ file: userProfileController.js:112 ~ postUserProfile ~ req.body.betaPassword:", req.body.betaPassword)
+    
     if (!await hasPermission(req.body.requestor, 'postUserProfile')) {
       res.status(403).send('You are not authorized to create new users');
       return;
@@ -137,9 +141,9 @@ const userProfileController = function (UserProfile) {
     if (process.env.dbName === 'hgnData_dev') {
       console.log("🚀 ~ file: userProfileController.js:135 ~ postUserProfile ~ Inside dev environment:")
 
-      const email = "devadmin@hgn.net"
-      const password = "DeveloperPassword100%!"
-      const url = "https://hgn-rest-dev.azurewebsites.net/api/"
+      const email = req.body.betaEmail
+      const password = req.body.betaPassword
+      const url = "https://hgn-rest-beta.azurewebsites.net/api/"
       try {
         // log in with axios
         let response = await axios.post(url + "login", {
@@ -148,28 +152,15 @@ const userProfileController = function (UserProfile) {
         })
         console.log("🚀 ~ file: userProfileController.js:146 ~ postUserProfile ~ response.data:", response.data)
         const token = response.data.token
+        console.log("🚀 ~ file: userProfileController.js:155 ~ postUserProfile ~ token:", token)
 
-        response = await axios.get(url + "userprofile", {
-          headers: {
-            Authorization: token
-          }
-        })
-        const userProfiles = response.data
-        const emails = userProfiles.map(profile => profile.email)
-        console.log("🚀 ~ file: userProfileController.js:156 ~ postUserProfile ~ emails:", emails)
-
-
-        // Check if email entered is in this list of real emails
-        if (!(emails.includes(email))) {
-          console.log("🚀 ~ file: userProfileController.js:163 ~ postUserProfile ~ email is NOT in emails")
-          res.status(400).send({
-            error: 'That email address does not match a real email address in the beta database. Please enter a real email address associated with an account in the beta database.',
-            type: 'email',
-          });
-          return;
-        }
       } catch (error) {
-        console.log("🚀 ~ file: userProfileController.js:147 ~ postUserProfile ~ error:", error)
+        console.log("🚀 ~ file: userProfileController.js:163 ~ postUserProfile ~ error:", error)
+        res.status(400).send({
+          error: 'That email address does not match a real email address in the beta database. Please enter a real email address associated with an account in the beta database.',
+          type: 'email',
+        });
+        return;
       }
 
     }
