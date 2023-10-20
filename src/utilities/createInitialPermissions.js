@@ -65,6 +65,7 @@ const permissionsRoles = [
       'getUserProfiles',
       'getProjectMembers',
       'getWeeklySummaries',
+      'editWeeklySummaryOptions',
       // 'getReportsPage',?
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
