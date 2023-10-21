@@ -107,9 +107,6 @@ const userProfileController = function (UserProfile) {
 
   const postUserProfile = async function (req, res) {
 
-    console.log("🚀 ~ file: userProfileController.js:110 ~ postUserProfile ~ req.body.betaEmail:", req.body.betaEmail)
-    console.log("🚀 ~ file: userProfileController.js:112 ~ postUserProfile ~ req.body.betaPassword:", req.body.betaPassword)
-    
     if (!await hasPermission(req.body.requestor, 'postUserProfile')) {
       res.status(403).send('You are not authorized to create new users');
       return;
@@ -139,10 +136,9 @@ const userProfileController = function (UserProfile) {
 
     // In dev environment, Check if email exists in beta email
     if (process.env.dbName === 'hgnData_dev') {
-      console.log("🚀 ~ file: userProfileController.js:135 ~ postUserProfile ~ Inside dev environment:")
 
-      const email = req.body.betaEmail
-      const password = req.body.betaPassword
+      const email = req.body.actualEmail
+      const password = req.body.actualPassword
       const url = "https://hgn-rest-beta.azurewebsites.net/api/"
       try {
         // log in with axios
@@ -150,19 +146,13 @@ const userProfileController = function (UserProfile) {
           email: email,
           password: password
         })
-        console.log("🚀 ~ file: userProfileController.js:146 ~ postUserProfile ~ response.data:", response.data)
-        const token = response.data.token
-        console.log("🚀 ~ file: userProfileController.js:155 ~ postUserProfile ~ token:", token)
-
       } catch (error) {
-        console.log("🚀 ~ file: userProfileController.js:163 ~ postUserProfile ~ error:", error)
         res.status(400).send({
-          error: 'That email address does not match a real email address in the beta database. Please enter a real email address associated with an account in the beta database.',
-          type: 'email',
+          error: 'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
+          type: 'credentials',
         });
         return;
       }
-
     }
 
     /** *
@@ -886,7 +876,6 @@ const userProfileController = function (UserProfile) {
     try {
       const userProfiles = await UserProfile.find({}, 'email').lean();
       const userEmails = userProfiles.map(profile => profile.email)
-      console.log("🚀 ~ file: userProfileController.js:821 ~ getUserEmails ~ userEmails:", userEmails)
       res.status(200).send(userEmails);
     } catch (error) {
       console.error(error);
