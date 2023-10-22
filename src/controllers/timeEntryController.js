@@ -60,7 +60,7 @@ const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, h
       <p>Oops, it looks like  you have logged more hours than estimated for a task </p>
       <p><b>Task Name : ${taskName}</b></p>
       <p><b>Time Estimated : ${estimatedHours}</b></p>
-      <p><b>Hours Logged : ${hoursLogged}</b></p>
+      <p><b>Hours Logged : ${hoursLogged.toFixed(2)}</b></p>
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
       <p>One Community</p>`;
@@ -106,7 +106,7 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error: `No valid records found for ${req.params.timeEntryId}` });
       }
 
-      if (!(await hasPermission(req.body.requestor.role, 'editTimeEntry') || timeEntry.personId.toString() === req.body.requestor.requestorId.toString())) {
+      if (!(await hasPermission(req.body.requestor, 'editTimeEntry') || timeEntry.personId.toString() === req.body.requestor.requestorId.toString())) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
@@ -153,7 +153,7 @@ const timeEntrycontroller = function (TimeEntry) {
       if (initialSeconds !== totalSeconds
         && timeEntry.isTangible
         && req.body.requestor.requestorId === timeEntry.personId.toString()
-        && !await hasPermission(req.body.requestor.role, 'editTimeEntry')
+        && !await hasPermission(req.body.requestor, 'editTimeEntry')
         ) {
         const requestor = await userProfile.findById(req.body.requestor.requestorId);
         requestor.timeEntryEditHistory.push({
@@ -463,7 +463,7 @@ const timeEntrycontroller = function (TimeEntry) {
         if (
           record.personId.toString()
             === req.body.requestor.requestorId.toString()
-          || await hasPermission(req.body.requestor.role, 'deleteTimeEntry')
+          || await hasPermission(req.body.requestor, 'deleteTimeEntry')
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
           if (record.isTangible === true) {

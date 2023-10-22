@@ -10,7 +10,7 @@ const rolesController = function (Role) {
   };
 
   const createNewRole = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'postRole')) {
+    if (!await hasPermission(req.body.requestor, 'postRole')) {
       res.status(403).send('You are not authorized to create new roles.');
       return;
     }
@@ -39,7 +39,7 @@ const rolesController = function (Role) {
 
 
   const updateRoleById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'putRole')) {
+    if (!await hasPermission(req.body.requestor, 'putRole')) {
       res.status(403).send('You are not authorized to make changes to roles.');
       return;
     }
@@ -67,7 +67,7 @@ const rolesController = function (Role) {
   };
 
   const deleteRoleById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'deleteRole')) {
+    if (!await hasPermission(req.body.requestor, 'deleteRole')) {
       res.status(403).send('You are not authorized to delete roles.');
       return;
     }
