@@ -134,24 +134,25 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    // In dev environment, Check if email exists in beta email
+    // In dev environment, if newly created user is Owner or Administrator, make fetch request to Beta login route with actualEmail and actual Password
     if (process.env.dbName === 'hgnData_dev') {
-
-      const email = req.body.actualEmail
-      const password = req.body.actualPassword
-      const url = "https://hgn-rest-beta.azurewebsites.net/api/"
-      try {
-        // log in with axios
-        let response = await axios.post(url + "login", {
-          email: email,
-          password: password
-        })
-      } catch (error) {
-        res.status(400).send({
-          error: 'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
-          type: 'credentials',
-        });
-        return;
+      if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
+        const email = req.body.actualEmail
+        const password = req.body.actualPassword
+        const url = "https://hgn-rest-beta.azurewebsites.net/api/"
+        try {
+          // Log in to Beta login route using provided credentials
+          let response = await axios.post(url + "login", {
+            email: email,
+            password: password
+          })
+        } catch (error) {
+          res.status(400).send({
+            error: 'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
+            type: 'credentials',
+          });
+          return;
+        }
       }
     }
 
@@ -222,6 +223,7 @@ const userProfileController = function (UserProfile) {
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || "default";
     up.isFirstTimelog = true;
+    up.actualEmail = req.body.actualEmail;
 
     up.save()
       .then(() => {
@@ -871,19 +873,7 @@ const userProfileController = function (UserProfile) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-
-  const getUserEmails = async (req, res) => {
-    try {
-      const userProfiles = await UserProfile.find({}, 'email').lean();
-      const userEmails = userProfiles.map(profile => profile.email)
-      res.status(200).send(userEmails);
-    } catch (error) {
-      console.error(error);
-      res.status(500).send('Internal Server Error');
-    }
-  };
   
-
   return {
     postUserProfile,
     getUserProfiles,
@@ -901,7 +891,6 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
-    getUserEmails,
   };
 };
 

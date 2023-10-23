@@ -160,6 +160,8 @@ const userProfileSchema = new Schema({
  areaName: { type: String },
       areaContent: { type: String },
   }],
+  // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
+  actualEmail: { type: String },
 });
 
 userProfileSchema.pre('save', function (next) {
