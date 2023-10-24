@@ -29,7 +29,7 @@ export const getClient = async (clients, userId) => {
   return clients.get(userId);
 };
 
-/*
+/**
  * Save client info to database
  * Save under these conditions:
  *  connection is normally closed (paused and closed);
@@ -47,7 +47,7 @@ export const saveClient = async (client) => {
   }
 };
 
-/*
+/**
  * This is the contract between client and server.
  * The client can send one of the following messages to the server:
  */
@@ -62,6 +62,9 @@ export const action = {
   FORCED_PAUSE: 'FORCED_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
 };
+
+const MAX_HOURS = 5;
+const MIN_MINS = 1;
 
 const updatedTimeSinceStart = (client) => {
   if (!client.started) return client.goal;
@@ -127,26 +130,20 @@ const stopTimer = (client) => {
  */
 const clearTimer = (client) => {
   stopTimer(client);
+  client.goal = moment.duration(2, 'hours').asMilliseconds();
   client.time = client.goal;
 };
 
-
-// /*
-// Here we switch the timer mode.
-// We pause the timer and check it's mode to set the time to 0 or the goal.
-// */
-// const switchMode = (client) => {
-//   client.countdown = !client.countdown;
-//   client.time = client.countdown ? client.goal : 0;
-//   client.paused = true;
-// };
-
-// Here we get the goal time from the message.
-const getGoal = msg => parseInt(msg.split('=')[1]);
-
 // Here we set the goal and time to the goal time.
+/**
+ * Here we set the goal.
+ * if timer has not started, we set both time and goal to the new goal
+ * if timer has started, we calculate the passed time and remove that from new goal
+ * and if passed time is greater than new goal, then set time to 0, but this should
+ * not be prohibited by frontend.
+ */
 const setGoal = (client, msg) => {
-  const newGoal = getGoal(msg);
+  const newGoal = parseInt(msg.split('=')[1]);
   if (!client.started) {
     client.goal = newGoal;
     client.time = newGoal;
@@ -170,13 +167,13 @@ const setGoal = (client, msg) => {
  * We also add it to the current time and set it as the new time.
  */
 const addGoal = (client, msg) => {
-  const duration = getGoal(msg);
+  const duration = parseInt(msg.split('=')[1]);
   const goalAfterAddition = moment
     .duration(client.goal)
     .add(duration, 'milliseconds')
     .asHours();
 
-  if (goalAfterAddition > 10) return;
+  if (goalAfterAddition > MAX_HOURS) return;
 
   client.goal = moment
     .duration(client.goal)
@@ -199,7 +196,7 @@ const addGoal = (client, msg) => {
  * If the new time is less than 0, we set it to 0.
  */
 const removeGoal = (client, msg) => {
-  const duration = getGoal(msg);
+  const duration = parseInt(msg.split('=')[1]);
   const goalAfterRemoval = moment
     .duration(client.goal)
     .subtract(duration, 'milliseconds')
@@ -209,7 +206,7 @@ const removeGoal = (client, msg) => {
     .subtract(duration, 'milliseconds')
     .asMinutes();
 
-  if (goalAfterRemoval < 15 || timeAfterRemoval < 0) return;
+  if (goalAfterRemoval < MIN_MINS || timeAfterRemoval < 0) return;
 
   client.goal = moment
     .duration(client.goal)
@@ -279,7 +276,7 @@ export const handleMessage = async (msg, clients, userId) => {
       break;
   }
 
-  await saveClient(client);
+  saveClient(client);
   clients.set(userId, client);
   if (resp === null) resp = client;
   return JSON.stringify(resp);
