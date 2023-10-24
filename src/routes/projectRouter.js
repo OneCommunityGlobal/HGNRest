@@ -25,7 +25,8 @@ const routes = function (project) {
     .post(controller.assignProjectToUsers)
     .get(controller.getprojectMembership);
 
-
+  projectRouter.route('/projectsByCategory/:category/')
+    .get(controller.getAllProjectsByCategory);
   return projectRouter;
 };
 

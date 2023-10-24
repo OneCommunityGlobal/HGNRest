@@ -179,6 +179,14 @@ const projectController = function (Project) {
       .catch((error) => { res.status(500).send(error); });
   };
 
+  const getAllProjectsByCategory = function (req, res) {
+    const { category } = req.params;
+    Project.find({ category }, 'projectName isActive category')
+      .sort({ projectName: 1 })
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
+  };
+
   return {
     getAllProjects,
     postProject,
@@ -188,6 +196,7 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    getAllProjectsByCategory
   };
 };
 

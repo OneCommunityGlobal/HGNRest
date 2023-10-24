@@ -7,6 +7,12 @@ const controller = require('../../controllers/bmdashboard/bmMaterialsController'
 materialsRouter.route('/materials')
   .get(controller.bmMaterialsList);
 
+materialsRouter.route('/materialsByProjectIdAndCheckInOut')
+  .get(controller.bmGetMaterialsListByProjectIdAndCheckInOut);
+
+materialsRouter.route('/postMaterialLog')
+  .post(controller.bmPostMaterialLog);
+
   return materialsRouter;
 }
 

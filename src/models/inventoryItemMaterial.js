@@ -14,6 +14,7 @@ const InventoryItemMaterial = new Schema({
     date: { type: Date, required: true, default: Date.now() },
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
     quantityUsed: { type: Number, required: true },
+    _id: false,
   }],
   updateRecord: [{ // incident report affecting quantity/status of inventory item
     date: { type: Date, required: true, default: Date.now() },
