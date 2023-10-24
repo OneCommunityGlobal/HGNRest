@@ -774,7 +774,6 @@ const taskController = function (Task) {
         });
 
         res.status(200).send(task);
-
     } catch (error) {
         // Generic error message, you can adjust as needed
         res.status(500).send({ error: 'Internal Server Error', details: error.message });

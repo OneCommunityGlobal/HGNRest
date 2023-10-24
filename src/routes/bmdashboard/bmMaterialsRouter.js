@@ -14,6 +14,6 @@ materialsRouter.route('/postMaterialLog')
   .post(controller.bmPostMaterialLog);
 
   return materialsRouter;
-}
+};
 
 module.exports = routes;

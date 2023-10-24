@@ -196,7 +196,7 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
-    getAllProjectsByCategory
+    getAllProjectsByCategory,
   };
 };
 

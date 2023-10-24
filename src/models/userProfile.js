@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
 const nextDay = new Date();
-nextDay.setDate(nextDay.getDate()+1);
+nextDay.setDate(nextDay.getDate() + 1);
 
 const userProfileSchema = new Schema({
   password: {
@@ -153,7 +153,7 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
-  isFirstTimelog: { type: Boolean, default: true},
+  isFirstTimelog: { type: Boolean, default: true },
   teamCode: { type: String, default: '' },
   infoCollections: [
     {

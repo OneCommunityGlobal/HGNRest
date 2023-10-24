@@ -30,12 +30,12 @@ const InventoryItemMaterial = new Schema({
     poId: { type: String, required: true },
     sellerId: { type: String, required: true },
     quantity: { type: Number, required: true }, // adds to stockBought
-    unitPrice: {type: Number, required: true},
+    unitPrice: { type: Number, required: true },
     currency: { type: String, required: true },
     subtotal: { type: Number, required: true },
     tax: { type: Number, required: true },
     shipping: { type: Number, required: true },
-  }]
-})
+  }],
+});
 
 module.exports = mongoose.model('inventoryItemMaterial', InventoryItemMaterial, 'inventoryMaterial');
