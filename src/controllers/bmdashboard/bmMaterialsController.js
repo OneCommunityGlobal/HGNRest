@@ -1,24 +1,48 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose')
 
-const bmMaterialsController = function (ItemMaterial, ItemType) {
-  const bmMaterialsList = async function (req, res) {
+const bmMaterialsController = function (ItemMaterial) {
+  const bmMaterialsList = async function _matsList(req, res) {
     try {
       ItemMaterial.find()
-      .populate({
-        path: 'project',
-        select: '_id projectName'
-      })
-      .populate({
-        path: 'inventoryItemType',
-        select: '_id name uom totalStock'
-      })
+      .populate([
+        {
+          path: 'project',
+          select: '_id projectName',
+        },
+        {
+          path: 'inventoryItemType',
+          select: '_id name uom totalStock totalAvailable',
+        },
+        {
+          path: 'usageRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
+          },
+        },
+        {
+          path: 'updateRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
+          },
+        },
+        {
+          path: 'purchaseRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
+          },
+        },
+      ])
+      .exec()
       .then(results => res.status(200).send(results))
-      .catch(error => res.status(500).send(error))
+      .catch(error => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
   };
-  
+
   const bmAddMaterials = async function (req, res) {
     // add permission check...
 
@@ -39,11 +63,13 @@ const bmMaterialsController = function (ItemMaterial, ItemType) {
     try {
       const result = await ItemMaterial.findOneAndUpdate(
         { project: material.projectId, inventoryItemType: material.material },
-        { 
+        {
           $inc: { stockBought: material.quantity, stockAvailable: material.quantity },
-          $push: { purchaseRecord: purchaseRecord },
+          $push: { purchaseRecord },
         },
-        { returnDocument: 'after', lean: true }).exec();
+        { returnDocument: 'after', lean: true },
+        )
+        .exec();
       if (result) {
         console.log(result);
         res.status(201).send(result);

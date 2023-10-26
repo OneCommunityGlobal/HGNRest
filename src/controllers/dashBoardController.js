@@ -100,7 +100,7 @@ const dashboardcontroller = function () {
         <p>${actual}</p>
         <p>Visual Proof (screenshots, videos, text)</p>
         <p>${visual}</p>
-        <p>Severity/Priority (How Bad is the Bug?</p>
+        <p>Severity/Priority (How Bad is the Bug?)</p>
         <p>${severity}</p>
         <p>Thank you,<br />
         One Community</p>`;
@@ -146,58 +146,38 @@ const dashboardcontroller = function () {
     }
   };
 
-  const getSuggestionFilePath = async () => {
-    // Define a base path based on the process.cwd()
-    const basePath = process.cwd();
-    console.log(basePath, "basePath");
-
-    // Define the relative path to the JSON file (adjust as needed)
-    const relativePath = "src/constants/suggestionModalData.json";
-
-    // Combine the base path and relative path to create the full path
-    const fullPath = path.join(basePath, relativePath);
-
-    return fullPath;
+  const suggestionData = {
+    suggestion: [
+      "Identify and remedy poor client and/or user service experiences",
+      "Identify bright spots and enhance positive service experiences",
+      "Make fundamental changes to our programs and/or operations",
+      "Inform the development of new programs/projects",
+      "Identify where we are less inclusive or equitable across demographic groups",
+      "Strengthen relationships with the people we serve",
+      "Understand people's needs and how we can help them achieve their goals",
+      "Other",
+    ],
+    field: [],
   };
 
-  const readSuggestionFile = async () => {
-    // Specify the absolute path to the JSON file
-    const filepath = await getSuggestionFilePath();
-
-    try {
-      // Check if the file exists
-      await fs.access(filepath);
-
-      // Read and parse the file
-      const readfile = await fs.readFile(filepath, "utf8");
-      const parsedData = JSON.parse(readfile);
-      return parsedData;
-    } catch (err) {
-      console.error("Error reading suggestionModalData.json:", err);
-      return null; // Handle the error appropriately
-    }
-  };
-
-  // create suggestion emailbody
   const getsuggestionEmailBody = async (...args) => {
-    const readfile = await readSuggestionFile();
     let fieldaaray = [];
-    if (readfile.field.length) {
-      fieldaaray = readfile.field.map(
+    if (suggestionData.field.length) {
+      fieldaaray = suggestionData.field.map(
         (item) => `<p>${item}</p>
-                                               <p>${args[3][item]}</p>`
+                   <p>${args[3][item]}</p>`
       );
     }
     const text = `New Suggestion:
-        <p>Suggestion Category:</p>
-        <p>${args[0]}</p>
-        <p>Suggestion:</p>
-        <p>${args[1]}</p>
-        ${fieldaaray.length > 0 ? fieldaaray : ""}
-        <p>Wants Feedback:</p>
-        <p>${args[2]}</p>
-        <p>Thank you,<br />
-        One Community</p>`;
+      <p>Suggestion Category:</p>
+      <p>${args[0]}</p>
+      <p>Suggestion:</p>
+      <p>${args[1]}</p>
+      ${fieldaaray.length > 0 ? fieldaaray : ""}
+      <p>Wants Feedback:</p>
+      <p>${args[2]}</p>
+      <p>Thank you,<br />
+      One Community</p>`;
 
     return text;
   };
@@ -225,53 +205,38 @@ const dashboardcontroller = function () {
 
   const getSuggestionOption = async (req, res) => {
     try {
-      const readfile = await readSuggestionFile();
-      if (readfile) {
-        res.status(200).send(readfile);
+      if (suggestionData) {
+        res.status(200).send(suggestionData);
       } else {
-        res.status(404).send("Suggestion file not found.");
+        res.status(404).send("Suggestion data not found.");
       }
     } catch (error) {
-      console.error("Error reading suggestion file:", error);
+      console.error("Error getting suggestion data:", error);
       res.status(500).send("Internal Server Error");
     }
   };
 
-  // add new suggestion category or field
   const editSuggestionOption = async (req, res) => {
     try {
-      // Read the current suggestion data
-      let readfile = await readSuggestionFile();
-
       if (req.body.suggestion) {
         if (req.body.action === "add") {
-          readfile.suggestion.unshift(req.body.newField);
+          suggestionData.suggestion.unshift(req.body.newField);
         }
         if (req.body.action === "delete") {
-          readfile = {
-            ...readfile,
-            suggestion: readfile.suggestion.filter(
-              (item, index) => index + 1 !== +req.body.newField
-            ),
-          };
+          suggestionData.suggestion = suggestionData.suggestion.filter(
+            (item, index) => index + 1 !== +req.body.newField
+          );
         }
       } else {
         if (req.body.action === "add") {
-          readfile.field.unshift(req.body.newField);
+          suggestionData.field.unshift(req.body.newField);
         }
         if (req.body.action === "delete") {
-          readfile = {
-            ...readfile,
-            field: readfile.field.filter((item) => item !== req.body.newField),
-          };
+          suggestionData.field = suggestionData.field.filter(
+            (item) => item !== req.body.newField
+          );
         }
       }
-
-      // Get the file path
-      const filepath = await getSuggestionFilePath();
-
-      // Write the updated data back to the file
-      await fs.writeFile(filepath, JSON.stringify(readfile, null, 2));
 
       res.status(200).send("success");
     } catch (error) {

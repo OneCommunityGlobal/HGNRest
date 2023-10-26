@@ -21,7 +21,7 @@ const ownerStandardMessage = require('../models/ownerStandardMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const itemMaterial = require('../models/inventoryItemMaterial');
+const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -60,7 +60,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(itemMaterial, inventoryItemType);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, inventoryItemType);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
