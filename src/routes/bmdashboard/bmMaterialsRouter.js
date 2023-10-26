@@ -7,6 +7,9 @@ const controller = require('../../controllers/bmdashboard/bmMaterialsController'
 materialsRouter.route('/materials')
   .get(controller.bmMaterialsList);
 
+materialsRouter.route('/addUpdateMaterialRecord')
+  .post(controller.bmPostMaterialUpdateRecord);
+
   return materialsRouter;
 }
 
