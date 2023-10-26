@@ -8,6 +8,6 @@ materialsRouter.route('/getUserActiveBMProjects')
   .get(controller.getUserActiveBMProjects);
 
   return materialsRouter;
-}
+};
 
 module.exports = routes;

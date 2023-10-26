@@ -11,6 +11,6 @@ materialsRouter.route('/addUpdateMaterialRecord')
   .post(controller.bmPostMaterialUpdateRecord);
 
   return materialsRouter;
-}
+};
 
 module.exports = routes;
