@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
 
 const InventoryItemMaterial = new Schema({
@@ -33,6 +34,7 @@ const InventoryItemMaterial = new Schema({
     subtotal: { type: Number, required: true },
     tax: { type: Number, required: true },
     shipping: { type: Number, required: true },
-  }]
-})
+  }],
+});
+
 module.exports = mongoose.model('inventoryItemMaterial', InventoryItemMaterial, 'inventoryMaterial');
