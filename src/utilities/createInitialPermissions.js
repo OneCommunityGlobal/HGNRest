@@ -109,7 +109,7 @@ const permissionsRoles = [
       'putUserProfile',
       'infringementAuthorizer',
       'getReporteesLimitRoles',
-      'updateTask',
+      'suggestTask',
       'putTeam',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
