@@ -1,11 +1,10 @@
 const express = require('express');
 
-const routes = function () {
+const routes = function (userProfile) {
   const projectsRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/bmProjectsController')();
-// const controller = require('../../controllers/bmdashboard/bmMaterialsController')(itemMaterial);
+  const controller = require('../../controllers/bmdashboard/bmProjectsController')(userProfile);
 
-projectsRouter.route('/projects')
+projectsRouter.route('/projects/:userId')
   .get(controller.bmProjectsSummary);
 
   return projectsRouter;
