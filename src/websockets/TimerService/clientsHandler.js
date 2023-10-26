@@ -81,32 +81,30 @@ const ackForcedPause = (client) => {
 };
 
 const stopTimer = (client) => {
+  if (client.started) pauseTimer(client);
   client.startAt = moment.invalid();
   client.started = false;
   client.pause = false;
   client.forcedPause = false;
+  if (client.time === 0) {
+    client.goal = client.initialGoal;
+    client.time = client.goal;
+  } else {
+    client.goal = client.time;
+  }
 };
 
 const clearTimer = (client) => {
   stopTimer(client);
+  client.goal = client.initialGoal;
   client.time = client.goal;
 };
 
 const setGoal = (client, msg) => {
   const newGoal = parseInt(msg.split('=')[1]);
-  if (!client.started) {
-    client.goal = newGoal;
-    client.time = newGoal;
-  } else {
-    const passedTime = client.goal - client.time;
-    if (passedTime >= newGoal) {
-      client.time = 0;
-      client.goal = passedTime;
-    } else {
-      client.time = newGoal - passedTime;
-      client.goal = newGoal;
-    }
-  }
+  client.goal = newGoal;
+  client.time = newGoal;
+  client.initialGoal = newGoal;
 };
 
 const addGoal = (client, msg) => {
