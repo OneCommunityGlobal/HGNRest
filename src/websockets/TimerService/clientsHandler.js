@@ -43,6 +43,7 @@ export const action = {
   REMOVE_GOAL: 'REMOVE_FROM_GOAL=',
   FORCED_PAUSE: 'FORCED_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
+  START_CHIME: 'START_CHIME',
 };
 
 const MAX_HOURS = 5;
@@ -69,9 +70,15 @@ const startTimer = (client) => {
 
 const pauseTimer = (client, forced = false) => {
   client.time = updatedTimeSinceStart(client);
+  if (client.time === 0) client.chiming = true;
   client.startAt = moment.invalid(); // invalid can not be saved in database
   client.paused = true;
   if (forced) client.forcedPause = true;
+};
+
+const startChime = (client, msg) => {
+  const state = msg.split('=')[1];
+  client.chiming = state === 'true';
 };
 
 const ackForcedPause = (client) => {
@@ -86,6 +93,7 @@ const stopTimer = (client) => {
   client.started = false;
   client.pause = false;
   client.forcedPause = false;
+  if (client.chiming) client.chiming = false;
   if (client.time === 0) {
     client.goal = client.initialGoal;
     client.time = client.goal;
@@ -97,6 +105,7 @@ const stopTimer = (client) => {
 const clearTimer = (client) => {
   stopTimer(client);
   client.goal = client.initialGoal;
+  client.chiming = false;
   client.time = client.goal;
 };
 
@@ -174,6 +183,9 @@ export const handleMessage = async (msg, clients, userId) => {
       break;
     case req.match(/REMOVE_FROM_GOAL=/i)?.input:
       removeGoal(client, req);
+      break;
+    case req.match(/START_CHIME=/i)?.input:
+      startChime(client, req);
       break;
     case action.PAUSE_TIMER:
       pauseTimer(client);
