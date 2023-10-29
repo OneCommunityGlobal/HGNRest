@@ -14,6 +14,7 @@ const logger = require("../startup/logger");
 const hasPermission = require("../utilities/permissions");
 const Reason = require("../models/reason");
 const token = require("../models/profileInitialSetupToken")
+const { chromium } = require('playwright');
 
 const userHelper = function () {
   const getTeamMembers = function (user) {
@@ -1487,6 +1488,66 @@ const userHelper = function () {
     }
   }
 
+  const updateProfilesPic = async () => {
+    try {
+      const browser = await chromium.launch();
+      const page = await browser.newPage();
+      await page.goto('https://www.onecommunityglobal.org/team/', { waitUntil: 'networkidle' }); // Wait for network to be idle
+
+      const response = await page.content();
+      await browser.close();
+
+      // Now you can parse the response with Cheerio
+      const cheerio = require('cheerio');
+      const $ = cheerio.load(response);
+      const imgElements = $('img');
+      const userProfiles = await userProfile.find( {
+        
+      });
+      for (let profile of userProfiles) {
+        const { firstName, lastName, profilePic } = profile;
+        if (profilePic) {
+          continue;
+        }
+
+        const pictureList = [];
+        for (let i = 0; i < imgElements.length; i++) {
+          const imgElement = imgElements[i];
+          const imgAlt = $(imgElement).attr('alt');
+          const imgSrc = $(imgElement).attr('nitro-lazy-src'); // Use 'src' instead of 'nitro-lazy-src'
+
+          if (
+            imgAlt &&
+            imgAlt.toLowerCase().includes(firstName.toLowerCase()) &&
+            imgAlt.toLowerCase().includes(lastName.toLowerCase())
+          ) {
+            pictureList.push(imgSrc);
+          } else if (
+            imgAlt &&
+            imgAlt.toLowerCase().includes(lastName.toLowerCase())
+          ) {
+            pictureList.push(imgSrc);
+          }
+        }
+        if (pictureList.length === 1) {
+          profile.profilePic = pictureList[0];
+        } else if (pictureList.length > 1) {
+          profile.storedPics = pictureList;
+        }
+
+        try {
+          await profile.save();
+          console.log(`Profile for ${firstName} ${lastName} updated successfully.`);
+        } catch (error) {
+          console.error('Error saving profile:', error);
+        }
+      }
+      console.log('Profiles updated successfully');
+    } catch (error) {
+      console.error('Error updating profiles:', error);
+    }
+  };
+
 
   return {
     getUserName,
@@ -1502,7 +1563,8 @@ const userHelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
-    deleteExpiredTokens
+    deleteExpiredTokens,
+    updateProfilesPic
   };
 };
 

@@ -59,7 +59,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName profilePic role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName profilePic storedPics role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -257,10 +257,16 @@ const userProfileController = function (UserProfile) {
       // validate userprofile pic
 
       if (req.body.profilePic) {
-        const results = userHelper.validateProfilePic(req.body.profilePic);
-
-        if (!results.result) {
-          res.status(400).json(results.errors);
+        if (req.body.profilePic.startsWith('data:image/')) {
+          const results = userHelper.validateProfilePic(req.body.profilePic);
+          if (!results.result) {
+              res.status(400).json(results.errors);
+              return;
+          }
+        } else if (req.body.profilePic.startsWith( 'http://' ) || req.body.profilePic.startsWith( 'https://')) {
+          
+        } else {
+          res.status(400).json({ error: 'Invalid profilePic format.' });
           return;
         }
       }
