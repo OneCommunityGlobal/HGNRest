@@ -84,6 +84,16 @@ const userHelper = function () {
     };
   };
 
+  const formatTimeOffRequestsDescription = inputString => {
+    const searchTerm = 'Notice:';
+    if (inputString.includes(searchTerm)) {
+      const parts = inputString.split(searchTerm);
+      const formattedString = parts[0] + '<br><b>' + searchTerm + '</b>'+ '<span style="font-style: italic;">'+ parts[1] + '<span/>'  ;
+      return formattedString;
+    }
+    return inputString;
+  }
+
   const getInfringementEmailBody = function (
     firstName,
     lastName,
@@ -93,7 +103,7 @@ const userHelper = function () {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>
-        <p><b>Description:</b> ${infringement.description}</p>
+        <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -414,51 +424,57 @@ const userHelper = function () {
         }
 
         if (timeNotMet || !hasWeeklySummary) {
-          const requestsForTimeOff = await timeOffRequest.find({
+
+
+          const requestsForTimeOfftest = await timeOffRequest.find({
             requestFor: personId,
-            startingDate: { $gte: pdtStartOfLastWeek, $lte: pdtEndOfLastWeek },
+          });
+          
+
+          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment= moment(pdtStartOfLastWeek).subtract(1, 'second');
+    
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId ,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
           });
 
-          if (requestsForTimeOff.length > 0) {
-            const requestForTimeOff = requestsForTimeOff[0];
-            const requestForTimeOffStartingDate = moment(
+          let hasTimeOffRequest = requestsForTimeOff.length > 0;
+          let requestForTimeOff;
+          let requestForTimeOffStartingDate;
+          let requestForTimeOffEndingDate;
+          let requestForTimeOffreason;
+           
+
+          if (hasTimeOffRequest) {
+            requestForTimeOff = requestsForTimeOff[0];
+            requestForTimeOffStartingDate = moment(
               requestForTimeOff.startingDate
             ).format("dddd YYYY-MM-DD");
-            const requestForTimeOffreason = requestForTimeOff.reason;
-
-            if (timeNotMet && !hasWeeklySummary) {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}. 
-              On ${requestForTimeOffStartingDate} you have a request made for time off stating: “${requestForTimeOffreason}”.`;
-            } else if (timeNotMet) {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )}. On ${requestForTimeOffStartingDate} you have a request made for time off stating: “${requestForTimeOffreason}”.`;
-            } else {
-              description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )}. On ${requestForTimeOffStartingDate} you have a request made for time off stating: “${requestForTimeOffreason}”.`;
-            }
-          } else {
+            requestForTimeOffEndingDate = moment(
+              requestForTimeOff.endingDate
+            ).format("dddd YYYY-MM-DD");
+            requestForTimeOffreason = requestForTimeOff.reason;
+          }
+          
             if (timeNotMet && !hasWeeklySummary) {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             } else if (timeNotMet) {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             } else {
               description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             }
-          }
+          
 
           const infringement = {
             date: moment().utc().format("YYYY-MM-DD"),
@@ -535,6 +551,7 @@ const userHelper = function () {
           }
         }
       }
+      await deleteOldTimeOffRequests()
     } catch (err) {
       logger.logException(err);
     }
@@ -1594,9 +1611,15 @@ const userHelper = function () {
   };
 
   const deleteOldTimeOffRequests =async () =>{
+    const endOfLastWeek = moment()
+        .tz("America/Los_Angeles")
+        .endOf("week")
+        .subtract(1, "week")
+  
+    const utcEndMoment= moment(endOfLastWeek).add(1, 'second');
+    console.log(utcEndMoment)
     try {
-      const currentTime = moment().tz('America/Los_Angeles');
-      await TimeOffRequest.deleteMany({ endingDate: { $lt: currentTime } });
+      await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
       console.log('Deleted expired time off requests.');
     } catch (error) {
       console.error('Error deleting expired time off requests:', error);
