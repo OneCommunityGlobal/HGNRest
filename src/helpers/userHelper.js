@@ -1,28 +1,28 @@
 /* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
-const mongoose = require("mongoose");
-const moment = require("moment-timezone");
-const _ = require("lodash");
-const userProfile = require("../models/userProfile");
-const timeEntries = require("../models/timeentry");
-const badge = require("../models/badge");
-const myTeam = require("./helperModels/myTeam");
-const dashboardHelper = require("./dashboardhelper")();
-const reportHelper = require("./reporthelper")();
-const emailSender = require("../utilities/emailSender");
-const logger = require("../startup/logger");
-const hasPermission = require("../utilities/permissions");
-const Reason = require("../models/reason");
-const token = require("../models/profileInitialSetupToken")
+const mongoose = require('mongoose');
+const moment = require('moment-timezone');
+const _ = require('lodash');
+const userProfile = require('../models/userProfile');
+const timeEntries = require('../models/timeentry');
+const badge = require('../models/badge');
+const myTeam = require('./helperModels/myTeam');
+const dashboardHelper = require('./dashboardhelper')();
+const reportHelper = require('./reporthelper')();
+const emailSender = require('../utilities/emailSender');
+const logger = require('../startup/logger');
+const hasPermission = require('../utilities/permissions');
+const Reason = require('../models/reason');
+const token = require('../models/profileInitialSetupToken');
 
 const userHelper = function () {
   const getTeamMembers = function (user) {
     const userId = mongoose.Types.ObjectId(user._id);
     // var teamid = userdetails.teamId;
     return myTeam.findById(userId).select({
-      "myTeam._id": 0,
-      "myTeam.role": 0,
-      "myTeam.fullName": 0,
+      'myTeam._id': 0,
+      'myTeam.role': 0,
+      'myTeam.fullName': 0,
       _id: 0,
     });
   };
@@ -46,40 +46,39 @@ const userHelper = function () {
 
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    return userProfile.findById(userid, "firstName lastName");
+    return userProfile.findById(userid, 'firstName lastName');
   };
 
   const validateProfilePic = function (profilePic) {
-    const picParts = profilePic.split("base64");
+    const picParts = profilePic.split('base64');
     let result = true;
     const errors = [];
 
     if (picParts.length < 2) {
       return {
         result: false,
-        errors: "Invalid image"
+        errors: 'Invalid image',
       };
     }
 
     // validate size
     const imageSize = picParts[1].length;
-    const sizeInBytes =
-      (4 * Math.ceil(imageSize / 3) * 0.5624896334383812) / 1024;
+    const sizeInBytes = (4 * Math.ceil(imageSize / 3) * 0.5624896334383812) / 1024;
 
     if (sizeInBytes > 50) {
-      errors.push("Image size should not exceed 50KB");
+      errors.push('Image size should not exceed 50KB');
       result = false;
     }
 
-    const imageType = picParts[0].split("/")[1];
-    if (imageType !== "jpeg;" && imageType !== "png;") {
-      errors.push("Image type shoud be either jpeg or png.");
+    const imageType = picParts[0].split('/')[1];
+    if (imageType !== 'jpeg;' && imageType !== 'png;') {
+      errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
 
     return {
       result,
-      errors
+      errors,
     };
   };
 
@@ -87,7 +86,7 @@ const userHelper = function () {
     firstName,
     lastName,
     infringement,
-    totalInfringements
+    totalInfringements,
   ) {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
@@ -114,11 +113,11 @@ const userHelper = function () {
    */
   const emailWeeklySummariesForAllUsers = async (weekIndex = 1) => {
     const currentFormattedDate = moment()
-      .tz("America/Los_Angeles")
+      .tz('America/Los_Angeles')
       .format();
 
     logger.logInfo(
-      `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`
+      `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`,
     );
 
     const emails = [];
@@ -126,13 +125,11 @@ const userHelper = function () {
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
 
-      let emailBody = "<h2>Weekly Summaries for all active users:</h2>";
+      let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
-      const weeklySummaryNotProvidedMessage =
-        '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
+      const weeklySummaryNotProvidedMessage = '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span> </div>';
 
-      const weeklySummaryNotRequiredMessage =
-        '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
+      const weeklySummaryNotRequiredMessage = '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`));
 
@@ -146,7 +143,7 @@ const userHelper = function () {
           mediaUrl,
           weeklySummariesCount,
           weeklycommittedHours,
-          weeklySummaryOption
+          weeklySummaryOption,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -163,14 +160,14 @@ const userHelper = function () {
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
         const colorStyle = (() => {
           switch (weeklySummaryOption) {
-            case "Team":
+            case 'Team':
               return 'style="color: magenta;"';
-            case "Not Required":
+            case 'Not Required':
               return 'style="color: green"';
-            case "Required":
-              return "";
+            case 'Required':
+              return '';
             default:
-              return result.weeklySummaryNotReq ? 'style="color: green"' : "";
+              return result.weeklySummaryNotReq ? 'style="color: green"' : '';
           }
         })();
         // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
@@ -181,8 +178,8 @@ const userHelper = function () {
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate)
-                .tz("America/Los_Angeles")
-                .format("YYYY-MMM-DD")}</b>):
+                .tz('America/Los_Angeles')
+                .format('YYYY-MMM-DD')}</b>):
               </div>
               <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
@@ -207,15 +204,15 @@ const userHelper = function () {
           </p>
           ${weeklySummariesCount === 8
             ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
-            : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount ||
-            "No valid submissions yet!"}</p>`
+            : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount
+            || 'No valid submissions yet!'}</p>`
           }
           ${hoursLogged >= weeklycommittedHours
 
             ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
 
             : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
-              2
+              2,
             )} / ${weeklycommittedHours}</p>`
           }
           ${weeklySummaryMessage}
@@ -225,10 +222,8 @@ const userHelper = function () {
       // Necessary because our version of node is outdated
       // and doesn't have String.prototype.replaceAll
       let emailString = [...new Set(emails)].toString();
-      while (emailString.includes(","))
-        emailString = emailString.replace(",", "\n");
-      while (emailString.includes("\n"))
-        emailString = emailString.replace("\n", ", ");
+      while (emailString.includes(',')) emailString = emailString.replace(',', '\n');
+      while (emailString.includes('\n')) emailString = emailString.replace('\n', ', ');
 
       emailBody += `\n
         <div>
@@ -240,10 +235,10 @@ const userHelper = function () {
       `;
 
       emailSender(
-        "onecommunityglobal@gmail.com, sangam.pravah@gmail.com, onecommunityhospitality@gmail.com",
-        "Weekly Summaries for all active users...",
+        'onecommunityglobal@gmail.com, sangam.pravah@gmail.com, onecommunityhospitality@gmail.com',
+        'Weekly Summaries for all active users...',
         emailBody,
-        null
+        null,
       );
     } catch (err) {
       logger.logException(err);
@@ -265,15 +260,15 @@ const userHelper = function () {
             $each: [
               {
                 dueDate: moment()
-                  .tz("America/Los_Angeles")
-                  .endOf("week"),
-                summary: ""
-              }
+                  .tz('America/Los_Angeles')
+                  .endOf('week'),
+                summary: '',
+              },
             ],
             $position: 0,
-            $slice: 4
-          }
-        }
+            $slice: 4,
+          },
+        },
       })
       .catch(error => logger.logException(error));
   };
@@ -287,11 +282,11 @@ const userHelper = function () {
   const assignBlueSquareForTimeNotMet = async () => {
     try {
       const currentFormattedDate = moment()
-        .tz("America/Los_Angeles")
+        .tz('America/Los_Angeles')
         .format();
       const currentUTCDate = moment
-        .tz("America/Los_Angeles")
-        .startOf("day")
+        .tz('America/Los_Angeles')
+        .startOf('day')
         .toISOString();
 
       logger.logInfo(
@@ -301,24 +296,24 @@ const userHelper = function () {
       );
 
       const pdtStartOfLastWeek = moment()
-        .tz("America/Los_Angeles")
-        .startOf("week")
-        .subtract(1, "week");
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week');
 
       const pdtEndOfLastWeek = moment()
-        .tz("America/Los_Angeles")
-        .endOf("week")
-        .subtract(1, "week");
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .subtract(1, 'week');
 
 
       const users = await userProfile.find(
         { isActive: true },
-        "_id weeklycommittedHours weeklySummaries missedHours"
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
-      //this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
-      //targeted as spam
-      //There's no need to put Promise.all here
+      // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
+      // targeted as spam
+      // There's no need to put Promise.all here
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
@@ -345,13 +340,12 @@ const userHelper = function () {
         const results = await dashboardHelper.laborthisweek(
           personId,
           pdtStartOfLastWeek,
-          pdtEndOfLastWeek
+          pdtEndOfLastWeek,
         );
 
         const { timeSpent_hrs: timeSpent } = results[0];
 
-        const weeklycommittedHours =
-          user.weeklycommittedHours + (user.missedHours ?? 0);
+        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
         const timeNotMet = timeSpent < weeklycommittedHours;
         let description;
@@ -360,19 +354,19 @@ const userHelper = function () {
           personId,
           {
             $inc: {
-              totalTangibleHrs: timeSpent || 0
+              totalTangibleHrs: timeSpent || 0,
             },
             $max: {
-              personalBestMaxHrs: timeSpent || 0
+              personalBestMaxHrs: timeSpent || 0,
             },
             $push: {
-              savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 }
+              savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
             },
             $set: {
-              lastWeekTangibleHrs: timeSpent || 0
-            }
+              lastWeekTangibleHrs: timeSpent || 0,
+            },
           },
-          { new: true }
+          { new: true },
         );
 
         if (
@@ -384,13 +378,13 @@ const userHelper = function () {
           hasWeeklySummary = true;
         }
 
-        const cutOffDate = moment().subtract(1, "year");
+        const cutOffDate = moment().subtract(1, 'year');
 
         const oldInfringements = [];
         for (let k = 0; k < updateResult?.infringements.length; k += 1) {
           if (
-            updateResult?.infringements &&
-            moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0
+            updateResult?.infringements
+            && moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0
           ) {
             oldInfringements.push(updateResult.infringements[k]);
           } else {
@@ -403,72 +397,70 @@ const userHelper = function () {
             personId,
             {
               $push: {
-                oldInfringements: { $each: oldInfringements, $slice: -10 }
-              }
+                oldInfringements: { $each: oldInfringements, $slice: -10 },
+              },
             },
-            { new: true }
+            { new: true },
           );
         }
 
         if (timeNotMet || !hasWeeklySummary) {
           if (foundReason) {
             description = foundReason.reason;
-          } else {
-            if (timeNotMet && !hasWeeklySummary) {
+          } else if (timeNotMet && !hasWeeklySummary) {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             } else if (timeNotMet) {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             } else {
               description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             }
-          }
 
           const infringement = {
             date: moment()
               .utc()
-              .format("YYYY-MM-DD"),
-            description
+              .format('YYYY-MM-DD'),
+            description,
           };
 
           const status = await userProfile.findByIdAndUpdate(
             personId,
             {
               $push: {
-                infringements: infringement
-              }
+                infringements: infringement,
+              },
             },
-            { new: true }
+            { new: true },
           );
 
           emailSender(
             status.email,
-            "New Infringement Assigned",
+            'New Infringement Assigned',
             getInfringementEmailBody(
               status.firstName,
               status.lastName,
               infringement,
-              status.infringements.length
+              status.infringements.length,
             ),
             null,
-            "onecommunityglobal@gmail.com"
+            'onecommunityglobal@gmail.com',
           );
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,
             pdtStartOfLastWeek,
-            pdtEndOfLastWeek
+            pdtEndOfLastWeek,
           );
 
           if (Array.isArray(categories) && categories.length > 0) {
             await userProfile.findOneAndUpdate(
               { _id: personId, categoryTangibleHrs: { $exists: false } },
-              { $set: { categoryTangibleHrs: [] } }
+              { $set: { categoryTangibleHrs: [] } },
             );
           } else {
             continue;
@@ -478,29 +470,29 @@ const userHelper = function () {
             const elem = categories[j];
 
             if (elem._id == null) {
-              elem._id = "Other";
+              elem._id = 'Other';
             }
 
             const updateResult2 = await userProfile.findOneAndUpdate(
-              { _id: personId, "categoryTangibleHrs.category": elem._id },
-              { $inc: { "categoryTangibleHrs.$.hrs": elem.timeSpent_hrs } },
-              { new: true }
+              { _id: personId, 'categoryTangibleHrs.category': elem._id },
+              { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } },
+              { new: true },
             );
 
             if (!updateResult2) {
               await userProfile.findOneAndUpdate(
                 {
                   _id: personId,
-                  "categoryTangibleHrs.category": { $ne: elem._id }
+                  'categoryTangibleHrs.category': { $ne: elem._id },
                 },
                 {
                   $addToSet: {
                     categoryTangibleHrs: {
                       category: elem._id,
-                      hrs: elem.timeSpent_hrs
-                    }
-                  }
-                }
+                      hrs: elem.timeSpent_hrs,
+                    },
+                  },
+                },
               );
             }
           }
@@ -512,12 +504,11 @@ const userHelper = function () {
 
     // processWeeklySummaries for nonActive users
     try {
-      const inactiveUsers = await userProfile.find({ isActive: false }, "_id");
+      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
         const user = inactiveUsers[i];
 
         await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
-
       }
     } catch (err) {
       logger.logException(err);
@@ -527,52 +518,52 @@ const userHelper = function () {
   const applyMissedHourForCoreTeam = async () => {
     try {
       const currentDate = moment()
-        .tz("America/Los_Angeles")
+        .tz('America/Los_Angeles')
         .format();
 
       logger.logInfo(
-        `Job for applying missed hours for Core Team members starting at ${currentDate}`
+        `Job for applying missed hours for Core Team members starting at ${currentDate}`,
       );
 
       const startOfLastWeek = moment()
-        .tz("America/Los_Angeles")
-        .startOf("week")
-        .subtract(1, "week")
-        .format("YYYY-MM-DD");
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week')
+        .format('YYYY-MM-DD');
 
       const endOfLastWeek = moment()
-        .tz("America/Los_Angeles")
-        .endOf("week")
-        .subtract(1, "week")
-        .format("YYYY-MM-DD");
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .subtract(1, 'week')
+        .format('YYYY-MM-DD');
 
       const missedHours = await userProfile.aggregate([
         {
           $match: {
-            role: "Core Team",
-            isActive: true
-          }
+            role: 'Core Team',
+            isActive: true,
+          },
         },
         {
           $lookup: {
-            from: "timeEntries",
-            localField: "_id",
-            foreignField: "personId",
+            from: 'timeEntries',
+            localField: '_id',
+            foreignField: 'personId',
             pipeline: [
               {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ["$isTangible", true] },
-                      { $gte: ["$dateOfWork", startOfLastWeek] },
-                      { $lte: ["$dateOfWork", endOfLastWeek] }
-                    ]
-                  }
-                }
-              }
+                      { $eq: ['$isTangible', true] },
+                      { $gte: ['$dateOfWork', startOfLastWeek] },
+                      { $lte: ['$dateOfWork', endOfLastWeek] },
+                    ],
+                  },
+                },
+              },
             ],
-            as: "timeEntries"
-          }
+            as: 'timeEntries',
+          },
         },
         {
           $project: {
@@ -591,31 +582,31 @@ const userHelper = function () {
                         {
                           $sum: {
                             $map: {
-                              input: "$timeEntries",
-                              in: "$$this.totalSeconds"
-                            }
-                          }
+                              input: '$timeEntries',
+                              in: '$$this.totalSeconds',
+                            },
+                          },
                         },
-                        3600
-                      ]
-                    }
-                  ]
+                        3600,
+                      ],
+                    },
+                  ],
                 },
-                0
-              ]
-            }
-          }
-        }
+                0,
+              ],
+            },
+          },
+        },
       ]);
 
       const bulkOps = [];
 
-      missedHours.forEach(obj => {
+      missedHours.forEach((obj) => {
         bulkOps.push({
           updateOne: {
             filter: { _id: obj._id },
-            update: { missedHours: obj.missedHours }
-          }
+            update: { missedHours: obj.missedHours },
+          },
         });
       });
 
@@ -627,16 +618,16 @@ const userHelper = function () {
 
   const deleteBlueSquareAfterYear = async () => {
     const currentFormattedDate = moment()
-      .tz("America/Los_Angeles")
+      .tz('America/Los_Angeles')
       .format();
 
     logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`
+      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`,
     );
 
     const cutOffDate = moment()
-      .subtract(1, "year")
-      .format("YYYY-MM-DD");
+      .subtract(1, 'year')
+      .format('YYYY-MM-DD');
 
     try {
       const results = await userProfile.updateMany(
@@ -645,11 +636,11 @@ const userHelper = function () {
           $pull: {
             infringements: {
               date: {
-                $lte: cutOffDate
-              }
-            }
-          }
-        }
+                $lte: cutOffDate,
+              },
+            },
+          },
+        },
       );
 
       logger.logInfo(results);
@@ -660,17 +651,17 @@ const userHelper = function () {
 
   const reActivateUser = async () => {
     const currentFormattedDate = moment()
-      .tz("America/Los_Angeles")
+      .tz('America/Los_Angeles')
       .format();
 
     logger.logInfo(
-      `Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`
+      `Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`,
     );
 
     try {
       const users = await userProfile.find(
         { isActive: false, reactivationDate: { $exists: true } },
-        "_id isActive reactivationDate"
+        '_id isActive reactivationDate',
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
@@ -679,18 +670,18 @@ const userHelper = function () {
             user._id,
             {
               $set: {
-                isActive: true
+                isActive: true,
               },
               $unset: {
-                endDate: user.endDate
-              }
+                endDate: user.endDate,
+              },
             },
-            { new: true }
+            { new: true },
           );
           logger.logInfo(
             `User with id: ${user._id} was re-acticated at ${moment()
-              .tz("America/Los_Angeles")
-              .format()}.`
+              .tz('America/Los_Angeles')
+              .format()}.`,
           );
           const id = user._id;
           const person = await userProfile.findById(id);
@@ -712,7 +703,6 @@ const userHelper = function () {
 
 
           emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
-
         }
       }
     } catch (err) {
@@ -722,7 +712,6 @@ const userHelper = function () {
 
 
   const notifyInfringements = function (original, current, firstName, lastName, emailAddress) {
-
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
@@ -737,43 +726,43 @@ const userHelper = function () {
         getInfringementEmailBody(firstName, lastName, element, totalInfringements),
 
         null,
-        "onecommunityglobal@gmail.com"
+        'onecommunityglobal@gmail.com',
       );
     });
   };
 
   const replaceBadge = async function (personId, oldBadgeId, newBadgeId) {
     userProfile.updateOne(
-      { _id: personId, "badgeCollection.badge": oldBadgeId },
+      { _id: personId, 'badgeCollection.badge': oldBadgeId },
       {
         $set: {
-          "badgeCollection.$.badge": newBadgeId,
-          "badgeCollection.$.lastModified": Date.now().toString(),
-          "badgeCollection.$.count": 1
-        }
+          'badgeCollection.$.badge': newBadgeId,
+          'badgeCollection.$.lastModified': Date.now().toString(),
+          'badgeCollection.$.count': 1,
+        },
       },
-      err => {
+      (err) => {
         if (err) {
           throw new Error(err);
         }
-      }
+      },
     );
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    console.log("Increase Badge Count", personId, badgeId);
+    console.log('Increase Badge Count', personId, badgeId);
     userProfile.updateOne(
-      { _id: personId, "badgeCollection.badge": badgeId },
+      { _id: personId, 'badgeCollection.badge': badgeId },
       {
-        $inc: { "badgeCollection.$.count": 1 },
-        $set: { "badgeCollection.$.lastModified": Date.now().toString() },
-        $push: { "badgeCollection.$.earnedDate": earnedDateBadge() }
+        $inc: { 'badgeCollection.$.count': 1 },
+        $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
+        $push: { 'badgeCollection.$.earnedDate': earnedDateBadge() },
       },
-      err => {
+      (err) => {
         if (err) {
           console.log(err);
         }
-      }
+      },
     );
   };
 
@@ -781,7 +770,7 @@ const userHelper = function () {
     personId,
     badgeId,
     count = 1,
-    featured = false
+    featured = false,
   ) {
     console.log('Adding Badge');
     userProfile.findByIdAndUpdate(
@@ -793,11 +782,11 @@ const userHelper = function () {
           },
         },
       },
-      err => {
+      (err) => {
         if (err) {
           throw new Error(err);
         }
-      }
+      },
     );
   };
 
@@ -806,14 +795,14 @@ const userHelper = function () {
       personId,
       {
         $pull: {
-          badgeCollection: { badge: badgeId }
-        }
+          badgeCollection: { badge: badgeId },
+        },
       },
-      err => {
+      (err) => {
         if (err) {
           throw new Error(err);
         }
-      }
+      },
     );
   };
 
@@ -822,18 +811,18 @@ const userHelper = function () {
       removeDupBadge(personId, badgeId);
     } else if (count) {
       userProfile.updateOne(
-        { _id: personId, "badgeCollection.badge": badgeId },
+        { _id: personId, 'badgeCollection.badge': badgeId },
         {
           $set: {
-            "badgeCollection.$.count": count,
-            "badgeCollection.$.lastModified": Date.now().toString()
-          }
+            'badgeCollection.$.count': count,
+            'badgeCollection.$.lastModified': Date.now().toString(),
+          },
         },
-        err => {
+        (err) => {
           if (err) {
             throw new Error(err);
           }
-        }
+        },
       );
     }
   };
@@ -841,7 +830,6 @@ const userHelper = function () {
   // remove the last badge you earned on this streak(not including 1)
 
   const removePrevHrBadge = async function (personId, user, badgeCollection, hrs, weeks) {
-
     // Check each Streak Greater than One to check if it works
     if (weeks < 3) {
       return;
@@ -851,24 +839,24 @@ const userHelper = function () {
       .aggregate([
         {
           $match: {
-            type: "X Hours for X Week Streak",
+            type: 'X Hours for X Week Streak',
             weeks: { $gt: 1, $lt: weeks },
-            totalHrs: hrs
-          }
+            totalHrs: hrs,
+          },
         },
         { $sort: { weeks: -1, totalHrs: -1 } },
         {
           $group: {
-            _id: "$weeks",
+            _id: '$weeks',
             badges: {
-              $push: { _id: "$_id", hrs: "$totalHrs", weeks: "$weeks" }
-            }
-          }
-        }
+              $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' },
+            },
+          },
+        },
       ])
-      .then(results => {
-        results.forEach(streak => {
-          streak.badges.every(bdge => {
+      .then((results) => {
+        results.forEach((streak) => {
+          streak.badges.every((bdge) => {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
 
@@ -881,7 +869,7 @@ const userHelper = function () {
                 changeBadgeCount(
                   personId,
                   badgeCollection[i].badge._id,
-                  badgeCollection[i].badge.count - 1
+                  badgeCollection[i].badge.count - 1,
                 );
                 removed = true;
                 return false;
@@ -903,7 +891,6 @@ const userHelper = function () {
           removeDupBadge(personId, badgeOfType._id);
           badgeOfType = badgeCollection[i].badge;
         } else if (badgeOfType && badgeOfType.months > badgeCollection[i].badge.months) {
-
           removeDupBadge(personId, badgeCollection[i].badge._id);
         } else if (!badgeOfType) {
           badgeOfType = badgeCollection[i].badge;
@@ -911,23 +898,21 @@ const userHelper = function () {
       }
     }
     await badge
-      .find({ type: "No Infringement Streak" })
+      .find({ type: 'No Infringement Streak' })
       .sort({ months: -1 })
-      .then(results => {
+      .then((results) => {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
 
-        results.every(elem => {
+        results.every((elem) => {
           // Cannot account for time paused yet
 
           if (elem.months <= 12) {
-
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-
               if (
-                user.infringements.length === 0 ||
-                Math.abs(
+                user.infringements.length === 0
+                || Math.abs(
                   moment().diff(
 
                     moment(user.infringements[user.infringements?.length - 1].date),
@@ -942,7 +927,7 @@ const userHelper = function () {
                     replaceBadge(
                       personId,
                       mongoose.Types.ObjectId(badgeOfType._id),
-                      mongoose.Types.ObjectId(elem._id)
+                      mongoose.Types.ObjectId(elem._id),
                     );
                   }
                   return false;
@@ -952,12 +937,10 @@ const userHelper = function () {
               }
             }
           } else if (user?.infringements?.length === 0) {
-
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
-
               if (
-                user.oldInfringements.length === 0 ||
-                Math.abs(
+                user.oldInfringements.length === 0
+                || Math.abs(
                   moment().diff(
 
                     moment(user.oldInfringements[user.oldInfringements?.length - 1].date),
@@ -973,7 +956,7 @@ const userHelper = function () {
                     replaceBadge(
                       personId,
                       mongoose.Types.ObjectId(badgeOfType._id),
-                      mongoose.Types.ObjectId(elem._id)
+                      mongoose.Types.ObjectId(elem._id),
                     );
                   }
                   return false;
@@ -992,11 +975,11 @@ const userHelper = function () {
   const checkMinHoursMultiple = async function (
     personId,
     user,
-    badgeCollection
+    badgeCollection,
   ) {
     const badgesOfType = badgeCollection
       .map(obj => obj.badge)
-      .filter(badge => badge.type === 'Minimum Hours Multiple')
+      .filter(badge => badge.type === 'Minimum Hours Multiple');
     await badge
       .find({ type: 'Minimum Hours Multiple' })
       .sort({ multiple: -1 })
@@ -1009,49 +992,47 @@ const userHelper = function () {
           const elem = results[i]; // making variable elem accessible for below code
 
           if (
-            user.lastWeekTangibleHrs / user.weeklycommittedHours >=
-            elem.multiple
+            user.lastWeekTangibleHrs / user.weeklycommittedHours
+            >= elem.multiple
           ) {
             const theBadge = badgesOfType.find(
-              (badge) => badge._id.toString() === elem._id.toString()
+              badge => badge._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(
                 personId,
-                mongoose.Types.ObjectId(theBadge._id)
+                mongoose.Types.ObjectId(theBadge._id),
               )
               : addBadge(personId, mongoose.Types.ObjectId(elem._id));
           }
         }
-      })
+      });
   };
 
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "Personal Max") {
+      if (badgeCollection[i].badge?.type === 'Personal Max') {
         if (badgeOfType) {
           removeDupBadge(personId, badgeOfType._id);
         }
       }
     }
-    await badge.findOne({ type: "Personal Max" }).then(results => {
+    await badge.findOne({ type: 'Personal Max' }).then((results) => {
       if (
-        user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+        user.lastWeekTangibleHrs
+        && user.lastWeekTangibleHrs >= 1
+        && user.lastWeekTangibleHrs === user.personalBestMaxHrs
       ) {
         if (badgeOfType) {
           changeBadgeCount(
             personId,
             mongoose.Types.ObjectId(badgeOfType._id),
-            user.personalBestMaxHrs
+            user.personalBestMaxHrs,
           );
         } else {
-
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
-
         }
       }
     });
@@ -1071,22 +1052,21 @@ const userHelper = function () {
         userProfile
           .aggregate([
             { $match: { isActive: true } },
-            { $group: { _id: 1, maxHours: { $max: "$lastWeekTangibleHrs" } } },
+            { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
           ])
           .then((userResults) => {
             if (badgeOfType.length > 1) {
               removeDupBadge(user._id, badgeOfType[0]._id);
-
             }
 
             if (
-              user.lastWeekTangibleHrs &&
-              user.lastWeekTangibleHrs >= userResults[0].maxHours
+              user.lastWeekTangibleHrs
+              && user.lastWeekTangibleHrs >= userResults[0].maxHours
             ) {
               if (badgeOfType.length) {
                 increaseBadgeCount(
                   personId,
-                  mongoose.Types.ObjectId(badgeOfType[0]._id)
+                  mongoose.Types.ObjectId(badgeOfType[0]._id),
                 );
               } else {
                 addBadge(personId, mongoose.Types.ObjectId(results._id));
@@ -1102,15 +1082,15 @@ const userHelper = function () {
     // Handle Increasing the 1 week streak badges
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "X Hours for X Week Streak") {
+      if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
         badgesOfType.push(badgeCollection[i].badge);
       }
     }
     await badge
-      .find({ type: "X Hours for X Week Streak", weeks: 1 })
+      .find({ type: 'X Hours for X Week Streak', weeks: 1 })
       .sort({ totalHrs: -1 })
-      .then(results => {
-        results.every(elem => {
+      .then((results) => {
+        results.every((elem) => {
           if (elem.totalHrs <= user.lastWeekTangibleHrs) {
             let theBadge;
             for (let i = 0; i < badgesOfType.length; i += 1) {
@@ -1132,21 +1112,21 @@ const userHelper = function () {
     // Check each Streak Greater than One to check if it works
     await badge
       .aggregate([
-        { $match: { type: "X Hours for X Week Streak", weeks: { $gt: 1 } } },
+        { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1 } } },
         { $sort: { weeks: -1, totalHrs: -1 } },
         {
           $group: {
-            _id: "$weeks",
+            _id: '$weeks',
             badges: {
-              $push: { _id: "$_id", hrs: "$totalHrs", weeks: "$weeks" }
-            }
-          }
-        }
+              $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' },
+            },
+          },
+        },
       ])
-      .then(results => {
+      .then((results) => {
         let lastHr = -1;
-        results.forEach(streak => {
-          streak.badges.every(bdge => {
+        results.forEach((streak) => {
+          streak.badges.every((bdge) => {
             let badgeOfType;
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
@@ -1155,12 +1135,11 @@ const userHelper = function () {
                 && badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-
                   removeDupBadge(personId, badgeOfType._id);
                   badgeOfType = badgeCollection[i].badge;
                 } else if (
-                  badgeOfType &&
-                  badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
+                  badgeOfType
+                  && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
                 ) {
                   removeDupBadge(personId, badgeCollection[i].badge._id);
                 } else if (!badgeOfType) {
@@ -1185,7 +1164,7 @@ const userHelper = function () {
                   replaceBadge(
                     personId,
                     mongoose.Types.ObjectId(badgeOfType._id),
-                    mongoose.Types.ObjectId(bdge._id)
+                    mongoose.Types.ObjectId(bdge._id),
                   );
 
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
@@ -1196,12 +1175,11 @@ const userHelper = function () {
                     user,
                     badgeCollection,
                     bdge.hrs,
-                    bdge.weeks
+                    bdge.weeks,
                   );
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
                   increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-
                 }
                 return false;
               }
@@ -1222,8 +1200,8 @@ const userHelper = function () {
 
     let teamMembers;
     await getTeamMembers({
-      _id: personId
-    }).then(results => {
+      _id: personId,
+    }).then((results) => {
       if (results) {
         teamMembers = results.myteam;
       } else {
@@ -1242,13 +1220,11 @@ const userHelper = function () {
     });
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
-
       if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
         if (badgeOfType && badgeOfType.people <= badgeCollection[i].badge.people) {
           removeDupBadge(personId, badgeOfType._id);
           badgeOfType = badgeCollection[i].badge;
         } else if (badgeOfType && badgeOfType.people > badgeCollection[i].badge.people) {
-
           removeDupBadge(personId, badgeCollection[i].badge._id);
         } else if (!badgeOfType) {
           badgeOfType = badgeCollection[i].badge;
@@ -1256,9 +1232,9 @@ const userHelper = function () {
       }
     }
     await badge
-      .find({ type: "Lead a team of X+" })
+      .find({ type: 'Lead a team of X+' })
       .sort({ people: -1 })
-      .then(results => {
+      .then((results) => {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
@@ -1292,40 +1268,40 @@ const userHelper = function () {
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
     const categories = [
-      "food",
-      "energy",
-      "housing",
-      "education",
-      "society",
-      "economics",
-      "stewardship"
+      'food',
+      'energy',
+      'housing',
+      'education',
+      'society',
+      'economics',
+      'stewardship',
     ];
 
     const badgesOfType = badgeCollection
-      .filter(object => object.badge.type === "Total Hrs in Category")
+      .filter(object => object.badge.type === 'Total Hrs in Category')
       .map(object => object.badge);
 
-    categories.forEach(async category => {
+    categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(
-        elem => elem === category
+        elem => elem === category,
       );
 
 
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
         if (
-          badgeCollection[i].badge?.type === "Total Hrs in Category" &&
-          badgeCollection[i].badge?.category === category
+          badgeCollection[i].badge?.type === 'Total Hrs in Category'
+          && badgeCollection[i].badge?.category === category
         ) {
           if (
-            badgeOfType &&
-            badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs
+            badgeOfType
+            && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs
           ) {
             removeDupBadge(personId, badgeOfType._id);
             badgeOfType = badgeCollection[i].badge;
           } else if (
-            badgeOfType &&
-            badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
+            badgeOfType
+            && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
           ) {
             removeDupBadge(personId, badgeCollection[i].badge._id);
           } else if (!badgeOfType) {
@@ -1340,15 +1316,15 @@ const userHelper = function () {
       await badge.find({ type: 'Total Hrs in Category', category: newCatg })
 
         .sort({ totalHrs: -1 })
-        .then(results => {
+        .then((results) => {
           if (!Array.isArray(results) || !results.length || !categoryHrs) {
             return;
           }
 
-          results.every(elem => {
+          results.every((elem) => {
             if (
-              hoursByCategory[categoryHrs] >= 100 &&
-              hoursByCategory[categoryHrs] >= elem.totalHrs
+              hoursByCategory[categoryHrs] >= 100
+              && hoursByCategory[categoryHrs] >= elem.totalHrs
             ) {
               let theBadge;
               for (let i = 0; i < badgesOfType.length; i += 1) {
@@ -1363,13 +1339,13 @@ const userHelper = function () {
               }
               if (badgeOfType) {
                 if (
-                  badgeOfType._id.toString() !== elem._id.toString() &&
-                  badgeOfType.totalHrs < elem.totalHrs
+                  badgeOfType._id.toString() !== elem._id.toString()
+                  && badgeOfType.totalHrs < elem.totalHrs
                 ) {
                   replaceBadge(
                     personId,
                     mongoose.Types.ObjectId(badgeOfType._id),
-                    mongoose.Types.ObjectId(elem._id)
+                    mongoose.Types.ObjectId(elem._id),
                   );
                 }
                 return false;
@@ -1384,9 +1360,8 @@ const userHelper = function () {
   };
 
   const awardNewBadges = async () => {
-    console.log("Awarding");
+    console.log('Awarding');
     try {
-
       const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
 
 
@@ -1419,14 +1394,14 @@ const userHelper = function () {
         {
           personId: userId,
           dateOfWork: { $gte: pdtstart, $lte: pdtend },
-          isTangible: true
+          isTangible: true,
         },
-        "totalSeconds"
+        'totalSeconds',
       )
-      .then(results => {
+      .then((results) => {
         const totalTangibleWeeklySeconds = results.reduce(
           (acc, { totalSeconds }) => acc + totalSeconds,
-          0
+          0,
         );
         return (totalTangibleWeeklySeconds / 3600).toFixed(2);
       });
@@ -1436,19 +1411,19 @@ const userHelper = function () {
     try {
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
-        "_id isActive endDate"
+        '_id isActive endDate',
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { endDate } = user;
         endDate.setHours(endDate.getHours() + 7);
-        if (moment().isAfter(moment(endDate).add(1, "days"))) {
+        if (moment().isAfter(moment(endDate).add(1, 'days'))) {
           await userProfile.findByIdAndUpdate(
             user._id,
             user.set({
-              isActive: false
+              isActive: false,
             }),
-            { new: true }
+            { new: true },
           );
           const id = user._id;
           const person = await userProfile.findById(id);
@@ -1485,7 +1460,7 @@ const userHelper = function () {
     } catch (error) {
       logger.logException(err);
     }
-  }
+  };
 
 
   return {
@@ -1502,7 +1477,7 @@ const userHelper = function () {
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
-    deleteExpiredTokens
+    deleteExpiredTokens,
   };
 };
 
