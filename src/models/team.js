@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const team = new Schema({
   teamName: { type: 'String', required: true },
   isActive: { type: 'Boolean', required: true, default: true },
-  createdDatetime: { type: Date },
+  createdDatetime: { type: Date, default: Date.now() },
   modifiedDatetime: { type: Date, default: Date.now() },
   members: [
     {
