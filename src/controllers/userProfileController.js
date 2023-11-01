@@ -2,7 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const axios = require('axios')
+const fetch = require("node-fetch");
 
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
@@ -142,10 +142,16 @@ const userProfileController = function (UserProfile) {
         const url = "https://hgn-rest-beta.azurewebsites.net/api/"
         try {
           // Log in to Beta login route using provided credentials
-          let response = await axios.post(url + "login", {
-            email: email,
-            password: password
-          })
+          const response = await fetch(url + 'login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!response.ok) {
+            throw new Error('Invalid credentials');
+          }
         } catch (error) {
           res.status(400).send({
             error: 'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
