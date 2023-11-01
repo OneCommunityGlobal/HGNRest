@@ -128,36 +128,7 @@ const mapLocationsController = function (MapLocation) {
     });
     return hours;
   }
-
-    try {
-      let response;
-      if(userType === 'user') {
-        response = await userProfile.findOneAndUpdate({ _id: userId }, {$set: {...updateData, jobTitle: [updateData.jobTitle]}}, { new: true });
-        cache.removeCache('allusers')
-        cache.removeCache(`user-${userId}`);
-        cache.setCache(`user-${userId}`, JSON.stringify(response));
-      } else {
-        response = await MapLocation.findOneAndUpdate({ _id: userId }, {$set: updateData}, { new: true })
-      }
-      
-      if (!response) {
-        throw new Error('Something went wrong during saving the location...')
-      }
-      const newData = {
-        firstName: response.firstName,
-        lastName: response.lastName,
-        jobTitle: response.jobTitle,
-        location: response.location,
-        _id: response._id,
-        type: userType
-      }
-      
-      res.status(200).send(newData);
-    } catch (err) {
-      console.log(err.message)
-      res.status(500).json({ message: err.message || 'Something went wrong...' });
-    }
-  };
+  
   return {
     getAllLocations,
     deleteLocation,
