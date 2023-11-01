@@ -5,6 +5,10 @@ const route = function () {
 
   const Dashboardrouter = express.Router();
 
+  Dashboardrouter.route('/dashboard/aiPrompt')
+    .get(controller.getDashBoardData)
+    .put(controller.updateDashboardData);
+
   Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);
 

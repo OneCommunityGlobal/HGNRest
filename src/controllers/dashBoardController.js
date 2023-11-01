@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs/promises");
 const dashboardhelper = require("../helpers/dashboardhelper")();
 const emailSender = require("../utilities/emailSender");
+const DashboardData = require('../models/dashBoardData');
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
@@ -13,6 +14,23 @@ const dashboardcontroller = function () {
     snapshot.then((results) => {
       res.send(results).status(200);
     });
+  };
+
+  const updateDashboardData = function (req, res) {
+    if (req.body.requestor.role === 'Owner') {
+       DashboardData.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
+      .then(() => {
+        res.status(200).send('Successfully saved AI prompt.');
+      }).catch(error => res.status(500).send(error));
+    }
+  };
+
+  const getDashBoardData = function (req, res) {
+    DashboardData.findById({ _id: 'ai-prompt' })
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(error => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -247,6 +265,8 @@ const dashboardcontroller = function () {
 
   return {
     dashboarddata,
+    getDashBoardData,
+    updateDashboardData,
     monthlydata,
     weeklydata,
     leaderboarddata,
