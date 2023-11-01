@@ -3,18 +3,13 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const mapLocation = new Schema({
-    firstName: {
+    title: {
         type: String,
-        default: 'Prior to HGN Data Collection',
+        default: 'Prior to HGN Data Collection'
     },
-    lastName: {
-        type: String,
-        default: 'Prior to HGN Data Collection',
-    },
-    jobTitle: {
-        type: String,
-        default: 'Prior to HGN Data Collection',
-    },
+    firstName: String,
+    lastName: String,
+    jobTitle: String,
     isActive: {
         type: Boolean,
         default: false,
