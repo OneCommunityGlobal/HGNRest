@@ -19,10 +19,17 @@ const mapLocationsController = function (MapLocation) {
           users.push(item);
         }
       });
+      const modifiedUsers = users.map(item => ({
+        location: item.location,
+        isActive: item.isActive,
+        jobTitle: item.jobTitle[0],
+        _id: item._id,
+        firstName: item.firstName,
+        lastName: item.lastName
+      }));
 
-      const m_users = await MapLocation.find({});
-
-      res.status(200).send({ users, m_users });
+      const mUsers = await MapLocation.find({});
+      res.status(200).send({ users: modifiedUsers, mUsers });
     } catch (err) {
       res.status(404).send(err);
     }
@@ -86,7 +93,6 @@ const mapLocationsController = function (MapLocation) {
     try {
       let response;
       if (userType === 'user') {
-        console.log('updateData----', updateData);
         response = await UserProfile.findOneAndUpdate({ _id: userId }, { $set: { ...updateData, jobTitle: [updateData.jobTitle] } }, { new: true });
         cache.removeCache('allusers')
         cache.removeCache(`user-${userId}`);
