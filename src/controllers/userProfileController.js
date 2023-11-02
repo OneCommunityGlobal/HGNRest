@@ -234,8 +234,9 @@ const userProfileController = function (UserProfile) {
       )
     );
   
-    const canEditTeamCode = req.body.requestor.role === "Owner" ||
-      req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+    const canEditTeamCode = req.body.requestor.role === "Owner" 
+      || req.body.requestor.role === "Administrator"
+      || req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
 
     if (!isRequestorAuthorized) {
       res.status(403).send("You are not authorized to update this user");
