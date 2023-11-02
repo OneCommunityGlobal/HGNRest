@@ -44,23 +44,30 @@ const bmMaterialsController = function (ItemMaterial) {
   };
 
   const bmPostMaterialUpdateRecord = function (req, res) {
-    console.log(req.body);
-    ItemMaterial.update(
+
+    let quantityUsed = +req.body.quantityUsed;
+    let quantityWasted = +req.body.quantityWasted;
+    let material = req.body.material;
+    if(req.body.QtyUsedLogUnit=='percent' && quantityWasted>=0)
+    {
+      quantityUsed = (+quantityUsed / 100) * material.stockAvailable;
+    }
+    if(req.body.QtyWastedLogUnit=='percent' && quantityUsed>=0)
+    {
+      quantityWasted = (+quantityWasted / 100) * material.stockAvailable;
+    }
+
+    ItemMaterial.updateOne(
       { _id: req.body.material._id },
       {
-          $push: {
-            updateRecord: {
-              date: req.body.date,
-              createdBy: req.body.requestor.requestorId,
-              action: req.body.action,
-              cause: req.body.cause,
-              quantity: req.body.quantity,
-              description: req.body.description,
-            },
-          },
-      },
+        $inc: {
+          'stockUsed': quantityUsed,
+          'stockWasted': quantityWasted,
+          'stockAvailable': -(quantityUsed+quantityWasted)
+        }
+      }
       )
-      .then(results => res.status(200).send(results))
+      .then(results => {res.status(200).send(results)})
       .catch(error => res.status(500).send(error));
   };
   return {
