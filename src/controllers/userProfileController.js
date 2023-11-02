@@ -79,7 +79,7 @@ const userProfileController = function (UserProfile) {
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
-      
+
   };
 
   const getProjectMembers = async function (req, res) {
@@ -233,8 +233,8 @@ const userProfileController = function (UserProfile) {
         || req.body.requestor.requestorId === userid
       )
     );
-  
-    const canEditTeamCode = req.body.requestor.role === "Owner" 
+
+    const canEditTeamCode = req.body.requestor.role === "Owner"
       || req.body.requestor.role === "Administrator"
       || req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
 
@@ -570,15 +570,16 @@ const userProfileController = function (UserProfile) {
     const { userId } = req.params;
     const { key, value } = req.body;
 
-    if (key === "teamCode") {
-      const canEditTeamCode = req.body.requestor.role === "Owner" ||
-        req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+    if (key === 'teamCode') {
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if(!canEditTeamCode){
         res.status(403).send("You are not authorized to edit team code.");
         return;
       }
-  
+
     }
 
     // remove user from cache, it should be loaded next time
