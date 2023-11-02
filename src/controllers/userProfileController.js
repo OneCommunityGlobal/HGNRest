@@ -57,15 +57,9 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    if (cache.getCache('allusers')) {
-      const getData = JSON.parse(cache.getCache('allusers'));
-      res.status(200).send(getData);
-      return;
-    }
-    
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate location jobTitle totalTangibleHrs',
+      "_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate"
     )
       .sort({
         lastName: 1,
