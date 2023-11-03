@@ -1505,8 +1505,11 @@ const userHelper = function () {
         
       });
       for (let profile of userProfiles) {
-        const { firstName, lastName, profilePic } = profile;
+        const { firstName, lastName, profilePic, isActive } = profile;
         if (profilePic) {
+          continue;
+        }
+        if (!isActive) {
           continue;
         }
 

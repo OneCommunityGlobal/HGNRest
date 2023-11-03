@@ -269,6 +269,7 @@ const userProfileController = function (UserProfile) {
           res.status(400).json({ error: 'Invalid profilePic format.' });
           return;
         }
+        record.storedPics = [];
       }
 
       const originalinfringements = record.infringements
