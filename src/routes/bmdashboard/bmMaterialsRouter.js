@@ -10,6 +10,11 @@ materialsRouter.route('/materials')
 materialsRouter.route('/addUpdateMaterialRecord')
   .post(controller.bmPostMaterialUpdateRecord);
 
+  materialsRouter.route('/UpdateMaterialRecordBulk')
+  .post(controller.bmPostMaterialUpdateBulk);
+
+  
+
   return materialsRouter;
 };
 
