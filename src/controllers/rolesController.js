@@ -1,22 +1,24 @@
-const UserProfile = require('../models/userProfile');
-const cache = require('../utilities/nodeCache')();
-const { hasPermission } = require('../utilities/permissions');
+const UserProfile = require("../models/userProfile");
+const cache = require("../utilities/nodeCache")();
+const { hasPermission } = require("../utilities/permissions");
 
 const rolesController = function (Role) {
   const getAllRoles = function (req, res) {
     Role.find({})
-    .then(results => res.status(200).send(results))
-    .catch(error => res.status(404).send({ error }));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send({ error }));
   };
 
   const createNewRole = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'postRole')) {
-      res.status(403).send('You are not authorized to create new roles.');
+    if (!(await hasPermission(req.body.requestor, "postRole"))) {
+      res.status(403).send("You are not authorized to create new roles.");
       return;
     }
 
     if (!req.body.roleName || !req.body.permissions) {
-      res.status(400).send({ error: 'roleName and permissions are mandatory fields.' });
+      res
+        .status(400)
+        .send({ error: "roleName and permissions are mandatory fields." });
       return;
     }
 
@@ -25,80 +27,87 @@ const rolesController = function (Role) {
     role.permissions = req.body.permissions;
     role.permissionsBackEnd = req.body.permissionsBackEnd;
 
-    role.save().then(results => res.status(201).send(results)).catch(err => res.status(500).send({ err }));
+    role
+      .save()
+      .then((results) => res.status(201).send(results))
+      .catch((err) => res.status(500).send({ err }));
   };
 
   const getRoleById = function (req, res) {
-      const { roleId } = req.params;
-      Role.findById(
-        roleId,
-      )
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send({ error }));
-};
-
+    const { roleId } = req.params;
+    Role.findById(roleId)
+      .then((results) => {
+        return res.status(200).send(results);
+      })
+      .catch((error) => res.status(404).send({ error }));
+  };
 
   const updateRoleById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'putRole')) {
-      res.status(403).send('You are not authorized to make changes to roles.');
+    if (!(await hasPermission(req.body.requestor, "putRole"))) {
+      res.status(403).send("You are not authorized to make changes to roles.");
       return;
     }
 
     const { roleId } = req.params;
 
     if (!req.body.permissions) {
-      res.status(400).send({ error: 'Permissions is a mandatory field' });
+      res.status(400).send({ error: "Permissions is a mandatory field" });
       return;
-  }
+    }
 
     Role.findById(roleId, (error, record) => {
       if (error || record === null) {
-        res.status(400).send('No valid records found');
+        res.status(400).send("No valid records found");
         return;
       }
+
       record.roleName = req.body.roleName;
       record.permissions = req.body.permissions;
       record.permissionsBackEnd = req.body.permissionsBackEnd;
 
-      record.save()
-        .then(results => res.status(201).send(results))
-        .catch(errors => res.status(400).send(errors));
+      record
+        .save()
+        .then((results) => res.status(201).send(results))
+        .catch((errors) => res.status(400).send(errors));
     });
   };
 
   const deleteRoleById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'deleteRole')) {
-      res.status(403).send('You are not authorized to delete roles.');
+    if (!(await hasPermission(req.body.requestor, "deleteRole"))) {
+      res.status(403).send("You are not authorized to delete roles.");
       return;
     }
 
     const { roleId } = req.params;
     Role.findById(roleId)
-      .then(result => (
+      .then((result) =>
         result
           .remove()
-          .then(UserProfile
-            .updateMany({ role: result.roleName }, { role: 'Volunteer' })
-            .then(() => {
-              const isUserInCache = cache.hasCache('allusers');
-              if (isUserInCache) {
-                const allUserData = JSON.parse(cache.getCache('allusers'));
-                allUserData.forEach((user) => {
-                  if (user.role === result.roleName) {
-                    user.role = 'Volunteer';
-                    cache.removeCache(`user-${user._id}`);
-                  }
-                });
-                cache.setCache('allusers', JSON.stringify(allUserData));
-              }
-              res.status(200).send({ message: 'Deleted role' });
-            })
-            .catch(error => res.status(400).send({ error })))
-          .catch(error => res.status(400).send({ error }))
-      ))
-      .catch(error => res.status(400).send({ error }));
+          .then(
+            UserProfile.updateMany(
+              { role: result.roleName },
+              { role: "Volunteer" }
+            )
+              .then(() => {
+                const isUserInCache = cache.hasCache("allusers");
+                if (isUserInCache) {
+                  const allUserData = JSON.parse(cache.getCache("allusers"));
+                  allUserData.forEach((user) => {
+                    if (user.role === result.roleName) {
+                      user.role = "Volunteer";
+                      cache.removeCache(`user-${user._id}`);
+                    }
+                  });
+                  cache.setCache("allusers", JSON.stringify(allUserData));
+                }
+                res.status(200).send({ message: "Deleted role" });
+              })
+              .catch((error) => res.status(400).send({ error }))
+          )
+          .catch((error) => res.status(400).send({ error }))
+      )
+      .catch((error) => res.status(400).send({ error }));
   };
-
 
   return {
     getAllRoles,
