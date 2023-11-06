@@ -90,13 +90,16 @@ const timeEntrycontroller = function (TimeEntry) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    const type = req.body.entryType;
+
     try {
       if (!req.params.timeEntryId) {
         return res.status(400).send({ error: 'ObjectId in request param is not in correct format' });
       }
 
-      if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId) || !mongoose.Types.ObjectId.isValid(req.body.projectId)) {
-        return res.status(400).send({ error: 'ObjectIds are not correctly formed' });
+      if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
+        || ((type === 'default' || type === 'project') && !mongoose.Types.ObjectId.isValid(req.body.projectId))) {
+          return res.status(400).send({ error: 'ObjectIds are not correctly formed' });
       }
 
       // Get initial timeEntry by timeEntryId
@@ -106,7 +109,8 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error: `No valid records found for ${req.params.timeEntryId}` });
       }
 
-      if (!(await hasPermission(req.body.requestor, 'editTimeEntry') || timeEntry.personId.toString() === req.body.requestor.requestorId.toString())) {
+      if (!(await hasPermission(req.body.requestor, 'editTimeEntry')
+        || ((type === 'default' || type === 'person') && timeEntry.personId.toString() === req.body.requestor.requestorId.toString()))) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
@@ -115,7 +119,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const totalSeconds = moment.duration(`${hours}:${minutes}`).asSeconds();
 
-      if (timeEntry.isTangible === true && totalSeconds !== timeEntry.totalSeconds) {
+      if (type === 'default' && timeEntry.isTangible === true && totalSeconds !== timeEntry.totalSeconds) {
         notifyEditByEmail(timeEntry.personId.toString(), timeEntry, totalSeconds, req.body);
       }
 
@@ -134,24 +138,27 @@ const timeEntrycontroller = function (TimeEntry) {
       // Update the hoursLogged field of related tasks based on before and after timeEntries
       // initialIsTangible is a bealoon value, req.body.isTangible is a string
       // initialProjectId may be a task id or project id, so do not throw error.
-      try {
-        if (initialIsTangible === true) {
-          const initialTask = await task.findById(initialProjectId);
-          initialTask.hoursLogged -= (initialSeconds / 3600);
-          await initialTask.save();
-        }
+      if (type === 'default') {
+        try {
+          if (initialIsTangible === true) {
+            const initialTask = await task.findById(initialProjectId);
+            initialTask.hoursLogged -= (initialSeconds / 3600);
+            await initialTask.save();
+          }
 
-        if (req.body.isTangible === true) {
-          const editedTask = await task.findById(req.body.projectId);
-          editedTask.hoursLogged += (totalSeconds / 3600);
-          await editedTask.save();
+          if (req.body.isTangible === true) {
+            const editedTask = await task.findById(req.body.projectId);
+            editedTask.hoursLogged += (totalSeconds / 3600);
+            await editedTask.save();
+          }
+        } catch (error) {
+          console.log('Failed to find task by id');
         }
-      } catch (error) {
-        console.log('Failed to find task by id');
       }
 
       // Update edit history
-      if (initialSeconds !== totalSeconds
+      if ((type === 'default' || type === 'person')
+        && initialSeconds !== totalSeconds
         && timeEntry.isTangible
         && req.body.requestor.requestorId === timeEntry.personId.toString()
         && !await hasPermission(req.body.requestor, 'editTimeEntry')
@@ -163,37 +170,39 @@ const timeEntrycontroller = function (TimeEntry) {
           newSeconds: totalSeconds,
         });
 
-        // Issue infraction if edit history contains more than 5 edits in the last year
-        let totalRecentEdits = 0;
+        if (type === 'default') {
+          // Issue infraction if edit history contains more than 5 edits in the last year
+          let totalRecentEdits = 0;
 
-        requestor.timeEntryEditHistory.forEach((edit) => {
-          if (moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365) {
-            totalRecentEdits += 1;
-          }
-        });
-
-        if (totalRecentEdits >= 5) {
-          requestor.infringements.push({
-            date: moment().tz('America/Los_Angeles'),
-            description: `${totalRecentEdits} time entry edits in the last calendar year`,
+          requestor.timeEntryEditHistory.forEach((edit) => {
+            if (moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365) {
+              totalRecentEdits += 1;
+            }
           });
 
-          emailSender('onecommunityglobal@gmail.com', `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`, `
-            <p>
-              ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
-              within the last calendar year.
-            </p>
-            <p>
-              This is the ${totalRecentEdits}th edit within the past 365 days.
-            </p>
+          if (totalRecentEdits >= 5) {
+            requestor.infringements.push({
+              date: moment().tz('America/Los_Angeles'),
+              description: `${totalRecentEdits} time entry edits in the last calendar year`,
+            });
+
+            emailSender('onecommunityglobal@gmail.com', `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`, `
+              <p>
+                ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
+                within the last calendar year.
+              </p>
+              <p>
+                This is the ${totalRecentEdits}th edit within the past 365 days.
+              </p>
           `);
 
-          const emailInfringement = {
-            date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
-            description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
-          };
+            const emailInfringement = {
+              date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
+              description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
+            };
 
-          emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringementEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringements.length));
+            emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringementEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringements.length));
+          }
         }
 
         await requestor.save();
@@ -204,10 +213,12 @@ const timeEntrycontroller = function (TimeEntry) {
 
       res.status(200).send({ message: 'Successfully updated time entry' });
 
-      // checking if logged in hours exceed estimated time after timeentry edit for a task
-      const record = await userProfile.findById(timeEntry.personId.toString());
-      const currentTask = await task.findById(req.body.projectId);
-      checkTaskOvertime(timeEntry, record, currentTask);
+      if (type === 'default') {
+        // checking if logged in hours exceed estimated time after timeentry edit for a task
+        const record = await userProfile.findById(timeEntry.personId.toString());
+        const currentTask = await task.findById(req.body.projectId);
+        checkTaskOvertime(timeEntry, record, currentTask);
+      }
     } catch (err) {
       await session.abortTransaction();
       return res.status(400).send({ error: err.toString() });
@@ -249,9 +260,8 @@ const timeEntrycontroller = function (TimeEntry) {
       || !req.body.timeSpent
       || !req.body.isTangible;
 
-    const returnErr = (res) => {
-      res.status(400).send({ error: 'Bad request' });
-      return;
+    const returnErr = (result) => {
+      result.status(400).send({ error: 'Bad request' });
     };
 
     switch (req.body.entryType) {
@@ -307,10 +317,12 @@ const timeEntrycontroller = function (TimeEntry) {
           .status(200)
           .send({ message: `Time Entry saved with id as ${results._id}` });
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => {
+        res.status(400).send(error);
+      });
 
     // Add this tangbile time entry to related task's hoursLogged
-    if ((timeentry.entryType == 'default') && timeentry.isTangible === true) {
+    if ((timeentry.entryType === 'default') && timeentry.isTangible === true) {
       try {
         const currentTask = await task.findById(req.body.projectId);
         currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
@@ -320,7 +332,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
     }
     // checking if logged in hours exceed estimated time after timeentry for a task
-    if (timeentry.entryType == 'default') {
+    if (timeentry.entryType === 'default') {
       const record = await userProfile.findById(timeentry.personId.toString());
       const currentTask = await task.findById(req.body.projectId);
       checkTaskOvertime(timeentry, record, currentTask);
@@ -347,7 +359,7 @@ const timeEntrycontroller = function (TimeEntry) {
     TimeEntry.aggregate([
       {
         $match: {
-          entryType: { $in: [ 'default', null ] },
+          entryType: { $in: ['default', null] },
           personId: mongoose.Types.ObjectId(userId),
           dateOfWork: { $gte: fromdate, $lte: todate },
         },
@@ -423,7 +435,9 @@ const timeEntrycontroller = function (TimeEntry) {
       },
     ]).then((results) => {
       res.status(200).send(results);
-    }).catch(error => res.status(400).send(error));
+    }).catch((error) => {
+      res.status(400).send(error);
+    });
   };
 
   const getTimeEntriesForUsersList = function (req, res) {
@@ -431,7 +445,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: { $in: [ 'default', null, 'person' ] },
+        entryType: { $in: ['default', null, 'person'] },
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
@@ -458,7 +472,9 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => {
+        res.status(400).send(error);
+      });
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -476,7 +492,7 @@ const timeEntrycontroller = function (TimeEntry) {
     const { projectId } = req.params;
     TimeEntry.find(
       {
-        entryType: [ 'default', null ],
+        entryType: ['default', null],
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
       },
@@ -487,7 +503,9 @@ const timeEntrycontroller = function (TimeEntry) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => {
+        res.status(400).send(error);
+      });
   };
 
   const deleteTimeEntry = async function (req, res) {
@@ -501,6 +519,18 @@ const timeEntrycontroller = function (TimeEntry) {
         if (!record) {
           res.status(400).send({ message: 'No valid record found' });
           return;
+        }
+
+        if (record.entryType === 'project' || record.entryType === 'person' || record.entryType === 'team') {
+          record
+            .remove()
+            .then(() => {
+              res.status(200).send({ message: 'Successfully deleted' });
+            })
+            .catch((error) => {
+              res.status(500).send(error);
+            });
+            return;
         }
 
         if (
@@ -572,7 +602,9 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => {
+        res.status(400).send(error);
+      });
   };
 
   const getLostTimeEntriesForProjectList = function (req, res) {
@@ -580,7 +612,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: "project",
+        entryType: 'project',
         projectId: { $in: projects },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
@@ -606,7 +638,9 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => {
+        res.status(400).send(error);
+      });
   };
 
   const getLostTimeEntriesForTeamList = function (req, res) {
@@ -614,7 +648,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: "team",
+        entryType: 'team',
         teamId: { $in: teams },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
@@ -629,7 +663,7 @@ const timeEntrycontroller = function (TimeEntry) {
           record._id = element._id;
           record.notes = element.notes;
           record.isTangible = element.isTangible;
-          record.teamId = element.teamId;
+          record.teamId = element.teamId ? element.teamId._id : '';
           record.teamName = element.teamId
             ? element.teamId.teamName
             : '';
@@ -640,7 +674,9 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => {
+        res.status(400).send(error);
+      });
   };
 
   return {

@@ -569,15 +569,14 @@ const userProfileController = function (UserProfile) {
     const { userId } = req.params;
     const { key, value } = req.body;
 
-    if (key === "teamCode") {
-      const canEditTeamCode = req.body.requestor.role === "Owner" ||
-        req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+    if (key === 'teamCode') {
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if(!canEditTeamCode){
-        res.status(403).send("You are not authorized to edit team code.");
+      if (!canEditTeamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
         return;
       }
-  
     }
 
     // remove user from cache, it should be loaded next time
