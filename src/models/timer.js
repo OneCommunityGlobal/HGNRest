@@ -8,6 +8,8 @@ const timerSchema = new Schema({
   startAt: { type: Date, default: Date.now },
   time: { type: Number, default: 900000 },
   goal: { type: Number, default: 900000 },
+  initialGoal: { type: Number, default: 900000 },
+  chiming: { type: Boolean, default: false },
   paused: { type: Boolean, default: false },
   forcedPause: { type: Boolean, default: false },
   started: { type: Boolean, default: false },
