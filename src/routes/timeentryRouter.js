@@ -21,7 +21,7 @@ const routes = function (TimeEntry) {
 
   TimeEntryRouter.route('/TimeEntry/lostUsers')
     .post(controller.getLostTimeEntriesForUserList);
-    
+
   TimeEntryRouter.route('/TimeEntry/lostProjects')
     .post(controller.getLostTimeEntriesForProjectList);
 
