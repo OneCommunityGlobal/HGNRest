@@ -27,10 +27,26 @@ const dashboardcontroller = function () {
 
   const getDashBoardData = function (req, res) {
     DashboardData.findById({ _id: 'ai-prompt' })
-      .then((results) => {
-        res.status(200).send(results);
-      })
-      .catch(error => res.status(500).send(error));
+    .then((result) => {
+      if (result) {
+        // If the GPT prompt exists, send it back.
+        res.status(200).send(result);
+      } else {
+        // If the GPT prompt does not exist, create it.
+        const defaultPrompt = {
+          _id: 'ai-prompt',
+          aIPromptText: "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:"
+        };
+        DashboardData.create(defaultPrompt)
+        .then((newResult) => {
+          res.status(200).send(newResult);
+        })
+        .catch((creationError) => {
+          res.status(500).send(creationError);
+        });
+      }
+    })
+    .catch(error => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
