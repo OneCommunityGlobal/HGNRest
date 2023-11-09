@@ -3,6 +3,8 @@ const wbs = require('../models/wbs');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
+const emailSender = require('../utilities/emailSender');
+const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -390,7 +392,7 @@ const taskController = function (Task) {
   };
 
   const importTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'importTask')) {
+    if (!await hasPermission(req.body.requestor, 'importTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -420,7 +422,7 @@ const taskController = function (Task) {
   };
 
   const postTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'postTask')) {
+    if (!await hasPermission(req.body.requestor, 'postTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -456,7 +458,7 @@ const taskController = function (Task) {
   };
 
   const updateNum = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'updateNum')) {
+    if (!await hasPermission(req.body.requestor, 'updateNum')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -593,7 +595,7 @@ const taskController = function (Task) {
   };
 
   const deleteTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
+    if (!await hasPermission(req.body.requestor, 'deleteTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to deleteTasks.' });
@@ -642,7 +644,7 @@ const taskController = function (Task) {
   };
 
   const deleteTaskByWBS = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'deleteTask')) {
+    if (!await hasPermission(req.body.requestor, 'deleteTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to deleteTasks.' });
@@ -673,7 +675,7 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor.role, 'updateTask')) {
+    if (!await hasPermission(req.body.requestor, 'updateTask')) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
     }
@@ -689,7 +691,7 @@ const taskController = function (Task) {
   };
 
   const swap = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'swapTask')) {
+    if (!await hasPermission(req.body.requestor, 'swapTask')) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -774,7 +776,6 @@ const taskController = function (Task) {
         });
 
         res.status(200).send(task);
-
     } catch (error) {
         // Generic error message, you can adjust as needed
         res.status(500).send({ error: 'Internal Server Error', details: error.message });
@@ -848,6 +849,60 @@ const taskController = function (Task) {
     }
   };
 
+  const updateTaskStatus = async (req, res) => {
+    const { taskId } = req.params;
+
+    Task.findOneAndUpdate(
+      { _id: mongoose.Types.ObjectId(taskId) },
+      { ...req.body, modifiedDatetime: Date.now() },
+    )
+      .then(() => res.status(201).send())
+      .catch(error => res.status(404).send(error));
+  };
+
+  const getReviewReqEmailBody = function (name, taskName) {
+    const text = `New Task Review Request From <b>${name}</b>:
+        <p>The following task is available to review:</p>
+        <p><b>${taskName}</b></p>
+        <p>Thank you,</p>
+        <p>One Community</p>`;
+
+    return text;
+  };
+
+  const getRecipients = async function (myUserId) {
+    const recipients = [];
+    const user = await userProfile.findById(myUserId);
+    const membership = await userProfile.find({ role: { $in: ['Administrator', 'Manager', 'Mentor'] } });
+    membership.forEach((member) => {
+      if (member.teams.some(team => user.teams.includes(team))) {
+        recipients.push(member.email);
+      }
+    });
+    return recipients;
+  };
+
+  const sendReviewReq = async function (req, res) {
+    const {
+      myUserId, name, taskName,
+    } = req.body;
+    const emailBody = getReviewReqEmailBody(name, taskName);
+    const recipients = await getRecipients(myUserId);
+
+    try {
+      emailSender(
+        recipients,
+        `Review Request from ${name}`,
+        emailBody,
+        'highestgoodnetwork@gmail.com',
+        null,
+      );
+      res.status(200).send('Success');
+    } catch (err) {
+      res.status(500).send('Failed');
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -864,6 +919,8 @@ const taskController = function (Task) {
     moveTask,
     getTasksByUserList,
     getTasksForTeamsByUser,
+    updateTaskStatus,
+    sendReviewReq,
   };
 };
 
