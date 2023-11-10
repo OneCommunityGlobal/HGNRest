@@ -7,7 +7,6 @@ const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
-const timer = require('../models/timer');
 const popup = require('../models/popupEditor');
 const popupBackup = require('../models/popupEditorBackup');
 const taskNotification = require('../models/taskNotification');
@@ -22,6 +21,8 @@ const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+const buildingProject = require('../models/bmdashboard/buildingProject');
+
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -38,7 +39,6 @@ const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
 const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
-const timerRouter = require('../routes/timerRouter')(timer);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
@@ -61,6 +61,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, inventoryItemType);
+const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -76,7 +77,6 @@ module.exports = function (app) {
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
-  app.use('/api', timerRouter);
   app.use('/api', popupRouter);
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
@@ -96,4 +96,5 @@ module.exports = function (app) {
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmProjectRouter);
 };
