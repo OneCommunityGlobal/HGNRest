@@ -37,18 +37,18 @@ const bmMaterialsController = function (ItemMaterial) {
   };
 
   const bmPostMaterialUpdateRecord = function (req, res) {
-
+    let payload = req.body;
     let quantityUsed = +req.body.quantityUsed;
     let quantityWasted = +req.body.quantityWasted;
     let material = req.body.material;
-    if(req.body.QtyUsedLogUnit=='percent' && quantityWasted>=0)
-    {
-      quantityUsed = (+quantityUsed / 100) * material.stockAvailable;
-    }
-    if(req.body.QtyWastedLogUnit=='percent' && quantityUsed>=0)
-    {
-      quantityWasted = (+quantityWasted / 100) * material.stockAvailable;
-    }
+    if(payload.QtyUsedLogUnit=='percent' && quantityWasted>=0)
+      {
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+      }
+      if(payload.QtyWastedLogUnit=='percent' && quantityUsed>=0)
+      {
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+      }
 
     if(quantityUsed>material.stockAvailable || quantityWasted>material.stockAvailable || (quantityUsed+quantityWasted)>material.stockAvailable)
     {
@@ -56,24 +56,27 @@ const bmMaterialsController = function (ItemMaterial) {
     }
     else
    {
-      quantityUsed = +material.stockUsed + parseFloat(quantityUsed.toFixed(4));
-      quantityWasted = +material.stockWasted + parseFloat(quantityWasted.toFixed(4));
-      let newAvailable = +material.stockAvailable - parseFloat(quantityUsed+quantityWasted);
-
+    let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
+    let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
+    let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
+    newStockUsed = parseFloat(newStockUsed.toFixed(4));
+    newStockWasted = parseFloat(newStockWasted.toFixed(4));
+    newAvailable = parseFloat(newAvailable.toFixed(4));
       ItemMaterial.updateOne(
         { _id: req.body.material._id },
         
           {
             $set: {
-            'stockUsed': quantityUsed,
-            'stockWasted': quantityWasted,
-            'stockAvailable': -(newAvailable)
+            'stockUsed': newStockUsed,
+            'stockWasted': newStockWasted,
+            'stockAvailable': newAvailable
           },
             $push: {
               updateRecord: {
                 date: req.body.date,
                 createdBy: req.body.requestor.requestorId,
-                quantity: -(quantityUsed+quantityWasted),
+                quantityUsed: quantityUsed + ' ' + material.itemType.unit,
+                quantityWasted: quantityWasted
               },
             }
           }
@@ -92,33 +95,34 @@ const bmMaterialsController = function (ItemMaterial) {
       let material = payload.material;
       if(payload.QtyUsedLogUnit=='percent' && quantityWasted>=0)
       {
-        quantityUsed = (+quantityUsed / 100) * material.stockAvailable;
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
       }
       if(payload.QtyWastedLogUnit=='percent' && quantityUsed>=0)
       {
-        quantityWasted = (+quantityWasted / 100) * material.stockAvailable;
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
       }
 
-      quantityUsed = +material.stockUsed + parseFloat(quantityUsed.toFixed(4));
-      quantityWasted = +material.stockWasted + parseFloat(quantityWasted.toFixed(4));
-      let newAvailable = +material.stockAvailable - parseFloat(quantityUsed+quantityWasted);
+      let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
+      let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
+      let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
+      newStockUsed = parseFloat(newStockUsed.toFixed(4));
+      newStockWasted = parseFloat(newStockWasted.toFixed(4));
       newAvailable = parseFloat(newAvailable.toFixed(4));
-      console.log(quantityUsed,quantityWasted,newAvailable);
       return ({
         updateId: material._id,
         set: {
-          'stockUsed': quantityUsed,
-          'stockWasted': quantityWasted,
-          'stockAvailable': -newAvailable
+          'stockUsed': newStockUsed,
+          'stockWasted': newStockWasted,
+          'stockAvailable': newAvailable
         },
         updateValue: {
           createdBy: req.body.requestor.requestorId,
-          quantity: -(newAvailable),
+          quantityUsed: quantityUsed + ' ' + material.itemType.unit,
+          quantityWasted: quantityWasted,
           date: payload.date,
         }});
       
       });
-    console.log(updateRecordsToBeAdded);
 
     try {
     const updatePromises = updateRecordsToBeAdded.map(updateItem => ItemMaterial.updateOne(

@@ -7,10 +7,10 @@ const controller = require('../../controllers/bmdashboard/bmMaterialsController'
 materialsRouter.route('/materials')
   .get(controller.bmMaterialsList);
 
-materialsRouter.route('/addUpdateMaterialRecord')
+materialsRouter.route('/updateMaterialRecord')
   .post(controller.bmPostMaterialUpdateRecord);
 
-  materialsRouter.route('/UpdateMaterialRecordBulk')
+  materialsRouter.route('/updateMaterialRecordBulk')
   .post(controller.bmPostMaterialUpdateBulk);
 
   

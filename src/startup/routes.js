@@ -20,9 +20,9 @@ const ownerStandardMessage = require('../models/ownerStandardMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const buildingMaterial = require('../models/buildingMaterial');
-const buildingProject = require('../models/buildingProject');
-const buildingInventoryType = require('../models/buildingInventoryType');
+const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const buildingProject = require('../models/bmdashboard/buildingProject');
+const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -61,7 +61,6 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
-const bmProjectsRouter = require('../routes/bmdashboard/bmProjectsRouter')();
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 
 module.exports = function (app) {
@@ -96,6 +95,6 @@ module.exports = function (app) {
   app.use('/api', isEmailExistsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
-  app.use('/api/bm', bmProjectsRouter);
   app.use('/api/bm', bmProjectRouter);
+  app.use('/api/bm', bmMaterialsRouter);
 };
