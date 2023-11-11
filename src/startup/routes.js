@@ -7,7 +7,6 @@ const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
-const timer = require('../models/timer');
 const popup = require('../models/popupEditor');
 const popupBackup = require('../models/popupEditorBackup');
 const taskNotification = require('../models/taskNotification');
@@ -40,7 +39,6 @@ const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
 const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
-const timerRouter = require('../routes/timerRouter')(timer);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
@@ -64,6 +62,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectsRouter = require('../routes/bmdashboard/bmProjectsRouter')();
+const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -79,7 +78,6 @@ module.exports = function (app) {
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
-  app.use('/api', timerRouter);
   app.use('/api', popupRouter);
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
@@ -98,6 +96,6 @@ module.exports = function (app) {
   app.use('/api', isEmailExistsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
-  app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmProjectsRouter);
+  app.use('/api/bm', bmProjectRouter);
 };

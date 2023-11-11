@@ -30,10 +30,7 @@ const bmMaterialsController = function (ItemMaterial) {
       ])
       .exec()
       .then(results => res.status(200).send(results))
-      .catch(error => {
-        console.log(error)
-        res.status(500).send(error)
-      });
+      .catch(error => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
