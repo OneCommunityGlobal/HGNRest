@@ -291,6 +291,7 @@ const userProfileController = function (UserProfile) {
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
       record.bioPosted = req.body.bioPosted || 'default';
       record.isFirstTimelog = req.body.isFirstTimelog;
+      record.teamCode = req.body.teamCode;
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');

@@ -154,7 +154,18 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
-  teamCode: { type: String, default: '' },
+  teamCode: {
+    type: String,
+    default: '',
+    validate: {
+      validator(v) {
+        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
+        return teamCoderegex.test(v);
+      },
+      message:
+        'Please enter a code in the format of A-AAA or AAAAA',
+    },
+  },
   infoCollections: [
     {
  areaName: { type: String },
