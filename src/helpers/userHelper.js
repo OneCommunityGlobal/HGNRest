@@ -1507,15 +1507,9 @@ const userHelper = function () {
       const $ = cheerio.load(response);
       const imgElements = $('img');
       const userProfiles = await userProfile.find({
-        firstName: 'Haoji',
+        isActive: true
       });
-      // for ( let i = 0; i < imgElements.length; i++ ) {
-      //   const imgElement = imgElements[ i ];
-      //   const imgAlt = $( imgElement ).attr( 'alt' );
-      //   const imgSrc = $( imgElement ).attr( 'src' );
-      //   console.log(imgAlt)
-      //   console.log(imgSrc)
-      // }
+
       for (let profile of userProfiles) {
         const { firstName, lastName, profilePic, isActive, email } = profile;
         if (profilePic) {
@@ -1525,7 +1519,7 @@ const userHelper = function () {
             let profilePicName = profilePic.substring(startIndex);
             for (let i = 0; i < imgElements.length; i++) {
               const imgElement = imgElements[i];
-              const imgSrc = $(imgElement).attr('nitro-lazy-src'); // Use 'src' instead of 'nitro-lazy-src'
+              const imgSrc = $(imgElement).attr('src'); // Use 'src' instead of 'nitro-lazy-src'
                 if (imgSrc && imgSrc.includes(profilePicName)) {
                   profile.profilePic = imgSrc;
                   break;
@@ -1538,7 +1532,7 @@ const userHelper = function () {
         for (let i = 0; i < imgElements.length; i++) {
           const imgElement = imgElements[i];
           const imgAlt = $(imgElement).attr('alt');
-          const imgSrc = $(imgElement).attr('nitro-lazy-src'); // Use 'src' instead of 'nitro-lazy-src'
+          const imgSrc = $(imgElement).attr('src'); // Use 'src' instead of 'nitro-lazy-src'
 
           if (
             imgAlt &&
@@ -1546,12 +1540,13 @@ const userHelper = function () {
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
             pictureList.push(imgSrc);
+            // console.log(imgSrc)
           } else if (
             imgAlt &&
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
             pictureList.push(imgSrc);
-            // console.log(imgElement)
+            // console.log(imgSrc)
           }
         }
         if (pictureList.length === 1) {
@@ -1559,7 +1554,8 @@ const userHelper = function () {
         } else if (pictureList.length > 1) {
           profile.storedPics = pictureList;
           const emailBody = `Hi ${ firstName }, <br><br> We found multiple pictures for you on our website. Please choose one of them and send it to us. <br><br> Thanks, <br> One Community`;
-          emailSender(email, 
+          // console.log(email)
+          emailSender( email, 
             'Multiple pictures found in team page',
             emailBody,
             null,
