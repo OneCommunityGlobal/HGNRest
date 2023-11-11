@@ -21,7 +21,9 @@ const ownerStandardMessage = require('../models/ownerStandardMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+const buildingMaterial = require('../models/buildingMaterial');
+const buildingProject = require('../models/buildingProject');
+const buildingInventoryType = require('../models/buildingInventoryType');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -60,7 +62,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectsRouter = require('../routes/bmdashboard/bmProjectsRouter')();
 
 module.exports = function (app) {

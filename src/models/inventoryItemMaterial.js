@@ -7,9 +7,9 @@ const InventoryItemMaterial = new Schema({
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'project', required: true },
   stockBought: { type: Number, required: true }, // amount bought for project, affects total stock
   stockUsed: { type: Number, required: true },
-  stockAvailable: { type: Number, required: true },
+  stockAvailable: { type: Number, required: true},
   stockHeld: { type: Number, required: true },
-  stockWasted: { type: Number, required: true },
+  stockWasted: { type: Number, required: true  },
   usageRecord: [{ // daily log of amount inventory item used at job site
     date: { type: Date, required: true, default: Date.now() },
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },

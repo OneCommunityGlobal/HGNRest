@@ -7,18 +7,11 @@ const bmMaterialsController = function (ItemMaterial) {
       .populate([
         {
           path: 'project',
-          select: '_id projectName',
+          select: '_id name',
         },
         {
-          path: 'inventoryItemType',
-          select: '_id name uom totalStock totalAvailable',
-        },
-        {
-          path: 'usageRecord',
-          populate: {
-            path: 'createdBy',
-            select: '_id firstName lastName',
-          },
+          path: 'itemType',
+          select: '_id name unit',
         },
         {
           path: 'updateRecord',
@@ -30,14 +23,17 @@ const bmMaterialsController = function (ItemMaterial) {
         {
           path: 'purchaseRecord',
           populate: {
-            path: 'createdBy',
+            path: 'requestedBy',
             select: '_id firstName lastName',
           },
         },
       ])
       .exec()
       .then(results => res.status(200).send(results))
-      .catch(error => res.status(500).send(error));
+      .catch(error => {
+        console.log(error)
+        res.status(500).send(error)
+      });
     } catch (err) {
       res.json(err);
     }
@@ -63,26 +59,28 @@ const bmMaterialsController = function (ItemMaterial) {
     }
     else
    {
-      quantityUsed = Number.parseFloat(quantityUsed.toFixed(2));
-      quantityWasted = Number.parseFloat(quantityWasted.toFixed(2));
-      let newAvailable = Number.parseFloat(quantityUsed+quantityWasted);
+      quantityUsed = +material.stockUsed + parseFloat(quantityUsed.toFixed(4));
+      quantityWasted = +material.stockWasted + parseFloat(quantityWasted.toFixed(4));
+      let newAvailable = +material.stockAvailable - parseFloat(quantityUsed+quantityWasted);
 
       ItemMaterial.updateOne(
         { _id: req.body.material._id },
-        {
-          $inc: {
+        
+          {
+            $set: {
             'stockUsed': quantityUsed,
             'stockWasted': quantityWasted,
             'stockAvailable': -(newAvailable)
           },
-          $push: {
-            updateRecord: {
-              date: req.body.date,
-              createdBy: req.body.requestor.requestorId,
-              quantity: -(quantityUsed+quantityWasted),
-            },
+            $push: {
+              updateRecord: {
+                date: req.body.date,
+                createdBy: req.body.requestor.requestorId,
+                quantity: -(quantityUsed+quantityWasted),
+              },
+            }
           }
-        }
+        
         )
         .then(results => {res.status(200).send(results)})
         .catch(error => res.status(500).send({'message':error}));
@@ -104,20 +102,21 @@ const bmMaterialsController = function (ItemMaterial) {
         quantityWasted = (+quantityWasted / 100) * material.stockAvailable;
       }
 
-      quantityUsed = Number.parseFloat(quantityUsed.toFixed(2));
-      quantityWasted = Number.parseFloat(quantityWasted.toFixed(2));
-      let newAvailable = Number.parseFloat(quantityUsed+quantityWasted);
-
+      quantityUsed = +material.stockUsed + parseFloat(quantityUsed.toFixed(4));
+      quantityWasted = +material.stockWasted + parseFloat(quantityWasted.toFixed(4));
+      let newAvailable = +material.stockAvailable - parseFloat(quantityUsed+quantityWasted);
+      newAvailable = parseFloat(newAvailable.toFixed(4));
+      console.log(quantityUsed,quantityWasted,newAvailable);
       return ({
         updateId: material._id,
-        increment: {
+        set: {
           'stockUsed': quantityUsed,
           'stockWasted': quantityWasted,
-          'stockAvailable': -(newAvailable)
+          'stockAvailable': -newAvailable
         },
         updateValue: {
           createdBy: req.body.requestor.requestorId,
-          quantity: -(quantityUsed+quantityWasted),
+          quantity: -(newAvailable),
           date: payload.date,
         }});
       
@@ -127,9 +126,10 @@ const bmMaterialsController = function (ItemMaterial) {
     try {
     const updatePromises = updateRecordsToBeAdded.map(updateItem => ItemMaterial.updateOne(
         { _id: updateItem.updateId },
-        { 
-          $inc: updateItem.increment ,
-          $push: { usageRecord: updateItem.updateValue } },
+        {  
+          $set : updateItem.set,
+          $push: { updateRecord: updateItem.updateValue } 
+        },
       ).exec());
     Promise.all(updatePromises)
     .then((results) => {

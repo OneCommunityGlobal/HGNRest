@@ -1,8 +1,8 @@
 const express = require('express');
 
-const routes = function (itemMaterial) {
+const routes = function (buildingMaterial) {
 const materialsRouter = express.Router();
-const controller = require('../../controllers/bmdashboard/bmMaterialsController')(itemMaterial);
+const controller = require('../../controllers/bmdashboard/bmMaterialsController')(buildingMaterial);
 
 materialsRouter.route('/materials')
   .get(controller.bmMaterialsList);
