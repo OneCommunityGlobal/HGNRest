@@ -8,6 +8,6 @@ materialsRouter.route('/materials')
   .get(controller.bmMaterialsList);
 
   return materialsRouter;
-}
+};
 
 module.exports = routes;
