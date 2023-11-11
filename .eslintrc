@@ -1,5 +1,5 @@
 {
-  "extends": ["eslint:recommended", "airbnb-base"],
+  "extends": ["eslint:recommended", "airbnb-base", "plugin:prettier/recommended"],
   "parser": "@babel/eslint-parser",
   "parserOptions": {
     "ecmaVersion": 8,
@@ -16,7 +16,11 @@
     "no-await-in-loop": "warn",
     "template-curly-spacing": "off",
     "indent": "off",
-    "linebreak-style": 0
+    "linebreak-style": 0,
+    "object-curly-newline": 0,
+    "arrow-parens": "off",
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "comma-dangle": "off"
   },
   "settings": {
     "import/resolver": {

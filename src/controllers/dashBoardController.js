@@ -1,13 +1,12 @@
-const mongoose = require("mongoose");
-const path = require("path");
-const fs = require("fs/promises");
-const dashboardhelper = require("../helpers/dashboardhelper")();
-const emailSender = require("../utilities/emailSender");
+const path = require('path');
+const fs = require('fs/promises');
+const mongoose = require('mongoose');
+const dashboardhelper = require('../helpers/dashboardhelper')();
+const emailSender = require('../utilities/emailSender');
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
-
     const snapshot = dashboardhelper.personaldetails(userId);
 
     snapshot.then((results) => {
@@ -26,9 +25,9 @@ const dashboardcontroller = function () {
       if (!results || results.length === 0) {
         const emptyresult = [
           {
-            projectName: "",
-            timeSpent_hrs: 0,
-          },
+            projectName: '',
+            timeSpent_hrs: 0
+          }
         ];
         res.status(200).send(emptyresult);
         return;
@@ -119,7 +118,7 @@ const dashboardcontroller = function () {
       actual,
       visual,
       severity,
-      email,
+      email
     } = req.body;
     const emailBody = getBugReportEmailBody(
       firstName,
@@ -135,29 +134,29 @@ const dashboardcontroller = function () {
 
     try {
       emailSender(
-        "onecommunityglobal@gmail.com",
+        'onecommunityglobal@gmail.com',
         `Bug Rport from ${firstName} ${lastName}`,
         emailBody,
         email
       );
-      res.status(200).send("Success");
+      res.status(200).send('Success');
     } catch {
-      res.status(500).send("Failed");
+      res.status(500).send('Failed');
     }
   };
 
   const suggestionData = {
     suggestion: [
-      "Identify and remedy poor client and/or user service experiences",
-      "Identify bright spots and enhance positive service experiences",
-      "Make fundamental changes to our programs and/or operations",
-      "Inform the development of new programs/projects",
-      "Identify where we are less inclusive or equitable across demographic groups",
-      "Strengthen relationships with the people we serve",
+      'Identify and remedy poor client and/or user service experiences',
+      'Identify bright spots and enhance positive service experiences',
+      'Make fundamental changes to our programs and/or operations',
+      'Inform the development of new programs/projects',
+      'Identify where we are less inclusive or equitable across demographic groups',
+      'Strengthen relationships with the people we serve',
       "Understand people's needs and how we can help them achieve their goals",
-      "Other",
+      'Other'
     ],
-    field: [],
+    field: []
   };
 
   const getsuggestionEmailBody = async (...args) => {
@@ -173,7 +172,7 @@ const dashboardcontroller = function () {
       <p>${args[0]}</p>
       <p>Suggestion:</p>
       <p>${args[1]}</p>
-      ${fieldaaray.length > 0 ? fieldaaray : ""}
+      ${fieldaaray.length > 0 ? fieldaaray : ''}
       <p>Wants Feedback:</p>
       <p>${args[2]}</p>
       <p>Thank you,<br />
@@ -185,21 +184,12 @@ const dashboardcontroller = function () {
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
     const { suggestioncate, suggestion, confirm, ...rest } = req.body;
-    const emailBody = await getsuggestionEmailBody(
-      suggestioncate,
-      suggestion,
-      confirm,
-      rest
-    );
+    const emailBody = await getsuggestionEmailBody(suggestioncate, suggestion, confirm, rest);
     try {
-      emailSender(
-        "onecommunityglobal@gmail.com",
-        "A new suggestion",
-        emailBody
-      );
-      res.status(200).send("Success");
+      emailSender('onecommunityglobal@gmail.com', 'A new suggestion', emailBody);
+      res.status(200).send('Success');
     } catch {
-      res.status(500).send("Failed");
+      res.status(500).send('Failed');
     }
   };
 
@@ -208,40 +198,38 @@ const dashboardcontroller = function () {
       if (suggestionData) {
         res.status(200).send(suggestionData);
       } else {
-        res.status(404).send("Suggestion data not found.");
+        res.status(404).send('Suggestion data not found.');
       }
     } catch (error) {
-      console.error("Error getting suggestion data:", error);
-      res.status(500).send("Internal Server Error");
+      console.error('Error getting suggestion data:', error);
+      res.status(500).send('Internal Server Error');
     }
   };
 
   const editSuggestionOption = async (req, res) => {
     try {
       if (req.body.suggestion) {
-        if (req.body.action === "add") {
+        if (req.body.action === 'add') {
           suggestionData.suggestion.unshift(req.body.newField);
         }
-        if (req.body.action === "delete") {
+        if (req.body.action === 'delete') {
           suggestionData.suggestion = suggestionData.suggestion.filter(
             (item, index) => index + 1 !== +req.body.newField
           );
         }
       } else {
-        if (req.body.action === "add") {
+        if (req.body.action === 'add') {
           suggestionData.field.unshift(req.body.newField);
         }
-        if (req.body.action === "delete") {
-          suggestionData.field = suggestionData.field.filter(
-            (item) => item !== req.body.newField
-          );
+        if (req.body.action === 'delete') {
+          suggestionData.field = suggestionData.field.filter((item) => item !== req.body.newField);
         }
       }
 
-      res.status(200).send("success");
+      res.status(200).send('success');
     } catch (error) {
-      console.error("Error editing suggestion option:", error);
-      res.status(500).send("Internal Server Error");
+      console.error('Error editing suggestion option:', error);
+      res.status(500).send('Internal Server Error');
     }
   };
 
@@ -254,7 +242,7 @@ const dashboardcontroller = function () {
     sendBugReport,
     getSuggestionOption,
     editSuggestionOption,
-    sendMakeSuggestion,
+    sendMakeSuggestion
   };
 };
 
