@@ -1490,9 +1490,14 @@ const userHelper = function () {
 
   const updateProfilesPic = async () => {
     try {
+      console.log('update picture')
       const browser = await chromium.launch();
       const page = await browser.newPage();
       await page.goto('https://www.onecommunityglobal.org/team/', { waitUntil: 'networkidle' }); // Wait for network to be idle
+      
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+      await page.waitForTimeout(1000); 
+
 
       const response = await page.content();
       await browser.close();
@@ -1501,18 +1506,34 @@ const userHelper = function () {
       const cheerio = require('cheerio');
       const $ = cheerio.load(response);
       const imgElements = $('img');
-      const userProfiles = await userProfile.find( {
-        
+      const userProfiles = await userProfile.find({
+        firstName: 'Haoji',
       });
+      // for ( let i = 0; i < imgElements.length; i++ ) {
+      //   const imgElement = imgElements[ i ];
+      //   const imgAlt = $( imgElement ).attr( 'alt' );
+      //   const imgSrc = $( imgElement ).attr( 'src' );
+      //   console.log(imgAlt)
+      //   console.log(imgSrc)
+      // }
       for (let profile of userProfiles) {
-        const { firstName, lastName, profilePic, isActive } = profile;
+        const { firstName, lastName, profilePic, isActive, email } = profile;
         if (profilePic) {
+          if (profilePic.includes('onecommunityglobal.org')) {
+            let startIndex = profilePic.indexOf('onecommunityglobal.org/');
+            // Extract from 'onecommunityglobal.org/' to the end of the string
+            let profilePicName = profilePic.substring(startIndex);
+            for (let i = 0; i < imgElements.length; i++) {
+              const imgElement = imgElements[i];
+              const imgSrc = $(imgElement).attr('nitro-lazy-src'); // Use 'src' instead of 'nitro-lazy-src'
+                if (imgSrc && imgSrc.includes(profilePicName)) {
+                  profile.profilePic = imgSrc;
+                  break;
+                }
+            }
+          }
           continue;
         }
-        if (!isActive) {
-          continue;
-        }
-
         const pictureList = [];
         for (let i = 0; i < imgElements.length; i++) {
           const imgElement = imgElements[i];
@@ -1530,14 +1551,20 @@ const userHelper = function () {
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
             pictureList.push(imgSrc);
+            // console.log(imgElement)
           }
         }
         if (pictureList.length === 1) {
           profile.profilePic = pictureList[0];
         } else if (pictureList.length > 1) {
           profile.storedPics = pictureList;
+          const emailBody = `Hi ${ firstName }, <br><br> We found multiple pictures for you on our website. Please choose one of them and send it to us. <br><br> Thanks, <br> One Community`;
+          emailSender(email, 
+            'Multiple pictures found in team page',
+            emailBody,
+            null,
+            'onecommunityglobal@gmail.com');
         }
-
         try {
           await profile.save();
           console.log(`Profile for ${firstName} ${lastName} updated successfully.`);
