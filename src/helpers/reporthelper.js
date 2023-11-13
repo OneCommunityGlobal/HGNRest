@@ -68,9 +68,6 @@ const reporthelper = function () {
                       moment(pstEnd).format("YYYY-MM-DD"),
                     ],
                   },
-                  {
-                    $in: ['$$timeentry.entryType', ['default', null]],
-                  },
                 ],
               },
             },
