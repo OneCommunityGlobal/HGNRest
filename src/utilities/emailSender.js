@@ -1,6 +1,6 @@
-const nodemailer = require("nodemailer");
-const { google } = require("googleapis");
-const logger = require("../startup/logger");
+const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
+const logger = require('../startup/logger');
 
 const closure = () => {
   const queue = [];
@@ -12,9 +12,9 @@ const closure = () => {
   const REFRESH_TOKEN = process.env.REACT_APP_EMAIL_REFRESH_TOKEN;
   // Create the email envelope (transport)
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    service: 'gmail',
     auth: {
-      type: "OAuth2",
+      type: 'OAuth2',
       user: CLIENT_EMAIL,
       clientId: CLIENT_ID,
       clientSecret: CLIENT_SECRET,
@@ -24,7 +24,7 @@ const closure = () => {
   const OAuth2Client = new google.auth.OAuth2(
     CLIENT_ID,
     CLIENT_SECRET,
-    REDIRECT_URI
+    REDIRECT_URI,
   );
 
   OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
@@ -34,7 +34,9 @@ const closure = () => {
 
     if (!nextItem) return;
 
-    const { recipient, subject, message, cc, bcc, replyTo } = nextItem;
+    const {
+ recipient, subject, message, cc, bcc, replyTo,
+} = nextItem;
 
     try {
       // Generate the accessToken on the fly
@@ -69,7 +71,7 @@ const closure = () => {
     message,
     cc = null,
     bcc = null,
-    replyTo = null
+    replyTo = null,
   ) {
     if (process.env.sendEmail) {
       queue.push({
