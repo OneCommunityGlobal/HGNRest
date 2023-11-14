@@ -578,31 +578,31 @@ const userHelper = function () {
       const missedHours = await userProfile.aggregate([
         {
           $match: {
-            role: "Core Team",
-            isActive: true
-          }
+            role: 'Core Team',
+            isActive: true,
+          },
         },
         {
           $lookup: {
-            from: "timeEntries",
-            localField: "_id",
-            foreignField: "personId",
+            from: 'timeEntries',
+            localField: '_id',
+            foreignField: 'personId',
             pipeline: [
               {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ["$isTangible", true] },
-                      { $gte: ["$dateOfWork", startOfLastWeek] },
-                      { $lte: ["$dateOfWork", endOfLastWeek] },
-                      { $in: ['$entryType', 'default', null] }
-                    ]
-                  }
-                }
-              }
+                      { $eq: ['$isTangible', true] },
+                      { $gte: ['$dateOfWork', startOfLastWeek] },
+                      { $lte: ['$dateOfWork', endOfLastWeek] },
+                      { $in: ['$entryType', 'default', null] },
+                    ],
+                  },
+                },
+              },
             ],
-            as: "timeEntries"
-          }
+            as: 'timeEntries',
+          },
         },
         {
           $project: {
@@ -621,8 +621,8 @@ const userHelper = function () {
                         {
                           $sum: {
                             $map: {
-                              input: "$timeEntries",
-                              in: "$$this.totalSeconds"
+                              input: '$timeEntries',
+                              in: '$$this.totalSeconds',
                             }
                           }
                         },
