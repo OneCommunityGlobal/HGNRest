@@ -1,6 +1,9 @@
-// const mongoose = require('mongoose')
+const mongoose = require('mongoose');
 
-const bmMaterialsController = function (ItemMaterial) {
+// use in bmPurchaseMaterials auth check (see below)
+// const buildingProject = require('../../models/bmdashboard/buildingProject');
+
+const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
       ItemMaterial.find()
@@ -43,57 +46,58 @@ const bmMaterialsController = function (ItemMaterial) {
     }
   };
 
-  const bmAddMaterials = async function (req, res) {
-    // add permission check...
-
-    const { material, requestor } = req.body;
-    const purchaseRecord = {
-      date: material.purchaseDate,
-      createdBy: requestor.requestorId,
-      poId: material.invoice,
-      sellerId: material.phone,
-      quantity: material.quantity,
-      unitPrice: material.unitPrice,
-      currency: material.currency,
-      subtotal: material.quantity,
-      tax: material.taxRate,
-      shipping: material.shippingFee,
+  const bmPurchaseMaterials = async function (req, res) {
+    const {
+      projectId,
+      matTypeId,
+      quantity,
+      requestor: { requestorId },
+    } = req.body;
+    const newPurchaseRecord = {
+      quantity,
+      requestedBy: requestorId,
     };
-
     try {
-      const result = await ItemMaterial.findOneAndUpdate(
-        { project: material.projectId, inventoryItemType: material.material },
-        {
-          $inc: { stockBought: material.quantity, stockAvailable: material.quantity },
-          $push: { purchaseRecord },
-        },
-        { returnDocument: 'after', lean: true },
-        )
-        .exec();
-      if (result) {
-        console.log(result);
-        res.status(201).send(result);
-      } else {
-        const itemMaterial = new ItemMaterial({
-          inventoryItemType: material.material,
-          project: material.projectId,
-          stockBought: material.quantity,
-          stockAvailable: material.quantity,
-          usageRecord: [],
-          updateRecord: [],
-          purchaseRecord: [purchaseRecord],
-        });
-        const newItemMaterial = await itemMaterial.save();
-        res.status(201).send(newItemMaterial);
+      // check if requestor has permission to make purchase request
+      //! Note: this code is disabled until permissions are added
+      // TODO: uncomment this code to execute auth check
+      // const { buildingManager: bmId } = await buildingProject.findById(projectId, 'buildingManager').exec();
+      // if (bmId !== requestorId) {
+      //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
+      //   return;
+      // }
+
+      // check if the material is already being used in the project
+      // if no, add a new document to the collection
+      // if yes, update the existing document
+      const doc = await BuildingMaterial.findOne({ project: projectId, itemType: matTypeId });
+      if (!doc) {
+        const newDoc = {
+          itemType: matTypeId,
+          project: projectId,
+          purchaseRecord: [newPurchaseRecord],
+        };
+      BuildingMaterial
+      .create(newDoc)
+      .then(() => res.status(201).send())
+      .catch(error => res.status(500).send(error));
+      return;
       }
+      BuildingMaterial
+        .findOneAndUpdate(
+          { _id: mongoose.Types.ObjectId(doc._id) },
+          { $push: { purchaseRecord: newPurchaseRecord } },
+          )
+        .exec()
+        .then(() => res.status(201).send())
+        .catch(error => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }
   };
-
   return {
     bmMaterialsList,
-    bmAddMaterials,
+    bmPurchaseMaterials,
   };
 };
 
