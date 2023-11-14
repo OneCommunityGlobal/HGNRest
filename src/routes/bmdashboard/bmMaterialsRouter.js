@@ -1,13 +1,11 @@
 const express = require('express');
 
-const routes = function (itemMaterial, itemType) {
+const routes = function (itemMaterial, buildingMaterial) {
   const materialsRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/bmMaterialsController')(itemMaterial, itemType);
-
+  const controller = require('../../controllers/bmdashboard/bmMaterialsController')(itemMaterial, buildingMaterial);
   materialsRouter.route('/materials')
     .get(controller.bmMaterialsList)
-    .post(controller.bmAddMaterials);
-
+    .post(controller.bmPurchaseMaterials);
   return materialsRouter;
 };
 
