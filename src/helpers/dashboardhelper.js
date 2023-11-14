@@ -165,7 +165,6 @@ const dashboardhelper = function () {
       .tz('America/Los_Angeles')
       .endOf('week')
       .format('YYYY-MM-DD');
-    const entryTypes = ['default', null];
     return myTeam.aggregate([
       {
         $match: {
@@ -196,7 +195,7 @@ const dashboardhelper = function () {
           // leaderboard user roles hierarchy
           $or: [
             {
-              role:  { $in: ['Owner', 'Core Team'] },
+              role: { $in: ['Owner', 'Core Team'] },
             },
             {
               $and: [
@@ -289,7 +288,7 @@ const dashboardhelper = function () {
                   },
                   {
                     $in: ['$$timeentry.entryType', ['default', null]],
-                  }
+                  },
                 ],
               },
             },
@@ -445,7 +444,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
-        eentryType: { $in: [ 'default', null ] },
+        entryType: { $in: ['default', null] },
         personId: userId,
       });
 

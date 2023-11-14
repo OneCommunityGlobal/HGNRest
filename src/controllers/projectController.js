@@ -28,7 +28,7 @@ const projectController = function (Project) {
 
       // find if project has any time entries associated with it
 
-      timeentry.find({ projectId: record._id, entryType: [ 'default', 'project', null ] }, '_id')
+      timeentry.find({ projectId: record._id }, '_id')
         .then((timeentries) => {
           if (timeentries.length > 0) {
             res.status(400).send({ error: 'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.' });

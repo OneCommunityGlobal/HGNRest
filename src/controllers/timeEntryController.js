@@ -236,7 +236,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       const items = [];
       records.forEach((element) => {
-        if (element.entryType == 'default' || element.entryType == undefined) {
+        if (element.entryType === 'default' || element.entryType === undefined) {
           const timeentry = new TimeEntry();
           timeentry.personId = element.personId;
           timeentry.projectId = element.projectId;
@@ -265,7 +265,7 @@ const timeEntrycontroller = function (TimeEntry) {
     };
 
     switch (req.body.entryType) {
-      case 'default':
+      default:
         if (
           !mongoose.Types.ObjectId.isValid(req.body.personId)
           || !mongoose.Types.ObjectId.isValid(req.body.projectId)
@@ -321,18 +321,18 @@ const timeEntrycontroller = function (TimeEntry) {
         res.status(400).send(error);
       });
 
-    // Add this tangbile time entry to related task's hoursLogged
-    if ((timeentry.entryType === 'default') && timeentry.isTangible === true) {
-      try {
-        const currentTask = await task.findById(req.body.projectId);
-        currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
-        await currentTask.save();
-      } catch (error) {
-        throw new Error('Failed to find the task by id');
-      }
-    }
-    // checking if logged in hours exceed estimated time after timeentry for a task
     if (timeentry.entryType === 'default') {
+      // Add this tangbile time entry to related task's hoursLogged
+      if (timeentry.isTangible === true) {
+        try {
+          const currentTask = await task.findById(req.body.projectId);
+          currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
+          await currentTask.save();
+        } catch (error) {
+          throw new Error('Failed to find the task by id');
+        }
+      }
+      // checking if logged in hours exceed estimated time after timeentry for a task
       const record = await userProfile.findById(timeentry.personId.toString());
       const currentTask = await task.findById(req.body.projectId);
       checkTaskOvertime(timeentry, record, currentTask);
@@ -492,7 +492,6 @@ const timeEntrycontroller = function (TimeEntry) {
     const { projectId } = req.params;
     TimeEntry.find(
       {
-        entryType: ['default', null],
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
       },
