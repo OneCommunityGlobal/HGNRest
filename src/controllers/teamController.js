@@ -70,8 +70,18 @@ const teamcontroller = function (Team) {
         res.status(400).send('No valid records found');
         return;
       }
+
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+      if (!canEditTeamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
+        return;
+      }
+
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
+      record.teamCode = req.body.teamCode;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
@@ -115,7 +125,7 @@ const teamcontroller = function (Team) {
         users.forEach((element) => {
           const { userId, operation } = element;
           // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
-          if(cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
+          if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
           if (operation === 'Assign') {
             assignlist.push(userId);
