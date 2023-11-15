@@ -88,11 +88,10 @@ const postReason = async (req, res) => {
 
     
     //await newReason.save();
-    console.log("Inside post sending email function.");
-    const savedData = await newReason.save();
+   const savedData = await newReason.save();
     if(savedData)
     {
-     console.log("Inside if.");
+     
       //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
      const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been set`;
 
@@ -105,15 +104,15 @@ const postReason = async (req, res) => {
           
           <p>Thank you,<br />
           One Community</p>`;
-          console.log("line before email sender")
+         
           
-          // 1 hardcoded email- emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+          // 1 hardcoded email- emailSender('@gmail.com', subject, emailBody, null, null);
 
           // 2 user email - 
           emailSender(`${foundUser.email}`, subject, emailBody, null, null);
 
           //3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
-          //  emailSender(`${foundUser.email},shreetesting4@gmail.com`, subject, emailBody, null, null);
+          //  emailSender(`${foundUser.email},@gmail.com`, subject, emailBody, null, null);
      }
   
     return res.sendStatus(200);
@@ -260,11 +259,11 @@ const patchReason = async (req, res) => {
     }
 
     foundReason.reason = reasonData.message;
-   console.log("patchReason----------");
+   
     const savedData = await foundReason.save();
     if(savedData)
     {
-     console.log(" Patch - Inside if.");
+     
       //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
      const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been updated`;
 
@@ -277,15 +276,15 @@ const patchReason = async (req, res) => {
           
           <p>Thank you,<br />
           One Community</p>`;
-          console.log("line before email sender")
           
-          // 1 hardcoded email- emailSender('shreetesting4@gmail.com', subject, emailBody, null, null);
+          
+          // 1 hardcoded email- emailSender('@gmail.com', subject, emailBody, null, null);
 
           // 2 user email - 
           emailSender(`${foundUser.email}`, subject, emailBody, null, null);
 
           //3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
-          //  emailSender(`${foundUser.email},shreetesting4@gmail.com`, subject, emailBody, null, null);
+          //  emailSender(`${foundUser.email},@gmail.com`, subject, emailBody, null, null);
          
           
      }
