@@ -20,7 +20,7 @@ const postReason = async (req, res) => {
     if (moment.tz(reasonData.date, 'America/Los_Angeles').day() !== 0) {
       return res.status(400).json({
         message:
-          'The selected day must be a sunday so the code can work properly',
+          "You must choose the Sunday YOU'LL RETURN as your date. This is so your reason ends up as a note on that blue square.",
         errorCode: 0,
       });
     }
