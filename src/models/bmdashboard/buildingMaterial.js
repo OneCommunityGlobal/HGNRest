@@ -13,15 +13,17 @@ const buildingMaterial = new Schema({
     _id: false, // do not add _id field to subdocument
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    quantity: Number,
-    status: { type: String, default: 'Pending' }, // Pending, Rejected, Approved
+    quantity: { type: Number, required: true },
+    priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
+    brand: String,
+    status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
   }],
   updateRecord: [{
     _id: false,
-    date: Date,
+    date: { type: Date, required: true },
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    quantityUsed: String, // '10 cubic yards'
-    quantityWasted: Number,
+    quantityUsed: { type: Number, required: true },
+    quantityWasted: { type: Number, required: true },
   }],
 });
 
