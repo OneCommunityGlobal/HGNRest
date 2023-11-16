@@ -79,7 +79,8 @@ function informManagerMessage(user) {
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
-  Project
+  Project,
+  MapLocation
 ) {
   const { JWT_SECRET } = config;
 
@@ -297,11 +298,35 @@ const profileInitialSetupController = function (
     }
   };
 
+
+  const setMapLocation = async (req,res) => {
+  
+    const locationData = {
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      jobTitle: req.body.jobTitle,
+      location: req.body.location,
+    }
+    const location = new MapLocation(locationData);
+
+    try {
+      const response = await location.save()
+      if (!response) {
+        throw new Error('Something went wrong during saving the location...')
+      }
+      res.status(200).send(response);
+    } catch (err) {
+      console.log(err.message)
+      res.status(500).json({ message: err.message || 'Something went wrong...' });
+    }
+  }
+
   return {
     getSetupToken,
     setUpNewUser,
     validateSetupToken,
     getTimeZoneAPIKeyByToken,
+    setMapLocation
   };
 };
 
