@@ -51,10 +51,14 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
       projectId,
       matTypeId,
       quantity,
+      priority,
+      brand,
       requestor: { requestorId },
     } = req.body;
     const newPurchaseRecord = {
       quantity,
+      priority,
+      brand,
       requestedBy: requestorId,
     };
     try {
