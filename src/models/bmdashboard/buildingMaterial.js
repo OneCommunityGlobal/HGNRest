@@ -16,7 +16,7 @@ const buildingMaterial = new Schema({
   updateRecord: [{
     date: Date,
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    quantityUsed: String, // '10 cubic yards'
+    quantityUsed: Number, 
     quantityWasted: Number,
   }],
 });
