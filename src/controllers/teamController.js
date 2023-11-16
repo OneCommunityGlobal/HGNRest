@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
+const cache = require('../utilities/nodeCache')();
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -19,9 +20,9 @@ const teamcontroller = function (Team) {
   const postTeam = async function (req, res) {
     // verify if the requestor has the necessary permissions
 
-    if (!await hasPermission(req.body.requestor.role, 'postTeam') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagementTab')) {
+    if (!await hasPermission(req.body.requestor.role, 'postTeam')
+    // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
+    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -38,10 +39,7 @@ const teamcontroller = function (Team) {
       .catch(error => res.send(error).status(404));
   };
   const deleteTeam = async function (req, res) {
-    // verify if the requestor has the necessary permissions and if the teamId is valid
-
-    if (!await hasPermission(req.body.requestor.role, 'deleteTeam') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement')) {
+    if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
       return;
     }
@@ -66,9 +64,9 @@ const teamcontroller = function (Team) {
   const putTeam = async function (req, res) {
     // verify if the requestor has the necessary permissions
 
-    if (!await hasPermission(req.body.requestor.role, 'putTeam') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagementTab')) {
+    if (!await hasPermission(req.body.requestor.role, 'putTeam')
+    // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
+    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -80,8 +78,18 @@ const teamcontroller = function (Team) {
         res.status(400).send('No valid records found');
         return;
       }
+
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+      if (!canEditTeamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
+        return;
+      }
+
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
+      record.teamCode = req.body.teamCode;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
@@ -95,9 +103,9 @@ const teamcontroller = function (Team) {
   const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator or has the necessary permissions, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!await hasPermission(req.body.requestor.role, 'assignTeamToUsers') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagement') &&
-    !await hasIndividualPermission(req.body.requestor.requestorId,  'seeTeamsManagementTab')) {
+    if (!await hasPermission(req.body.requestor.role, 'assignTeamToUsers')
+    // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
+    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
@@ -126,6 +134,8 @@ const teamcontroller = function (Team) {
 
         users.forEach((element) => {
           const { userId, operation } = element;
+          // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
+          if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
           if (operation === 'Assign') {
             assignlist.push(userId);
