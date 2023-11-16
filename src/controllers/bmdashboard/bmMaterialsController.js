@@ -75,7 +75,7 @@ const bmMaterialsController = function (ItemMaterial) {
               updateRecord: {
                 date: req.body.date,
                 createdBy: req.body.requestor.requestorId,
-                quantityUsed: quantityUsed + ' ' + material.itemType.unit,
+                quantityUsed: quantityUsed,
                 quantityWasted: quantityWasted
               },
             }
@@ -117,7 +117,7 @@ const bmMaterialsController = function (ItemMaterial) {
         },
         updateValue: {
           createdBy: req.body.requestor.requestorId,
-          quantityUsed: quantityUsed + ' ' + material.itemType.unit,
+          quantityUsed: quantityUsed,
           quantityWasted: quantityWasted,
           date: payload.date,
         }});
