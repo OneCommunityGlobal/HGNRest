@@ -20,8 +20,12 @@ const ownerStandardMessage = require('../models/ownerStandardMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
+
+//bmdashboard
 const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const buildingProject = require('../models/bmdashboard/buildingProject');
+const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType')
 
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
@@ -60,8 +64,10 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+const buildingInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -97,4 +103,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmProjectRouter);
+  app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', buildingInventoryTypeRouter)
 };
