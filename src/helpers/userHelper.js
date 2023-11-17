@@ -781,7 +781,9 @@ const userHelper = function () {
     count = 1,
     featured = false
   ) {
-    console.log('Adding Badge');
+    console.log('personId:', personId);
+    console.log('badgeId:', badgeId);
+    console.log('count:', count);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -797,22 +799,27 @@ const userHelper = function () {
         }
       }
     );
+    console.log('made it to the end!');
   };
 
   const removeDupBadge = async function (personId, badgeId) {
+    console.log('Starting removeDupBadge process');
+    console.log('badgeId', badgeId);
     userProfile.findByIdAndUpdate(
       personId,
       {
         $pull: {
-          badgeCollection: { badge: badgeId }
+          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) }
         }
       },
+      { new: true },
       err => {
         if (err) {
           throw new Error(err);
         }
       }
     );
+    console.log('badgeId After!', badgeId);
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
@@ -1027,11 +1034,18 @@ const userHelper = function () {
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
+    let duplicateBadges = [];
+
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === "Personal Max") {
-        if (badgeOfType) {
-          removeDupBadge(personId, badgeOfType._id);
+        if (!badgeOfType) {
+          badgeOfType = badgeCollection[i];
+        } else {
+          duplicateBadges.push(badgeCollection[i]);
         }
+      }
+      for (let badge of duplicateBadges) {
+         await removeDupBadge(personId, badge._id);
       }
     }
     await badge.findOne({ type: "Personal Max" }).then(results => {
@@ -1039,7 +1053,8 @@ const userHelper = function () {
         user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= 1 &&
         user.lastWeekTangibleHrs === user.personalBestMaxHrs
-      ) {
+      ) 
+      {
         if (badgeOfType) {
           changeBadgeCount(
             personId,
@@ -1047,9 +1062,7 @@ const userHelper = function () {
             user.personalBestMaxHrs
           );
         } else {
-
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
-
         }
       }
     });
@@ -1384,10 +1397,7 @@ const userHelper = function () {
   const awardNewBadges = async () => {
     console.log("Awarding");
     try {
-
-      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
-
-
+      const users = await userProfile.find({ isActive: true, firstName: 'Bailey', lastName: 'Personalmax' }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -1406,11 +1416,11 @@ const userHelper = function () {
   };
 
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
+    console.log('getting reported tangible hours for the week');
     const userId = mongoose.Types.ObjectId(personId);
-
+    
     const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
     const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
-
 
     return timeEntries
       .find(
