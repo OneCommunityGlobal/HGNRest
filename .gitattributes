@@ -1,6 +1,6 @@
 # https://warlord0blog.wordpress.com/2019/09/04/vscode-crlf-vs-lf-battle/
 
-#  text=lf
+  text=lf
  *.css linguist-vendored eol=lf
  *.scss linguist-vendored eol=lf
  *.js linguist-vendored eol=lf
