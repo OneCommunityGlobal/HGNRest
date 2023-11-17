@@ -51,6 +51,7 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
+  console.log('Hello')
   const getUserProfiles = async function (req, res) {
     if (
       !(await hasPermission(req.body.requestor.role, "getUserProfiles")) &&
