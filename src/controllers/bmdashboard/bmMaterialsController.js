@@ -89,7 +89,11 @@ const bmMaterialsController = function (ItemMaterial) {
 
   const bmPostMaterialUpdateBulk = function (req, res) {
     const materialUpdates= req.body;
-    const updateRecordsToBeAdded = materialUpdates.map(payload => {
+    let errorFlag = false;
+    const updateRecordsToBeAdded = [];
+    for(let i=0;i<materialUpdates.length;i++)
+    {
+      let payload = materialUpdates[i];
       let quantityUsed = +payload.quantityUsed;
       let quantityWasted = +payload.quantityWasted;
       let material = payload.material;
@@ -108,7 +112,12 @@ const bmMaterialsController = function (ItemMaterial) {
       newStockUsed = parseFloat(newStockUsed.toFixed(4));
       newStockWasted = parseFloat(newStockWasted.toFixed(4));
       newAvailable = parseFloat(newAvailable.toFixed(4));
-      return ({
+      if(newAvailable<0)
+      {
+        errorFlag = true;
+        break;
+      }
+      updateRecordsToBeAdded.push ({
         updateId: material._id,
         set: {
           'stockUsed': newStockUsed,
@@ -122,9 +131,14 @@ const bmMaterialsController = function (ItemMaterial) {
           date: payload.date,
         }});
       
-      });
+      }
 
     try {
+      if(errorFlag)
+      {
+        res.status(500).send('Stock quantities submitted seems to be invalid')
+        return;
+      }
     const updatePromises = updateRecordsToBeAdded.map(updateItem => ItemMaterial.updateOne(
         { _id: updateItem.updateId },
         {  
