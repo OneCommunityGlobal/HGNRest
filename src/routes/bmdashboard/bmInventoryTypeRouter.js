@@ -8,6 +8,9 @@ const routes = function (buildingInventoryType) {
     buildingInventoryTypeRouter.route('/buildingInventoryTypes')
       .get(controller.buildingInventoryTypeList);
 
+    buildingInventoryTypeRouter.route('/postBuildingInventoryType')
+      .post(controller.addBuildingInventoryType);
+
     return buildingInventoryTypeRouter;
 };
 

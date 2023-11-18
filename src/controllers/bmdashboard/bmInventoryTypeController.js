@@ -18,7 +18,7 @@ const bmInventoryTypeController = function (BuildingInventoryType) {
       inventoryTypeObject.category = 'Material';
       inventoryTypeObject.name = req.body.name;
       inventoryTypeObject.description = req.body.description;
-      inventoryTypeObject.unit =  req.body.unit;
+      inventoryTypeObject.unit =  req.body.unit || req.body.customUnit;
       inventoryTypeObject.save()
       .then(results => res.status(201).send(results))
       .catch(errors => res.status(500).send(errors));
