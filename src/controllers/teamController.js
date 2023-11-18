@@ -63,7 +63,7 @@ const teamcontroller = function (Team) {
   };
   const putTeam = async function (req, res) {
     // verify if the requestor has the necessary permissions
-
+      console.log(req.body);
     if (!await hasPermission(req.body.requestor.role, 'putTeam')
     // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
     && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
