@@ -213,6 +213,7 @@ const profileInitialSetupController = function (
             newUser.collaborationPreference = req.body.collaborationPreference;
             newUser.timeZone = req.body.timeZone || "America/Los_Angeles";
             newUser.location = req.body.location;
+            newUser.profilePic = req.body.profilePicture;
             newUser.permissions = {
                 frontPermissions: [],
                 backPermissions: []
@@ -247,7 +248,19 @@ const profileInitialSetupController = function (
 
             const token = jwt.sign(jwtPayload, JWT_SECRET);
 
+            const locationData = {
+              firstName: req.body.firstName,
+              lastName: req.body.lastName,
+              jobTitle: req.body.jobTitle,
+              location: req.body.homeCountry,
+            }
+
             res.send({ token }).status(200);
+
+            const mapEntryResult = await setMapLocation(locationData)
+            if(mapEntryResult.type === "Error"){
+              console.log(mapEntryResult.message)
+            }
             
             const NewUserCache = {
                 permissions: savedUser.permissions,
@@ -298,26 +311,15 @@ const profileInitialSetupController = function (
     }
   };
 
-
-  const setMapLocation = async (req,res) => {
+  const setMapLocation = async (locationData) => {
   
-    const locationData = {
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      jobTitle: req.body.jobTitle,
-      location: req.body.location,
-    }
     const location = new MapLocation(locationData);
 
     try {
       const response = await location.save()
-      if (!response) {
-        throw new Error('Something went wrong during saving the location...')
-      }
-      res.status(200).send(response);
+      return response
     } catch (err) {
-      console.log(err.message)
-      res.status(500).json({ message: err.message || 'Something went wrong...' });
+      return {type: "Error", message: err.message || 'An error occurred while saving the location'} 
     }
   }
 
@@ -326,7 +328,6 @@ const profileInitialSetupController = function (
     setUpNewUser,
     validateSetupToken,
     getTimeZoneAPIKeyByToken,
-    setMapLocation
   };
 };
 

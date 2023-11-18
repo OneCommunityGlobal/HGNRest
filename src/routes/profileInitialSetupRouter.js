@@ -8,7 +8,6 @@ const routes = function (ProfileInitialSetupToken, userProfile, Project , mapLoc
     ProfileInitialSetup.route('/ProfileInitialSetup').post(controller.setUpNewUser)
     ProfileInitialSetup.route('/validateToken').post(controller.validateSetupToken)
     ProfileInitialSetup.route('/getTimeZoneAPIKeyByToken').post(controller.getTimeZoneAPIKeyByToken)
-    ProfileInitialSetup.route('/mapLocationsToken').post(controller.setMapLocation)
     
 
     return ProfileInitialSetup;
