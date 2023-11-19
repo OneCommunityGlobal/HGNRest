@@ -14,6 +14,7 @@ const taskschema = new Schema({
       userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
       profilePic: { type: String },
       completedTask: { type: Boolean, default: false },
+      reviewStatus: { type: String, default: 'Unsubmitted' },
       followedUp: {
         followUpCheck: {
           type: Boolean,
@@ -37,6 +38,7 @@ const taskschema = new Schema({
   dueDatetime: { type: Date },
   links: [String],
   category: { type: String },
+  deadlineCount: { type: Number, default: 0.0 },
   parentId1: {
     type: mongoose.SchemaTypes.ObjectId,
     ref: 'task',

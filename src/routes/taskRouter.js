@@ -21,13 +21,16 @@ const routes = function (task, userProfile) {
 
   wbsRouter.route('/task/del/:taskId/:mother').post(controller.deleteTask);
 
-  wbsRouter.route('/task/wbs/del/:wbsId').post(controller.deleteTaskByWBS);
+  wbsRouter.route('/task/wbs/:wbsId')
+    .get(controller.getWBSId);
+
+  wbsRouter.route('/task/wbs/del/:wbsId')
+    .post(controller.deleteTaskByWBS);
 
   wbsRouter.route('/task/update/:taskId').put(controller.updateTask);
 
-  wbsRouter
-    .route('/task/delete/children/:taskId')
-    .post(controller.updateChildrenQty);
+  wbsRouter.route('/task/updateStatus/:taskId')
+    .put(controller.updateTaskStatus);
 
   wbsRouter
     .route('/task/updateAllParents/:wbsId/')
@@ -45,6 +48,8 @@ const routes = function (task, userProfile) {
     .route('/user/:userId/teams/tasks')
     .get(controller.getTasksForTeamsByUser);
   wbsRouter.route('/task/:taskId/:userId').post(controller.setFollowUp);
+  wbsRouter.route('/tasks/reviewreq/:userId')
+    .post(controller.sendReviewReq);
 
   return wbsRouter;
 };

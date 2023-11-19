@@ -6,6 +6,8 @@ const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
+const nextDay = new Date();
+nextDay.setDate(nextDay.getDate() + 1);
 
 const userProfileSchema = new Schema({
   password: {
@@ -48,8 +50,14 @@ const userProfileSchema = new Schema({
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   weeklycommittedHours: { type: Number, default: 10 },
+  weeklycommittedHoursHistory: [
+    {
+      hours: { type: Number, required: true },
+      dateChanged: { type: Date, required: true },
+    },
+  ],
   missedHours: { type: Number, default: 0 },
-  createdDate: { type: Date, required: true, default: Date.now() },
+  createdDate: { type: Date, required: true, default: nextDay },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
@@ -145,6 +153,24 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  isFirstTimelog: { type: Boolean, default: true },
+  teamCode: {
+    type: String,
+    default: '',
+    validate: {
+      validator(v) {
+        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
+        return teamCoderegex.test(v);
+      },
+      message:
+        'Please enter a code in the format of A-AAA or AAAAA',
+    },
+  },
+  infoCollections: [
+    {
+ areaName: { type: String },
+      areaContent: { type: String },
+  }],
 });
 
 userProfileSchema.pre('save', function (next) {

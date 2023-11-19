@@ -1,18 +1,19 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const hasPermission = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
+const cache = require('../utilities/nodeCache')();
 
 const badgeController = function (Badge) {
-  const getAllBadges = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'seeBadges')) {
+  const getAllBadges = async function (req, res) {
+    if (!await hasPermission(req.body.requestor, 'seeBadges')) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
 
     Badge.find(
       {},
-      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
     ).populate({
       path: 'project',
       select: '_id projectName',
@@ -26,7 +27,7 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = async function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'assignBadges')) {
+    if (!await hasPermission(req.body.requestor, 'assignBadges')) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
     }
@@ -47,6 +48,8 @@ const badgeController = function (Badge) {
       if (result) {
         record.badgeCollection = req.body.badgeCollection;
 
+        if (cache.hasCache(`user-${userToBeAssigned}`)) cache.removeCache(`user-${userToBeAssigned}`);
+        
         record.save()
           .then(results => res.status(201).send(results._id))
           .catch(errors => res.status(500).send(errors));
@@ -56,8 +59,8 @@ const badgeController = function (Badge) {
     });
   };
 
-  const postBadge = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'createBadges')) {
+  const postBadge = async function (req, res) {
+    if (!await hasPermission(req.body.requestor, 'createBadges')) {
       res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
@@ -82,6 +85,7 @@ const badgeController = function (Badge) {
         badge.imageUrl = req.body.imageUrl;
         badge.ranking = req.body.ranking;
         badge.description = req.body.description;
+        badge.showReport = req.body.showReport;
 
         badge.save()
           .then(results => res.status(201).send(results))
@@ -89,8 +93,8 @@ const badgeController = function (Badge) {
       });
   };
 
-  const deleteBadge = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'deleteBadges')) {
+  const deleteBadge = async function (req, res) {
+    if (!await hasPermission(req.body.requestor, 'deleteBadges')) {
       res.status(403).send({ error: 'You are not authorized to delete badges.' });
       return;
     }
@@ -110,8 +114,8 @@ const badgeController = function (Badge) {
       .catch((error) => { res.status(500).send(error); });
   };
 
-  const putBadge = function (req, res) {
-    if (!hasPermission(req.body.requestor.role, 'updateBadges')) {
+  const putBadge = async function (req, res) {
+    if (!await hasPermission(req.body.requestor, 'updateBadges')) {
       res.status(403).send({ error: 'You are not authorized to update badges.' });
       return;
     }
@@ -139,6 +143,7 @@ const badgeController = function (Badge) {
       project: req.body.project,
       imageUrl: imageUrl || req.body.imageUrl || req.body.imageURL,
       ranking: req.body.ranking,
+      showReport: req.body.showReport,
     };
 
     Badge.findByIdAndUpdate(badgeId, data, (error, record) => {
