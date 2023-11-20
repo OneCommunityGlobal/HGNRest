@@ -1,8 +1,8 @@
 const express = require('express');
 
-const routes = function () {
+const routes = function (BuildingTool) {
     const toolRouter = express.Router();
-    const controller = require('../../controllers/bmdashboard/bmToolsController')();
+    const controller = require('../../controllers/bmdashboard/bmToolsController')(BuildingTool);
 
     toolRouter.route('tools/:toolId')
         .get(controller.fetchSingleTool);
