@@ -8,8 +8,12 @@ const buildingProject = new Schema({
   template: String, // construction template (ie Earthbag Village)
   location: String, // use lat/lng instead?
   dateCreated: { type: Date, default: Date.now },
-  buildingManager: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }, // BM's id
-  team: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }],
+  buildingManager: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+  members: [{
+    user: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+    team: { type: mongoose.SchemaTypes.ObjectId, ref: 'teams' },
+    hours: { type: Number, default: 0 }, // tracked via the Member Check-In Page timer
+  }],
 });
 
 module.exports = mongoose.model('buildingProject', buildingProject, 'buildingProjects');
