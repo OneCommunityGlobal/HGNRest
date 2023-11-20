@@ -110,7 +110,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       if (!(await hasPermission(req.body.requestor, 'editTimeEntry')
-        || ((type === 'default' || type === 'person') && timeEntry.personId.toString() === req.body.requestor.requestorId.toString()))) {
+        || (type === 'default' && timeEntry.personId.toString() === req.body.requestor.requestorId.toString()))) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
