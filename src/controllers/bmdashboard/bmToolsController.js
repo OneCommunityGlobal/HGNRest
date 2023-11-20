@@ -6,6 +6,14 @@ const bmToolsController = (BuildingTool) => {
                 .findById(toolId)
                 .populate([
                     // TO DO
+                    {
+                        path: 'itemType',
+                        select: '',
+                    },
+                    {
+                        path: 'userResponsible',
+                        select: '_id firstName lastName',
+                    },
                 ])
                 .exec()
                 .then(tool => res.status(200).send(tool))
