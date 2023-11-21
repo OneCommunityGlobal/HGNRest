@@ -1,11 +1,11 @@
+import moment from 'moment';
 import userProfile from 'models/userProfile';
 import { showTrophyIcon } from 'utilities/trophyPermissions';
-import moment from 'moment';
 import actionItem from 'models/actionItem';
 
-const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs/promises");
+const mongoose = require("mongoose");
 const dashboardhelper = require("../helpers/dashboardhelper")();
 const emailSender = require("../utilities/emailSender");
 
@@ -197,34 +197,45 @@ const dashboardcontroller = function () {
                    <p>${args[3][item]}</p>`
       );
     }
-    const text = `New Suggestion:
-      <p>Suggestion Category:</p>
-      <p>${args[0]}</p>
-      <p>Suggestion:</p>
-      <p>${args[1]}</p>
-      ${fieldaaray.length > 0 ? fieldaaray : ""}
-      <p>Wants Feedback:</p>
-      <p>${args[2]}</p>
-      <p>Thank you,<br />
-      One Community</p>`;
+    const text = `New Suggestion From <b>${args[3].firstName} ${
+      args[3].lastName
+    }
+    </b>:
+    <b> &#9913; Suggestion Category:</b>
+    <p>${args[0]}</p>
+    <b> &#9913; Suggestion:</b>
+    <p>${args[1]}</p>
+    ${fieldaaray.length > 0 ? fieldaaray : ""}
+    <b> &#9913; Name of Suggester:</b>
+    <p>${args[3].firstName} ${args[3].lastName}</p>
+    <b> &#9913; Email of Suggester:</b>
+    <p>${args[4]}</p>
+    <b> &#9913; Wants Feedback:</b>
+    <p>${args[2]}</p>
+    <b>Thank you,<br />
+    One Community</b>`;
 
     return text;
   };
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-    const { suggestioncate, suggestion, confirm, ...rest } = req.body;
+    const { suggestioncate, suggestion, confirm, email, ...rest } = req.body;
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
       confirm,
-      rest
+      rest,
+      email
     );
     try {
       emailSender(
         "onecommunityglobal@gmail.com",
         "A new suggestion",
-        emailBody
+        emailBody,
+        null,
+        null,
+        email
       );
       res.status(200).send("Success");
     } catch {
