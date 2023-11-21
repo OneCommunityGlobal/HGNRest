@@ -32,6 +32,8 @@ const route = function () {
   Dashboardrouter.route('/dashboard/makesuggestion/:userId')
     .post(controller.sendMakeSuggestion);
 
+  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId')
+    .post(controller.postTrophyIcon);
 
   return Dashboardrouter;
 };

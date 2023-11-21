@@ -1,3 +1,8 @@
+import userProfile from 'models/userProfile';
+import { showTrophyIcon } from 'utilities/trophyPermissions';
+import moment from 'moment';
+import actionItem from 'models/actionItem';
+
 const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs/promises");
@@ -50,11 +55,17 @@ const dashboardcontroller = function () {
   };
 
   const leaderboarddata = function (req, res) {
+    const todaysDate = moment().tz('America/Los_Angeles').format('YYYY-MM-DD');
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const leaderboard = dashboardhelper.getLeaderboard(userId);
     leaderboard
       .then((results) => {
         if (results.length > 0) {
+          results.forEach((item) => {
+            if (!item.hideTrophyIcon) {
+              item.trophyIconPresent = showTrophyIcon(todaysDate, item.createdDate.toISOString().split('T')[0]);
+            }
+          });
           res.status(200).send(results);
         } else {
           const { getUserLaborData } = dashboardhelper;
@@ -63,7 +74,25 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch((error) => res.status(400).send(error));
+      .catch((error) => { console.log(error); res.status(400).send(error); });
+  };
+
+  const postTrophyIcon = function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    userProfile.findById(userId, (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+      record.hideTrophyIcon = true;
+      record.trophyIconPresent = false;
+
+       record.save()
+      .then((results) => {
+        res.status(200).send(results);
+      }).catch(error => res.status(404).send(error));
+    });
   };
 
   const orgData = function (req, res) {
@@ -255,6 +284,7 @@ const dashboardcontroller = function () {
     getSuggestionOption,
     editSuggestionOption,
     sendMakeSuggestion,
+    postTrophyIcon,
   };
 };
 

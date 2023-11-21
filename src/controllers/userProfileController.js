@@ -1,3 +1,5 @@
+import { showTrophyIcon } from 'utilities/trophyPermissions';
+
 const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
@@ -295,6 +297,8 @@ const userProfileController = function (UserProfile) {
       record.bioPosted = req.body.bioPosted || "default";
       record.isFirstTimelog = req.body.isFirstTimelog;
       record.teamCode = req.body.teamCode;
+      // record.trophyIconPresent = req.body.trophyIconPresent || showTrophyIcon(todaysDate, record.createdDate.split('T')[0]) ;
+      // record.toggleTrophyIcon =  req.body.toggleTrophyIcon || showTrophyIcon(todaysDate, record.createdDate.split('T')[0]);
 
       if(!canEditTeamCode && record.teamCode !== req.body.teamCode){
         res.status(403).send("You are not authorized to edit team code.");
@@ -363,6 +367,7 @@ const userProfileController = function (UserProfile) {
         record.totalTangibleHrs = req.body.totalTangibleHrs;
         record.timeEntryEditHistory = req.body.timeEntryEditHistory;
         record.createdDate = moment(req.body.createdDate).toDate();
+        // record.toggleTrophyIcon = showTrophyIcon(todaysDate, record.createdDate.split('T')[0]);
 
         if (record.createdDate !== req.body.createdDate) {
           record.createdDate = moment(req.body.createdDate).toDate();

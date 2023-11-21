@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { showTrophyIcon } = require('utilities/trophyPermissions');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
 const myTeam = require('../helpers/helperModels/myTeam');
@@ -153,6 +154,7 @@ const dashboardhelper = function () {
   };
 
   const getLeaderboard = function (userId) {
+    const todaysDate = moment().tz('America/Los_Angeles').format('YYYY-MM-DD');
     const userid = mongoose.Types.ObjectId(userId);
     const pdtstart = moment()
       .tz('America/Los_Angeles')
@@ -192,7 +194,7 @@ const dashboardhelper = function () {
           // leaderboard user roles hierarchy
           $or: [
             {
-              role:  { $in: ['Owner', 'Core Team'] },
+              role: { $in: ['Owner', 'Core Team'] },
             },
             {
               $and: [
@@ -229,6 +231,15 @@ const dashboardhelper = function () {
           },
           isVisible: {
             $arrayElemAt: ['$persondata.isVisible', 0],
+          },
+          createdDate: {
+            $arrayElemAt: ['$persondata.createdDate', 0],
+          },
+          trophyIconPresent: {
+            $arrayElemAt: ['$persondata.trophyIconPresent', 0],
+          },
+          hideTrophyIcon: {
+            $arrayElemAt: ['$persondata.hideTrophyIcon', 0],
           },
           hasSummary: {
             $ne: [
@@ -269,6 +280,9 @@ const dashboardhelper = function () {
           name: 1,
           role: 1,
           isVisible: 1,
+          createdDate: 1,
+          trophyIconPresent: 1,
+          hideTrophyIcon: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
           timeEntryData: {
@@ -301,6 +315,9 @@ const dashboardhelper = function () {
           name: 1,
           role: 1,
           isVisible: 1,
+          createdDate: 1,
+          trophyIconPresent: 1,
+          hideTrophyIcon: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
           totalSeconds: {
@@ -353,6 +370,9 @@ const dashboardhelper = function () {
             name: '$name',
             role: '$role',
             isVisible: '$isVisible',
+            createdDate: '$createdDate',
+            trophyIconPresent: '$trophyIconPresent',
+            hideTrophyIcon: '$hideTrophyIcon',
             hasSummary: '$hasSummary',
           },
           totalSeconds: {
@@ -373,6 +393,9 @@ const dashboardhelper = function () {
           name: '$_id.name',
           role: '$_id.role',
           isVisible: '$_id.isVisible',
+          createdDate: '$_id.createdDate',
+          trophyIconPresent: '$_id.trophyIconPresent',
+          hideTrophyIcon: '$_id.hideTrophyIcon',
           hasSummary: '$_id.hasSummary',
           weeklycommittedHours: '$_id.weeklycommittedHours',
           totaltime_hrs: {
@@ -457,6 +480,9 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
+          createdDate: user.createdDate,
+          trophyIconPresent: user.trophyIconPresent,
+          hideTrophyIcon: user.hideTrophyIcon,
           hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
