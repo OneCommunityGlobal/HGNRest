@@ -76,6 +76,23 @@ function informManagerMessage(user) {
   return message;
 }
 
+const sendEmailWithAcknowledgment = (email, subject, message) => {
+  return new Promise((resolve, reject) => {
+    emailSender(
+      email,
+      subject,
+      message,
+      null,
+      null,
+      null,
+      (error,result) => { 
+        if (result) resolve(result) 
+        if (error) reject(result)
+      }
+    );
+  });
+};
+
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
@@ -114,15 +131,13 @@ const profileInitialSetupController = function (
         const savedToken = await newToken.save();
         const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
 
-        emailSender(
+        const acknowledgment = await sendEmailWithAcknowledgment(
           email,
-          'NEEDED: Complete your One Community profile setup',
-          sendLinkMessage(link),
-          null,
-          null,
+          "NEEDED: Complete your One Community profile setup",
+          sendLinkMessage(link)
         );
-
-        res.status(200).send(link);
+        
+        res.status(200).send(acknowledgment);
       }
     } catch (error) {
       res.status(400).send(`Error: ${error}`);
