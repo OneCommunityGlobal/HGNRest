@@ -22,7 +22,7 @@ const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const buildingProject = require('../models/bmdashboard/buildingProject');
-const buildingTools = require('../models/bmdashboard/buildingTool');
+const buildingTool = require('../models/bmdashboard/buildingTool');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
