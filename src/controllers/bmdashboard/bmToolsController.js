@@ -5,10 +5,8 @@ const bmToolsController = (BuildingTool) => {
             BuildingTool
                 .findById(toolId)
                 .populate([
-                    // TO DO
                     {
                         path: 'itemType',
-                        select: '',
                     },
                     {
                         path: 'userResponsible',

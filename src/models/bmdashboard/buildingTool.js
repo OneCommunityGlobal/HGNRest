@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-const buildingTools = new Schema({
+const buildingTool = new Schema({
     itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
     title: { type: String, required: true },
     rentedOnDate: { type: Date, required: true },
@@ -13,4 +13,4 @@ const buildingTools = new Schema({
     purchaseStatus: { type: String, enum: ['Rented', 'Purchased'], default: 'Rented' },
 });
 
-module.exports = mongoose.model('buildingTools', buildingTools, 'buildingTools');
+module.exports = mongoose.model('buildingTool', buildingTool, 'buildingTools');
