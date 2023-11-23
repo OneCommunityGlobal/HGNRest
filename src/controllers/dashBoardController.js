@@ -3,7 +3,7 @@ const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const dashboardhelper = require("../helpers/dashboardhelper")();
 const emailSender = require("../utilities/emailSender");
-const DashboardData = require('../models/dashBoardData');
+const AIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
@@ -16,17 +16,17 @@ const dashboardcontroller = function () {
     });
   };
 
-  const updateDashboardData = function (req, res) {
+  const updateAIPrompt = function (req, res) {
     if (req.body.requestor.role === 'Owner') {
-       DashboardData.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
+      AIPrompt.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
       .then(() => {
         res.status(200).send('Successfully saved AI prompt.');
       }).catch(error => res.status(500).send(error));
     }
   };
 
-  const getDashBoardData = function (req, res) {
-    DashboardData.findById({ _id: 'ai-prompt' })
+  const getAIPrompt = function (req, res) {
+    AIPrompt.findById({ _id: 'ai-prompt' })
     .then((result) => {
       if (result) {
         // If the GPT prompt exists, send it back.
@@ -37,7 +37,7 @@ const dashboardcontroller = function () {
           _id: 'ai-prompt',
           aIPromptText: "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:"
         };
-        DashboardData.create(defaultPrompt)
+        AIPrompt.create(defaultPrompt)
         .then((newResult) => {
           res.status(200).send(newResult);
         })
@@ -292,8 +292,8 @@ const dashboardcontroller = function () {
 
   return {
     dashboarddata,
-    getDashBoardData,
-    updateDashboardData,
+    getAIPrompt,
+    updateAIPrompt,
     monthlydata,
     weeklydata,
     leaderboarddata,
