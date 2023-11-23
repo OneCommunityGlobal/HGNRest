@@ -9,9 +9,9 @@ const buildingProject = new Schema({
   location: String, // use lat/lng instead?
   dateCreated: { type: Date, default: Date.now },
   buildingManager: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+  teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'teams' }], // teams assigned to the project
   members: [{
     user: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    team: { type: mongoose.SchemaTypes.ObjectId, ref: 'teams' },
     hours: { type: Number, default: 0 }, // tracked via the Member Check-In Page timer
   }],
 });
