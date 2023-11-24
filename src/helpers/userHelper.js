@@ -381,6 +381,7 @@ const userHelper = function () {
         ) {
           hasWeeklySummary = true;
         }
+        console.log('ended update Result');
 
         const cutOffDate = moment().subtract(1, "year");
 
@@ -759,7 +760,6 @@ const userHelper = function () {
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    console.log("Increase Badge Count", personId, badgeId);
     userProfile.updateOne(
       { _id: personId, "badgeCollection.badge": badgeId },
       {
@@ -803,8 +803,6 @@ const userHelper = function () {
   };
 
   const removeDupBadge = async function (personId, badgeId) {
-    console.log('Starting removeDupBadge process');
-    console.log('badgeId', badgeId);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -1395,13 +1393,13 @@ const userHelper = function () {
   };
 
   const awardNewBadges = async () => {
-    console.log("Awarding");
     try {
-      const users = await userProfile.find({ isActive: true, firstName: 'Bailey', lastName: 'Personalmax' }).populate('badgeCollection.badge');
+      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
+
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
@@ -1416,7 +1414,6 @@ const userHelper = function () {
   };
 
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
-    console.log('getting reported tangible hours for the week');
     const userId = mongoose.Types.ObjectId(personId);
     
     const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
