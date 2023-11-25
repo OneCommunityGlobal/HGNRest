@@ -67,7 +67,7 @@ function informManagerMessage(user) {
         </tr>
         <tr>
             <td><strong>Location:</strong></td>
-            <td>${user.location}</td>
+            <td>${user.location.userProvided}, ${user.location.country}</td>
         </tr>
     </table> 
     <br>

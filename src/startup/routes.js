@@ -21,6 +21,7 @@ const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 
 
@@ -58,6 +59,8 @@ const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
+const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial);
@@ -93,6 +96,7 @@ module.exports = function (app) {
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', isEmailExistsRouter);
+  app.use('/api', mapLocationRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
