@@ -548,10 +548,15 @@ const inventoryController = function (Item, ItemType) {
         }
         const itemType = new ItemType();
 
+        itemType.type = req.body.type;
         itemType.name = req.body.name;
         itemType.description = req.body.description;
+        itemType.uom = req.body.uom;
+        itemType.totalStock = req.body.totalStock;
+        itemType.totalAvailable = req.body.totalAvailable;
+        itemType.projectsUsing = [];
         itemType.imageUrl = req.body.imageUrl || req.body.imageURL;
-        itemType.quantifier = req.body.quantifier;
+        itemType.link = req.body.link;
 
         itemType.save()
           .then(results => res.status(201).send(results))
