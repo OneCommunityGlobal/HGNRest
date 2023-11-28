@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 
 const teamcontroller = function (Team) {
@@ -20,16 +20,16 @@ const teamcontroller = function (Team) {
   const postTeam = async function (req, res) {
     // verify if the requestor has the necessary permissions
 
-    if (!await hasPermission(req.body.requestor.role, 'postTeam')
+    if (!await hasPermission(req.body.requestor, 'postTeam')
     // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
-    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
+    && !await hasPermission(req.body.requestor, 'seeTeamsManagementTab')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
     const team = new Team();
 
     team.teamName = req.body.teamName;
-    team.isACtive = req.body.isActive;
+    team.isActive = req.body.isActive;
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
@@ -63,10 +63,10 @@ const teamcontroller = function (Team) {
   };
   const putTeam = async function (req, res) {
     // verify if the requestor has the necessary permissions
-      console.log(req.body);
-    if (!await hasPermission(req.body.requestor.role, 'putTeam')
+    // console.log(req.body);
+    if (!await hasPermission(req.body.requestor, 'putTeam')
     // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
-    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
+    && !await hasPermission(req.body.requestor, 'seeTeamsManagementTab')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -103,9 +103,9 @@ const teamcontroller = function (Team) {
   const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator or has the necessary permissions, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!await hasPermission(req.body.requestor.role, 'assignTeamToUsers')
+    if (!await hasPermission(req.body.requestor, 'assignTeamToUsers')
     // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagement')
-    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeTeamsManagementTab')) {
+    && !await hasPermission(req.body.requestor, 'seeTeamsManagementTab')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
