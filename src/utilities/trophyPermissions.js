@@ -143,12 +143,9 @@ export const calculateAnniversaryDate = (createdDate) => {
     }
   };
 
-  export const checkIfIconResets = (hideTrophyIcon, todaysDate, createdDate) => {
-    if (showTrophyIcon(todaysDate, createdDate) && hideTrophyIcon) {
-      return false;
-    } if (!showTrophyIcon(todaysDate, createdDate) && hideTrophyIcon) {
+  export const checkIfIconResets = (trophyFollowedUp, weeklyEndDate, createdDate) => {
+    if (!showTrophyIcon(weeklyEndDate, createdDate) && trophyFollowedUp) {
       return false;
     }
-
-      return true;
+    return true;
   };

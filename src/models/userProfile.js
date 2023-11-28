@@ -81,7 +81,16 @@ const userProfileSchema = new Schema({
   infringements: [
     { date: { type: String, required: true }, description: { type: String, required: true } },
   ],
-  location: { type: String, default: '' },
+  location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+
+  },
   oldInfringements: [
     { date: { type: String, required: true }, description: { type: String, required: true } },
   ],
@@ -153,8 +162,7 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
-  trophyIconPresent: { type: Boolean, default: true },
-  hideTrophyIcon: { type: Boolean, default: false },
+  trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   teamCode: {
     type: String,

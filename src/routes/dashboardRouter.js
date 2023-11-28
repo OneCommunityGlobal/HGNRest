@@ -32,7 +32,7 @@ const route = function () {
   Dashboardrouter.route('/dashboard/makesuggestion/:userId')
     .post(controller.sendMakeSuggestion);
 
-  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId')
+  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId/:trophyFollowedUp')
     .post(controller.postTrophyIcon);
 
   return Dashboardrouter;

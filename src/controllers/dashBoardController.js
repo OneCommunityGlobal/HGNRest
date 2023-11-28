@@ -1,6 +1,4 @@
-import moment from 'moment';
 import userProfile from 'models/userProfile';
-import { showTrophyIcon } from 'utilities/trophyPermissions';
 import actionItem from 'models/actionItem';
 
 const path = require("path");
@@ -55,17 +53,11 @@ const dashboardcontroller = function () {
   };
 
   const leaderboarddata = function (req, res) {
-    const todaysDate = moment().tz('America/Los_Angeles').format('YYYY-MM-DD');
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const leaderboard = dashboardhelper.getLeaderboard(userId);
     leaderboard
       .then((results) => {
         if (results.length > 0) {
-          results.forEach((item) => {
-            if (!item.hideTrophyIcon) {
-              item.trophyIconPresent = showTrophyIcon(todaysDate, item.createdDate.toISOString().split('T')[0]);
-            }
-          });
           res.status(200).send(results);
         } else {
           const { getUserLaborData } = dashboardhelper;
@@ -85,13 +77,13 @@ const dashboardcontroller = function () {
         res.status(404).send('No valid records found');
         return;
       }
-      record.hideTrophyIcon = true;
-      record.trophyIconPresent = false;
+      record.trophyFollowedUp = req.params.trophyFollowedUp;
 
-       record.save()
-      .then((results) => {
-        res.status(200).send(results);
-      }).catch(error => res.status(404).send(error));
+      record.save()
+        .then((results) => {
+          res.status(200).send(results);
+        })
+        .catch(error => res.status(404).send(error));
     });
   };
 
@@ -102,7 +94,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -114,7 +106,7 @@ const dashboardcontroller = function () {
     expected,
     actual,
     visual,
-    severity
+    severity,
   ) {
     const text = `New Bug Report From <b>${firstName} ${lastName}</b>:
         <p>[Feature Name] Bug Title:</p>

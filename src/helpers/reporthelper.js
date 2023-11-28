@@ -84,7 +84,6 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
-          trophyIconPresent: 1,
           toggleTrophyIcon: 1,
           badgeCollection: {
             $filter: {
