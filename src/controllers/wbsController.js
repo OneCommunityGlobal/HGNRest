@@ -1,4 +1,4 @@
-const { hasPermission } = require('../utilities/permissions');
+const { hasPermission, hasIndividualPermission } = require('../utilities/permissions');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
@@ -11,7 +11,11 @@ const wbsController = function (WBS) {
   };
 
   const postWBS = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'postWbs')) {
+    // verify if the requestor has the necessary permissions
+
+    if (!await hasPermission(req.body.requestor.role, 'postWbs')
+    // && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagement')
+    && !await hasIndividualPermission(req.body.requestor.requestorId, 'seeProjectManagementTab')) {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
     }

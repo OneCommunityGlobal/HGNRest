@@ -43,7 +43,7 @@ const taskHelper = function () {
           // dashboard tasks user roles hierarchy
           $or: [
             {
-              role:  { $in: ['Owner', 'Core Team'] },
+              role: { $in: ['Owner', 'Core Team'] },
             },
             {
               $and: [
@@ -51,7 +51,7 @@ const taskHelper = function () {
                   role: 'Administrator',
                 },
                 { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
-              ]
+              ],
             },
             {
               $and: [

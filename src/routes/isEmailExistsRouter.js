@@ -2,14 +2,14 @@
 const express = require('express');
 
 const routes = function () {
-  const controller = require('../controllers/isEmailExistsController')()
+  const controller = require('../controllers/isEmailExistsController')();
 
-  const isEmailExistsRouter = express.Router()
+  const isEmailExistsRouter = express.Router();
 
-  isEmailExistsRouter.route("/is-email-exists/:email")
-    .get(controller.isEmailExists)
+  isEmailExistsRouter.route('/is-email-exists/:email')
+    .get(controller.isEmailExists);
 
-  return isEmailExistsRouter
-}
+  return isEmailExistsRouter;
+};
 
-module.exports = routes 
+module.exports = routes;

@@ -18,7 +18,8 @@ const team = new Schema({
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$/;
+        // RegEx check to validate the team code or if the team creation is from the Teams page, a '' value
+        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})?$/;
         return teamCoderegex.test(v);
       },
       message:

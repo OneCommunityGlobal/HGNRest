@@ -122,7 +122,7 @@ const projectController = function (Project) {
   };
 
   const assignProjectToUsers = async function (req, res) {
-    // verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
+    // verify requestor is administrator or has necessary permissions, projectId is passed in request params and is valid mongoose objectid, and request body contains an array of users
 
     if (!await hasPermission(req.body.requestor, 'assignProjectToUsers')) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
