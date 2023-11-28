@@ -172,6 +172,8 @@ const dashboardcontroller = function () {
       args[3].lastName
     }
     </b>:
+    <br>
+    <br> 
     <b> &#9913; Suggestion Category:</b>
     <p>${args[0]}</p>
     <b> &#9913; Suggestion:</b>
@@ -209,6 +211,7 @@ const dashboardcontroller = function () {
         null,
         null,
         email,
+        null
       );
       res.status(200).send('Success');
     } catch {
