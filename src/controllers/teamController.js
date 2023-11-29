@@ -7,32 +7,38 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
-      .then(results => res.send(results).status(200))
-      .catch(error => res.send(error).status(404));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
-      .then(results => res.send(results).status(200))
-      .catch(error => res.send(error).status(404));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
   const postTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'postTeam')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
+
+    if (await Team.exists({ teamName: req.body.teamName })) {
+      res.status(403).send({ error: `Team Name "${req.body.teamName}" already exists` });
+      return;
+    }
+
     const team = new Team();
 
     team.teamName = req.body.teamName;
-    team.isACtive = req.body.isActive;
+    team.isACtive = true;
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
     team
       .save()
-      .then(results => res.send(results).status(200))
-      .catch(error => res.send(error).status(404));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
   const deleteTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
@@ -49,7 +55,7 @@ const teamcontroller = function (Team) {
       const deleteteam = record.remove();
 
       Promise.all([removeteamfromprofile, deleteteam])
-        .then(res.status(200).send({ message: ' Team successfully deleted and user profiles updated' }))
+        .then(res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }))
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -87,7 +93,7 @@ const teamcontroller = function (Team) {
 
       record
         .save()
-        .then(results => res.status(201).send(results._id))
+        .then(results => res.status(200).send(results._id))
         .catch(errors => res.status(400).send(errors));
     });
   };
