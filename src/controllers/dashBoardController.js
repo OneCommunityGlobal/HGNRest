@@ -11,7 +11,7 @@ const dashboardcontroller = function () {
     const snapshot = dashboardhelper.personaldetails(userId);
 
     snapshot.then((results) => {
-      res.send(results).status(200);
+      res.status(200).send(results);
     });
   };
 
@@ -45,7 +45,7 @@ const dashboardcontroller = function () {
       req.params.toDate
     );
     laborthisweek.then((results) => {
-      res.send(results).status(200);
+      res.status(200).send(results);
     });
   };
 
