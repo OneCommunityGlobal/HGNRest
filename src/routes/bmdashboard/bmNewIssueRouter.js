@@ -6,7 +6,9 @@ const routes = () => {
 
   newIssueRouter.route('/getnewissue').get(controller.bmGetIssueList);
 
-  newIssueRouter.route('/postnewissue').post(controller.bmPostNewIssue);
+  newIssueRouter.route('/postnewissue').post(controller.bmPostIssueList);
+
+  return newIssueRouter;
 };
 
 module.exports = routes;
