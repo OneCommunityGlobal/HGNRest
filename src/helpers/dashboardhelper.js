@@ -1,6 +1,5 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
-const { showTrophyIcon } = require('utilities/trophyPermissions');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
 const myTeam = require('../helpers/helperModels/myTeam');
@@ -234,9 +233,6 @@ const dashboardhelper = function () {
           createdDate: {
             $arrayElemAt: ['$persondata.createdDate', 0],
           },
-          // trophyIconPresent: {
-          //   $ifNull: [{ $arrayElemAt: ['$persondata.trophyIconPresent', 0] }, true],
-          // },
           trophyFollowedUp: {
             $ifNull: [{ $arrayElemAt: ['$persondata.trophyFollowedUp', 0] }, false],
           },

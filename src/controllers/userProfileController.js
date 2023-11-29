@@ -1,4 +1,3 @@
-import { showTrophyIcon } from 'utilities/trophyPermissions';
 
 const moment = require('moment-timezone');
 
