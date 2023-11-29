@@ -62,7 +62,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
-const bmNewIssueRouter = require('../routes/bmdashboard/bmNewIssueRouter');
+const bmNewIssueRouter = require('../routes/bmdashboard/bmNewIssueRouter')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
