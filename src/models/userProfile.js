@@ -178,9 +178,9 @@ const userProfileSchema = new Schema({
   },
   infoCollections: [
     {
- areaName: { type: String },
+      areaName: { type: String },
       areaContent: { type: String },
-  }],
+    }],
 });
 
 userProfileSchema.pre('save', function (next) {
