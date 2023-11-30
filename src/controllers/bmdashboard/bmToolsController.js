@@ -7,6 +7,7 @@ const bmToolsController = (BuildingTool) => {
                 .populate([
                     {
                         path: 'itemType',
+                        select: '_id name description unit imageURL',
                     },
                     {
                         path: 'userResponsible',
