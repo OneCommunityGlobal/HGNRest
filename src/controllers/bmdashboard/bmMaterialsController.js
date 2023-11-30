@@ -88,7 +88,7 @@ const bmMaterialsController = function (ItemMaterial) {
   };
 
   const bmPostMaterialUpdateBulk = function (req, res) {
-    const materialUpdates= req.body;
+    const materialUpdates= req.body.upadateMaterials;
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
     for(let i=0;i<materialUpdates.length;i++)
@@ -128,7 +128,7 @@ const bmMaterialsController = function (ItemMaterial) {
           createdBy: req.body.requestor.requestorId,
           quantityUsed: quantityUsed,
           quantityWasted: quantityWasted,
-          date: payload.date,
+          date: req.body.date,
         }});
       
       }
