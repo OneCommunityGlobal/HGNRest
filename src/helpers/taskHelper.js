@@ -40,15 +40,30 @@ const taskHelper = function () {
       },
       {
         $match: {
+          // dashboard tasks user roles hierarchy
           $or: [
             {
-              role: {
-                $in: [
-                  'Core Team',
-                  'Administrator',
-                  'Owner',
-                ],
-              },
+              role:  { $in: ['Owner', 'Core Team'] },
+            },
+            {
+              $and: [
+                {
+                  role: 'Administrator',
+                },
+                { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
+              ]
+            },
+            {
+              $and: [
+                {
+                  role: { $in: ['Manager', 'Mentor'] },
+                },
+                {
+                  'persondata.0.role': {
+                    $nin: ['Manager', 'Mentor', 'Core Team', 'Administrator', 'Owner'],
+                  },
+                },
+              ],
             },
             { 'persondata.0._id': userId },
             { 'persondata.0.role': 'Volunteer' },
@@ -63,10 +78,10 @@ const taskHelper = function () {
           weeklycommittedHours: {
             $sum: [
               {
-              $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+                $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
               },
               {
-              $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
+                $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
               },
             ],
           },
@@ -119,7 +134,7 @@ const taskHelper = function () {
           totalSeconds: {
             $cond: [
               {
-              $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ['$timeEntryData.totalSeconds', 0],
               },
               '$timeEntryData.totalSeconds',
               0,
@@ -128,7 +143,7 @@ const taskHelper = function () {
           isTangible: {
             $cond: [
               {
-              $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ['$timeEntryData.totalSeconds', 0],
               },
               '$timeEntryData.isTangible',
               false,
@@ -142,7 +157,7 @@ const taskHelper = function () {
           tangibletime: {
             $cond: [
               {
-              $eq: ['$isTangible', true],
+                $eq: ['$isTangible', true],
               },
               '$totalSeconds',
               0,
@@ -301,9 +316,9 @@ const taskHelper = function () {
           role: '$role',
           name: {
             $concat: [
-            '$firstName',
-            ' ',
-            '$lastName',
+              '$firstName',
+              ' ',
+              '$lastName',
             ],
           },
           weeklycommittedHours: {
@@ -329,19 +344,19 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
-          role:1,
+          role: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
               as: 'timeentry',
               cond: {
                 $and: [
-                {
-                  $gte: ['$$timeentry.dateOfWork', pdtstart],
-                },
-                {
-                  $lte: ['$$timeentry.dateOfWork', pdtend],
-                },
+                  {
+                    $gte: ['$$timeentry.dateOfWork', pdtstart],
+                  },
+                  {
+                    $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
                 ],
               },
             },
@@ -359,7 +374,7 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
-          role:1,
+          role: 1,
           totalSeconds: {
             $cond: [
               {
@@ -399,7 +414,7 @@ const taskHelper = function () {
             personId: '$personId',
             weeklycommittedHours: '$weeklycommittedHours',
             name: '$name',
-            role: '$role'
+            role: '$role',
           },
           totalSeconds: {
             $sum: '$totalSeconds',
@@ -436,7 +451,7 @@ const taskHelper = function () {
         $project: {
           tasks: {
             resources: {
-            profilePic: 0,
+              profilePic: 0,
             },
           },
         },
@@ -459,9 +474,9 @@ const taskHelper = function () {
         $addFields: {
           'tasks.projectId': {
             $cond: [
-            { $ne: ['$projectId', []] },
-            { $arrayElemAt: ['$projectId', 0] },
-            '$tasks.projectId',
+              { $ne: ['$projectId', []] },
+              { $arrayElemAt: ['$projectId', 0] },
+              '$tasks.projectId',
             ],
           },
         },
@@ -471,12 +486,12 @@ const taskHelper = function () {
           projectId: 0,
           tasks: {
             projectId: {
-            _id: 0,
-            isActive: 0,
-            modifiedDatetime: 0,
-            wbsName: 0,
-            createdDatetime: 0,
-            __v: 0,
+              _id: 0,
+              isActive: 0,
+              modifiedDatetime: 0,
+              wbsName: 0,
+              createdDatetime: 0,
+              __v: 0,
             },
           },
         },
@@ -507,9 +522,9 @@ const taskHelper = function () {
         $addFields: {
           'data.tasks': {
             $filter: {
-            input: '$tasks',
-            as: 'task',
-            cond: { $ne: ['$$task', {}] },
+              input: '$tasks',
+              as: 'task',
+              cond: { $ne: ['$$task', {}] },
             },
           },
         },
@@ -521,9 +536,18 @@ const taskHelper = function () {
       },
     ]);
   };
+  const getUserProfileFirstAndLastName = function (userId) {
+    return userProfile.findById(userId).then((results) => {
+      if (!results) {
+        return ' ';
+      }
+      return `${results.firstName} ${results.lastName}`;
+    });
+  };
   return {
     getTasksForTeams,
     getTasksForSingleUser,
+    getUserProfileFirstAndLastName,
   };
 };
 
