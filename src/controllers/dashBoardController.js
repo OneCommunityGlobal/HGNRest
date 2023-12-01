@@ -1,8 +1,8 @@
-const path = require("path");
-const fs = require("fs/promises");
-const mongoose = require("mongoose");
-const dashboardhelper = require("../helpers/dashboardhelper")();
-const emailSender = require("../utilities/emailSender");
+const path = require('path');
+const fs = require('fs/promises');
+const mongoose = require('mongoose');
+const dashboardhelper = require('../helpers/dashboardhelper')();
+const emailSender = require('../utilities/emailSender');
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
@@ -11,7 +11,7 @@ const dashboardcontroller = function () {
     const snapshot = dashboardhelper.personaldetails(userId);
 
     snapshot.then((results) => {
-      res.send(results).status(200);
+      res.status(200).send(results);
     });
   };
 
@@ -45,7 +45,7 @@ const dashboardcontroller = function () {
       req.params.toDate,
     );
     laborthisweek.then((results) => {
-      res.send(results).status(200);
+      res.status(200).send(results);
     });
   };
 
@@ -172,11 +172,13 @@ const dashboardcontroller = function () {
       args[3].lastName
     }
     </b>:
+    <br>
+    <br> 
     <b> &#9913; Suggestion Category:</b>
     <p>${args[0]}</p>
     <b> &#9913; Suggestion:</b>
     <p>${args[1]}</p>
-    ${fieldaaray.length > 0 ? fieldaaray : ""}
+    ${fieldaaray.length > 0 ? fieldaaray : ''}
     <b> &#9913; Name of Suggester:</b>
     <p>${args[3].firstName} ${args[3].lastName}</p>
     <b> &#9913; Email of Suggester:</b>
@@ -191,22 +193,25 @@ const dashboardcontroller = function () {
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-    const { suggestioncate, suggestion, confirm, email, ...rest } = req.body;
+    const {
+ suggestioncate, suggestion, confirm, email, ...rest
+} = req.body;
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
       confirm,
       rest,
-      email
+      email,
     );
     try {
       emailSender(
-        "onecommunityglobal@gmail.com",
-        "A new suggestion",
+        'onecommunityglobal@gmail.com',
+        'A new suggestion',
         emailBody,
         null,
         null,
-        email
+        email,
+        null
       );
       res.status(200).send('Success');
     } catch {
