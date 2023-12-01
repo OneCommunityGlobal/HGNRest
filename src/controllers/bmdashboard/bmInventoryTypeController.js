@@ -1,10 +1,13 @@
 const bmInventoryTypeController = function (InvType) {
   const fetchMaterialTypes = async (req, res) => {
     try {
-      const result = await InvType.find().exec();
-      res.status(200).send(result);
-    } catch (error) {
-      res.status(500).send(error);
+      InvType
+        .find()
+        .exec()
+        .then(result => res.status(200).send(result))
+        .catch(error => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
     }
   };
   const fetchSingleInventoryType = async (req, res) => {
