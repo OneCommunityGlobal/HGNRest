@@ -36,6 +36,17 @@ const bmMProjectController = function (BuildingProject) {
             pipeline: [
               { $match: { $expr: { $eq: ['$project', '$$id'] } } },
               { $project: { updateRecord: 0, project: 0 } },
+              {
+                $lookup: {
+                  from: 'buildingInventoryTypes',
+                  localField: 'itemType',
+                  foreignField: '_id',
+                  as: 'itemType',
+                },
+              },
+              {
+                $unwind: '$itemType',
+              },
             ],
             as: 'materials',
           },
@@ -63,7 +74,6 @@ const bmMProjectController = function (BuildingProject) {
           proj.mostMaterialWaste = proj.materials.sort((a, b) => b.stockWasted - a.stockWasted)[0];
           proj.leastMaterialAvailable = proj.materials.sort((a, b) => a.stockAvailable - b.stockAvailable)[0];
           proj.mostMaterialBought = proj.materials.sort((a, b) => b.stockBought - a.stockBought)[0];
-          proj.teamCount = proj.teams.length;
         });
         res.status(200).send(results);
       })
