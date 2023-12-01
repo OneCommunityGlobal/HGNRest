@@ -18,12 +18,12 @@ const userProfileJobs = () => {
       await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
+      await userhelper.oneTimeLocationUpdate();
     },
     null,
     false,
     'America/Los_Angeles',
   );
-
   allUserProfileJobs.start();
 };
 module.exports = userProfileJobs;
