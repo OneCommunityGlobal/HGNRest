@@ -168,18 +168,6 @@ const dashboardcontroller = function () {
                    <p>${args[3][item]}</p>`,
       );
     }
-<<<<<<< HEAD
-    const text = `New Suggestion:
-      <p>Suggestion Category:</p>
-      <p>${args[0]}</p>
-      <p>Suggestion:</p>
-      <p>${args[1]}</p>
-      ${fieldaaray.length > 0 ? fieldaaray : ''}
-      <p>Wants Feedback:</p>
-      <p>${args[2]}</p>
-      <p>Thank you,<br />
-      One Community</p>`;
-=======
     const text = `New Suggestion From <b>${args[3].firstName} ${
       args[3].lastName
     }
@@ -197,33 +185,18 @@ const dashboardcontroller = function () {
     <p>${args[2]}</p>
     <b>Thank you,<br />
     One Community</b>`;
->>>>>>> development
 
     return text;
   };
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-<<<<<<< HEAD
-    const {
- suggestioncate, suggestion, confirm, ...rest
-} = req.body;
-=======
     const { suggestioncate, suggestion, confirm, email, ...rest } = req.body;
->>>>>>> development
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
       confirm,
       rest,
-<<<<<<< HEAD
-    );
-    try {
-      emailSender(
-        'onecommunityglobal@gmail.com',
-        'A new suggestion',
-        emailBody,
-=======
       email
     );
     try {
@@ -234,7 +207,6 @@ const dashboardcontroller = function () {
         null,
         null,
         email
->>>>>>> development
       );
       res.status(200).send('Success');
     } catch {
