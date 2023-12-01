@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
+
 const buildingMaterial = new Schema({
   itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },

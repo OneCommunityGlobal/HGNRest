@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
-const bmMaterialsController = function (ItemMaterial) {
+const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
-      ItemMaterial.find()
+      BuildingMaterial.find()
       .populate([
         {
           path: 'project',
@@ -36,6 +36,60 @@ const bmMaterialsController = function (ItemMaterial) {
     }
   };
 
+  const bmPurchaseMaterials = async function (req, res) {
+    const {
+      projectId,
+      matTypeId,
+      quantity,
+      priority,
+      brand,
+      requestor: { requestorId },
+    } = req.body;
+    const newPurchaseRecord = {
+      quantity,
+      priority,
+      brand,
+      requestedBy: requestorId,
+    };
+    try {
+      // check if requestor has permission to make purchase request
+      //! Note: this code is disabled until permissions are added
+      // TODO: uncomment this code to execute auth check
+      // const { buildingManager: bmId } = await buildingProject.findById(projectId, 'buildingManager').exec();
+      // if (bmId !== requestorId) {
+      //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
+      //   return;
+      // }
+
+      // check if the material is already being used in the project
+      // if no, add a new document to the collection
+      // if yes, update the existing document
+      const doc = await BuildingMaterial.findOne({ project: projectId, itemType: matTypeId });
+      if (!doc) {
+        const newDoc = {
+          itemType: matTypeId,
+          project: projectId,
+          purchaseRecord: [newPurchaseRecord],
+        };
+      BuildingMaterial
+      .create(newDoc)
+      .then(() => res.status(201).send())
+      .catch(error => res.status(500).send(error));
+      return;
+      }
+      BuildingMaterial
+        .findOneAndUpdate(
+          { _id: mongoose.Types.ObjectId(doc._id) },
+          { $push: { purchaseRecord: newPurchaseRecord } },
+          )
+        .exec()
+        .then(() => res.status(201).send())
+        .catch(error => res.status(500).send(error));
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   const bmPostMaterialUpdateRecord = function (req, res) {
     let payload = req.body;
     let quantityUsed = +req.body.quantityUsed;
@@ -62,7 +116,7 @@ const bmMaterialsController = function (ItemMaterial) {
     newStockUsed = parseFloat(newStockUsed.toFixed(4));
     newStockWasted = parseFloat(newStockWasted.toFixed(4));
     newAvailable = parseFloat(newAvailable.toFixed(4));
-      ItemMaterial.updateOne(
+    BuildingMaterial.updateOne(
         { _id: req.body.material._id },
         
           {
@@ -139,7 +193,7 @@ const bmMaterialsController = function (ItemMaterial) {
         res.status(500).send('Stock quantities submitted seems to be invalid')
         return;
       }
-    const updatePromises = updateRecordsToBeAdded.map(updateItem => ItemMaterial.updateOne(
+    const updatePromises = updateRecordsToBeAdded.map(updateItem => BuildingMaterial.updateOne(
         { _id: updateItem.updateId },
         {  
           $set : updateItem.set,
@@ -156,9 +210,10 @@ const bmMaterialsController = function (ItemMaterial) {
     }
   };
   return {
- bmMaterialsList,
+    bmMaterialsList,
     bmPostMaterialUpdateRecord,
-    bmPostMaterialUpdateBulk
+    bmPostMaterialUpdateBulk,
+    bmPurchaseMaterials
 };
 };
 
