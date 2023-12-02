@@ -35,7 +35,15 @@ async function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (!userId === requestor.requestorId && !await hasPermission(req.body.requestor, 'updatePassword')) {
+  if (userId !== requestor.requestorId && !await hasPermission(req.body.requestor, 'updatePassword')) {
+    res.status(403).send({
+      error: "You are unauthorized to update this user's password",
+    });
+    return;
+  }
+
+  // Verify request is authorized by self or adminsitrator
+  if (userId === requestor.requestorId || !await hasPermission(req.body.requestor, 'updatePassword')) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -617,25 +625,26 @@ const userProfileController = function (UserProfile) {
         error: 'One of more required fields are missing',
       });
     }
-    // Verify request is authorized by self or adminsitrator
-    if (!userId === requestor.requestorId && !await hasPermission(req.body.requestor, 'updatePassword')) {
-      return res.status(403).send({
-        error: "You are unauthorized to update this user's password",
-      });
-    }
+    // Check if the requestor has the permission to update passwords.
+    const hasUpdatePasswordPermission = await hasPermission(requestor.role, 'updatePassword');
 
-    if (canRequestorUpdateUser(requestor.requestorId, userId)) {
-      return res.status(403).send({
-        error: "You are unauthorized to update this user's password",
-      });
+    // If the requestor is updating their own password, allow them to proceed.
+    if (userId === requestor.requestorId) {
+        console.log('Requestor is updating their own password');
+    }
+    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
+    else if (!hasUpdatePasswordPermission) {
+        console.log("Requestor is trying to update someone else's password but lacks the 'updatePassword' permission");
+        return res.status(403).send({
+            error: "You are unauthorized to update this user's password",
+        });
     }
 
     // Verify new and confirm new password are correct
-
     if (req.body.newpassword !== req.body.confirmnewpassword) {
-      res.status(400).send({
-        error: 'New and confirm new passwords are not same',
-      });
+        return res.status(400).send({
+            error: 'New and confirm new passwords are not the same',
+        });
     }
 
     // Verify old and new passwords are not same
