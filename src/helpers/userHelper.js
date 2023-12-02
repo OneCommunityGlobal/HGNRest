@@ -105,8 +105,8 @@ const userHelper = function () {
         <p><b>Date Assigned:</b> ${infringement.date}</p>
         <p><b>Description:</b> ${infringement.description}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
-        .localeData()
-        .ordinal(totalInfringements)}</b> blue square of 5.</p>
+          .localeData()
+          .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${final_paragraph}
         <p>Thank you,<br />
         One Community</p>`;
@@ -197,8 +197,8 @@ const userHelper = function () {
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate)
-                .tz("America/Los_Angeles")
-                .format("YYYY-MMM-DD")}</b>):
+                  .tz("America/Los_Angeles")
+                  .format("YYYY-MMM-DD")}</b>):
               </div>
               <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
@@ -220,24 +220,24 @@ const userHelper = function () {
 
             <b>Media URL:</b> ${
               mediaUrlLink || '<span style="color: red;">Not provided!</span>'
-          }
+            }
 
           </p>
           ${
             weeklySummariesCount === 8
-            ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
-            : `<p><b>Total Valid Weekly Summaries</b>: ${
+              ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
+              : `<p><b>Total Valid Weekly Summaries</b>: ${
                   weeklySummariesCount || "No valid submissions yet!"
-            }</p>`
+                }</p>`
           }
           ${
             hoursLogged >= weeklycommittedHours
-            ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(
-              2
-            )} / ${weeklycommittedHours}</p>`
-            : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
-              2
-            )} / ${weeklycommittedHours}</p>`
+              ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(
+                  2
+                )} / ${weeklycommittedHours}</p>`
+              : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
+                  2
+                )} / ${weeklycommittedHours}</p>`
           }
           ${weeklySummaryMessage}
         </div>`;
@@ -298,69 +298,6 @@ const userHelper = function () {
       })
       .catch((error) => logger.logException(error));
   };
-  async function wait(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-  const oneTimeLocationUpdate = async () => {
-    const users = await userProfile.find({}, '_id');
-
-    for (let i = 0; i < users.length; i += 1) {
-      const user = users[i];
-      const person = await userProfile.findById(user._id);
-      if (!person.location.coords && !person.location.country && !person.location.city && !person.location.userProvided) {
-        const personLoc = person.location || '';
-        let location;
-        if (personLoc) {
-          try {
-            const res = await fetch(`https://api.opencagedata.com/geocode/v1/json?key=d093a5e0eee34aea8043f4e6edb0e9f7&q=${encodeURIComponent(personLoc)}&pretty=1&limit=1`);
-            if (!res) {
-              throw new Error();
-            } else {
-              const data = await res.json();
-              location = {
-                userProvided: personLoc || '',
-                coords: {
-                  lat: data.results[0].geometry.lat || '',
-                  lng: data.results[0].geometry.lng || '',
-                },
-                country: data.results[0].components.country || '',
-                city: data.results[0].components.city || '',
-              };
-            }
-          } catch (err) {
-            console.log(err);
-            location = {
-              userProvided: personLoc,
-              coords: {
-                lat: 'err',
-                lng: '',
-              },
-              country: '',
-              city: '',
-            }
-          }
-        } else {
-          location = {
-            userProvided: personLoc || '',
-            coords: {
-              lat: '',
-              lng: '',
-            },
-            country: '',
-            city: '',
-          };
-        }
-        await userProfile.findOneAndUpdate({ _id: user._id }, {
-          $set: {
-            location,
-          },
-        });
-      }
-
-      await wait(2000);
-    }
-  };
-
 
   /**
    * This function is called by a cron job to do 3 things to all active users:
@@ -999,7 +936,7 @@ const userHelper = function () {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type ===
-                "X Hours for X Week Streak" &&
+                  "X Hours for X Week Streak" &&
                 badgeCollection[i].badge?.weeks === bdge.weeks &&
                 bdge.hrs === hrs &&
                 !removed
@@ -1104,7 +1041,7 @@ const userHelper = function () {
                     true
                   )
                 ) >=
-                elem.months - 12
+                  elem.months - 12
               ) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
@@ -1155,9 +1092,9 @@ const userHelper = function () {
             );
             return theBadge
               ? increaseBadgeCount(
-                personId,
-                mongoose.Types.ObjectId(theBadge._id)
-              )
+                  personId,
+                  mongoose.Types.ObjectId(theBadge._id)
+                )
               : addBadge(personId, mongoose.Types.ObjectId(elem._id));
           }
         }
@@ -1290,7 +1227,7 @@ const userHelper = function () {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type ===
-                "X Hours for X Week Streak" &&
+                  "X Hours for X Week Streak" &&
                 badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (
@@ -1682,7 +1619,6 @@ const userHelper = function () {
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
-    oneTimeLocationUpdate,
   };
 };
 
