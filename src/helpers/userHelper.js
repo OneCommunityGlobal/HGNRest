@@ -13,7 +13,7 @@ const emailSender = require("../utilities/emailSender");
 const logger = require("../startup/logger");
 const hasPermission = require("../utilities/permissions");
 const Reason = require("../models/reason");
-const token = require("../models/profileInitialSetupToken");
+const token = require("../models/profileInitialSetupToken");;
 const timeOffRequest = require("../models/timeOffRequest");
 
 const userHelper = function () {
@@ -98,18 +98,30 @@ const userHelper = function () {
     firstName,
     lastName,
     infringement,
-    totalInfringements
+    totalInfringements,
+    timeRemaining
   ) {
+    let final_paragraph = "";
+
+    if (timeRemaining == undefined) {
+      final_paragraph =
+        "<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>";
+    } else {
+      final_paragraph = `<p>Life happens and we understand that. Please make up the missed hours this following week though to avoid getting another blue square. So you know what’s needed, the missing/incomplete hours (${timeRemaining} hours) have been added to your current week and this new weekly total can be seen at the top of your dashboard.</p>
+      <p>Reminder also that each blue square is removed from your profile 1 year after it was issued.</p>`;
+    }
+
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>
         <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
-          .localeData()
-          .ordinal(totalInfringements)}</b> blue square of 5.</p>
-        <p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>
+        .localeData()
+        .ordinal(totalInfringements)}</b> blue square of 5.</p>
+        ${final_paragraph}
         <p>Thank you,<br />
         One Community</p>`;
+
     return text;
   };
 
@@ -219,24 +231,24 @@ const userHelper = function () {
 
             <b>Media URL:</b> ${
               mediaUrlLink || '<span style="color: red;">Not provided!</span>'
-            }
+          }
 
           </p>
           ${
             weeklySummariesCount === 8
-              ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
-              : `<p><b>Total Valid Weekly Summaries</b>: ${
+            ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
+            : `<p><b>Total Valid Weekly Summaries</b>: ${
                   weeklySummariesCount || "No valid submissions yet!"
-                }</p>`
+            }</p>`
           }
           ${
             hoursLogged >= weeklycommittedHours
-              ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(
-                  2
-                )} / ${weeklycommittedHours}</p>`
-              : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
-                  2
-                )} / ${weeklycommittedHours}</p>`
+            ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(
+              2
+            )} / ${weeklycommittedHours}</p>`
+            : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
+              2
+            )} / ${weeklycommittedHours}</p>`
           }
           ${weeklySummaryMessage}
         </div>`;
@@ -263,7 +275,9 @@ const userHelper = function () {
         "onecommunityglobal@gmail.com, sangam.pravah@gmail.com, onecommunityhospitality@gmail.com",
         "Weekly Summaries for all active users...",
         emailBody,
-        null
+        null,
+        null,
+        emailString
       );
     } catch (err) {
       logger.logException(err);
@@ -295,6 +309,69 @@ const userHelper = function () {
       })
       .catch((error) => logger.logException(error));
   };
+  async function wait(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+  const oneTimeLocationUpdate = async () => {
+    const users = await userProfile.find({}, '_id');
+
+    for (let i = 0; i < users.length; i += 1) {
+      const user = users[i];
+      const person = await userProfile.findById(user._id);
+      if (!person.location.coords && !person.location.country && !person.location.city && !person.location.userProvided) {
+        const personLoc = person.location || '';
+        let location;
+        if (personLoc) {
+          try {
+            const res = await fetch(`https://api.opencagedata.com/geocode/v1/json?key=d093a5e0eee34aea8043f4e6edb0e9f7&q=${encodeURIComponent(personLoc)}&pretty=1&limit=1`);
+            if (!res) {
+              throw new Error();
+            } else {
+              const data = await res.json();
+              location = {
+                userProvided: personLoc || '',
+                coords: {
+                  lat: data.results[0].geometry.lat || '',
+                  lng: data.results[0].geometry.lng || '',
+                },
+                country: data.results[0].components.country || '',
+                city: data.results[0].components.city || '',
+              };
+            }
+          } catch (err) {
+            console.log(err);
+            location = {
+              userProvided: personLoc,
+              coords: {
+                lat: 'err',
+                lng: '',
+              },
+              country: '',
+              city: '',
+            }
+          }
+        } else {
+          location = {
+            userProvided: personLoc || '',
+            coords: {
+              lat: '',
+              lng: '',
+            },
+            country: '',
+            city: '',
+          };
+        }
+        await userProfile.findOneAndUpdate({ _id: user._id }, {
+          $set: {
+            location,
+          },
+        });
+      }
+
+      await wait(2000);
+    }
+  };
+
 
   /**
    * This function is called by a cron job to do 3 things to all active users:
@@ -335,6 +412,8 @@ const userHelper = function () {
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
+        const person = await userProfile.findById(user._id);
+
         const foundReason = await Reason.findOne({
           date: currentUTCDate,
           userId: user._id,
@@ -370,6 +449,8 @@ const userHelper = function () {
 
         const timeNotMet = timeSpent < weeklycommittedHours;
         let description;
+
+        const timeRemaining = weeklycommittedHours - timeSpent;
 
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
@@ -459,12 +540,16 @@ const userHelper = function () {
           }
           
             if (timeNotMet && !hasWeeklySummary) {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
+                2
+              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
               )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
               ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             } else if (timeNotMet) {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(2)} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
+                2
+              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
               )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
               ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
@@ -491,17 +576,32 @@ const userHelper = function () {
             { new: true }
           );
 
-          emailSender(
-            status.email,
-            "New Infringement Assigned",
-            getInfringementEmailBody(
+          let emailBody = "";
+          if (person.role == "Core Team" && timeRemaining > 0) {
+            emailBody = getInfringementEmailBody(
+              status.firstName,
+              status.lastName,
+              infringement,
+              status.infringements.length,
+              timeRemaining
+            );
+          } else {
+            emailBody = getInfringementEmailBody(
               status.firstName,
               status.lastName,
               infringement,
               status.infringements.length
-            ),
+            );
+          }
+
+          emailSender(
+            status.email,
+            "New Infringement Assigned",
+            emailBody,
             null,
-            "onecommunityglobal@gmail.com"
+            "onecommunityglobal@gmail.com",
+            null,
+            status.email
           );
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
@@ -760,7 +860,8 @@ const userHelper = function () {
             subject,
             emailBody,
             null,
-            null
+            null,
+            person.email
           );
         }
       }
@@ -799,7 +900,8 @@ const userHelper = function () {
         ),
 
         null,
-        "onecommunityglobal@gmail.com"
+        "onecommunityglobal@gmail.com",
+        emailAddress
       );
     });
   };
@@ -943,7 +1045,7 @@ const userHelper = function () {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type ===
-                  "X Hours for X Week Streak" &&
+                "X Hours for X Week Streak" &&
                 badgeCollection[i].badge?.weeks === bdge.weeks &&
                 bdge.hrs === hrs &&
                 !removed
@@ -1048,7 +1150,7 @@ const userHelper = function () {
                     true
                   )
                 ) >=
-                  elem.months - 12
+                elem.months - 12
               ) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {
@@ -1234,7 +1336,7 @@ const userHelper = function () {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type ===
-                  "X Hours for X Week Streak" &&
+                "X Hours for X Week Streak" &&
                 badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (
@@ -1591,7 +1693,8 @@ const userHelper = function () {
             subject,
             emailBody,
             null,
-            null
+            null,
+            person.email
           );
         }
       }
@@ -1641,6 +1744,7 @@ const userHelper = function () {
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
+    oneTimeLocationUpdate,
     deleteOldTimeOffRequests
   };
 };
