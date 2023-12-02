@@ -33,7 +33,11 @@ const titlecontroller = function (Title) {
     title.projectAssigned = req.body.projectAssigned;
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
-    title.shortName = req.body.shortName;
+    // get the shortname
+    let shortnames = title.titleName.split('');
+    let shortname = shortnames[0][0] + shortname[1][0];
+
+    title.shortName = shortname;
 
     title
       .save()
