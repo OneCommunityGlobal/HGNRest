@@ -626,7 +626,7 @@ const userProfileController = function (UserProfile) {
       });
     }
     // Check if the requestor has the permission to update passwords.
-    const hasUpdatePasswordPermission = await hasPermission(requestor.role, 'updatePassword');
+    const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
     // If the requestor is updating their own password, allow them to proceed.
     if (userId === requestor.requestorId) {
