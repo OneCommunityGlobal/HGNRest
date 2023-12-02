@@ -21,6 +21,10 @@ const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+const mapLocations = require('../models/mapLocation');
+const buildingProject = require('../models/bmdashboard/buildingProject');
+const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
+const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const timeOffRequest = require('../models/timeOffRequest');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
@@ -56,11 +60,15 @@ const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter
 
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
+
+const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
+const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -92,8 +100,11 @@ module.exports = function (app) {
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', isEmailExistsRouter);
+  app.use('/api', mapLocationRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmProjectRouter);
+  app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api', timeOffRequestRouter);
 };

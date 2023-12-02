@@ -1,13 +1,12 @@
 const express = require('express');
 
-const routes = function (itemMaterial) {
-const materialsRouter = express.Router();
-const controller = require('../../controllers/bmdashboard/bmMaterialsController')(itemMaterial);
-
-materialsRouter.route('/materials')
-  .get(controller.bmMaterialsList);
-
+const routes = function (itemMaterial, buildingMaterial) {
+  const materialsRouter = express.Router();
+  const controller = require('../../controllers/bmdashboard/bmMaterialsController')(itemMaterial, buildingMaterial);
+  materialsRouter.route('/materials')
+    .get(controller.bmMaterialsList)
+    .post(controller.bmPurchaseMaterials);
   return materialsRouter;
-}
+};
 
 module.exports = routes;
