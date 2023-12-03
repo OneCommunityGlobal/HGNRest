@@ -22,8 +22,7 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' || req.originalUrl === '/api/getTimeZoneAPIKeyByToken' && req.method === 'POST'
-    ) {
+    if (((req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' || req.originalUrl === '/api/getTimeZoneAPIKeyByToken') && req.method === 'POST') || (req.originalUrl.includes('/api/timezone') && req.method === 'POST')) {
       next();
       return;
     }
