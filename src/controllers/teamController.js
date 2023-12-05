@@ -29,16 +29,25 @@ const teamcontroller = function (Team) {
     }
 
     const team = new Team();
-
     team.teamName = req.body.teamName;
-    team.isACtive = true;
+    team.isActive = req.body.isActive;
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    team
-      .save()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+    // Check if a team with the same name already exists
+    Team.findOne({ teamName: team.teamName })
+      .then((existingTeam) => {
+        if (existingTeam) {
+          // If a team with the same name exists, return an error
+          res.status(400).send({ error: 'A team with this name already exists' });
+        } else {
+          // If no team with the same name exists, save the new team
+          team.save()
+            .then(results => res.send(results).status(200))
+            .catch(error => res.send(error).status(404));
+        }
+      })
+      .catch(error => res.send(error).status(404));
   };
   const deleteTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
