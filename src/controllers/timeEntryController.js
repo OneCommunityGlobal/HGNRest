@@ -122,6 +122,8 @@ const timeEntrycontroller = function (TimeEntry) {
       const initialSeconds = timeEntry.totalSeconds;
       const initialProjectId = timeEntry.projectId;
       const initialIsTangible = timeEntry.isTangible;
+      // Get the task related to this time entry, if not found, then it's a project and will be null
+      const findTask = await task.findById(initialProjectId);
 
       timeEntry.notes = req.body.notes;
       timeEntry.totalSeconds = totalSeconds;
@@ -134,19 +136,19 @@ const timeEntrycontroller = function (TimeEntry) {
       // initialIsTangible is a bealoon value, req.body.isTangible is a string
       // initialProjectId may be a task id or project id, so do not throw error.
       try {
-        if (initialIsTangible === true) {
-          const initialTask = await task.findById(initialProjectId);
-          initialTask.hoursLogged -= (initialSeconds / 3600);
-          await initialTask.save();
-        }
+        if (findTask) {
+          if (initialIsTangible === true) {
+            findTask.hoursLogged -= (initialSeconds / 3600);
+          }
 
-        if (req.body.isTangible === true) {
-          const editedTask = await task.findById(req.body.projectId);
-          editedTask.hoursLogged += (totalSeconds / 3600);
-          await editedTask.save();
+          if (req.body.isTangible === true) {
+            findTask.hoursLogged += (totalSeconds / 3600);
+          }
+
+          await findTask.save();
         }
       } catch (error) {
-        console.log('Failed to find task by id');
+        throw new Error(error);
       }
 
       // Update edit history
@@ -203,10 +205,13 @@ const timeEntrycontroller = function (TimeEntry) {
 
       res.status(200).send({ message: 'Successfully updated time entry' });
 
-      // checking if logged in hours exceed estimated time after timeentry edit for a task
-      const record = await userProfile.findById(timeEntry.personId.toString());
-      const currentTask = await task.findById(req.body.projectId);
-      checkTaskOvertime(timeEntry, record, currentTask);
+      // If the time entry isn't related to a task (i.e. it's a project), then don't check for overtime (Most likely pr team)
+      if (findTask) {
+        // checking if logged in hours exceed estimated time after timeentry edit for a task
+        const record = await userProfile.findById(timeEntry.personId.toString());
+        const currentTask = await task.findById(req.body.projectId);
+        checkTaskOvertime(timeEntry, record, currentTask);
+      }
     } catch (err) {
       await session.abortTransaction();
       return res.status(400).send({ error: err.toString() });
@@ -271,20 +276,28 @@ const timeEntrycontroller = function (TimeEntry) {
       })
       .catch(error => res.status(400).send(error));
 
-    // Add this tangbile time entry to related task's hoursLogged
-    if (timeentry.isTangible === true) {
+      // Get the task related to this time entry, if not found, then it's a project sets to null
+      const currentTask = await task.findById(req.body.projectId).catch(() => null);
+
+      // Add this tangbile time entry to related task's hoursLogged and checks if timeEntry is related to a task
+    if (timeentry.isTangible === true && currentTask) {
       try {
-        const currentTask = await task.findById(req.body.projectId);
-        currentTask.hoursLogged += (timeentry.totalSeconds / 3600);
+        currentTask.hoursLogged += timeentry.totalSeconds / 3600;
         await currentTask.save();
       } catch (error) {
-        throw new Error('Failed to find the task by id');
+        throw new Error(error);
       }
     }
-    // checking if logged in hours exceed estimated time after timeentry for a task
-    const record = await userProfile.findById(timeentry.personId.toString());
-    const currentTask = await task.findById(req.body.projectId);
-    checkTaskOvertime(timeentry, record, currentTask);
+
+    // checking if logged in hours exceed estimated time after timeentry for a task, only if the time entry is related to a task (It might not be, if it's a project)
+    if (currentTask) {
+      try {
+        const record = await userProfile.findById(timeentry.personId.toString());
+        checkTaskOvertime(timeentry, record, currentTask);
+      } catch (error) {
+        throw new Error(error);
+      }
+    }
   };
 
   const getTimeEntriesForSpecifiedPeriod = function (req, res) {
@@ -469,8 +482,11 @@ const timeEntrycontroller = function (TimeEntry) {
           if (record.isTangible === true) {
             task.findById(record.projectId)
               .then((currentTask) => {
-                currentTask.hoursLogged -= (record.totalSeconds / 3600);
-                currentTask.save();
+                // If the time entry isn't related to a task (i.e. it's a project), then don't revert hours (Most likely pr team)
+                if (currentTask) {
+                  currentTask.hoursLogged -= (record.totalSeconds / 3600);
+                  currentTask.save();
+                }
               })
               .catch((error) => {
                 throw new Error(error);
