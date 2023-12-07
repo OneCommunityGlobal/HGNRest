@@ -47,6 +47,8 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
   };
 
   const bmPurchaseMaterials = async function (req, res) {
+    console.log(BuildingMaterial);
+    console.log(req.body);
     const {
       projectId,
       matTypeId,
@@ -83,7 +85,10 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
         };
       BuildingMaterial
       .create(newDoc)
-      .then(() => res.status(201).send())
+      .then((result) => {
+        console.log('result new: ', result);
+        res.status(201).send();
+      })
       .catch(error => res.status(500).send(error));
       return;
       }
@@ -93,7 +98,10 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
           { $push: { purchaseRecord: newPurchaseRecord } },
           )
         .exec()
-        .then(() => res.status(201).send())
+        .then((result) => {
+          console.log('result old: ', result);
+          res.status(201).send();
+        })
         .catch(error => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
