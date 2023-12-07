@@ -11,7 +11,7 @@ const router = function (mapLocations) {
         .patch(controller.updateUserLocation);
 
     mapRouter.route('/mapLocations/:locationId')
-        .delete(controller.deleteLocation)
+        .delete(controller.deleteLocation);
 
     return mapRouter;
 };
