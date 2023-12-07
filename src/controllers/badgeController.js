@@ -3,6 +3,7 @@ const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
+// const userHelper = require('../helpers/userHelper');
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
@@ -26,6 +27,12 @@ const badgeController = function (Badge) {
       .catch(error => res.status(404).send(error));
   };
 
+  /**
+   * Updated Date: 12/06/2023
+   * Updated By: Shengwei
+   * Refactored  data validation for badge assignment. Added data validation for mismatched  
+   * badge earned dates.
+   */
   const assignBadges = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'assignBadges')) {
       res.status(403).send('You are not authorized to assign badges.');
@@ -39,23 +46,27 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
-      const grouped = req.body.badgeCollection.reduce((groupd, item) => {
-        const propertyValue = item.badge;
-        groupd[propertyValue] = (groupd[propertyValue] || 0) + 1;
-        return groupd;
-      }, {});
-      const result = Object.keys(grouped).every(bdge => grouped[bdge] <= 1);
-      if (result) {
-        record.badgeCollection = req.body.badgeCollection;
+      const badgeCounts = {};
+      // This line is using the forEach function to group badges in the badgeCollection
+      // array in the request body. 
+      // Validation: No duplicate badge id; No mismatched between the badge and earned date
+      req.body.badgeCollection.forEach((element) => {
+        if (badgeCounts[element.badge]) {
+          res.status(500).send('Duplicate badges sent in.');
+        }
+        if (element.badgeCounts !== element.earnedDate.length) {
+          res.status(500).send('Earned Dates mismatch total count.');
+        }
+        badgeCounts[element.badge] = element.badgeCounts;
+      });
 
-        if (cache.hasCache(`user-${userToBeAssigned}`)) cache.removeCache(`user-${userToBeAssigned}`);
-        
-        record.save()
-          .then(results => res.status(201).send(results._id))
-          .catch(errors => res.status(500).send(errors));
-      } else {
-        res.status(500).send('Duplicate badges sent in.');
-      }
+      record.badgeCollection = req.body.badgeCollection;
+
+      if (cache.hasCache(`user-${userToBeAssigned}`)) cache.removeCache(`user-${userToBeAssigned}`);
+      // Save Updated User Profile
+      record.save()
+        .then(results => res.status(201).send(results._id))
+        .catch(errors => res.status(500).send(errors));
     });
   };
 

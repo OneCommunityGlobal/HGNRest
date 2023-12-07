@@ -40,7 +40,6 @@ const userHelper = function () {
     dd = dd < 10 ? `0${dd}` : dd;
 
     const formatedDate = `${yyyy}-${mm}-${dd}`;
-
     return formatedDate;
   };
 
@@ -790,7 +789,7 @@ const userHelper = function () {
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
-    console.log("Increase Badge Count", personId, badgeId);
+    // console.log("Increase Badge Count", personId, badgeId);
     userProfile.updateOne(
       { _id: personId, "badgeCollection.badge": badgeId },
       {
