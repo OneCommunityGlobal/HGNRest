@@ -6,6 +6,9 @@ const warningsController = function (UserProfile) {
   // anc check if its being saved when posting
   // change post to a put instead as I am saving data that exisits.
 
+  //getting the warnings will be done in dashboard or a top component
+  //or when clicking the tracking button
+
   const getWarningsByUserId = async function (req, res) {
     console.log("get warning called", req.body);
 
@@ -20,16 +23,25 @@ const warningsController = function (UserProfile) {
 
   const postWarningsToUserProfile = async function (req, res) {
     console.log("body", req.body);
-    const { userId, iconId, color, dateAssigned } = req.body;
-    console.log("user id", userId, iconId, color, dateAssigned);
+    const { userId, iconId, color, date, description } = req.body;
+    // console.log("user id", userId, iconId, color, dateAssigned);
 
     UserProfile.findById(userId, (error, record) => {
       if (error || record === null) {
         res.status(400).send("No valid records found");
         return;
       }
+      // console.log("record before", record);
 
-      record.warnings = { userId: userId, color: color, iconId: iconId };
+      record.warnings = record.warnings.concat({
+        userId,
+        iconId,
+        color,
+        date,
+        description,
+      });
+
+      console.log("record", record.warnings);
       record
         .save()
         .then((results) => res.status(201).send({ message: "succes", results }))
