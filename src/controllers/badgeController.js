@@ -41,27 +41,9 @@ const badgeController = function (Badge) {
 
   const formatDate = () => {
     const currentDate = new Date(Date.now());
-    const monthNames = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    const month = monthNames[currentDate.getMonth()];
-    const day = currentDate.getDate();
-    const year = currentDate.getFullYear().toString().slice(-2); // Get last two digits of the year
-
-    return `${month}-${day}-${year}`;
+    return moment(currentDate).tz('America/Los_Angeles').format();
   };
+
 
   const fillEarnedDateToMatchCount = (earnedDate, count) => {
     const result = [...earnedDate];
