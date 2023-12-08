@@ -4,6 +4,7 @@ const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
+const logger = require('../startup/logger');
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
@@ -43,7 +44,6 @@ const badgeController = function (Badge) {
     const currentDate = new Date(Date.now());
     return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
   };
-
 
   const fillEarnedDateToMatchCount = (earnedDate, count) => {
     const result = [...earnedDate];
@@ -86,6 +86,12 @@ const badgeController = function (Badge) {
               element.earnedDate,
               element.count,
             );
+            element.lastModified = Date.now();
+            logger.logInfo(
+              `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
+                element._id
+              }; Badge Type ID ${element.badge}`,
+            );
           }
         });
       } catch (err) {
@@ -94,7 +100,9 @@ const badgeController = function (Badge) {
       }
       record.badgeCollection = req.body.badgeCollection;
 
-      if (cache.hasCache(`user-${userToBeAssigned}`)) { cache.removeCache(`user-${userToBeAssigned}`); }
+      if (cache.hasCache(`user-${userToBeAssigned}`)) {
+        cache.removeCache(`user-${userToBeAssigned}`);
+      }
       // Save Updated User Profile
       record
         .save()
@@ -115,11 +123,9 @@ const badgeController = function (Badge) {
       badgeName: { $regex: escapeRegex(req.body.badgeName), $options: 'i' },
     }).then((result) => {
       if (result.length > 0) {
-        res
-          .status(400)
-          .send({
-            error: `Another badge with name ${result[0].badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.`,
-          });
+        res.status(400).send({
+          error: `Another badge with name ${result[0].badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.`,
+        });
         return;
       }
       const badge = new Badge();
@@ -166,11 +172,9 @@ const badgeController = function (Badge) {
 
       Promise.all([removeBadgeFromProfile, deleteRecord])
         .then(
-          res
-            .status(200)
-            .send({
-              message: 'Badge successfully deleted and user profiles updated',
-            }),
+          res.status(200).send({
+            message: 'Badge successfully deleted and user profiles updated',
+          }),
         )
         .catch((errors) => {
           res.status(500).send(errors);
