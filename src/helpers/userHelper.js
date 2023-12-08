@@ -27,21 +27,31 @@ const userHelper = function () {
     });
   };
 
+  // Updated By: Shengwei
+  // Updated Date: 12/08/2023
+  // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    // Add 1 beacuse the month start at zero
-    let mm = today.getMonth() + 1;
-    let dd = today.getDate();
+    const currentDate = new Date(Date.now());
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
 
-    // eslint-disable-next-line no-unused-expressions
-    mm = mm < 10 ? `0${mm}` : mm;
-    // eslint-disable-next-line no-unused-expressions
-    dd = dd < 10 ? `0${dd}` : dd;
+    const month = monthNames[currentDate.getMonth()];
+    const day = currentDate.getDate();
+    const year = currentDate.getFullYear().toString().slice(-2); // Get last two digits of the year
 
-    const formatedDate = `${yyyy}-${mm}-${dd}`;
-
-    return formatedDate;
+    return `${month}-${day}-${year}`;
   };
 
   const getUserName = async function (userId) {
