@@ -26,5 +26,4 @@ const buildingMaterial = new Schema({
     quantityWasted: { type: Number, required: true },
   }],
 });
-
 module.exports = mongoose.model('buildingMaterial', buildingMaterial, 'buildingMaterials');
