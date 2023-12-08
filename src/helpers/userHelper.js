@@ -33,7 +33,7 @@ const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
     const currentDate = new Date(Date.now());
-    return moment(currentDate).tz('America/Los_Angeles').format();
+    return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
   };
 
   const getUserName = async function (userId) {

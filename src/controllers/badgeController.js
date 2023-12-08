@@ -1,9 +1,9 @@
+const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
-// const userHelper = require('../helpers/userHelper');
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
@@ -41,7 +41,7 @@ const badgeController = function (Badge) {
 
   const formatDate = () => {
     const currentDate = new Date(Date.now());
-    return moment(currentDate).tz('America/Los_Angeles').format();
+    return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
   };
 
 
