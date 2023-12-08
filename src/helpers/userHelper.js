@@ -15,6 +15,7 @@ const hasPermission = require("../utilities/permissions");
 const Reason = require("../models/reason");
 const token = require("../models/profileInitialSetupToken");
 
+
 const userHelper = function () {
   const getTeamMembers = function (user) {
     const userId = mongoose.Types.ObjectId(user._id);
@@ -32,26 +33,7 @@ const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
     const currentDate = new Date(Date.now());
-    const monthNames = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    const month = monthNames[currentDate.getMonth()];
-    const day = currentDate.getDate();
-    const year = currentDate.getFullYear().toString().slice(-2); // Get last two digits of the year
-
-    return `${month}-${day}-${year}`;
+    return moment(currentDate).tz('America/Los_Angeles').format();
   };
 
   const getUserName = async function (userId) {
