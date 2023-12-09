@@ -1,8 +1,3 @@
-// const mongoose = require('mongoose');
-// const UserProfile = require('../models/userProfile');
-// const cache = require('../utilities/nodeCache')();
-// const { hasPermission } = require('../utilities/permissions');
-
 const titlecontroller = function (Title) {
   const getAllTitles = function (req, res) {
     Title.find({})
@@ -19,13 +14,6 @@ const titlecontroller = function (Title) {
   };
 
   const postTitle = async function (req, res) {
-    console.log('posttitle');
-    console.log('body', req.body);
-
-    // if (await Title.exists({ titleName: req.body.titleName })) {
-    //   res.send({ error: `Title Name ${req.body.titleName} already exists` });
-    // }
-
     const title = new Title();
 
     title.titleName = req.body.titleName;
@@ -34,8 +22,8 @@ const titlecontroller = function (Title) {
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
     // get the shortname
-    let shortnames = title.titleName.split('');
-    let shortname = shortnames[0][0] + shortname[1][0];
+    const shortnames = title.titleName.split(' ');
+    const shortname = (shortnames[0][0] + shortnames[1][0]).toUpperCase();
 
     title.shortName = shortname;
 
@@ -45,11 +33,19 @@ const titlecontroller = function (Title) {
       .catch(error => res.status(404).send(error));
   };
 
+  const deleteTitleById = async function (req, res) {
+    const { titleId } = req.params;
+    Title.deleteOne({ _id: titleId })
+      .then(result => res.send(result))
+      .catch(error => res.send(error));
+  };
+
 
   return {
     getAllTitles,
     getTitleById,
     postTitle,
+    deleteTitleById,
   };
 };
 

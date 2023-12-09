@@ -10,7 +10,8 @@ const router = function (title) {
     .post(controller.postTitle);
 
   titleRouter.route('/title/:titleId')
-    .get(controller.getTitleById);
+    .get(controller.getTitleById)
+    .put(controller.deleteTitleById);
 
   return titleRouter;
 };

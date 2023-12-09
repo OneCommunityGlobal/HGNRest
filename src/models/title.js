@@ -5,9 +5,15 @@ const { Schema } = mongoose;
 const title = new Schema({
   titleName: { type: String, required: true },
   teamCode: { type: String, require: true },
-  projectAssigned: { type: String, required: true },
+  projectAssigned: {
+    projectName: { type: String, required: true },
+    _id: { type: String, required: true },
+  },
   mediaFolder: { type: String, require: true },
-  teamAssiged: { type: String },
+  teamAssiged: {
+    teamName: { type: String },
+    _id: { type: String },
+   },
   shortName: { type: String, require: true },
 
 });
