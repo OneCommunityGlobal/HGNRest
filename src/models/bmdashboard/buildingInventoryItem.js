@@ -83,9 +83,35 @@ const buildingReusable = baseInv.discriminator('reusable', new mongoose.Schema({
 // each document derived from this schema includes key field { __t: "tool" }
 // ex: power drills, wheelbarrows, shovels
 
-// const buildingTool = baseInv.discriminator('tool', new mongoose.Schema({
-
-// }));
+const buildingTool = baseInv.discriminator('tool', new mongoose.Schema({
+  code: { type: Number, required: true }, // add function to create code for on-site tool tracking
+  purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
+  // add discriminator based on rental or purchase so these fields are required if tool is rented
+  rentedOnDate: Date,
+  rentalDue: Date,
+  userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+  purchaseRecord: [{ // track purchase/rental requests
+      _id: false, // do not add _id field to subdocument
+      date: { type: Date, default: Date.now() },
+      requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
+      brand: String,
+      status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
+  }],
+  updateRecord: [{ // track tool condition updates
+      _id: false,
+      date: { type: Date, default: Date.now() },
+      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
+  }],
+  logRecord: [{ // track tool daily check in/out and use
+      _id: false,
+      date: { type: Date, default: Date.now() },
+      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      type: { type: String, enum: ['Check In', 'Check Out'] }, // default = opposite of current log status?
+  }],
+}));
 
 
 module.exports = {
