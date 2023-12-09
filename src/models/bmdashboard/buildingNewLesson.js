@@ -11,4 +11,4 @@ const LessonList = new Schema({
     relatedProject: { type: mongoose.SchemaTypes.ObjectId, ref: 'project', required: true },
 });
 
-module.exports = mongoose.model('lessonList', LessonList);
+module.exports = mongoose.model('buildingNewLesson', LessonList);
