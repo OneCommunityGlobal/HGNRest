@@ -73,8 +73,9 @@ const badgeController = function (Badge) {
       try {
         req.body.badgeCollection.forEach((element) => {
           if (badgeCounts[element.badge]) {
-            res.status(500).send('Duplicate badges sent in.');
-            return;
+            throw new Error('Duplicate badges sent in.');
+            // res.status(500).send('Duplicate badges sent in.');
+            // return;
           }
           badgeCounts[element.badge] = element.count;
           // Validation: count should be greater than 0
@@ -95,7 +96,7 @@ const badgeController = function (Badge) {
           }
         });
       } catch (err) {
-        res.status(500).send('Internal Err: Badge Collection.');
+        res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
         return;
       }
       record.badgeCollection = req.body.badgeCollection;
@@ -107,7 +108,10 @@ const badgeController = function (Badge) {
       record
         .save()
         .then(results => res.status(201).send(results._id))
-        .catch(errors => res.status(500).send(errors));
+        .catch((err) => {
+          logger.logException(err);
+          res.status(500).send('Internal Error: Unable to save the record.');
+      });
     });
   };
 
