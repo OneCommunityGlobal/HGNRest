@@ -110,8 +110,8 @@ const badgeController = function (Badge) {
       record
         .save()
         .then((result) => {
-          // TO-DO - add user back to cache
-          cache.setCache(`user-${userToBeAssigned}`, JSON.stringify(result));
+          // TO-DO - add user back to cache. For some reason, the saved records lead to badge img loading failure in frontend.
+          // cache.setCache(`user-${userToBeAssigned}`, JSON.stringify(result));
           res.status(201).send(result._id);
         })
         .catch((err) => {
