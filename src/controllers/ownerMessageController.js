@@ -18,16 +18,18 @@ const ownerMessageController = function (OwnerMessage) {
     if (req.body.requestor.role !== 'Owner') {
       res.status(403).send('You are not authorized to create messages!');
     }
-    const { standardMessage, message } = req.body;
+    const { isStandard, newMessage } = req.body;
     try {
       const results = await OwnerMessage.find({});
       const ownerMessage = results[0];
-      if (standardMessage) {
-        ownerMessage.standardMessage = standardMessage;
+      if (isStandard) {
+        ownerMessage.standardMessage = newMessage;
+        ownerMessage.message = '';
       } else {
-        ownerMessage.message = message;
+        ownerMessage.message = newMessage;
       }
       await ownerMessage.save();
+      const { standardMessage, message } = ownerMessage;
       res.status(201).send({
         _serverMessage: 'Update successfully!',
         ownerMessage: { standardMessage, message },
