@@ -1,6 +1,6 @@
 const logger = require('../startup/logger');
 
-const errorHandler = (err, req, res, next) => {
+const exceptionHandler = (err, req, res, next) => {
     logger.logException(err);
 
     const errStatus = err.statusCode || 500;
@@ -9,9 +9,9 @@ const errorHandler = (err, req, res, next) => {
         success: false,
         status: errStatus,
         message: errMsg,
-        stack: process.env.NODE_ENV === 'local' ? err.stack : {},
+        stack: !process.env.NODE_ENV || process.env.NODE_ENV === 'local' ? err.stack : {},
     });
     next();
 };
 
-export default errorHandler;
+export default exceptionHandler;
