@@ -67,11 +67,12 @@ const badgeController = function (Badge) {
         return;
       }
       const badgeCounts = {};
+      let newBadgeCollection = [];
       // This line is using the forEach function to group badges in the badgeCollection
       // array in the request body.
       // Validation: No duplicate badge id;
       try {
-        req.body.badgeCollection.forEach((element) => {
+        newBadgeCollection = req.body.badgeCollection.map((element) => {
           if (badgeCounts[element.badge]) {
             throw new Error('Duplicate badges sent in.');
             // res.status(500).send('Duplicate badges sent in.');
@@ -94,12 +95,13 @@ const badgeController = function (Badge) {
               }; Badge Type ID ${element.badge}`,
             );
           }
+          return element;
         });
       } catch (err) {
         res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
         return;
       }
-      record.badgeCollection = req.body.badgeCollection;
+      record.badgeCollection = newBadgeCollection;
 
       if (cache.hasCache(`user-${userToBeAssigned}`)) {
         cache.removeCache(`user-${userToBeAssigned}`);
@@ -107,7 +109,11 @@ const badgeController = function (Badge) {
       // Save Updated User Profile
       record
         .save()
-        .then(results => res.status(201).send(results._id))
+        .then((result) => {
+          // TO-DO - add user back to cache
+          cache.setCache(`user-${userToBeAssigned}`, JSON.stringify(result));
+          res.status(201).send(result._id);
+        })
         .catch((err) => {
           logger.logException(err);
           res.status(500).send('Internal Error: Unable to save the record.');
