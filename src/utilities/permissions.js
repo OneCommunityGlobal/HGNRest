@@ -4,12 +4,14 @@ const UserProfile = require('../models/userProfile');
 
 const hasRolePermission = async (role, action) => Role.findOne({ roleName: role })
   .exec()
-  .then(({ permissions }) => permissions.includes(action));
+  .then(({ permissions }) => permissions.includes(action))
+  .catch(false);
 
 const hasIndividualPermission = async (userId, action) => UserProfile.findById(userId)
   .select('permissions')
   .exec()
-  .then(({ permissions }) => permissions.frontPermissions.includes(action));
+  .then(({ permissions }) => permissions.frontPermissions.includes(action))
+  .catch(false);
 
 const hasPermission = async (requestor, action) => await hasRolePermission(requestor.role, action) || hasIndividualPermission(requestor.requestorId, action);
 

@@ -7,31 +7,46 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
-      .then(results => res.send(results).status(200))
-      .catch(error => res.send(error).status(404));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
-      .then(results => res.send(results).status(200))
-      .catch(error => res.send(error).status(404));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
   const postTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'postTeam')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
-    const team = new Team();
 
+    if (await Team.exists({ teamName: req.body.teamName })) {
+      res.status(403).send({ error: `Team Name "${req.body.teamName}" already exists` });
+      return;
+    }
+
+    const team = new Team();
     team.teamName = req.body.teamName;
-    team.isACtive = req.body.isActive;
+    team.isActive = req.body.isActive;
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    team
-      .save()
-      .then(results => res.send(results).status(200))
+    // Check if a team with the same name already exists
+    Team.findOne({ teamName: team.teamName })
+      .then((existingTeam) => {
+        if (existingTeam) {
+          // If a team with the same name exists, return an error
+          res.status(400).send({ error: 'A team with this name already exists' });
+        } else {
+          // If no team with the same name exists, save the new team
+          team.save()
+            .then(results => res.send(results).status(200))
+            .catch(error => res.send(error).status(404));
+        }
+      })
       .catch(error => res.send(error).status(404));
   };
   const deleteTeam = async function (req, res) {
@@ -49,7 +64,7 @@ const teamcontroller = function (Team) {
       const deleteteam = record.remove();
 
       Promise.all([removeteamfromprofile, deleteteam])
-        .then(res.status(200).send({ message: ' Team successfully deleted and user profiles updated' }))
+        .then(res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }))
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -87,7 +102,7 @@ const teamcontroller = function (Team) {
 
       record
         .save()
-        .then(results => res.status(201).send(results._id))
+        .then(results => res.status(200).send(results._id))
         .catch(errors => res.status(400).send(errors));
     });
   };
