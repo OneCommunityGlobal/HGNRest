@@ -11,4 +11,8 @@ config.JWT_HEADER = {
   typ: 'JWT',
 };
 
+// ChatGPT configurations
+config.CHATGPT_API_KEY = process.env.CHATGPT_API_KEY;
+config.CHATGPT_API_URL = 'https://api.chatgpt.com';
+
 module.exports = config;

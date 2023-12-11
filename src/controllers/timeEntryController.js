@@ -431,7 +431,7 @@ const timeEntrycontroller = function (TimeEntry) {
         });
         res.status(200).send(data);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -510,22 +510,31 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   // get timeEntries for current week
-  const getTimeEntriesForCurrentWeek = async (req, res) => {
-    const { userId } = req.params;
+  const getTimeEntriesForCurrentWeek = async (req) => {
+    const { userid } = req.body;
     const startOfWeek = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
     const endOfWeek = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
-    const timeEntries = await TimeEntry.find({
-      userId,
-      date: {
-          $gte: startOfWeek,
-          $lte: endOfWeek,
-      },
-    });
 
-    // Extract and return the notes
-    const notes = timeEntries.map(entry => entry.notes);
-    res.status(200).json(notes);
+    try {
+      const timeEntries = await TimeEntry.find({
+        userId: userid,
+        date: {
+            $gte: startOfWeek,
+            $lte: endOfWeek,
+        },
+      });
+
+      // Extract and return the notes
+      const notes = timeEntries.map(entry => entry.notes);
+      return notes;
+      // res.status(200).json(notes);
+    } catch (e) {
+      console.error(e); 
+      return null;
+    }
+
+    
   };
 
   return {

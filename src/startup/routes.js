@@ -43,6 +43,7 @@ const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(t
 const roleRouter = require('../routes/roleRouter')(role);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 const ownerStandardMessageRouter = require('../routes/ownerStandardMessageRouter')(ownerStandardMessage);
+const chatGPTRouter = require('../routes/chatGPTRouter')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -69,4 +70,5 @@ module.exports = function (app) {
   app.use('/api', roleRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', ownerStandardMessageRouter);
+  app.use('/api', chatGPTRouter);
 };
