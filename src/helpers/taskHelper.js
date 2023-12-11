@@ -51,7 +51,7 @@ const taskHelper = function () {
                   role: 'Administrator',
                 },
                 { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
-              ]
+              ],
             },
             {
               $and: [
