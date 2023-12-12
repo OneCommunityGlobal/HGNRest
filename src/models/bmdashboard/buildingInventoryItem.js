@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
-//----------------------
-// BASE INVENTORY SCHEMA
-//----------------------
+//-----------------------
+// BASE INVENTORY SCHEMAS
+//-----------------------
 
 // base schema for all categories of inventory (Consumable, Material, Reusable, Tool, Equipment)
 // this schema is extended by the individual schemas for each inventory type
@@ -47,6 +47,28 @@ const buildingMaterial = baseInv.discriminator('material', new mongoose.Schema({
 }));
 
 //-----------------
+// CONSUMABLES SCHEMA
+//-----------------
+
+// inherits all properties of baseInv schema using discriminator
+// each document derived from this schema includes key field { __t: "consumable" }
+// ex: screws, nails, staples
+
+const buildingConsumable = baseInv.discriminator('consumable', new mongoose.Schema({
+  stockBought: { type: Number, default: 0 }, // total amount of item bought for use in the project
+  stockUsed: { type: Number, default: 0 }, // stock that has been used up and cannot be reused
+  stockWasted: { type: Number, default: 0 }, // ruined or destroyed stock
+  stockAvailable: { type: Number, default: 0 }, // available = bought - (used + wasted/destroyed)
+  updateRecord: [{
+    _id: false,
+    date: { type: Date, required: true },
+    createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+    quantityUsed: { type: Number, required: true },
+    quantityWasted: { type: Number, required: true },
+  }],
+}));
+
+//-----------------
 // REUSABLES SCHEMA
 //-----------------
 
@@ -67,54 +89,66 @@ const buildingReusable = baseInv.discriminator('reusable', new mongoose.Schema({
   }],
 }));
 
-//-----------------
-// CONSUMABLES SCHEMA
-//-----------------
-
-// inherits all properties of baseInv schema using discriminator
-// each document derived from this schema includes key field { __t: "consumable" }
-// ex: screws, nails, staples
-
 //-------------
-// TOOLS SCHEMA
+// TOOL SCHEMAS
 //-------------
 
 // inherits all properties of baseInv schema using discriminator
 // each document derived from this schema includes key field { __t: "tool" }
-// ex: power drills, wheelbarrows, shovels
+// ex: power drills, wheelbarrows, shovels, jackhammers
+
+// Base Tool Schema:
 
 const buildingTool = baseInv.discriminator('tool', new mongoose.Schema({
   code: { type: Number, required: true }, // add function to create code for on-site tool tracking
   purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
-  // add discriminator based on rental or purchase so these fields are required if tool is rented
-  rentedOnDate: Date,
-  rentalDue: Date,
-  userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-  purchaseRecord: [{ // track purchase/rental requests
-      _id: false, // do not add _id field to subdocument
-      date: { type: Date, default: Date.now() },
-      requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-      priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
-      brand: String,
-      status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
-  }],
+  imgUrl: String,
   updateRecord: [{ // track tool condition updates
       _id: false,
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
   }],
-  logRecord: [{ // track tool daily check in/out and use
+  logRecord: [{ // track tool daily check in/out and responsible user
       _id: false,
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-      type: { type: String, enum: ['Check In', 'Check Out'] }, // default = opposite of current log status?
+      type: { type: String, enum: ['Check In', 'Check Out'] },
   }],
 }));
 
+// Rented Tool Schema:
+// inherits all properties of buildingTool schema using discriminator
+// each document derived from this schema includes key field { __t: "tool_rental" }
+
+// const buildingToolRental = buildingTool.discriminator('tool_rental', new mongoose.Schema({
+//   rentedOnDate: { type: Date, required: true },
+//   rentalDueDate: { type: Date, required: true },
+// }));
+
+//------------------
+// EQUIPMENT SCHEMAS
+//------------------
+
+// inherits all properties of baseInv schema using discriminator
+// each document derived from this schema includes key field { __t: "equipment" }
+// items in this category are assumed to be rented
+// ex: tractors, excavators, bulldozers
+
+const buildingEquipment = baseInv.discriminator('equipment', new mongoose.Schema({
+  isTracked: { type: Boolean, required: true },
+  assetTracker: String,
+  // add rental record?
+}));
+
+// add purchase varient instead of rental varient?
 
 module.exports = {
   buildingMaterial,
+  buildingConsumable,
   buildingReusable,
+  buildingTool,
+  // buildingToolRental,
+  buildingEquipment,
 };
