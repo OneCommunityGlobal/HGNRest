@@ -23,7 +23,7 @@ const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
-const { buildingMaterial } = require('../models/bmdashboard/buildingInventoryItem');
+const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);

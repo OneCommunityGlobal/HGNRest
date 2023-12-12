@@ -48,7 +48,7 @@ const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
     const newPurchaseRecord = {
       quantity,
       priority,
-      brandPref: brand,
+      brand,
       requestedBy: requestorId,
     };
     try {
