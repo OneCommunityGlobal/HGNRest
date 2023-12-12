@@ -15,7 +15,7 @@ const baseInvSchema = mongoose.Schema({
     _id: false, // do not add _id field to subdocument
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    quantity: { type: Number, required: true },
+    quantity: { type: Number, required: true, default: 1 }, // default 1 for tool or equipment purchases
     priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
     brandPref: String,
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
@@ -100,8 +100,11 @@ const buildingReusable = baseInv.discriminator('reusable', new mongoose.Schema({
 // Base Tool Schema:
 
 const buildingTool = baseInv.discriminator('tool', new mongoose.Schema({
-  code: { type: Number, required: true }, // add function to create code for on-site tool tracking
+  code: { type: Number, required: true }, // TODO: add function to create simple numeric code for on-site tool tracking
   purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
+  // rental fields are required if purchaseStatus = "Rental" (hopefully correct syntax)
+  rentedOnDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
+  rentalDueDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
   imgUrl: String,
   updateRecord: [{ // track tool condition updates
       _id: false,
@@ -118,15 +121,6 @@ const buildingTool = baseInv.discriminator('tool', new mongoose.Schema({
   }],
 }));
 
-// Rented Tool Schema:
-// inherits all properties of buildingTool schema using discriminator
-// each document derived from this schema includes key field { __t: "tool_rental" }
-
-// const buildingToolRental = buildingTool.discriminator('tool_rental', new mongoose.Schema({
-//   rentedOnDate: { type: Date, required: true },
-//   rentalDueDate: { type: Date, required: true },
-// }));
-
 //------------------
 // EQUIPMENT SCHEMAS
 //------------------
@@ -137,9 +131,27 @@ const buildingTool = baseInv.discriminator('tool', new mongoose.Schema({
 // ex: tractors, excavators, bulldozers
 
 const buildingEquipment = baseInv.discriminator('equipment', new mongoose.Schema({
-  isTracked: { type: Boolean, required: true },
-  assetTracker: String,
-  // add rental record?
+  isTracked: { type: Boolean, required: true }, // has asset tracker
+  assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
+  code: { type: Number, required: true }, // TODO: add function to create simple numeric code for on-site tool tracking
+  purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
+  // rental fields are required if purchaseStatus = "Rental" (hopefully correct syntax)
+  rentedOnDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
+  rentalDueDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
+  imgUrl: String,
+  updateRecord: [{ // track equipment condition updates
+      _id: false,
+      date: { type: Date, default: Date.now() },
+      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
+  }],
+  logRecord: [{ // track tool daily check in/out and responsible user
+      _id: false,
+      date: { type: Date, default: Date.now() },
+      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      type: { type: String, enum: ['Check In', 'Check Out'] },
+  }],
 }));
 
 // add purchase varient instead of rental varient?
@@ -149,6 +161,5 @@ module.exports = {
   buildingConsumable,
   buildingReusable,
   buildingTool,
-  // buildingToolRental,
   buildingEquipment,
 };
