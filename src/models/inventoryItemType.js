@@ -9,11 +9,9 @@ const InventoryItemType = new Schema({ // creates an item, tracks total amount i
   uom: { type: String, required: true }, // unit of measurement
   totalStock: { type: Number, required: true }, // total amount of all stock acquired
   totalAvailable: { type: Number, required: true },
-  projectsUsing: [ {type: mongoose.SchemaTypes.ObjectId, ref: 'project'} ],
+  projectsUsing: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   imageUrl: { type: String },
-  link: { type: String}
+  link: { type: String },
 });
 
 module.exports = mongoose.model('inventoryItemType', InventoryItemType, 'inventoryItemType');
-
-

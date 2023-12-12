@@ -35,7 +35,7 @@ const closure = () => {
     if (!nextItem) return;
 
     const {
- recipient, subject, message, cc, bcc, replyTo,
+ recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt
 } = nextItem;
 
     try {
@@ -59,8 +59,14 @@ const closure = () => {
       };
 
       const result = await transporter.sendMail(mailOptions);
+      if (typeof acknowledgingReceipt === 'function') {
+        acknowledgingReceipt(null,result);
+      } 
       logger.logInfo(result);
     } catch (error) {
+      if (typeof acknowledgingReceipt === 'function') {
+        acknowledgingReceipt(error,null);
+      } 
       logger.logException(error);
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);
@@ -72,6 +78,7 @@ const closure = () => {
     cc = null,
     bcc = null,
     replyTo = null,
+    acknowledgingReceipt = null,
   ) {
     if (process.env.sendEmail) {
       queue.push({
@@ -81,6 +88,7 @@ const closure = () => {
         cc,
         bcc,
         replyTo,
+        acknowledgingReceipt
       });
     }
   };
