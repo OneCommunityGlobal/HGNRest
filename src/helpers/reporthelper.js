@@ -35,9 +35,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: {
-          isActive: true,
-        },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -46,6 +44,9 @@ const reporthelper = function () {
           foreignField: 'personId',
           as: 'timeEntries',
         },
+      },
+      {
+        $set: { totalTangibleHrs: { $objectToArray: '$hoursByCategory' } },
       },
       {
         $project: {
@@ -73,13 +74,56 @@ const reporthelper = function () {
           },
           firstName: 1,
           lastName: 1,
+          role: 1,
           email: 1,
           mediaUrl: 1,
+          createdDate: 1,
           weeklycommittedHours: 1,
+          weeklycommittedHoursHistory: 1,
           weeklySummaryNotReq: 1,
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          badgeCollection: {
+            $filter: {
+              input: '$badgeCollection',
+              as: 'badge',
+              cond: {
+                $or: [
+                  {
+                    $and: [
+                      {
+                        $gte: [
+                          '$$badge.earnedDate',
+                          moment(pstStart).format('YYYY-MM-DD'),
+                        ],
+                      },
+                      {
+                        $lte: [
+                          '$$badge.earnedDate',
+                          moment(pstEnd).format('YYYY-MM-DD'),
+                        ],
+                      },
+                    ],
+                  },
+                  {
+                    $and: [
+                      {
+                        $gte: ['$$badge.lastModified', pstStart],
+                      },
+                      {
+                        $lte: ['$$badge.lastModified', pstEnd],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          teamCode: {
+            $ifNull: ['$teamCode', ''],
+          },
+          role: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -98,6 +142,15 @@ const reporthelper = function () {
           },
           weeklySummariesCount: 1,
           isTangible: 1,
+          totalTangibleHrs: { $sum: '$totalTangibleHrs.v' },
+          daysInTeam: {
+            $dateDiff: {
+              startDate: '$createdDate',
+              endDate: new Date(),
+              unit: 'day',
+              timezone: 'America/Los_Angeles',
+            },
+          },
         },
       },
     ]);
@@ -108,10 +161,9 @@ const reporthelper = function () {
 
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-
         if (
-          result.totalSeconds[index] === undefined ||
-          result.totalSeconds[index] === null
+          result.totalSeconds[index] === undefined
+          || result.totalSeconds[index] === null
         ) {
           result.totalSeconds[index] = 0;
         }
