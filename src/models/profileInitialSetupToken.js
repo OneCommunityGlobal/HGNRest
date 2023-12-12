@@ -10,7 +10,7 @@ const profileInitialSetupTokenSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  weeklyCommittedHours : {
+  weeklyCommittedHours: {
       type: Number,
       required: true,
       default: 10,
