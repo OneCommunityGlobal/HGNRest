@@ -8,7 +8,9 @@ lessonRouter.route('/lessons')
   .get(controller.fetchAllLessons);
 
 lessonRouter.route('/lesson/:lessonId')
-  .get(controller.fetchSingleLesson);
+  .get(controller.fetchSingleLesson)
+  .put(controller.editSingleLesson)
+  .delete(controller.removeSingleLesson);
 
   return lessonRouter;
 };
