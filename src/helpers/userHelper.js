@@ -15,6 +15,7 @@ const hasPermission = require("../utilities/permissions");
 const Reason = require("../models/reason");
 const token = require("../models/profileInitialSetupToken");
 
+
 const userHelper = function () {
   const getTeamMembers = function (user) {
     const userId = mongoose.Types.ObjectId(user._id);
@@ -27,21 +28,12 @@ const userHelper = function () {
     });
   };
 
+  // Updated By: Shengwei
+  // Updated Date: 12/08/2023
+  // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    // Add 1 beacuse the month start at zero
-    let mm = today.getMonth() + 1;
-    let dd = today.getDate();
-
-    // eslint-disable-next-line no-unused-expressions
-    mm = mm < 10 ? `0${mm}` : mm;
-    // eslint-disable-next-line no-unused-expressions
-    dd = dd < 10 ? `0${dd}` : dd;
-
-    const formatedDate = `${yyyy}-${mm}-${dd}`;
-
-    return formatedDate;
+    const currentDate = new Date(Date.now());
+    return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
   };
 
   const getUserName = async function (userId) {
