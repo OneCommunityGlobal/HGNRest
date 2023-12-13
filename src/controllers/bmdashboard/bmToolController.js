@@ -4,16 +4,41 @@ const bmToolController = (BuildingTool) => {
         try {
             BuildingTool
                 .findById(toolId)
-                // .populate([
-                //     {
-                //         path: 'itemType',
-                //         select: '_id name description unit imageURL',
-                //     },
-                //     {
-                //         path: 'userResponsible',
-                //         select: '_id firstName lastName',
-                //     },
-                // ])
+                .populate([
+                    {
+                        path: 'itemType',
+                        select: '_id name description unit imageUrl category',
+                    },
+                    {
+                        path: 'userResponsible',
+                        select: '_id firstName lastName',
+                    },
+                    {
+                        path: 'purchaseRecord',
+                        populate: {
+                            path: 'requestedBy',
+                            select: '_id firstName lastName',
+                        },
+                    },
+                    {
+                        path: 'updateRecord',
+                        populate: {
+                            path: 'createdBy',
+                            select: '_id firstName lastName',
+                        },
+                    },
+                    {
+                        path: 'logRecord',
+                        populate: [{
+                            path: 'createdBy',
+                            select: '_id firstName lastName',
+                        },
+                        {
+                            path: 'responsibleUser',
+                            select: '_id firstName lastName',
+                    }],
+                    },
+                ])
                 .exec()
                 .then(tool => res.status(200).send(tool))
                 .catch(error => res.status(500).send(error));
