@@ -1,6 +1,7 @@
+/* eslint-disable no-plusplus */
 const mongoose = require('mongoose');
 
-const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
+const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
       BuildingMaterial.find()
@@ -52,15 +53,6 @@ const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
       requestedBy: requestorId,
     };
     try {
-      // check if requestor has permission to make purchase request
-      //! Note: this code is disabled until permissions are added
-      // TODO: uncomment this code to execute auth check
-      // const { buildingManager: bmId } = await buildingProject.findById(projectId, 'buildingManager').exec();
-      // if (bmId !== requestorId) {
-      //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
-      //   return;
-      // }
-
       // check if the material is already being used in the project
       // if no, add a new document to the collection
       // if yes, update the existing document
@@ -91,25 +83,20 @@ const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
   };
 
   const bmPostMaterialUpdateRecord = function (req, res) {
-    let payload = req.body;
+    const payload = req.body;
     let quantityUsed = +req.body.quantityUsed;
     let quantityWasted = +req.body.quantityWasted;
-    let material = req.body.material;
-    if(payload.QtyUsedLogUnit=='percent' && quantityWasted>=0)
-      {
-        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
-      }
-      if(payload.QtyWastedLogUnit=='percent' && quantityUsed>=0)
-      {
-        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
-      }
-
-    if(quantityUsed>material.stockAvailable || quantityWasted>material.stockAvailable || (quantityUsed+quantityWasted)>material.stockAvailable)
-    {
-      res.status(500).send('Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.')
+    const { material } = req.body;
+    if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
+      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
     }
-    else
-   {
+    if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
+      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+    }
+    if (quantityUsed > material.stockAvailable || quantityWasted > material.stockAvailable
+      || (quantityUsed + quantityWasted) > material.stockAvailable) {
+      res.status(500).send('Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.');
+    } else {
     let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
     let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
     let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
@@ -118,86 +105,79 @@ const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
     newAvailable = parseFloat(newAvailable.toFixed(4));
     BuildingMaterial.updateOne(
         { _id: req.body.material._id },
-        
-          {
-            $set: {
-            'stockUsed': newStockUsed,
-            'stockWasted': newStockWasted,
-            'stockAvailable': newAvailable
+        {
+          $set: {
+          stockUsed: newStockUsed,
+          stockWasted: newStockWasted,
+          stockAvailable: newAvailable,
           },
             $push: {
               updateRecord: {
                 date: req.body.date,
                 createdBy: req.body.requestor.requestorId,
-                quantityUsed: quantityUsed,
-                quantityWasted: quantityWasted
+                quantityUsed,
+                quantityWasted,
               },
-            }
-          }
-        
+            },
+          },
         )
-        .then(results => {res.status(200).send(results)})
-        .catch(error => res.status(500).send({'message':error}));
-   }
-  };
+        .then(results => res.status(200).send(results))
+        .catch(error => res.status(500).send({ message: error }));
+      }
+    };
 
   const bmPostMaterialUpdateBulk = function (req, res) {
-    const materialUpdates= req.body.upadateMaterials;
+    // TODO: check this typo
+    const materialUpdates = req.body.upadateMaterials;
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
-    for(let i=0;i<materialUpdates.length;i++)
-    {
-      let payload = materialUpdates[i];
+    for (let i = 0; i < materialUpdates.length; i++) {
+      const payload = materialUpdates[i];
       let quantityUsed = +payload.quantityUsed;
       let quantityWasted = +payload.quantityWasted;
-      let material = payload.material;
-      if(payload.QtyUsedLogUnit=='percent' && quantityWasted>=0)
-      {
+      const { material } = payload;
+      if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
         quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
       }
-      if(payload.QtyWastedLogUnit=='percent' && quantityUsed>=0)
-      {
+      if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
         quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
       }
-
       let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
       newStockUsed = parseFloat(newStockUsed.toFixed(4));
       newStockWasted = parseFloat(newStockWasted.toFixed(4));
       newAvailable = parseFloat(newAvailable.toFixed(4));
-      if(newAvailable<0)
-      {
+      if (newAvailable < 0) {
         errorFlag = true;
         break;
       }
-      updateRecordsToBeAdded.push ({
+      updateRecordsToBeAdded.push({
         updateId: material._id,
         set: {
-          'stockUsed': newStockUsed,
-          'stockWasted': newStockWasted,
-          'stockAvailable': newAvailable
+          stockUsed: newStockUsed,
+          stockWasted: newStockWasted,
+          stockAvailable: newAvailable,
         },
         updateValue: {
           createdBy: req.body.requestor.requestorId,
-          quantityUsed: quantityUsed,
-          quantityWasted: quantityWasted,
+          quantityUsed,
+          quantityWasted,
           date: req.body.date,
-        }});
-      
-      }
+        },
+      });
+    }
 
     try {
-      if(errorFlag)
-      {
-        res.status(500).send('Stock quantities submitted seems to be invalid')
+      if (errorFlag) {
+        res.status(500).send('Stock quantities submitted seems to be invalid');
         return;
       }
-    const updatePromises = updateRecordsToBeAdded.map(updateItem => BuildingMaterial.updateOne(
+      const updatePromises = updateRecordsToBeAdded.map(updateItem => BuildingMaterial.updateOne(
         { _id: updateItem.updateId },
-        {  
-          $set : updateItem.set,
-          $push: { updateRecord: updateItem.updateValue } 
+        {
+          $set: updateItem.set,
+          $push: { updateRecord: updateItem.updateValue },
         },
       ).exec());
     Promise.all(updatePromises)
@@ -213,8 +193,8 @@ const bmMaterialsController = function (ItemMaterial,BuildingMaterial) {
     bmMaterialsList,
     bmPostMaterialUpdateRecord,
     bmPostMaterialUpdateBulk,
-    bmPurchaseMaterials
-};
+    bmPurchaseMaterials,
+  };
 };
 
 module.exports = bmMaterialsController;

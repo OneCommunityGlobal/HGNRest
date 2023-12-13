@@ -19,11 +19,10 @@ const ownerMessage = require('../models/ownerMessage');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
-const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const { buildingMaterial } = require('../models/bmdashboard/buildingInventoryItem');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -62,7 +61,7 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType);
 
