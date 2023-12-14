@@ -17,7 +17,6 @@ const smallItemBaseSchema = mongoose.Schema({
   // TODO: can stockAvailable default be a function?
   stockAvailable: { type: Number, default: 0 }, // available = bought - (used + wasted/destroyed)
   purchaseRecord: [{
-    _id: false, // do not add _id field to subdocument
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     quantity: { type: Number, required: true, default: 1 }, // default 1 for tool or equipment purchases
@@ -26,7 +25,6 @@ const smallItemBaseSchema = mongoose.Schema({
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
   }],
   updateRecord: [{
-    _id: false,
     date: { type: Date, required: true },
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     quantityUsed: { type: Number, required: true },
@@ -49,7 +47,6 @@ const largeItemBaseSchema = mongoose.Schema({
   rentalDueDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
   imageUrl: String,
   purchaseRecord: [{
-    _id: false, // do not add _id field to subdocument
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
@@ -58,13 +55,11 @@ const largeItemBaseSchema = mongoose.Schema({
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
   }],
   updateRecord: [{ // track tool condition updates
-      _id: false,
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, required: true },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
   }],
   logRecord: [{ // track tool daily check in/out and responsible user
-      _id: false,
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
