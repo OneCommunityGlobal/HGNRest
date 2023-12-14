@@ -1,5 +1,3 @@
-
-
 const bmLessonController = function (BuildingLesson) {
   const fetchAllLessons = async (req, res) => {
     try {
@@ -16,8 +14,6 @@ const bmLessonController = function (BuildingLesson) {
     const { lessonId } = req.params;
     try {
       
-  
-      // Assuming LessonList is your Mongoose model
       const lesson = await BuildingLesson.findById(lessonId);
   
       if (!lesson) {
@@ -30,15 +26,21 @@ const bmLessonController = function (BuildingLesson) {
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };
-  // TODO only make certain items editable? like not date
+  // TODO add verify/conditional to check if user is the same user who made the lesson?
   const editSingleLesson = async (req, res) => {
     const { lessonId } = req.params;
     const updateData = req.body;
+        // Extract only allowed fields (content, tag, relatedProject and title)
+        const allowedFields = ['content', 'tag', 'relatedProject', 'title'];
+        const filteredUpdateData = Object.keys(updateData)
+            .filter(key => allowedFields.includes(key))
+            .reduce((obj, key) => {
+                obj[key] = updateData[key];
+                return obj;
+            }, {});
     try {
       
-  
-      // Assuming LessonList is your Mongoose model
-      const updatedLesson = await BuildingLesson.findByIdAndUpdate(lessonId, updateData, { new: true });
+      const updatedLesson = await BuildingLesson.findByIdAndUpdate(lessonId, filteredUpdateData, { new: true });
       if (!updatedLesson) {
         return res.status(404).json({ error: 'Lesson not found' });
       }
@@ -53,8 +55,6 @@ const bmLessonController = function (BuildingLesson) {
     const { lessonId } = req.params;
     try {
       
-  
-      // Assuming LessonList is your Mongoose model
       const deletedLesson = await BuildingLesson.findByIdAndDelete(lessonId);
   
       if (!deletedLesson) {
