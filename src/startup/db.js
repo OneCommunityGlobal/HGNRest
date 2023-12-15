@@ -27,6 +27,8 @@ const seedDatabase = async () => {
     ];
     await Lessons.deleteMany()
     await LessonLikes.deleteMany()
+//     await Lessons.collection.drop();
+// await LessonLikes.collection.drop();
     await Lessons.insertMany(LessonsData);
 
     console.log("Lessons Seeded");

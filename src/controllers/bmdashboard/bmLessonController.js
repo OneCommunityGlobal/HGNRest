@@ -71,13 +71,13 @@ const bmLessonController = function (BuildingLesson) {
   const likeLesson = async (req, res) => {
     const { lessonId } = req.params;
     const { userId } = req.body;
-console.log(userId,"here")
+  
     try {
       const existingLike = await Like.findOne({ user: userId, lesson: lessonId });
   
       if (existingLike) {
         // User has already liked the lesson, handle unlike
-        const deletedLike = await Like.findByIdAndDelete(existingLike._id);
+        await Like.findByIdAndDelete(existingLike._id);
         await BuildingLesson.findByIdAndUpdate(lessonId, { $pull: { likes: existingLike._id } });
   
         // Decrement total likes count
@@ -86,7 +86,8 @@ console.log(userId,"here")
         return res.status(200).json({ status: 'success', message: 'Lesson unliked successfully' });
       }
   
-      const newLike = new Like({ user: userId });
+      // User has not liked the lesson, handle like
+      const newLike = new Like({ user: userId, lesson: lessonId });
       await newLike.save();
   
       await BuildingLesson.findByIdAndUpdate(lessonId, { $push: { likes: newLike._id } });
@@ -100,6 +101,7 @@ console.log(userId,"here")
       return res.status(500).json({ status: 'error', message: 'Error liking/unliking lesson' });
     }
   };
+  
   
   return { fetchAllLessons, fetchSingleLesson, editSingleLesson , removeSingleLesson, likeLesson };
 };
