@@ -8,7 +8,7 @@ mongoose.Promise = Promise;
 const seedDatabase = async () => {
   try {
     const Lessons = require('../models/bmdashboard/buildingLesson');
-
+    const LessonLikes = require('../models/bmdashboard/buildingLessonLike');
     const LessonsData = [
       {
         title: 'Lesson 1',
@@ -26,6 +26,7 @@ const seedDatabase = async () => {
       },
     ];
     await Lessons.deleteMany()
+    await LessonLikes.deleteMany()
     await Lessons.insertMany(LessonsData);
 
     console.log("Lessons Seeded");

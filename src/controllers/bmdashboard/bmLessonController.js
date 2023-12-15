@@ -1,3 +1,4 @@
+const Like = require('../../models/bmdashboard/buildingLessonLike')
 const bmLessonController = function (BuildingLesson) {
   const fetchAllLessons = async (req, res) => {
     try {
@@ -67,7 +68,40 @@ const bmLessonController = function (BuildingLesson) {
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };
-  return { fetchAllLessons, fetchSingleLesson, editSingleLesson , removeSingleLesson };
+  const likeLesson = async (req, res) => {
+    const { lessonId } = req.params;
+    const { userId } = req.body;
+console.log(userId,"here")
+    try {
+      const existingLike = await Like.findOne({ user: userId, lesson: lessonId });
+  
+      if (existingLike) {
+        // User has already liked the lesson, handle unlike
+        const deletedLike = await Like.findByIdAndDelete(existingLike._id);
+        await BuildingLesson.findByIdAndUpdate(lessonId, { $pull: { likes: existingLike._id } });
+  
+        // Decrement total likes count
+        await BuildingLesson.findByIdAndUpdate(lessonId, { $inc: { totalLikes: -1 } });
+  
+        return res.status(200).json({ status: 'success', message: 'Lesson unliked successfully' });
+      }
+  
+      const newLike = new Like({ user: userId });
+      await newLike.save();
+  
+      await BuildingLesson.findByIdAndUpdate(lessonId, { $push: { likes: newLike._id } });
+  
+      // Increment total likes count
+      await BuildingLesson.findByIdAndUpdate(lessonId, { $inc: { totalLikes: 1 } });
+  
+      return res.status(200).json({ status: 'success', message: 'Lesson liked successfully' });
+    } catch (error) {
+      console.error('Error liking/unliking lesson:', error);
+      return res.status(500).json({ status: 'error', message: 'Error liking/unliking lesson' });
+    }
+  };
+  
+  return { fetchAllLessons, fetchSingleLesson, editSingleLesson , removeSingleLesson, likeLesson };
 };
 
 module.exports = bmLessonController;

@@ -11,6 +11,8 @@ lessonRouter.route('/lesson/:lessonId')
   .get(controller.fetchSingleLesson)
   .put(controller.editSingleLesson)
   .delete(controller.removeSingleLesson);
+lessonRouter.route('/lesson/:lessonId/like')
+  .put(controller.likeLesson)
 
   return lessonRouter;
 };
