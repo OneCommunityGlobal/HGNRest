@@ -1,8 +1,8 @@
 const express = require('express');
 
-const routes = function () {
+const routes = function (buildingNewLesson) {
     const NewLessonRouter = express.Router();
-    const controller = require('../../controllers/bmdashboard/bmNewLessonController')();
+    const controller = require('../../controllers/bmdashboard/bmNewLessonController')(buildingNewLesson);
 
     // having GET request just for testing:
     NewLessonRouter.route('/getnewlesson')
