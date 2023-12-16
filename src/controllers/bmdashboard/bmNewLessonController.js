@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const lessonList = require('../../models/bmdashboard/buildingNewLesson');
+// const buildingNewLesson = require('../../models/bmdashboard/buildingNewLesson');
 
 // local dummy data just for testing:
 // const newLessonList = [
@@ -25,7 +25,7 @@ const lessonList = require('../../models/bmdashboard/buildingNewLesson');
 
 // ];
 
-const bmNewLessonController = () => {
+const bmNewLessonController = (buildingNewLesson) => {
     const bmPostLessonList = async (req, res) => {
         try {
             // get new lesson's title, content, tag, creating time, belongs-to-project-name, view-by-who
@@ -39,9 +39,16 @@ const bmNewLessonController = () => {
     };
     const bmGetLessonList = async (req, res) => {
         try {
-            const data = lessonList.find();
-            console.log(data);
-                // .then(result => res.status(200).send(result));
+            buildingNewLesson.find()
+                .populate([
+                    {
+                        path: 'title',
+                        select: '_id title'
+                    }
+                ])
+                .exec()
+                .then(result => res.status(200).send(result))
+                .catch(error => res.status(500).send(error));
             // res.status(200).send(newLessonList);
         } catch (err) {
             res.json(err);
