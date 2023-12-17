@@ -420,9 +420,6 @@ const dashboardhelper = function () {
           },
           timeOffFrom: "$_id.timeOffFrom",
           timeOffTill: "$_id.timeOffTill",
-          currentDate: {
-            $toDate: moment.tz("America/Los_Angeles").startOf("day"),
-          },
         },
       },
       {
