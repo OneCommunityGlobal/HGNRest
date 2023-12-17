@@ -20,23 +20,25 @@ const interactWithChatGPT = async (req, res) => {
         if (!notes || (Array.isArray(notes) && notes.length === 0)) {
             return res.status(200).json({ response: 'No notes found for the current week.' });
         }
-        console.log(notes, 11111);
         const processedNotes = processNotes(notes);
-        const instruction = `Summarize the following notes of my week's work, Make sure it is professionally written in 3rd person format.
-        Write it as only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.
-        Make sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.
-        Do not add flowery language, keep it simple and factual. Do not add a final summary sentence.`;
+        // console.log(processedNotes, 987654);
+        const instruction = 'translate following into Chinese.';
+        // `Summarize the following notes of my week's work, Make sure it is professionally written in 3rd person format.
+        // Write it as only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.
+        // Make sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.
+        // Do not add flowery language, keep it simple and factual. Do not add a final summary sentence.`;
         try {
             const gptResponse = await openai.completions.create({
-                model: 'gpt-3.5-turbo',
+                model: 'davinci',
                 prompt: `${instruction}\n\n${processedNotes}`,
                 max_tokens: 150,
             });
-            console.log(gptResponse, 90);
+            // console.log(`${instruction}\n\n${processedNotes}`, 111);
+            // console.log(gptResponse, 90);
         return res.json({ response: gptResponse.choices[0].text.trim() });
         } catch (e) {
-            console.log(openai.completions.create);
-            console.log(e, 999);
+            // console.log(openai.completions.create);
+            // console.log(e, 999);
             res.json({ data: e });
         }
     } catch (error) {

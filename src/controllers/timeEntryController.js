@@ -510,6 +510,8 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const removeHtml = str => `${str}`.replace(/<\/?[^>]*>|(\n|\t|)|(\s)/g, '');
+
   // get timeEntries for current week
   const getTimeEntriesForCurrentWeek = async (req) => {
     const { userid } = req.body;
@@ -519,23 +521,26 @@ const timeEntrycontroller = function (TimeEntry) {
 
     try {
       const timeEntries = await TimeEntry.find({
-        userId: userid,
-        date: {
-            $gte: startOfWeek,
-            $lte: endOfWeek,
-        },
+        personId: userid,
+        dateOfWork: { $gte: startOfWeek, $lte: endOfWeek },
       });
 
       // Extract and return the notes
       const notes = timeEntries.map(entry => entry.notes);
-      return notes;
+
+      const tmp = [];
+      if (Array.isArray(notes)) {
+        notes.forEach((item) => {
+          tmp.push(removeHtml(item));
+        });
+      }
+      // console.log(tmp, 22222);
+      return tmp;
       // res.status(200).json(notes);
     } catch (e) {
-      console.error(e); 
+      // console.error(e);
       return null;
     }
-
-    
   };
 
   return {
