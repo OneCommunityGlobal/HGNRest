@@ -259,6 +259,12 @@ const dashboardhelper = function () {
               },
             ],
           },
+          timeOffFrom: {
+            $ifNull: ["$persondata.timeOffFrom", null],
+          },
+          timeOffTill: {
+            $ifNull: ["$persondata.timeOffTill", null],
+          },
         },
       },
       {
@@ -277,6 +283,8 @@ const dashboardhelper = function () {
           isVisible: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
           timeEntryData: {
             $filter: {
               input: "$timeEntryData",
@@ -309,6 +317,8 @@ const dashboardhelper = function () {
           isVisible: 1,
           hasSummary: 1,
           weeklycommittedHours: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
           totalSeconds: {
             $cond: [
               {
@@ -356,6 +366,8 @@ const dashboardhelper = function () {
           _id: {
             personId: "$personId",
             weeklycommittedHours: "$weeklycommittedHours",
+            timeOffFrom: "$timeOffFrom",
+            timeOffTill: "$timeOffTill",
             name: "$name",
             role: "$role",
             isVisible: "$isVisible",
@@ -406,12 +418,8 @@ const dashboardhelper = function () {
               },
             ],
           },
-          timeOffFrom: {
-            $ifNull: ["$persondata.timeOffFrom", null],
-          },
-          timeOffTill: {
-            $ifNull: ["$persondata.timeOffTill", null],
-          },
+          timeOffFrom: "$_id.timeOffFrom",
+          timeOffTill: "$_id.timeOffTill",
           currentDate: { $toDate: new Date() },
         },
       },
