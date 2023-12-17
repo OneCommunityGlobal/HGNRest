@@ -15,7 +15,7 @@ const informationController = function (Information) {
     Information.find({}, 'infoName infoContent visibility')
       .then((results) => {
         // cache results
-        cache.pushCache('informations', results);
+        cache.setCache('informations', results);
         res.status(200).send(results);
       })
       .catch(error => res.status(404).send(error));
