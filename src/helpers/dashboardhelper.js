@@ -485,6 +485,8 @@ const dashboardhelper = function () {
           totalintangibletime_hrs: intangibleSeconds / 3600,
           percentagespentintangible:
             (intangibleSeconds / tangibleSeconds) * 100,
+          timeOffFrom: user.timeOffFrom,
+          timeOffTill: user.timeOffTill,
         },
       ];
     } catch (err) {
