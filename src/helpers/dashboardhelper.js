@@ -260,10 +260,10 @@ const dashboardhelper = function () {
             ],
           },
           timeOffFrom: {
-            $ifNull: ["$persondata.timeOffFrom", null],
+            $ifNull: [{ $arrayElemAt: ["$persondata.timeOffFrom", 0] }, null],
           },
           timeOffTill: {
-            $ifNull: ["$persondata.timeOffTill", null],
+            $ifNull: [{ $arrayElemAt: ["$persondata.timeOffTill", 0] }, null],
           },
         },
       },
