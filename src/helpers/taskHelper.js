@@ -345,6 +345,12 @@ const taskHelper = function () {
               },
             ],
           },
+          timeOffFrom: {
+            $ifNull: ["$timeOffFrom", null],
+          },
+          timeOffTill: {
+            $ifNull: ["$timeOffTill", null],
+          },
         },
       },
       {
@@ -360,6 +366,8 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
           role: 1,
           timeEntryData: {
             $filter: {
@@ -390,6 +398,8 @@ const taskHelper = function () {
           personId: 1,
           name: 1,
           weeklycommittedHours: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
           role: 1,
           totalSeconds: {
             $cond: [
@@ -429,6 +439,8 @@ const taskHelper = function () {
           _id: {
             personId: "$personId",
             weeklycommittedHours: "$weeklycommittedHours",
+            timeOffFrom: "$timeOffFrom",
+            timeOffTill: "$timeOffTill",
             name: "$name",
             role: "$role",
           },
@@ -446,6 +458,8 @@ const taskHelper = function () {
           personId: "$_id.personId",
           name: "$_id.name",
           weeklycommittedHours: "$_id.weeklycommittedHours",
+          timeOffFrom: "$_id.timeOffFrom",
+          timeOffTill: "$_id.timeOffTill",
           role: "$_id.role",
           totaltime_hrs: {
             $divide: ["$totalSeconds", 3600],
