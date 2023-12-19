@@ -1,12 +1,11 @@
-const mongoose = require('mongoose');
-
-const bmInventoryTypeController = function (BuildingInventoryType) {
-  const buildingInventoryTypeList = async function _matTypeList(req, res) {
+const bmInventoryTypeController = function (InvType) {
+  const fetchMaterialTypes = async (req, res) => {
     try {
-       BuildingInventoryType.find({'category':'Material'})
-      .exec()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(500).send(error));
+      InvType
+        .find()
+        .exec()
+        .then(result => res.status(200).send(result))
+        .catch(error => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -14,7 +13,7 @@ const bmInventoryTypeController = function (BuildingInventoryType) {
 
   const addBuildingInventoryType = async function _matTypeList(req, res) {
     try {
-      const inventoryTypeObject = new BuildingInventoryType();
+      const inventoryTypeObject = new InvType();
       inventoryTypeObject.category = 'Material';
       inventoryTypeObject.name = req.body.name;
       inventoryTypeObject.description = req.body.description;
@@ -26,7 +25,7 @@ const bmInventoryTypeController = function (BuildingInventoryType) {
       res.json(err);
     }
   };
-  return { buildingInventoryTypeList , addBuildingInventoryType };
+  return { fetchMaterialTypes , addBuildingInventoryType };
 };
 
 module.exports = bmInventoryTypeController;
