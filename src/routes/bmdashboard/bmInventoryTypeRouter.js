@@ -1,17 +1,16 @@
 const express = require('express');
 
-const routes = function (buildingInventoryType) {
-  
-    const buildingInventoryTypeRouter = express.Router();
-    const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(buildingInventoryType);
+const routes = function (invType) {
+  const inventoryTypeRouter = express.Router();
+  const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(invType);
 
-    buildingInventoryTypeRouter.route('/buildingInventoryTypes')
-      .get(controller.buildingInventoryTypeList);
+  inventoryTypeRouter.route('/invtypes/materials')
+    .get(controller.fetchMaterialTypes);
 
-    buildingInventoryTypeRouter.route('/postBuildingInventoryType')
-      .post(controller.addBuildingInventoryType);
+    inventoryTypeRouter.route('/postBuildingInventoryType')
+    .post(controller.addBuildingInventoryType);
 
-    return buildingInventoryTypeRouter;
+  return inventoryTypeRouter;
 };
 
 module.exports = routes;
