@@ -69,6 +69,9 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  },
                 ],
               },
             },
@@ -283,6 +286,9 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  },
                 ],
               },
             },
@@ -438,6 +444,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
+        entryType: { $in: ['default', null] },
         personId: userId,
       });
 
@@ -575,6 +582,9 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
+                  },
                 ],
               },
             },
@@ -651,6 +661,9 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
+                  },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
                   },
                 ],
               },
