@@ -24,9 +24,20 @@ const formatSeconds = function (seconds) {
  * @param {*} requestor The userProfile object of the person that modified the time entry
  * @returns {String}
  */
-const getEditedTimeEntryEmailBody = (firstName, lastName, email, originalTime, finalTime, requestor) => {
-  const formattedOriginal = moment.utc(originalTime * 1000).format('HH[ hours ]mm[ minutes]');
-  const formattedFinal = moment.utc(finalTime * 1000).format('HH[ hours ]mm[ minutes]');
+const getEditedTimeEntryEmailBody = (
+  firstName,
+  lastName,
+  email,
+  originalTime,
+  finalTime,
+  requestor,
+) => {
+  const formattedOriginal = moment
+    .utc(originalTime * 1000)
+    .format('HH[ hours ]mm[ minutes]');
+  const formattedFinal = moment
+    .utc(finalTime * 1000)
+    .format('HH[ hours ]mm[ minutes]');
   return `
   A time entry belonging to ${firstName} ${lastName} (${email}) was modified by ${requestor.firstName} ${requestor.lastName} (${requestor.email}).
   The entry's duration was changed from [${formattedOriginal}] to [${formattedFinal}]
@@ -45,18 +56,38 @@ const notifyEditByEmail = async (personId, original, finalTime, final) => {
   try {
     const originalTime = original.totalSeconds;
     const record = await userProfile.findById(personId);
-    const requestor = (personId !== final.requestor.requestorId) ? await userProfile.findById(final.requestor.requestorId) : record;
-    const emailBody = getEditedTimeEntryEmailBody(record.firstName, record.lastName, record.email, originalTime, finalTime, requestor);
-    emailSender('onecommunityglobal@gmail.com', `A Time Entry was Edited for ${record.firstName} ${record.lastName}`, emailBody);
+    const requestor = personId !== final.requestor.requestorId
+        ? await userProfile.findById(final.requestor.requestorId)
+        : record;
+    const emailBody = getEditedTimeEntryEmailBody(
+      record.firstName,
+      record.lastName,
+      record.email,
+      originalTime,
+      finalTime,
+      requestor,
+    );
+    emailSender(
+      'onecommunityglobal@gmail.com',
+      `A Time Entry was Edited for ${record.firstName} ${record.lastName}`,
+      emailBody,
+    );
   } catch (error) {
-    throw new Error(`Failed to send email notification about the modification of time entry belonging to user with id ${personId}`);
+    throw new Error(
+      `Failed to send email notification about the modification of time entry belonging to user with id ${personId}`,
+    );
   }
 };
 
-const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, hoursLogged) => {
+const notifyTaskOvertimeEmailBody = async (
+  personId,
+  taskName,
+  estimatedHours,
+  hoursLogged,
+) => {
   try {
-  const record = await userProfile.findById(personId);
-  const text = `Dear <b>${record.firstName}${record.lastName}</b>,
+    const record = await userProfile.findById(personId);
+    const text = `Dear <b>${record.firstName}${record.lastName}</b>,
       <p>Oops, it looks like  you have logged more hours than estimated for a task </p>
       <p><b>Task Name : ${taskName}</b></p>
       <p><b>Time Estimated : ${estimatedHours}</b></p>
@@ -64,24 +95,37 @@ const notifyTaskOvertimeEmailBody = async (personId, taskName, estimatedHours, h
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
       <p>One Community</p>`;
-      emailSender(
-        record.email,
-        'Logged more hours than estimated for a task',
-        text,
-        'onecommunityglobal@gmail.com',
-        null,
+    emailSender(
+      record.email,
+      'Logged more hours than estimated for a task',
+      text,
+      'onecommunityglobal@gmail.com',
+      null,
+      record.email,
+      null,
     );
   } catch (error) {
-    console.log(`Failed to send email notification about the overtime for a task belonging to user with id ${personId}`);
+    console.log(
+      `Failed to send email notification about the overtime for a task belonging to user with id ${personId}`
+    );
   }
 };
 
 const checkTaskOvertime = async (timeentry, record, currentTask) => {
   try {
     // send email notification if logged in hours exceeds estiamted hours for a task
-    if (currentTask.hoursLogged > currentTask.estimatedHours) { notifyTaskOvertimeEmailBody(timeentry.personId.toString(), currentTask.taskName, currentTask.estimatedHours, currentTask.hoursLogged); }
+    if (currentTask.hoursLogged > currentTask.estimatedHours) {
+      notifyTaskOvertimeEmailBody(
+        timeentry.personId.toString(),
+        currentTask.taskName,
+        currentTask.estimatedHours,
+        currentTask.hoursLogged,
+      );
+    }
   } catch (error) {
-    console.log(`Failed to find task whose logged-in hours are more than estimated hours ${record.email}`);
+    console.log(
+      `Failed to find task whose logged-in hours are more than estimated hours ${record.email}`
+    );
   }
 };
 
@@ -94,23 +138,42 @@ const timeEntrycontroller = function (TimeEntry) {
 
     try {
       if (!req.params.timeEntryId) {
-        return res.status(400).send({ error: 'ObjectId in request param is not in correct format' });
+        return res
+          .status(400)
+          .send({
+            error: 'ObjectId in request param is not in correct format',
+          });
       }
 
-      if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
-        || ((type === 'default' || type === 'project') && !mongoose.Types.ObjectId.isValid(req.body.projectId))) {
-          return res.status(400).send({ error: 'ObjectIds are not correctly formed' });
+      if (
+        !mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
+        || ((type === 'default' || type === 'project')
+        && !mongoose.Types.ObjectId.isValid(req.body.projectId)
+      )) {
+          return res
+            .status(400)
+            .send({ error: 'ObjectIds are not correctly formed' });
       }
 
       // Get initial timeEntry by timeEntryId
       const timeEntry = await TimeEntry.findById(req.params.timeEntryId);
 
       if (!timeEntry) {
-        return res.status(400).send({ error: `No valid records found for ${req.params.timeEntryId}` });
+        return res
+          .status(400)
+          .send({
+            error: `No valid records found for ${req.params.timeEntryId}`,
+          });
       }
 
-      if (!(await hasPermission(req.body.requestor, 'editTimeEntry')
-        || (type === 'default' && timeEntry.personId.toString() === req.body.requestor.requestorId.toString()))) {
+      if (
+        !(
+          (await hasPermission(req.body.requestor, 'editTimeEntry'))
+          || (type === 'default'
+          && timeEntry.personId.toString()
+            === req.body.requestor.requestorId.toString()
+        )
+      )) {
         return res.status(403).send({ error: 'Unauthorized request' });
       }
 
@@ -119,8 +182,17 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const totalSeconds = moment.duration(`${hours}:${minutes}`).asSeconds();
 
-      if (type === 'default' && timeEntry.isTangible === true && totalSeconds !== timeEntry.totalSeconds) {
-        notifyEditByEmail(timeEntry.personId.toString(), timeEntry, totalSeconds, req.body);
+      if (
+        type === 'default'
+        && timeEntry.isTangible === true
+        && totalSeconds !== timeEntry.totalSeconds
+      ) {
+        notifyEditByEmail(
+          timeEntry.personId.toString(),
+          timeEntry,
+          totalSeconds,
+          req.body,
+        );
       }
 
       const initialSeconds = timeEntry.totalSeconds;
@@ -143,11 +215,11 @@ const timeEntrycontroller = function (TimeEntry) {
       try {
         if (type === 'default' && findTask) {
           if (initialIsTangible === true) {
-            findTask.hoursLogged -= (initialSeconds / 3600);
+            findTask.hoursLogged -= initialSeconds / 3600;
           }
 
           if (req.body.isTangible === true) {
-            findTask.hoursLogged += (totalSeconds / 3600);
+            findTask.hoursLogged += totalSeconds / 3600;
           }
 
           await findTask.save();
@@ -157,13 +229,16 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // Update edit history
-      if ((type === 'default' || type === 'person')
+      if (
+        (type === 'default' || type === 'person')
         && initialSeconds !== totalSeconds
         && timeEntry.isTangible
         && req.body.requestor.requestorId === timeEntry.personId.toString()
-        && !await hasPermission(req.body.requestor, 'editTimeEntry')
-        ) {
-        const requestor = await userProfile.findById(req.body.requestor.requestorId);
+        && !(await hasPermission(req.body.requestor, 'editTimeEntry'))
+      ) {
+        const requestor = await userProfile.findById(
+          req.body.requestor.requestorId,
+        );
         requestor.timeEntryEditHistory.push({
           date: moment().tz('America/Los_Angeles').toDate(),
           initialSeconds,
@@ -175,7 +250,9 @@ const timeEntrycontroller = function (TimeEntry) {
           let totalRecentEdits = 0;
 
           requestor.timeEntryEditHistory.forEach((edit) => {
-            if (moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365) {
+            if (
+              moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365
+            ) {
               totalRecentEdits += 1;
             }
           });
@@ -186,7 +263,10 @@ const timeEntrycontroller = function (TimeEntry) {
               description: `${totalRecentEdits} time entry edits in the last calendar year`,
             });
 
-            emailSender('onecommunityglobal@gmail.com', `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`, `
+            emailSender(
+              'onecommunityglobal@gmail.com',
+              `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`,
+              `
               <p>
                 ${requestor.firstName} ${requestor.lastName} (${requestor.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
                 within the last calendar year.
@@ -194,20 +274,29 @@ const timeEntrycontroller = function (TimeEntry) {
               <p>
                 This is the ${totalRecentEdits}th edit within the past 365 days.
               </p>
-          `);
+              `,
+            );
 
             const emailInfringement = {
               date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
               description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
             };
 
-            emailSender(requestor.email, 'You\'ve been issued a blue square for editing your time entry', getInfringementEmailBody(requestor.firstName, requestor.lastName, emailInfringement, requestor.infringements.length));
+            emailSender(
+              requestor.email,
+              "You've been issued a blue square for editing your time entry",
+              getInfringementEmailBody(
+                requestor.firstName,
+                requestor.lastName,
+                emailInfringement,
+                requestor.infringements.length,
+              ),
+            );
           }
         }
 
         await requestor.save();
       }
-
 
       await timeEntry.save();
 
@@ -216,7 +305,9 @@ const timeEntrycontroller = function (TimeEntry) {
       // If the time entry isn't related to a task (i.e. it's a project), then don't check for overtime (Most likely pr team)
       if (type === 'default' && findTask) {
         // checking if logged in hours exceed estimated time after timeentry edit for a task
-        const record = await userProfile.findById(timeEntry.personId.toString());
+        const record = await userProfile.findById(
+          timeEntry.personId.toString(),
+        );
         const currentTask = await task.findById(req.body.projectId);
         checkTaskOvertime(timeEntry, record, currentTask);
       }
@@ -324,7 +415,9 @@ const timeEntrycontroller = function (TimeEntry) {
 
     if (timeentry.entryType === 'default') {
       // Get the task related to this time entry, if not found, then it's a project sets to null
-      const currentTask = await task.findById(req.body.projectId).catch(() => null);
+      const currentTask = await task
+        .findById(req.body.projectId)
+        .catch(() => null);
 
       // Add this tangbile time entry to related task's hoursLogged and checks if timeEntry is related to a task
       if (timeentry.isTangible === true && currentTask) {
@@ -361,8 +454,12 @@ const timeEntrycontroller = function (TimeEntry) {
       return;
     }
 
-    const fromdate = moment(req.params.fromdate).tz('America/Los_Angeles').format('YYYY-MM-DD');
-    const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const fromdate = moment(req.params.fromdate)
+      .tz('America/Los_Angeles')
+      .format('YYYY-MM-DD');
+    const todate = moment(req.params.todate)
+      .tz('America/Los_Angeles')
+      .format('YYYY-MM-DD');
     const { userId } = req.params;
 
     TimeEntry.aggregate([
@@ -398,28 +495,16 @@ const timeEntrycontroller = function (TimeEntry) {
           projectId: 1,
           lastModifiedDateTime: 1,
           projectName: {
-            $arrayElemAt: [
-              '$project.projectName',
-              0,
-            ],
+            $arrayElemAt: ['$project.projectName', 0],
           },
           taskName: {
-            $arrayElemAt: [
-              '$task.taskName',
-              0,
-            ],
+            $arrayElemAt: ['$task.taskName', 0],
           },
           category: {
-            $arrayElemAt: [
-              '$project.category',
-              0,
-            ],
+            $arrayElemAt: ['$project.category', 0],
           },
           classification: {
-            $arrayElemAt: [
-              '$task.classification',
-              0,
-            ],
+            $arrayElemAt: ['$task.classification', 0],
           },
           dateOfWork: 1,
           hours: {
@@ -429,10 +514,7 @@ const timeEntrycontroller = function (TimeEntry) {
           },
           minutes: {
             $floor: {
-              $divide: [
-                { $mod: ['$totalSeconds', 3600] },
-                60,
-              ],
+              $divide: [{ $mod: ['$totalSeconds', 3600] }, 60],
             },
           },
         },
@@ -442,9 +524,11 @@ const timeEntrycontroller = function (TimeEntry) {
           lastModifiedDateTime: -1,
         },
       },
-    ]).then((results) => {
-      res.status(200).send(results);
-    }).catch((error) => {
+    ])
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((error) => {
       res.status(400).send(error);
     });
   };
@@ -544,15 +628,16 @@ const timeEntrycontroller = function (TimeEntry) {
         if (
           record.personId.toString()
             === req.body.requestor.requestorId.toString()
-          || await hasPermission(req.body.requestor, 'deleteTimeEntry')
+          || (await hasPermission(req.body.requestor, 'deleteTimeEntry'))
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
           if (record.isTangible === true) {
-            task.findById(record.projectId)
+            task
+              .findById(record.projectId)
               .then((currentTask) => {
                 // If the time entry isn't related to a task (i.e. it's a project), then don't revert hours (Most likely pr team)
                 if (currentTask) {
-                  currentTask.hoursLogged -= (record.totalSeconds / 3600);
+                  currentTask.hoursLogged -= record.totalSeconds / 3600;
                   currentTask.save();
                 }
               })
