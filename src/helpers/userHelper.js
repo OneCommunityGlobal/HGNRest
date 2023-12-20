@@ -484,8 +484,8 @@ const userHelper = function () {
             emailBody,
             null,
             "onecommunityglobal@gmail.com",
-            null,
-            status.email
+            status.email,
+            null
           );
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
