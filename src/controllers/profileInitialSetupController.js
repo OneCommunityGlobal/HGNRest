@@ -101,6 +101,18 @@ const profileInitialSetupController = function (
 ) {
   const { JWT_SECRET } = config;
 
+  const setMapLocation = async (locationData) => {
+  
+    const location = new MapLocation(locationData);
+
+    try {
+      const response = await location.save()
+      return response
+    } catch (err) {
+      return {type: "Error", message: err.message || 'An error occurred while saving the location'} 
+    }
+  }
+
   /*
   Function to handle token generation and email process:
   - Generates a new token and saves it to the database.
@@ -319,17 +331,7 @@ const profileInitialSetupController = function (
     }
   };
 
-  const setMapLocation = async (locationData) => {
   
-    const location = new MapLocation(locationData);
-
-    try {
-      const response = await location.save()
-      return response
-    } catch (err) {
-      return {type: "Error", message: err.message || 'An error occurred while saving the location'} 
-    }
-  }
 
   return {
     getSetupToken,
