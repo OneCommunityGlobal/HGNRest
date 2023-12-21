@@ -7,6 +7,9 @@ const routes = function (invType) {
   inventoryTypeRouter.route('/invtypes/materials')
     .get(controller.fetchMaterialTypes);
 
+  inventoryTypeRouter.route('/invtypes/equipment')
+    .post(controller.addEquipmentType);
+
   return inventoryTypeRouter;
 };
 
