@@ -69,6 +69,13 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -200,7 +207,7 @@ const dashboardhelper = function () {
                   role: 'Administrator',
                 },
                 { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
-              ]
+              ],
             },
             {
               $and: [
@@ -290,6 +297,13 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
                   },
                 ],
               },
@@ -424,7 +438,6 @@ const dashboardhelper = function () {
         },
       },
     ]);
-
     return output;
   };
 
@@ -454,6 +467,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
+        entryType: { $in: ['default', null] },
         personId: userId,
       });
 
@@ -593,6 +607,13 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -669,6 +690,13 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
                   },
                 ],
               },
