@@ -43,6 +43,12 @@ const badgeController = function (Badge) {
 
   const fillEarnedDateToMatchCount = (earnedDate, count) => {
     const currentDate = moment(new Date(Date.now())).tz('America/Los_Angeles').format('MMM-DD-YY');
+
+    if (earnedDate.length > count) {
+      const elementsToRemove = earnedDate.length - count;
+      earnedDate.splice(-elementsToRemove);
+    }
+
     const additionalDates = new Array(count - earnedDate.length).fill(currentDate);
     const result = [...earnedDate, ...additionalDates];
 
@@ -65,6 +71,13 @@ const badgeController = function (Badge) {
 
       const badgeGroups = req.body.badgeCollection.reduce((grouped, item) => {
         const { badge } = item;
+
+        if (typeof item.count !== 'number') {
+          item.count = Number(item.count);
+          if (Number.isNaN(item.count)) {
+            return grouped;
+          }
+        }
         // if count is 0, skip
         if (item.count === 0) {
           return grouped;
@@ -101,6 +114,7 @@ const badgeController = function (Badge) {
             grouped[badge].earnedDate,
             grouped[badge].count,
             );
+          grouped[badge].lastModified = Date.now();
           logger.logInfo(
             `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
               item._id
@@ -125,7 +139,7 @@ const badgeController = function (Badge) {
       if (cache.hasCache(`user-${userToBeAssigned}`)) {
         cache.removeCache(`user-${userToBeAssigned}`);
       }
-      // Save Updated User Profile
+
       record
       .save()
       .then(results => res.status(201).send(results._id))
