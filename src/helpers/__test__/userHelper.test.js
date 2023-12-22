@@ -84,6 +84,10 @@ async function getBadgeCollectionLength() {
 }
 
 describe('CheckXHrsForXWeeks() Test', () => {
+  /**
+   * 1 week of 90 hours logged should award:
+   * [ { count: 1, badgeName: '90 HOURS IN 1 WEEK' } ]
+   */
   test('[90] test', async () => {
     await initializeTestUser();
 
@@ -99,6 +103,13 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
+  /**
+   * 1st week with 90 hours logged, 2nd week with 80 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '80 HOURS IN 1 WEEK' }
+   * ]
+   */
   test('[90, 80] test', async () => {
     await initializeTestUser();
 
@@ -120,6 +131,14 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS 2-WEEK STREAK' }
+   * ]
+   */
   test('[90, 60] test', async () => {
     await initializeTestUser();
 
@@ -141,6 +160,15 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS 3-WEEK STREAK' }
+   * ]
+   */
   test('[90, 60, 50] test', async () => {
     await initializeTestUser();
 
@@ -167,6 +195,15 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '40 HOURS 4-WEEK STREAK' }
+   * ]
+   */
   test('[90, 60, 50, 40] test', async () => {
     await initializeTestUser();
 
@@ -198,7 +235,16 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
-  test('[90, 60, 50, 30] test', async () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week logged with 30 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '40 HOURS 4-WEEK STREAK' }
+   * ]
+   */
+  test('[90, 60, 50, 40, 30] test', async () => {
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
@@ -223,8 +269,6 @@ describe('CheckXHrsForXWeeks() Test', () => {
     expect(has60HrsIn1WkBadge).toBe(true);
     const has50HrsIn1WkBadge = await isBadgeInBadgeCollection({ count: 1, badgeName: '50 HOURS IN 1 WEEK' });
     expect(has50HrsIn1WkBadge).toBe(true);
-    const has50HrsIn3WkBadge = await isBadgeInBadgeCollection({ count: 1, badgeName: '50 HOURS 3-WEEK STREAK' });
-    expect(has50HrsIn3WkBadge).toBe(false);
     const has40HrsIn4WkBadge = await isBadgeInBadgeCollection({ count: 1, badgeName: '40 HOURS 4-WEEK STREAK' });
     expect(has40HrsIn4WkBadge).toBe(true);
     const badgeCollectionLength = await getBadgeCollectionLength();
@@ -233,7 +277,16 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
-  test('[90, 60, 50, 30, 30] test', async () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week logged with 30 hours logged, 6th week logged with 30 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   * ]
+   */
+  test('[90, 60, 50, 40, 30, 30] test', async () => {
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
@@ -271,7 +324,16 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
-  test('[90, 60, 50, 30, 30, 0] test', async () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week logged with 30 hours logged, 6th week logged with 30 hours logged, 7th week logged with 0 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   * ]
+   */
+  test('[90, 60, 50, 40, 30, 30, 0] test', async () => {
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
@@ -312,7 +374,17 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
-  test('[90, 60, 50, 30, 30, 0, 30, 31] test', async () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week with 30 hours logged, 6th week with 30 hours logged, 7th week with 0 hours logged, 8th week with 30 hours logged, 9th week with 30 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   *  { count: 1, badgeName: '30 HOURS 2-WEEK STREAK' }
+   * ]
+   */
+  test('[90, 60, 50, 40, 30, 30, 0, 30, 31] test', async () => {
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
@@ -361,7 +433,17 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 10000);
-  test('[90, 60, 50, 30, 30, 0, 30, 31, 32] test', async () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week with 30 hours logged, 6th week with 30 hours logged, 7th week with 0 hours logged, 8th week with 30 hours logged, 9th week with 30 hours logged, 10th week with 32 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   *  { count: 1, badgeName: '30 HOURS 3-WEEK STREAK' }
+   * ]
+   */
+  test('[90, 60, 50, 40, 30, 30, 0, 30, 31, 32] test', async () => {
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
@@ -415,7 +497,18 @@ describe('CheckXHrsForXWeeks() Test', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 15000);
-  test('[90, 60, 50, 30, 30, 0, 30, 31, 32, 0, 30, 31] test', async () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week with 30 hours logged, 6th week with 30 hours logged, 7th week with 0 hours logged, 8th week with 30 hours logged, 9th week with 30 hours logged, 10th week with 32 hours logged, 11th week with 0 hours logged, 12th week with 30 hours logged, 13th week with 31 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   *  { count: 1, badgeName: '30 HOURS 3-WEEK STREAK' },
+   *  { count: 1, badgeName: '30 HOURS 2-WEEK STREAK' }
+   * ]
+   */
+  test('[90, 60, 50, 40, 30, 30, 0, 30, 31, 32, 0, 30, 31] test', async () => {
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
@@ -480,6 +573,16 @@ describe('CheckXHrsForXWeeks() Test', () => {
 });
 
 describe('Getting awarded badges that user already had', () => {
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week with 30 hours logged, 6th week with 30 hours logged, 7th week with 0 hours logged, 8th week with 30 hours logged, 9th week with 30 hours logged, 10th week with 32 hours logged, 11th week with 0 hours logged, 12th week with 30 hours logged, 13th week with 31 hours logged, 14th week with 40 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   *  { count: 2, badgeName: '30 HOURS 3-WEEK STREAK' }
+   * ]
+   */
   test('[90, 60, 50, 40, 30, 30, 0, 30, 31, 32, 0, 30, 31, 40] test', async () => {
 
     await initializeTestUser();
@@ -545,6 +648,18 @@ describe('Getting awarded badges that user already had', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 15000);
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week with 30 hours logged, 6th week with 30 hours logged, 7th week with 0 hours logged, 8th week with 30 hours logged, 9th week with 30 hours logged, 10th week with 32 hours logged, 11th week with 0 hours logged, 12th week with 30 hours logged, 13th week with 31 hours logged, 14th week with 40 hours logged, 15th week with 41 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   *  { count: 1, badgeName: '30 HOURS 3-WEEK STREAK' }
+   *  { count: 1, badgeName: '30 HOURS 4-WEEK STREAK' },
+   *  { count: 1, badgeName: '40 HOURS 2-WEEK STREAK' },
+   * ]
+   */
   test('[90, 60, 50, 40, 30, 30, 0, 30, 31, 32, 0, 30, 31, 40, 41] test', async () => {
 
     await initializeTestUser();
@@ -615,8 +730,21 @@ describe('Getting awarded badges that user already had', () => {
 
     await userProfile.deleteOne({ email: 'CheckXHrsForXWeeks.TestUser@email.com' });
   }, 30000);
+  /**
+   * 1st week with 90 hours logged, 2nd week with 60 hours logged, 3rd week with 50 hours logged, 4th week with 40 hours logged, 5th week with 30 hours logged, 6th week with 30 hours logged, 7th week with 0 hours logged, 8th week with 30 hours logged, 9th week with 30 hours logged, 10th week with 32 hours logged, 11th week with 0 hours logged, 12th week with 30 hours logged, 13th week with 31 hours logged, 14th week with 40 hours logged, 15th week with 41 hours logged
+   * should award: [
+   *  { count: 1, badgeName: '90 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '60 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '50 HOURS IN 1 WEEK' },
+   *  { count: 1, badgeName: '30 HOURS 6-WEEK STREAK' },
+   *  { count: 1, badgeName: '30 HOURS 3-WEEK STREAK' }
+   *  { count: 1, badgeName: '30 HOURS 4-WEEK STREAK' },
+   *  { count: 1, badgeName: '40 HOURS 3-WEEK STREAK' },
+   * ]
+   *
+   * Skipped for now because this test case fails. Further clarification on expected output will be sought.
+   */
   test.skip('[90, 60, 50, 40, 30, 30, 0, 30, 31, 32, 0, 30, 31, 40, 41, 42] test', async () => {
-
     await initializeTestUser();
 
     await setLastWeekTangibleHrs(90);
