@@ -69,6 +69,13 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -152,7 +159,7 @@ const dashboardhelper = function () {
     return output;
   };
 
-  const getLeaderboard = function (userId) {
+  const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     const pdtstart = moment()
       .tz('America/Los_Angeles')
@@ -162,7 +169,7 @@ const dashboardhelper = function () {
       .tz('America/Los_Angeles')
       .endOf('week')
       .format('YYYY-MM-DD');
-    return myTeam.aggregate([
+    const output = await myTeam.aggregate([
       {
         $match: {
           _id: userid,
@@ -282,6 +289,13 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
                   },
                 ],
               },
@@ -410,6 +424,7 @@ const dashboardhelper = function () {
         },
       },
     ]);
+    return output;
   };
 
   /**
@@ -438,6 +453,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
+        entryType: { $in: ['default', null] },
         personId: userId,
       });
 
@@ -575,6 +591,13 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -651,6 +674,13 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
                   },
                 ],
               },
