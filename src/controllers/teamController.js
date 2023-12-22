@@ -157,11 +157,17 @@ const teamcontroller = function (Team) {
           .exec();
         const addUserToTeam = Team.updateOne(
           { _id: team._id },
-          { $addToSet: { members: { $each: assignlist.map(userId => ({ userId })) } } },
+          {
+            $addToSet: { members: { $each: assignlist.map(userId => ({ userId })) } },
+            $set: { modifiedDatetime: Date.now() },
+          },
         ).exec();
         const removeUserFromTeam = Team.updateOne(
           { _id: team._id },
-          { $pull: { members: { userId: { $in: unassignlist } } } },
+          {
+            $pull: { members: { userId: { $in: unassignlist } } },
+            $set: { modifiedDatetime: Date.now() },
+          },
         ).exec();
 
         Promise.all([addTeamToUserProfile, removeTeamFromUserProfile, addUserToTeam, removeUserFromTeam])
