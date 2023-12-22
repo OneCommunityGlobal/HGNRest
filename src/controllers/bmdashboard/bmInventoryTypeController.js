@@ -12,10 +12,19 @@ function bmInventoryTypeController(InvType) {
   }
 
   async function addEquipmentType(req, res) {
-    const { name, desc } = req.body;
-    console.log(name, desc);
+    const { name, desc: description } = req.body;
+    const newDoc = {
+      category: 'Equipment',
+      name,
+      description,
+      unit: 'irrelevant',
+      imageUrl: 'test string',
+    };
     try {
-      res.status(201).send({ message: 'Hello world!' });
+      InvType
+        .create(newDoc)
+        .then(() => res.status(201).send())
+        .catch(error => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }
