@@ -484,8 +484,8 @@ const userHelper = function () {
             emailBody,
             null,
             "onecommunityglobal@gmail.com",
-            null,
-            status.email
+            status.email,
+            null
           );
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
@@ -584,9 +584,9 @@ const userHelper = function () {
         },
         {
           $lookup: {
-            from: "timeEntries",
-            localField: "_id",
-            foreignField: "personId",
+            from: 'timeEntries',
+            localField: '_id',
+            foreignField: 'personId',
             pipeline: [
               {
                 $match: {
@@ -595,6 +595,7 @@ const userHelper = function () {
                       { $eq: ["$isTangible", true] },
                       { $gte: ["$dateOfWork", startOfLastWeek] },
                       { $lte: ["$dateOfWork", endOfLastWeek] },
+                      { $in: ["$entryType", 'default', null] },
                     ],
                   },
                 },
