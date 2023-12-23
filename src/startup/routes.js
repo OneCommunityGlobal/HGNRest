@@ -22,8 +22,15 @@ const mouseoverText = require('../models/mouseoverText');
 const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
-const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
+// const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
 const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const {
+  materialType,
+  consumableType,
+  reusableType,
+  toolType,
+  equipmentType,
+} = require('../models/bmdashboard/buildingInventoryType');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -64,7 +71,7 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
-const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType);
+const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(materialType, consumableType, reusableType, toolType, equipmentType);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
