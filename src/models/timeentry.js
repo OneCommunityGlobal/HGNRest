@@ -8,7 +8,7 @@ const TimeEntry = new Schema({
   personId: { type: Schema.Types.ObjectId, ref: 'userProfile' },
   projectId: { type: Schema.Types.ObjectId, ref: 'project' },
   wbsId: { type: Schema.Types.ObjectId, ref: 'project' },
-  taskId: { type: Schema.Types.ObjectId, ref: 'wbs' },
+  taskId: { type: Schema.Types.ObjectId, default: null, ref: 'wbs' },
   teamId: { type: Schema.Types.ObjectId, ref: 'task' },
   dateOfWork: { type: String, required: true },
   totalSeconds: { type: Number },
