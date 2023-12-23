@@ -1,8 +1,8 @@
 const express = require('express');
 
-const routes = function (invType) {
+const routes = function (matType, consType, reusType, toolType, equipType) {
   const inventoryTypeRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(invType);
+  const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(matType, consType, reusType, toolType, equipType);
 
   inventoryTypeRouter.route('/invtypes/materials')
     .get(controller.fetchMaterialTypes);

@@ -1,7 +1,7 @@
-function bmInventoryTypeController(InvType) {
+function bmInventoryTypeController(MatType, ConsType, ReusType, ToolType, EquipType) {
   async function fetchMaterialTypes(req, res) {
     try {
-      InvType
+      MatType
         .find()
         .exec()
         .then(result => res.status(200).send(result))
@@ -11,17 +11,19 @@ function bmInventoryTypeController(InvType) {
     }
   }
 
+  // TODO: validate request body
+  // TODO: update model
+  // TODO: Mongo error handling
   async function addEquipmentType(req, res) {
-    const { name, desc: description } = req.body;
+    const { name, desc: description, fuel: fuelType } = req.body;
     const newDoc = {
       category: 'Equipment',
       name,
       description,
-      unit: 'irrelevant',
-      imageUrl: 'test string',
+      fuelType,
     };
     try {
-      InvType
+      EquipType
         .create(newDoc)
         .then(() => res.status(201).send())
         .catch(error => res.status(500).send(error));

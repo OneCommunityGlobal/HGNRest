@@ -69,7 +69,7 @@ const toolType = invTypeBase.discriminator('tool', new mongoose.Schema({
 
 const equipmentType = invTypeBase.discriminator('equipment', new mongoose.Schema({
   category: { type: String, enum: ['Equipment'] },
-  fuelType: { type: String, required: true },
+  fuelType: { type: String, enum: ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'], required: true },
 }));
 
 module.exports = {
