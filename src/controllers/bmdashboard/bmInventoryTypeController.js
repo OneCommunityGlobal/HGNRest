@@ -11,9 +11,6 @@ function bmInventoryTypeController(MatType, ConsType, ReusType, ToolType, EquipT
     }
   }
 
-  // TODO: validate request body
-  // TODO: update model
-  // TODO: Mongo error handling
   async function addEquipmentType(req, res) {
     const { name, desc: description, fuel: fuelType } = req.body;
     const newDoc = {
@@ -26,7 +23,12 @@ function bmInventoryTypeController(MatType, ConsType, ReusType, ToolType, EquipT
       EquipType
         .create(newDoc)
         .then(() => res.status(201).send())
-        .catch(error => res.status(500).send(error));
+        .catch((error) => {
+          if (error._message.includes('validation failed')) {
+            res.status(400).send(error);
+          }
+          res.status(500).send(error);
+        });
     } catch (error) {
       res.status(500).send(error);
     }
