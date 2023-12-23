@@ -15,6 +15,13 @@ const formatSeconds = function (seconds) {
   return values.split(':');
 };
 
+const isGeneralTimeEntry = function (type) {
+  if (type === undefined || type === 'default') {
+    return true;
+  }
+  return false;
+};
+
 /**
  *
  * @param {*} firstName First name of the owner of the time entry that was modified
@@ -185,6 +192,7 @@ const timeEntrycontroller = function (TimeEntry) {
     session.startTransaction();
 
     const type = req.body.entryType;
+    const isGeneralEntry = isGeneralTimeEntry(type);
 
     try {
       if (!req.params.timeEntryId) {
@@ -192,8 +200,9 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error });
       }
 
-      if (!mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
-        || ((type === 'default' || type === 'project')
+      if (
+        !mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
+        || ((isGeneralEntry || type === 'project')
         && !mongoose.Types.ObjectId.isValid(req.body.projectId)
       )) {
         const error = 'ObjectIds are not correctly formed';
@@ -210,7 +219,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const newTotalSeconds = moment.duration({ hours: newHours, minutes: newMinutes }).asSeconds();
 
-      if (timeEntry.isTangible && newIsTangible && newTotalSeconds !== timeEntry.totalSeconds) {
+      if (isGeneralEntry && timeEntry.isTangible && newIsTangible && newTotalSeconds !== timeEntry.totalSeconds) {
         notifyEditByEmail(
           timeEntry.personId.toString(),
           timeEntry.totalSeconds,
@@ -233,7 +242,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // Update edit history
-      if ((type === 'default' || type === 'person')
+      if ((isGeneralEntry || type === 'person')
         && timeEntry.totalSeconds !== newTotalSeconds
         && timeEntry.isTangible
         && isForAuthUser
@@ -249,7 +258,7 @@ const timeEntrycontroller = function (TimeEntry) {
           newSeconds: newTotalSeconds,
         });
 
-        if (type === 'default') {
+        if (isGeneralEntry) {
           // Issue infraction if edit history contains more than 5 edits in the last year
           let totalRecentEdits = 0;
 
@@ -327,7 +336,8 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       const items = [];
       records.forEach((element) => {
-        if (element.entryType === 'default' || element.entryType === undefined) {
+        const isGeneralEntry = isGeneralTimeEntry(element.entryType);
+        if (isGeneralEntry) {
           const timeentry = new TimeEntry();
           timeentry.personId = element.personId;
           timeentry.projectId = element.projectId;
