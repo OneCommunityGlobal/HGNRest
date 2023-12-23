@@ -211,7 +211,6 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // Get initial timeEntry by timeEntryId
       const timeEntry = await TimeEntry.findById(timeEntryId);
-
       if (!timeEntry) {
         const error = `No valid records found for ${timeEntryId}`;
         return res.status(400).send({ error });
@@ -228,7 +227,8 @@ const timeEntrycontroller = function (TimeEntry) {
         );
       }
 
-      if (newTaskId) {
+      // update task data if project/task is changed
+      if (newTaskId === timeEntry.taskId) {
         const timeEntryTask = await Task.findById(newTaskId);
         const timeEntryUser = await UserProfile.findById(personId);
         if (timeEntry.isTangible) {
@@ -239,6 +239,19 @@ const timeEntrycontroller = function (TimeEntry) {
         }
         checkTaskOvertime(timeEntry, timeEntryUser, timeEntryTask);
         await timeEntryTask.save();
+      } else {
+        const oldTimeEntryTask = await Task.findById(timeEntry.taskId);
+        const newTimeEntryTask = await Task.findById(newTaskId);
+        const timeEntryUser = await UserProfile.findById(personId);
+        if (timeEntry.isTangible) {
+          oldTimeEntryTask.hoursLogged -= timeEntry.totalSeconds / 3600;
+        }
+        if (newIsTangible) {
+          newTimeEntryTask.hoursLogged += newTotalSeconds / 3600;
+        }
+        checkTaskOvertime(timeEntry, timeEntryUser, newTimeEntryTask);
+        await oldTimeEntryTask.save();
+        await newTimeEntryTask.save();
       }
 
       // Update edit history
