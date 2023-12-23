@@ -1,4 +1,5 @@
-const bmInventoryTypeController = function (InvType) {
+
+const bmInventoryTypeController = function (InvType,InvUnit) {
   const fetchMaterialTypes = async (req, res) => {
     try {
       InvType
@@ -19,7 +20,25 @@ const bmInventoryTypeController = function (InvType) {
       inventoryTypeObject.description = req.body.description;
       inventoryTypeObject.unit =  req.body.unit || req.body.customUnit;
       inventoryTypeObject.save()
-      .then(results => res.status(201).send(results))
+      .then(results =>{
+          if(req.body.customUnit)
+          {
+            const inventoryUnitObject = new InvUnit();
+            inventoryUnitObject.description = req.body.description;
+            inventoryUnitObject.unit =  req.body.customUnit;
+            inventoryUnitObject.save()
+            .then(results2 => {
+              res.status(201).send(results)
+              
+            })
+            .catch(errors => {
+              res.status(500).send(errors);
+            });
+          }
+          else {
+            res.status(201).send(results)
+          }
+        })
       .catch(errors => res.status(500).send(errors));
     } catch (err) {
       res.json(err);

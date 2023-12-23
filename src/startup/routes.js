@@ -25,6 +25,7 @@ const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
+const buildingInventoryUnit = require('../models/bmdashboard/buildingInventoryUnit');
 const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
@@ -66,7 +67,9 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
-const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType);
+const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType,buildingInventoryUnit);
+const bmInventoryUnitRouter = require('../routes/bmdashboard/bmInventoryUnitRouter')(buildingInventoryUnit);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -104,4 +107,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
+  app.use('/api/bm', bmInventoryUnitRouter);
 };
