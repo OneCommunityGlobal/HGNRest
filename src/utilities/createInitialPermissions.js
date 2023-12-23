@@ -30,6 +30,7 @@ const permissionsRoles = [
       'swapTask',
       'deleteTask',
       'updateNum',
+      'deadlineFollowUp',
       // Teams
       'postTeam',
       'deleteTeam',
@@ -129,6 +130,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'deadlineFollowUp',
     ],
   },
   {
@@ -155,6 +157,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'deadlineFollowUp',
     ],
   },
   {
@@ -217,6 +220,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'editTeamCode',
+      'deadlineFollowUp',
     ],
   },
 ];
