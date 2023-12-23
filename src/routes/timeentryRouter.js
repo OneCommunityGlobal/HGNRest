@@ -19,6 +19,15 @@ const routes = function (TimeEntry) {
   TimeEntryRouter.route('/TimeEntry/users')
     .post(controller.getTimeEntriesForUsersList);
 
+  TimeEntryRouter.route('/TimeEntry/lostUsers')
+    .post(controller.getLostTimeEntriesForUserList);
+
+  TimeEntryRouter.route('/TimeEntry/lostProjects')
+    .post(controller.getLostTimeEntriesForProjectList);
+
+  TimeEntryRouter.route('/TimeEntry/lostTeams')
+    .post(controller.getLostTimeEntriesForTeamList);
+
   TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate')
     .get(controller.getTimeEntriesForSpecifiedProject);
 
