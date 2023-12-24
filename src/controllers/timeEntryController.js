@@ -14,6 +14,13 @@ const formatSeconds = function (seconds) {
   return values.split(':');
 };
 
+const isGeneralTimeEntry = function (type) {
+  if (type === undefined || type === 'default') {
+    return true;
+  }
+  return false;
+};
+
 /**
  *
  * @param {*} firstName First name of the owner of the time entry that was modified
@@ -135,6 +142,7 @@ const timeEntrycontroller = function (TimeEntry) {
     session.startTransaction();
 
     const type = req.body.entryType;
+    const isGeneralEntry = isGeneralTimeEntry(type);
 
     try {
       if (!req.params.timeEntryId) {
@@ -147,7 +155,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       if (
         !mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
-        || ((type === 'default' || type === 'project')
+        || ((isGeneralEntry || type === 'project')
         && !mongoose.Types.ObjectId.isValid(req.body.projectId)
       )) {
           return res
@@ -169,7 +177,7 @@ const timeEntrycontroller = function (TimeEntry) {
       if (
         !(
           (await hasPermission(req.body.requestor, 'editTimeEntry'))
-          || (type === 'default'
+          || (isGeneralEntry
           && timeEntry.personId.toString()
             === req.body.requestor.requestorId.toString()
         )
@@ -183,7 +191,7 @@ const timeEntrycontroller = function (TimeEntry) {
       const totalSeconds = moment.duration(`${hours}:${minutes}`).asSeconds();
 
       if (
-        type === 'default'
+        isGeneralEntry
         && timeEntry.isTangible === true
         && totalSeconds !== timeEntry.totalSeconds
       ) {
@@ -207,13 +215,13 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.lastModifiedDateTime = moment().utc().toISOString();
       timeEntry.projectId = mongoose.Types.ObjectId(req.body.projectId);
       timeEntry.dateOfWork = moment(req.body.dateOfWork).format('YYYY-MM-DD');
-      timeEntry.entryType = req.body.entryType;
+      timeEntry.entryType = req.body.entryType === undefined ? 'default' : req.body.entryType;
 
       // Update the hoursLogged field of related tasks based on before and after timeEntries
       // initialIsTangible is a bealoon value, req.body.isTangible is a string
       // initialProjectId may be a task id or project id, so do not throw error.
       try {
-        if (type === 'default' && findTask) {
+        if (isGeneralEntry && findTask) {
           if (initialIsTangible === true) {
             findTask.hoursLogged -= initialSeconds / 3600;
           }
@@ -230,7 +238,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // Update edit history
       if (
-        (type === 'default' || type === 'person')
+        (isGeneralEntry || type === 'person')
         && initialSeconds !== totalSeconds
         && timeEntry.isTangible
         && req.body.requestor.requestorId === timeEntry.personId.toString()
@@ -245,7 +253,7 @@ const timeEntrycontroller = function (TimeEntry) {
           newSeconds: totalSeconds,
         });
 
-        if (type === 'default') {
+        if (isGeneralEntry) {
           // Issue infraction if edit history contains more than 5 edits in the last year
           let totalRecentEdits = 0;
 
@@ -303,7 +311,7 @@ const timeEntrycontroller = function (TimeEntry) {
       res.status(200).send({ message: 'Successfully updated time entry' });
 
       // If the time entry isn't related to a task (i.e. it's a project), then don't check for overtime (Most likely pr team)
-      if (type === 'default' && findTask) {
+      if (isGeneralEntry && findTask) {
         // checking if logged in hours exceed estimated time after timeentry edit for a task
         const record = await userProfile.findById(
           timeEntry.personId.toString(),
@@ -328,7 +336,8 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       const items = [];
       records.forEach((element) => {
-        if (element.entryType === 'default' || element.entryType === undefined) {
+        const isGeneralEntry = isGeneralTimeEntry(element.entryType);
+        if (isGeneralEntry) {
           const timeentry = new TimeEntry();
           timeentry.personId = element.personId;
           timeentry.projectId = element.projectId;
@@ -400,7 +409,7 @@ const timeEntrycontroller = function (TimeEntry) {
     timeentry.isTangible = req.body.isTangible;
     timeentry.createdDateTime = moment().utc().toISOString();
     timeentry.lastModifiedDateTime = moment().utc().toISOString();
-    timeentry.entryType = req.body.entryType;
+    timeentry.entryType = req.body.entryType === undefined ? 'default' : req.body.entryType;
 
     timeentry
       .save()
