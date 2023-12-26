@@ -253,7 +253,7 @@ const userHelper = function () {
       `;
 
       emailSender(
-        "onecommunityglobal@gmail.com, sangam.pravah@gmail.com, onecommunityhospitality@gmail.com",
+        "onecommunityglobal@gmail.com, onecommunityhospitality@gmail.com",
         "Weekly Summaries for all active users...",
         emailBody,
         null,
