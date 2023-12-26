@@ -71,6 +71,10 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      // Title
+      'seeQSC',
+      'addNewTitle',
+      'assignTitle',
     ],
   },
   {
@@ -217,6 +221,9 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'editTeamCode',
+      'seeQSC',
+      'addNewTitle',
+      'assignTitle',
     ],
   },
 ];

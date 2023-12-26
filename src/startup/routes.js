@@ -24,6 +24,7 @@ const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
 const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const title = require('../models/title');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -47,6 +48,7 @@ const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inve
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project , mapLocations);
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
+const titleRouter = require('../routes/titleRouter')(title);
 
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
@@ -59,6 +61,7 @@ const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
+
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -96,6 +99,8 @@ module.exports = function (app) {
   app.use('/api', mouseoverTextRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
+  app.use('/api', titleRouter);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
