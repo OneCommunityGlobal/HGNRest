@@ -5,10 +5,10 @@ const routes = function (buildingNewLesson) {
     const controller = require('../../controllers/bmdashboard/bmNewLessonController')(buildingNewLesson);
 
     // having GET request just for testing:
-    NewLessonRouter.route('/getnewlesson')
+    NewLessonRouter.route('/lessons')
         .get(controller.bmGetLessonList);
 
-    NewLessonRouter.route('/postnewlesson')
+    NewLessonRouter.route('/lessons/new')
         .post(controller.bmPostLessonList);
     return NewLessonRouter;
 };
