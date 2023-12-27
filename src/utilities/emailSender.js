@@ -2,7 +2,6 @@ const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const logger = require('../startup/logger');
 
-
 const closure = () => {
   const queue = [];
 
@@ -36,8 +35,8 @@ const closure = () => {
     if (!nextItem) return;
 
     const {
-      recipient, subject, message, cc, bcc,
-    } = nextItem;
+ recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt
+} = nextItem;
 
     try {
       // Generate the accessToken on the fly
@@ -51,6 +50,7 @@ const closure = () => {
         bcc,
         subject,
         html: message,
+        replyTo,
         auth: {
           user: CLIENT_EMAIL,
           refreshToken: REFRESH_TOKEN,
@@ -59,16 +59,36 @@ const closure = () => {
       };
 
       const result = await transporter.sendMail(mailOptions);
+      if (typeof acknowledgingReceipt === 'function') {
+        acknowledgingReceipt(null,result);
+      } 
       logger.logInfo(result);
     } catch (error) {
+      if (typeof acknowledgingReceipt === 'function') {
+        acknowledgingReceipt(error,null);
+      } 
       logger.logException(error);
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
-  const emailSender = function (recipient, subject, message, cc = null, bcc = null) {
+  const emailSender = function (
+    recipient,
+    subject,
+    message,
+    cc = null,
+    bcc = null,
+    replyTo = null,
+    acknowledgingReceipt = null,
+  ) {
     if (process.env.sendEmail) {
       queue.push({
-        recipient, subject, message, cc, bcc,
+        recipient,
+        subject,
+        message,
+        cc,
+        bcc,
+        replyTo,
+        acknowledgingReceipt
       });
     }
   };

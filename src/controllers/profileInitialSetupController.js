@@ -67,7 +67,7 @@ function informManagerMessage(user) {
         </tr>
         <tr>
             <td><strong>Location:</strong></td>
-            <td>${user.location}</td>
+            <td>${user.location.userProvided}, ${user.location.country}</td>
         </tr>
     </table> 
     <br>
@@ -76,12 +76,42 @@ function informManagerMessage(user) {
   return message;
 }
 
+const sendEmailWithAcknowledgment = (email, subject, message) => {
+  return new Promise((resolve, reject) => {
+    emailSender(
+      email,
+      subject,
+      message,
+      null,
+      null,
+      null,
+      (error,result) => { 
+        if (result) resolve(result) 
+        if (error) reject(result)
+      }
+    );
+  });
+};
+
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
   Project,
+  MapLocation
 ) {
   const { JWT_SECRET } = config;
+
+  const setMapLocation = async (locationData) => {
+  
+    const location = new MapLocation(locationData);
+
+    try {
+      const response = await location.save()
+      return response
+    } catch (err) {
+      return {type: "Error", message: err.message || 'An error occurred while saving the location'} 
+    }
+  }
 
   /*
   Function to handle token generation and email process:
@@ -114,15 +144,13 @@ const profileInitialSetupController = function (
         const savedToken = await newToken.save();
         const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
 
-        emailSender(
+        const acknowledgment = await sendEmailWithAcknowledgment(
           email,
-          'NEEDED: Complete your One Community profile setup',
-          sendLinkMessage(link),
-          null,
-          null,
+          "NEEDED: Complete your One Community profile setup",
+          sendLinkMessage(link)
         );
-
-        res.status(200).send(link);
+        
+        res.status(200).send(acknowledgment);
       }
     } catch (error) {
       res.status(400).send(`Error: ${error}`);
@@ -211,6 +239,7 @@ const profileInitialSetupController = function (
             newUser.collaborationPreference = req.body.collaborationPreference;
             newUser.timeZone = req.body.timeZone || 'America/Los_Angeles';
             newUser.location = req.body.location;
+            newUser.profilePic = req.body.profilePicture;
             newUser.permissions = {
                 frontPermissions: [],
                 backPermissions: [],
@@ -244,8 +273,20 @@ const profileInitialSetupController = function (
 
             const token = jwt.sign(jwtPayload, JWT_SECRET);
 
+            const locationData = {
+              firstName: req.body.firstName,
+              lastName: req.body.lastName,
+              jobTitle: req.body.jobTitle,
+              location: req.body.homeCountry,
+            }
+
             res.send({ token }).status(200);
 
+            const mapEntryResult = await setMapLocation(locationData)
+            if(mapEntryResult.type === "Error"){
+              console.log(mapEntryResult.message)
+            }
+            
             const NewUserCache = {
                 permissions: savedUser.permissions,
                 isActive: true,
@@ -286,9 +327,11 @@ const profileInitialSetupController = function (
     if (foundToken) {
       res.status(200).send({ userAPIKey: premiumKey });
     } else {
-      res.status(403).send('Unauthorized Request');
+      res.status(403).send("Unauthorized Request");
     }
   };
+
+  
 
   return {
     getSetupToken,
