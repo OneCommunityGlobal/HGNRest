@@ -5,8 +5,8 @@ const routes = function (buildingLesson) {
   const controller = require('../../controllers/bmdashboard/bmLessonController')(buildingLesson);
 
 lessonRouter.route('/lessons')
-  .get(controller.fetchAllLessons);
-
+  .get(controller.fetchAllLessons)
+  .post(controller.bmPostLessonList);
 lessonRouter.route('/lesson/:lessonId')
   .get(controller.fetchSingleLesson)
   .put(controller.editSingleLesson)
