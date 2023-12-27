@@ -8,7 +8,7 @@ const buildingNewLesson = new Schema({
     date: { type: Date, required: true, default: Date.now() },
     author: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
     tag: [{ type: String, required: true, maxLength: 10 }],
-    relatedProject: { type: mongoose.SchemaTypes.ObjectId, ref: 'project', required: true },
+    relatedProject: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProjects', required: true },
 });
 
-module.exports = mongoose.model('buildingNewLesson', buildingNewLesson, 'buildingNewLesson');
+module.exports = mongoose.model('buildingNewLesson', buildingNewLesson, 'buildingNewLessons');

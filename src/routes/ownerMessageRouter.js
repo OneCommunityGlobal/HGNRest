@@ -5,14 +5,11 @@ const routes = function (ownerMessage) {
   const OwnerMessageRouter = express.Router();
 
   OwnerMessageRouter.route('/ownerMessage')
-  .post(controller.postOwnerMessage)
-  .get(controller.getOwnerMessage)
-  .delete(controller.deleteOwnerMessage);
+    .get(controller.getOwnerMessage)
+    .put(controller.updateOwnerMessage)
+    .delete(controller.deleteOwnerMessage);
 
-  OwnerMessageRouter.route('/ownerMessage/:id')
-  .put(controller.updateOwnerMessage);
-
-return OwnerMessageRouter;
+  return OwnerMessageRouter;
 };
 
 module.exports = routes;
