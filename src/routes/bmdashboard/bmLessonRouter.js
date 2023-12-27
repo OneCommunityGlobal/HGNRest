@@ -6,7 +6,6 @@ const routes = function (buildingLesson) {
 
 lessonRouter.route('/lessons')
   .get(controller.fetchAllLessons)
-  .post(controller.bmPostLessonList);
 lessonRouter.route('/lesson/:lessonId')
   .get(controller.fetchSingleLesson)
   .put(controller.editSingleLesson)
