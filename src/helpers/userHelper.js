@@ -381,7 +381,6 @@ const userHelper = function () {
         ) {
           hasWeeklySummary = true;
         }
-        console.log('ended update Result');
 
         const cutOffDate = moment().subtract(1, "year");
 
@@ -781,9 +780,6 @@ const userHelper = function () {
     count = 1,
     featured = false
   ) {
-    console.log('personId:', personId);
-    console.log('badgeId:', badgeId);
-    console.log('count:', count);
     userProfile.findByIdAndUpdate(
       personId,
       {
@@ -799,7 +795,6 @@ const userHelper = function () {
         }
       }
     );
-    console.log('made it to the end!');
   };
 
   const removeDupBadge = async function (personId, badgeId) {
@@ -817,7 +812,6 @@ const userHelper = function () {
         }
       }
     );
-    console.log('badgeId After!', badgeId);
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
