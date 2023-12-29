@@ -97,8 +97,21 @@ const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
   Project,
+  MapLocation
 ) {
   const { JWT_SECRET } = config;
+
+  const setMapLocation = async (locationData) => {
+  
+    const location = new MapLocation(locationData);
+
+    try {
+      const response = await location.save()
+      return response
+    } catch (err) {
+      return {type: "Error", message: err.message || 'An error occurred while saving the location'} 
+    }
+  }
 
   /*
   Function to handle token generation and email process:
@@ -226,6 +239,7 @@ const profileInitialSetupController = function (
             newUser.collaborationPreference = req.body.collaborationPreference;
             newUser.timeZone = req.body.timeZone || 'America/Los_Angeles';
             newUser.location = req.body.location;
+            newUser.profilePic = req.body.profilePicture;
             newUser.permissions = {
                 frontPermissions: [],
                 backPermissions: [],
@@ -259,8 +273,20 @@ const profileInitialSetupController = function (
 
             const token = jwt.sign(jwtPayload, JWT_SECRET);
 
+            const locationData = {
+              firstName: req.body.firstName,
+              lastName: req.body.lastName,
+              jobTitle: req.body.jobTitle,
+              location: req.body.homeCountry,
+            }
+
             res.send({ token }).status(200);
 
+            const mapEntryResult = await setMapLocation(locationData)
+            if(mapEntryResult.type === "Error"){
+              console.log(mapEntryResult.message)
+            }
+            
             const NewUserCache = {
                 permissions: savedUser.permissions,
                 isActive: true,
@@ -301,9 +327,11 @@ const profileInitialSetupController = function (
     if (foundToken) {
       res.status(200).send({ userAPIKey: premiumKey });
     } else {
-      res.status(403).send('Unauthorized Request');
+      res.status(403).send("Unauthorized Request");
     }
   };
+
+  
 
   return {
     getSetupToken,
