@@ -859,41 +859,45 @@ const changeBadgeCount = async function (personId, badgeId, count) {
       removeDupBadge(personId, badgeId);
     } else if (count) {
       // Process exisiting earned date to match the new count
-      const userInfo = await userProfile.findById(personId);
-      let newEarnedDate = [];
-      const recordToUpdate = userInfo.badgeCollection.find(item => item.badge._id.toString() === badgeId.toString());
-      if (!recordToUpdate) {
-        throw new Error('Badge not found');
-      }
-      const copyOfEarnedDate = recordToUpdate.earnedDate;
-      if (copyOfEarnedDate.length < count) {
-      // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
-        while (copyOfEarnedDate.length < count) {
+      try {
+        const userInfo = await userProfile.findById(personId);
+        let newEarnedDate = [];
+        const recordToUpdate = userInfo.badgeCollection.find(item => item.badge._id.toString() === badgeId.toString());
+        if (!recordToUpdate) {
+          throw new Error('Badge not found');
+        }
+        const copyOfEarnedDate = recordToUpdate.earnedDate;
+        if (copyOfEarnedDate.length < count) {
+        // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
+          while (copyOfEarnedDate.length < count) {
+            copyOfEarnedDate.push(earnedDateBadge());
+          }
+        } else {
+        // if the EarnedDate count is greater than the new count, remove the oldest earned date of the collection until it matches the new count - 1
+          while (copyOfEarnedDate.length >= count) {
+            copyOfEarnedDate.shift();
+          }
           copyOfEarnedDate.push(earnedDateBadge());
         }
-      } else {
-      // if the EarnedDate count is greater than the new count, remove the oldest earned date of the collection until it matches the new count - 1
-        while (copyOfEarnedDate.length >= count) {
-          copyOfEarnedDate.shift();
-        }
-        copyOfEarnedDate.push(earnedDateBadge());
-      }
-      newEarnedDate = [...copyOfEarnedDate];
-      userProfile.updateOne(
-        { _id: personId, 'badgeCollection.badge': badgeId },
-        {
-          $set: {
-            'badgeCollection.$.count': count,
-            'badgeCollection.$.lastModified': Date.now().toString(),
-            'badgeCollection.$.earnedDate': newEarnedDate,
+        newEarnedDate = [...copyOfEarnedDate];
+        userProfile.updateOne(
+          { _id: personId, 'badgeCollection.badge': badgeId },
+          {
+            $set: {
+              'badgeCollection.$.count': count,
+              'badgeCollection.$.lastModified': Date.now().toString(),
+              'badgeCollection.$.earnedDate': newEarnedDate,
+            },
           },
-        },
-        (err) => {
-          if (err) {
-            throw new Error(err);
-          }
-        },
-      );
+          (err) => {
+            if (err) {
+              throw new Error(err);
+            }
+          },
+        );
+      } catch (err) {
+        logger.logException(err);
+      }
     }
   };
 
@@ -1487,6 +1491,7 @@ const changeBadgeCount = async function (personId, badgeId, count) {
   const awardNewBadges = async () => {
     console.log('Awarding');
     try {
+      // This will be used in production to run task on all users
       const users = await userProfile
         .find({ isActive: true })
         .populate('badgeCollection.badge');
@@ -1503,6 +1508,15 @@ const changeBadgeCount = async function (personId, badgeId, count) {
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
       }
+
+      // Testing purpose only
+      // You can lookup your user id in view profile and get the id from the url
+      // const user = await userProfile
+      //   .findOne({ _id: '65500b658e0b2922b80d5f9f' })
+      //   .populate('badgeCollection.badge');
+      // for (let badgeItem of user.badgeCollection){
+      //   await changeBadgeCount('65500b658e0b2922b80d5f9f', badgeItem.badge._id, badgeItem.count + 1);
+      // }
     } catch (err) {
       logger.logException(err);
     }
