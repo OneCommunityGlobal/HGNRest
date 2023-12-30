@@ -13,6 +13,7 @@ const invTypeBaseSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, required: true },
   imageUrl: String,
+  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
 });
 
 const invTypeBase = mongoose.model('invTypeBase', invTypeBaseSchema, 'buildingInventoryTypes');

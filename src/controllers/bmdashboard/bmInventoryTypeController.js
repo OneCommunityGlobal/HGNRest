@@ -12,12 +12,18 @@ function bmInventoryTypeController(MatType, ConsType, ReusType, ToolType, EquipT
   }
 
   async function addEquipmentType(req, res) {
-    const { name, desc: description, fuel: fuelType } = req.body;
+    const {
+      name,
+      desc: description,
+      fuel: fuelType,
+      requestor: { requestorId },
+    } = req.body;
     const newDoc = {
       category: 'Equipment',
       name,
       description,
       fuelType,
+      createdBy: requestorId,
     };
     try {
       EquipType
