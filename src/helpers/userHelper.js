@@ -50,6 +50,18 @@ const userHelper = function () {
   };
 
   const validateProfilePic = function (profilePic) {
+    if (typeof profilePic !== "string") {
+      return {
+        result: false,
+        errors: "Invalid image"
+      };
+    }
+    if (profilePic.startsWith('http') || profilePic.startsWith('https')) {
+      return {
+        result: true,
+        errors: "Valid image"
+      };
+    }
     const picParts = profilePic.split("base64");
     let result = true;
     const errors = [];
