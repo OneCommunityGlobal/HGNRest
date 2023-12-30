@@ -25,6 +25,7 @@ const sendEmailToAll = async (req, res) => {
         firstName: 'Haoji',
         email: { $ne: null },
         isActive: true,
+        emailSubscriptions: true,
       },
     );
     let to = '';
@@ -41,8 +42,25 @@ const sendEmailToAll = async (req, res) => {
   }
 };
 
+const updateEmailSubscriptions = async (req, res) => {
+  try {
+    const { emailSubscriptions } = req.body;
+    const { email } = req.body.requestor;
+    const user = await userProfile.findOneAndUpdate(
+      { email },
+      { emailSubscriptions },
+      { new: true },
+    );
+    res.status(200).send(user);
+  } catch (error) {
+    console.error('Error updating email subscriptions:', error);
+    res.status(500).send('Error updating email subscriptions');
+  }
+};  
+
 module.exports = {
   sendEmail,
-  sendEmailToAll
+  sendEmailToAll,
+  updateEmailSubscriptions,
 };
 

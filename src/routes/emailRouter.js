@@ -1,5 +1,5 @@
 const express = require('express');
-const { sendEmail, sendEmailToAll } = require('../controllers/emailController'); 
+const { sendEmail, sendEmailToAll, updateEmailSubscriptions } = require('../controllers/emailController'); 
 
 const routes = function () {
   const emailRouter = express.Router();
@@ -8,6 +8,9 @@ const routes = function () {
     .post(sendEmail)
   emailRouter.route( '/broadcast-emails' )
     .post( sendEmailToAll );
+  
+  emailRouter.route( '/update-email-subscriptions' )
+    .post( updateEmailSubscriptions );
 
   return emailRouter;
 };
