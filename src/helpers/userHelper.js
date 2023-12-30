@@ -1508,15 +1508,6 @@ const changeBadgeCount = async function (personId, badgeId, count) {
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
       }
-
-      // Testing purpose only
-      // You can lookup your user id in view profile and get the id from the url
-      // const user = await userProfile
-      //   .findOne({ _id: '65500b658e0b2922b80d5f9f' })
-      //   .populate('badgeCollection.badge');
-      // for (let badgeItem of user.badgeCollection){
-      //   await changeBadgeCount('65500b658e0b2922b80d5f9f', badgeItem.badge._id, badgeItem.count + 1);
-      // }
     } catch (err) {
       logger.logException(err);
     }
