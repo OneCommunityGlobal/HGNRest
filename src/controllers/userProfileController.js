@@ -35,7 +35,21 @@ async function ValidatePassword(req, res) {
     return;
   }
   // Verify request is authorized by self or adminsitrator
-  if (!userId === requestor.requestorId && !await hasPermission(req.body.requestor, 'updatePassword')) {
+  if (
+    userId !== requestor.requestorId &&
+    !(await hasPermission(req.body.requestor, 'updatePassword'))
+  ) {
+    res.status(403).send({
+      error: "You are unauthorized to update this user's password",
+    });
+    return;
+  }
+
+  // Verify request is authorized by self or adminsitrator
+  if (
+    userId === requestor.requestorId ||
+    !(await hasPermission(req.body.requestor, 'updatePassword'))
+  ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -52,38 +66,36 @@ async function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'getUserProfiles')) {
+    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
 
     UserProfile.find(
       {},
-      "_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate"
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
       })
       .then((results) => {
         if (!results) {
-          if (cache.getCache("allusers")) {
-            const getData = JSON.parse(cache.getCache("allusers"));
+          if (cache.getCache('allusers')) {
+            const getData = JSON.parse(cache.getCache('allusers'));
             res.status(200).send(getData);
             return;
-          }else{
-            res.status(500).send({ error: "User result was invalid" });
-            return;
           }
+          res.status(500).send({ error: 'User result was invalid' });
+          return;
         }
-        cache.setCache("allusers", JSON.stringify(results));
+        cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
-      
   };
 
   const getProjectMembers = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'getProjectMembers')) {
+    if (!(await hasPermission(req.body.requestor, 'getProjectMembers'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
@@ -93,24 +105,27 @@ const userProfileController = function (UserProfile) {
           $in: [req.params.projectId],
         },
       },
-      "_id firstName email",
+      '_id firstName email',
       (err, profiles) => {
         if (err) {
-          res.status(404).send("Error finding user profiles");
+          res.status(404).send('Error finding user profiles');
           return;
         }
         res.json(profiles);
-      }
+      },
     );
   };
 
   const postUserProfile = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'postUserProfile')) {
+    if (!(await hasPermission(req.body.requestor, 'postUserProfile'))) {
       res.status(403).send('You are not authorized to create new users');
       return;
     }
 
-    if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor, 'addDeleteEditOwners')) {
+    if (
+      req.body.role === 'Owner' &&
+      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+    ) {
       res.status(403).send('You are not authorized to create new owners');
       return;
     }
@@ -118,15 +133,14 @@ const userProfileController = function (UserProfile) {
     const userByEmail = await UserProfile.findOne({
       email: {
         $regex: escapeRegex(req.body.email),
-        $options: "i",
+        $options: 'i',
       },
     });
 
     if (userByEmail) {
       res.status(400).send({
-        error:
-          "That email address is already in use. Please choose another email address.",
-        type: "email",
+        error: 'That email address is already in use. Please choose another email address.',
+        type: 'email',
       });
       return;
     }
@@ -144,9 +158,8 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error:
-            "That phone number is already in use. Please choose another number.",
-          type: "phoneNumber",
+          error: 'That phone number is already in use. Please choose another number.',
+          type: 'phoneNumber',
         });
         return;
       }
@@ -159,9 +172,8 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error:
-          "That name is already in use. Please confirm if you want to use this name.",
-        type: "name",
+        error: 'That name is already in use. Please confirm if you want to use this name.',
+        type: 'name',
       });
       return;
     }
@@ -188,15 +200,15 @@ const userProfileController = function (UserProfile) {
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = req.body.createdDate;
     up.email = req.body.email;
-    up.weeklySummaries = req.body.weeklySummaries || [{ summary: "" }];
+    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.weeklySummaryOption = req.body.weeklySummaryOption;
-    up.mediaUrl = req.body.mediaUrl || "";
-    up.collaborationPreference = req.body.collaborationPreference || "";
-    up.timeZone = req.body.timeZone || "America/Los_Angeles";
+    up.mediaUrl = req.body.mediaUrl || '';
+    up.collaborationPreference = req.body.collaborationPreference || '';
+    up.timeZone = req.body.timeZone || 'America/Los_Angeles';
     up.location = req.body.location;
     up.permissions = req.body.permissions;
-    up.bioPosted = req.body.bioPosted || "default";
+    up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
 
     up.save()
@@ -218,9 +230,9 @@ const userProfileController = function (UserProfile) {
           lastName: up.lastName,
           email: up.email,
         };
-        const allUserCache = JSON.parse(cache.getCache("allusers"));
+        const allUserCache = JSON.parse(cache.getCache('allusers'));
         allUserCache.push(userCache);
-        cache.setCache("allusers", JSON.stringify(allUserCache));
+        cache.setCache('allusers', JSON.stringify(allUserCache));
       })
       .catch((error) => res.status(501).send(error));
   };
@@ -228,21 +240,24 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
-        await hasPermission(req.body.requestor, 'putUserProfile')
-        || req.body.requestor.requestorId === userid
-      )
+      canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        req.body.requestor.requestorId === userid)
     );
-  
-    const canEditTeamCode = req.body.requestor.role === "Owner" ||
-      req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+
+    const canEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
     if (!isRequestorAuthorized) {
-      res.status(403).send("You are not authorized to update this user");
+      res.status(403).send('You are not authorized to update this user');
       return;
     }
 
-    if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor, 'addDeleteEditOwners')) {
+    if (
+      req.body.role === 'Owner' &&
+      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+    ) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -250,7 +265,7 @@ const userProfileController = function (UserProfile) {
     cache.removeCache(`user-${userid}`);
     UserProfile.findById(userid, async (err, record) => {
       if (err || !record) {
-        res.status(404).send("No valid records found");
+        res.status(404).send('No valid records found');
         return;
       }
       // validate userprofile pic
@@ -264,13 +279,10 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      const originalinfringements = record.infringements
-        ? record.infringements
-        : [];
+      const originalinfringements = record.infringements ? record.infringements : [];
       record.jobTitle = req.body.jobTitle;
       record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
-      record.phoneNumberPubliclyAccessible =
-        req.body.phoneNumberPubliclyAccessible;
+      record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
 
       record.profilePic = req.body.profilePic;
       record.firstName = req.body.firstName;
@@ -292,25 +304,24 @@ const userProfileController = function (UserProfile) {
       record.isVisible = req.body.isVisible || false;
       record.isRehireable = req.body.isRehireable || false;
       record.totalIntangibleHrs = req.body.totalIntangibleHrs;
-      record.bioPosted = req.body.bioPosted || "default";
+      record.bioPosted = req.body.bioPosted || 'default';
       record.isFirstTimelog = req.body.isFirstTimelog;
       record.teamCode = req.body.teamCode;
-      record.emailSubscriptions = req.body.emailSubscriptions;
-      
-      if(!canEditTeamCode && record.teamCode !== req.body.teamCode){
-        res.status(403).send("You are not authorized to edit team code.");
+
+      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
         return;
       }
 
       record.teamCode = req.body.teamCode;
 
       // find userData in cache
-      const isUserInCache = cache.hasCache("allusers");
+      const isUserInCache = cache.hasCache('allusers');
       let allUserData;
       let userData;
       let userIdx;
       if (isUserInCache) {
-        allUserData = JSON.parse(cache.getCache("allusers"));
+        allUserData = JSON.parse(cache.getCache('allusers'));
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
@@ -325,12 +336,10 @@ const userProfileController = function (UserProfile) {
 
           // If their last update was made today, remove that
           const lasti = record.weeklycommittedHoursHistory.length - 1;
-          const lastChangeDate = moment(
-            record.weeklycommittedHoursHistory[lasti].dateChanged
-          );
+          const lastChangeDate = moment(record.weeklycommittedHoursHistory[lasti].dateChanged);
           const now = moment();
 
-          if (lastChangeDate.isSame(now, "day")) {
+          if (lastChangeDate.isSame(now, 'day')) {
             record.weeklycommittedHoursHistory.pop();
           }
 
@@ -343,8 +352,7 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory.push(newEntry);
         }
 
-        record.missedHours =
-          req.body.role === "Core Team" ? req.body?.missedHours ?? 0 : 0;
+        record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
         record.adminLinks = req.body.adminLinks;
         record.teams = Array.from(new Set(req.body.teams));
         record.projects = Array.from(new Set(req.body.projects));
@@ -376,8 +384,7 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
-          record.weeklycommittedHoursHistory[0].dateChanged =
-            record.createdDate;
+          record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
         }
 
         record.bioPosted = req.body.bioPosted || 'default';
@@ -392,7 +399,7 @@ const userProfileController = function (UserProfile) {
             userData.endDate = record.endDate.toISOString();
           }
         } else {
-          record.set("endDate", undefined, { strict: false });
+          record.set('endDate', undefined, { strict: false });
         }
         if (isUserInCache) {
           userData.role = record.role;
@@ -414,7 +421,7 @@ const userProfileController = function (UserProfile) {
             results.infringements,
             results.firstName,
             results.lastName,
-            results.email
+            results.email,
           );
           res.status(200).json({
             _id: record._id,
@@ -423,7 +430,7 @@ const userProfileController = function (UserProfile) {
           // update alluser cache if we have cache
           if (isUserInCache) {
             allUserData.splice(userIdx, 1, userData);
-            cache.setCache("allusers", JSON.stringify(allUserData));
+            cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
         .catch((error) => res.status(400).send(error));
@@ -432,21 +439,20 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
-    if (!await hasPermission(req.body.requestor, 'deleteUserProfile')) {
+    if (!(await hasPermission(req.body.requestor, 'deleteUserProfile'))) {
       res.status(403).send('You are not authorized to delete users');
       return;
     }
 
-    if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor, 'addDeleteEditOwners')) {
+    if (
+      req.body.role === 'Owner' &&
+      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+    ) {
       res.status(403).send('You are not authorized to delete this user');
       return;
     }
 
-    if (
-      !userId
-      || !option
-      || (option !== 'delete' && option !== 'archive')
-    ) {
+    if (!userId || !option || (option !== 'delete' && option !== 'archive')) {
       res.status(400).send({
         error: 'Bad request',
       });
@@ -493,7 +499,7 @@ const userProfileController = function (UserProfile) {
 
     cache.removeCache(`user-${userId}`);
     const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex(users => users._id === userId);
+    const userIdx = allUserData.findIndex((users) => users._id === userId);
     allUserData.splice(userIdx, 1);
     cache.setCache('allusers', JSON.stringify(allUserData));
 
@@ -554,7 +560,7 @@ const userProfileController = function (UserProfile) {
           res.status(200).send(results);
         });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -563,29 +569,31 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
     const { userId } = req.params;
     const { key, value } = req.body;
 
-    if (key === "teamCode") {
-      const canEditTeamCode = req.body.requestor.role === "Owner" ||
-        req.body.requestor.permissions?.frontPermissions.includes("editTeamCode");
+    if (key === 'teamCode') {
+      const canEditTeamCode =
+        req.body.requestor.role === 'Owner' ||
+        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if(!canEditTeamCode){
-        res.status(403).send("You are not authorized to edit team code.");
+      if (!canEditTeamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
         return;
       }
-  
     }
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
-    if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
+    if (!key || value === undefined)
+      return res.status(400).send({ error: 'Missing property or value' });
+    if (!key || value === undefined)
+      return res.status(400).send({ error: 'Missing property or value' });
 
     return UserProfile.findById(userId)
       .then((user) => {
@@ -598,9 +606,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -618,24 +626,27 @@ const userProfileController = function (UserProfile) {
         error: 'One of more required fields are missing',
       });
     }
-    // Verify request is authorized by self or adminsitrator
-    if (!userId === requestor.requestorId && !await hasPermission(req.body.requestor, 'updatePassword')) {
-      return res.status(403).send({
-        error: "You are unauthorized to update this user's password",
-      });
-    }
+    // Check if the requestor has the permission to update passwords.
+    const hasUpdatePasswordPermission = await hasPermission(requestor.role, 'updatePassword');
 
-    if (canRequestorUpdateUser(requestor.requestorId, userId)) {
+    // If the requestor is updating their own password, allow them to proceed.
+    if (userId === requestor.requestorId) {
+      console.log('Requestor is updating their own password');
+    }
+    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
+    else if (!hasUpdatePasswordPermission) {
+      console.log(
+        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission",
+      );
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
     }
 
     // Verify new and confirm new password are correct
-
     if (req.body.newpassword !== req.body.confirmnewpassword) {
-      res.status(400).send({
-        error: 'New and confirm new passwords are not same',
+      return res.status(400).send({
+        error: 'New and confirm new passwords are not the same',
       });
     }
 
@@ -664,11 +675,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
+              .catch((error) => res.status(500).send(error));
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -700,7 +711,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -717,7 +728,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -754,7 +765,7 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    if (!await hasPermission(req.body.requestor, 'changeUserStatus')) {
+    if (!(await hasPermission(req.body.requestor, 'changeUserStatus'))) {
       res.status(403).send('You are not authorized to change user status');
       return;
     }
@@ -773,7 +784,7 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();

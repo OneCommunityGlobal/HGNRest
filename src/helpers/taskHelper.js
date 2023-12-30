@@ -43,7 +43,7 @@ const taskHelper = function () {
           // dashboard tasks user roles hierarchy
           $or: [
             {
-              role:  { $in: ['Owner', 'Core Team'] },
+              role: { $in: ['Owner', 'Core Team'] },
             },
             {
               $and: [
@@ -51,7 +51,7 @@ const taskHelper = function () {
                   role: 'Administrator',
                 },
                 { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
-              ]
+              ],
             },
             {
               $and: [
@@ -112,6 +112,9 @@ const taskHelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
                   },
                 ],
               },
@@ -356,6 +359,9 @@ const taskHelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
                   },
                 ],
               },
