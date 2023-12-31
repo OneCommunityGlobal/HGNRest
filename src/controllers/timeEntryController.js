@@ -195,15 +195,15 @@ const timeEntrycontroller = function (TimeEntry) {
     const isGeneralEntry = isGeneralTimeEntry(type);
 
     try {
-      if (!req.params.timeEntryId) {
+      if (!timeEntryId) {
         const error = 'ObjectId in request param is not in correct format';
         return res.status(400).send({ error });
       }
 
       if (
-        !mongoose.Types.ObjectId.isValid(req.params.timeEntryId)
+        !mongoose.Types.ObjectId.isValid(timeEntryId)
         || ((isGeneralEntry || type === 'project')
-        && !mongoose.Types.ObjectId.isValid(req.body.projectId)
+        && !mongoose.Types.ObjectId.isValid(newProjectId)
       )) {
         const error = 'ObjectIds are not correctly formed';
         return res.status(400).send({ error });
@@ -228,30 +228,35 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // update task data if project/task is changed
-      if (newTaskId === timeEntry.taskId) {
+      if (newTaskId === timeEntry.taskId && newProjectId === timeEntry.projectId) {
+        // when project/task is the same
         const timeEntryTask = await Task.findById(newTaskId);
-        const timeEntryUser = await UserProfile.findById(personId);
-        if (timeEntry.isTangible) {
-          timeEntryTask.hoursLogged -= timeEntry.totalSeconds / 3600;
+        if (timeEntryTask) {
+          const timeEntryUser = await UserProfile.findById(personId);
+          if (timeEntry.isTangible) {
+            timeEntryTask.hoursLogged -= timeEntry.totalSeconds / 3600;
+          }
+          if (newIsTangible) {
+            timeEntryTask.hoursLogged += newTotalSeconds / 3600;
+          }
+          checkTaskOvertime(timeEntry, timeEntryUser, timeEntryTask);
+          await timeEntryTask.save();
         }
-        if (newIsTangible) {
-          timeEntryTask.hoursLogged += newTotalSeconds / 3600;
-        }
-        checkTaskOvertime(timeEntry, timeEntryUser, timeEntryTask);
-        await timeEntryTask.save();
       } else {
+        // update oldtTimeEntryTask
         const oldTimeEntryTask = await Task.findById(timeEntry.taskId);
-        const newTimeEntryTask = await Task.findById(newTaskId);
-        const timeEntryUser = await UserProfile.findById(personId);
-        if (timeEntry.isTangible) {
+        if (oldTimeEntryTask && timeEntry.isTangible) {
           oldTimeEntryTask.hoursLogged -= timeEntry.totalSeconds / 3600;
+          oldTimeEntryTask.save();
         }
-        if (newIsTangible) {
+        // update newtTimeEntryTask
+        const newTimeEntryTask = await Task.findById(newTaskId);
+        if (newTimeEntryTask && newIsTangible) {
+          const timeEntryUser = await UserProfile.findById(personId);
           newTimeEntryTask.hoursLogged += newTotalSeconds / 3600;
+          checkTaskOvertime(timeEntry, timeEntryUser, newTimeEntryTask);
+          await newTimeEntryTask.save();
         }
-        checkTaskOvertime(timeEntry, timeEntryUser, newTimeEntryTask);
-        await oldTimeEntryTask.save();
-        await newTimeEntryTask.save();
       }
 
       // Update edit history
