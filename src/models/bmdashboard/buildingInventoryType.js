@@ -11,7 +11,7 @@ const { Schema } = mongoose;
 
 const invTypeBaseSchema = new Schema({
   name: { type: String, required: true },
-  description: { type: String, required: true },
+  description: { type: String, required: true, maxLength: 150 },
   imageUrl: String,
   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
 });
