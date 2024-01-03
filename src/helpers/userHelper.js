@@ -13,7 +13,7 @@ const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const Reason = require('../models/reason');
 const token = require('../models/profileInitialSetupToken');
-
+const cache = require('../utilities/nodeCache')();
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -860,6 +860,7 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     } else if (count) {
       // Process exisiting earned date to match the new count
       try {
+        console.log('changeBadgeCount');
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(item => item.badge._id.toString() === badgeId.toString());
@@ -1507,6 +1508,10 @@ const changeBadgeCount = async function (personId, badgeId, count) {
         await checkLeadTeamOfXplus(personId, user, badgeCollection);
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
+        // remove cache after badge asssignment.
+        if (cache.hasCache(`user-${_id}`)) {
+          cache.removeCache(`user-${_id}`);
+        }
       }
     } catch (err) {
       logger.logException(err);
