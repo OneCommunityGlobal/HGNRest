@@ -70,6 +70,13 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -168,6 +175,7 @@ const dashboardhelper = function () {
       .tz('America/Los_Angeles')
       .endOf('week')
       .format('YYYY-MM-DD');
+
 
     let teamMemberIds = [userid]
     let teamMembers = [];
@@ -520,6 +528,7 @@ const dashboardhelper = function () {
     //     },
     //   },
     // ]);
+
   };
 
   /**
@@ -548,6 +557,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
+        entryType: { $in: ['default', null] },
         personId: userId,
       });
 
@@ -685,6 +695,13 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -761,6 +778,13 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
                   },
                 ],
               },
