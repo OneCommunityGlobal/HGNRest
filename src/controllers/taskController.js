@@ -837,7 +837,7 @@ const taskController = function (Task) {
   const getTasksForTeamsByUser = async (req, res) => {
     try {
       const userId = mongoose.Types.ObjectId(req.params.userId);
-      const teamsData = await taskHelper.getTasksForTeams(userId).exec();
+      const teamsData = await taskHelper.getTasksForTeams(userId);
       if (teamsData.length > 0) {
         res.status(200).send(teamsData);
       } else {
