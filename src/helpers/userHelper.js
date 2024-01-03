@@ -860,7 +860,6 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     } else if (count) {
       // Process exisiting earned date to match the new count
       try {
-        console.log('changeBadgeCount');
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(item => item.badge._id.toString() === badgeId.toString());
