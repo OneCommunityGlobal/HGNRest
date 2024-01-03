@@ -171,19 +171,20 @@ const dashboardhelper = function () {
 
     let teamMemberIds = [userid]
     let teamMembers = [];
+
     if(userRole!='Administrator' && userRole!='Owner' && userRole!='Core Team') //Manager , Mentor , Volunteer ... , Show only team members
     {
       
       const teamsResult = await team.find( { "members.userId": { $in: [userid] } }, {members:1} )
       .then((res)=>{ return res; }).catch((e)=>{})
-  
+
       teamsResult.map((_myTeam)=>{
         _myTeam.members.map((teamMember)=> {
           if(!teamMember.userId.equals(userid))
           teamMemberIds.push( teamMember.userId );
        } )
       })
-  
+
       teamMembers = await userProfile.find({ _id: { $in: teamMemberIds } , isActive:true },
           {role:1,firstName:1,lastName:1,isVisible:1,weeklycommittedHours:1,weeklySummaries:1})
         .then((res)=>{ return res;  }).catch((e)=>{})
@@ -202,9 +203,9 @@ const dashboardhelper = function () {
         .then((res)=>{ return res;  }).catch((e)=>{})
       }
 
-      
+     
     }
-    
+
     teamMemberIds = teamMembers.map(member => member._id);
 
     const timeEntries = await timeentry.find({
@@ -231,6 +232,7 @@ const dashboardhelper = function () {
 
       timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
     })
+
     
     let leaderBoardData = [];
     teamMembers.map((teamMember)=>{
@@ -267,6 +269,7 @@ const dashboardhelper = function () {
       // Finally, sort by role in ascending order
       return a.role.localeCompare(b.role);
     });
+
     return sortedLBData;
 
     // return myTeam.aggregate([
