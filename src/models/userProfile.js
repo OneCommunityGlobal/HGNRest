@@ -88,7 +88,7 @@ const userProfileSchema = new Schema({
       lng: { type: Number, default: '' },
     },
     country: { type: String, default: '' },
-    city: { type: String, default: '' }
+    city: { type: String, default: '' },
 
   },
   oldInfringements: [
