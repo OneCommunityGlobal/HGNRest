@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
-const wbs = require('../models/wbs');
+const WBS = require('../models/wbs');
+const UserProfile = require('../models/userProfile');
 const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
-const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -33,7 +33,7 @@ const taskController = function (Task) {
   const getWBSId = (req, res) => {
     const { wbsId } = req.params;
 
-    wbs.findById(wbsId)
+    WBS.findById(wbsId)
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
@@ -446,7 +446,7 @@ const taskController = function (Task) {
     });
 
     const saveTask = _task.save();
-    const saveWbs = wbs.findById(wbsId).then((currentwbs) => {
+    const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
       currentwbs.modifiedDatetime = Date.now();
       return currentwbs.save();
     });
@@ -803,31 +803,28 @@ const taskController = function (Task) {
     res.status(200).send('done');
   };
 
-  const getTasksByUserList = async (req, res) => {
-    const { members } = req.query;
-    const membersArr = members.split(',');
+  const getTasksByUserId = async (req, res) => {
+    const { userId } = req.params;
     try {
-      Task.find(
-        { 'resources.userID': { $in: membersArr } },
-        '-resources.profilePic',
-      ).then((results) => {
-        wbs
-          .find({
-            _id: { $in: results.map(item => item.wbsId) },
-          })
-          .then((projectIds) => {
-            const resultsWithProjectsIds = results.map((item) => {
-              item.set(
-                'projectId',
-                projectIds?.find(
-                  projectId => projectId._id.toString() === item.wbsId.toString(),
-                )?.projectId,
-                { strict: false },
-              );
-              return item;
-            });
-            res.status(200).send(resultsWithProjectsIds);
+      Task.find({
+        'resources.userID': mongoose.Types.ObjectId(userId),
+        }, '-resources.profilePic')
+      .then((results) => {
+        WBS.find({
+          _id: { $in: results.map(item => item.wbsId) },
+        }).then((WBSs) => {
+          const resultsWithProjectsIds = results.map((item) => {
+            item.set(
+              'projectId',
+              WBSs?.find(
+                wbs => wbs._id.toString() === item.wbsId.toString(),
+              )?.projectId,
+              { strict: false },
+            );
+            return item;
           });
+          res.status(200).send(resultsWithProjectsIds);
+        });
       });
     } catch (error) {
       res.status(400).send(error);
@@ -845,6 +842,7 @@ const taskController = function (Task) {
         res.status(200).send(singleUserData);
       }
     } catch (error) {
+      console.log(error);
       res.status(400).send(error);
     }
   };
@@ -872,8 +870,8 @@ const taskController = function (Task) {
 
   const getRecipients = async function (myUserId) {
     const recipients = [];
-    const user = await userProfile.findById(myUserId);
-    const membership = await userProfile.find({ role: { $in: ['Administrator', 'Manager', 'Mentor'] } });
+    const user = await UserProfile.findById(myUserId);
+    const membership = await UserProfile.find({ role: { $in: ['Administrator', 'Manager', 'Mentor'] } });
     membership.forEach((member) => {
       if (member.teams.some(team => user.teams.includes(team))) {
         recipients.push(member.email);
@@ -917,7 +915,7 @@ const taskController = function (Task) {
     updateAllParents,
     deleteTaskByWBS,
     moveTask,
-    getTasksByUserList,
+    getTasksByUserId,
     getTasksForTeamsByUser,
     updateTaskStatus,
     sendReviewReq,
