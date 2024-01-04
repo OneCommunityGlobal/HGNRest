@@ -49,7 +49,6 @@ const largeItemBaseSchema = mongoose.Schema({
   rentalDueDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
   imageUrl: String,
   purchaseRecord: [{
-    _id: false, // do not add _id field to subdocument
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
@@ -58,7 +57,6 @@ const largeItemBaseSchema = mongoose.Schema({
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
   }],
   updateRecord: [{ // track tool condition updates
-      _id: false,
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
