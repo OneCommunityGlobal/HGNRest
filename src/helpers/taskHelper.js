@@ -1,12 +1,6 @@
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
-const timeentry = require('../models/timeentry');
-const myTeam = require('../helpers/helperModels/myTeam');
-const team = require('../models/team');
-const Task = require('../models/task');
-const TaskNotification = require('../models/taskNotification');
-const Wbs = require('../models/wbs');
-const mongoose = require('mongoose');
+const myteam = require('../helpers/helperModels/myTeam');
 
 const taskHelper = function () {
   const getTasksForTeams = async function (userId) {
@@ -15,7 +9,6 @@ const taskHelper = function () {
     const userById = await userProfile.findOne({ _id: userid , isActive:true}, {role:1,firstName:1, lastName:1, role:1, isVisible:1, weeklycommittedHours:1, weeklySummaries:1})
                     .then((res)=>{ return res;  }).catch((e)=>{});
 
-                    
     if(userById==null) return null;
     const userRole = userById.role;
 
