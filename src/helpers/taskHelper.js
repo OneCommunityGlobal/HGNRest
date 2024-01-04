@@ -15,6 +15,7 @@ const taskHelper = function () {
     const userById = await userProfile.findOne({ _id: userid , isActive:true}, {role:1,firstName:1, lastName:1, role:1, isVisible:1, weeklycommittedHours:1, weeklySummaries:1})
                     .then((res)=>{ return res;  }).catch((e)=>{});
 
+                    
     if(userById==null) return null;
     const userRole = userById.role;
 
