@@ -176,7 +176,6 @@ const dashboardhelper = function () {
       .endOf('week')
       .format('YYYY-MM-DD');
 
-
     let teamMemberIds = [userid]
     let teamMembers = [];
 
@@ -211,7 +210,6 @@ const dashboardhelper = function () {
         .then((res)=>{ return res;  }).catch((e)=>{})
       }
 
-     
     }
 
     teamMemberIds = teamMembers.map(member => member._id);
