@@ -43,8 +43,8 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/tasks/moveTasks/:wbsId')
     .put(controller.moveTask);
 
-  wbsRouter.route('/tasks/userProfile')
-    .get(controller.getTasksByUserList);
+  wbsRouter.route('/tasks/user/:userId')
+    .get(controller.getTasksByUserId);
 
   wbsRouter.route('/user/:userId/teams/tasks')
     .get(controller.getTasksForTeamsByUser);
