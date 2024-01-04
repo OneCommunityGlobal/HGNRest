@@ -14,9 +14,8 @@ const bmNewLessonController = function (BuildingNewLesson) {
     };
     const bmPostLessonList = async (req, res) => {
         try {
-            const { id, title, content, author, tag, relatedProject} = req.body;
-            const newLesson = BuildingNewLesson.create(req.body);
-            newLesson.save().then(result => res.status(200).send(result))
+            const newLesson = BuildingNewLesson.create(req.body)
+            .then(result => res.status(201).send(result))
             .catch(error => res.status(500).send(error));
         } catch (err) {
             res.json(err);
