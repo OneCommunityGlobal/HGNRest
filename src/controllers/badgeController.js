@@ -47,8 +47,15 @@ const badgeController = function (Badge) {
 
   const fillEarnedDateToMatchCount = (earnedDate, count) => {
     const result = [...earnedDate];
-    while (result.length < count) {
+    if (result.length > count) {
+      while (result.length >= count) {
+        result.shift();
+      }
       result.push(formatDate());
+    } else if (result.length < count) {
+      while (result.length < count) {
+        result.push(formatDate());
+      }
     }
     return result;
   };
