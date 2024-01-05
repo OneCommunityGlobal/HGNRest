@@ -81,7 +81,16 @@ const userProfileSchema = new Schema({
   infringements: [
     { date: { type: String, required: true }, description: { type: String, required: true } },
   ],
-  location: { type: String, default: '' },
+  location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+
+  },
   oldInfringements: [
     { date: { type: String, required: true }, description: { type: String, required: true } },
   ],
@@ -168,9 +177,9 @@ const userProfileSchema = new Schema({
   },
   infoCollections: [
     {
- areaName: { type: String },
+      areaName: { type: String },
       areaContent: { type: String },
-  }],
+    }],
 });
 
 userProfileSchema.pre('save', function (next) {

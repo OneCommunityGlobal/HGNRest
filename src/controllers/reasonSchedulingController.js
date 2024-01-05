@@ -2,7 +2,7 @@
 const moment = require('moment-timezone');
 const UserModel = require('../models/userProfile');
 const ReasonModel = require('../models/reason');
-const emailSender = require("../utilities/emailSender");
+const emailSender = require('../utilities/emailSender');
 
 
 const postReason = async (req, res) => {
@@ -39,7 +39,7 @@ const postReason = async (req, res) => {
       });
     }
 
-     //Commented this condition to make reason scheduler available to all the users.
+     // Commented this condition to make reason scheduler available to all the users.
     // error case 1
     // if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
     //   return res.status(403).json({
@@ -86,13 +86,11 @@ const postReason = async (req, res) => {
       userId,
     });
 
-    
-    //await newReason.save();
+
+    // await newReason.save();
    const savedData = await newReason.save();
-    if(savedData)
-    {
-     
-      //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
+    if (savedData) {
+      // Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
      const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been set`;
 
           const emailBody = `<p> Hi ! </p>
@@ -104,19 +102,18 @@ const postReason = async (req, res) => {
           
           <p>Thank you,<br />
           One Community</p>`;
-         
-          
+
+
           // 1 hardcoded email- emailSender('@gmail.com', subject, emailBody, null, null);
 
-          // 2 user email - 
+          // 2 user email -
           emailSender(`${foundUser.email}`, subject, emailBody, null, null);
 
-          //3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
+          // 3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
           //  emailSender(`${foundUser.email},@gmail.com`, subject, emailBody, null, null);
      }
-  
-    return res.sendStatus(200);
 
+    return res.sendStatus(200);
   } catch (error) {
     console.log(error);
     return res.status(400).json({
@@ -259,12 +256,10 @@ const patchReason = async (req, res) => {
     }
 
     foundReason.reason = reasonData.message;
-   
+
     const savedData = await foundReason.save();
-    if(savedData)
-    {
-     
-      //Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
+    if (savedData) {
+      // Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
      const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been updated`;
 
           const emailBody = `<p> Hi ! </p>
@@ -276,17 +271,15 @@ const patchReason = async (req, res) => {
           
           <p>Thank you,<br />
           One Community</p>`;
-          
-          
+
+
           // 1 hardcoded email- emailSender('@gmail.com', subject, emailBody, null, null);
 
-          // 2 user email - 
+          // 2 user email -
           emailSender(`${foundUser.email}`, subject, emailBody, null, null);
 
-          //3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
+          // 3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
           //  emailSender(`${foundUser.email},@gmail.com`, subject, emailBody, null, null);
-         
-          
      }
 
     return res.status(200).json({
@@ -304,7 +297,7 @@ const deleteReason = async (req, res) => {
     const { reasonData, requestor } = req.body;
     const { userId } = req.params;
 
-    //error case 1
+    // error case 1
     if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
       return res.status(403).json({
         message:
