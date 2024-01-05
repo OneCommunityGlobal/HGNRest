@@ -24,6 +24,7 @@ const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
 const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const buildingTool = require('../models/bmdashboard/buildingTool');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -65,6 +66,7 @@ const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType);
+const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -101,4 +103,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
+  app.use('/api/bm', bmToolRouter);
 };
