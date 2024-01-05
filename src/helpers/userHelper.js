@@ -416,10 +416,8 @@ const userHelper = function () {
         if (timeNotMet || !hasWeeklySummary) {
           if (foundReason) {
             description = foundReason.reason;
-          } else {
-            if (timeNotMet && !hasWeeklySummary) {
+          } else if (timeNotMet && !hasWeeklySummary) {
               if (person.role == "Core Team"){
-                console.log(`processing Core Team: ${user.firstName}`);
                 description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
                   "dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}. You logged ${timeSpent.toFixed(
                   2
