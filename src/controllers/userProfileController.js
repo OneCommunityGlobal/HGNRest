@@ -236,7 +236,7 @@ const userProfileController = function (UserProfile) {
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
         await hasPermission(req.body.requestor, 'putUserProfile')
-        || req.body.requestor.requestorId === userid
+        || await hasPermission(req.body.requestor, 'manageAdminLinks') || req.body.requestor.requestorId === userid
       )
     );
 
