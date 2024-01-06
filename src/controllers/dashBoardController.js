@@ -211,7 +211,7 @@ const dashboardcontroller = function () {
         null,
         null,
         email,
-        null,
+        null
       );
       res.status(200).send('Success');
     } catch {

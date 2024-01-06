@@ -163,10 +163,10 @@ const dashboardhelper = function () {
 
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 })
-                    .then(res => res).catch((e) => {});
+    const userById = await userProfile.findOne({ _id: userid , isActive:true}, {role:1})
+                    .then((res)=>{ return res;  }).catch((e)=>{});
 
-    if (userById == null) return null;
+    if(userById==null) return null;
     const userRole = userById.role;
     const pdtstart = moment()
       .tz('America/Los_Angeles')
@@ -177,39 +177,42 @@ const dashboardhelper = function () {
       .endOf('week')
       .format('YYYY-MM-DD');
 
-    let teamMemberIds = [userid];
+    let teamMemberIds = [userid]
     let teamMembers = [];
 
-    if (userRole != 'Administrator' && userRole != 'Owner' && userRole != 'Core Team') // Manager , Mentor , Volunteer ... , Show only team members
+    if(userRole!='Administrator' && userRole!='Owner' && userRole!='Core Team') //Manager , Mentor , Volunteer ... , Show only team members
     {
-      const teamsResult = await team.find({ 'members.userId': { $in: [userid] } }, { members: 1 })
-      .then(res => res).catch((e) => {});
+      
+      const teamsResult = await team.find( { "members.userId": { $in: [userid] } }, {members:1} )
+      .then((res)=>{ return res; }).catch((e)=>{})
 
-      teamsResult.map((_myTeam) => {
-        _myTeam.members.map((teamMember) => {
-          if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-       });
-      });
+      teamsResult.map((_myTeam)=>{
+        _myTeam.members.map((teamMember)=> {
+          if(!teamMember.userId.equals(userid))
+          teamMemberIds.push( teamMember.userId );
+       } )
+      })
 
-      teamMembers = await userProfile.find({ _id: { $in: teamMemberIds }, isActive: true },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-    } else if (userRole == 'Administrator') { // All users except Owner and Core Team
+      teamMembers = await userProfile.find({ _id: { $in: teamMemberIds } , isActive:true },
+          {role:1,firstName:1,lastName:1,isVisible:1,weeklycommittedHours:1,weeklySummaries:1})
+        .then((res)=>{ return res;  }).catch((e)=>{})
+      
+    }
+    else { 
+      if(userRole == 'Administrator'){ //All users except Owner and Core Team
         const excludedRoles = ['Core Team', 'Owner'];
-        teamMembers = await userProfile.find({ isActive: true, role: { $nin: excludedRoles } },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      } else { // 'Core Team', 'Owner' //All users
-        teamMembers = await userProfile.find({ isActive: true },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
+        teamMembers = await userProfile.find({ isActive:true , role: { $nin: excludedRoles } },
+          {role:1,firstName:1,lastName:1,isVisible:1,weeklycommittedHours:1,weeklySummaries:1})
+        .then((res)=>{ return res;  }).catch((e)=>{})
       }
+      else{ //'Core Team', 'Owner' //All users
+        teamMembers = await userProfile.find({ isActive:true},
+          {role:1,firstName:1,lastName:1,isVisible:1,weeklycommittedHours:1,weeklySummaries:1})
+        .then((res)=>{ return res;  }).catch((e)=>{})
+      }
+
+     
+    }
 
     teamMemberIds = teamMembers.map(member => member._id);
 
@@ -218,14 +221,16 @@ const dashboardhelper = function () {
         $gte: pdtstart,
         $lte: pdtend,
       },
-      personId: { $in: teamMemberIds },
+      personId: { $in: teamMemberIds }
     });
 
-    const timeEntryByPerson = {};
-    timeEntries.map((timeEntry) => {
-      const personIdStr = timeEntry.personId.toString();
+    let timeEntryByPerson = {}
+    timeEntries.map((timeEntry)=>{
+        
+      let personIdStr = timeEntry.personId.toString();
 
-      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
+      if(timeEntryByPerson[personIdStr]==null) 
+         timeEntryByPerson[personIdStr] = {tangibleSeconds:0,intangibleSeconds:0,totalSeconds:0};
 
       if (timeEntry.isTangible === true) {
         timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
@@ -234,40 +239,41 @@ const dashboardhelper = function () {
       }
 
       timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
-    });
+    })
 
-
-    const leaderBoardData = [];
-    teamMembers.map((teamMember) => {
-        const obj = {
-          personId: teamMember._id,
-          role: teamMember.role,
-          name: `${teamMember.firstName } ${ teamMember.lastName}`,
-          isVisible: teamMember.isVisible,
-          hasSummary: teamMember.weeklySummaries?.length > 0 ? teamMember.weeklySummaries[0].summary != '' : false,
-          weeklycommittedHours: teamMember.weeklycommittedHours,
-          totaltangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600) || 0),
-          totalintangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600) || 0),
-          totaltime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600) || 0),
-          percentagespentintangible:
-              (timeEntryByPerson[teamMember._id.toString()] && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds != 0 && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds != 0)
-              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds) * 100
-              : 0,
-        };
+    
+    let leaderBoardData = [];
+    teamMembers.map((teamMember)=>{
+        let obj = {
+          personId : teamMember._id,
+          role : teamMember.role,
+          name : teamMember.firstName + ' ' + teamMember.lastName,
+          isVisible : teamMember.isVisible,
+          hasSummary : teamMember.weeklySummaries?.length > 0 ? teamMember.weeklySummaries[0].summary!='' : false,
+          weeklycommittedHours : teamMember.weeklycommittedHours,
+          totaltangibletime_hrs : ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600) || 0),
+          totalintangibletime_hrs : ((timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600) || 0),
+          totaltime_hrs : ((timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600) || 0),
+          percentagespentintangible : 
+              (timeEntryByPerson[teamMember._id.toString()] && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !=0 && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !=0) ? 
+              (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds) * 100
+              :
+              0
+        }
         leaderBoardData.push(obj);
-    });
+    })
 
-    const sortedLBData = leaderBoardData.sort((a, b) => {
+    let sortedLBData = leaderBoardData.sort((a, b) => {
       // Sort by totaltangibletime_hrs in descending order
       if (b.totaltangibletime_hrs !== a.totaltangibletime_hrs) {
         return b.totaltangibletime_hrs - a.totaltangibletime_hrs;
       }
-
+    
       // Then sort by name in ascending order
       if (a.name !== b.name) {
         return a.name.localeCompare(b.name);
       }
-
+    
       // Finally, sort by role in ascending order
       return a.role.localeCompare(b.role);
     });
