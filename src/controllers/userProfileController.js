@@ -318,7 +318,13 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
-      if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
+      if (
+        (await hasPermission(
+          req.body.requestor,
+          "putUserProfileImportantInfo"
+        )) ||
+        (await hasPermission(req.body.requestor, "manageAdminLinks"))
+      ) {
         record.role = req.body.role;
         record.isRehireable = req.body.isRehireable;
         record.isActive = req.body.isActive;
@@ -384,7 +390,8 @@ const userProfileController = function (UserProfile) {
 
         record.bioPosted = req.body.bioPosted || 'default';
 
-        if (await hasPermission(req.body.requestor, 'putUserProfilePermissions')) {
+        if (await hasPermission(req.body.requestor, "putUserProfilePermissions")
+        ) {
           record.permissions = req.body.permissions;
         }
 
