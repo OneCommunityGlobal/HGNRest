@@ -54,6 +54,7 @@
     "cron": "^1.8.2",
     "dotenv": "^5.0.1",
     "express": "^4.18.2",
+    "express-validator": "^7.0.1",
     "googleapis": "^100.0.0",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
