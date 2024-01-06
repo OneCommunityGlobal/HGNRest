@@ -74,6 +74,7 @@ const equipmentType = invTypeBase.discriminator('equipment', new mongoose.Schema
 }));
 
 module.exports = {
+  invTypeBase,
   materialType,
   consumableType,
   reusableType,
