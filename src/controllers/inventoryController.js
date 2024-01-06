@@ -7,7 +7,7 @@ const escapeRegex = require('../utilities/escapeRegex');
 
 const inventoryController = function (Item, ItemType) {
   const getAllInvInProjectWBS = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getAllInvInProjectWBS')) {
+    if (!await hasPermission(req.body.requestor, 'getAllInvInProjectWBS')) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.params.projectId and wbsId
@@ -40,7 +40,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const postInvInProjectWBS = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'postInvInProjectWBS')) {
+    if (!await hasPermission(req.body.requestor, 'postInvInProjectWBS')) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.body.projectId and req.body.wbsId req.body.quantity,
@@ -108,7 +108,7 @@ const inventoryController = function (Item, ItemType) {
 
 
   const getAllInvInProject = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getAllInvInProject')) {
+    if (!await hasPermission(req.body.requestor, 'getAllInvInProject')) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // same as getAllInvInProjectWBS but just using only the project to find the items of inventory
@@ -140,7 +140,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const postInvInProject = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'postInvInProject')) {
+    if (!await hasPermission(req.body.requestor, 'postInvInProject')) {
       return res.status(403).send('You are not authorized to post new inventory data.');
     }
     // same as posting an item inProjectWBS but the WBS is uanassigned(i.e. null)
@@ -194,7 +194,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const transferInvById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'transferInvById')) {
+    if (!await hasPermission(req.body.requestor, 'transferInvById')) {
       return res.status(403).send('You are not authorized to transfer inventory data.');
     }
     // This function transfer inventory by id
@@ -283,7 +283,7 @@ const inventoryController = function (Item, ItemType) {
 
 
   const delInvById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'delInvById')) {
+    if (!await hasPermission(req.body.requestor, 'delInvById')) {
       return res.status(403).send('You are not authorized to waste inventory.');
     }
     // send result just sending something now to have it work and not break anything
@@ -372,7 +372,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const unWasteInvById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'unWasteInvById')) {
+    if (!await hasPermission(req.body.requestor, 'unWasteInvById')) {
       return res.status(403).send('You are not authorized to unwaste inventory.');
     }
     const properUnWaste = await Item.findOne({ _id: req.params.invId, quantity: { $gte: req.body.quantity }, wasted: true }).select('_id').lean();
@@ -453,7 +453,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const getInvIdInfo = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getInvIdInfo')) {
+    if (!await hasPermission(req.body.requestor, 'getInvIdInfo')) {
       return res.status(403).send('You are not authorized to get inventory by id.');
     }
     // req.params.invId
@@ -465,7 +465,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const putInvById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'putInvById')) {
+    if (!await hasPermission(req.body.requestor, 'putInvById')) {
       return res.status(403).send('You are not authorized to edit inventory by id.');
     }
     // update the inv by id.
@@ -493,7 +493,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const getInvTypeById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getInvTypeById')) {
+    if (!await hasPermission(req.body.requestor, 'getInvTypeById')) {
       return res.status(403).send('You are not authorized to get inv type by id.');
     }
     // send result just sending something now to have it work and not break anything
@@ -504,7 +504,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const putInvType = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'putInvType')) {
+    if (!await hasPermission(req.body.requestor, 'putInvType')) {
       return res.status(403).send('You are not authorized to edit an inventory type.');
     }
     const { typeId } = req.params;
@@ -527,7 +527,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const getAllInvType = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'getAllInvType')) {
+    if (!await hasPermission(req.body.requestor, 'getAllInvType')) {
       return res.status(403).send('You are not authorized to get all inventory.');
     }
     // send result just sending something now to have it work and not break anything
@@ -537,7 +537,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const postInvType = async function (req, res) {
-    if (!await hasPermission(req.body.requestor.role, 'postInvType')) {
+    if (!await hasPermission(req.body.requestor, 'postInvType')) {
       return res.status(403).send('You are not authorized to save an inventory type.');
     }
     return ItemType.find({ name: { $regex: escapeRegex(req.body.name), $options: 'i' } })
@@ -548,10 +548,15 @@ const inventoryController = function (Item, ItemType) {
         }
         const itemType = new ItemType();
 
+        itemType.type = req.body.type;
         itemType.name = req.body.name;
         itemType.description = req.body.description;
+        itemType.uom = req.body.uom;
+        itemType.totalStock = req.body.totalStock;
+        itemType.totalAvailable = req.body.totalAvailable;
+        itemType.projectsUsing = [];
         itemType.imageUrl = req.body.imageUrl || req.body.imageURL;
-        itemType.quantifier = req.body.quantifier;
+        itemType.link = req.body.link;
 
         itemType.save()
           .then(results => res.status(201).send(results))
