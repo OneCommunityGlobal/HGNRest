@@ -138,11 +138,11 @@ const teamcontroller = function (Team) {
 
 
       if (operation === 'Assign') {
-        await Team.findOneAndUpdate({ _id: teamId }, { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } }, { new: true });
+        await Team.findOneAndUpdate({ _id: teamId }, { $addToSet: { members: { userId } } }, { new: true });
         const newMember = await userProfile.findOneAndUpdate({ _id: userId }, { $addToSet: { teams: teamId } }, { new: true });
         res.status(200).send({ newMember });
       } else {
-        await Team.findOneAndUpdate({ _id: teamId }, { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } });
+        await Team.findOneAndUpdate({ _id: teamId }, { $pull: { members: { userId } } });
         await userProfile.findOneAndUpdate({ _id: userId }, { $pull: { teams: teamId } }, { new: true });
         res.status(200).send({ result: 'Delete Success' });
       }

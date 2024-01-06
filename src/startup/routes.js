@@ -46,7 +46,7 @@ const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBack
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
-const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project, mapLocations);
+const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project , mapLocations);
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
 
