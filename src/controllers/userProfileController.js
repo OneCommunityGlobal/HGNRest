@@ -307,7 +307,7 @@ const userProfileController = function (UserProfile) {
       record.bioPosted = req.body.bioPosted || 'default';
       record.isFirstTimelog = req.body.isFirstTimelog;
       record.teamCode = req.body.teamCode;
-
+      record.emailSubscriptions = req.body.emailSubscriptions;
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');
         return;

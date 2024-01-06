@@ -22,7 +22,6 @@ const sendEmailToAll = async (req, res) => {
     const { subject, html } = req.body;
     const users = await userProfile.find(
       {
-        firstName: 'Haoji',
         email: { $ne: null },
         isActive: true,
         emailSubscriptions: true,
