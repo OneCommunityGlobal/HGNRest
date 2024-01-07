@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 // documents stored in 'buildingInventoryItems' collection
 
 const smallItemBaseSchema = mongoose.Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   stockBought: { type: Number, default: 0 }, // total amount of item bought for use in the project
   // TODO: can stockAvailable default be a function?
