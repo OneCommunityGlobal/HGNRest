@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
+const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
       BuildingMaterial.find()
@@ -9,10 +9,10 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
           path: 'project',
           select: '_id name',
         },
-        {
-          path: 'itemType',
-          select: '_id name unit',
-        },
+        // {
+        //   path: 'itemType',
+        //   select: '_id name unit',
+        // },
         {
           path: 'updateRecord',
           populate: {
