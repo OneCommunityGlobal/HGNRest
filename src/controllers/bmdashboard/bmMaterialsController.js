@@ -42,15 +42,9 @@ const bmMaterialsController = function (BuildingMaterial) {
       matTypeId,
       quantity,
       priority,
-      brand,
+      brand: brandPref,
       requestor: { requestorId },
     } = req.body;
-    const newPurchaseRecord = {
-      quantity,
-      priority,
-      brand,
-      requestedBy: requestorId,
-    };
     try {
       // check if requestor has permission to make purchase request
       //! Note: this code is disabled until permissions are added
@@ -64,6 +58,12 @@ const bmMaterialsController = function (BuildingMaterial) {
       // check if the material is already being used in the project
       // if no, add a new document to the collection
       // if yes, update the existing document
+      const newPurchaseRecord = {
+        quantity,
+        priority,
+        brandPref,
+        requestedBy: requestorId,
+      };
       const doc = await BuildingMaterial.findOne({ project: projectId, itemType: matTypeId });
       if (!doc) {
         const newDoc = {
