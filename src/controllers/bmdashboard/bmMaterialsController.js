@@ -9,10 +9,10 @@ const bmMaterialsController = function (BuildingMaterial) {
           path: 'project',
           select: '_id name',
         },
-        // {
-        //   path: 'itemType',
-        //   select: '_id name unit',
-        // },
+        {
+          path: 'itemType',
+          select: '_id name unit',
+        },
         {
           path: 'updateRecord',
           populate: {
