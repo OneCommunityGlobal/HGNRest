@@ -1,27 +1,17 @@
 const mongoose = require('mongoose');
 
-// use in bmPurchaseMaterials auth check (see below)
-// const buildingProject = require('../../models/bmdashboard/buildingProject');
-
 const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
-      ItemMaterial.find()
+      BuildingMaterial.find()
       .populate([
         {
           path: 'project',
-          select: '_id projectName',
+          select: '_id name',
         },
         {
-          path: 'inventoryItemType',
-          select: '_id name uom totalStock totalAvailable',
-        },
-        {
-          path: 'usageRecord',
-          populate: {
-            path: 'createdBy',
-            select: '_id firstName lastName',
-          },
+          path: 'itemType',
+          select: '_id name unit',
         },
         {
           path: 'updateRecord',
@@ -33,7 +23,7 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
         {
           path: 'purchaseRecord',
           populate: {
-            path: 'createdBy',
+            path: 'requestedBy',
             select: '_id firstName lastName',
           },
         },
@@ -99,10 +89,122 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
       res.status(500).send(error);
     }
   };
+
+  const bmPostMaterialUpdateRecord = function (req, res) {
+    const payload = req.body;
+    let quantityUsed = +req.body.quantityUsed;
+    let quantityWasted = +req.body.quantityWasted;
+    const { material } = req.body;
+    if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+      }
+      if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+      }
+
+    if (quantityUsed > material.stockAvailable || quantityWasted > material.stockAvailable || (quantityUsed + quantityWasted) > material.stockAvailable) {
+      res.status(500).send('Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.');
+    } else {
+    let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
+    let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
+    let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
+    newStockUsed = parseFloat(newStockUsed.toFixed(4));
+    newStockWasted = parseFloat(newStockWasted.toFixed(4));
+    newAvailable = parseFloat(newAvailable.toFixed(4));
+    BuildingMaterial.updateOne(
+        { _id: req.body.material._id },
+
+          {
+            $set: {
+            stockUsed: newStockUsed,
+            stockWasted: newStockWasted,
+            stockAvailable: newAvailable,
+          },
+            $push: {
+              updateRecord: {
+                date: req.body.date,
+                createdBy: req.body.requestor.requestorId,
+                quantityUsed,
+                quantityWasted,
+              },
+            },
+          },
+
+        )
+        .then((results) => { res.status(200).send(results); })
+        .catch(error => res.status(500).send({ message: error }));
+   }
+  };
+
+  const bmPostMaterialUpdateBulk = function (req, res) {
+    const materialUpdates = req.body.upadateMaterials;
+    let errorFlag = false;
+    const updateRecordsToBeAdded = [];
+    for (let i = 0; i < materialUpdates.length; i++) {
+      const payload = materialUpdates[i];
+      let quantityUsed = +payload.quantityUsed;
+      let quantityWasted = +payload.quantityWasted;
+      const { material } = payload;
+      if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+      }
+      if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+      }
+
+      let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
+      let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
+      let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
+      newStockUsed = parseFloat(newStockUsed.toFixed(4));
+      newStockWasted = parseFloat(newStockWasted.toFixed(4));
+      newAvailable = parseFloat(newAvailable.toFixed(4));
+      if (newAvailable < 0) {
+        errorFlag = true;
+        break;
+      }
+      updateRecordsToBeAdded.push({
+        updateId: material._id,
+        set: {
+          stockUsed: newStockUsed,
+          stockWasted: newStockWasted,
+          stockAvailable: newAvailable,
+        },
+        updateValue: {
+          createdBy: req.body.requestor.requestorId,
+          quantityUsed,
+          quantityWasted,
+          date: req.body.date,
+        },
+});
+      }
+
+    try {
+      if (errorFlag) {
+        res.status(500).send('Stock quantities submitted seems to be invalid');
+        return;
+      }
+    const updatePromises = updateRecordsToBeAdded.map(updateItem => BuildingMaterial.updateOne(
+        { _id: updateItem.updateId },
+        {
+          $set: updateItem.set,
+          $push: { updateRecord: updateItem.updateValue },
+        },
+      ).exec());
+    Promise.all(updatePromises)
+    .then((results) => {
+      res.status(200).send({ result: `Successfully posted log for ${results.length} Material records.` });
+    })
+    .catch(error => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
   return {
     bmMaterialsList,
+    bmPostMaterialUpdateRecord,
+    bmPostMaterialUpdateBulk,
     bmPurchaseMaterials,
-  };
+};
 };
 
 module.exports = bmMaterialsController;

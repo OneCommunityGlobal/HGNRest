@@ -6,6 +6,14 @@ const routes = function (itemMaterial, buildingMaterial) {
   materialsRouter.route('/materials')
     .get(controller.bmMaterialsList)
     .post(controller.bmPurchaseMaterials);
+
+  materialsRouter.route('/updateMaterialRecord')
+    .post(controller.bmPostMaterialUpdateRecord);
+
+  materialsRouter.route('/updateMaterialRecordBulk')
+    .post(controller.bmPostMaterialUpdateBulk);
+
+
   return materialsRouter;
 };
 

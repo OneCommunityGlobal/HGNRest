@@ -1,9 +1,12 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
-const timeentry = require("../models/timeentry");
-const myTeam = require("../helpers/helperModels/myTeam");
-const team = require("../models/team");
+
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const timeentry = require('../models/timeentry');
+const myTeam = require('../helpers/helperModels/myTeam');
+const team = require('../models/team');
+
+
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
@@ -77,6 +80,13 @@ const dashboardhelper = function () {
                           "$$timeentry.entryType",
                           ["person", "team", "project"],
                         ],
+                      },
+                    ],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
@@ -165,10 +175,10 @@ const dashboardhelper = function () {
 
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const userById = await userProfile
-      .findOne({ _id: userid, isActive: true }, { role: 1 })
-      .then((res) => res)
-      .catch((e) => {});
+
+    const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 })
+                    .then(res => res).catch((e) => {});
+
 
     if (userById == null) return null;
     const userRole = userById.role;
@@ -177,12 +187,14 @@ const dashboardhelper = function () {
       .startOf("week")
       .format("YYYY-MM-DD");
     const pdtend = moment()
-      .tz("America/Los_Angeles")
-      .endOf("week")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .format('YYYY-MM-DD');
+
 
     let teamMemberIds = [userid];
     let teamMembers = [];
+
 
     if (
       userRole != "Administrator" &&
@@ -259,6 +271,7 @@ const dashboardhelper = function () {
 
     teamMemberIds = teamMembers.map((member) => member._id);
 
+
     const timeEntries = await timeentry.find({
       dateOfWork: {
         $gte: pdtstart,
@@ -271,24 +284,19 @@ const dashboardhelper = function () {
     timeEntries.map((timeEntry) => {
       const personIdStr = timeEntry.personId.toString();
 
-      if (timeEntryByPerson[personIdStr] == null) {
-        timeEntryByPerson[personIdStr] = {
-          tangibleSeconds: 0,
-          intangibleSeconds: 0,
-          totalSeconds: 0,
-        };
-      }
+
+      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
 
       if (timeEntry.isTangible === true) {
-        timeEntryByPerson[personIdStr].tangibleSeconds +=
-          timeEntry.totalSeconds;
+        timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
       } else {
-        timeEntryByPerson[personIdStr].intangibleSeconds +=
-          timeEntry.totalSeconds;
+        timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
+
       }
 
       timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
     });
+
 
     const leaderBoardData = [];
     teamMembers.map((teamMember) => {
@@ -323,6 +331,7 @@ const dashboardhelper = function () {
         timeOffTill: teamMember.timeOffTill || null,
       };
       leaderBoardData.push(obj);
+
     });
 
     const sortedLBData = leaderBoardData.sort((a, b) => {
@@ -618,7 +627,9 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
-        entryType: { $in: ["default", null] },
+
+        entryType: { $in: ['default', null] },
+
         personId: userId,
       });
 
@@ -766,6 +777,13 @@ const dashboardhelper = function () {
                       },
                     ],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -850,6 +868,13 @@ const dashboardhelper = function () {
                           "$$timeentry.entryType",
                           ["person", "team", "project"],
                         ],
+                      },
+                    ],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
