@@ -40,25 +40,10 @@ const taskHelper = function () {
       .tz("America/Los_Angeles")
       .endOf("week")
       .format("YYYY-MM-DD");
-      .tz("America/Los_Angeles")
-      .endOf("week")
-      .format("YYYY-MM-DD");
 
     let teamMemberIds = [userid];
     let teamMembers = [];
-    let teamMemberIds = [userid];
-    let teamMembers = [];
 
-    if (
-      userRole != "Administrator" &&
-      userRole != "Owner" &&
-      userRole != "Core Team"
-    ) {
-      // Manager , Mentor , Volunteer ... , Show only team members
-      const teamsResult = await team
-        .find({ "members.userId": { $in: [userid] } }, { members: 1 })
-        .then((res) => res)
-        .catch((e) => {});
     if (
       userRole != "Administrator" &&
       userRole != "Owner" &&

@@ -174,20 +174,17 @@ const dashboardhelper = function () {
       .then((res) => res)
       .catch((e) => {});
 
-
     if (userById == null) return null;
     const userRole = userById.role;
     const pdtstart = moment()
       .tz("America/Los_Angeles")
       .startOf("week")
       .format("YYYY-MM-DD");
-      .tz("America/Los_Angeles")
-      .startOf("week")
-      .format("YYYY-MM-DD");
+
     const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .format("YYYY-MM-DD");
 
     let teamMemberIds = [userid];
     let teamMembers = [];
@@ -213,9 +210,6 @@ const dashboardhelper = function () {
       teamMembers = await userProfile
         .find(
           { _id: { $in: teamMemberIds }, isActive: true },
-      teamMembers = await userProfile
-        .find(
-          { _id: { $in: teamMemberIds }, isActive: true },
           {
             role: 1,
             firstName: 1,
@@ -235,6 +229,7 @@ const dashboardhelper = function () {
       teamMembers = await userProfile
         .find(
           { isActive: true, role: { $nin: excludedRoles } },
+          {
             role: 1,
             firstName: 1,
             lastName: 1,
@@ -300,7 +295,13 @@ const dashboardhelper = function () {
     timeEntries.map((timeEntry) => {
       const personIdStr = timeEntry.personId.toString();
 
-      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
+      if (timeEntryByPerson[personIdStr] == null) {
+        timeEntryByPerson[personIdStr] = {
+          tangibleSeconds: 0,
+          intangibleSeconds: 0,
+          totalSeconds: 0,
+        };
+      }
 
       if (timeEntry.isTangible === true) {
         timeEntryByPerson[personIdStr].tangibleSeconds +=
