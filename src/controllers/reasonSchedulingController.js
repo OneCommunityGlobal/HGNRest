@@ -55,12 +55,13 @@ const postReason = async (req, res) => {
       });
     }
 
-    // new changes
+    // conditions added to check if timeOffFrom and timeOffTill fields existed
 
     if (
       foundUser.hasOwnProperty("timeOffFrom") &&
       foundUser.hasOwnProperty("timeOffTill")
     ) {
+      // if currentDate is greater than or equal to the last timeOffTill date then both the fields will be updated
       if (currentDate >= foundUser.timeOffTill) {
         await UserModel.findOneAndUpdate(
           {
@@ -74,6 +75,7 @@ const postReason = async (req, res) => {
           }
         );
       } else {
+        // else only timeOffTill will be updated
         await UserModel.findOneAndUpdate(
           {
             _id: userId,
@@ -86,6 +88,7 @@ const postReason = async (req, res) => {
         );
       }
     } else {
+      // if both the fields are not present then these fields will be added to mongoDB for that user
       await UserModel.findOneAndUpdate(
         {
           _id: userId,
