@@ -11,9 +11,6 @@ const postReason = async (req, res) => {
       .tz(reasonData.date, "America/Los_Angeles")
       .startOf("day");
     const currentDate = moment.tz("America/Los_Angeles").startOf("day");
-      .tz(reasonData.date, "America/Los_Angeles")
-      .startOf("day");
-    const currentDate = moment.tz("America/Los_Angeles").startOf("day");
 
     // error case 0
     if (moment.tz(reasonData.date, "America/Los_Angeles").day() !== 0) {
@@ -37,7 +34,6 @@ const postReason = async (req, res) => {
         errorCode: 6,
       });
     }
-
 
     // Commented this condition to make reason scheduler available to all the users.
     // error case 1
@@ -159,7 +155,6 @@ const postReason = async (req, res) => {
       // 3 - user email and hardcoded email ( After PR approval hardcode Jae's email)
       //  emailSender(`${foundUser.email},@gmail.com`, subject, emailBody, null, null);
     }
-
 
     return res.sendStatus(200);
   } catch (error) {
@@ -307,11 +302,9 @@ const patchReason = async (req, res) => {
 
     const savedData = await foundReason.save();
     if (savedData) {
-
       // Upon clicking the "Save" button in the Blue Square Reason Scheduler, an email will be automatically sent to the user and Jae.
       const subject = `Blue Square Reason for ${foundUser.firstName} ${foundUser.lastName} has been updated`;
 
-      const emailBody = `<p> Hi ! </p>
       const emailBody = `<p> Hi ! </p>
 
           <p>This email is to let you know that ${foundUser.firstName} ${foundUser.lastName} has updated their Blue Square Reason.</p>
@@ -331,7 +324,6 @@ const patchReason = async (req, res) => {
       //  emailSender(`${foundUser.email},@gmail.com`, subject, emailBody, null, null);
     }
 
-
     return res.status(200).json({
       message: "Reason Updated!",
       message: "Reason Updated!",
@@ -348,13 +340,12 @@ const deleteReason = async (req, res) => {
     const { reasonData, requestor } = req.body;
     const { userId } = req.params;
 
-
     // error case 1
     if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
       return res.status(403).json({
         message:
           "You must be an Owner or Administrator to schedule a reason for a Blue Square",
-          "You must be an Owner or Administrator to schedule a reason for a Blue Square",
+
         errorCode: 1,
       });
     }
