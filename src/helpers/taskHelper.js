@@ -1,16 +1,19 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
-const timeentry = require("../models/timeentry");
-const myTeam = require("../helpers/helperModels/myTeam");
-const team = require("../models/team");
-const Task = require("../models/task");
-const TaskNotification = require("../models/taskNotification");
-const Wbs = require("../models/wbs");
+
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const timeentry = require('../models/timeentry');
+const myTeam = require('../helpers/helperModels/myTeam');
+const team = require('../models/team');
+const Task = require('../models/task');
+const TaskNotification = require('../models/taskNotification');
+const Wbs = require('../models/wbs');
+
 
 const taskHelper = function () {
   const getTasksForTeams = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
+
     const userById = await userProfile
       .findOne(
         { _id: userid, isActive: true },
@@ -29,10 +32,12 @@ const taskHelper = function () {
       .then((res) => res)
       .catch((e) => {});
 
+
     if (userById == null) return null;
     const userRole = userById.role;
 
     const pdtstart = moment()
+
       .tz("America/Los_Angeles")
       .startOf("week")
       .format("YYYY-MM-DD");
@@ -211,6 +216,7 @@ const taskHelper = function () {
     });
 
     return teamMemberTasksData;
+
 
     // return myteam.aggregate([
     //   {
@@ -563,6 +569,9 @@ const taskHelper = function () {
                   },
                   {
                     $in: ["$$timeentry.entryType", ["default", null]],
+                  },
+                  {
+                    $in: ['$$timeentry.entryType', ['default', null]],
                   },
                 ],
               },

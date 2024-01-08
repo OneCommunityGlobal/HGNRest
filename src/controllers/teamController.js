@@ -29,16 +29,25 @@ const teamcontroller = function (Team) {
     }
 
     const team = new Team();
-
     team.teamName = req.body.teamName;
-    team.isACtive = true;
+    team.isActive = req.body.isActive;
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    team
-      .save()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+    // Check if a team with the same name already exists
+    Team.findOne({ teamName: team.teamName })
+      .then((existingTeam) => {
+        if (existingTeam) {
+          // If a team with the same name exists, return an error
+          res.status(400).send({ error: 'A team with this name already exists' });
+        } else {
+          // If no team with the same name exists, save the new team
+          team.save()
+            .then(results => res.send(results).status(200))
+            .catch(error => res.send(error).status(404));
+        }
+      })
+      .catch(error => res.send(error).status(404));
   };
   const deleteTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
@@ -106,66 +115,40 @@ const teamcontroller = function (Team) {
       return;
     }
 
-    if (
-      !req.params.teamId
-      || !mongoose.Types.ObjectId.isValid(req.params.teamId)
-      || !req.body.users
-      || req.body.users.length === 0
-    ) {
-      res.status(400).send({ error: 'Invalid request' });
+    const { teamId } = req.params;
+
+    if (!teamId || !mongoose.Types.ObjectId.isValid(teamId)) {
+      res.status(400).send({ error: 'Invalid teamId' });
       return;
     }
 
     // verify team exists
+    const targetTeam = await Team.findById(teamId);
 
-    Team.findById(req.params.teamId)
-      .then((team) => {
-        if (!team || team.length === 0) {
-          res.status(400).send({ error: 'Invalid team' });
-          return;
-        }
-        const { users } = req.body;
-        const assignlist = [];
-        const unassignlist = [];
+    if (!targetTeam || targetTeam.length === 0) {
+      res.status(400).send({ error: 'Invalid team' });
+      return;
+    }
 
-        users.forEach((element) => {
-          const { userId, operation } = element;
-          // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
-          if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
+    try {
+      const { userId, operation } = req.body;
 
-          if (operation === 'Assign') {
-            assignlist.push(userId);
-          } else {
-            unassignlist.push(userId);
-          }
-        });
+      // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
+      if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
-        const addTeamToUserProfile = userProfile
-          .updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: team._id } })
-          .exec();
-        const removeTeamFromUserProfile = userProfile
-          .updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: team._id } })
-          .exec();
-        const addUserToTeam = Team.updateOne(
-          { _id: team._id },
-          { $addToSet: { members: { $each: assignlist.map(userId => ({ userId })) } } },
-        ).exec();
-        const removeUserFromTeam = Team.updateOne(
-          { _id: team._id },
-          { $pull: { members: { userId: { $in: unassignlist } } } },
-        ).exec();
 
-        Promise.all([addTeamToUserProfile, removeTeamFromUserProfile, addUserToTeam, removeUserFromTeam])
-          .then(() => {
-            res.status(200).send({ result: 'Done' });
-          })
-          .catch((error) => {
-            res.status(500).send({ error });
-          });
-      })
-      .catch((error) => {
-        res.status(500).send({ error });
-      });
+      if (operation === 'Assign') {
+        await Team.findOneAndUpdate({ _id: teamId }, { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } }, { new: true });
+        const newMember = await userProfile.findOneAndUpdate({ _id: userId }, { $addToSet: { teams: teamId } }, { new: true });
+        res.status(200).send({ newMember });
+      } else {
+        await Team.findOneAndUpdate({ _id: teamId }, { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } });
+        await userProfile.findOneAndUpdate({ _id: userId }, { $pull: { teams: teamId } }, { new: true });
+        res.status(200).send({ result: 'Delete Success' });
+      }
+    } catch (error) {
+      res.status(500).send({ error });
+    }
   };
 
   const getTeamMembership = function (req, res) {

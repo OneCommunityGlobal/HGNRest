@@ -95,8 +95,10 @@ const userProfileSchema = new Schema({
       lat: { type: Number, default: "" },
       lng: { type: Number, default: "" },
     },
-    country: { type: String, default: "" },
-    city: { type: String, default: "" },
+
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+
   },
   oldInfringements: [
     {
