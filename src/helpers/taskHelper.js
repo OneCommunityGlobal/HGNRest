@@ -22,6 +22,8 @@ const taskHelper = function () {
           isVisible: 1,
           weeklycommittedHours: 1,
           weeklySummaries: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
         }
       )
       .then((res) => res)
@@ -68,6 +70,8 @@ const taskHelper = function () {
             firstName: 1,
             lastName: 1,
             weeklycommittedHours: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
           }
         )
         .then((res) => res)
@@ -83,6 +87,8 @@ const taskHelper = function () {
             firstName: 1,
             lastName: 1,
             weeklycommittedHours: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
           }
         )
         .then((res) => res)
@@ -97,6 +103,8 @@ const taskHelper = function () {
             firstName: 1,
             lastName: 1,
             weeklycommittedHours: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
           }
         )
         .then((res) => res)
@@ -196,6 +204,8 @@ const taskHelper = function () {
           timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600 ||
           0,
         tasks: taskByPerson[teamMember._id.toString()] || [],
+        timeOffFrom: teamMember.timeOffFrom || null,
+        timeOffTill: teamMember.timeOffTill || null,
       };
       teamMemberTasksData.push(obj);
     });
