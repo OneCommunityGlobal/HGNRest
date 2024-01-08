@@ -40,7 +40,12 @@ const taskHelper = function () {
       .tz("America/Los_Angeles")
       .endOf("week")
       .format("YYYY-MM-DD");
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .format("YYYY-MM-DD");
 
+    let teamMemberIds = [userid];
+    let teamMembers = [];
     let teamMemberIds = [userid];
     let teamMembers = [];
 
@@ -54,7 +59,23 @@ const taskHelper = function () {
         .find({ "members.userId": { $in: [userid] } }, { members: 1 })
         .then((res) => res)
         .catch((e) => {});
+    if (
+      userRole != "Administrator" &&
+      userRole != "Owner" &&
+      userRole != "Core Team"
+    ) {
+      // Manager , Mentor , Volunteer ... , Show only team members
+      const teamsResult = await team
+        .find({ "members.userId": { $in: [userid] } }, { members: 1 })
+        .then((res) => res)
+        .catch((e) => {});
 
+      teamsResult.map((_myTeam) => {
+        _myTeam.members.map((teamMember) => {
+          if (!teamMember.userId.equals(userid))
+            teamMemberIds.push(teamMember.userId);
+        });
+      });
       teamsResult.map((_myTeam) => {
         _myTeam.members.map((teamMember) => {
           if (!teamMember.userId.equals(userid))

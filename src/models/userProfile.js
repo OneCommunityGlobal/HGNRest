@@ -1,7 +1,11 @@
 const mongoose = require("mongoose");
 const moment = require("moment-timezone");
+const mongoose = require("mongoose");
+const moment = require("moment-timezone");
 
 const { Schema } = mongoose;
+const validate = require("mongoose-validator");
+const bcrypt = require("bcryptjs");
 const validate = require("mongoose-validator");
 const bcrypt = require("bcryptjs");
 
@@ -99,6 +103,10 @@ const userProfileSchema = new Schema({
     city: { type: String, default: "" },
   },
   oldInfringements: [
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
     {
       date: { type: String, required: true },
       description: { type: String, required: true },

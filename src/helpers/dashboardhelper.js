@@ -147,13 +147,17 @@ const dashboardhelper = function () {
           _id: 0,
           memberCount: { $sum: 1 },
           totalweeklycommittedHours: { $sum: "$_id.weeklycommittedHours" },
+          totalweeklycommittedHours: { $sum: "$_id.weeklycommittedHours" },
           totaltime_hrs: {
+            $sum: "$time_hrs",
             $sum: "$time_hrs",
           },
           totaltangibletime_hrs: {
             $sum: "$tangibletime_hrs",
+            $sum: "$tangibletime_hrs",
           },
           totalintangibletime_hrs: {
+            $sum: "$intangibletime_hrs",
             $sum: "$intangibletime_hrs",
           },
         },
@@ -170,16 +174,20 @@ const dashboardhelper = function () {
       .then((res) => res)
       .catch((e) => {});
 
+
     if (userById == null) return null;
     const userRole = userById.role;
     const pdtstart = moment()
       .tz("America/Los_Angeles")
       .startOf("week")
       .format("YYYY-MM-DD");
-    const pdtend = moment()
       .tz("America/Los_Angeles")
-      .endOf("week")
+      .startOf("week")
       .format("YYYY-MM-DD");
+    const pdtend = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .format('YYYY-MM-DD');
 
     let teamMemberIds = [userid];
     let teamMembers = [];
@@ -205,7 +213,28 @@ const dashboardhelper = function () {
       teamMembers = await userProfile
         .find(
           { _id: { $in: teamMemberIds }, isActive: true },
+      teamMembers = await userProfile
+        .find(
+          { _id: { $in: teamMemberIds }, isActive: true },
           {
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          }
+        )
+        .then((res) => res)
+        .catch((e) => {});
+    } else if (userRole == "Administrator") {
+      // All users except Owner and Core Team
+      const excludedRoles = ["Core Team", "Owner"];
+      teamMembers = await userProfile
+        .find(
+          { isActive: true, role: { $nin: excludedRoles } },
             role: 1,
             firstName: 1,
             lastName: 1,
@@ -271,13 +300,7 @@ const dashboardhelper = function () {
     timeEntries.map((timeEntry) => {
       const personIdStr = timeEntry.personId.toString();
 
-      if (timeEntryByPerson[personIdStr] == null) {
-        timeEntryByPerson[personIdStr] = {
-          tangibleSeconds: 0,
-          intangibleSeconds: 0,
-          totalSeconds: 0,
-        };
-      }
+      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
 
       if (timeEntry.isTangible === true) {
         timeEntryByPerson[personIdStr].tangibleSeconds +=
