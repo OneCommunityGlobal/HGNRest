@@ -28,16 +28,16 @@ const taskController = function (Task) {
     }
 
     Task.find(query)
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const getWBSId = (req, res) => {
     const { wbsId } = req.params;
 
     WBS.findById(wbsId)
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const updateSumUp = (
@@ -47,7 +47,7 @@ const taskController = function (Task) {
     hoursMost,
     hoursLogged,
     estimatedHours,
-    resources
+    resources,
   ) => {
     Task.findById(taskId, (error, task) => {
       task.hoursBest = hoursBest;
@@ -83,10 +83,10 @@ const taskController = function (Task) {
   };
 
   const calculateSubTasks = (level, tasks) => {
-    const parentTasks = tasks.filter((task) => task.level === level);
+    const parentTasks = tasks.filter(task => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        (taskChild) => taskChild.level === level + 1
+        taskChild => taskChild.level === level + 1,
       );
       let sumHoursBest = 0;
       let sumHoursWorst = 0;
@@ -98,19 +98,14 @@ const taskController = function (Task) {
       childTasks.forEach((childTask) => {
         if (childTask.mother.equals(task.taskId)) {
           hasChild = true;
-          sumHoursBest =
-            parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
-          sumHoursWorst =
-            parseFloat(childTask.hoursWorst, 10) +
-            parseFloat(sumHoursWorst, 10);
-          sumHoursMost =
-            parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
-          sumHoursLogged =
-            parseFloat(childTask.hoursLogged, 10) +
-            parseFloat(sumHoursLogged, 10);
-          sumEstimatedHours =
-            parseFloat(childTask.estimatedHours, 10) +
-            parseFloat(sumEstimatedHours, 10);
+          sumHoursBest = parseFloat(childTask.hoursBest, 10) + parseFloat(sumHoursBest, 10);
+          sumHoursWorst = parseFloat(childTask.hoursWorst, 10)
+            + parseFloat(sumHoursWorst, 10);
+          sumHoursMost = parseFloat(childTask.hoursMost, 10) + parseFloat(sumHoursMost, 10);
+          sumHoursLogged = parseFloat(childTask.hoursLogged, 10)
+            + parseFloat(sumHoursLogged, 10);
+          sumEstimatedHours = parseFloat(childTask.estimatedHours, 10)
+            + parseFloat(sumEstimatedHours, 10);
           childTask.resources.forEach((member) => {
             let isInResource = false;
             resources.forEach((mem) => {
@@ -143,7 +138,7 @@ const taskController = function (Task) {
           sumHoursMost,
           sumHoursLogged,
           sumEstimatedHours,
-          resources
+          resources,
         );
       }
     });
@@ -151,10 +146,10 @@ const taskController = function (Task) {
   };
 
   const setDatesSubTasks = (level, tasks) => {
-    const parentTasks = tasks.filter((task) => task.level === level);
+    const parentTasks = tasks.filter(task => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        (taskChild) => taskChild.level === level + 1
+        taskChild => taskChild.level === level + 1,
       );
       let minStartedDate = task.startedDatetime;
       let maxDueDatetime = task.dueDatetime;
@@ -185,10 +180,10 @@ const taskController = function (Task) {
   };
 
   const calculatePriority = (level, tasks) => {
-    const parentTasks = tasks.filter((task) => task.level === level);
+    const parentTasks = tasks.filter(task => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        (taskChild) => taskChild.level === level + 1
+        taskChild => taskChild.level === level + 1,
       );
       let totalNumberPriority = 0;
       let totalChild = 0;
@@ -229,10 +224,10 @@ const taskController = function (Task) {
   };
 
   const setAssigned = (level, tasks) => {
-    const parentTasks = tasks.filter((task) => task.level === level);
+    const parentTasks = tasks.filter(task => task.level === level);
     parentTasks.forEach((task) => {
       const childTasks = tasks.filter(
-        (taskChild) => taskChild.level === level + 1
+        taskChild => taskChild.level === level + 1,
       );
       let isAssigned = false;
       let hasChild = false;
@@ -266,7 +261,7 @@ const taskController = function (Task) {
         { wbsId: { $in: [wbsId] } },
       ],
     }).then((tasks) => {
-      tasks = [...new Set(tasks.map((item) => item))];
+      tasks = [...new Set(tasks.map(item => item))];
       for (let lv = 3; lv > 0; lv -= 1) {
         calculateSubTasks(lv, tasks);
         setDatesSubTasks(lv, tasks);
@@ -315,7 +310,7 @@ const taskController = function (Task) {
           break;
         case 2: // task.num is x.x, only has one level of parent (x)
           task.parentId1 = tasksWithId.find(
-            (pTask) => pTask.num === taskNumArr[0]
+            pTask => pTask.num === taskNumArr[0],
           )._id; // task of parentId1 has num prop of x
           task.parentId2 = null;
           task.parentId3 = null;
@@ -323,24 +318,23 @@ const taskController = function (Task) {
           break;
         case 3: // task.num is x.x.x, has two levels of parent (parent: x.x and grandparent: x)
           task.parentId1 = tasksWithId.find(
-            (pTask) => pTask.num === taskNumArr[0]
+            pTask => pTask.num === taskNumArr[0],
           )._id; // task of parentId1 has num prop of x
           task.parentId2 = tasksWithId.find(
-            (pTask) => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`
+            pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`,
           )._id; // task of parentId2 has num prop of x.x
           task.parentId3 = null;
           task.mother = task.parentId2; // parent task num prop is x.x
           break;
         case 4: // task.num is x.x.x.x, has three levels of parent (x.x.x, x.x and x)
           task.parentId1 = tasksWithId.find(
-            (pTask) => pTask.num === taskNumArr[0]
+            pTask => pTask.num === taskNumArr[0],
           )._id; // x
           task.parentId2 = tasksWithId.find(
-            (pTask) => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`
+            pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`,
           )._id; // x.x
           task.parentId3 = tasksWithId.find(
-            (pTask) =>
-              pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}`
+            pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}`,
           )._id; // x.x.x
           task.mother = task.parentId3; // parent task num prop is x.x.x
           break;
@@ -384,11 +378,11 @@ const taskController = function (Task) {
               task.estimatedHours += childTask.estimatedHours;
               task.startedDatetime = Math.min(
                 task.startedDatetime,
-                childTask.startedDatetime
+                childTask.startedDatetime,
               );
               task.dueDatetime = Math.max(
                 task.dueDatetime,
-                childTask.dueDatetime
+                childTask.dueDatetime,
               );
               task.childrenQty = (task.childrenQty || 0) + 1;
               task.isAssigned = task.isAssigned || childTask.isAssigned;
@@ -396,13 +390,12 @@ const taskController = function (Task) {
                 (resources, childTaskMember) => {
                   if (
                     task.resources.every(
-                      (member) => member.name !== childTaskMember.name
+                      member => member.name !== childTaskMember.name,
                     )
-                  )
-                    return [...resources, childTaskMember];
+                  ) return [...resources, childTaskMember];
                   return resources;
                 },
-                [...task.resources]
+                [...task.resources],
               );
               // add priority pts for task.priority
               if (childTask.priority === "Primary") {
@@ -503,7 +496,7 @@ const taskController = function (Task) {
     });
 
     Promise.all([saveTask, saveWbs, saveProject])
-      .then((results) => res.status(201).send(results[0]))
+      .then(results => res.status(201).send(results[0]))
       .catch((errors) => {
         res.status(400).send(errors);
       });
@@ -529,7 +522,7 @@ const taskController = function (Task) {
         task
           .save()
           .then()
-          .catch((errors) => res.status(400).send(errors));
+          .catch(errors => res.status(400).send(errors));
       });
 
       // level 2
@@ -539,13 +532,13 @@ const taskController = function (Task) {
             childTasks1.forEach((childTask1) => {
               childTask1.num = childTask1.num.replace(
                 childTask1.num.substring(0, elm.num.length),
-                elm.num
+                elm.num,
               );
 
               childTask1
                 .save()
                 .then(true)
-                .catch((errors) => res.status(400).send(errors));
+                .catch(errors => res.status(400).send(errors));
 
               // level 3
               Task.find({ parentId: { $in: [childTask1._id] } })
@@ -554,13 +547,13 @@ const taskController = function (Task) {
                     childTasks2.forEach((childTask2) => {
                       childTask2.num = childTask2.num.replace(
                         childTask2.num.substring(0, childTask1.num.length),
-                        childTask1.num
+                        childTask1.num,
                       );
 
                       childTask2
                         .save()
                         .then(true)
-                        .catch((errors) => res.status(400).send(errors));
+                        .catch(errors => res.status(400).send(errors));
 
                       // level 4
                       Task.find({ parentId: { $in: [childTask2._id] } })
@@ -570,29 +563,27 @@ const taskController = function (Task) {
                               childTask3.num = childTask3.num.replace(
                                 childTask3.num.substring(
                                   0,
-                                  childTask2.num.length
+                                  childTask2.num.length,
                                 ),
-                                childTask2.num
+                                childTask2.num,
                               );
 
                               childTask3
                                 .save()
                                 .then(true)
-                                .catch((errors) =>
-                                  res.status(400).send(errors)
-                                );
+                                .catch(errors => res.status(400).send(errors));
                             });
                           }
                         })
-                        .catch((error) => res.status(404).send(error));
+                        .catch(error => res.status(404).send(error));
                     });
                   }
                 })
-                .catch((error) => res.status(404).send(error));
+                .catch(error => res.status(404).send(error));
             });
           }
         })
-        .catch((error) => res.status(404).send(error));
+        .catch(error => res.status(404).send(error));
     });
 
     res.status(200).send(true);
@@ -642,11 +633,9 @@ const taskController = function (Task) {
         const taskChanedLvlNum = parseInt(taskNumArr[changedLvl - 1], 10);
         let newTaskLastLvl;
         if (fromLastLvl > toLastLvl) {
-          newTaskLastLvl =
-            taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum + 1;
+          newTaskLastLvl = taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum + 1;
         } else {
-          newTaskLastLvl =
-            taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum - 1;
+          newTaskLastLvl = taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum - 1;
         }
         taskNumArr[changedLvl - 1] = String(newTaskLastLvl);
         task.num = taskNumArr.join(".");
@@ -655,7 +644,7 @@ const taskController = function (Task) {
 
       Promise.all(queries)
         .then(() => res.status(200).send("Success!"))
-        .catch((err) => res.status(400).send(err));
+        .catch(err => res.status(400).send(err));
     });
   };
 
@@ -676,14 +665,12 @@ const taskController = function (Task) {
         { parentId3: taskId },
       ],
     }).then((record) => {
-      if (!record || record === null || record.length === 0)
-        return res.status(400).send({ error: "No valid records found" });
-      const removeTasks = record.map((rec) => rec.remove());
+      if (!record || record === null || record.length === 0) return res.status(400).send({ error: "No valid records found" });
+      const removeTasks = record.map(rec => rec.remove());
       return removeTasks;
     });
 
-    const updateMotherChildrenQty =
-      mother !== "null"
+    const updateMotherChildrenQty = mother !== "null"
         ? Task.findById(mother).then((task) => {
             let newQty = 0;
             let child = true;
@@ -700,10 +687,8 @@ const taskController = function (Task) {
         : Promise.resolve(1);
 
     Promise.all([removeChildTasks, updateMotherChildrenQty])
-      .then(() =>
-        res.status(200).send({ message: "Task successfully deleted" })
-      ) // no need to resetNum(taskId, mother);
-      .catch((errors) => res.status(400).send(errors));
+      .then(() => res.status(200).send({ message: "Task successfully deleted" })) // no need to resetNum(taskId, mother);
+      .catch(errors => res.status(400).send(errors));
   };
 
   const deleteTaskByWBS = async (req, res) => {
@@ -726,9 +711,7 @@ const taskController = function (Task) {
       });
 
       Promise.all([...removeTasks])
-        .then(() =>
-          res.status(200).send({ message: " Tasks were successfully deleted" })
-        )
+        .then(() => res.status(200).send({ message: " Tasks were successfully deleted" }))
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -763,10 +746,10 @@ const taskController = function (Task) {
 
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() }
+      { ...req.body, modifiedDatetime: Date.now() },
     )
       .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const swap = async function (req, res) {
@@ -811,18 +794,18 @@ const taskController = function (Task) {
         task1
           .save()
           .then()
-          .catch((errors) => res.status(400).send(errors));
+          .catch(errors => res.status(400).send(errors));
 
         task2
           .save()
           .then()
-          .catch((errors) => res.status(400).send(errors));
+          .catch(errors => res.status(400).send(errors));
 
         Task.find({
           wbsId: { $in: [task1.wbsId] },
         })
-          .then((results) => res.status(200).send(results))
-          .catch((error) => res.status(404).send(error));
+          .then(results => res.status(200).send(results))
+          .catch(error => res.status(404).send(error));
       });
     });
   };
@@ -838,27 +821,23 @@ const taskController = function (Task) {
 
       const task = await Task.findById(
         taskId,
-        "-__v  -createdDatetime -modifiedDatetime"
+        "-__v  -createdDatetime -modifiedDatetime",
       );
 
       if (!task) {
         return res.status(400).send({ error: "This is not a valid task" });
       }
 
-      const hoursLogged =
-        await timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId);
+      const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId);
       task.set("hoursLogged", hoursLogged, { strict: false });
 
       // Fetch the resource names for all resources
-      const resourceNamesPromises = task.resources.map((resource) =>
-        taskHelper.getUserProfileFirstAndLastName(resource.userID)
-      );
+      const resourceNamesPromises = task.resources.map(resource => taskHelper.getUserProfileFirstAndLastName(resource.userID));
       const resourceNames = await Promise.all(resourceNamesPromises);
 
       // Update the task's resources with the fetched names
       task.resources.forEach((resource, index) => {
-        resource.name =
-          resourceNames[index] !== " " ? resourceNames[index] : resource.name;
+        resource.name = resourceNames[index] !== " " ? resourceNames[index] : resource.name;
       });
 
       res.status(200).send(task);
@@ -875,7 +854,7 @@ const taskController = function (Task) {
 
     try {
       Task.find({ wbsId: { $in: [wbsId] } }).then((tasks) => {
-        tasks = tasks.filter((task) => task.level === 1);
+        tasks = tasks.filter(task => task.level === 1);
         tasks.forEach((task) => {
           updateParents(task.wbsId, task.taskId.toString());
         });
@@ -898,17 +877,17 @@ const taskController = function (Task) {
         {
           "resources.userID": mongoose.Types.ObjectId(userId),
         },
-        "-resources.profilePic"
+        "-resources.profilePic",
       ).then((results) => {
         WBS.find({
-          _id: { $in: results.map((item) => item.wbsId) },
+          _id: { $in: results.map(item => item.wbsId) },
         }).then((WBSs) => {
           const resultsWithProjectsIds = results.map((item) => {
             item.set(
               "projectId",
-              WBSs?.find((wbs) => wbs._id.toString() === item.wbsId.toString())
+              WBSs?.find(wbs => wbs._id.toString() === item.wbsId.toString())
                 ?.projectId,
-              { strict: false }
+              { strict: false },
             );
             return item;
           });
@@ -958,10 +937,10 @@ const taskController = function (Task) {
     });
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() }
+      { ...req.body, modifiedDatetime: Date.now() },
     )
       .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getReviewReqEmailBody = function (name, taskName) {
@@ -981,7 +960,7 @@ const taskController = function (Task) {
       role: { $in: ["Administrator", "Manager", "Mentor"] },
     });
     membership.forEach((member) => {
-      if (member.teams.some((team) => user.teams.includes(team))) {
+      if (member.teams.some(team => user.teams.includes(team))) {
         recipients.push(member.email);
       }
     });
@@ -999,7 +978,7 @@ const taskController = function (Task) {
         `Review Request from ${name}`,
         emailBody,
         null,
-        null
+        null,
       );
       res.status(200).send("Success");
     } catch (err) {
