@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const mapLocation = new Schema({
     title: {
         type: String,
-        default: 'Prior to HGN Data Collection'
+        default: 'Prior to HGN Data Collection',
     },
     firstName: String,
     lastName: String,
@@ -27,7 +27,7 @@ const mapLocation = new Schema({
             lng: {
                 type: String,
                 required: true,
-            }
+            },
         },
         country: {
             type: String,
