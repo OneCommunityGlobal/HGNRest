@@ -8,8 +8,8 @@ const escapeRegex = require('../utilities/escapeRegex');
 
 const projectController = function (Project) {
   const getAllProjects = function (req, res) {
-    Project.find({}, 'projectName isActive category')
-      .sort({ projectName: 1 })
+    Project.find({}, 'projectName isActive category modifiedDatetime')
+      .sort({ modifiedDatetime: -1 })
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
