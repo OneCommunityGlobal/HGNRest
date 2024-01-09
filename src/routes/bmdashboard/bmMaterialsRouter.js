@@ -9,11 +9,11 @@ const routes = function (itemMaterial, buildingMaterial) {
 
   materialsRouter.route('/updateMaterialRecord')
     .post(controller.bmPostMaterialUpdateRecord);
-  
+
   materialsRouter.route('/updateMaterialRecordBulk')
     .post(controller.bmPostMaterialUpdateBulk);
-  
-    
+
+
   return materialsRouter;
 };
 
