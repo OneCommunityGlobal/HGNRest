@@ -50,7 +50,7 @@ const projectController = function (Project) {
               res.status(200).send({
                 message:
                   "Project successfully deleted and user profiles updated.",
-              })
+              }),
             )
             .catch((errors) => {
               res.status(400).send(errors);
@@ -159,10 +159,10 @@ const projectController = function (Project) {
     }
 
     if (
-      !req.params.projectId ||
-      !mongoose.Types.ObjectId.isValid(req.params.projectId) ||
-      !req.body.users ||
-      req.body.users.length === 0
+      !req.params.projectId
+      || !mongoose.Types.ObjectId.isValid(req.params.projectId)
+      || !req.body.users
+      || req.body.users.length === 0
     ) {
       res.status(400).send({ error: "Invalid request" });
       return;
@@ -192,13 +192,13 @@ const projectController = function (Project) {
         const assignPromise = userProfile
           .updateMany(
             { _id: { $in: assignlist } },
-            { $addToSet: { projects: project._id } }
+            { $addToSet: { projects: project._id } },
           )
           .exec();
         const unassignPromise = userProfile
           .updateMany(
             { _id: { $in: unassignlist } },
-            { $pull: { projects: project._id } }
+            { $pull: { projects: project._id } },
           )
           .exec();
 
@@ -224,7 +224,7 @@ const projectController = function (Project) {
     userProfile
       .find(
         { projects: projectId },
-        "_id firstName lastName isActive profilePic"
+        "_id firstName lastName isActive profilePic",
       )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
