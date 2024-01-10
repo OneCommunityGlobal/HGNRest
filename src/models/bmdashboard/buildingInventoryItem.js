@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 // documents stored in 'buildingInventoryItems' collection
 
 const smallItemBaseSchema = mongoose.Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   stockBought: { type: Number, default: 0 }, // total amount of item bought for use in the project
   // TODO: can stockAvailable default be a function?
@@ -41,7 +41,7 @@ const smallItemBase = mongoose.model('smallItemBase', smallItemBaseSchema, 'buil
 // documents stored in 'buildingInventoryItems' collection
 
 const largeItemBaseSchema = mongoose.Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
   // rental fields are required if purchaseStatus = "Rental" (hopefully correct syntax)
