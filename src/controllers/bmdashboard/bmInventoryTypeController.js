@@ -11,6 +11,35 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
+  async function fetchInventoryByType(req, res) {
+    const { type } = req.params;
+    let SelectedType = InvType;
+    if(type == 'Materials'){
+      SelectedType = MatType
+    }
+    else if(type == 'Consumables'){
+      SelectedType = ConsType
+    }
+    else if(type == 'Reusables'){
+      SelectedType = ReusType
+    }
+    else if(type == 'Tools'){
+      SelectedType = ToolType
+    }
+    else if(type == 'Equipments'){
+      SelectedType = EquipType
+    }
+    try {
+      SelectedType
+        .find()
+        .exec()
+        .then(result => res.status(200).send(result))
+        .catch(error => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  }
+
   async function addEquipmentType(req, res) {
     const {
       name,
@@ -94,6 +123,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addEquipmentType,
     fetchSingleInventoryType,
     updateNameAndUnit,
+    fetchInventoryByType
   };
 }
 
