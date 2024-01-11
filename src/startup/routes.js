@@ -21,10 +21,10 @@ const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+// const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
-const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+// const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const {
   invTypeBase,
   materialType,
@@ -33,6 +33,10 @@ const {
   toolType,
   equipmentType,
 } = require('../models/bmdashboard/buildingInventoryType');
+const {
+  buildingConsumable,
+  buildingMaterial,
+} = require('../models/bmdashboard/buildingInventoryItem');
 const buildingTool = require('../models/bmdashboard/buildingTool');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
@@ -72,8 +76,9 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
 
@@ -113,4 +118,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
+  app.use('/api/bm', bmConsumablesRouter);
 };

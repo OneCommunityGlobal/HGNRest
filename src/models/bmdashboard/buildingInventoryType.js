@@ -24,7 +24,7 @@ const invTypeBase = mongoose.model('invTypeBase', invTypeBaseSchema, 'buildingIn
 
 // ex: sand, stone, brick, lumber
 
-const materialType = invTypeBase.discriminator('material', new mongoose.Schema({
+const materialType = invTypeBase.discriminator('material_type', new mongoose.Schema({
   category: { type: String, enum: ['Material'] },
   unit: { type: String, required: true }, // unit of measurement
 }));
@@ -35,7 +35,7 @@ const materialType = invTypeBase.discriminator('material', new mongoose.Schema({
 
 // ex: screws, nails, staples
 
-const consumableType = invTypeBase.discriminator('consumable', new mongoose.Schema({
+const consumableType = invTypeBase.discriminator('consumable_type', new mongoose.Schema({
   category: { type: String, enum: ['Consumable'] },
   size: { type: String, required: true },
 }));
@@ -46,7 +46,7 @@ const consumableType = invTypeBase.discriminator('consumable', new mongoose.Sche
 
 // ex: gloves, brushes, hammers, screwdrivers
 
-const reusableType = invTypeBase.discriminator('reusable', new mongoose.Schema({
+const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Schema({
   category: { type: String, enum: ['Reusable'] },
 }));
 
@@ -56,7 +56,7 @@ const reusableType = invTypeBase.discriminator('reusable', new mongoose.Schema({
 
 // ex: shovels, wheelbarrows, power drills, jackhammers
 
-const toolType = invTypeBase.discriminator('tool', new mongoose.Schema({
+const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
   category: { type: String, enum: ['Tool'] },
   isPowered: { type: Boolean, required: true },
   powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
@@ -68,7 +68,7 @@ const toolType = invTypeBase.discriminator('tool', new mongoose.Schema({
 
 // ex: tractors, excavators
 
-const equipmentType = invTypeBase.discriminator('equipment', new mongoose.Schema({
+const equipmentType = invTypeBase.discriminator('equipment_type', new mongoose.Schema({
   category: { type: String, enum: ['Equipment'] },
   fuelType: { type: String, enum: ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'], required: true },
 }));
