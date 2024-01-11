@@ -47,7 +47,9 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
+    validate: [
+      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
+    ],
   },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
@@ -60,7 +62,9 @@ const userProfileSchema = new Schema({
   createdDate: { type: Date, required: true, default: nextDay },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
+  personalLinks: [
+    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
+  ],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
@@ -79,7 +83,10 @@ const userProfileSchema = new Schema({
   ],
   profilePic: { type: String },
   infringements: [
-    { date: { type: String, required: true }, description: { type: String, required: true } },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
   ],
   location: {
     userProvided: { type: String, default: '' },
@@ -89,10 +96,16 @@ const userProfileSchema = new Schema({
     },
     country: { type: String, default: '' },
     city: { type: String, default: '' },
-
   },
   oldInfringements: [
-    { date: { type: String, required: true }, description: { type: String, required: true } },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
   ],
   privacySettings: {
     blueSquares: { type: Boolean, default: true },
@@ -152,7 +165,11 @@ const userProfileSchema = new Schema({
   savedTangibleHrs: [Number],
   timeEntryEditHistory: [
     {
-      date: { type: Date, required: true, default: moment().tz('America/Los_Angeles').toDate() },
+      date: {
+        type: Date,
+        required: true,
+        default: moment().tz('America/Los_Angeles').toDate(),
+      },
       initialSeconds: { type: Number, required: true },
       newSeconds: { type: Number, required: true },
     },
@@ -171,15 +188,17 @@ const userProfileSchema = new Schema({
         const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
         return teamCoderegex.test(v);
       },
-      message:
-        'Please enter a code in the format of A-AAA or AAAAA',
+      message: 'Please enter a code in the format of A-AAA or AAAAA',
     },
   },
   infoCollections: [
     {
       areaName: { type: String },
       areaContent: { type: String },
-    }],
+    },
+  ],
+  timeOffFrom: { type: Date, default: undefined },
+  timeOffTill: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -196,4 +215,8 @@ userProfileSchema.pre('save', function (next) {
     .catch(error => next(error));
 });
 
-module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+module.exports = mongoose.model(
+  'userProfile',
+  userProfileSchema,
+  'userProfiles',
+);

@@ -5,7 +5,6 @@ const timeentry = require('../models/timeentry');
 const myTeam = require('../helpers/helperModels/myTeam');
 const team = require('../models/team');
 
-
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
     return userProfile.findById(
@@ -74,7 +73,10 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
                       },
                     ],
                   },
@@ -145,13 +147,17 @@ const dashboardhelper = function () {
           _id: 0,
           memberCount: { $sum: 1 },
           totalweeklycommittedHours: { $sum: '$_id.weeklycommittedHours' },
+          totalweeklycommittedHours: { $sum: '$_id.weeklycommittedHours' },
           totaltime_hrs: {
+            $sum: '$time_hrs',
             $sum: '$time_hrs',
           },
           totaltangibletime_hrs: {
             $sum: '$tangibletime_hrs',
+            $sum: '$tangibletime_hrs',
           },
           totalintangibletime_hrs: {
+            $sum: '$intangibletime_hrs',
             $sum: '$intangibletime_hrs',
           },
         },
@@ -163,8 +169,10 @@ const dashboardhelper = function () {
 
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 })
-                    .then(res => res).catch((e) => {});
+    const userById = await userProfile
+      .findOne({ _id: userid, isActive: true }, { role: 1 })
+      .then(res => res)
+      .catch((e) => {});
 
     if (userById == null) return null;
     const userRole = userById.role;
@@ -172,6 +180,7 @@ const dashboardhelper = function () {
       .tz('America/Los_Angeles')
       .startOf('week')
       .format('YYYY-MM-DD');
+
     const pdtend = moment()
       .tz('America/Los_Angeles')
       .endOf('week')
@@ -180,36 +189,58 @@ const dashboardhelper = function () {
     let teamMemberIds = [userid];
     let teamMembers = [];
 
-    if (userRole != 'Administrator' && userRole != 'Owner' && userRole != 'Core Team') // Manager , Mentor , Volunteer ... , Show only team members
-    {
-      const teamsResult = await team.find({ 'members.userId': { $in: [userid] } }, { members: 1 })
-      .then(res => res).catch((e) => {});
+    if (
+      userRole != 'Administrator'
+      && userRole != 'Owner'
+      && userRole != 'Core Team'
+    ) {
+      // Manager , Mentor , Volunteer ... , Show only team members
+      const teamsResult = await team
+        .find({ 'members.userId': { $in: [userid] } }, { members: 1 })
+        .then(res => res)
+        .catch((e) => {});
 
       teamsResult.map((_myTeam) => {
         _myTeam.members.map((teamMember) => {
           if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-       });
+        });
       });
 
-      teamMembers = await userProfile.find({ _id: { $in: teamMemberIds }, isActive: true },
+      teamMembers = await userProfile
+        .find(
+          { _id: { $in: teamMemberIds }, isActive: true },
           {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-    } else if (userRole == 'Administrator') { // All users except Owner and Core Team
-        const excludedRoles = ['Core Team', 'Owner'];
-        teamMembers = await userProfile.find({ isActive: true, role: { $nin: excludedRoles } },
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          },
+        )
+        .then(res => res)
+        .catch((e) => {});
+    } else {
+      // 'Core Team', 'Owner' , 'Admin' //Show All users
+      teamMembers = await userProfile
+        .find(
+          { isActive: true },
           {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      } else { // 'Core Team', 'Owner' //All users
-        teamMembers = await userProfile.find({ isActive: true },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      }
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          },
+        )
+        .then(res => res)
+        .catch((e) => {});
+    }
 
     teamMemberIds = teamMembers.map(member => member._id);
 
@@ -225,36 +256,58 @@ const dashboardhelper = function () {
     timeEntries.map((timeEntry) => {
       const personIdStr = timeEntry.personId.toString();
 
-      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
+      if (timeEntryByPerson[personIdStr] == null) {
+        timeEntryByPerson[personIdStr] = {
+          tangibleSeconds: 0,
+          intangibleSeconds: 0,
+          totalSeconds: 0,
+        };
+      }
 
       if (timeEntry.isTangible === true) {
-        timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
+        timeEntryByPerson[personIdStr].tangibleSeconds
+          += timeEntry.totalSeconds;
       } else {
-        timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
+        timeEntryByPerson[personIdStr].intangibleSeconds
+          += timeEntry.totalSeconds;
       }
 
       timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
     });
 
-
     const leaderBoardData = [];
     teamMembers.map((teamMember) => {
-        const obj = {
-          personId: teamMember._id,
-          role: teamMember.role,
-          name: `${teamMember.firstName } ${ teamMember.lastName}`,
-          isVisible: teamMember.isVisible,
-          hasSummary: teamMember.weeklySummaries?.length > 0 ? teamMember.weeklySummaries[0].summary != '' : false,
-          weeklycommittedHours: teamMember.weeklycommittedHours,
-          totaltangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600) || 0),
-          totalintangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600) || 0),
-          totaltime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600) || 0),
-          percentagespentintangible:
-              (timeEntryByPerson[teamMember._id.toString()] && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds != 0 && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds != 0)
-              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds) * 100
-              : 0,
-        };
-        leaderBoardData.push(obj);
+      const obj = {
+        personId: teamMember._id,
+        role: teamMember.role,
+        name: `${teamMember.firstName} ${teamMember.lastName}`,
+        isVisible: teamMember.isVisible,
+        hasSummary:
+          teamMember.weeklySummaries?.length > 0
+            ? teamMember.weeklySummaries[0].summary != ''
+            : false,
+        weeklycommittedHours: teamMember.weeklycommittedHours,
+        totaltangibletime_hrs:
+          timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+            / 3600 || 0,
+        totalintangibletime_hrs:
+          timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds
+            / 3600 || 0,
+        totaltime_hrs:
+          timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600
+          || 0,
+        percentagespentintangible:
+          timeEntryByPerson[teamMember._id.toString()]
+          && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds != 0
+          && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds != 0
+            ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+                / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds)
+              * 100
+            : 0,
+        timeOffFrom: teamMember.timeOffFrom || null,
+        timeOffTill: teamMember.timeOffTill || null,
+      };
+      leaderBoardData.push(obj);
     });
 
     const sortedLBData = leaderBoardData.sort((a, b) => {
@@ -578,6 +631,8 @@ const dashboardhelper = function () {
           totalintangibletime_hrs: intangibleSeconds / 3600,
           percentagespentintangible:
             (intangibleSeconds / tangibleSeconds) * 100,
+          timeOffFrom: user.timeOffFrom,
+          timeOffTill: user.timeOffTill,
         },
       ];
     } catch (err) {
@@ -691,7 +746,10 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
                       },
                     ],
                   },
@@ -775,7 +833,10 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
                       },
                     ],
                   },
