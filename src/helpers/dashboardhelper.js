@@ -1,28 +1,27 @@
-const moment = require('moment-timezone');
-const mongoose = require('mongoose');
-const userProfile = require('../models/userProfile');
-const timeentry = require('../models/timeentry');
-const myTeam = require('../helpers/helperModels/myTeam');
-const team = require('../models/team');
-
+const moment = require("moment-timezone");
+const mongoose = require("mongoose");
+const userProfile = require("../models/userProfile");
+const timeentry = require("../models/timeentry");
+const myTeam = require("../helpers/helperModels/myTeam");
+const team = require("../models/team");
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
     return userProfile.findById(
       userId,
-      '_id firstName lastName role profilePic badgeCollection',
+      "_id firstName lastName role profilePic badgeCollection"
     );
   };
 
   const getOrgData = async function () {
     const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .startOf("week")
+      .format("YYYY-MM-DD");
     const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .format("YYYY-MM-DD");
 
     /**
      * Previous aggregate pipeline had two issues:
@@ -41,40 +40,43 @@ const dashboardhelper = function () {
             $gte: 1,
           },
           role: {
-            $ne: 'Mentor',
+            $ne: "Mentor",
           },
         },
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
         $project: {
-          personId: '$_id',
+          personId: "$_id",
           name: 1,
           weeklycommittedHours: 1,
           role: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $gte: ['$$timeentry.dateOfWork', pdtstart],
+                    $gte: ["$$timeentry.dateOfWork", pdtstart],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', pdtend],
+                    $lte: ["$$timeentry.dateOfWork", pdtend],
                   },
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          "$$timeentry.entryType",
+                          ["person", "team", "project"],
+                        ],
                       },
                     ],
                   },
@@ -86,7 +88,7 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
@@ -97,27 +99,27 @@ const dashboardhelper = function () {
           totalSeconds: {
             $cond: [
               {
-                $gte: ['$timeEntryData.totalSeconds', 0],
+                $gte: ["$timeEntryData.totalSeconds", 0],
               },
-              '$timeEntryData.totalSeconds',
+              "$timeEntryData.totalSeconds",
               0,
             ],
           },
           tangibletime: {
             $cond: [
               {
-                $eq: ['$timeEntryData.isTangible', true],
+                $eq: ["$timeEntryData.isTangible", true],
               },
-              '$timeEntryData.totalSeconds',
+              "$timeEntryData.totalSeconds",
               0,
             ],
           },
           intangibletime: {
             $cond: [
               {
-                $eq: ['$timeEntryData.isTangible', false],
+                $eq: ["$timeEntryData.isTangible", false],
               },
-              '$timeEntryData.totalSeconds',
+              "$timeEntryData.totalSeconds",
               0,
             ],
           },
@@ -126,17 +128,17 @@ const dashboardhelper = function () {
       {
         $group: {
           _id: {
-            personId: '$personId',
-            weeklycommittedHours: '$weeklycommittedHours',
+            personId: "$personId",
+            weeklycommittedHours: "$weeklycommittedHours",
           },
           time_hrs: {
-            $sum: { $divide: ['$totalSeconds', 3600] },
+            $sum: { $divide: ["$totalSeconds", 3600] },
           },
           tangibletime_hrs: {
-            $sum: { $divide: ['$tangibletime', 3600] },
+            $sum: { $divide: ["$tangibletime", 3600] },
           },
           intangibletime_hrs: {
-            $sum: { $divide: ['$intangibletime', 3600] },
+            $sum: { $divide: ["$intangibletime", 3600] },
           },
         },
       },
@@ -144,15 +146,19 @@ const dashboardhelper = function () {
         $group: {
           _id: 0,
           memberCount: { $sum: 1 },
-          totalweeklycommittedHours: { $sum: '$_id.weeklycommittedHours' },
+          totalweeklycommittedHours: { $sum: "$_id.weeklycommittedHours" },
+          totalweeklycommittedHours: { $sum: "$_id.weeklycommittedHours" },
           totaltime_hrs: {
-            $sum: '$time_hrs',
+            $sum: "$time_hrs",
+            $sum: "$time_hrs",
           },
           totaltangibletime_hrs: {
-            $sum: '$tangibletime_hrs',
+            $sum: "$tangibletime_hrs",
+            $sum: "$tangibletime_hrs",
           },
           totalintangibletime_hrs: {
-            $sum: '$intangibletime_hrs',
+            $sum: "$intangibletime_hrs",
+            $sum: "$intangibletime_hrs",
           },
         },
       },
@@ -163,55 +169,81 @@ const dashboardhelper = function () {
 
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 })
-                    .then(res => res).catch((e) => {});
+    const userById = await userProfile
+      .findOne({ _id: userid, isActive: true }, { role: 1 })
+      .then((res) => res)
+      .catch((e) => {});
 
     if (userById == null) return null;
     const userRole = userById.role;
     const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .startOf("week")
+      .format("YYYY-MM-DD");
+
     const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .format("YYYY-MM-DD");
 
     let teamMemberIds = [userid];
     let teamMembers = [];
 
-    if (userRole != 'Administrator' && userRole != 'Owner' && userRole != 'Core Team') // Manager , Mentor , Volunteer ... , Show only team members
-    {
-      const teamsResult = await team.find({ 'members.userId': { $in: [userid] } }, { members: 1 })
-      .then(res => res).catch((e) => {});
+    if (
+      userRole != "Administrator" &&
+      userRole != "Owner" &&
+      userRole != "Core Team"
+    ) {
+      // Manager , Mentor , Volunteer ... , Show only team members
+      const teamsResult = await team
+        .find({ "members.userId": { $in: [userid] } }, { members: 1 })
+        .then((res) => res)
+        .catch((e) => {});
 
       teamsResult.map((_myTeam) => {
         _myTeam.members.map((teamMember) => {
-          if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-       });
+          if (!teamMember.userId.equals(userid))
+            teamMemberIds.push(teamMember.userId);
+        });
       });
 
-      teamMembers = await userProfile.find({ _id: { $in: teamMemberIds }, isActive: true },
+      teamMembers = await userProfile
+        .find(
+          { _id: { $in: teamMemberIds }, isActive: true },
           {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-    } else if (userRole == 'Administrator') { // All users except Owner and Core Team
-        const excludedRoles = ['Core Team', 'Owner'];
-        teamMembers = await userProfile.find({ isActive: true, role: { $nin: excludedRoles } },
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          }
+        )
+        .then((res) => res)
+        .catch((e) => {});
+    } else {
+      // 'Core Team', 'Owner' , 'Admin' //Show All users
+      teamMembers = await userProfile
+        .find(
+          { isActive: true },
           {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      } else { // 'Core Team', 'Owner' //All users
-        teamMembers = await userProfile.find({ isActive: true },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      }
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          }
+        )
+        .then((res) => res)
+        .catch((e) => {});
+    }
 
-    teamMemberIds = teamMembers.map(member => member._id);
+    teamMemberIds = teamMembers.map((member) => member._id);
 
     const timeEntries = await timeentry.find({
       dateOfWork: {
@@ -225,36 +257,58 @@ const dashboardhelper = function () {
     timeEntries.map((timeEntry) => {
       const personIdStr = timeEntry.personId.toString();
 
-      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
+      if (timeEntryByPerson[personIdStr] == null) {
+        timeEntryByPerson[personIdStr] = {
+          tangibleSeconds: 0,
+          intangibleSeconds: 0,
+          totalSeconds: 0,
+        };
+      }
 
       if (timeEntry.isTangible === true) {
-        timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
+        timeEntryByPerson[personIdStr].tangibleSeconds +=
+          timeEntry.totalSeconds;
       } else {
-        timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
+        timeEntryByPerson[personIdStr].intangibleSeconds +=
+          timeEntry.totalSeconds;
       }
 
       timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
     });
 
-
     const leaderBoardData = [];
     teamMembers.map((teamMember) => {
-        const obj = {
-          personId: teamMember._id,
-          role: teamMember.role,
-          name: `${teamMember.firstName } ${ teamMember.lastName}`,
-          isVisible: teamMember.isVisible,
-          hasSummary: teamMember.weeklySummaries?.length > 0 ? teamMember.weeklySummaries[0].summary != '' : false,
-          weeklycommittedHours: teamMember.weeklycommittedHours,
-          totaltangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600) || 0),
-          totalintangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600) || 0),
-          totaltime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600) || 0),
-          percentagespentintangible:
-              (timeEntryByPerson[teamMember._id.toString()] && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds != 0 && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds != 0)
-              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds) * 100
-              : 0,
-        };
-        leaderBoardData.push(obj);
+      const obj = {
+        personId: teamMember._id,
+        role: teamMember.role,
+        name: `${teamMember.firstName} ${teamMember.lastName}`,
+        isVisible: teamMember.isVisible,
+        hasSummary:
+          teamMember.weeklySummaries?.length > 0
+            ? teamMember.weeklySummaries[0].summary != ""
+            : false,
+        weeklycommittedHours: teamMember.weeklycommittedHours,
+        totaltangibletime_hrs:
+          timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds /
+            3600 || 0,
+        totalintangibletime_hrs:
+          timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds /
+            3600 || 0,
+        totaltime_hrs:
+          timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600 ||
+          0,
+        percentagespentintangible:
+          timeEntryByPerson[teamMember._id.toString()] &&
+          timeEntryByPerson[teamMember._id.toString()]?.totalSeconds != 0 &&
+          timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds != 0
+            ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds /
+                timeEntryByPerson[teamMember._id.toString()]?.totalSeconds) *
+              100
+            : 0,
+        timeOffFrom: teamMember.timeOffFrom || null,
+        timeOffTill: teamMember.timeOffTill || null,
+      };
+      leaderBoardData.push(obj);
     });
 
     const sortedLBData = leaderBoardData.sort((a, b) => {
@@ -532,14 +586,14 @@ const dashboardhelper = function () {
   const getUserLaborData = async function (userId) {
     try {
       const pdtStart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+        .tz("America/Los_Angeles")
+        .startOf("week")
+        .format("YYYY-MM-DD");
 
       const pdtEnd = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+        .tz("America/Los_Angeles")
+        .endOf("week")
+        .format("YYYY-MM-DD");
 
       const user = await userProfile.findById({
         _id: userId,
@@ -550,7 +604,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
-        entryType: { $in: ['default', null] },
+        entryType: { $in: ["default", null] },
         personId: userId,
       });
 
@@ -570,7 +624,7 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
-          hasSummary: user.weeklySummaries[0].summary !== '',
+          hasSummary: user.weeklySummaries[0].summary !== "",
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
@@ -578,13 +632,15 @@ const dashboardhelper = function () {
           totalintangibletime_hrs: intangibleSeconds / 3600,
           percentagespentintangible:
             (intangibleSeconds / tangibleSeconds) * 100,
+          timeOffFrom: user.timeOffFrom,
+          timeOffTill: user.timeOffTill,
         },
       ];
     } catch (err) {
       return [
         {
-          personId: 'error',
-          name: 'Error Error',
+          personId: "error",
+          name: "Error Error",
           totaltime_hrs: 0,
           totaltangibletime_hrs: 0,
           totalintangibletime_hrs: 0,
@@ -595,8 +651,8 @@ const dashboardhelper = function () {
   };
 
   const laborthismonth = function (userId, startDate, endDate) {
-    const fromdate = moment(startDate).format('YYYY-MM-DD');
-    const todate = moment(endDate).format('YYYY-MM-DD');
+    const fromdate = moment(startDate).format("YYYY-MM-DD");
+    const todate = moment(endDate).format("YYYY-MM-DD");
 
     return timeentry.aggregate([
       {
@@ -612,19 +668,19 @@ const dashboardhelper = function () {
       {
         $group: {
           _id: {
-            projectId: '$projectId',
+            projectId: "$projectId",
           },
           labor: {
-            $sum: '$totalSeconds',
+            $sum: "$totalSeconds",
           },
         },
       },
       {
         $lookup: {
-          from: 'projects',
-          localField: '_id.projectId',
-          foreignField: '_id',
-          as: 'project',
+          from: "projects",
+          localField: "_id.projectId",
+          foreignField: "_id",
+          as: "project",
         },
       },
       {
@@ -633,13 +689,13 @@ const dashboardhelper = function () {
           projectName: {
             $ifNull: [
               {
-                $arrayElemAt: ['$project.projectName', 0],
+                $arrayElemAt: ["$project.projectName", 0],
               },
-              'Undefined',
+              "Undefined",
             ],
           },
           timeSpent_hrs: {
-            $divide: ['$labor', 3600],
+            $divide: ["$labor", 3600],
           },
         },
       },
@@ -647,8 +703,8 @@ const dashboardhelper = function () {
   };
 
   const laborthisweek = function (userId, startDate, endDate) {
-    const fromdate = moment(startDate).format('YYYY-MM-DD');
-    const todate = moment(endDate).format('YYYY-MM-DD');
+    const fromdate = moment(startDate).format("YYYY-MM-DD");
+    const todate = moment(endDate).format("YYYY-MM-DD");
 
     return userProfile.aggregate([
       {
@@ -664,10 +720,10 @@ const dashboardhelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
@@ -675,23 +731,26 @@ const dashboardhelper = function () {
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $eq: ['$$timeentry.isTangible', true],
+                    $eq: ["$$timeentry.isTangible", true],
                   },
                   {
-                    $gte: ['$$timeentry.dateOfWork', fromdate],
+                    $gte: ["$$timeentry.dateOfWork", fromdate],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', todate],
+                    $lte: ["$$timeentry.dateOfWork", todate],
                   },
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          "$$timeentry.entryType",
+                          ["person", "team", "project"],
+                        ],
                       },
                     ],
                   },
@@ -703,27 +762,27 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
           _id: {
-            _id: '$_id',
-            weeklycommittedHours: '$weeklycommittedHours',
+            _id: "$_id",
+            weeklycommittedHours: "$weeklycommittedHours",
           },
           effort: {
-            $sum: '$timeEntryData.totalSeconds',
+            $sum: "$timeEntryData.totalSeconds",
           },
         },
       },
       {
         $project: {
           _id: 0,
-          weeklycommittedHours: '$_id.weeklycommittedHours',
+          weeklycommittedHours: "$_id.weeklycommittedHours",
           timeSpent_hrs: {
-            $divide: ['$effort', 3600],
+            $divide: ["$effort", 3600],
           },
         },
       },
@@ -731,8 +790,8 @@ const dashboardhelper = function () {
   };
 
   const laborThisWeekByCategory = function (userId, startDate, endDate) {
-    const fromdate = moment(startDate).format('YYYY-MM-DD');
-    const todate = moment(endDate).format('YYYY-MM-DD');
+    const fromdate = moment(startDate).format("YYYY-MM-DD");
+    const todate = moment(endDate).format("YYYY-MM-DD");
 
     return userProfile.aggregate([
       {
@@ -748,10 +807,10 @@ const dashboardhelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntryData',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntryData",
         },
       },
       {
@@ -759,23 +818,26 @@ const dashboardhelper = function () {
           weeklycommittedHours: 1,
           timeEntryData: {
             $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
+              input: "$timeEntryData",
+              as: "timeentry",
               cond: {
                 $and: [
                   {
-                    $eq: ['$$timeentry.isTangible', true],
+                    $eq: ["$$timeentry.isTangible", true],
                   },
                   {
-                    $gte: ['$$timeentry.dateOfWork', fromdate],
+                    $gte: ["$$timeentry.dateOfWork", fromdate],
                   },
                   {
-                    $lte: ['$$timeentry.dateOfWork', todate],
+                    $lte: ["$$timeentry.dateOfWork", todate],
                   },
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          "$$timeentry.entryType",
+                          ["person", "team", "project"],
+                        ],
                       },
                     ],
                   },
@@ -787,37 +849,37 @@ const dashboardhelper = function () {
       },
       {
         $unwind: {
-          path: '$timeEntryData',
+          path: "$timeEntryData",
           preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
-          _id: '$timeEntryData.projectId',
+          _id: "$timeEntryData.projectId",
           effort: {
-            $sum: '$timeEntryData.totalSeconds',
+            $sum: "$timeEntryData.totalSeconds",
           },
         },
       },
       {
         $lookup: {
-          from: 'projects',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'project',
+          from: "projects",
+          localField: "_id",
+          foreignField: "_id",
+          as: "project",
         },
       },
       {
         $unwind: {
-          path: '$project',
+          path: "$project",
           preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
-          _id: '$project.category',
+          _id: "$project.category",
           effort: {
-            $sum: '$effort',
+            $sum: "$effort",
           },
         },
       },
@@ -825,7 +887,7 @@ const dashboardhelper = function () {
         $project: {
           _id: 1,
           timeSpent_hrs: {
-            $divide: ['$effort', 3600],
+            $divide: ["$effort", 3600],
           },
         },
       },
