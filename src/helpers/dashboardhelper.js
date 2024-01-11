@@ -223,46 +223,8 @@ const dashboardhelper = function () {
         )
         .then((res) => res)
         .catch((e) => {});
-    } else if (userRole == "Administrator") {
-      // All users except Owner and Core Team
-      const excludedRoles = ["Core Team", "Owner"];
-      teamMembers = await userProfile
-        .find(
-          { isActive: true, role: { $nin: excludedRoles } },
-          {
-            role: 1,
-            firstName: 1,
-            lastName: 1,
-            isVisible: 1,
-            weeklycommittedHours: 1,
-            weeklySummaries: 1,
-            timeOffFrom: 1,
-            timeOffTill: 1,
-          }
-        )
-        .then((res) => res)
-        .catch((e) => {});
-    } else if (userRole == "Administrator") {
-      // All users except Owner and Core Team
-      const excludedRoles = ["Core Team", "Owner"];
-      teamMembers = await userProfile
-        .find(
-          { isActive: true, role: { $nin: excludedRoles } },
-          {
-            role: 1,
-            firstName: 1,
-            lastName: 1,
-            isVisible: 1,
-            weeklycommittedHours: 1,
-            weeklySummaries: 1,
-            timeOffFrom: 1,
-            timeOffTill: 1,
-          }
-        )
-        .then((res) => res)
-        .catch((e) => {});
     } else {
-      // 'Core Team', 'Owner' //All users
+      // 'Core Team', 'Owner' , 'Admin' //Show All users
       teamMembers = await userProfile
         .find(
           { isActive: true },
