@@ -16,21 +16,33 @@ const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
+
+const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-
-//bmdashboard
-const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+// const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
-const buildingInventoryType = require('../models/bmdashboard/buildingInventoryType');
-const buildingInventoryUnit = require('../models/bmdashboard/buildingInventoryUnit');
-const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+// const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+const {
+  invTypeBase,
+  materialType,
+  consumableType,
+  reusableType,
+  toolType,
+  equipmentType,
+} = require('../models/bmdashboard/buildingInventoryType');
+const {
+  buildingConsumable,
+  buildingMaterial,
+} = require('../models/bmdashboard/buildingInventoryItem');
+const buildingTool = require('../models/bmdashboard/buildingTool');
+const buildingInventoryUnit =  require('../models/bmdashboard/buildingInventoryUnit');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
-const dashboardRouter = require('../routes/dashboardRouter')();
+const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
@@ -48,7 +60,7 @@ const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBack
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
-const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project);
+const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project, mapLocations);
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
 
@@ -65,11 +77,13 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
-const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(buildingInventoryType,buildingInventoryUnit);
 const bmInventoryUnitRouter = require('../routes/bmdashboard/bmInventoryUnitRouter')(buildingInventoryUnit);
 
+const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
+const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
+const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -108,4 +122,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmInventoryUnitRouter);
+  app.use('/api/bm', bmToolRouter);
+  app.use('/api/bm', bmConsumablesRouter);
 };
