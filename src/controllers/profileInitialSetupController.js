@@ -76,20 +76,26 @@ function informManagerMessage(user) {
   return message;
 }
 
-const sendEmailWithAcknowledgment = (email, subject, message) => {
-  return new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, (error, result) => {
-      if (result) resolve(result);
-      if (error) reject(result);
-    });
+const sendEmailWithAcknowledgment = (email, subject, message) => new Promise((resolve, reject) => {
+    emailSender(
+      email,
+      subject,
+      message,
+      null,
+      null,
+      null,
+      (error, result) => {
+        if (result) resolve(result);
+        if (error) reject(result);
+      },
+    );
   });
-};
 
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
   Project,
-  MapLocation
+  MapLocation,
 ) {
   const { JWT_SECRET } = config;
 
@@ -100,10 +106,7 @@ const profileInitialSetupController = function (
       const response = await location.save();
       return response;
     } catch (err) {
-      return {
-        type: "Error",
-        message: err.message || "An error occurred while saving the location",
-      };
+      return { type: 'Error', message: err.message || 'An error occurred while saving the location' };
     }
   };
 
@@ -140,8 +143,8 @@ const profileInitialSetupController = function (
 
         const acknowledgment = await sendEmailWithAcknowledgment(
           email,
-          "NEEDED: Complete your One Community profile setup",
-          sendLinkMessage(link)
+          'NEEDED: Complete your One Community profile setup',
+          sendLinkMessage(link),
         );
 
         res.status(200).send(acknowledgment);
@@ -268,31 +271,31 @@ const profileInitialSetupController = function (
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-          const locationData = {
-            firstName: req.body.firstName,
-            lastName: req.body.lastName,
-            jobTitle: req.body.jobTitle,
-            location: req.body.homeCountry,
-          };
+            const locationData = {
+              firstName: req.body.firstName,
+              lastName: req.body.lastName,
+              jobTitle: req.body.jobTitle,
+              location: req.body.homeCountry,
+            };
 
           res.send({ token }).status(200);
 
-          const mapEntryResult = await setMapLocation(locationData);
-          if (mapEntryResult.type === "Error") {
-            console.log(mapEntryResult.message);
-          }
+            const mapEntryResult = await setMapLocation(locationData);
+            if (mapEntryResult.type === 'Error') {
+              console.log(mapEntryResult.message);
+            }
 
-          const NewUserCache = {
-            permissions: savedUser.permissions,
-            isActive: true,
-            weeklycommittedHours: savedUser.weeklycommittedHours,
-            createdDate: savedUser.createdDate.toISOString(),
-            _id: savedUser._id,
-            role: savedUser.role,
-            firstName: savedUser.firstName,
-            lastName: savedUser.lastName,
-            email: savedUser.email,
-          };
+            const NewUserCache = {
+                permissions: savedUser.permissions,
+                isActive: true,
+                weeklycommittedHours: savedUser.weeklycommittedHours,
+                createdDate: savedUser.createdDate.toISOString(),
+                _id: savedUser._id,
+                role: savedUser.role,
+                firstName: savedUser.firstName,
+                lastName: savedUser.lastName,
+                email: savedUser.email,
+              };
 
           const allUserCache = JSON.parse(cache.getCache("allusers"));
           allUserCache.push(NewUserCache);
@@ -322,7 +325,7 @@ const profileInitialSetupController = function (
     if (foundToken) {
       res.status(200).send({ userAPIKey: premiumKey });
     } else {
-      res.status(403).send("Unauthorized Request");
+      res.status(403).send('Unauthorized Request');
     }
   };
 
