@@ -241,6 +241,7 @@ const userProfileController = function (UserProfile) {
     );
 
     const canEditTeamCode = req.body.requestor.role === 'Owner'
+      || req.body.requestor.role === 'Administrator'
       || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
     if (!isRequestorAuthorized) {
@@ -575,6 +576,7 @@ const userProfileController = function (UserProfile) {
 
     if (key === 'teamCode') {
       const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
         || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if (!canEditTeamCode) {
