@@ -1,3 +1,6 @@
+const fs = require('fs');
+const filepath = 'src/controllers/bmdashboard/BuildingUnits.json';
+
 function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
   async function fetchMaterialTypes(req, res) {
     try {
@@ -11,39 +14,104 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
-  const addBuildingInventoryType = async function _matTypeList(req, res) {
+  const fetchInvUnitsFromJson = async (req, res) => {
     try {
-      const inventoryTypeObject = new InvType();
-      inventoryTypeObject.category = 'Material';
-      inventoryTypeObject.name = req.body.name;
-      inventoryTypeObject.description = req.body.description;
-      inventoryTypeObject.unit =  req.body.unit || req.body.customUnit;
-      inventoryTypeObject.save()
-      .then(results =>{
-          if(req.body.customUnit)
-          {
-            const inventoryUnitObject = new InvUnit();
-            inventoryUnitObject.description = req.body.description;
-            inventoryUnitObject.unit =  req.body.customUnit;
-            inventoryUnitObject.save()
-            .then(results2 => {
-              res.status(201).send(results)
-              
-            })
-            .catch(errors => {
-              res.status(500).send(errors);
-            });
-          }
-          else {
-            res.status(201).send(results)
-          }
-        })
-      .catch(errors => res.status(500).send(errors));
+      fs.readFile(filepath, 'utf8', (err, data) => {
+        if (err) {
+          console.error('Error reading file:', err);
+          return;
+        }
+      
+        try {
+          const jsonData = JSON.parse(data);
+          res.status(200).send(jsonData)
+        } catch (parseError) {
+          console.error('Error parsing JSON:', parseError);
+          res.status(500).send(parseError)
+        }
+      });
     } catch (err) {
       res.json(err);
     }
   };
- 
+
+  
+  async function addMaterialType(req, res) {
+    const {
+      name,
+      description,
+      requestor: { requestorId },
+    } = req.body;
+    const unit  = req.body.unit  || req.body.customUnit;
+    try {
+      MatType
+        .find({ name })
+        .then((result) => {
+          if (result.length) {
+            res.status(409).send("Oops!! Material already exists!");
+          } else {
+            const newDoc = {
+              category: 'Material',
+              name,
+              description,
+              unit,
+              createdBy: requestorId,
+            };
+            MatType
+            .create(newDoc)
+            .then((results) => 
+              {
+                res.status(201).send(results);
+               
+                if(req.body.customUnit)
+                {
+                  try{
+                    //Add new unit to json file : src\controllers\bmdashboard\BuildingUnits.json
+                    
+                    const newItem = {unit:req.body.customUnit,category:"Material"}
+                    const newItemString = JSON.stringify(newItem, null, 2);
+                    fs.readFile(filepath, 'utf8', (err, data) => {
+                      if (err) {
+                        console.error('Error reading file:', err);
+                        return;
+                      }
+                      // Remove the last array bracket and comma
+                      const updatedContent = data.trim().replace(/\s*]$/, '');
+                    
+                      // Add a comma and newline if the file is not empty
+                      const separator = (updatedContent !== '') ? ',\n' : '';
+                    
+                      const updatedFileContent = `${updatedContent}${separator}${newItemString}\n]`;
+                    
+                      fs.writeFile(filepath, updatedFileContent, 'utf8', (err) => {
+                        if (err) {
+                          console.error('Error writing to file:', err);
+                          return;
+                        }
+                      });
+                    });
+
+                  }
+                  catch(e){
+
+                  }
+                }
+              })
+            .catch((error) => {
+              if (error._message.includes('validation failed')) {
+                res.status(400).send(error);
+              } else {
+                res.status(500).send(error);
+              }
+            });
+          }
+        })
+        .catch(error => res.status(500).send(error));
+      } catch (error) {
+      res.status(500).send(error);
+      }
+    }
+
   async function addEquipmentType(req, res) {
     const {
       name,
@@ -127,7 +195,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addEquipmentType,
     fetchSingleInventoryType,
     updateNameAndUnit,
-    addBuildingInventoryType
+    addMaterialType,
+    fetchInvUnitsFromJson
   };
 }
 

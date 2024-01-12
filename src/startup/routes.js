@@ -38,7 +38,6 @@ const {
   buildingMaterial,
 } = require('../models/bmdashboard/buildingInventoryItem');
 const buildingTool = require('../models/bmdashboard/buildingTool');
-const buildingInventoryUnit =  require('../models/bmdashboard/buildingInventoryUnit');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -79,7 +78,6 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
-const bmInventoryUnitRouter = require('../routes/bmdashboard/bmInventoryUnitRouter')(buildingInventoryUnit);
 
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
@@ -121,7 +119,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
-  app.use('/api/bm', bmInventoryUnitRouter);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
 };
