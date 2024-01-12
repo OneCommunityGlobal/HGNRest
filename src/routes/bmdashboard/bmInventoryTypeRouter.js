@@ -9,7 +9,7 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     .get(controller.fetchMaterialTypes);
 
     inventoryTypeRouter.route('/invtypes/material')
-    .post(controller.addBuildingInventoryType);
+    .post(controller.addMaterialType);
 
   inventoryTypeRouter.route('/invtypes/equipment')
     .post(controller.addEquipmentType);
@@ -18,6 +18,10 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
   inventoryTypeRouter.route('/invtypes/material/:invtypeId')
     .get(controller.fetchSingleInventoryType)
     .put(controller.updateNameAndUnit);
+
+  inventoryTypeRouter.route('/inventoryUnits')
+    .get(controller.fetchInvUnitsFromJson)
+    
   return inventoryTypeRouter;
 };
 
