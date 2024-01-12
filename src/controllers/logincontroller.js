@@ -43,18 +43,21 @@ const logincontroller = function () {
           new: true,
           userId: user._id,
         };
-        res.send(result).status(200);
+        res.status(200).send(result);
       } else if (isPasswordMatch && !isNewUser) {
         const jwtPayload = {
           userid: user._id,
           role: user.role,
           permissions: user.permissions,
+          access: {
+            canAccessBMPortal: false,
+          },
           expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
         };
 
         const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-        res.send({ token }).status(200);
+        res.status(200).send({ token });
       } else {
         res.status(403).send({
           message: 'Invalid password.',

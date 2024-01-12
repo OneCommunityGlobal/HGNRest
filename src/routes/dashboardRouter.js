@@ -3,8 +3,11 @@ const express = require('express');
 const route = function () {
   const controller = require('../controllers/dashBoardController')();
 
-
   const Dashboardrouter = express.Router();
+
+  Dashboardrouter.route('/dashboard/aiPrompt')
+    .get(controller.getAIPrompt)
+    .put(controller.updateAIPrompt);
 
   Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);

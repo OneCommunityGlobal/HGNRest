@@ -28,6 +28,9 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/task/update/:taskId')
     .put(controller.updateTask);
 
+  wbsRouter.route('/task/updateStatus/:taskId')
+    .put(controller.updateTaskStatus);
+
   wbsRouter.route('/task/updateAllParents/:wbsId/')
     .put(controller.updateAllParents);
 
@@ -40,11 +43,14 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/tasks/moveTasks/:wbsId')
     .put(controller.moveTask);
 
-  wbsRouter.route('/tasks/userProfile')
-    .get(controller.getTasksByUserList);
+  wbsRouter.route('/tasks/user/:userId')
+    .get(controller.getTasksByUserId);
 
   wbsRouter.route('/user/:userId/teams/tasks')
     .get(controller.getTasksForTeamsByUser);
+
+  wbsRouter.route('/tasks/reviewreq/:userId')
+    .post(controller.sendReviewReq);
 
   return wbsRouter;
 };
