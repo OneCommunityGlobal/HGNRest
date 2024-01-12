@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 // documents stored in 'buildingInventoryItems' collection
 
 const smallItemBaseSchema = mongoose.Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   stockBought: { type: Number, default: 0 }, // total amount of item bought for use in the project
   // TODO: can stockAvailable default be a function?
@@ -41,7 +41,7 @@ const smallItemBase = mongoose.model('smallItemBase', smallItemBaseSchema, 'buil
 // documents stored in 'buildingInventoryItems' collection
 
 const largeItemBaseSchema = mongoose.Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
   // rental fields are required if purchaseStatus = "Rental" (hopefully correct syntax)
@@ -82,7 +82,7 @@ const largeItemBase = mongoose.model('largeItemBase', largeItemBaseSchema, 'buil
 // each document derived from this schema includes key field { __t: "material" }
 // ex: sand, stone, bricks, lumber, insulation
 
-const buildingMaterial = smallItemBase.discriminator('material', new mongoose.Schema({
+const buildingMaterial = smallItemBase.discriminator('material_item', new mongoose.Schema({
   stockUsed: { type: Number, default: 0 }, // stock that has been used up and cannot be reused
   stockWasted: { type: Number, default: 0 }, // ruined or destroyed stock
 }));
@@ -95,7 +95,7 @@ const buildingMaterial = smallItemBase.discriminator('material', new mongoose.Sc
 // each document derived from this schema includes key field { __t: "consumable" }
 // ex: screws, nails, staples
 
-const buildingConsumable = smallItemBase.discriminator('consumable', new mongoose.Schema({
+const buildingConsumable = smallItemBase.discriminator('consumable_item', new mongoose.Schema({
   stockUsed: { type: Number, default: 0 }, // stock that has been used up and cannot be reused
   stockWasted: { type: Number, default: 0 }, // ruined or destroyed stock
 }));
@@ -108,7 +108,7 @@ const buildingConsumable = smallItemBase.discriminator('consumable', new mongoos
 // each document derived from this schema includes key field { __t: "reusable" }
 // ex: hammers, screwdrivers, mallets, brushes, gloves
 
-const buildingReusable = smallItemBase.discriminator('reusable', new mongoose.Schema({
+const buildingReusable = smallItemBase.discriminator('reusable_item', new mongoose.Schema({
   stockDestroyed: { type: Number, default: 0 },
 }));
 
@@ -120,7 +120,7 @@ const buildingReusable = smallItemBase.discriminator('reusable', new mongoose.Sc
 // each document derived from this schema includes key field { __t: "tool" }
 // ex: power drills, wheelbarrows, shovels, jackhammers
 
-const buildingTool = largeItemBase.discriminator('tool', new mongoose.Schema({
+const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schema({
   code: { type: Number, required: true }, // TODO: add function to create simple numeric code for on-site tool tracking
 }));
 
@@ -134,7 +134,7 @@ const buildingTool = largeItemBase.discriminator('tool', new mongoose.Schema({
 // items in this category are assumed to be rented
 // ex: tractors, excavators, bulldozers
 
-const buildingEquipment = largeItemBase.discriminator('equipment', new mongoose.Schema({
+const buildingEquipment = largeItemBase.discriminator('equipment_item', new mongoose.Schema({
   isTracked: { type: Boolean, required: true }, // has asset tracker
   assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
 }));
