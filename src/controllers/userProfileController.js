@@ -2,6 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const fetch = require("node-fetch");
 
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
@@ -111,6 +112,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
+
     if (!await hasPermission(req.body.requestor, 'postUserProfile')) {
       res.status(403).send('You are not authorized to create new users');
       return;
@@ -128,6 +130,7 @@ const userProfileController = function (UserProfile) {
       },
     });
 
+
     if (userByEmail) {
       res.status(400).send({
         error:
@@ -135,6 +138,34 @@ const userProfileController = function (UserProfile) {
         type: 'email',
       });
       return;
+    }
+
+    // In dev environment, if newly created user is Owner or Administrator, make fetch request to Beta login route with actualEmail and actual Password
+    if (process.env.dbName === 'hgnData_dev') {
+      if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
+        const email = req.body.actualEmail
+        const password = req.body.actualPassword
+        const url = "https://hgn-rest-beta.azurewebsites.net/api/"
+        try {
+          // Log in to Beta login route using provided credentials
+          const response = await fetch(url + 'login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!response.ok) {
+            throw new Error('Invalid credentials');
+          }
+        } catch (error) {
+          res.status(400).send({
+            error: 'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
+            type: 'credentials',
+          });
+          return;
+        }
+      }
     }
 
     /** *
@@ -204,6 +235,7 @@ const userProfileController = function (UserProfile) {
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
+    up.actualEmail = req.body.actualEmail;
 
     up.save()
       .then(() => {
@@ -853,7 +885,7 @@ const userProfileController = function (UserProfile) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-
+  
   return {
     postUserProfile,
     getUserProfiles,
