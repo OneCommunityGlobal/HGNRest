@@ -233,9 +233,9 @@ const userProfileController = function (UserProfile) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
-    const isRequestorAuthorized = !!(
+    const isRequestorAuthorized = (!!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
-        await hasPermission(req.body.requestor, 'putUserProfile')
+        await hasPermission(req.body.requestor, 'putUserProfile')) || await hasPermission(req.body.requestor, 'requestBio')
         || req.body.requestor.requestorId === userid
       )
     );
