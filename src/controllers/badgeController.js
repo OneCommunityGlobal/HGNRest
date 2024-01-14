@@ -30,11 +30,11 @@ const badgeController = function (Badge) {
   };
 
   /**
-   * Updated Date: 12/06/2023
+   * Updated Date: 01/12/2024
    * Updated By: Shengwei
    * Function added:
    * - Added data validation for earned date and badge count mismatch.
-   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch.
+   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch. (Deleted due to new requirement)
    * - Refactored data validation for duplicate badge id.
    * - Added data validation for badge count should greater than 0.
    * - Added formatDate function to format date to MMM-DD-YY.
@@ -43,14 +43,6 @@ const badgeController = function (Badge) {
   const formatDate = () => {
     const currentDate = new Date(Date.now());
     return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
-  };
-
-  const fillEarnedDateToMatchCount = (earnedDate, count) => {
-    const result = [...earnedDate];
-    while (result.length < count) {
-      result.push(formatDate());
-    }
-    return result;
   };
 
   const assignBadges = async function (req, res) {
@@ -74,28 +66,15 @@ const badgeController = function (Badge) {
         req.body.badgeCollection.forEach((element) => {
           if (badgeCounts[element.badge]) {
             throw new Error('Duplicate badges sent in.');
-            // res.status(500).send('Duplicate badges sent in.');
-            // return;
           }
           badgeCounts[element.badge] = element.count;
           // Validation: count should be greater than 0
           if (element.count < 1) {
             throw new Error('Badge count should be greater than 0.');
           }
-          if (element.count !== element.earnedDate.length) {
-            element.earnedDate = fillEarnedDateToMatchCount(
-              element.earnedDate,
-              element.count,
-            );
-            element.lastModified = Date.now();
-            logger.logInfo(
-              `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
-                element._id
-              }; Badge Type ID ${element.badge}`,
-            );
-          }
         });
       } catch (err) {
+        logger.logException(`Internal Error: Badge Collection. ${err.message} User ID: ${userToBeAssigned} Badge Collection: ${JSON.stringify(req.body.badgeCollection)}`);
         res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
         return;
       }
