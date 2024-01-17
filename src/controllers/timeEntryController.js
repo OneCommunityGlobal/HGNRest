@@ -162,6 +162,11 @@ const timeEntrycontroller = function (TimeEntry) {
       return res.status(400).send({ error });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(timeEntryId)) {
+      const error = 'ObjectIds are not correctly formed';
+      return res.status(400).send({ error });
+    }
+
     const {
       personId,
       hours: newHours = '00',
@@ -173,18 +178,6 @@ const timeEntrycontroller = function (TimeEntry) {
       taskId: newTaskId,
       dateOfWork: newDateOfWork,
     } = req.body;
-
-    const type = req.body.entryType;
-    const isGeneralEntry = isGeneralTimeEntry(type);
-
-    if (
-      !mongoose.Types.ObjectId.isValid(timeEntryId)
-      || ((isGeneralEntry || type === 'project')
-        && !mongoose.Types.ObjectId.isValid(newProjectId))
-    ) {
-      const error = 'ObjectIds are not correctly formed';
-      return res.status(400).send({ error });
-    }
 
     const isForAuthUser = personId === req.body.requestor.requestorId;
     const isSameDayTimeEntry = moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
@@ -198,7 +191,24 @@ const timeEntrycontroller = function (TimeEntry) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    const type = req.body.entryType;
+    const isGeneralEntry = isGeneralTimeEntry(type);
+
     try {
+      if (!timeEntryId) {
+        const error = 'ObjectId in request param is not in correct format';
+        return res.status(400).send({ error });
+      }
+
+      if (
+        !mongoose.Types.ObjectId.isValid(timeEntryId)
+        || ((isGeneralEntry || type === 'project')
+        && !mongoose.Types.ObjectId.isValid(newProjectId)
+      )) {
+        const error = 'ObjectIds are not correctly formed';
+        return res.status(400).send({ error });
+      }
+
       // Get initial timeEntry by timeEntryId
       const timeEntry = await TimeEntry.findById(timeEntryId);
       if (!timeEntry) {
@@ -328,7 +338,7 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.dateOfWork = moment(newDateOfWork).format('YYYY-MM-DD');
       await timeEntry.save();
 
-      return res.status(200).send(timeEntry);
+      return res.status(200).send({ message: 'Successfully updated time entry' });
     } catch (err) {
       await session.abortTransaction();
       return res.status(400).send({ error: err.toString() });
@@ -499,40 +509,30 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       ' -createdDateTime',
     )
-    .populate('personId')
-    .populate('projectId')
-    .populate('taskId')
-    .populate('wbsId')
-    .sort({ lastModifiedDateTime: -1 })
-    .then((results) => {
-      const data = [];
+      .populate('projectId')
+      .sort({ lastModifiedDateTime: -1 })
+      .then((results) => {
+        const data = [];
+        results.forEach((element) => {
+          const record = {};
 
-      results.forEach((element) => {
-        const record = {};
-        record._id = element._id;
-        record.notes = element.notes;
-        record.isTangible = element.isTangible;
-        record.personId = element.personId._id;
-        record.userProfile = element.personId;
-        record.dateOfWork = element.dateOfWork;
-        [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-        record.projectId = element.projectId._id;
-        record.projectName = element.projectId.projectName;
-        record.projectCategory = element.projectId.category.toLowerCase();
-        record.taskId = element.taskId?._id || null;
-        record.taskName = element.taskId?.taskName || null;
-        record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
-        record.wbsId = element.wbsId?._id || null;
-        record.wbsName = element.wbsId?.wbsName || null;
-
-        data.push(record);
+          record._id = element._id;
+          record.notes = element.notes;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId;
+          record.projectId = element.projectId ? element.projectId._id : '';
+          record.projectName = element.projectId
+            ? element.projectId.projectName
+            : '';
+          record.dateOfWork = element.dateOfWork;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        res.status(400).send(error);
       });
-
-      res.status(200).send(data);
-    })
-    .catch((error) => {
-      res.status(400).send(error);
-    });
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {

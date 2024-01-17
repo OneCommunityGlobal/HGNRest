@@ -2,12 +2,12 @@ const moment = require('moment-timezone');
 const timeEntry = require('../models/timeentry');
 
 const timeEntryHelper = function () {
-  const getAllHoursLoggedForSpecifiedTask = function (taskId) {
+  const getAllHoursLoggedForSpecifiedProject = function (projectId) {
     const fromDate = moment('1900-01-01 00:00:00').format('YYYY-MM-DD');
     const toDate = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
     return timeEntry.find(
       {
-        taskId,
+        projectId,
         dateOfWork: { $gte: fromDate, $lte: toDate },
         isTangible: true,
       },
@@ -20,7 +20,7 @@ const timeEntryHelper = function () {
   };
 
   return {
-    getAllHoursLoggedForSpecifiedTask,
+    getAllHoursLoggedForSpecifiedProject,
   };
 };
 

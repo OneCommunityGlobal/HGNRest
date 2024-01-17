@@ -803,7 +803,7 @@ const taskController = function (Task) {
         return res.status(400).send({ error: 'This is not a valid task' });
       }
 
-      const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedTask(taskId);
+      const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId);
       task.set('hoursLogged', hoursLogged, { strict: false });
 
       // Fetch the resource names for all resources
@@ -815,10 +815,12 @@ const taskController = function (Task) {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
 
-      return res.status(200).send(task);
+      res.status(200).send(task);
     } catch (error) {
       // Generic error message, you can adjust as needed
-      return res.status(500).send({ error: 'Internal Server Error', details: error.message });
+      res
+        .status(500)
+        .send({ error: 'Internal Server Error', details: error.message });
     }
   };
 
@@ -873,9 +875,9 @@ const taskController = function (Task) {
   };
 
   const getTasksForTeamsByUser = async (req, res) => {
-    const userId = mongoose.Types.ObjectId(req.params.userId);
     try {
-      const teamsData = await taskHelper.getTasksForTeams(userId, req.body.requestor);
+      const userId = mongoose.Types.ObjectId(req.params.userId);
+      const teamsData = await taskHelper.getTasksForTeams(userId);
       if (teamsData.length > 0) {
         res.status(200).send(teamsData);
       } else {
@@ -886,7 +888,7 @@ const taskController = function (Task) {
       }
     } catch (error) {
       console.log(error);
-      res.status(400).send({ error });
+      res.status(400).send(error);
     }
   };
 
