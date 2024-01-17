@@ -125,6 +125,7 @@ const userProfileSchema = new Schema({
     },
   ],
   weeklySummariesCount: { type: Number, default: 0 },
+  copiedAiPrompt: { type: Date, default: undefined },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
   resetPwd: { type: String },
