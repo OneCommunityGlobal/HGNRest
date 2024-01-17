@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
@@ -9,7 +9,7 @@ const WeeklySummaryAIPrompt = new Schema({
 });
 
 module.exports = mongoose.model(
-  "weeklySummaryAIPrompt",
+  'weeklySummaryAIPrompt',
   WeeklySummaryAIPrompt,
-  "weeklySummaryAIPrompt"
+  'weeklySummaryAIPrompt',
 );
