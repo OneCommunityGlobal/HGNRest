@@ -80,5 +80,4 @@ module.exports = {
   reusableType,
   toolType,
   equipmentType,
-// eslint-disable-next-line eol-last
 };
