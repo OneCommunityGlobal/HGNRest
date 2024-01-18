@@ -21,11 +21,11 @@ const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+// const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
-const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
+// const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const {
   invTypeBase,
   materialType,
@@ -36,6 +36,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryType');
 const {
   buildingConsumable,
+  buildingMaterial,
 } = require('../models/bmdashboard/buildingInventoryItem');
 const buildingTool = require('../models/bmdashboard/buildingTool');
 
@@ -76,7 +77,7 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(inventoryItemMaterial, buildingMaterial);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
