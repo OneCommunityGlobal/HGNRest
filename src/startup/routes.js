@@ -21,6 +21,7 @@ const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
+const permissionChangeLog = require('../models/permissionChangeLog')
 // const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
@@ -61,8 +62,8 @@ const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskN
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project, mapLocations);
+const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(permissionChangeLog)
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
-
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -112,6 +113,7 @@ module.exports = function (app) {
   app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
+  app.use('/api', permissionChangeLogRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   // bm dashboard
