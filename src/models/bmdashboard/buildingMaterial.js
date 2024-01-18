@@ -10,6 +10,7 @@ const buildingMaterial = new Schema({
   stockWasted: { type: Number, default: 0 }, // total amount of item wasted/ruined/lost in the project
   stockAvailable: { type: Number, default: 0 }, // bought - (used + wasted)
   purchaseRecord: [{
+    _id: false, // do not add _id field to subdocument
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     quantity: { type: Number, required: true },
@@ -18,6 +19,7 @@ const buildingMaterial = new Schema({
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
   }],
   updateRecord: [{
+    _id: false,
     date: { type: Date, required: true },
     createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     quantityUsed: { type: Number, required: true },
