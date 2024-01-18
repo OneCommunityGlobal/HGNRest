@@ -11,6 +11,9 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
   inventoryTypeRouter.route('/invtypes/equipment')
     .post(controller.addEquipmentType);
 
+  inventoryTypeRouter.route('/invtypes/consumables')
+    .get(controller.fetchConsumableTypes);
+
   // Combined routes for getting a single inventory type and updating its name and unit of measurement
   inventoryTypeRouter.route('/invtypes/material/:invtypeId')
     .get(controller.fetchSingleInventoryType)
