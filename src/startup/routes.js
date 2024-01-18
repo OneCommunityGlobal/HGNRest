@@ -24,6 +24,7 @@ const mouseoverText = require('../models/mouseoverText');
 // const inventoryItemMaterial = require('../models/inventoryItemMaterial');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
+const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 // const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const {
   invTypeBase,
@@ -78,6 +79,7 @@ const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
@@ -116,6 +118,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmProjectRouter);
+  app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
