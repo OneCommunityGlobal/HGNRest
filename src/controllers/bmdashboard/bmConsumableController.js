@@ -28,7 +28,7 @@ const bmConsumableController = function (BuildingConsumable) {
             },
           ])
           .exec()
-          .then((result) => {
+          .then(result => {
             res.status(200).send(result);
           })
           .catch(error => res.status(500).send(error));
@@ -36,10 +36,11 @@ const bmConsumableController = function (BuildingConsumable) {
         res.json(err);
       }
     };
-
+  
     return {
         fetchBMConsumables,
     };
   };
-
+  
 module.exports = bmConsumableController;
+  
