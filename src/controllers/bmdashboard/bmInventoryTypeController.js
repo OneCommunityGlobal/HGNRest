@@ -1,4 +1,5 @@
 const fs = require('fs');
+
 const filepath = 'src/controllers/bmdashboard/BuildingUnits.json';
 
 function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
@@ -21,13 +22,13 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
           console.error('Error reading file:', err);
           return;
         }
-      
+
         try {
           const jsonData = JSON.parse(data);
-          res.status(200).send(jsonData)
+          res.status(200).send(jsonData);
         } catch (parseError) {
           console.error('Error parsing JSON:', parseError);
-          res.status(500).send(parseError)
+          res.status(500).send(parseError);
         }
       });
     } catch (err) {
@@ -35,20 +36,20 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
-  
+
   async function addMaterialType(req, res) {
     const {
       name,
       description,
       requestor: { requestorId },
     } = req.body;
-    const unit  = req.body.unit  || req.body.customUnit;
+    const unit = req.body.unit || req.body.customUnit;
     try {
       MatType
         .find({ name })
         .then((result) => {
           if (result.length) {
-            res.status(409).send("Oops!! Material already exists!");
+            res.status(409).send('Oops!! Material already exists!');
           } else {
             const newDoc = {
               category: 'Material',
@@ -59,16 +60,12 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
             };
             MatType
             .create(newDoc)
-            .then((results) => 
-              {
+            .then((results) => {
                 res.status(201).send(results);
-               
-                if(req.body.customUnit)
-                {
-                  try{
-                    //Add new unit to json file : src\controllers\bmdashboard\BuildingUnits.json
-                    
-                    const newItem = {unit:req.body.customUnit,category:"Material"}
+                if (req.body.customUnit) {
+                  try {
+                    // Add new unit to json file : src\controllers\bmdashboard\BuildingUnits.json
+                    const newItem = { unit: req.body.customUnit, category: 'Material' };
                     const newItemString = JSON.stringify(newItem, null, 2);
                     fs.readFile(filepath, 'utf8', (err, data) => {
                       if (err) {
@@ -77,23 +74,20 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
                       }
                       // Remove the last array bracket and comma
                       const updatedContent = data.trim().replace(/\s*]$/, '');
-                    
+
                       // Add a comma and newline if the file is not empty
                       const separator = (updatedContent !== '') ? ',\n' : '';
-                    
                       const updatedFileContent = `${updatedContent}${separator}${newItemString}\n]`;
-                    
-                      fs.writeFile(filepath, updatedFileContent, 'utf8', (err) => {
-                        if (err) {
-                          console.error('Error writing to file:', err);
+
+                      fs.writeFile(filepath, updatedFileContent, 'utf8', (error) => {
+                        if (error) {
+                          console.error('Error writing to file:', error);
                           return;
                         }
                       });
                     });
-
-                  }
-                  catch(e){
-
+                  } catch (e) {
+                    console.log(e);
                   }
                 }
               })
@@ -111,6 +105,31 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.status(500).send(error);
       }
     }
+
+  async function fetchInventoryByType(req, res) {
+    const { type } = req.params;
+    let SelectedType = InvType;
+    if (type === 'Materials') {
+      SelectedType = MatType;
+    } else if (type === 'Consumables') {
+      SelectedType = ConsType;
+    } else if (type === 'Reusables') {
+      SelectedType = ReusType;
+    } else if (type === 'Tools') {
+      SelectedType = ToolType;
+    } else if (type === 'Equipments') {
+      SelectedType = EquipType;
+    }
+    try {
+      SelectedType
+        .find()
+        .exec()
+        .then(result => res.status(200).send(result))
+        .catch(error => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  }
 
   async function addEquipmentType(req, res) {
     const {
@@ -196,7 +215,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchSingleInventoryType,
     updateNameAndUnit,
     addMaterialType,
-    fetchInvUnitsFromJson
+    fetchInvUnitsFromJson,
+    fetchInventoryByType,
   };
 }
 
