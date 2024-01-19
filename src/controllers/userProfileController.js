@@ -2,7 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const fetch = require("node-fetch");
+const fetch = require('node-fetch');
 
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
@@ -111,7 +111,6 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-
     if (!await hasPermission(req.body.requestor, 'postUserProfile')) {
       res.status(403).send('You are not authorized to create new users');
       return;
@@ -142,12 +141,12 @@ const userProfileController = function (UserProfile) {
     // In dev environment, if newly created user is Owner or Administrator, make fetch request to Beta login route with actualEmail and actual Password
     if (process.env.dbName === 'hgnData_dev') {
       if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
-        const email = req.body.actualEmail
-        const password = req.body.actualPassword
-        const url = "https://hgn-rest-beta.azurewebsites.net/api/"
+        const email = req.body.actualEmail;
+        const password = req.body.actualPassword;
+        const url = 'https://hgn-rest-beta.azurewebsites.net/api/';
         try {
           // Log in to Beta login route using provided credentials
-          const response = await fetch(url + 'login', {
+          const response = await fetch(`${url}login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -276,14 +275,6 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    const canEditTeamCode = req.body.requestor.role === 'Owner'
-      || req.body.requestor.role === 'Administrator'
-      || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-    if (!canEditTeamCode) {
-      res.status(403).send('You are not authorized to edit team code.');
-      return;
-    }
 
     if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor, 'addDeleteEditOwners')) {
       res.status(403).send('You are not authorized to update this user');
@@ -305,6 +296,15 @@ const userProfileController = function (UserProfile) {
           res.status(400).json(results.errors);
           return;
         }
+      }
+
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
+        return;
       }
 
       const originalinfringements = record.infringements
@@ -890,7 +890,7 @@ const userProfileController = function (UserProfile) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-  
+
   return {
     postUserProfile,
     getUserProfiles,
