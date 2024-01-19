@@ -118,7 +118,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmProjectRouter);
-  app.use('/api/bm', bmMaterialsRouter);
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
