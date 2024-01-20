@@ -10,6 +10,10 @@ const bmToolController = (BuildingTool) => {
                         select: '_id name description unit imageUrl category',
                     },
                     {
+                        path: 'project',
+                        select: 'name',
+                    },
+                    {
                         path: 'userResponsible',
                         select: '_id firstName lastName',
                     },
