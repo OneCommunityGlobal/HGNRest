@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const dashboardhelper = require("../helpers/dashboardhelper")();
 const emailSender = require("../utilities/emailSender");
 const AIPrompt = require("../models/weeklySummaryAIPrompt");
+const User = require("../models/userProfile");
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
@@ -16,7 +17,22 @@ const dashboardcontroller = function () {
       res.status(200).send(results);
     });
   };
-
+  // eslint-disable-next-line space-before-blocks
+  const updateCopiedPrompt = function (req, res) {
+    User.findOneAndUpdate(
+      { _id: req.params.userId },
+      { copiedAiPrompt: Date.now() },
+    )
+      .then(() => {
+        // console.log("REACHED THIS ROUTE");
+        res.status(200).send("Copied AI prompt");
+      })
+      .catch((error) => {
+        if (error) {
+          res.status(500).send(error);
+        }
+      });
+  };
   const updateAIPrompt = function (req, res) {
     if (req.body.requestor.role === "Owner") {
       AIPrompt.findOneAndUpdate(
@@ -25,7 +41,7 @@ const dashboardcontroller = function () {
           ...req.body,
           aIPromptText: req.body.aIPromptText,
           modifiedDatetime: Date.now(),
-        },
+        }
       )
         .then(() => {
           res.status(200).send("Successfully saved AI prompt.");
@@ -315,6 +331,7 @@ const dashboardcontroller = function () {
     getSuggestionOption,
     editSuggestionOption,
     sendMakeSuggestion,
+    updateCopiedPrompt,
   };
 };
 
