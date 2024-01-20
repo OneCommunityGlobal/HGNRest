@@ -189,9 +189,10 @@ const timeEntrycontroller = function (TimeEntry) {
     const isForAuthUser = personId === req.body.requestor.requestorId;
     const isSameDayTimeEntry = moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
     const canEdit = (await hasPermission(req.body.requestor, 'editTimeEntry')) || (isForAuthUser && isSameDayTimeEntry);
+    const canEditTimeEntryDescription = await hasPermission(req.body.requestor, 'editTimeEntryDescription');
 
-    if (!canEdit) {
-      const error = 'Unauthorized request';
+    if (!(canEdit || canEditTimeEntryDescription)) {
+      const error = "Unauthorized request";
       return res.status(403).send({ error });
     }
 
@@ -369,7 +370,6 @@ const timeEntrycontroller = function (TimeEntry) {
     const isInvalid = !req.body.dateOfWork
       || !moment(req.body.dateOfWork).isValid()
       || !req.body.timeSpent;
-
     const returnErr = (result) => {
       result.status(400).send({ error: 'Bad request' });
     };
