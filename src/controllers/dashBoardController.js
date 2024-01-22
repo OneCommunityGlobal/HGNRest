@@ -17,6 +17,7 @@ const dashboardcontroller = function () {
       res.status(200).send(results);
     });
   };
+  // The Code below updates the time the AiPrompt was copied by the user - Sucheta
   // eslint-disable-next-line space-before-blocks
   const updateCopiedPrompt = function (req, res) {
     User.findOneAndUpdate(
