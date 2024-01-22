@@ -189,8 +189,12 @@ const timeEntrycontroller = function (TimeEntry) {
     const isForAuthUser = personId === req.body.requestor.requestorId;
     const isSameDayTimeEntry = moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
     const canEdit = (await hasPermission(req.body.requestor, 'editTimeEntry')) || (isForAuthUser && isSameDayTimeEntry);
+    const canEditTimeEntryToggleTangible = await hasPermission(
+      req.body.requestor,
+      "editTimeEntryToggleTangible"
+    );
 
-    if (!canEdit) {
+    if (!(canEdit || canEditTimeEntryToggleTangible) ) {
       const error = 'Unauthorized request';
       return res.status(403).send({ error });
     }
