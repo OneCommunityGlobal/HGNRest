@@ -6,7 +6,7 @@ const routes = function (userProfile) {
   const warningRouter = express.Router();
 
   warningRouter
-    .route("/warnings/:id")
+    .route("/warnings/:userId")
     .get(controller.getWarningsByUserId)
     .post(controller.postWarningsToUserProfile)
     .delete(controller.deleteUsersWarnings);
