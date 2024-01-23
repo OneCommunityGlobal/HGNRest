@@ -13,6 +13,8 @@ const routes = function (buildingNewLesson) {
         .delete(controller.bmDeleteSingleLesson);
     NewLessonRouter.route('/lessons/new')
         .post(controller.bmPostLessonList);
+    NewLessonRouter.route('/lesson/:lessonId/like')
+  .put(controller.likeLesson);
     return NewLessonRouter;
 };
 module.exports = routes;
