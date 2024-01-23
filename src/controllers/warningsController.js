@@ -1,89 +1,73 @@
-const mongoose = require("mongoose");
 const userProfile = require("../models/userProfile");
+const mongoose = require("mongoose");
 
+const descriptions = [
+  "Better Descriptions",
+  "Log Time to Tasks",
+  "Log Time as You Go",
+  "Log Time to Action Items",
+  "Intangible Time Log w/o Reason",
+];
 const warningsController = function (UserProfile) {
   // check to see how to add an array caleld warnigns to the abckend
   // anc check if its being saved when posting
   // change post to a put instead as I am saving data that exisits.
 
-  //getting the warnings will be done in dashboard or a top component
-  //or when clicking the tracking button
+  // getting the warnings will be done in dashboard or a top component
+  // or when clicking the tracking button
 
   const getWarningsByUserId = async function (req, res) {
-    const { id } = req.params;
-
-    // console.log("id when searching", id);
-    // const { roleId } = req.params;
-    const descriptions = [
-      "Better Descriptions",
-      "Log Time to Tasks",
-      "Log Time as You Go",
-      "Log Time to Action Items",
-      "Intangible Time Log w/o Reason",
-    ];
+    const { userId } = req.params;
 
     // filter from the backend
-    //deseription first then color red blue white
-    //then fill out the rest on the front end
-    //send back array of obejcts fitler by the descriptions and the color
+    // deseription first then color red blue white
+    // then fill out the rest on the front end
+    // send back array of obejcts fitler by the descriptions and the color
     // so on the front end i just have to map over the description and displa
     // each warnign with their details
-    //look up freqwuncy algorithm counter
+    // look up freqwuncy algorithm counter
     // to group the descrioptions and group all the wanrings
 
-    // {
-
-    // description : [{color id, date} ]
-
-    // }
     try {
-      const { warnings } = await UserProfile.findById(id);
+      const { warnings } = await UserProfile.findById("userid");
 
-      console.log("user profile", warnings);
+      const completedData = filterWarnings(warnings);
 
-      let betterDescriptions = warnings.filter(
-        (warning) => warning.description === "Better Descriptions"
-      );
-      betterDescriptions = betterDescriptions.sort(sortByColorAndDate);
+      //TODO
+      //posting warning needs to be changed and fitleedd when sending
+      //just like when getting the data
+      //next a modal on the frontend to make sure a warnign is being assigned
+      //if cancled revoke everything
+      //if warning will be issued send the data after confirmation
+      //
 
-      // let logTimeToTasks = warnings.filter(
-      //   (warning) => warning.description === "Log Time to Tasks"
-      // );
-      // betterDescriptions = betterDescriptions.sort(logTimeToTasks);
-
-      const data = [
-        {
-          title: "Better Descriptions",
-          warnings: betterDescriptions,
-        },
-        // { title: "Log Time to Tasks", warnings: logTimeToTasks },
-      ];
-      // console.log(betterDescriptions);
-      // console.log("warnings on the backend", warnings);
       if (!warnings) {
         return res.status(400).send({ message: "no valiud records" });
       }
-      res.status(201).send({ warnings: data });
-    } catch (err) {
-      res.status(400).send({ message: error.message || error });
+      res.status(201).send({ warnings: completedData });
+    } catch (error) {
+      res.status(401).send({ message: error.message || error });
     }
-    // UserProfile.findById(userId)
-    //   .then((results) => res.status(200).send(results))
-    //   .catch((error) => res.status(404).send({ error }));
-    // res.status(200).json({ message: "test message" });
   };
 
   const postWarningsToUserProfile = async function (req, res) {
-    console.log("POST WARNINGS WAS CALLED");
-
     try {
-      // console.log("inside of try");
-      const { userId, iconId, color, date, description } = req.body;
+      const { userId } = req.params;
+      // find out why its not breaking when posting a warning
+      // id is being logged inside of theparams
+      //should be userId isntead
+      //when posting if undefiend it should error
+      // and send back the error response
+      //move onto deleting a warning
+      //break it and catch the error
+      const { iconId, color, date, description } = req.body;
 
+      console.log("Posting called", color);
       const record = await UserProfile.findById(userId);
       if (!record) {
         return res.status(400).send({ message: "No valid records found" });
       }
+      console.log("record", record.warnings);
 
       record.warnings = record.warnings.concat({
         userId,
@@ -92,75 +76,51 @@ const warningsController = function (UserProfile) {
         date,
         description,
       });
-
       await record.save();
 
-      // console.log("record warnings", record.warnings);
+      const completedData = filterWarnings(record.warnings);
 
-      let betterDescriptions = record.warnings.filter(
-        (warning) => warning.description === "Better Descriptions"
-      );
-      betterDescriptions = betterDescriptions.sort(sortByColorAndDate);
-      const data = [
-        {
-          title: "Better Descriptions",
-          warnings: betterDescriptions,
-        },
-      ];
-
-      res.status(201).send({ message: "success", warnings: data });
+      res.status(201).send({ message: "success", warnings: completedData });
     } catch (error) {
       res.status(400).send({ message: error.message || error });
     }
-    // UserProfile.findById(userId, (error, record) => {
-    //   if (error || record === null) {
-    //     res.status(400).send("No valid records found");
-    //     return;
-    //   }
-    //   // console.log("record before", record);
-
-    //   record.warnings = record.warnings.concat({
-    //     userId,
-    //     iconId,
-    //     color,
-    //     date,
-    //     description,
-    //   });
-
-    //   console.log("record", record.warnings);
-    //   record
-    //     .save()
-    //     .then((results) => res.status(201).send({ message: "succes", results }))
-    //     .catch((errors) => res.status(400).send(errors));
-    // });
-
-    // const foundUser = await UserProfile.findById({ _id: userId }, "");
-    // foundUser
-    // console.log("posting warnigns to user profile was called ", foundUser);
-    // console.log("posting warnigns to user profile was called ", req.body);
-    // res.status(200).json({ message: "testing post warning to user profile" });
   };
 
   const deleteUsersWarnings = async (req, res) => {
-    const { id } = req.params;
+    // console.log("inside of delete warning");
+    // console.log("req.body", req.body);
+    // console.log("req.params", req.params);
+    const { userId } = req.params;
+    const { warningId } = req.body;
 
+    console.log("warning id", warningId);
+    //warning id odesnt return null if it deosnt find it.
+    //it returns the original array
+    //i wonder because its searching the obejct as a whole
+    //then searches inside teh warnings array
     try {
       const warnings = await UserProfile.findOneAndUpdate(
-        {
-          _id: id,
-        },
-        {
-          $set: {
-            warnings: [],
-          },
-        }
+        { _id: userId },
+        { $pull: { warnings: { _id: warningId } } },
+        { new: true, upsert: true }
       );
 
       if (!warnings) {
-        return res.status(400).send({ message: "no valiud records" });
+        console.log("No document found or created.");
+      } else {
+        console.log("Updated document:", warnings.warnings);
       }
-      res.status(201).send({ message: "succesfully deleted" });
-    } catch (err) {
+
+      if (!warnings) {
+        return res.status(400).send({ message: "no valid records" });
+      }
+
+      const sortedWarnings = filterWarnings(warnings.warnings);
+      res
+        .status(201)
+        .send({ message: "succesfully deleted", warnings: sortedWarnings });
+    } catch (error) {
+      console.log("error", error);
       res.status(400).send({ message: error.message || error });
     }
   };
@@ -172,11 +132,26 @@ const warningsController = function (UserProfile) {
   };
 };
 
-// will have to sort by date if the color is the same
+//gests the dsecriptions key from the array
+const getDescriptionKey = (val) => {
+  const descriptions = [
+    "Better Descriptions",
+    "Log Time to Tasks",
+    "Log Time as You Go",
+    "Log Time to Action Items",
+    "Intangible Time Log w/o Reason",
+  ];
 
-//method to see which color is first
+  return descriptions.indexOf(val);
+};
+
+const sortKeysAlphabetically = (a, b) => {
+  return getDescriptionKey(a) - getDescriptionKey(b);
+};
+
+// method to see which color is first
 const getColorIndex = (color) => {
-  const colorOrder = ["red", "blue"];
+  const colorOrder = ["blue", "yellow", "red"];
   return colorOrder.indexOf(color);
 };
 
@@ -193,4 +168,37 @@ const sortByColorAndDate = (a, b) => {
 
   return colorComparison;
 };
+
+const filterWarnings = (warnings) => {
+  const warningsObject = {};
+
+  warnings.forEach((warning) => {
+    if (!warningsObject[warning.description]) {
+      warningsObject[warning.description] = [];
+    }
+    warningsObject[warning.description].push(warning);
+  });
+
+  const warns = Object.keys(warningsObject)
+    .sort(sortKeysAlphabetically)
+    .reduce((acc, cur) => {
+      acc[cur] = warningsObject[cur];
+      return acc;
+    }, {});
+
+  for (let keys of Object.keys(warns)) {
+    warns[keys] = warns[keys].sort(sortByColorAndDate);
+  }
+
+  const completedData = [];
+
+  for (let descrip of descriptions) {
+    completedData.push({
+      title: descrip,
+      warnings: warns[descrip] ? warns[descrip] : [],
+    });
+  }
+  return completedData;
+};
+
 module.exports = warningsController;
