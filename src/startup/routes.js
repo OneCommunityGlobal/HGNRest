@@ -21,12 +21,10 @@ const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
-const permissionChangeLog = require('../models/permissionChangeLog')
-// const inventoryItemMaterial = require('../models/inventoryItemMaterial');
+const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
-// const buildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const {
   invTypeBase,
   materialType,
@@ -38,8 +36,9 @@ const {
 const {
   buildingConsumable,
   buildingMaterial,
+  buildingTool,
 } = require('../models/bmdashboard/buildingInventoryItem');
-const buildingTool = require('../models/bmdashboard/buildingTool');
+// const buildingTool = require('../models/bmdashboard/buildingTool');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -62,7 +61,7 @@ const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskN
 const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(profileInitialSetuptoken, userProfile, project, mapLocations);
-const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(permissionChangeLog)
+const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(permissionChangeLog);
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
