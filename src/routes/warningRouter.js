@@ -11,8 +11,6 @@ const routes = function (userProfile) {
     .post(controller.postWarningsToUserProfile)
     .delete(controller.deleteUsersWarnings);
 
-  // .post(controller.postWarningsToUserProfile);
-  //
   return warningRouter;
 };
 module.exports = routes;
