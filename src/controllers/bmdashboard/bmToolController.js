@@ -59,16 +59,20 @@ const bmToolController = (BuildingTool) => {
           toolId,
           quantity,
           priority,
-          brand,
+          estTime: estUsageTime,
+          desc: usageDesc,
+          makeModel: makeModelPref,
           requestor: { requestorId },
         } = req.body;
-        const newPurchaseRecord = {
-          quantity,
-          priority,
-          brand,
-          requestedBy: requestorId,
-        };
         try {
+            const newPurchaseRecord = {
+                quantity,
+                priority,
+                estUsageTime,
+                usageDesc,
+                makeModelPref,
+                requestedBy: requestorId,
+              };
           const doc = await BuildingTool.findOne({ project: projectId, itemType: toolId });
           if (!doc) {
             const newDoc = {
@@ -76,29 +80,31 @@ const bmToolController = (BuildingTool) => {
               project: projectId,
               purchaseRecord: [newPurchaseRecord],
             };
+
             BuildingTool
-            .create(newDoc)
-            .then(() => res.status(201).send())
-            .catch(error => res.status(500).send(error));
-            return;
+              .create(newDoc)
+              .then(() => res.status(201).send())
+              .catch(error => res.status(500).send(error));
+              return;
           }
-          BuildingTool
-          .findOneAndUpdate(
-              { _id: mongoose.Types.ObjectId(doc._id) },
-              { $push: { purchaseRecord: newPurchaseRecord } },
+
+            BuildingTool
+              .findOneAndUpdate(
+                { _id: mongoose.Types.ObjectId(doc._id) },
+                { $push: { purchaseRecord: newPurchaseRecord } },
               )
-            .exec()
-            .then(() => res.status(201).send())
-            .catch(error => res.status(500).send(error));
+              .exec()
+              .then(() => res.status(201).send())
+              .catch(error => res.status(500).send(error));
         } catch (error) {
           res.status(500).send(error);
         }
       };
+
       return {
         fetchSingleTool,
-        bmPurchaseTools
-        };
+        bmPurchaseTools,
+      };
 };
 
 module.exports = bmToolController;
-
