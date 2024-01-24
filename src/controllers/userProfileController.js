@@ -146,7 +146,7 @@ const userProfileController = function (UserProfile) {
         const url = 'https://hgn-rest-beta.azurewebsites.net/api/';
         try {
           // Log in to Beta login route using provided credentials
-          const response = await fetch(`${url }login`, {
+          const response = await fetch(`${url}login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -275,14 +275,6 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    const canEditTeamCode = req.body.requestor.role === 'Owner'
-      || req.body.requestor.role === 'Administrator'
-      || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-    if (!canEditTeamCode) {
-      res.status(403).send('You are not authorized to edit team code.');
-      return;
-    }
 
     if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor, 'addDeleteEditOwners')) {
       res.status(403).send('You are not authorized to update this user');
@@ -304,6 +296,15 @@ const userProfileController = function (UserProfile) {
           res.status(400).json(results.errors);
           return;
         }
+      }
+
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
+        return;
       }
 
       const originalinfringements = record.infringements
@@ -624,7 +625,7 @@ const userProfileController = function (UserProfile) {
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
+    if (!key || value === undefined)return res.status(400).send({ error: 'Missing property or value' });
 
     return UserProfile.findById(userId)
       .then((user) => {
