@@ -272,10 +272,12 @@ const profileInitialSetupController = function (
           const token = jwt.sign(jwtPayload, JWT_SECRET);
 
             const locationData = {
+              title: '',
               firstName: req.body.firstName,
               lastName: req.body.lastName,
               jobTitle: req.body.jobTitle,
               location: req.body.homeCountry,
+              isActive: true,
             };
 
           res.send({ token }).status(200);
