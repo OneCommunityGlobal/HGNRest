@@ -7,7 +7,7 @@ const timeOffRequest = new Schema({
   reason: { type: 'String', required: true },
   startingDate: { type: Date, required: true },
   endingDate: { type: Date },
-  duration: { type: Number, required: true } // in weeks
+  duration: { type: Number, required: true }, // in weeks
 
 });
 

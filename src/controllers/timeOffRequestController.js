@@ -1,5 +1,5 @@
-const mongoose = require("mongoose");
-const moment = require("moment-timezone");
+const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');
 
 const timeOffRequestController = function (TimeOffRequest) {
@@ -8,17 +8,18 @@ const timeOffRequestController = function (TimeOffRequest) {
       res.status(403).send('You are not authorized to set time off requests.');
       return;
     }
-    const { duration, startingDate, reason, requestFor } = req.body;
+    const {
+ duration, startingDate, reason, requestFor,
+} = req.body;
     if (!duration || !startingDate || !reason || !requestFor) {
-      res.status(400).send("bad request");
+      res.status(400).send('bad request');
       return;
     }
-    moment.tz.setDefault("America/Los_Angeles");
+    moment.tz.setDefault('America/Los_Angeles');
 
     const startDate = moment(startingDate);
-    const endDate = startDate.clone().add(Number(duration), "weeks").subtract(1, "second");
+    const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'second');
 
- 
 
     const newTimeOffRequest = new TimeOffRequest();
 
@@ -32,7 +33,7 @@ const timeOffRequestController = function (TimeOffRequest) {
       const savedRequest = await newTimeOffRequest.save();
       res.status(201).send(savedRequest);
     } catch (error) {
-      res.status(500).send("Error saving the request.");
+      res.status(500).send('Error saving the request.');
     }
   };
 
@@ -44,14 +45,14 @@ const timeOffRequestController = function (TimeOffRequest) {
         },
         {
           $group: {
-            _id: "$requestFor",
-            requests: { $push: "$$ROOT" }, // Group requests by requestFor
+            _id: '$requestFor',
+            requests: { $push: '$$ROOT' }, // Group requests by requestFor
           },
         },
         {
           $project: {
             _id: 0,
-            requestFor: "$_id",
+            requestFor: '$_id',
             requests: 1,
           },
         },
@@ -75,7 +76,7 @@ const timeOffRequestController = function (TimeOffRequest) {
       const request = await TimeOffRequest.findById(requestId);
 
       if (!request) {
-        res.status(404).send("Time off request not found");
+        res.status(404).send('Time off request not found');
         return;
       }
 
@@ -93,19 +94,19 @@ const timeOffRequestController = function (TimeOffRequest) {
     const requestId = req.params.id;
     const { duration, startingDate, reason } = req.body;
     if (!duration || !startingDate || !reason || !requestId) {
-      res.status(400).send("bad request");
+      res.status(400).send('bad request');
       return;
     }
-    moment.tz.setDefault("America/Los_Angeles");
+    moment.tz.setDefault('America/Los_Angeles');
 
     const startDate = moment(startingDate);
-    const endDate = startDate.clone().add(Number(duration), "weeks").subtract(1, "second");
+    const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'second');
 
     const updateData = {
-      reason: reason,
+      reason,
       startingDate: startDate.toDate(),
       endingDate: endDate.toDate(),
-      duration: duration,
+      duration,
     };
 
     try {
@@ -114,11 +115,11 @@ const timeOffRequestController = function (TimeOffRequest) {
         updateData,
         {
           new: true,
-        }
+        },
       );
 
       if (!updatedRequest) {
-        res.status(404).send("Time off request not found");
+        res.status(404).send('Time off request not found');
         return;
       }
 
@@ -139,7 +140,7 @@ const timeOffRequestController = function (TimeOffRequest) {
       const deletedRequest = await TimeOffRequest.findByIdAndDelete(requestId);
 
       if (!deletedRequest) {
-        res.status(404).send("Time off request not found");
+        res.status(404).send('Time off request not found');
         return;
       }
 
