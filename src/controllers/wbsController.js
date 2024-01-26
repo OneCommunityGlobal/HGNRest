@@ -1,4 +1,7 @@
+const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
+const Project = require('../models/project');
+const Task = require('../models/task');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
@@ -68,12 +71,32 @@ const wbsController = function (WBS) {
       .catch(error => res.status(404).send(error));
   };
 
+  const getWBSByUserId = async function (req, res) {
+    const { userId } = req.params;
+    try {
+      const result = await Task.aggregate()
+      .match({ 'resources.userID': mongoose.Types.ObjectId(userId) })
+      .project('wbsId -_id')
+      .group({ _id: '$wbsId' })
+      .lookup({
+        from: 'wbs', localField: '_id', foreignField: '_id', as: 'wbs',
+      })
+      .unwind('wbs')
+      .replaceRoot('wbs');
+
+      res.status(200).send(result);
+    } catch (error) {
+      res.status(404).send(error);
+    }
+  };
+
   return {
     postWBS,
     deleteWBS,
     getAllWBS,
     getWBS,
     getWBSById,
+    getWBSByUserId,
   };
 };
 
