@@ -7,6 +7,9 @@ const routes = function (BuildingConsumable) {
   BuildingConsumableController.route('/consumables')
     .get(controller.fetchBMConsumables);
 
+  BuildingConsumableController.route('/updateConsumableRecordBulk')
+    .get(controller.updateBMConsumableBulk);
+
   return BuildingConsumableController;
 };
 
