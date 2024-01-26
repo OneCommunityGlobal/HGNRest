@@ -89,7 +89,6 @@ const userProfileSchema = new Schema({
       description: { type: String, required: true },
     },
   ],
-
   warnings: [
     {
       date: { type: String, required: true },
@@ -122,6 +121,10 @@ const userProfileSchema = new Schema({
     city: { type: String, default: "" },
   },
   oldInfringements: [
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
     {
       date: { type: String, required: true },
       description: { type: String, required: true },
@@ -217,6 +220,10 @@ const userProfileSchema = new Schema({
       areaContent: { type: String },
     },
   ],
+  // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
+  actualEmail: { type: String },
+  timeOffFrom: { type: Date, default: undefined },
+  timeOffTill: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre("save", function (next) {
