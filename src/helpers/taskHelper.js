@@ -60,31 +60,11 @@ const taskHelper = function () {
           );
           break;
         }
-        case !isRequestorOwnerLike && !isUserOwnerLike: {
-          const sharedTeamsResult = await team.find({ $or: [{ 'members.userId': { $all: [userid, requestorId] } }, { 'members.userId': userid }] }, { members: 1 });
-
-          sharedTeamsResult.forEach((_myTeam) => {
-            _myTeam.members.forEach((teamMember) => {
-              if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-            });
-          });
-
-          teamMembers = await userProfile
-            .find(
-              { _id: { $in: teamMemberIds }, isActive: true },
-              {
-                role: 1,
-                firstName: 1,
-                lastName: 1,
-                weeklycommittedHours: 1,
-                timeOffFrom: 1,
-                timeOffTill: 1,
-              },
-            );
-            break;
-        }
-        default: {
-          const teamsResult = await team.find({ 'members.userId': { $in: [userid] } }, { members: 1 });
+        case isRequestorOwnerLike && !isUserOwnerLike: {
+          const teamsResult = await team.find(
+            { 'members.userId': { $in: [userid] } },
+            { members: 1 },
+          );
 
           teamsResult.forEach((_myTeam) => {
             _myTeam.members.forEach((teamMember) => {
@@ -92,18 +72,42 @@ const taskHelper = function () {
             });
           });
 
-          teamMembers = await userProfile
-            .find(
-              { _id: { $in: teamMemberIds }, isActive: true },
-              {
-                role: 1,
-                firstName: 1,
-                lastName: 1,
-                weeklycommittedHours: 1,
-                timeOffFrom: 1,
-                timeOffTill: 1,
-              },
-            );
+          teamMembers = await userProfile.find(
+            { _id: { $in: teamMemberIds }, isActive: true },
+            {
+              role: 1,
+              firstName: 1,
+              lastName: 1,
+              weeklycommittedHours: 1,
+              timeOffFrom: 1,
+              timeOffTill: 1,
+            },
+          );
+          break;
+        }
+        default: {
+          const sharedTeamsResult = await team.find(
+            { 'members.userId': { $all: [userid, requestorId] } },
+            { members: 1 },
+          );
+
+          sharedTeamsResult.forEach((_myTeam) => {
+            _myTeam.members.forEach((teamMember) => {
+              if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+            });
+          });
+
+          teamMembers = await userProfile.find(
+            { _id: { $in: teamMemberIds }, isActive: true },
+            {
+              role: 1,
+              firstName: 1,
+              lastName: 1,
+              weeklycommittedHours: 1,
+              timeOffFrom: 1,
+              timeOffTill: 1,
+            },
+          );
         }
       }
 
@@ -133,12 +137,8 @@ const taskHelper = function () {
         timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
       });
       const teamMemberTasks = await Task.find(
-        {
-          'resources.userID': { $in: teamMemberIds },
-        },
-        {
-          'resources.profilePic': 0,
-        },
+        { 'resources.userID': { $in: teamMemberIds } },
+        { 'resources.profilePic': 0 },
       ).populate({
         path: 'wbsId',
         select: 'projectId',
@@ -163,8 +163,7 @@ const taskHelper = function () {
         }
       });
 
-      const taskByPerson = [];
-
+      const taskByPerson = {};
       teamMemberTasks.forEach((teamMemberTask) => {
         const projId = teamMemberTask.wbsId?.projectId;
         const _teamMemberTask = { ...teamMemberTask._doc };
