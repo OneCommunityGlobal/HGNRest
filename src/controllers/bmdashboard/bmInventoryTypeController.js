@@ -27,7 +27,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
         if (err) {
           console.error('Error reading file:', err);
           res.status(500).send(err);
-          return;
         }
 
         try {
