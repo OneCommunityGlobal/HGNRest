@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
 const UserProfile = require('../models/userProfile');
-const timeEntryHelper = require('../helpers/timeEntryHelper')();
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
@@ -802,9 +801,6 @@ const taskController = function (Task) {
       if (!task) {
         return res.status(400).send({ error: 'This is not a valid task' });
       }
-
-      const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedTask(taskId);
-      task.set('hoursLogged', hoursLogged, { strict: false });
 
       // Fetch the resource names for all resources
       const resourceNamesPromises = task.resources.map(resource => taskHelper.getUserProfileFirstAndLastName(resource.userID));
