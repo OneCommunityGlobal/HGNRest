@@ -9,7 +9,7 @@ const routes = function (ProfileInitialSetupToken, userProfile, Project, mapLoca
     ProfileInitialSetup.route('/validateToken').post(controller.validateSetupToken);
     ProfileInitialSetup.route('/getTimeZoneAPIKeyByToken').post(controller.getTimeZoneAPIKeyByToken);
     ProfileInitialSetup.route('/getTotalCountryCount').get(controller.getTotalCountryCount);
-
+    ProfileInitialSetup.route('/getSetupInvitation').get(controller.getSetupInvitation);
     return ProfileInitialSetup;
 };
 
