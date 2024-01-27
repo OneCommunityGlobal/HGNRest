@@ -45,7 +45,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
         const updateData = req.body;
         const lesson = await BuildingNewLesson.findById(lessonId);
             // Extract only allowed fields (content, tag, relatedProject and title)
-            const allowedFields = ['content', 'tags', 'relatedProject', 'title'];
+            const allowedFields = ['content', 'tags', 'relatedProject', 'title', 'allowedRoles', 'files'];
             const filteredUpdateData = Object.keys(updateData)
                 .filter(key => allowedFields.includes(key))
                 .reduce((obj, key) => {
