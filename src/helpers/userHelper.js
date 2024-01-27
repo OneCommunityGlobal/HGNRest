@@ -843,13 +843,11 @@ const userHelper = function () {
       personId,
       {
         $pull: {
- Bailey-new-personalMax-backend
           badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) }
         }
       },
       { new: true },
       err => {
-development
         if (err) {
           throw new Error(err);
         }
@@ -1113,13 +1111,11 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     let duplicateBadges = [];
 
     for (let i = 0; i < badgeCollection.length; i += 1) {
-Bailey-new-personalMax-backend
       if (badgeCollection[i].badge?.type === "Personal Max") {
         if (!badgeOfType) {
           badgeOfType = badgeCollection[i];
         } else {
           duplicateBadges.push(badgeCollection[i]);
-          development
         }
       }
       for (let badge of duplicateBadges) {
@@ -1128,13 +1124,12 @@ Bailey-new-personalMax-backend
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
       if (
- Bailey-new-personalMax-backend
+
         user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= 1 &&
         user.lastWeekTangibleHrs === user.personalBestMaxHrs
       ) 
       {
- development
         if (badgeOfType) {
           changeBadgeCount(
             personId,
@@ -1142,10 +1137,8 @@ Bailey-new-personalMax-backend
             user.personalBestMaxHrs,
           );
         } else {
- Bailey-new-personalMax-backend
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
 
- development
         }
       }
     });
@@ -1503,11 +1496,8 @@ Bailey-new-personalMax-backend
   };
 
   const awardNewBadges = async () => {
- Bailey-new-personalMax-backend
     try {
       const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
-
- development
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -1532,12 +1522,10 @@ Bailey-new-personalMax-backend
 
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
     const userId = mongoose.Types.ObjectId(personId);
- Bailey-new-personalMax-backend
     
     const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
     const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
- development
 
     return timeEntries
       .find(
