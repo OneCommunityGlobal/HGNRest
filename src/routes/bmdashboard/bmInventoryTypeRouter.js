@@ -23,7 +23,9 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     .put(controller.updateNameAndUnit);
 
   inventoryTypeRouter.route('/inventoryUnits')
-    .get(controller.fetchInvUnitsFromJson);
+    .get(controller.fetchInvUnitsFromJson)
+    .post(controller.addInvUnit)
+    .delete(controller.deleteInvUnit);
 
   return inventoryTypeRouter;
 };

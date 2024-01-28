@@ -1,4 +1,6 @@
 const fs = require('fs');
+const fsPromises = require('fs/promises');
+
 const path = require('path');
 const filename = 'BuildingUnits.json';
 const currentFilePath = __filename;
@@ -214,6 +216,64 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
         res.status(500).send(error);
       }
     };
+
+  const addInvUnit = async (req, res) => {
+    // NOTE: category is default to be Material as no other item types need units
+    const { unit, category = 'Material' } = req.body;
+    if (typeof unit !== 'string' || unit.length === 0) {
+      res.status(400).json('Invalid unit');
+      return;
+    }
+
+    try {
+      // read JSON file and parse it into an array
+      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
+      const unitsArray = JSON.parse(unitsJSON);
+
+      // append new unit into array
+      unitsArray.push({ unit, category });
+
+      // save updated array into JSON file and rend it back
+      await fsPromises.writeFile(filepath, JSON.stringify(unitsArray, null, ' '));
+
+      res.status(201).send(unitsArray);
+    } catch (err) {
+      res.status(500).send(err);
+      console.error(err);
+    }
+  };
+
+  const deleteInvUnit = async (req, res) => {
+    const { unit } = req.body;
+    if (typeof unit !== 'string' || unit.length === 0) {
+      res.status(400).json('Invalid unit');
+      return;
+    }
+
+    try {
+      // read JSON file and parse it into an array
+      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
+      const unitsArray = JSON.parse(unitsJSON);
+
+      // if unit does not exist, send err response
+      const index = unitsArray.findIndex(unitObject => unitObject.unit === unit);
+      if (index === -1) {
+        res.status(400).json('Unit does not exist');
+        return;
+      }
+
+      // otherwise, remove unit
+      const filteredUnits = unitsArray.filter(unitObject => unitObject.unit !== unit);
+
+      // save updated array into JSON file and rend it back
+      await fsPromises.writeFile(filepath, JSON.stringify(filteredUnits, null, ' '));
+      res.status(200).send(filteredUnits);
+    } catch (err) {
+      res.status(500).send(err);
+      console.error(err);
+    }
+  };
+
   return {
     fetchMaterialTypes,
     addEquipmentType,
@@ -222,6 +282,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addMaterialType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
+    addInvUnit,
+    deleteInvUnit,
   };
 }
 
