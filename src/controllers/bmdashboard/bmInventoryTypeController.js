@@ -275,6 +275,16 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
+  const updateSingleInvType = async (req, res) => {
+    const { invtypeId } = req.params;
+    res.status(200).json({ message: 'updated', invtypeId });
+  }
+
+  const deleteSingleInvType = async (req, res) => {
+    const { invtypeId } = req.params;
+    res.status(200).json({ message: 'deleted', invtypeId });
+  }
+
   return {
     fetchMaterialTypes,
     addEquipmentType,
@@ -285,6 +295,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchInventoryByType,
     addInvUnit,
     deleteInvUnit,
+    updateSingleInvType,
+    deleteSingleInvType,
   };
 }
 
