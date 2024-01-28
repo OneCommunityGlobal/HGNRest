@@ -369,10 +369,23 @@ const timeEntrycontroller = function (TimeEntry) {
     });
   };
 
+  const getCurrentDate = () => {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+    const day = String(currentDate.getDate()).padStart(2, "0");
+    const formattedDate = `${year}-${month}-${day}`;
+
+    return formattedDate;
+  }
+
   const postTimeEntry = async function (req, res) {
+    
+    const currentDate = getCurrentDate();
+    const isValidDate = currentDate >= req.body.dateOfWork;
     const isInvalid = !req.body.dateOfWork
       || !moment(req.body.dateOfWork).isValid()
-      || !req.body.timeSpent;
+      || !req.body.timeSpent || !isValidDate;
 
     const returnErr = (result) => {
       result.status(400).send({ error: 'Bad request' });
