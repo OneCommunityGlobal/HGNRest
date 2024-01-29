@@ -82,7 +82,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
                       fs.writeFile(filepath, updatedFileContent, 'utf8', (error) => {
                         if (error) {
                           console.error('Error writing to file:', error);
-                          return;
                         }
                       });
                     });

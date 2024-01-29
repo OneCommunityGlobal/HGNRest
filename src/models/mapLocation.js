@@ -3,21 +3,19 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const capitalizeString = (s) => {
-
     if (typeof s !== 'string') {
         return s;
     }
     const words = s.split(' ');
-    const capitalizedWords = words.map(word => {
+    const capitalizedWords = words.map((word) => {
       if (word.length > 0) {
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      } else {
-        return '';
       }
+        return '';
     });
     const capitalizedString = capitalizedWords.join(' ');
     return capitalizedString;
-}
+};
 
 const mapLocation = new Schema({
     title: {

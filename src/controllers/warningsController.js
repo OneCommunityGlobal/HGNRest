@@ -1,12 +1,12 @@
-const userProfile = require("../models/userProfile");
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
 
 const descriptions = [
-  "Better Descriptions",
-  "Log Time to Tasks",
-  "Log Time as You Go",
-  "Log Time to Action Items",
-  "Intangible Time Log w/o Reason",
+  'Better Descriptions',
+  'Log Time to Tasks',
+  'Log Time as You Go',
+  'Log Time to Action Items',
+  'Intangible Time Log w/o Reason',
 ];
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
@@ -18,7 +18,7 @@ const warningsController = function (UserProfile) {
       const completedData = filterWarnings(warnings);
 
       if (!warnings) {
-        return res.status(400).send({ message: "no valiud records" });
+        return res.status(400).send({ message: 'no valiud records' });
       }
       res.status(201).send({ warnings: completedData });
     } catch (error) {
@@ -30,11 +30,13 @@ const warningsController = function (UserProfile) {
     try {
       const { userId } = req.params;
 
-      const { iconId, color, date, description } = req.body;
+      const {
+ iconId, color, date, description,
+} = req.body;
 
       const record = await UserProfile.findById(userId);
       if (!record) {
-        return res.status(400).send({ message: "No valid records found" });
+        return res.status(400).send({ message: 'No valid records found' });
       }
 
       record.warnings = record.warnings.concat({
@@ -48,7 +50,7 @@ const warningsController = function (UserProfile) {
 
       const completedData = filterWarnings(record.warnings);
 
-      res.status(201).send({ message: "success", warnings: completedData });
+      res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
       res.status(400).send({ message: error.message || error });
     }
@@ -62,17 +64,17 @@ const warningsController = function (UserProfile) {
       const warnings = await UserProfile.findOneAndUpdate(
         { _id: userId },
         { $pull: { warnings: { _id: warningId } } },
-        { new: true, upsert: true }
+        { new: true, upsert: true },
       );
 
       if (!warnings) {
-        return res.status(400).send({ message: "no valid records" });
+        return res.status(400).send({ message: 'no valid records' });
       }
 
       const sortedWarnings = filterWarnings(warnings.warnings);
       res
         .status(201)
-        .send({ message: "succesfully deleted", warnings: sortedWarnings });
+        .send({ message: 'succesfully deleted', warnings: sortedWarnings });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -85,26 +87,24 @@ const warningsController = function (UserProfile) {
   };
 };
 
-//gests the dsecriptions key from the array
+// gests the dsecriptions key from the array
 const getDescriptionKey = (val) => {
   const descriptions = [
-    "Better Descriptions",
-    "Log Time to Tasks",
-    "Log Time as You Go",
-    "Log Time to Action Items",
-    "Intangible Time Log w/o Reason",
+    'Better Descriptions',
+    'Log Time to Tasks',
+    'Log Time as You Go',
+    'Log Time to Action Items',
+    'Intangible Time Log w/o Reason',
   ];
 
   return descriptions.indexOf(val);
 };
 
-const sortKeysAlphabetically = (a, b) => {
-  return getDescriptionKey(a) - getDescriptionKey(b);
-};
+const sortKeysAlphabetically = (a, b) => getDescriptionKey(a) - getDescriptionKey(b);
 
 // method to see which color is first
 const getColorIndex = (color) => {
-  const colorOrder = ["blue", "yellow", "red"];
+  const colorOrder = ['blue', 'yellow', 'red'];
   return colorOrder.indexOf(color);
 };
 
@@ -139,13 +139,13 @@ const filterWarnings = (warnings) => {
       return acc;
     }, {});
 
-  for (let keys of Object.keys(warns)) {
+  for (const keys of Object.keys(warns)) {
     warns[keys] = warns[keys].sort(sortByColorAndDate);
   }
 
   const completedData = [];
 
-  for (let descrip of descriptions) {
+  for (const descrip of descriptions) {
     completedData.push({
       title: descrip,
       warnings: warns[descrip] ? warns[descrip] : [],
