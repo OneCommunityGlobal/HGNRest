@@ -1,32 +1,32 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const UserProfile = require("../models/userProfile");
-const { hasPermission } = require("../utilities/permissions");
-const escapeRegex = require("../utilities/escapeRegex");
-const cache = require("../utilities/nodeCache")();
-const logger = require("../startup/logger");
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const UserProfile = require('../models/userProfile');
+const { hasPermission } = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
+const cache = require('../utilities/nodeCache')();
+const logger = require('../startup/logger');
 
 const badgeController = function (Badge) {
   const getAllBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "seeBadges"))) {
-      res.status(403).send("You are not authorized to view all badge data.");
+    if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
+      res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
 
     Badge.find(
       {},
-      "badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport"
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
     )
       .populate({
-        path: "project",
-        select: "_id projectName",
+        path: 'project',
+        select: '_id projectName',
       })
       .sort({
         ranking: 1,
         badgeName: 1,
       })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   /**
@@ -42,7 +42,7 @@ const badgeController = function (Badge) {
 
   const formatDate = () => {
     const currentDate = new Date(Date.now());
-    return moment(currentDate).tz("America/Los_Angeles").format("MMM-DD-YY");
+    return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
   };
 
   const fillEarnedDateToMatchCount = (earnedDate, count) => {
@@ -54,8 +54,8 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "assignBadges"))) {
-      res.status(403).send("You are not authorized to assign badges.");
+    if (!(await hasPermission(req.body.requestor, 'assignBadges'))) {
+      res.status(403).send('You are not authorized to assign badges.');
       return;
     }
 
@@ -63,7 +63,7 @@ const badgeController = function (Badge) {
 
     UserProfile.findById(userToBeAssigned, (error, record) => {
       if (error || record === null) {
-        res.status(400).send("Can not find the user to be assigned.");
+        res.status(400).send('Can not find the user to be assigned.');
         return;
       }
       const badgeCounts = {};
@@ -73,25 +73,25 @@ const badgeController = function (Badge) {
       try {
         req.body.badgeCollection.forEach((element) => {
           if (badgeCounts[element.badge]) {
-            throw new Error("Duplicate badges sent in.");
+            throw new Error('Duplicate badges sent in.');
             // res.status(500).send('Duplicate badges sent in.');
             // return;
           }
           badgeCounts[element.badge] = element.count;
           // Validation: count should be greater than 0
           if (element.count < 1) {
-            throw new Error("Badge count should be greater than 0.");
+            throw new Error('Badge count should be greater than 0.');
           }
           if (element.count !== element.earnedDate.length) {
             element.earnedDate = fillEarnedDateToMatchCount(
               element.earnedDate,
-              element.count
+              element.count,
             );
             element.lastModified = Date.now();
             logger.logInfo(
               `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
                 element._id
-              }; Badge Type ID ${element.badge}`
+              }; Badge Type ID ${element.badge}`,
             );
           }
         });
@@ -109,24 +109,24 @@ const badgeController = function (Badge) {
       // Save Updated User Profile
       record
         .save()
-        .then((results) => res.status(201).send(results._id))
+        .then(results => res.status(201).send(results._id))
         .catch((err) => {
           logger.logException(err);
-          res.status(500).send("Internal Error: Unable to save the record.");
+          res.status(500).send('Internal Error: Unable to save the record.');
         });
     });
   };
 
   const postBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "createBadges"))) {
+    if (!(await hasPermission(req.body.requestor, 'createBadges'))) {
       res
         .status(403)
-        .send({ error: "You are not authorized to create new badges." });
+        .send({ error: 'You are not authorized to create new badges.' });
       return;
     }
 
     Badge.find({
-      badgeName: { $regex: escapeRegex(req.body.badgeName), $options: "i" },
+      badgeName: { $regex: escapeRegex(req.body.badgeName), $options: 'i' },
     }).then((result) => {
       if (result.length > 0) {
         res.status(400).send({
@@ -152,35 +152,35 @@ const badgeController = function (Badge) {
 
       badge
         .save()
-        .then((results) => res.status(201).send(results))
-        .catch((errors) => res.status(500).send(errors));
+        .then(results => res.status(201).send(results))
+        .catch(errors => res.status(500).send(errors));
     });
   };
 
   const deleteBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "deleteBadges"))) {
+    if (!(await hasPermission(req.body.requestor, 'deleteBadges'))) {
       res
         .status(403)
-        .send({ error: "You are not authorized to delete badges." });
+        .send({ error: 'You are not authorized to delete badges.' });
       return;
     }
     const { badgeId } = req.params;
     Badge.findById(badgeId, (error, record) => {
       if (error || record === null) {
-        res.status(400).send({ error: "No valid records found" });
+        res.status(400).send({ error: 'No valid records found' });
         return;
       }
       const removeBadgeFromProfile = UserProfile.updateMany(
         {},
-        { $pull: { badgeCollection: { badge: record._id } } }
+        { $pull: { badgeCollection: { badge: record._id } } },
       ).exec();
       const deleteRecord = record.remove();
 
       Promise.all([removeBadgeFromProfile, deleteRecord])
         .then(
           res.status(200).send({
-            message: "Badge successfully deleted and user profiles updated",
-          })
+            message: 'Badge successfully deleted and user profiles updated',
+          }),
         )
         .catch((errors) => {
           res.status(500).send(errors);
@@ -191,10 +191,10 @@ const badgeController = function (Badge) {
   };
 
   const putBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "updateBadges"))) {
+    if (!(await hasPermission(req.body.requestor, 'updateBadges'))) {
       res
         .status(403)
-        .send({ error: "You are not authorized to update badges." });
+        .send({ error: 'You are not authorized to update badges.' });
       return;
     }
     const { badgeId } = req.params;
@@ -225,10 +225,10 @@ const badgeController = function (Badge) {
 
     Badge.findByIdAndUpdate(badgeId, data, (error, record) => {
       if (error || record === null) {
-        res.status(400).send({ error: "No valid records found" });
+        res.status(400).send({ error: 'No valid records found' });
         return;
       }
-      res.status(200).send({ message: "Badge successfully updated" });
+      res.status(200).send({ message: 'Badge successfully updated' });
     });
   };
 
