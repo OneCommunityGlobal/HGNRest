@@ -179,6 +179,7 @@ const permissionsRoles = [
       'assignProjectToUsers',
       'importTask',
       'postTask',
+      'postTimeEntry',
       'updateNum',
       'updateTask',
       'swapTask',
