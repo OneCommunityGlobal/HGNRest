@@ -155,8 +155,7 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
 
 const timeEntrycontroller = function (TimeEntry) {
   const editTimeEntry = async (req, res) => {
-    const { timeEntryId } = req.params;
-
+    const timeEntryId = req.body._id;
     if (!timeEntryId) {
       const error = 'ObjectId in request param is not in correct format';
       return res.status(400).send({ error });
