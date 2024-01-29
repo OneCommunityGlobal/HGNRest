@@ -14,6 +14,7 @@ const logger = require('../startup/logger');
 const Reason = require('../models/reason');
 const token = require('../models/profileInitialSetupToken');
 const cache = require('../utilities/nodeCache')();
+const timeOffRequest = require('../models/timeOffRequest');
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -72,6 +73,16 @@ const userHelper = function () {
     };
   };
 
+  const formatTimeOffRequestsDescription = (inputString) => {
+    const searchTerm = 'Notice:';
+    if (inputString.includes(searchTerm)) {
+      const parts = inputString.split(searchTerm);
+      const formattedString = `${parts[0] }<br><b>${ searchTerm }</b>` + `<span style="font-style: italic;">${ parts[1] }<span/>`;
+      return formattedString;
+    }
+    return inputString;
+  };
+
   const getInfringementEmailBody = function (
     firstName,
     lastName,
@@ -91,7 +102,7 @@ const userHelper = function () {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>
-        <p><b>Description:</b> ${infringement.description}</p>
+        <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -355,6 +366,7 @@ const userHelper = function () {
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
         const timeNotMet = timeSpent < weeklycommittedHours;
+
         let description;
 
         const timeRemaining = weeklycommittedHours - timeSpent;
@@ -411,6 +423,33 @@ const userHelper = function () {
           );
         }
 
+        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment = moment(pdtStartOfLastWeek).subtract(1, 'second');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+          let requestForTimeOff;
+          let requestForTimeOffStartingDate;
+          let requestForTimeOffEndingDate;
+          let requestForTimeOffreason;
+
+
+          if (hasTimeOffRequest) {
+            requestForTimeOff = requestsForTimeOff[0];
+            requestForTimeOffStartingDate = moment(
+              requestForTimeOff.startingDate,
+            ).format('dddd YYYY-MM-DD');
+            requestForTimeOffEndingDate = moment(
+              requestForTimeOff.endingDate,
+            ).format('dddd YYYY-MM-DD');
+            requestForTimeOffreason = requestForTimeOff.reason;
+          }
+
         if (timeNotMet || !hasWeeklySummary) {
           if (foundReason) {
             description = foundReason.reason;
@@ -419,18 +458,22 @@ const userHelper = function () {
                 2,
               )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             } else if (timeNotMet) {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                 2,
               )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             } else {
               description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             }
+
 
           const infringement = {
             date: moment().utc().format('YYYY-MM-DD'),
@@ -521,7 +564,8 @@ const userHelper = function () {
             }
           }
         }
-      }
+        }
+      await deleteOldTimeOffRequests();
     } catch (err) {
       logger.logException(err);
     }
@@ -1610,6 +1654,22 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     }
   };
 
+  const deleteOldTimeOffRequests = async () => {
+    const endOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .subtract(1, 'week');
+
+    const utcEndMoment = moment(endOfLastWeek).add(1, 'second');
+    console.log(utcEndMoment);
+    try {
+      await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
+      console.log('Deleted expired time off requests.');
+    } catch (error) {
+      console.error('Error deleting expired time off requests:', error);
+    }
+  };
+
   return {
     changeBadgeCount,
     getUserName,
@@ -1626,6 +1686,7 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
+    deleteOldTimeOffRequests,
   };
 };
 
