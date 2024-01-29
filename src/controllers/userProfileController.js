@@ -483,11 +483,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    if (
-      !userId
-      || !option
-      || (option !== 'delete' && option !== 'archive')
-    ) {
+    if (!userId || !option || (option !== 'delete' && option !== 'archive')) {
       res.status(400).send({
         error: 'Bad request',
       });
@@ -512,7 +508,9 @@ const userProfileController = function (UserProfile) {
       );
 
       if (!timeArchiveUser) {
-        logger.logException('Time Archive user was not found. Please check the database');
+        logger.logException(
+          'Time Archive user was not found. Please check the database',
+        );
         res.status(500).send({
           error:
             'Time Archive User not found. Please contact your developement team on why that happened',
@@ -552,7 +550,10 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+    UserProfile.findById(
+      userid,
+      '-password -refreshTokens -lastModifiedDate -__v',
+    )
       .populate([
         {
           path: 'teams',
@@ -577,7 +578,8 @@ const userProfileController = function (UserProfile) {
           populate: {
             path: 'badge',
             model: Badge,
-            select: '_id badgeName type imageUrl description ranking showReport',
+            select:
+              '_id badgeName type imageUrl description ranking showReport',
           },
         },
       ])
@@ -587,13 +589,15 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, {
-            strict: false,
+        userHelper
+          .getTangibleHoursReportedThisWeekByUserId(userid)
+          .then((hours) => {
+            results.set('tangibleHoursReportedThisWeek', hours, {
+              strict: false,
+            });
+            cache.setCache(`user-${userid}`, JSON.stringify(results));
+            res.status(200).send(results);
           });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
       })
       .catch(error => res.status(404).send(error));
   };
@@ -653,7 +657,11 @@ const userProfileController = function (UserProfile) {
     }
 
     // Verify correct params in body
-    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
+    if (
+      !req.body.currentpassword
+      || !req.body.newpassword
+      || !req.body.confirmnewpassword
+    ) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
       });
@@ -722,7 +730,14 @@ const userProfileController = function (UserProfile) {
 
     const userid = mongoose.Types.ObjectId(req.params.userId);
 
-    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
+    let validroles = [
+      'Volunteer',
+      'Manager',
+      'Administrator',
+      'Core Team',
+      'Owner',
+      'Mentor',
+    ];
 
     if (await hasPermission(req.body.requestor, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
@@ -814,7 +829,9 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userIdx = allUserData.findIndex(
+                users => users._id === userId,
+              );
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();
