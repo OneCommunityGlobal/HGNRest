@@ -31,10 +31,11 @@ const bmMProjectController = function (BuildingProject) {
         { $unwind: '$buildingManager' },
         {
           $lookup: {
-            from: 'buildingMaterials',
+            from: 'buildingInventoryItems',
             let: { id: '$_id' },
             pipeline: [
               { $match: { $expr: { $eq: ['$project', '$$id'] } } },
+              { $match: { __t: 'material_item' } },
               { $project: { updateRecord: 0, project: 0 } },
               {
                 $lookup: {

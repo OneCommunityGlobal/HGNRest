@@ -14,6 +14,7 @@ const logger = require('../startup/logger');
 const Reason = require('../models/reason');
 const token = require('../models/profileInitialSetupToken');
 const cache = require('../utilities/nodeCache')();
+const timeOffRequest = require('../models/timeOffRequest');
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -72,6 +73,16 @@ const userHelper = function () {
     };
   };
 
+  const formatTimeOffRequestsDescription = (inputString) => {
+    const searchTerm = 'Notice:';
+    if (inputString.includes(searchTerm)) {
+      const parts = inputString.split(searchTerm);
+      const formattedString = `${parts[0] }<br><b>${ searchTerm }</b>` + `<span style="font-style: italic;">${ parts[1] }<span/>`;
+      return formattedString;
+    }
+    return inputString;
+  };
+
   const getInfringementEmailBody = function (
     firstName,
     lastName,
@@ -90,7 +101,7 @@ const userHelper = function () {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>
-        <p><b>Description:</b> ${infringement.description}</p>
+        <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -354,6 +365,7 @@ const userHelper = function () {
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
         const timeNotMet = timeSpent < weeklycommittedHours;
+
         let description;
 
         const timeRemaining = weeklycommittedHours - timeSpent;
@@ -409,9 +421,33 @@ const userHelper = function () {
             { new: true },
           );
         }
-        // No extra hours is needed if blue squares isn't over 5.
-        // length +1 is because new infringement hasn't been created at this stage.
-        const coreTeamExtraHour =  Math.max(0,(oldInfringements.length +1) - 5)
+
+        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment = moment(pdtStartOfLastWeek).subtract(1, 'second');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+          let requestForTimeOff;
+          let requestForTimeOffStartingDate;
+          let requestForTimeOffEndingDate;
+          let requestForTimeOffreason;
+
+
+          if (hasTimeOffRequest) {
+            requestForTimeOff = requestsForTimeOff[0];
+            requestForTimeOffStartingDate = moment(
+              requestForTimeOff.startingDate,
+            ).format('dddd YYYY-MM-DD');
+            requestForTimeOffEndingDate = moment(
+              requestForTimeOff.endingDate,
+            ).format('dddd YYYY-MM-DD');
+            requestForTimeOffreason = requestForTimeOff.reason;
+          }
 
         if (timeNotMet || !hasWeeklySummary) {
           if (foundReason) {
@@ -423,13 +459,15 @@ const userHelper = function () {
                   2
                 )} hours against committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
                   .localeData()
-                  .ordinal(oldInfringements.length +1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`
+                  .ordinal(oldInfringements.length +1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.
+                  ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`
               } else {
                 description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
                   2
                   )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                     "dddd YYYY-MM-DD"
-                    )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+                    )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
+                    ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
               }
               
             } else if (timeNotMet) {
@@ -439,20 +477,24 @@ const userHelper = function () {
                   2
                 )} hours against committed effort of ${user.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
                   .localeData()
-                  .ordinal(oldInfringements.length +1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`
+                  .ordinal(oldInfringements.length +1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.
+                  ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`
               }
               else {
                 description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                   2
                 )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                   "dddd YYYY-MM-DD"
-                )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+                )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
+                ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
               }
             } else {
               description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
+              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
             }
+
 
           const infringement = {
             date: moment().utc().format('YYYY-MM-DD'),
@@ -543,7 +585,8 @@ const userHelper = function () {
             }
           }
         }
-      }
+        }
+      await deleteOldTimeOffRequests();
     } catch (err) {
       logger.logException(err);
     }
@@ -865,10 +908,11 @@ const userHelper = function () {
       personId,
       {
         $pull: {
-          badgeCollection: { badge: badgeId },
-        },
+          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) }
+        }
       },
-      (err) => {
+      { new: true },
+      err => {
         if (err) {
           throw new Error(err);
         }
@@ -1129,19 +1173,28 @@ const changeBadgeCount = async function (personId, badgeId, count) {
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
+    let duplicateBadges = [];
+
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'Personal Max') {
-        if (badgeOfType) {
-          removeDupBadge(personId, badgeOfType._id);
+      if (badgeCollection[i].badge?.type === "Personal Max") {
+        if (!badgeOfType) {
+          badgeOfType = badgeCollection[i];
+        } else {
+          duplicateBadges.push(badgeCollection[i]);
         }
+      }
+      for (let badge of duplicateBadges) {
+         await removeDupBadge(personId, badge._id);
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
       if (
-        user.lastWeekTangibleHrs
-        && user.lastWeekTangibleHrs >= 1
-        && user.lastWeekTangibleHrs === user.personalBestMaxHrs
-      ) {
+
+        user.lastWeekTangibleHrs &&
+        user.lastWeekTangibleHrs >= 1 &&
+        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+      ) 
+      {
         if (badgeOfType) {
           changeBadgeCount(
             personId,
@@ -1149,11 +1202,8 @@ const changeBadgeCount = async function (personId, badgeId, count) {
             user.personalBestMaxHrs,
           );
         } else {
-          addBadge(
-            personId,
-            mongoose.Types.ObjectId(results._id),
-            user.personalBestMaxHrs,
-          );
+          addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
+
         }
       }
     });
@@ -1511,17 +1561,13 @@ const changeBadgeCount = async function (personId, badgeId, count) {
   };
 
   const awardNewBadges = async () => {
-    console.log('Awarding');
     try {
-      // This will be used in production to run task on all users
-      const users = await userProfile
-        .find({ isActive: true })
-        .populate('badgeCollection.badge');
-
+      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
+
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
@@ -1541,15 +1587,10 @@ const changeBadgeCount = async function (personId, badgeId, count) {
 
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
     const userId = mongoose.Types.ObjectId(personId);
+    
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
 
     return timeEntries
       .find(
@@ -1634,6 +1675,22 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     }
   };
 
+  const deleteOldTimeOffRequests = async () => {
+    const endOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .subtract(1, 'week');
+
+    const utcEndMoment = moment(endOfLastWeek).add(1, 'second');
+    console.log(utcEndMoment);
+    try {
+      await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
+      console.log('Deleted expired time off requests.');
+    } catch (error) {
+      console.error('Error deleting expired time off requests:', error);
+    }
+  };
+
   return {
     changeBadgeCount,
     getUserName,
@@ -1650,6 +1707,7 @@ const changeBadgeCount = async function (personId, badgeId, count) {
     awardNewBadges,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
+    deleteOldTimeOffRequests,
   };
 };
 
