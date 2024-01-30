@@ -20,19 +20,28 @@ const dashboardcontroller = function () {
   // The Code below updates the time the AiPrompt was copied by the user - Sucheta
   // eslint-disable-next-line space-before-blocks
   const updateCopiedPrompt = function (req, res) {
-    User.findOneAndUpdate(
+    return User.findOneAndUpdate(
       { _id: req.params.userId },
       { copiedAiPrompt: Date.now() },
+      { new: true }
     )
-      .then(() => {
-        // console.log("REACHED THIS ROUTE");
-        res.status(200).send("Copied AI prompt");
+      .then((user) => {
+        if (user) {
+          res.status(200).send("Copied AI prompt");
+        } else {
+          res.status(404).send({ message: "User not found " });
+        }
       })
       .catch((error) => {
-        if (error) {
-          res.status(500).send(error);
-        }
+        res.status(500).send(error);
       });
+  };
+  const getPromptCopiedDate = function (req, res) {
+    return User.findOne({ _id: req.params.userId }).then((user) => {
+      if (user) {
+        res.status(200).send({ message: user.copiedAiPrompt });
+      }
+    });
   };
   const updateAIPrompt = function (req, res) {
     if (req.body.requestor.role === "Owner") {
@@ -42,12 +51,12 @@ const dashboardcontroller = function () {
           ...req.body,
           aIPromptText: req.body.aIPromptText,
           modifiedDatetime: Date.now(),
-        },
+        }
       )
         .then(() => {
           res.status(200).send("Successfully saved AI prompt.");
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     }
   };
 
@@ -73,7 +82,7 @@ const dashboardcontroller = function () {
             });
         }
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -81,7 +90,7 @@ const dashboardcontroller = function () {
     const laborthismonth = dashboardhelper.laborthismonth(
       userId,
       req.params.fromDate,
-      req.params.toDate,
+      req.params.toDate
     );
     laborthismonth.then((results) => {
       if (!results || results.length === 0) {
@@ -103,7 +112,7 @@ const dashboardcontroller = function () {
     const laborthisweek = dashboardhelper.laborthisweek(
       userId,
       req.params.fromDate,
-      req.params.toDate,
+      req.params.toDate
     );
     laborthisweek.then((results) => {
       res.status(200).send(results);
@@ -124,7 +133,7 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const orgData = function (req, res) {
@@ -134,7 +143,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -146,7 +155,7 @@ const dashboardcontroller = function () {
     expected,
     actual,
     visual,
-    severity,
+    severity
   ) {
     const text = `New Bug Report From <b>${firstName} ${lastName}</b>:
         <p>[Feature Name] Bug Title:</p>
@@ -191,7 +200,7 @@ const dashboardcontroller = function () {
       expected,
       actual,
       visual,
-      severity,
+      severity
     );
 
     try {
@@ -199,7 +208,7 @@ const dashboardcontroller = function () {
         "onecommunityglobal@gmail.com",
         `Bug Rport from ${firstName} ${lastName}`,
         emailBody,
-        email,
+        email
       );
       res.status(200).send("Success");
     } catch {
@@ -225,8 +234,8 @@ const dashboardcontroller = function () {
     let fieldaaray = [];
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
-        item => `<p>${item}</p>
-                   <p>${args[3][item]}</p>`,
+        (item) => `<p>${item}</p>
+                   <p>${args[3][item]}</p>`
       );
     }
     const text = `New Suggestion From <b>${args[3].firstName} ${
@@ -254,15 +263,13 @@ const dashboardcontroller = function () {
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-    const {
- suggestioncate, suggestion, confirm, email, ...rest
-} = req.body;
+    const { suggestioncate, suggestion, confirm, email, ...rest } = req.body;
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
       confirm,
       rest,
-      email,
+      email
     );
     try {
       emailSender(
@@ -272,7 +279,7 @@ const dashboardcontroller = function () {
         null,
         null,
         email,
-        null,
+        null
       );
       res.status(200).send("Success");
     } catch {
@@ -301,7 +308,7 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.suggestion = suggestionData.suggestion.filter(
-            (item, index) => index + 1 !== +req.body.newField,
+            (item, index) => index + 1 !== +req.body.newField
           );
         }
       } else {
@@ -310,7 +317,7 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.field = suggestionData.field.filter(
-            item => item !== req.body.newField,
+            (item) => item !== req.body.newField
           );
         }
       }
@@ -335,6 +342,7 @@ const dashboardcontroller = function () {
     editSuggestionOption,
     sendMakeSuggestion,
     updateCopiedPrompt,
+    getPromptCopiedDate,
   };
 };
 
