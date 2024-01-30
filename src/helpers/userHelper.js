@@ -887,11 +887,11 @@ const userHelper = function () {
       personId,
       {
         $pull: {
-          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) }
-        }
+          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) },
+        },
       },
       { new: true },
-      err => {
+      (err) => {
         if (err) {
           throw new Error(err);
         }
@@ -1152,28 +1152,27 @@ const changeBadgeCount = async function (personId, badgeId, count) {
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
-    let duplicateBadges = [];
+    const duplicateBadges = [];
 
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "Personal Max") {
+      if (badgeCollection[i].badge?.type === 'Personal Max') {
         if (!badgeOfType) {
           badgeOfType = badgeCollection[i];
         } else {
           duplicateBadges.push(badgeCollection[i]);
         }
       }
-      for (let badge of duplicateBadges) {
+      for (const badge of duplicateBadges) {
          await removeDupBadge(personId, badge._id);
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
       if (
 
-        user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
-      ) 
-      {
+        user.lastWeekTangibleHrs
+        && user.lastWeekTangibleHrs >= 1
+        && user.lastWeekTangibleHrs === user.personalBestMaxHrs
+      ) {
         if (badgeOfType) {
           changeBadgeCount(
             personId,
@@ -1182,7 +1181,6 @@ const changeBadgeCount = async function (personId, badgeId, count) {
           );
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
-
         }
       }
     });
@@ -1566,7 +1564,7 @@ const changeBadgeCount = async function (personId, badgeId, count) {
 
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
     const userId = mongoose.Types.ObjectId(personId);
-    
+
     const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
     const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
