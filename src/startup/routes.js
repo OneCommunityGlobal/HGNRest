@@ -39,6 +39,7 @@ const {
   buildingTool,
 } = require('../models/bmdashboard/buildingInventoryItem');
 // const buildingTool = require('../models/bmdashboard/buildingTool');
+const timeOffRequest = require('../models/timeOffRequest');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -74,6 +75,7 @@ const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -123,4 +125,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
+  app.use('/api', timeOffRequestRouter);
 };
