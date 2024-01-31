@@ -233,9 +233,11 @@ const userProfileController = function (UserProfile) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
+
+    const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
     const isRequestorAuthorized = (!!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
-        await hasPermission(req.body.requestor, 'putUserProfile')) || await hasPermission(req.body.requestor, 'requestBio')
+        await hasPermission(req.body.requestor, 'putUserProfile'))
         || req.body.requestor.requestorId === userid
       )
     );
@@ -244,7 +246,7 @@ const userProfileController = function (UserProfile) {
       || req.body.requestor.role === 'Administrator'
       || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    if (!isRequestorAuthorized) {
+    if (!isRequestorAuthorized && !canToggleRequestBio) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -306,7 +308,10 @@ const userProfileController = function (UserProfile) {
         res.status(403).send('You are not authorized to edit team code.');
         return;
       }
-
+      if(!canToggleRequestBio && (record.bioPosted !== req.body.bioPosted || 'default')){
+        res.status(403).send("You are not authorized to toggle request bio");
+        return;
+      }
       record.teamCode = req.body.teamCode;
 
       // find userData in cache
