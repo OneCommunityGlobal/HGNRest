@@ -89,6 +89,7 @@ const userHelper = function () {
     infringement,
     totalInfringements,
     timeRemaining,
+    requestForTimeOffEmailBody,
   ) {
     let final_paragraph = '';
 
@@ -100,7 +101,8 @@ const userHelper = function () {
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${infringement.date}</p>
+        <p><b>Date Assigned:</b> ${infringement.date}</p>\
+        ${requestForTimeOffEmailBody? `\n<p><b>Reason Time Requested Off:</b> ${requestForTimeOffEmailBody} </p>`: ''}
         <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
@@ -436,7 +438,7 @@ const userHelper = function () {
           let requestForTimeOffStartingDate;
           let requestForTimeOffEndingDate;
           let requestForTimeOffreason;
-
+          let requestForTimeOffEmailBody;
 
           if (hasTimeOffRequest) {
             requestForTimeOff = requestsForTimeOff[0];
@@ -447,52 +449,49 @@ const userHelper = function () {
               requestForTimeOff.endingDate,
             ).format('dddd YYYY-MM-DD');
             requestForTimeOffreason = requestForTimeOff.reason;
+            requestForTimeOffEmailBody = `Unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}`;
           }
 
         if (timeNotMet || !hasWeeklySummary) {
           if (foundReason) {
             description = foundReason.reason;
           } else if (timeNotMet && !hasWeeklySummary) {
-              if (person.role == "Core Team"){
+              if (person.role == 'Core Team') {
                 description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
-                  "dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}. You logged ${timeSpent.toFixed(
-                  2
+                  'dddd YYYY-MM-DD',
+)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}. You logged ${timeSpent.toFixed(
+                  2,
                 )} hours against committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
                   .localeData()
-                  .ordinal(oldInfringements.length +1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.
-                  ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`
+                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`;
               } else {
                 description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
-                  2
+                  2,
                   )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                    "dddd YYYY-MM-DD"
-                    )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
-                    ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
+                    'dddd YYYY-MM-DD',
+                    )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
               }
               
             } else if (timeNotMet) {
-              if (person.role == "Core Team") {
+              if (person.role == 'Core Team') {
                 description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
-                  "dddd YYYY-MM-DD")} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}. You logged ${timeSpent.toFixed(
-                  2
+                  'dddd YYYY-MM-DD',
+)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}. You logged ${timeSpent.toFixed(
+                  2,
                 )} hours against committed effort of ${user.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
                   .localeData()
-                  .ordinal(oldInfringements.length +1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.
-                  ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`
-              }
-              else {
+                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`;
+              } else {
                 description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
-                  2
+                  2,
                 )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                  "dddd YYYY-MM-DD"
-                )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.
-                ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
+                  'dddd YYYY-MM-DD',
+                )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
               }
             } else {
               description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
-              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             }
 
 
@@ -519,6 +518,7 @@ const userHelper = function () {
               infringement,
               status.infringements.length,
               timeRemaining,
+              requestForTimeOffEmailBody,
             );
           } else {
             emailBody = getInfringementEmailBody(
@@ -526,6 +526,7 @@ const userHelper = function () {
               status.lastName,
               infringement,
               status.infringements.length,
+              requestForTimeOffEmailBody,
             );
           }
 
