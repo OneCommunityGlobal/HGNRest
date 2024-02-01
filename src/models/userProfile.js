@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
 const nextDay = new Date();
-nextDay.setDate(nextDay.getDate()+1);
+nextDay.setDate(nextDay.getDate() + 1);
 
 const userProfileSchema = new Schema({
   password: {
@@ -47,7 +47,9 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
+    validate: [
+      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
+    ],
   },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
@@ -60,7 +62,9 @@ const userProfileSchema = new Schema({
   createdDate: { type: Date, required: true, default: nextDay },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
+  personalLinks: [
+    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
+  ],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
@@ -79,11 +83,29 @@ const userProfileSchema = new Schema({
   ],
   profilePic: { type: String },
   infringements: [
-    { date: { type: String, required: true }, description: { type: String, required: true } },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
   ],
-  location: { type: String, default: '' },
+  location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+  },
   oldInfringements: [
-    { date: { type: String, required: true }, description: { type: String, required: true } },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+    },
   ],
   privacySettings: {
     blueSquares: { type: Boolean, default: true },
@@ -143,7 +165,11 @@ const userProfileSchema = new Schema({
   savedTangibleHrs: [Number],
   timeEntryEditHistory: [
     {
-      date: { type: Date, required: true, default: moment().tz('America/Los_Angeles').toDate() },
+      date: {
+        type: Date,
+        required: true,
+        default: moment().tz('America/Los_Angeles').toDate(),
+      },
       initialSeconds: { type: Number, required: true },
       newSeconds: { type: Number, required: true },
     },
@@ -153,13 +179,28 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
-  isFirstTimelog: { type: Boolean, default: true},
-  teamCode: { type: String, default: '' },
+  isFirstTimelog: { type: Boolean, default: true },
+  teamCode: {
+    type: String,
+    default: '',
+    validate: {
+      validator(v) {
+        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
+        return teamCoderegex.test(v);
+      },
+      message: 'Please enter a code in the format of A-AAA or AAAAA',
+    },
+  },
   infoCollections: [
     {
- areaName: { type: String },
+      areaName: { type: String },
       areaContent: { type: String },
-  }],
+    },
+  ],
+  // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
+  actualEmail: { type: String },
+  timeOffFrom: { type: Date, default: undefined },
+  timeOffTill: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -176,4 +217,8 @@ userProfileSchema.pre('save', function (next) {
     .catch(error => next(error));
 });
 
-module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+module.exports = mongoose.model(
+  'userProfile',
+  userProfileSchema,
+  'userProfiles',
+);
