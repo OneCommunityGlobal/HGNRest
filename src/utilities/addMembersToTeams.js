@@ -17,7 +17,7 @@ const addMembersField = async () => {
   const updateOperations = allUsers
     .map((user) => {
       const { _id, teams, createdDate } = user;
-      return teams.map(team => Teams.updateOne({ _id: team }, { $addToSet: { members: { userId: _id, addDateTime: createdDate } } }));
+      return teams.map(team => Teams.updateOne({ _id: team }, { $addToSet: { members: { userId: _id, addDateTime: createdDate, visibility: true  } } }));
     })
     .flat();
 
