@@ -1,10 +1,9 @@
 const mongoose = require('mongoose');
-const wbs = require('../models/wbs');
-const timeEntryHelper = require('../helpers/timeEntryHelper')();
+const WBS = require('../models/wbs');
+const UserProfile = require('../models/userProfile');
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
-const userProfile = require('../models/userProfile');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -33,7 +32,7 @@ const taskController = function (Task) {
   const getWBSId = (req, res) => {
     const { wbsId } = req.params;
 
-    wbs.findById(wbsId)
+    WBS.findById(wbsId)
       .then(results => res.status(200).send(results))
       .catch(error => res.status(404).send(error));
   };
@@ -290,7 +289,9 @@ const taskController = function (Task) {
       });
 
       return {
-        ...task, _id, resources,
+        ...task,
+        _id,
+        resources,
       };
     });
 
@@ -305,21 +306,33 @@ const taskController = function (Task) {
           task.mother = null;
           break;
         case 2: // task.num is x.x, only has one level of parent (x)
-          task.parentId1 = tasksWithId.find(pTask => pTask.num === taskNumArr[0])._id; // task of parentId1 has num prop of x
+          task.parentId1 = tasksWithId.find(
+            pTask => pTask.num === taskNumArr[0],
+          )._id; // task of parentId1 has num prop of x
           task.parentId2 = null;
           task.parentId3 = null;
           task.mother = task.parentId1; // parent task num prop is x
           break;
         case 3: // task.num is x.x.x, has two levels of parent (parent: x.x and grandparent: x)
-          task.parentId1 = tasksWithId.find(pTask => pTask.num === taskNumArr[0])._id; // task of parentId1 has num prop of x
-          task.parentId2 = tasksWithId.find(pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`)._id; // task of parentId2 has num prop of x.x
+          task.parentId1 = tasksWithId.find(
+            pTask => pTask.num === taskNumArr[0],
+          )._id; // task of parentId1 has num prop of x
+          task.parentId2 = tasksWithId.find(
+            pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`,
+          )._id; // task of parentId2 has num prop of x.x
           task.parentId3 = null;
           task.mother = task.parentId2; // parent task num prop is x.x
           break;
         case 4: // task.num is x.x.x.x, has three levels of parent (x.x.x, x.x and x)
-          task.parentId1 = tasksWithId.find(pTask => pTask.num === taskNumArr[0])._id; // x
-          task.parentId2 = tasksWithId.find(pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`)._id; // x.x
-          task.parentId3 = tasksWithId.find(pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}`)._id; // x.x.x
+          task.parentId1 = tasksWithId.find(
+            pTask => pTask.num === taskNumArr[0],
+          )._id; // x
+          task.parentId2 = tasksWithId.find(
+            pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`,
+          )._id; // x.x
+          task.parentId3 = tasksWithId.find(
+            pTask => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}`,
+          )._id; // x.x.x
           task.mother = task.parentId3; // parent task num prop is x.x.x
           break;
         default:
@@ -327,7 +340,9 @@ const taskController = function (Task) {
     });
 
     // create an array of four empty arrays
-    const tasksFromSameLevelArr = Array(4).fill(null).map(() => []);
+    const tasksFromSameLevelArr = Array(4)
+      .fill(null)
+      .map(() => []);
 
     // sort them out into an array of four arrays based on their levels
     tasksWithId.forEach((task) => {
@@ -358,14 +373,27 @@ const taskController = function (Task) {
               task.hoursMost += childTask.hoursMost;
               task.hoursLogged += childTask.hoursLogged;
               task.estimatedHours += childTask.estimatedHours;
-              task.startedDatetime = Math.min(task.startedDatetime, childTask.startedDatetime);
-              task.dueDatetime = Math.max(task.dueDatetime, childTask.dueDatetime);
+              task.startedDatetime = Math.min(
+                task.startedDatetime,
+                childTask.startedDatetime,
+              );
+              task.dueDatetime = Math.max(
+                task.dueDatetime,
+                childTask.dueDatetime,
+              );
               task.childrenQty = (task.childrenQty || 0) + 1;
               task.isAssigned = task.isAssigned || childTask.isAssigned;
-              task.resources = childTask.resources.reduce((resources, childTaskMember) => {
-                if (task.resources.every(member => member.name !== childTaskMember.name)) return [...resources, childTaskMember];
-                return resources;
-              }, [...task.resources]);
+              task.resources = childTask.resources.reduce(
+                (resources, childTaskMember) => {
+                  if (
+                    task.resources.every(
+                      member => member.name !== childTaskMember.name,
+                    )
+                  ) return [...resources, childTaskMember];
+                  return resources;
+                },
+                [...task.resources],
+              );
               // add priority pts for task.priority
               if (childTask.priority === 'Primary') {
                 priorityPts += 3;
@@ -392,7 +420,7 @@ const taskController = function (Task) {
   };
 
   const importTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor, 'importTask')) {
+    if (!(await hasPermission(req.body.requestor, 'importTask'))) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -407,7 +435,10 @@ const taskController = function (Task) {
       const createdDatetime = Date.now();
       const modifiedDatetime = Date.now();
       const _task = new Task({
-        ...task, wbsId, createdDatetime, modifiedDatetime,
+        ...task,
+        wbsId,
+        createdDatetime,
+        modifiedDatetime,
       });
 
       _task
@@ -422,7 +453,7 @@ const taskController = function (Task) {
   };
 
   const postTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor, 'postTask')) {
+    if (!(await hasPermission(req.body.requestor, 'postTask'))) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new Task.' });
@@ -442,23 +473,27 @@ const taskController = function (Task) {
     const modifiedDatetime = Date.now();
 
     const _task = new Task({
-      ...task, wbsId, createdDatetime, modifiedDatetime,
+      ...task,
+      wbsId,
+      createdDatetime,
+      modifiedDatetime,
     });
 
     const saveTask = _task.save();
-    const saveWbs = wbs.findById(wbsId).then((currentwbs) => {
+    const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
       currentwbs.modifiedDatetime = Date.now();
       return currentwbs.save();
     });
 
-    Promise.all([saveTask, saveWbs]).then(results => res.status(201).send(results[0]))
+    Promise.all([saveTask, saveWbs])
+      .then(results => res.status(201).send(results[0]))
       .catch((errors) => {
         res.status(400).send(errors);
       });
   };
 
   const updateNum = async (req, res) => {
-    if (!await hasPermission(req.body.requestor, 'updateNum')) {
+    if (!(await hasPermission(req.body.requestor, 'updateNum'))) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -561,14 +596,23 @@ const taskController = function (Task) {
       const fromLastLvl = parseInt(fromNumArr.pop(), 10);
       const toLastLvl = parseInt(toNumArr.pop(), 10);
 
-      const leadingLvls = fromNumArr.length ? fromNumArr.join('.').concat('.') : ''; // in a format of x, x.x, or x.x.x, also could be '' if move level one tasks
+      const leadingLvls = fromNumArr.length
+        ? fromNumArr.join('.').concat('.')
+        : ''; // in a format of x, x.x, or x.x.x, also could be '' if move level one tasks
 
       const changingNums = [];
-      for (let i = Math.min(fromLastLvl, toLastLvl); i <= Math.max(fromLastLvl, toLastLvl); i += 1) {
+      for (
+        let i = Math.min(fromLastLvl, toLastLvl);
+        i <= Math.max(fromLastLvl, toLastLvl);
+        i += 1
+      ) {
         changingNums.push(leadingLvls.concat(`${i}`));
       }
       const changingNumTasks = tasks.filter((task) => {
-        const taskLeadingNum = task.num.split('.').slice(0, changedLvl).join('.');
+        const taskLeadingNum = task.num
+          .split('.')
+          .slice(0, changedLvl)
+          .join('.');
         return changingNums.includes(taskLeadingNum);
       });
 
@@ -589,65 +633,57 @@ const taskController = function (Task) {
       });
 
       Promise.all(queries)
-      .then(() => res.status(200).send('Success!'))
-      .catch(err => res.status(400).send(err));
+        .then(() => res.status(200).send('Success!'))
+        .catch(err => res.status(400).send(err));
     });
   };
 
   const deleteTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor, 'deleteTask')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to deleteTasks.' });
+    if (!(await hasPermission(req.body.requestor, 'deleteTask'))) {
+      res.status(403).send({ error: 'You are not authorized to deleteTasks.' });
       return;
     }
 
     const { taskId } = req.params;
     const { mother } = req.params;
 
-    const removeChildTasks = Task.find(
-      {
-        $or: [
-          { _id: taskId },
-          { parentId1: taskId },
-          { parentId2: taskId },
-          { parentId3: taskId },
-        ],
-      },
-    )
-    .then((record) => {
-        if (!record || record === null || record.length === 0) return res.status(400).send({ error: 'No valid records found' });
-        const removeTasks = record.map(rec => rec.remove());
-        return removeTasks;
+    const removeChildTasks = Task.find({
+      $or: [
+        { _id: taskId },
+        { parentId1: taskId },
+        { parentId2: taskId },
+        { parentId3: taskId },
+      ],
+    }).then((record) => {
+      if (!record || record === null || record.length === 0) return res.status(400).send({ error: 'No valid records found' });
+      const removeTasks = record.map(rec => rec.remove());
+      return removeTasks;
     });
 
     const updateMotherChildrenQty = mother !== 'null'
-      ? Task.findById(mother).then((task) => {
-          let newQty = 0;
-          let child = true;
-          if (task.childrenQty > 0) {
-            newQty = task.childrenQty - 1;
-            if (newQty === 0) {
-              child = false;
+        ? Task.findById(mother).then((task) => {
+            let newQty = 0;
+            let child = true;
+            if (task.childrenQty > 0) {
+              newQty = task.childrenQty - 1;
+              if (newQty === 0) {
+                child = false;
+              }
             }
-          }
-          task.hasChild = child;
-          task.childrenQty = newQty;
-          return task.save();
-        })
-      : Promise.resolve(1);
+            task.hasChild = child;
+            task.childrenQty = newQty;
+            return task.save();
+          })
+        : Promise.resolve(1);
 
-    Promise
-    .all([removeChildTasks, updateMotherChildrenQty])
-    .then(() => res.status(200).send({ message: 'Task successfully deleted' })) // no need to resetNum(taskId, mother);
-    .catch(errors => res.status(400).send(errors));
+    Promise.all([removeChildTasks, updateMotherChildrenQty])
+      .then(() => res.status(200).send({ message: 'Task successfully deleted' })) // no need to resetNum(taskId, mother);
+      .catch(errors => res.status(400).send(errors));
   };
 
   const deleteTaskByWBS = async (req, res) => {
-    if (!await hasPermission(req.body.requestor, 'deleteTask')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to deleteTasks.' });
+    if (!(await hasPermission(req.body.requestor, 'deleteTask'))) {
+      res.status(403).send({ error: 'You are not authorized to deleteTasks.' });
       return;
     }
 
@@ -675,7 +711,7 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    if (!await hasPermission(req.body.requestor, 'updateTask')) {
+    if (!(await hasPermission(req.body.requestor, 'updateTask'))) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
     }
@@ -691,7 +727,7 @@ const taskController = function (Task) {
   };
 
   const swap = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'swapTask')) {
+    if (!(await hasPermission(req.body.requestor, 'swapTask'))) {
       res
         .status(403)
         .send({ error: 'You are not authorized to create new projects.' });
@@ -750,35 +786,35 @@ const taskController = function (Task) {
 
   const getTaskById = async (req, res) => {
     try {
-        const taskId = req.params.id;
+      const taskId = req.params.id;
 
-        // Ensure the task ID is provided
-        if (!taskId || taskId === 'undefined') {
-            return res.status(400).send({ error: 'Task ID is missing' });
-        }
+      // Ensure the task ID is provided
+      if (!taskId || taskId === 'undefined') {
+        return res.status(400).send({ error: 'Task ID is missing' });
+      }
 
-        const task = await Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime');
+      const task = await Task.findById(
+        taskId,
+        '-__v  -createdDatetime -modifiedDatetime',
+      );
 
-        if (!task) {
-            return res.status(400).send({ error: 'This is not a valid task' });
-        }
+      if (!task) {
+        return res.status(400).send({ error: 'This is not a valid task' });
+      }
 
-        const hoursLogged = await timeEntryHelper.getAllHoursLoggedForSpecifiedProject(taskId);
-        task.set('hoursLogged', hoursLogged, { strict: false });
+      // Fetch the resource names for all resources
+      const resourceNamesPromises = task.resources.map(resource => taskHelper.getUserProfileFirstAndLastName(resource.userID));
+      const resourceNames = await Promise.all(resourceNamesPromises);
 
-        // Fetch the resource names for all resources
-        const resourceNamesPromises = task.resources.map(resource => taskHelper.getUserProfileFirstAndLastName(resource.userID));
-        const resourceNames = await Promise.all(resourceNamesPromises);
+      // Update the task's resources with the fetched names
+      task.resources.forEach((resource, index) => {
+        resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
+      });
 
-        // Update the task's resources with the fetched names
-        task.resources.forEach((resource, index) => {
-            resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
-        });
-
-        res.status(200).send(task);
+      return res.status(200).send(task);
     } catch (error) {
-        // Generic error message, you can adjust as needed
-        res.status(500).send({ error: 'Internal Server Error', details: error.message });
+      // Generic error message, you can adjust as needed
+      return res.status(500).send({ error: 'Internal Server Error', details: error.message });
     }
   };
 
@@ -803,31 +839,29 @@ const taskController = function (Task) {
     res.status(200).send('done');
   };
 
-  const getTasksByUserList = async (req, res) => {
-    const { members } = req.query;
-    const membersArr = members.split(',');
+  const getTasksByUserId = async (req, res) => {
+    const { userId } = req.params;
     try {
       Task.find(
-        { 'resources.userID': { $in: membersArr } },
+        {
+          'resources.userID': mongoose.Types.ObjectId(userId),
+        },
         '-resources.profilePic',
       ).then((results) => {
-        wbs
-          .find({
-            _id: { $in: results.map(item => item.wbsId) },
-          })
-          .then((projectIds) => {
-            const resultsWithProjectsIds = results.map((item) => {
-              item.set(
-                'projectId',
-                projectIds?.find(
-                  projectId => projectId._id.toString() === item.wbsId.toString(),
-                )?.projectId,
-                { strict: false },
-              );
-              return item;
-            });
-            res.status(200).send(resultsWithProjectsIds);
+        WBS.find({
+          _id: { $in: results.map(item => item.wbsId) },
+        }).then((WBSs) => {
+          const resultsWithProjectsIds = results.map((item) => {
+            item.set(
+              'projectId',
+              WBSs?.find(wbs => wbs._id.toString() === item.wbsId.toString())
+                ?.projectId,
+              { strict: false },
+            );
+            return item;
           });
+          res.status(200).send(resultsWithProjectsIds);
+        });
       });
     } catch (error) {
       res.status(400).send(error);
@@ -835,17 +869,20 @@ const taskController = function (Task) {
   };
 
   const getTasksForTeamsByUser = async (req, res) => {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
     try {
-      const userId = mongoose.Types.ObjectId(req.params.userId);
-      const teamsData = await taskHelper.getTasksForTeams(userId).exec();
+      const teamsData = await taskHelper.getTasksForTeams(userId, req.body.requestor);
       if (teamsData.length > 0) {
         res.status(200).send(teamsData);
       } else {
-        const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
+        const singleUserData = await taskHelper
+          .getTasksForSingleUser(userId)
+          .exec();
         res.status(200).send(singleUserData);
       }
     } catch (error) {
-      res.status(400).send(error);
+      console.log(error);
+      res.status(400).send({ error });
     }
   };
 
@@ -872,8 +909,10 @@ const taskController = function (Task) {
 
   const getRecipients = async function (myUserId) {
     const recipients = [];
-    const user = await userProfile.findById(myUserId);
-    const membership = await userProfile.find({ role: { $in: ['Administrator', 'Manager', 'Mentor'] } });
+    const user = await UserProfile.findById(myUserId);
+    const membership = await UserProfile.find({
+      role: { $in: ['Administrator', 'Manager', 'Mentor'] },
+    });
     membership.forEach((member) => {
       if (member.teams.some(team => user.teams.includes(team))) {
         recipients.push(member.email);
@@ -883,9 +922,7 @@ const taskController = function (Task) {
   };
 
   const sendReviewReq = async function (req, res) {
-    const {
-      myUserId, name, taskName,
-    } = req.body;
+    const { myUserId, name, taskName } = req.body;
     const emailBody = getReviewReqEmailBody(name, taskName);
     const recipients = await getRecipients(myUserId);
 
@@ -894,7 +931,7 @@ const taskController = function (Task) {
         recipients,
         `Review Request from ${name}`,
         emailBody,
-        'highestgoodnetwork@gmail.com',
+        null,
         null,
       );
       res.status(200).send('Success');
@@ -917,7 +954,7 @@ const taskController = function (Task) {
     updateAllParents,
     deleteTaskByWBS,
     moveTask,
-    getTasksByUserList,
+    getTasksByUserId,
     getTasksForTeamsByUser,
     updateTaskStatus,
     sendReviewReq,

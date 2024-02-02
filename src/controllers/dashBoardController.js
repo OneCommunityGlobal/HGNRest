@@ -3,6 +3,7 @@ const fs = require('fs/promises');
 const mongoose = require('mongoose');
 const dashboardhelper = require('../helpers/dashboardhelper')();
 const emailSender = require('../utilities/emailSender');
+const AIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
@@ -13,6 +14,39 @@ const dashboardcontroller = function () {
     snapshot.then((results) => {
       res.status(200).send(results);
     });
+  };
+
+  const updateAIPrompt = function (req, res) {
+    if (req.body.requestor.role === 'Owner') {
+      AIPrompt.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
+      .then(() => {
+        res.status(200).send('Successfully saved AI prompt.');
+      }).catch(error => res.status(500).send(error));
+    }
+  };
+
+  const getAIPrompt = function (req, res) {
+    AIPrompt.findById({ _id: 'ai-prompt' })
+    .then((result) => {
+      if (result) {
+        // If the GPT prompt exists, send it back.
+        res.status(200).send(result);
+      } else {
+        // If the GPT prompt does not exist, create it.
+        const defaultPrompt = {
+          _id: 'ai-prompt',
+          aIPromptText: "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:",
+        };
+        AIPrompt.create(defaultPrompt)
+        .then((newResult) => {
+          res.status(200).send(newResult);
+        })
+        .catch((creationError) => {
+          res.status(500).send(creationError);
+        });
+      }
+    })
+    .catch(error => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -263,6 +297,8 @@ const dashboardcontroller = function () {
 
   return {
     dashboarddata,
+    getAIPrompt,
+    updateAIPrompt,
     monthlydata,
     weeklydata,
     leaderboarddata,

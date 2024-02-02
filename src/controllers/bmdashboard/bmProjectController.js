@@ -1,3 +1,4 @@
+/* eslint-disable prefer-destructuring */
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
@@ -12,26 +13,74 @@ const bmMProjectController = function (BuildingProject) {
     // const token = req.headers.authorization;
     // const { userid } = jwt.verify(token, JWT_SECRET);
     try {
-      const projectData = await BuildingProject
-        // TODO: uncomment this line to filter by buildingManager field
-        // .find({ buildingManager: userid })
-        .find()
-        .populate([
-          {
-            path: 'buildingManager',
-            select: '_id firstName lastName email',
+      BuildingProject.aggregate([
+        {
+          $match: { isActive: true },
+        },
+        {
+          $lookup: {
+            from: 'userProfiles',
+            let: { id: '$buildingManager' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$_id', '$$id'] } } },
+              { $project: { firstName: 1, lastName: 1, email: 1 } },
+            ],
+            as: 'buildingManager',
           },
-          {
-            path: 'team',
-            select: '_id firstName lastName email',
+        },
+        { $unwind: '$buildingManager' },
+        {
+          $lookup: {
+            from: 'buildingInventoryItems',
+            let: { id: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$project', '$$id'] } } },
+              { $match: { __t: 'material_item' } },
+              { $project: { updateRecord: 0, project: 0 } },
+              {
+                $lookup: {
+                  from: 'buildingInventoryTypes',
+                  localField: 'itemType',
+                  foreignField: '_id',
+                  as: 'itemType',
+                },
+              },
+              {
+                $unwind: '$itemType',
+              },
+            ],
+            as: 'materials',
           },
-        ])
-        .exec()
-        .then(result => result)
-        .catch(error => res.status(500).send(error));
-      res.status(200).send(projectData);
+        },
+        {
+          $project: {
+            name: 1,
+            isActive: 1,
+            template: 1,
+            location: 1,
+            dateCreated: 1,
+            buildingManager: 1,
+            teams: 1,
+            members: 1,
+            materials: 1,
+            hoursWorked: { $sum: '$members.hours' },
+            // cost values can be calculated once a process for purchasing inventory is created
+            totalMaterialsCost: { $sum: 1500 },
+            totalEquipmentCost: { $sum: 3000 },
+        },
+      },
+      ])
+      .then((results) => {
+        results.forEach((proj) => {
+          proj.mostMaterialWaste = proj.materials.sort((a, b) => b.stockWasted - a.stockWasted)[0];
+          proj.leastMaterialAvailable = proj.materials.sort((a, b) => a.stockAvailable - b.stockAvailable)[0];
+          proj.mostMaterialBought = proj.materials.sort((a, b) => b.stockBought - a.stockBought)[0];
+        });
+        res.status(200).send(results);
+      })
+      .catch(error => res.status(500).send(error));
     } catch (err) {
-      res.json(err);
+      res.status(500).send(err);
     }
   };
 
