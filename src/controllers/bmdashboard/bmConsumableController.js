@@ -37,25 +37,26 @@ const bmConsumableController = function (BuildingConsumable) {
       }
     };
 
+    // Change material to consumable
     const updateBMConsumableBulk = function (req, res) {
-      const consumableUpdates = req.body.upadateConsumables;
+      const consumableUpdates = req.body.updateConsumables;
       let errorFlag = false;
       const updateRecordsToBeAdded = [];
       for (let i = 0; i < consumableUpdates.length; i++) {
         const payload = consumableUpdates[i];
         let quantityUsed = +payload.quantityUsed;
         let quantityWasted = +payload.quantityWasted;
-        const { material } = payload;
+        const { consumable } = payload;
         if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
-          quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+          quantityUsed = +((+quantityUsed / 100) * consumable.stockAvailable).toFixed(4);
         }
         if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
-          quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+          quantityWasted = +((+quantityWasted / 100) * consumable.stockAvailable).toFixed(4);
         }
 
-        let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
-        let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
-        let newAvailable = +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
+        let newStockUsed = +consumable.stockUsed + parseFloat(quantityUsed);
+        let newStockWasted = +consumable.stockWasted + parseFloat(quantityWasted);
+        let newAvailable = +consumable.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
         newStockUsed = parseFloat(newStockUsed.toFixed(4));
         newStockWasted = parseFloat(newStockWasted.toFixed(4));
         newAvailable = parseFloat(newAvailable.toFixed(4));
@@ -64,7 +65,7 @@ const bmConsumableController = function (BuildingConsumable) {
           break;
         }
         updateRecordsToBeAdded.push({
-          updateId: material._id,
+          updateId: consumable._id,
           set: {
             stockUsed: newStockUsed,
             stockWasted: newStockWasted,
