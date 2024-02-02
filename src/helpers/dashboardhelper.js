@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
 const myTeam = require('../helpers/helperModels/myTeam');
+const team = require('../models/team');
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
@@ -68,6 +69,16 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
+                      },
+                    ],
                   },
                 ],
               },
@@ -152,264 +163,405 @@ const dashboardhelper = function () {
     return output;
   };
 
-  const getLeaderboard = function (userId) {
+  const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
-    return myTeam.aggregate([
-      {
-        $match: {
-          _id: userid,
-        },
-      },
-      {
-        $unwind: '$myteam',
-      },
-      {
-        $project: {
-          _id: 0,
-          role: 1,
-          personId: '$myteam._id',
-          name: '$myteam.fullName',
-        },
-      },
-      {
-        $lookup: {
-          from: 'userProfiles',
-          localField: 'personId',
-          foreignField: '_id',
-          as: 'persondata',
-        },
-      },
-      {
-        $match: {
-          // leaderboard user roles hierarchy
-          $or: [
+    try {
+      const userById = await userProfile
+        .findOne({ _id: userid, isActive: true }, { role: 1 });
+
+      if (userById == null) return null;
+      const userRole = userById.role;
+      const pdtstart = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .format('YYYY-MM-DD');
+
+      const pdtend = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .format('YYYY-MM-DD');
+
+      let teamMemberIds = [userid];
+      let teamMembers = [];
+
+      if (
+        userRole !== 'Administrator'
+        && userRole !== 'Owner'
+        && userRole !== 'Core Team'
+      ) {
+        // Manager , Mentor , Volunteer ... , Show only team members
+        const teamsResult = await team
+          .find({ 'members.userId': { $in: [userid] } }, { members: 1 });
+
+        teamsResult.forEach((_myTeam) => {
+          _myTeam.members.forEach((teamMember) => {
+            if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+          });
+        });
+
+        teamMembers = await userProfile
+          .find(
+            { _id: { $in: teamMemberIds }, isActive: true },
             {
-              role: { $in: ['Owner', 'Core Team'] },
+              role: 1,
+              firstName: 1,
+              lastName: 1,
+              isVisible: 1,
+              weeklycommittedHours: 1,
+              weeklySummaries: 1,
+              timeOffFrom: 1,
+              timeOffTill: 1,
             },
+          );
+      } else {
+        // 'Core Team', 'Owner' //All users
+        teamMembers = await userProfile
+          .find(
+            { isActive: true },
             {
-              $and: [
-                {
-                  role: 'Administrator',
-                },
-                { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
-              ],
+              role: 1,
+              firstName: 1,
+              lastName: 1,
+              isVisible: 1,
+              weeklycommittedHours: 1,
+              weeklySummaries: 1,
+              timeOffFrom: 1,
+              timeOffTill: 1,
             },
-            {
-              $and: [
-                {
-                  role: { $in: ['Manager', 'Mentor'] },
-                },
-                {
-                  'persondata.0.role': {
-                    $nin: ['Manager', 'Mentor', 'Core Team', 'Administrator', 'Owner'],
-                  },
-                },
-              ],
-            },
-            { 'persondata.0._id': userId },
-            { 'persondata.0.role': 'Volunteer' },
-            { 'persondata.0.isVisible': true },
-          ],
+          );
+      }
+
+      teamMemberIds = teamMembers.map(member => member._id);
+
+      const timeEntries = await timeentry.find({
+        dateOfWork: {
+          $gte: pdtstart,
+          $lte: pdtend,
         },
-      },
-      {
-        $project: {
-          personId: 1,
-          name: 1,
-          role: {
-            $arrayElemAt: ['$persondata.role', 0],
-          },
-          isVisible: {
-            $arrayElemAt: ['$persondata.isVisible', 0],
-          },
-          hasSummary: {
-            $ne: [
-              {
-                $arrayElemAt: [
-                  {
-                    $arrayElemAt: ['$persondata.weeklySummaries.summary', 0],
-                  },
-                  0,
-                ],
-              },
-              '',
-            ],
-          },
-          weeklycommittedHours: {
-            $sum: [
-              {
-                $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
-              },
-              {
-                $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
-              },
-            ],
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: 'timeEntries',
-          localField: 'personId',
-          foreignField: 'personId',
-          as: 'timeEntryData',
-        },
-      },
-      {
-        $project: {
-          personId: 1,
-          name: 1,
-          role: 1,
-          isVisible: 1,
-          hasSummary: 1,
-          weeklycommittedHours: 1,
-          timeEntryData: {
-            $filter: {
-              input: '$timeEntryData',
-              as: 'timeentry',
-              cond: {
-                $and: [
-                  {
-                    $gte: ['$$timeentry.dateOfWork', pdtstart],
-                  },
-                  {
-                    $lte: ['$$timeentry.dateOfWork', pdtend],
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-      {
-        $unwind: {
-          path: '$timeEntryData',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $project: {
-          personId: 1,
-          name: 1,
-          role: 1,
-          isVisible: 1,
-          hasSummary: 1,
-          weeklycommittedHours: 1,
-          totalSeconds: {
-            $cond: [
-              {
-                $gte: ['$timeEntryData.totalSeconds', 0],
-              },
-              '$timeEntryData.totalSeconds',
-              0,
-            ],
-          },
-          isTangible: {
-            $cond: [
-              {
-                $gte: ['$timeEntryData.totalSeconds', 0],
-              },
-              '$timeEntryData.isTangible',
-              false,
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          tangibletime: {
-            $cond: [
-              {
-                $eq: ['$isTangible', true],
-              },
-              '$totalSeconds',
-              0,
-            ],
-          },
-          intangibletime: {
-            $cond: [
-              {
-                $eq: ['$isTangible', false],
-              },
-              '$totalSeconds',
-              0,
-            ],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            personId: '$personId',
-            weeklycommittedHours: '$weeklycommittedHours',
-            name: '$name',
-            role: '$role',
-            isVisible: '$isVisible',
-            hasSummary: '$hasSummary',
-          },
-          totalSeconds: {
-            $sum: '$totalSeconds',
-          },
-          tangibletime: {
-            $sum: '$tangibletime',
-          },
-          intangibletime: {
-            $sum: '$intangibletime',
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          personId: '$_id.personId',
-          name: '$_id.name',
-          role: '$_id.role',
-          isVisible: '$_id.isVisible',
-          hasSummary: '$_id.hasSummary',
-          weeklycommittedHours: '$_id.weeklycommittedHours',
-          totaltime_hrs: {
-            $divide: ['$totalSeconds', 3600],
-          },
-          totaltangibletime_hrs: {
-            $divide: ['$tangibletime', 3600],
-          },
-          totalintangibletime_hrs: {
-            $divide: ['$intangibletime', 3600],
-          },
-          percentagespentintangible: {
-            $cond: [
-              {
-                $eq: ['$totalSeconds', 0],
-              },
-              0,
-              {
-                $multiply: [
-                  {
-                    $divide: ['$tangibletime', '$totalSeconds'],
-                  },
-                  100,
-                ],
-              },
-            ],
-          },
-        },
-      },
-      {
-        $sort: {
-          totaltangibletime_hrs: -1,
-          name: 1,
-          role: 1,
-        },
-      },
-    ]);
+        personId: { $in: teamMemberIds },
+      });
+
+      const timeEntryByPerson = {};
+      timeEntries.forEach((timeEntry) => {
+        const personIdStr = timeEntry.personId.toString();
+
+        if (timeEntryByPerson[personIdStr] == null) {
+          timeEntryByPerson[personIdStr] = {
+            tangibleSeconds: 0,
+            intangibleSeconds: 0,
+            totalSeconds: 0,
+          };
+        }
+
+        if (timeEntry.isTangible === true) {
+          timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
+        } else {
+          timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
+        }
+
+        timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
+      });
+
+      const leaderBoardData = [];
+      teamMembers.forEach((teamMember) => {
+        const obj = {
+          personId: teamMember._id,
+          role: teamMember.role,
+          name: `${teamMember.firstName} ${teamMember.lastName}`,
+          isVisible: teamMember.isVisible,
+          hasSummary:
+            teamMember.weeklySummaries?.length > 0
+              ? teamMember.weeklySummaries[0].summary !== ''
+              : false,
+          weeklycommittedHours: teamMember.weeklycommittedHours,
+          totaltangibletime_hrs:
+            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600 || 0,
+          totalintangibletime_hrs:
+            timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600 || 0,
+          totaltime_hrs:
+            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600 || 0,
+          percentagespentintangible:
+            timeEntryByPerson[teamMember._id.toString()]
+            && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0
+            && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !== 0
+              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+                  / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds)
+                * 100
+              : 0,
+          timeOffFrom: teamMember.timeOffFrom || null,
+          timeOffTill: teamMember.timeOffTill || null,
+        };
+        leaderBoardData.push(obj);
+      });
+
+      const sortedLBData = leaderBoardData.sort((a, b) => {
+        // Sort by totaltangibletime_hrs in descending order
+        if (b.totaltangibletime_hrs !== a.totaltangibletime_hrs) {
+          return b.totaltangibletime_hrs - a.totaltangibletime_hrs;
+        }
+
+        // Then sort by name in ascending order
+        if (a.name !== b.name) {
+          return a.name.localeCompare(b.name);
+        }
+
+        // Finally, sort by role in ascending order
+        return a.role.localeCompare(b.role);
+      });
+      return sortedLBData;
+    } catch (error) {
+      console.log(error);
+      return new Error(error);
+    }
+
+    // return myTeam.aggregate([
+    //   {
+    //     $match: {
+    //       _id: userid,
+    //     },
+    //   },
+    //   {
+    //     $unwind: '$myteam',
+    //   },
+    //   {
+    //     $project: {
+    //       _id: 0,
+    //       role: 1,
+    //       personId: '$myteam._id',
+    //       name: '$myteam.fullName',
+    //     },
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'userProfiles',
+    //       localField: 'personId',
+    //       foreignField: '_id',
+    //       as: 'persondata',
+    //     },
+    //   },
+    //   {
+    //     $match: {
+    //       // leaderboard user roles hierarchy
+    //       $or: [
+    //         {
+    //           role: { $in: ['Owner', 'Core Team'] },
+    //         },
+    //         {
+    //           $and: [
+    //             {
+    //               role: 'Administrator',
+    //             },
+    //             { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
+    //           ],
+    //         },
+    //         {
+    //           $and: [
+    //             {
+    //               role: { $in: ['Manager', 'Mentor'] },
+    //             },
+    //             {
+    //               'persondata.0.role': {
+    //                 $nin: ['Manager', 'Mentor', 'Core Team', 'Administrator', 'Owner'],
+    //               },
+    //             },
+    //           ],
+    //         },
+    //         { 'persondata.0._id': userId },
+    //         { 'persondata.0.role': 'Volunteer' },
+    //         { 'persondata.0.isVisible': true },
+    //       ],
+    //     },
+    //   },
+    //   {
+    //     $project: {
+    //       personId: 1,
+    //       name: 1,
+    //       role: {
+    //         $arrayElemAt: ['$persondata.role', 0],
+    //       },
+    //       isVisible: {
+    //         $arrayElemAt: ['$persondata.isVisible', 0],
+    //       },
+    //       hasSummary: {
+    //         $ne: [
+    //           {
+    //             $arrayElemAt: [
+    //               {
+    //                 $arrayElemAt: ['$persondata.weeklySummaries.summary', 0],
+    //               },
+    //               0,
+    //             ],
+    //           },
+    //           '',
+    //         ],
+    //       },
+    //       weeklycommittedHours: {
+    //         $sum: [
+    //           {
+    //             $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
+    //           },
+    //           {
+    //             $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
+    //           },
+    //         ],
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'timeEntries',
+    //       localField: 'personId',
+    //       foreignField: 'personId',
+    //       as: 'timeEntryData',
+    //     },
+    //   },
+    //   {
+    //     $project: {
+    //       personId: 1,
+    //       name: 1,
+    //       role: 1,
+    //       isVisible: 1,
+    //       hasSummary: 1,
+    //       weeklycommittedHours: 1,
+    //       timeEntryData: {
+    //         $filter: {
+    //           input: '$timeEntryData',
+    //           as: 'timeentry',
+    //           cond: {
+    //             $and: [
+    //               {
+    //                 $gte: ['$$timeentry.dateOfWork', pdtstart],
+    //               },
+    //               {
+    //                 $lte: ['$$timeentry.dateOfWork', pdtend],
+    //               },
+    //             ],
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $unwind: {
+    //       path: '$timeEntryData',
+    //       preserveNullAndEmptyArrays: true,
+    //     },
+    //   },
+    //   {
+    //     $project: {
+    //       personId: 1,
+    //       name: 1,
+    //       role: 1,
+    //       isVisible: 1,
+    //       hasSummary: 1,
+    //       weeklycommittedHours: 1,
+    //       totalSeconds: {
+    //         $cond: [
+    //           {
+    //             $gte: ['$timeEntryData.totalSeconds', 0],
+    //           },
+    //           '$timeEntryData.totalSeconds',
+    //           0,
+    //         ],
+    //       },
+    //       isTangible: {
+    //         $cond: [
+    //           {
+    //             $gte: ['$timeEntryData.totalSeconds', 0],
+    //           },
+    //           '$timeEntryData.isTangible',
+    //           false,
+    //         ],
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $addFields: {
+    //       tangibletime: {
+    //         $cond: [
+    //           {
+    //             $eq: ['$isTangible', true],
+    //           },
+    //           '$totalSeconds',
+    //           0,
+    //         ],
+    //       },
+    //       intangibletime: {
+    //         $cond: [
+    //           {
+    //             $eq: ['$isTangible', false],
+    //           },
+    //           '$totalSeconds',
+    //           0,
+    //         ],
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $group: {
+    //       _id: {
+    //         personId: '$personId',
+    //         weeklycommittedHours: '$weeklycommittedHours',
+    //         name: '$name',
+    //         role: '$role',
+    //         isVisible: '$isVisible',
+    //         hasSummary: '$hasSummary',
+    //       },
+    //       totalSeconds: {
+    //         $sum: '$totalSeconds',
+    //       },
+    //       tangibletime: {
+    //         $sum: '$tangibletime',
+    //       },
+    //       intangibletime: {
+    //         $sum: '$intangibletime',
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $project: {
+    //       _id: 0,
+    //       personId: '$_id.personId',
+    //       name: '$_id.name',
+    //       role: '$_id.role',
+    //       isVisible: '$_id.isVisible',
+    //       hasSummary: '$_id.hasSummary',
+    //       weeklycommittedHours: '$_id.weeklycommittedHours',
+    //       totaltime_hrs: {
+    //         $divide: ['$totalSeconds', 3600],
+    //       },
+    //       totaltangibletime_hrs: {
+    //         $divide: ['$tangibletime', 3600],
+    //       },
+    //       totalintangibletime_hrs: {
+    //         $divide: ['$intangibletime', 3600],
+    //       },
+    //       percentagespentintangible: {
+    //         $cond: [
+    //           {
+    //             $eq: ['$totalSeconds', 0],
+    //           },
+    //           0,
+    //           {
+    //             $multiply: [
+    //               {
+    //                 $divide: ['$tangibletime', '$totalSeconds'],
+    //               },
+    //               100,
+    //             ],
+    //           },
+    //         ],
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $sort: {
+    //       totaltangibletime_hrs: -1,
+    //       name: 1,
+    //       role: 1,
+    //     },
+    //   },
+    // ]);
   };
 
   /**
@@ -438,6 +590,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
+        entryType: { $in: ['default', null] },
         personId: userId,
       });
 
@@ -465,6 +618,8 @@ const dashboardhelper = function () {
           totalintangibletime_hrs: intangibleSeconds / 3600,
           percentagespentintangible:
             (intangibleSeconds / tangibleSeconds) * 100,
+          timeOffFrom: user.timeOffFrom,
+          timeOffTill: user.timeOffTill,
         },
       ];
     } catch (err) {
@@ -575,6 +730,16 @@ const dashboardhelper = function () {
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
+                  {
+                    $not: [
+                      {
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
+                      },
+                    ],
+                  },
                 ],
               },
             },
@@ -651,6 +816,16 @@ const dashboardhelper = function () {
                   },
                   {
                     $lte: ['$$timeentry.dateOfWork', todate],
+                  },
+                  {
+                    $not: [
+                      {
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
+                      },
+                    ],
                   },
                 ],
               },
