@@ -1507,6 +1507,7 @@ const userHelper = function () {
       const $ = cheerio.load(response);
       const imgElements = $('img');
       const userProfiles = await userProfile.find({
+        firstName: 'Haoji',
         isActive: true
       });
 
@@ -1532,13 +1533,19 @@ const userHelper = function () {
         for (let i = 0; i < imgElements.length; i++) {
           const imgElement = imgElements[i];
           const imgAlt = $(imgElement).attr('alt');
-          const imgSrc = $(imgElement).attr('src'); // Use 'src' instead of 'nitro-lazy-src'
-
+          let imgSrc = $(imgElement).attr('nitro-lazy-src'); // Use 'src' instead of 'nitro-lazy-src'
+          if (imgSrc && imgSrc.includes('onecommunityglobal.org')) {
+             let startIndex = imgSrc.indexOf('onecommunityglobal.org/');
+            // Extract from 'onecommunityglobal.org/' to the end of the string
+            let profilePicName = imgSrc.substring(startIndex);
+            imgSrc = 'https://www.' + profilePicName;
+          }
           if (
             imgAlt &&
             imgAlt.toLowerCase().includes(firstName.toLowerCase()) &&
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
+            console.log('url', imgSrc)
             pictureList.push(imgSrc);
             // console.log(imgSrc)
           } else if (
@@ -1546,6 +1553,7 @@ const userHelper = function () {
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
             pictureList.push(imgSrc);
+            console.log('url', imgSrc)
             // console.log(imgSrc)
           }
         }
