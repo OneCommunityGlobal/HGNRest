@@ -24,7 +24,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
-      console.log(__dirname,filepath)
+      // console.log(__dirname,filepath)
       readFile(filepath, 'utf8', (err, data) => {
         if (err) {
           console.error('Error reading file:', err);
@@ -276,13 +276,52 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   const updateSingleInvType = async (req, res) => {
     const { invtypeId } = req.params;
-    res.status(200).json({ message: 'updated', invtypeId });
-  }
+    const { name, description } = req.body;
+
+    // send back errors if required fields are missing
+    if (name?.length === 0 || description?.length === 0) {
+      res.status(400).json({ error: 'Name and description are required.' });
+      return;
+    }
+
+    try {
+      // find invType by id, and update name, description
+      const updatedInvType = await InvType.findByIdAndUpdate(
+        invtypeId,
+        { name, description },
+        { new: true, runValidators: true },
+      );
+      if (!updatedInvType) {
+        res.status(404).json({ error: 'invTypeId does not exist' });
+        return;
+      }
+
+      // send the updated list
+      const updatedList = await InvType.find({});
+      res.status(200).json(updatedList);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
 
   const deleteSingleInvType = async (req, res) => {
-    const { invtypeId } = req.params;
-    res.status(200).json({ message: 'deleted', invtypeId });
-  }
+    const { type, invtypeId } = req.params;
+
+    try {
+      // delete invType with given id
+      const deletedResult = await InvType.findByIdAndDelete(invtypeId);
+      if (!deletedResult) {
+        res.status(404).json({ error: 'invTypeId does not exist' });
+        return;
+      }
+
+      // send the updated list
+      const updatedList = await InvType.find({ category: type });
+      res.status(200).json(updatedList);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
 
   return {
     fetchMaterialTypes,
