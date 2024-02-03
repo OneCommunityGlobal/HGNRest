@@ -2,6 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const fetch = require('node-fetch');
 
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
@@ -9,7 +10,6 @@ const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
-const userProfile = require('../models/userProfile');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
@@ -128,6 +128,7 @@ const userProfileController = function (UserProfile) {
       },
     });
 
+
     if (userByEmail) {
       res.status(400).send({
         error:
@@ -135,6 +136,34 @@ const userProfileController = function (UserProfile) {
         type: 'email',
       });
       return;
+    }
+
+    // In dev environment, if newly created user is Owner or Administrator, make fetch request to Beta login route with actualEmail and actual Password
+    if (process.env.dbName === 'hgnData_dev') {
+      if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
+        const email = req.body.actualEmail;
+        const password = req.body.actualPassword;
+        const url = 'https://hgn-rest-beta.azurewebsites.net/api/';
+        try {
+          // Log in to Beta login route using provided credentials
+          const response = await fetch(`${url}login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!response.ok) {
+            throw new Error('Invalid credentials');
+          }
+        } catch (error) {
+          res.status(400).send({
+            error: 'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
+            type: 'credentials',
+          });
+          return;
+        }
+      }
     }
 
     /** *
@@ -204,6 +233,7 @@ const userProfileController = function (UserProfile) {
     up.permissions = req.body.permissions;
     up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
+    up.actualEmail = req.body.actualEmail;
 
     up.save()
       .then(() => {
@@ -240,14 +270,11 @@ const userProfileController = function (UserProfile) {
       )
     );
 
-    const canEditTeamCode = req.body.requestor.role === 'Owner'
-      || req.body.requestor.role === 'Administrator'
-      || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
+
 
     if (req.body.role === 'Owner' && !await hasPermission(req.body.requestor, 'addDeleteEditOwners')) {
       res.status(403).send('You are not authorized to update this user');
@@ -271,43 +298,52 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      const originalinfringements = record.infringements
-        ? record.infringements
-        : [];
-      record.jobTitle = req.body.jobTitle;
-      record.emailPubliclyAccessible = req.body.emailPubliclyAccessible;
-      record.phoneNumberPubliclyAccessible = req.body.phoneNumberPubliclyAccessible;
-
-      record.profilePic = req.body.profilePic;
-      record.firstName = req.body.firstName;
-      record.lastName = req.body.lastName;
-      record.jobTitle = req.body.jobTitle;
-      record.phoneNumber = req.body.phoneNumber;
-      record.bio = req.body.bio;
-      record.personalLinks = req.body.personalLinks;
-      record.lastModifiedDate = Date.now();
-      record.location = req.body.location;
-      record.profilePic = req.body.profilePic;
-      record.privacySettings = req.body.privacySettings;
-      record.weeklySummaries = req.body.weeklySummaries;
-      record.weeklySummariesCount = req.body.weeklySummariesCount;
-      record.mediaUrl = req.body.mediaUrl;
-      record.timeZone = req.body.timeZone;
-      record.hoursByCategory = req.body.hoursByCategory;
-      record.totalTangibleHrs = req.body.totalTangibleHrs;
-      record.isVisible = req.body.isVisible || false;
-      record.isRehireable = req.body.isRehireable || false;
-      record.totalIntangibleHrs = req.body.totalIntangibleHrs;
-      record.bioPosted = req.body.bioPosted || 'default';
-      record.isFirstTimelog = req.body.isFirstTimelog;
-      record.teamCode = req.body.teamCode;
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');
         return;
       }
 
-      record.teamCode = req.body.teamCode;
+      const originalinfringements = record.infringements
+        ? record.infringements
+        : [];
+
+      const commonFields = [
+        'jobTitle',
+        'emailPubliclyAccessible',
+        'phoneNumberPubliclyAccessible',
+        'profilePic',
+        'firstName',
+        'lastName',
+        'jobTitle',
+        'phoneNumber',
+        'bio',
+        'personalLinks',
+        'location',
+        'profilePic',
+        'privacySettings',
+        'weeklySummaries',
+        'weeklySummariesCount',
+        'mediaUrl',
+        'timeZone',
+        'hoursByCategory',
+        'totalTangibleHrs',
+        'totalIntangibleHrs',
+        'isFirstTimelog',
+        'teamCode',
+        'isVisible',
+        'isRehireable',
+        'bioPosted',
+      ];
+
+      commonFields.forEach((fieldName) => {
+        if (req.body[fieldName] !== undefined) record[fieldName] = req.body[fieldName];
+      });
+
+      record.lastModifiedDate = Date.now();
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -320,12 +356,34 @@ const userProfileController = function (UserProfile) {
         userData = allUserData[userIdx];
       }
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
-        record.role = req.body.role;
-        record.isRehireable = req.body.isRehireable;
-        record.isActive = req.body.isActive;
+        const importantFields = [
+          'role',
+          'isRehireable',
+          'isActive',
+          'adminLinks',
+          'isActive',
+          'weeklySummaries',
+          'weeklySummariesCount',
+          'mediaUrl',
+          'collaborationPreference',
+          'weeklySummaryNotReq',
+          'weeklySummaryOption',
+          'categoryTangibleHrs',
+          'totalTangibleHrs',
+          'timeEntryEditHistory',
+        ];
+
+        importantFields.forEach((fieldName) => {
+          if (req.body[fieldName] !== undefined) record[fieldName] = req.body[fieldName];
+        });
+
+        if (req.body.missedHours !== undefined) record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
+        if (req.body.teams !== undefined) record.teams = Array.from(new Set(req.body.teams));
+        if (req.body.projects !== undefined) record.projects = Array.from(new Set(req.body.projects));
+        if (req.body.email !== undefined) record.email = req.body.email.toLowerCase();
 
         // Logic to update weeklycommittedHours and the history of the committed hours made
-        if (record.weeklycommittedHours !== req.body.weeklycommittedHours) {
+        if (req.body.weeklycommittedHours !== undefined && record.weeklycommittedHours !== req.body.weeklycommittedHours) {
           record.weeklycommittedHours = req.body.weeklycommittedHours;
 
           // If their last update was made today, remove that
@@ -348,28 +406,7 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory.push(newEntry);
         }
 
-        record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
-        record.adminLinks = req.body.adminLinks;
-        record.teams = Array.from(new Set(req.body.teams));
-        record.projects = Array.from(new Set(req.body.projects));
-        record.isActive = req.body.isActive;
-        record.email = req.body.email.toLowerCase();
-        record.weeklySummaries = req.body.weeklySummaries;
-        record.weeklySummariesCount = req.body.weeklySummariesCount;
-        record.mediaUrl = req.body.mediaUrl;
-        record.collaborationPreference = req.body.collaborationPreference;
-        record.weeklySummaryNotReq = req.body.weeklySummaryNotReq
-          ? req.body.weeklySummaryNotReq
-          : record.weeklySummaryNotReq;
-        record.weeklySummaryOption = req.body.weeklySummaryOption;
-        record.categoryTangibleHrs = req.body.categoryTangibleHrs
-          ? req.body.categoryTangibleHrs
-          : record.categoryTangibleHrs;
-        record.totalTangibleHrs = req.body.totalTangibleHrs;
-        record.timeEntryEditHistory = req.body.timeEntryEditHistory;
-        record.createdDate = moment(req.body.createdDate).toDate();
-
-        if (record.createdDate !== req.body.createdDate) {
+        if (req.body.createdDate !== undefined && record.createdDate !== req.body.createdDate) {
           record.createdDate = moment(req.body.createdDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
@@ -383,20 +420,21 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
         }
 
-        record.bioPosted = req.body.bioPosted || 'default';
-
-        if (await hasPermission(req.body.requestor, 'putUserProfilePermissions')) {
+        if (req.body.permissions !== undefined && (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))) {
           record.permissions = req.body.permissions;
         }
 
-        if (yearMonthDayDateValidator(req.body.endDate)) {
-          record.endDate = moment(req.body.endDate).toDate();
-          if (isUserInCache) {
-            userData.endDate = record.endDate.toISOString();
+        if (req.body.endDate !== undefined) {
+          if (yearMonthDayDateValidator(req.body.endDate)) {
+            record.endDate = moment(req.body.endDate).toDate();
+            if (isUserInCache) {
+              userData.endDate = record.endDate.toISOString();
+            }
+          } else {
+            record.set('endDate', undefined, { strict: false });
           }
-        } else {
-          record.set('endDate', undefined, { strict: false });
         }
+
         if (isUserInCache) {
           userData.role = record.role;
           userData.weeklycommittedHours = record.weeklycommittedHours;
@@ -405,7 +443,7 @@ const userProfileController = function (UserProfile) {
           userData.createdDate = record.createdDate.toISOString();
         }
       }
-      if (await hasPermission(req.body.requestor, 'infringementAuthorizer')) {
+      if (req.body.infringements !== undefined && (await hasPermission(req.body.requestor, 'infringementAuthorizer'))) {
         record.infringements = req.body.infringements;
       }
 
@@ -445,11 +483,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    if (
-      !userId
-      || !option
-      || (option !== 'delete' && option !== 'archive')
-    ) {
+    if (!userId || !option || (option !== 'delete' && option !== 'archive')) {
       res.status(400).send({
         error: 'Bad request',
       });
@@ -474,7 +508,9 @@ const userProfileController = function (UserProfile) {
       );
 
       if (!timeArchiveUser) {
-        logger.logException('Time Archive user was not found. Please check the database');
+        logger.logException(
+          'Time Archive user was not found. Please check the database',
+        );
         res.status(500).send({
           error:
             'Time Archive User not found. Please contact your developement team on why that happened',
@@ -514,7 +550,10 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+    UserProfile.findById(
+      userid,
+      '-password -refreshTokens -lastModifiedDate -__v',
+    )
       .populate([
         {
           path: 'teams',
@@ -539,7 +578,8 @@ const userProfileController = function (UserProfile) {
           populate: {
             path: 'badge',
             model: Badge,
-            select: '_id badgeName type imageUrl description ranking showReport',
+            select:
+              '_id badgeName type imageUrl description ranking showReport',
           },
         },
       ])
@@ -549,13 +589,15 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, {
-            strict: false,
+        userHelper
+          .getTangibleHoursReportedThisWeekByUserId(userid)
+          .then((hours) => {
+            results.set('tangibleHoursReportedThisWeek', hours, {
+              strict: false,
+            });
+            cache.setCache(`user-${userid}`, JSON.stringify(results));
+            res.status(200).send(results);
           });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
       })
       .catch(error => res.status(404).send(error));
   };
@@ -588,7 +630,6 @@ const userProfileController = function (UserProfile) {
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
-    if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
 
     return UserProfile.findById(userId)
       .then((user) => {
@@ -616,7 +657,11 @@ const userProfileController = function (UserProfile) {
     }
 
     // Verify correct params in body
-    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
+    if (
+      !req.body.currentpassword
+      || !req.body.newpassword
+      || !req.body.confirmnewpassword
+    ) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
       });
@@ -685,7 +730,14 @@ const userProfileController = function (UserProfile) {
 
     const userid = mongoose.Types.ObjectId(req.params.userId);
 
-    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
+    let validroles = [
+      'Volunteer',
+      'Manager',
+      'Administrator',
+      'Core Team',
+      'Owner',
+      'Mentor',
+    ];
 
     if (await hasPermission(req.body.requestor, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
@@ -777,7 +829,9 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(users => users._id === userId);
+              const userIdx = allUserData.findIndex(
+                users => users._id === userId,
+              );
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();
