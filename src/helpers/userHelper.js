@@ -1545,7 +1545,6 @@ const userHelper = function () {
             imgAlt.toLowerCase().includes(firstName.toLowerCase()) &&
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
-            console.log('url', imgSrc)
             pictureList.push(imgSrc);
             // console.log(imgSrc)
           } else if (
@@ -1553,7 +1552,6 @@ const userHelper = function () {
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
             pictureList.push(imgSrc);
-            console.log('url', imgSrc)
             // console.log(imgSrc)
           }
         }
