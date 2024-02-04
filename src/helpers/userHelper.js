@@ -1685,8 +1685,9 @@ const changeBadgeCount = async function (personId, badgeId, count) {
       const cheerio = require('cheerio');
       const $ = cheerio.load(response);
       const imgElements = $('img');
-      const userProfiles = await userProfile.find({
-        firstName: 'Haoji',
+      const userProfiles = await userProfile.find( {
+        // comment out the line below for testing
+        // firstName: 'yourname',
         isActive: true
       });
 
