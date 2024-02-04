@@ -2,6 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+// eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
 
 const moment_ = require('moment');
@@ -660,9 +661,12 @@ const userProfileController = function (UserProfile) {
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) return res.status(400).send({ error: 'Missing property or value' });
+    if (!key || value === undefined) {
+      res.status(400).send({ error: 'Missing property or value' });
+      return;
+    }
 
-    return UserProfile.findById(userId)
+    UserProfile.findById(userId)
       .then((user) => {
         user.set({
           [key]: value,
@@ -698,18 +702,13 @@ const userProfileController = function (UserProfile) {
       });
     }
     // Check if the requestor has the permission to update passwords.
-    const hasUpdatePasswordPermission = await hasPermission(requestor.role, 'updatePassword');
+    const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
-    // If the requestor is updating their own password, allow them to proceed.
-    if (userId === requestor.requestorId) {
-        console.log('Requestor is updating their own password');
-    }
-    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
-    else if (!hasUpdatePasswordPermission) {
-        console.log("Requestor is trying to update someone else's password but lacks the 'updatePassword' permission");
-        return res.status(403).send({
-            error: "You are unauthorized to update this user's password",
-        });
+    // if they're updating someone else's password, they need the 'updatePassword' permission.
+    if (!hasUpdatePasswordPermission) {
+      return res.status(403).send({
+        error: "You are unauthorized to update this user's password",
+      });
     }
 
     // Verify new and confirm new password are correct
@@ -902,12 +901,12 @@ const userProfileController = function (UserProfile) {
         return;
       }
 
-      if (!await hasPermission(requestor.role, 'putUserProfileImportantInfo')) {
+      if (!await hasPermission(requestor, 'putUserProfileImportantInfo')) {
         res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
-      if (user.role === 'Owner' && !await hasPermission(requestor.role, 'addDeleteEditOwners')) {
+      if (user.role === 'Owner' && !await hasPermission(requestor, 'addDeleteEditOwners')) {
         res.status(403).send('You are not authorized to reset this user password');
         return;
       }
@@ -917,34 +916,34 @@ const userProfileController = function (UserProfile) {
       await user.save();
 
       if (user.role === 'Owner' || user.role === 'Administrator') {
-      const subject = `*Main Site* - ${user.role} Password Reset Notification`;
-      const emailBody = `<p>Hi Admin! </p>
+        const subject = `*Main Site* - ${user.role} Password Reset Notification`;
+        const emailBody = `<p>Hi Admin! </p>
 
-      <p><strong>Account Details</strong></p>
-      <p>This email is to inform you that a password reset has been executed for an ${user.role} account:</p>
-  
-      <ul>
-          <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
-          <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
-      </ul>
-      
-      <p><strong>Account that reset the ${user.role}'s password</strong></p>
-      <p>The password reset was made by:</p>
-  
-      <ul>
-          <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
-          <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
-      </ul>
+        <p><strong>Account Details</strong></p>
+        <p>This email is to inform you that a password reset has been executed for an ${user.role} account:</p>
+    
+        <ul>
+            <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
+        </ul>
+        
+        <p><strong>Account that reset the ${user.role}'s password</strong></p>
+        <p>The password reset was made by:</p>
+    
+        <ul>
+            <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+        </ul>
 
-      <p>If you have any questions or need to verify this password reset, please investigate further.</p>
+        <p>If you have any questions or need to verify this password reset, please investigate further.</p>
 
-      <p>Thank you for your attention to this matter.</p>
-  
-      <p>Sincerely,</p>
-      <p>The HGN A.I. (and One Community)</p>
-      `;
+        <p>Thank you for your attention to this matter.</p>
+    
+        <p>Sincerely,</p>
+        <p>The HGN A.I. (and One Community)</p>
+        `;
 
-      emailSender('onecommunityglobal@gmail.com ', subject, emailBody, null, null);
+        emailSender('onecommunityglobal@gmail.com ', subject, emailBody, null, null);
       }
 
       res.status(200).send({
