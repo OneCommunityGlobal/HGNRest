@@ -1,8 +1,9 @@
-const mongoose = require("mongoose");
-const path = require("path");
-const fs = require("fs/promises");
-const dashboardhelper = require("../helpers/dashboardhelper")();
-const emailSender = require("../utilities/emailSender");
+const path = require('path');
+const fs = require('fs/promises');
+const mongoose = require('mongoose');
+const dashboardhelper = require('../helpers/dashboardhelper')();
+const emailSender = require('../utilities/emailSender');
+const AIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const dashboardcontroller = function () {
   const dashboarddata = function (req, res) {
@@ -11,8 +12,41 @@ const dashboardcontroller = function () {
     const snapshot = dashboardhelper.personaldetails(userId);
 
     snapshot.then((results) => {
-      res.send(results).status(200);
+      res.status(200).send(results);
     });
+  };
+
+  const updateAIPrompt = function (req, res) {
+    if (req.body.requestor.role === 'Owner') {
+      AIPrompt.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
+      .then(() => {
+        res.status(200).send('Successfully saved AI prompt.');
+      }).catch(error => res.status(500).send(error));
+    }
+  };
+
+  const getAIPrompt = function (req, res) {
+    AIPrompt.findById({ _id: 'ai-prompt' })
+    .then((result) => {
+      if (result) {
+        // If the GPT prompt exists, send it back.
+        res.status(200).send(result);
+      } else {
+        // If the GPT prompt does not exist, create it.
+        const defaultPrompt = {
+          _id: 'ai-prompt',
+          aIPromptText: "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:",
+        };
+        AIPrompt.create(defaultPrompt)
+        .then((newResult) => {
+          res.status(200).send(newResult);
+        })
+        .catch((creationError) => {
+          res.status(500).send(creationError);
+        });
+      }
+    })
+    .catch(error => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -20,13 +54,13 @@ const dashboardcontroller = function () {
     const laborthismonth = dashboardhelper.laborthismonth(
       userId,
       req.params.fromDate,
-      req.params.toDate
+      req.params.toDate,
     );
     laborthismonth.then((results) => {
       if (!results || results.length === 0) {
         const emptyresult = [
           {
-            projectName: "",
+            projectName: '',
             timeSpent_hrs: 0,
           },
         ];
@@ -42,10 +76,10 @@ const dashboardcontroller = function () {
     const laborthisweek = dashboardhelper.laborthisweek(
       userId,
       req.params.fromDate,
-      req.params.toDate
+      req.params.toDate,
     );
     laborthisweek.then((results) => {
-      res.send(results).status(200);
+      res.status(200).send(results);
     });
   };
 
@@ -63,7 +97,7 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const orgData = function (req, res) {
@@ -73,7 +107,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -85,7 +119,7 @@ const dashboardcontroller = function () {
     expected,
     actual,
     visual,
-    severity
+    severity,
   ) {
     const text = `New Bug Report From <b>${firstName} ${lastName}</b>:
         <p>[Feature Name] Bug Title:</p>
@@ -100,7 +134,7 @@ const dashboardcontroller = function () {
         <p>${actual}</p>
         <p>Visual Proof (screenshots, videos, text)</p>
         <p>${visual}</p>
-        <p>Severity/Priority (How Bad is the Bug?</p>
+        <p>Severity/Priority (How Bad is the Bug?)</p>
         <p>${severity}</p>
         <p>Thank you,<br />
         One Community</p>`;
@@ -130,158 +164,141 @@ const dashboardcontroller = function () {
       expected,
       actual,
       visual,
-      severity
+      severity,
     );
 
     try {
       emailSender(
-        "onecommunityglobal@gmail.com",
+        'onecommunityglobal@gmail.com',
         `Bug Rport from ${firstName} ${lastName}`,
         emailBody,
-        email
+        email,
       );
-      res.status(200).send("Success");
+      res.status(200).send('Success');
     } catch {
-      res.status(500).send("Failed");
+      res.status(500).send('Failed');
     }
   };
 
-  const getSuggestionFilePath = async () => {
-    // Define a base path based on the process.cwd()
-    const basePath = process.cwd();
-    console.log(basePath, "basePath");
-
-    // Define the relative path to the JSON file (adjust as needed)
-    const relativePath = "src/constants/suggestionModalData.json";
-
-    // Combine the base path and relative path to create the full path
-    const fullPath = path.join(basePath, relativePath);
-
-    return fullPath;
+  const suggestionData = {
+    suggestion: [
+      'Identify and remedy poor client and/or user service experiences',
+      'Identify bright spots and enhance positive service experiences',
+      'Make fundamental changes to our programs and/or operations',
+      'Inform the development of new programs/projects',
+      'Identify where we are less inclusive or equitable across demographic groups',
+      'Strengthen relationships with the people we serve',
+      "Understand people's needs and how we can help them achieve their goals",
+      'Other',
+    ],
+    field: [],
   };
 
-  const readSuggestionFile = async () => {
-    // Specify the absolute path to the JSON file
-    const filepath = await getSuggestionFilePath();
-
-    try {
-      // Check if the file exists
-      await fs.access(filepath);
-
-      // Read and parse the file
-      const readfile = await fs.readFile(filepath, "utf8");
-      const parsedData = JSON.parse(readfile);
-      return parsedData;
-    } catch (err) {
-      console.error("Error reading suggestionModalData.json:", err);
-      return null; // Handle the error appropriately
-    }
-  };
-
-  // create suggestion emailbody
   const getsuggestionEmailBody = async (...args) => {
-    const readfile = await readSuggestionFile();
     let fieldaaray = [];
-    if (readfile.field.length) {
-      fieldaaray = readfile.field.map(
-        (item) => `<p>${item}</p>
-                                               <p>${args[3][item]}</p>`
+    if (suggestionData.field.length) {
+      fieldaaray = suggestionData.field.map(
+        item => `<p>${item}</p>
+                   <p>${args[3][item]}</p>`,
       );
     }
-    const text = `New Suggestion:
-        <p>Suggestion Category:</p>
-        <p>${args[0]}</p>
-        <p>Suggestion:</p>
-        <p>${args[1]}</p>
-        ${fieldaaray.length > 0 ? fieldaaray : ""}
-        <p>Wants Feedback:</p>
-        <p>${args[2]}</p>
-        <p>Thank you,<br />
-        One Community</p>`;
+    const text = `New Suggestion From <b>${args[3].firstName} ${
+      args[3].lastName
+    }
+    </b>:
+    <br>
+    <br> 
+    <b> &#9913; Suggestion Category:</b>
+    <p>${args[0]}</p>
+    <b> &#9913; Suggestion:</b>
+    <p>${args[1]}</p>
+    ${fieldaaray.length > 0 ? fieldaaray : ''}
+    <b> &#9913; Name of Suggester:</b>
+    <p>${args[3].firstName} ${args[3].lastName}</p>
+    <b> &#9913; Email of Suggester:</b>
+    <p>${args[4]}</p>
+    <b> &#9913; Wants Feedback:</b>
+    <p>${args[2]}</p>
+    <b>Thank you,<br />
+    One Community</b>`;
 
     return text;
   };
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-    const { suggestioncate, suggestion, confirm, ...rest } = req.body;
+    const {
+ suggestioncate, suggestion, confirm, email, ...rest
+} = req.body;
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
       confirm,
-      rest
+      rest,
+      email,
     );
     try {
       emailSender(
-        "onecommunityglobal@gmail.com",
-        "A new suggestion",
-        emailBody
+        'onecommunityglobal@gmail.com',
+        'A new suggestion',
+        emailBody,
+        null,
+        null,
+        email,
+        null,
       );
-      res.status(200).send("Success");
+      res.status(200).send('Success');
     } catch {
-      res.status(500).send("Failed");
+      res.status(500).send('Failed');
     }
   };
 
   const getSuggestionOption = async (req, res) => {
     try {
-      const readfile = await readSuggestionFile();
-      if (readfile) {
-        res.status(200).send(readfile);
+      if (suggestionData) {
+        res.status(200).send(suggestionData);
       } else {
-        res.status(404).send("Suggestion file not found.");
+        res.status(404).send('Suggestion data not found.');
       }
     } catch (error) {
-      console.error("Error reading suggestion file:", error);
-      res.status(500).send("Internal Server Error");
+      console.error('Error getting suggestion data:', error);
+      res.status(500).send('Internal Server Error');
     }
   };
 
-  // add new suggestion category or field
   const editSuggestionOption = async (req, res) => {
     try {
-      // Read the current suggestion data
-      let readfile = await readSuggestionFile();
-
       if (req.body.suggestion) {
-        if (req.body.action === "add") {
-          readfile.suggestion.unshift(req.body.newField);
+        if (req.body.action === 'add') {
+          suggestionData.suggestion.unshift(req.body.newField);
         }
-        if (req.body.action === "delete") {
-          readfile = {
-            ...readfile,
-            suggestion: readfile.suggestion.filter(
-              (item, index) => index + 1 !== +req.body.newField
-            ),
-          };
+        if (req.body.action === 'delete') {
+          suggestionData.suggestion = suggestionData.suggestion.filter(
+            (item, index) => index + 1 !== +req.body.newField,
+          );
         }
       } else {
-        if (req.body.action === "add") {
-          readfile.field.unshift(req.body.newField);
+        if (req.body.action === 'add') {
+          suggestionData.field.unshift(req.body.newField);
         }
-        if (req.body.action === "delete") {
-          readfile = {
-            ...readfile,
-            field: readfile.field.filter((item) => item !== req.body.newField),
-          };
+        if (req.body.action === 'delete') {
+          suggestionData.field = suggestionData.field.filter(
+            item => item !== req.body.newField,
+          );
         }
       }
 
-      // Get the file path
-      const filepath = await getSuggestionFilePath();
-
-      // Write the updated data back to the file
-      await fs.writeFile(filepath, JSON.stringify(readfile, null, 2));
-
-      res.status(200).send("success");
+      res.status(200).send('success');
     } catch (error) {
-      console.error("Error editing suggestion option:", error);
-      res.status(500).send("Internal Server Error");
+      console.error('Error editing suggestion option:', error);
+      res.status(500).send('Internal Server Error');
     }
   };
 
   return {
     dashboarddata,
+    getAIPrompt,
+    updateAIPrompt,
     monthlydata,
     weeklydata,
     leaderboarddata,
