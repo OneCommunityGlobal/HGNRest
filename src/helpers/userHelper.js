@@ -60,8 +60,8 @@ const userHelper = function () {
       result = false;
     }
 
-    const imageType = picParts[0].split('/')[1];
-    if (imageType !== 'jpeg;' && imageType !== 'png;') {
+    const imageType = picParts[0].split('/')[1].split(';')[0];
+    if (imageType !== 'jpeg' && imageType !== 'png') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
