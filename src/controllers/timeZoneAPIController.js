@@ -1,4 +1,5 @@
-const axios = require('axios'); // eslint-disable-line import/no-extraneous-dependencies
+// eslint-disable-next-line import/no-extraneous-dependencies
+const fetch = require('node-fetch');
 const ProfileInitialSetupToken = require('../models/profileInitialSetupToken');
 const { hasPermission } = require('../utilities/permissions');
 
@@ -17,10 +18,16 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
     const geocodeAPIEndpoint = 'https://api.opencagedata.com/geocode/v1/json';
     const url = `${geocodeAPIEndpoint}?key=${apiKey}&q=${location}&pretty=1&limit=1`;
 
-    const response = await axios.get(url);
-    const { data } = response;
+    const response = await fetch(url);
+    const data = await response.json();
 
-    if (data.status.code === 200 && data.results && data.results.length) {
+    if (data.status.code !== 200) {
+      const err = new Error(`opencage error- ${data.status.message}`);
+      err.status = data.status.code;
+      throw err;
+    }
+
+    if (data.results && data.results.length) {
       const timezone = data.results[0].annotations.timezone.name;
       const currentLocation = {
         userProvided: location,
@@ -36,10 +43,10 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
       res.status(404).send('No results found');
     }
   } catch (err) {
-    const errorMessage = err.response?.data?.status?.message
-      ? `opencage error, ${err.response?.data?.status?.message}`
+    const errorMessage = err?.data?.status?.message
+      ? `opencage error, ${err?.data?.status?.message}`
       : err.message;
-    const errorCode = err.response?.data?.status?.code || 500;
+    const errorCode = err?.status || 500;
     res.status(errorCode).send(errorMessage);
   }
 };
