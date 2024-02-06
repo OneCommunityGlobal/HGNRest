@@ -29,7 +29,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   }
 
 
-
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
       fs.readFile(filepath, 'utf8', (err, data) => {
@@ -97,7 +96,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
                       fs.writeFile(filepath, updatedFileContent, 'utf8', (error) => {
                         if (error) {
                           console.error('Error writing to file:', error);
-                          return;
                         }
                       });
                     });
@@ -160,8 +158,9 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               });
             }
           })
-          .catch(error => {
-            res.status(500).send(error)});
+          .catch((error) => {
+            res.status(500).send(error);
+});
         } catch (error) {
           res.status(500).send(error);
         }
