@@ -8,8 +8,15 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
   inventoryTypeRouter.route('/invtypes/materials')
     .get(controller.fetchMaterialTypes);
 
+    inventoryTypeRouter.route('/consumables')
+    .get(controller.fetchConsumableTypes);
+
     inventoryTypeRouter.route('/invtypes/material')
     .post(controller.addMaterialType);
+
+    inventoryTypeRouter.route('/consumables') 
+    .post(controller.addConsumableType);
+
   // Route for fetching types by selected type
   inventoryTypeRouter.route('/invtypes/:type')
     .get(controller.fetchInventoryByType);
