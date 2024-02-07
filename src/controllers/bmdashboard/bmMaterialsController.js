@@ -138,7 +138,6 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const bmPostMaterialUpdateBulk = function (req, res) {
     const materialUpdates = req.body.updateMaterials;
-    console.log(materialUpdates);
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
     for (let i = 0; i < materialUpdates.length; i++) {
