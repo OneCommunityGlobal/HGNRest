@@ -171,8 +171,8 @@ const userHelper = function () {
           ? `<a href="${mediaUrl}">${mediaUrl}</a>`
           : 'Not provided!';
 
-        const googleDocLinkValue = adminLinks 
-        ? adminLinks.find(link => link.Name === 'Google Doc') 
+        const googleDocLinkValue = adminLinks.length > 0
+        ? adminLinks.find(link => link.Name === 'Google Doc' && link.Link)
         : null;
 
         const googleDocLink = googleDocLinkValue
