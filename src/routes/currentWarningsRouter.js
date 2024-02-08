@@ -1,14 +1,20 @@
 const express = require("express");
 
-const route = function () {
-  const controller = require("../controllers/currentWarningsController")();
+const route = function (currentWarnings) {
+  const controller = require("../controllers/currentWarningsController")(
+    currentWarnings
+  );
 
   const currentWarningsRouter = express.Router();
 
   currentWarningsRouter
     .route("/currentWarnings")
-    .get(controller.getCurrentDescriptions);
-  // .post(controller.addCurrentDescriptions)
+    .get(controller.getCurrentWarnings)
+    .post(controller.postNewWarningDescription);
+
+  currentWarningsRouter
+    .route("/currentWarnings/:warningDescriptionId")
+    .delete(controller.deleteWarningDescription);
   // .put(controller.updateCurrentDescriptions)
   // .delete(controller.deleteCurrentDescriptions);
 
