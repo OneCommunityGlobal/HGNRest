@@ -17,7 +17,7 @@ const currentWarningsController = function (currentWarnings) {
     //post to the db using mongodb methods
     //search a method to post id will be generated
     try {
-      const { newWarning } = req.body;
+      const { newWarning, activeWarning } = req.body;
 
       const warnings = await currentWarnings.find({});
 
@@ -27,6 +27,7 @@ const currentWarningsController = function (currentWarnings) {
 
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
+      newWarningDescription.activeWarning = activeWarning;
 
       warnings.push(newWarningDescription);
       await newWarningDescription.save();
@@ -38,7 +39,6 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const deleteWarningDescription = async (req, res) => {
-    console.log("delete triggered");
     try {
       const { warningDescriptionId } = req.params;
 
