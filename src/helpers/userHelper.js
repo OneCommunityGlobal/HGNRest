@@ -41,7 +41,7 @@ const userHelper = function () {
   };
 
   const validateProfilePic = function (profilePic) {
-    const picParts = profilePic.split('base64');
+    const picParts = profilePic.split(',');
     let result = true;
     const errors = [];
 
@@ -54,15 +54,14 @@ const userHelper = function () {
 
     // validate size
     const imageSize = picParts[1].length;
-    const sizeInBytes = (4 * Math.ceil(imageSize / 3) * 0.5624896334383812) / 1024;
-
+    const sizeInBytes = Math.ceil(imageSize / 4) * 3 / 1024;
     if (sizeInBytes > 50) {
       errors.push('Image size should not exceed 50KB');
       result = false;
     }
 
-    const imageType = picParts[0].split('/')[1];
-    if (imageType !== 'jpeg;' && imageType !== 'png;') {
+    const imageType = picParts[0].split('/')[1].split(';')[0];
+    if (imageType !== 'jpeg' && imageType !== 'png') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
@@ -89,19 +88,20 @@ const userHelper = function () {
     infringement,
     totalInfringements,
     timeRemaining,
+    requestForTimeOffEmailBody,
   ) {
     let final_paragraph = '';
 
     if (timeRemaining == undefined) {
       final_paragraph = '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
     } else {
-      final_paragraph = `<p>Life happens and we understand that. Please make up the missed hours this following week though to avoid getting another blue square. So you know what’s needed, the missing/incomplete hours (${timeRemaining} hours) have been added to your current week and this new weekly total can be seen at the top of your dashboard.</p>
-      <p>Reminder also that each blue square is removed from your profile 1 year after it was issued.</p>`;
+      final_paragraph = `Please complete ALL owened time this week to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">One Community Core Team Policies and Procedures page </a>" `
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${infringement.date}</p>
+        <p><b>Date Assigned:</b> ${infringement.date}</p>\
+        ${requestForTimeOffEmailBody? `\n<p><b>Reason Time Requested Off:</b> ${requestForTimeOffEmailBody} </p>`: ''}
         <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
@@ -437,7 +437,7 @@ const userHelper = function () {
           let requestForTimeOffStartingDate;
           let requestForTimeOffEndingDate;
           let requestForTimeOffreason;
-
+          let requestForTimeOffEmailBody;
 
           if (hasTimeOffRequest) {
             requestForTimeOff = requestsForTimeOff[0];
@@ -448,30 +448,49 @@ const userHelper = function () {
               requestForTimeOff.endingDate,
             ).format('dddd YYYY-MM-DD');
             requestForTimeOffreason = requestForTimeOff.reason;
+            requestForTimeOffEmailBody = `Unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}`;
           }
 
         if (timeNotMet || !hasWeeklySummary) {
           if (foundReason) {
             description = foundReason.reason;
           } else if (timeNotMet && !hasWeeklySummary) {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
-                2,
-              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
-              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
+              if (person.role == 'Core Team') {
+                description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
+                  'dddd YYYY-MM-DD',
+)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}. You logged ${timeSpent.toFixed(
+                  2,
+                )} hours against committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
+                  .localeData()
+                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`;
+              } else {
+                description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
+                  2,
+                  )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                    'dddd YYYY-MM-DD',
+                    )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              }
+              
             } else if (timeNotMet) {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
-                2,
-              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
-              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
+              if (person.role == 'Core Team') {
+                description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
+                  'dddd YYYY-MM-DD',
+)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}. You logged ${timeSpent.toFixed(
+                  2,
+                )} hours against committed effort of ${user.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
+                  .localeData()
+                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`;
+              } else {
+                description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
+                  2,
+                )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                  'dddd YYYY-MM-DD',
+                )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              }
             } else {
               description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.
-              ${hasTimeOffRequest ? `Notice: unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}` : ''}`;
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             }
 
 
@@ -498,6 +517,7 @@ const userHelper = function () {
               infringement,
               status.infringements.length,
               timeRemaining,
+              requestForTimeOffEmailBody,
             );
           } else {
             emailBody = getInfringementEmailBody(
@@ -505,6 +525,7 @@ const userHelper = function () {
               status.lastName,
               infringement,
               status.infringements.length,
+              requestForTimeOffEmailBody,
             );
           }
 
@@ -887,11 +908,11 @@ const userHelper = function () {
       personId,
       {
         $pull: {
-          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) }
-        }
+          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) },
+        },
       },
       { new: true },
-      err => {
+      (err) => {
         if (err) {
           throw new Error(err);
         }
@@ -1152,28 +1173,27 @@ const changeBadgeCount = async function (personId, badgeId, count) {
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
-    let duplicateBadges = [];
+    const duplicateBadges = [];
 
     for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === "Personal Max") {
+      if (badgeCollection[i].badge?.type === 'Personal Max') {
         if (!badgeOfType) {
           badgeOfType = badgeCollection[i];
         } else {
           duplicateBadges.push(badgeCollection[i]);
         }
       }
-      for (let badge of duplicateBadges) {
+      for (const badge of duplicateBadges) {
          await removeDupBadge(personId, badge._id);
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
       if (
 
-        user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
-      ) 
-      {
+        user.lastWeekTangibleHrs
+        && user.lastWeekTangibleHrs >= 1
+        && user.lastWeekTangibleHrs === user.personalBestMaxHrs
+      ) {
         if (badgeOfType) {
           changeBadgeCount(
             personId,
@@ -1182,7 +1202,6 @@ const changeBadgeCount = async function (personId, badgeId, count) {
           );
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
-
         }
       }
     });
@@ -1566,7 +1585,7 @@ const changeBadgeCount = async function (personId, badgeId, count) {
 
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
     const userId = mongoose.Types.ObjectId(personId);
-    
+
     const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
     const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
