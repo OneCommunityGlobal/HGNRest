@@ -971,9 +971,10 @@ const userProfileController = function (UserProfile) {
         { lastName: { $regex: pattern } },
       ],
     })
+      .select("firstName lastName")
       .then((users) => {
         if (users.length === 0) {
-          res.status(404).send({ error: "Users Not Found" });
+          return res.status(404).send({ error: "Users Not Found" });
         }
         res.status(200).send(users);
       })
@@ -1007,6 +1008,7 @@ const userProfileController = function (UserProfile) {
         { lastName: { $regex: lastNameRegex } },
       ],
     })
+      .select("firstName lastName")
       .then((users) => {
         if (users.length === 0) {
           return res.status(404).send({ error: "Users Not Found" });
