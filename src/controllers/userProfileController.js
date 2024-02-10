@@ -962,17 +962,15 @@ const userProfileController = function (UserProfile) {
 
   // Search for user by first name
   const getUserBySingleName = (req, res) => {
-    const pattern = new RegExp(req.params.singleName, "i");
+    const pattern = new RegExp("^" + req.params.singleName, "i");
 
     // Searches for first or last name
-    // UserProfile.find({
-    //   $or: [
-    //     { firstName: { $regex: pattern } },
-    //     { lastName: { $regex: pattern } },
-    //   ],
-    // })
-
-    UserProfile.find({ firstName: { $regex: pattern } })
+    UserProfile.find({
+      $or: [
+        { firstName: { $regex: pattern } },
+        { lastName: { $regex: pattern } },
+      ],
+    })
       .then((users) => {
         if (users.length === 0) {
           res.status(404).send({ error: "Users Not Found" });
@@ -992,11 +990,9 @@ const userProfileController = function (UserProfile) {
     const fullName = req.params.fullName
       .split(" ")
       .filter((name) => name !== "");
-    console.log(fullName);
-
     // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(escapeRegExp(fullName[0]), "i");
-    const lastNameRegex = new RegExp(escapeRegExp(fullName[1]), "i");
+    const firstNameRegex = new RegExp("^" + escapeRegExp(fullName[0]), "i");
+    const lastNameRegex = new RegExp("^" + escapeRegExp(fullName[1]), "i");
 
     // Verfies both the first and last name are present
     if (fullName.length < 2) {
