@@ -21,6 +21,18 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
+  const fetchToolTypes = async (req, res) => {
+    try {
+      ToolType
+        .find()
+        .exec()
+        .then(result => res.status(200).send(result))
+        .catch(error => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
+
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
       console.log(__dirname, filepath);
@@ -217,6 +229,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     };
   return {
     fetchMaterialTypes,
+    fetchToolTypes,
     addEquipmentType,
     fetchSingleInventoryType,
     updateNameAndUnit,
