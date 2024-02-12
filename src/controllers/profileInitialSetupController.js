@@ -270,7 +270,13 @@ const profileInitialSetupController = function (
             null,
             null,
           );
-          await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
+          // Delete the token after the user has been created
+          // await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
+          // Find the token and update it to isSetupCompleted: true
+          await ProfileInitialSetupToken.findOneAndUpdate(
+            { _id: foundToken._id },
+            { isSetupCompleted: true },
+          );
 
           const jwtPayload = {
             userid: savedUser._id,
@@ -285,14 +291,16 @@ const profileInitialSetupController = function (
           const token = jwt.sign(jwtPayload, JWT_SECRET);
 
             const locationData = {
+              title: '',
               firstName: req.body.firstName,
               lastName: req.body.lastName,
               jobTitle: req.body.jobTitle,
               location: req.body.homeCountry,
+              isActive: true,
             };
 
           res.send({ token }).status(200);
-          ProfileInitialSetupToken.update()
+          ProfileInitialSetupToken.update();
             const mapEntryResult = await setMapLocation(locationData);
             if (mapEntryResult.type === 'Error') {
               console.log(mapEntryResult.message);
@@ -410,7 +418,57 @@ const profileInitialSetupController = function (
     }
   };
 
-
+  /**
+   * @param {*} req HTTP request include requester role information
+   * @param {*} res HTTP response include whether the setup invitation record is successfully cancelled
+   * @returns 
+   */
+  const cancelSetupInvitation = (req, res) => {
+    const { role } = req.body.requestor;
+    const { token } = req.body;
+    if (role === 'Admin' || role === 'Owner') {
+      ProfileInitialSetupToken
+      .findOneAndUpdate(
+        { token },
+        { isCancelled: true },
+        (err, result) => {
+          if (err) {
+            // LOGGER.logException(err);
+            return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+          } else {
+            return res.status(200).send(result);
+          }
+        },
+      );
+    }
+  };
+   /**
+   * @param {*} req HTTP request include requester role information
+   * @param {*} res HTTP response include whether the setup invitation record is successfully refreshed
+   * @returns 
+   */
+  const refreshSetupInvitation = (req, res) => {
+    const { role } = req.body.requestor;
+    const { token } = req.body;
+    if (role === 'Admin' || role === 'Owner') {
+      ProfileInitialSetupToken
+      .findOneAndUpdate(
+        { token },
+        {
+          expiration: moment().tz('America/Los_Angeles').add(1, 'week'),
+          isCancelled: false,
+        },
+        (err, result) => {
+          if (err) {
+            // LOGGER.logException(err);
+            return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+          } else {
+            return res.status(200).send(result);
+          }
+        },
+      );
+    }
+  }
 
   return {
     getSetupToken,
@@ -419,6 +477,8 @@ const profileInitialSetupController = function (
     getTimeZoneAPIKeyByToken,
     getTotalCountryCount,
     getSetupInvitation,
+    cancelSetupInvitation,
+    refreshSetupInvitation,
   };
 };
 

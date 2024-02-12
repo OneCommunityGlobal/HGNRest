@@ -10,6 +10,8 @@ const routes = function (ProfileInitialSetupToken, userProfile, Project, mapLoca
     ProfileInitialSetup.route('/getTimeZoneAPIKeyByToken').post(controller.getTimeZoneAPIKeyByToken);
     ProfileInitialSetup.route('/getTotalCountryCount').get(controller.getTotalCountryCount);
     ProfileInitialSetup.route('/getSetupInvitation').get(controller.getSetupInvitation);
+    ProfileInitialSetup.route('/refreshSetupInvitationToken').post(controller.refreshSetupInvitation);
+    ProfileInitialSetup.route('/cancelSetupInvitationToken').post(controller.cancelSetupInvitation);
     return ProfileInitialSetup;
 };
 
