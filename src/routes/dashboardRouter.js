@@ -9,6 +9,10 @@ const route = function () {
     .get(controller.getAIPrompt)
     .put(controller.updateAIPrompt);
 
+  Dashboardrouter.route('/dashboard/aiPrompt/copied/:userId')
+    .get(controller.getPromptCopiedDate)
+    .put(controller.updateCopiedPrompt);
+
   Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);
 
