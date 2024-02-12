@@ -15,20 +15,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
-
-  async function fetchConsumableTypes(req, res) {
-    try {
-      ConsType
-        .find()
-        .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
-    }
-  }
-
-
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
       fs.readFile(filepath, 'utf8', (err, data) => {
@@ -271,7 +257,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     };
   return {
     fetchMaterialTypes,
-    fetchConsumableTypes,
     addEquipmentType,
     fetchSingleInventoryType,
     updateNameAndUnit,
