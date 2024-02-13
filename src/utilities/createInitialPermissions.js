@@ -9,6 +9,7 @@ const permissionsRoles = [
       // Reports
       "getWeeklySummaries",
       "getReports", // Doesn't do anything on back-end.
+      "totalValidWeeklySummaries",
       // Badges
       "seeBadges",
       "assignBadges",
@@ -214,6 +215,7 @@ const permissionsRoles = [
       "getTimeZoneAPIKey",
       "checkLeadTeamOfXplus",
       "editTeamCode",
+      "totalValidWeeklySummaries",
     ],
   },
 ];
