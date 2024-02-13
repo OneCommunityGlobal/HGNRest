@@ -1,9 +1,13 @@
 const Role = require("../models/role");
 const RolePreset = require("../models/rolePreset");
 const User = require("../models/userProfile");
+const Role = require("../models/role");
+const RolePreset = require("../models/rolePreset");
+const User = require("../models/userProfile");
 
 const permissionsRoles = [
   {
+    roleName: "Administrator",
     roleName: "Administrator",
     permissions: [
       // Reports
@@ -16,10 +20,21 @@ const permissionsRoles = [
       "createBadges",
       "deleteBadges",
       "updateBadges",
+      "seeBadges",
+      "assignBadges",
+      "createBadges",
+      "deleteBadges",
+      "updateBadges",
       // Popups
       "createPopup",
       "updatePopup",
+      "createPopup",
+      "updatePopup",
       // Projects
+      "deleteProject",
+      "postProject",
+      "putProject",
+      "assignProjectToUsers",
       "deleteProject",
       "postProject",
       "putProject",
@@ -31,12 +46,24 @@ const permissionsRoles = [
       "swapTask",
       "deleteTask",
       "updateNum",
+      "importTask",
+      "postTask",
+      "updateTask",
+      "swapTask",
+      "deleteTask",
+      "updateNum",
       // Teams
       "postTeam",
       "deleteTeam",
       "putTeam",
       "assignTeamToUsers",
+      "postTeam",
+      "deleteTeam",
+      "putTeam",
+      "assignTeamToUsers",
       // Time Entries
+      "editTimeEntry",
+      "deleteTimeEntry",
       "editTimeEntry",
       "deleteTimeEntry",
       // 'postTimeEntry',?
@@ -49,10 +76,33 @@ const permissionsRoles = [
       "updatePassword",
       "deleteUserProfile",
       "infringementAuthorizer",
+      "putRole",
+      "postUserProfile",
+      "putUserProfile",
+      "putUserProfileImportantInfo",
+      "changeUserStatus",
+      "updatePassword",
+      "deleteUserProfile",
+      "infringementAuthorizer",
       // WBS
       "postWbs",
       "deleteWbs",
+      "postWbs",
+      "deleteWbs",
       // Inv
+      "getAllInvInProjectWBS",
+      "postInvInProjectWBS",
+      "getAllInvInProject",
+      "postInvInProject",
+      "transferInvById",
+      "delInvById",
+      "unWasteInvById",
+      "getInvIdInfo",
+      "putInvById",
+      "getInvTypeById",
+      "putInvType",
+      "getAllInvType",
+      "postInvType",
       "getAllInvInProjectWBS",
       "postInvInProjectWBS",
       "getAllInvInProject",
@@ -77,8 +127,11 @@ const permissionsRoles = [
   {
     roleName: "Volunteer",
     permissions: ["getReporteesLimitRoles", "suggestTask"],
+    roleName: "Volunteer",
+    permissions: ["getReporteesLimitRoles", "suggestTask"],
   },
   {
+    roleName: "Core Team",
     roleName: "Core Team",
     permissions: [
       "getUserProfiles",
@@ -103,6 +156,7 @@ const permissionsRoles = [
     ],
   },
   {
+    roleName: "Manager",
     roleName: "Manager",
     permissions: [
       "getUserProfiles",
@@ -131,6 +185,7 @@ const permissionsRoles = [
   },
   {
     roleName: "Mentor",
+    roleName: "Mentor",
     permissions: [
       "suggestTask",
       "getUserProfiles",
@@ -156,6 +211,7 @@ const permissionsRoles = [
     ],
   },
   {
+    roleName: "Owner",
     roleName: "Owner",
     permissions: [
       "postRole",
@@ -250,8 +306,22 @@ const createInitialPermissions = async () => {
       } else if (
         !permissions.every((perm) => roleDataBase.permissions.includes(perm))
       ) {
+        // If role exists in db and does not have every permission, add the missing permissions
+      } else if (
+        !permissions.every((perm) => roleDataBase.permissions.includes(perm))
+      ) {
         const roleId = roleDataBase._id;
 
+        promises.push(
+          Role.findById(roleId, (_, record) => {
+            permissions.forEach((perm) => {
+              if (!record.permissions.includes(perm)) {
+                record.permissions.push(perm);
+              }
+            });
+            record.save();
+          })
+        );
         promises.push(
           Role.findById(roleId, (_, record) => {
             permissions.forEach((perm) => {
@@ -276,6 +346,7 @@ const createInitialPermissions = async () => {
       const defaultPreset = new RolePreset();
       defaultPreset.roleName = roleName;
       defaultPreset.presetName = "default";
+      defaultPreset.presetName = "default";
       defaultPreset.permissions = permissions;
       defaultPreset.save();
 
@@ -286,6 +357,12 @@ const createInitialPermissions = async () => {
     ) {
       const presetId = presetDataBase._id;
 
+      promises.push(
+        RolePreset.findById(presetId, (_, record) => {
+          record.permissions = permissions;
+          record.save();
+        })
+      );
       promises.push(
         RolePreset.findById(presetId, (_, record) => {
           record.permissions = permissions;
