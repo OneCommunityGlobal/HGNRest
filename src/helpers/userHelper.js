@@ -422,9 +422,12 @@ const userHelper = function () {
             { new: true },
           );
         }
+        // No extra hours is needed if blue squares isn't over 5.
+        // length +1 is because new infringement hasn't been created at this stage.
+        const coreTeamExtraHour =  Math.max(0,(oldInfringements.length +1) - 5)
 
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-          const utcEndMoment = moment(pdtStartOfLastWeek).subtract(1, 'second');
+        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'second');
 
           const requestsForTimeOff = await timeOffRequest.find({
             requestFor: personId,
@@ -1680,7 +1683,6 @@ const changeBadgeCount = async function (personId, badgeId, count) {
         .subtract(1, 'week');
 
     const utcEndMoment = moment(endOfLastWeek).add(1, 'second');
-    console.log(utcEndMoment);
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
       console.log('Deleted expired time off requests.');
