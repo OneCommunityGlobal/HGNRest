@@ -95,20 +95,19 @@ const userHelper = function () {
     if (timeRemaining == undefined) {
       final_paragraph = '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
     } else {
-      final_paragraph = `Please complete ALL owened time this week to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">One Community Core Team Policies and Procedures page </a>" `
+      final_paragraph = `Please complete ALL owed time this week (${timeRemaining} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        ${requestForTimeOffEmailBody? `\n<p><b>Reason Time Requested Off:</b> ${requestForTimeOffEmailBody} </p>`: ''}
+        ${requestForTimeOffEmailBody ? `\n<p><b>Reason Time Requested Off:</b> ${requestForTimeOffEmailBody} </p>` : ''}
         <p><b>Description:</b> ${formatTimeOffRequestsDescription(infringement.description)}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${final_paragraph}
-        <p>Thank you,<br />
-        One Community</p>`;
+        <p>Thank you, One Community</p>`;
 
     return text;
   };
@@ -424,7 +423,7 @@ const userHelper = function () {
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
-        const coreTeamExtraHour =  Math.max(0,(oldInfringements.length +1) - 5)
+        const coreTeamExtraHour = Math.max(0, (oldInfringements.length + 1) - 5);
 
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
         const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'second');
@@ -461,32 +460,31 @@ const userHelper = function () {
               if (person.role == 'Core Team') {
                 description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
                   'dddd YYYY-MM-DD',
-)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}. You logged ${timeSpent.toFixed(
+)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}, you logged ${timeSpent.toFixed(
                   2,
-                )} hours against committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
+                )} hours against a committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
                   .localeData()
-                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`;
+                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(2)} hours.`;
               } else {
                 description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
                   2,
-                  )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                  )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                     'dddd YYYY-MM-DD',
                     )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
               }
-              
             } else if (timeNotMet) {
               if (person.role == 'Core Team') {
                 description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
                   'dddd YYYY-MM-DD',
-)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}. You logged ${timeSpent.toFixed(
+)} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}, you logged ${timeSpent.toFixed(
                   2,
-                )} hours against committed effort of ${user.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
+                )} hours against a committed effort of ${user.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
                   .localeData()
-                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(2)} hours.`;
+                  .ordinal(oldInfringements.length + 1) } blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(2)} hours.`;
               } else {
                 description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                   2,
-                )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                   'dddd YYYY-MM-DD',
                 )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
               }
