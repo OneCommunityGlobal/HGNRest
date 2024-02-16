@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
+const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
@@ -484,8 +485,15 @@ const taskController = function (Task) {
       currentwbs.modifiedDatetime = Date.now();
       return currentwbs.save();
     });
+    // Posting a task will update the related project - Sucheta
+    const saveProject = WBS.findById(wbsId).then((currentwbs) => {
+      Project.findById(currentwbs.projectId).then((currentProject) => {
+        currentProject.modifiedDatetime = Date.now();
+        return currentProject.save();
+      });
+    });
 
-    Promise.all([saveTask, saveWbs])
+    Promise.all([saveTask, saveWbs, saveProject])
       .then(results => res.status(201).send(results[0]))
       .catch((errors) => {
         res.status(400).send(errors);
@@ -717,6 +725,22 @@ const taskController = function (Task) {
     }
 
     const { taskId } = req.params;
+    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
+    const saveWbs = Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        currentwbs.modifiedDatetime = Date.now();
+        return currentwbs.save();
+      });
+    });
+
+    const saveProject = Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        Project.findById(currentwbs.projectId).then((currentProject) => {
+          currentProject.modifiedDatetime = Date.now();
+          return currentProject.save();
+        });
+      });
+    });
 
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
@@ -888,7 +912,22 @@ const taskController = function (Task) {
 
   const updateTaskStatus = async (req, res) => {
     const { taskId } = req.params;
+    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
+    const saveWbs = Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        currentwbs.modifiedDatetime = Date.now();
+        return currentwbs.save();
+      });
+    });
 
+    const saveProject = Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        Project.findById(currentwbs.projectId).then((currentProject) => {
+          currentProject.modifiedDatetime = Date.now();
+          return currentProject.save();
+        });
+      });
+    });
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
       { ...req.body, modifiedDatetime: Date.now() },
