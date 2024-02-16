@@ -81,9 +81,7 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRe
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
-// TODO(Yan): change to use the bmReusableRouter that only use a reference of the buildingReusable
-const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable, reusableType);
-// const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
+const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
