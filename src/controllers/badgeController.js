@@ -96,7 +96,9 @@ const badgeController = function (Badge) {
           }
         });
       } catch (err) {
-        res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
+        res
+          .status(500)
+          .send(`Internal Error: Badge Collection. ${err.message}`);
         return;
       }
       record.badgeCollection = req.body.badgeCollection;
@@ -111,7 +113,7 @@ const badgeController = function (Badge) {
         .catch((err) => {
           logger.logException(err);
           res.status(500).send('Internal Error: Unable to save the record.');
-      });
+        });
     });
   };
 
