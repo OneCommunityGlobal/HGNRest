@@ -88,6 +88,7 @@ const userHelper = function () {
     infringement,
     totalInfringements,
     timeRemaining,
+    coreTeamExtraHour,
     requestForTimeOffEmailBody,
   ) {
     let finalParagraph = '';
@@ -95,7 +96,7 @@ const userHelper = function () {
     if (timeRemaining === undefined) {
       finalParagraph = '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
     } else {
-      finalParagraph = `Please complete ALL owed time this week (${timeRemaining} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
+      finalParagraph = `Please complete ALL owed time this week (${timeRemaining + coreTeamExtraHour} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
@@ -558,6 +559,7 @@ const userHelper = function () {
               infringement,
               status.infringements.length,
               timeRemaining,
+              coreTeamExtraHour,
               requestForTimeOffEmailBody,
             );
           } else {
