@@ -90,7 +90,7 @@ const badgeController = function (Badge) {
         .catch((err) => {
           logger.logException(err);
           res.status(500).send('Internal Error: Unable to save the record.');
-      });
+        });
     });
   };
 
