@@ -14,7 +14,8 @@ const route = function (currentWarnings) {
 
   currentWarningsRouter
     .route("/currentWarnings/:warningDescriptionId")
-    .delete(controller.deleteWarningDescription);
+    .delete(controller.deleteWarningDescription)
+    .put(controller.updateWarningDescription);
   // .put(controller.updateCurrentDescriptions)
   // .delete(controller.deleteCurrentDescriptions);
 
