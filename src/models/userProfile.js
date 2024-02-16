@@ -51,6 +51,7 @@ const userProfileSchema = new Schema({
       validate({ validator: 'isEmail', message: 'Email address is invalid' }),
     ],
   },
+  copiedAiPrompt: { type: Date, default: Date.now() },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -90,6 +91,29 @@ const userProfileSchema = new Schema({
     {
       date: { type: String, required: true },
       description: { type: String, required: true },
+      createdDate: { type: String },
+    },
+  ],
+  warnings: [
+    {
+      date: { type: String, required: true },
+      description: {
+        type: String,
+        required: true,
+        enum: [
+          "Better Descriptions",
+          "Log Time to Tasks",
+          "Log Time as You Go",
+          "Log Time to Action Items",
+          "Intangible Time Log w/o Reason",
+        ],
+      },
+      color: {
+        type: String,
+        enum: ["red", "blue", "white", "yellow"],
+        required: true,
+        default: "white",
+      },
     },
   ],
   location: {
