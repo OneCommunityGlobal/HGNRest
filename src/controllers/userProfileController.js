@@ -4,20 +4,20 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const fetch = require("node-fetch");
 
-const moment_ = require("moment");
-const jwt = require("jsonwebtoken");
-const userHelper = require("../helpers/userHelper")();
-const TimeEntry = require("../models/timeentry");
-const logger = require("../startup/logger");
-const Badge = require("../models/badge");
-const yearMonthDayDateValidator = require("../utilities/yearMonthDayDateValidator");
-const cache = require("../utilities/nodeCache")();
+const moment_ = require('moment');
+const jwt = require('jsonwebtoken');
+const userHelper = require('../helpers/userHelper')();
+const TimeEntry = require('../models/timeentry');
+const logger = require('../startup/logger');
+const Badge = require('../models/badge');
+const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
+const cache = require('../utilities/nodeCache')();
 const {
   hasPermission,
   canRequestorUpdateUser,
-} = require("../utilities/permissions");
-const escapeRegex = require("../utilities/escapeRegex");
-const config = require("../config");
+} = require('../utilities/permissions');
+const escapeRegex = require('../utilities/escapeRegex');
+const config = require('../config');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -39,8 +39,8 @@ async function ValidatePassword(req, res) {
   }
   // Verify request is authorized by self or adminsitrator
   if (
-    userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, "updatePassword"))
+    userId !== requestor.requestorId
+    && !(await hasPermission(req.body.requestor, 'updatePassword'))
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -50,8 +50,8 @@ async function ValidatePassword(req, res) {
 
   // Verify request is authorized by self or adminsitrator
   if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, "updatePassword"))
+    userId === requestor.requestorId
+    || !(await hasPermission(req.body.requestor, 'updatePassword'))
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -69,8 +69,8 @@ async function ValidatePassword(req, res) {
 
 const userProfileController = function (UserProfile) {
   const getUserProfiles = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "getUserProfiles"))) {
-      res.status(403).send("You are not authorized to view all users");
+    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
+      res.status(403).send('You are not authorized to view all users');
       return;
     }
 
@@ -88,7 +88,7 @@ const userProfileController = function (UserProfile) {
             res.status(200).send(getData);
             return;
           }
-          res.status(500).send({ error: "User result was invalid" });
+          res.status(500).send({ error: 'User result was invalid' });
           return;
         }
         cache.setCache("allusers", JSON.stringify(results));
@@ -98,8 +98,8 @@ const userProfileController = function (UserProfile) {
   };
 
   const getProjectMembers = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "getProjectMembers"))) {
-      res.status(403).send("You are not authorized to view all users");
+    if (!(await hasPermission(req.body.requestor, 'getProjectMembers'))) {
+      res.status(403).send('You are not authorized to view all users');
       return;
     }
     UserProfile.find(
@@ -120,16 +120,16 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "postUserProfile"))) {
-      res.status(403).send("You are not authorized to create new users");
+    if (!(await hasPermission(req.body.requestor, 'postUserProfile'))) {
+      res.status(403).send('You are not authorized to create new users');
       return;
     }
 
     if (
-      req.body.role === "Owner" &&
-      !(await hasPermission(req.body.requestor, "addDeleteEditOwners"))
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
-      res.status(403).send("You are not authorized to create new owners");
+      res.status(403).send('You are not authorized to create new owners');
       return;
     }
 
@@ -170,8 +170,8 @@ const userProfileController = function (UserProfile) {
         } catch (error) {
           res.status(400).send({
             error:
-              "The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.",
-            type: "credentials",
+              'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
+            type: 'credentials',
           });
           return;
         }
@@ -276,9 +276,9 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
-      ((await hasPermission(req.body.requestor, "putUserProfile")) ||
-        req.body.requestor.requestorId === userid)
+      canRequestorUpdateUser(req.body.requestor.requestorId, userid)
+      && ((await hasPermission(req.body.requestor, 'putUserProfile'))
+        || req.body.requestor.requestorId === userid)
     );
 
     if (!isRequestorAuthorized) {
@@ -287,10 +287,10 @@ const userProfileController = function (UserProfile) {
     }
 
     if (
-      req.body.role === "Owner" &&
-      !(await hasPermission(req.body.requestor, "addDeleteEditOwners"))
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
-      res.status(403).send("You are not authorized to update this user");
+      res.status(403).send('You are not authorized to update this user');
       return;
     }
 
@@ -311,11 +311,10 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      const canEditTeamCode =
-        req.body.requestor.role === "Owner" ||
-        req.body.requestor.role === "Administrator" ||
-        req.body.requestor.permissions?.frontPermissions.includes(
-          "editTeamCode"
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes(
+          'editTeamCode',
         );
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
@@ -373,7 +372,7 @@ const userProfileController = function (UserProfile) {
         userData = allUserData[userIdx];
       }
       if (
-        await hasPermission(req.body.requestor, "putUserProfileImportantInfo")
+        await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')
       ) {
         const importantFields = [
           "role",
@@ -409,8 +408,8 @@ const userProfileController = function (UserProfile) {
 
         // Logic to update weeklycommittedHours and the history of the committed hours made
         if (
-          req.body.weeklycommittedHours !== undefined &&
-          record.weeklycommittedHours !== req.body.weeklycommittedHours
+          req.body.weeklycommittedHours !== undefined
+          && record.weeklycommittedHours !== req.body.weeklycommittedHours
         ) {
           record.weeklycommittedHours = req.body.weeklycommittedHours;
 
@@ -435,8 +434,8 @@ const userProfileController = function (UserProfile) {
         }
 
         if (
-          req.body.createdDate !== undefined &&
-          record.createdDate !== req.body.createdDate
+          req.body.createdDate !== undefined
+          && record.createdDate !== req.body.createdDate
         ) {
           record.createdDate = moment(req.body.createdDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
@@ -453,8 +452,8 @@ const userProfileController = function (UserProfile) {
         }
 
         if (
-          req.body.permissions !== undefined &&
-          (await hasPermission(req.body.requestor, "putUserProfilePermissions"))
+          req.body.permissions !== undefined
+          && (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
         }
@@ -479,8 +478,8 @@ const userProfileController = function (UserProfile) {
         }
       }
       if (
-        req.body.infringements !== undefined &&
-        (await hasPermission(req.body.requestor, "infringementAuthorizer"))
+        req.body.infringements !== undefined
+        && (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
       ) {
         record.infringements = req.body.infringements;
       }
@@ -511,16 +510,16 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
-    if (!(await hasPermission(req.body.requestor, "deleteUserProfile"))) {
-      res.status(403).send("You are not authorized to delete users");
+    if (!(await hasPermission(req.body.requestor, 'deleteUserProfile'))) {
+      res.status(403).send('You are not authorized to delete users');
       return;
     }
 
     if (
-      req.body.role === "Owner" &&
-      !(await hasPermission(req.body.requestor, "addDeleteEditOwners"))
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
-      res.status(403).send("You are not authorized to delete this user");
+      res.status(403).send('You are not authorized to delete this user');
       return;
     }
 
@@ -659,12 +658,11 @@ const userProfileController = function (UserProfile) {
     const { userId } = req.params;
     const { key, value } = req.body;
 
-    if (key === "teamCode") {
-      const canEditTeamCode =
-        req.body.requestor.role === "Owner" ||
-        req.body.requestor.role === "Administrator" ||
-        req.body.requestor.permissions?.frontPermissions.includes(
-          "editTeamCode"
+    if (key === 'teamCode') {
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes(
+          'editTeamCode',
         );
 
       if (!canEditTeamCode) {
@@ -717,17 +715,17 @@ const userProfileController = function (UserProfile) {
     // Check if the requestor has the permission to update passwords.
     const hasUpdatePasswordPermission = await hasPermission(
       requestor.role,
-      "updatePassword"
+      'updatePassword',
     );
 
     // If the requestor is updating their own password, allow them to proceed.
     if (userId === requestor.requestorId) {
-      console.log("Requestor is updating their own password");
+      console.log('Requestor is updating their own password');
     }
     // Else if they're updating someone else's password, they need the 'updatePassword' permission.
     else if (!hasUpdatePasswordPermission) {
       console.log(
-        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission"
+        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission",
       );
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
@@ -737,7 +735,7 @@ const userProfileController = function (UserProfile) {
     // Verify new and confirm new password are correct
     if (req.body.newpassword !== req.body.confirmnewpassword) {
       return res.status(400).send({
-        error: "New and confirm new passwords are not the same",
+        error: 'New and confirm new passwords are not the same',
       });
     }
 
@@ -863,8 +861,8 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    if (!(await hasPermission(req.body.requestor, "changeUserStatus"))) {
-      res.status(403).send("You are not authorized to change user status");
+    if (!(await hasPermission(req.body.requestor, 'changeUserStatus'))) {
+      res.status(403).send('You are not authorized to change user status');
       return;
     }
     cache.removeCache(`user-${userId}`);
