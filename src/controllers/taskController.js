@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
+const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
