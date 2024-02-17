@@ -43,6 +43,7 @@ const timeOffRequest = require('../models/timeOffRequest');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
+const badgeCountRouter = require('../routes/BadgeCountRouter')();
 const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
@@ -104,6 +105,7 @@ module.exports = function (app) {
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
+  app.use('/api', badgeCountRouter);
   app.use('/api', inventoryRouter);
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
