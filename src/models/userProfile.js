@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: "badge" },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
-      lastModified: { type: Date, required: true, default: Date.now() },
+      lastModified: { type: Date, required: true, default: new Date()},
       featured: {
         type: Boolean,
         required: true,
@@ -92,12 +92,43 @@ const userProfileSchema = new Schema({
       createdDate: { type: String },
     },
   ],
+<<<<<<< HEAD
   location: {
     userProvided: { type: String, default: "" },
     coords: {
       lat: { type: Number, default: "" },
       lng: { type: Number, default: "" },
     },
+=======
+  warnings: [
+    {
+      date: { type: String, required: true },
+      description: {
+        type: String,
+        required: true,
+        enum: [
+          "Better Descriptions",
+          "Log Time to Tasks",
+          "Log Time as You Go",
+          "Log Time to Action Items",
+          "Intangible Time Log w/o Reason",
+        ],
+      },
+      color: {
+        type: String,
+        enum: ["red", "blue", "white", "yellow"],
+        required: true,
+        default: "white",
+      },
+    },
+  ],
+  location: {
+    userProvided: { type: String, default: "" },
+    coords: {
+      lat: { type: Number, default: "" },
+      lng: { type: Number, default: "" },
+    },
+>>>>>>> 0e6a1b4aac2aa7d5763cadcf7b77213e3186b1c0
     country: { type: String, default: "" },
     city: { type: String, default: "" },
   },
