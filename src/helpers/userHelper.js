@@ -581,6 +581,8 @@ const userHelper = function () {
               status.lastName,
               infringement,
               status.infringements.length,
+              undefined,
+              null,
               requestForTimeOffEmailBody
             );
           }
