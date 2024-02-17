@@ -6,10 +6,21 @@ const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
 
+
 const badgeController = function (Badge) {
+  /**
+   * getAllBadges handles badges retrieval.
+   * @param {Object} req - Request object.
+   * @returns {Array<Object>} List containing badge records.
+   */
   const getAllBadges = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
+      return;
+    }
+    // Add cache to reduce database query and optimize performance
+    if (cache.hasCache('allBadges')) {
+      res.status(200).send(cache.getCache('allBadges'));
       return;
     }
 
@@ -25,8 +36,11 @@ const badgeController = function (Badge) {
         ranking: 1,
         badgeName: 1,
       })
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => {
+        cache.setCache('allBadges', results);
+        res.status(200).send(results);
+      })
+      .catch(error => res.status(500).send(error));
   };
 
   /**
@@ -59,11 +73,12 @@ const badgeController = function (Badge) {
         return;
       }
       const badgeCounts = {};
+      let newBadgeCollection = [];
       // This line is using the forEach function to group badges in the badgeCollection
       // array in the request body.
       // Validation: No duplicate badge id;
       try {
-        req.body.badgeCollection.forEach((element) => {
+        newBadgeCollection = req.body.badgeCollection.map((element) => {
           if (badgeCounts[element.badge]) {
             throw new Error('Duplicate badges sent in.');
           }
@@ -78,7 +93,7 @@ const badgeController = function (Badge) {
         res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
         return;
       }
-      record.badgeCollection = req.body.badgeCollection;
+      record.badgeCollection = newBadgeCollection;
 
       if (cache.hasCache(`user-${userToBeAssigned}`)) {
         cache.removeCache(`user-${userToBeAssigned}`);
@@ -86,7 +101,11 @@ const badgeController = function (Badge) {
       // Save Updated User Profile
       record
         .save()
-        .then(results => res.status(201).send(results._id))
+        .then((result) => {
+          // TO-DO - add user back to cache. For some reason, the saved records lead to badge img loading failure in frontend.
+          // cache.setCache(`user-${userToBeAssigned}`, JSON.stringify(result));
+          res.status(201).send(result._id);
+        })
         .catch((err) => {
           logger.logException(err);
           res.status(500).send('Internal Error: Unable to save the record.');
@@ -129,7 +148,13 @@ const badgeController = function (Badge) {
 
       badge
         .save()
-        .then(results => res.status(201).send(results))
+        .then((results) => {
+          // remove cache after new badge is saved
+          if (cache.getCache('allBadges')) {
+            cache.removeCache('allBadges');
+          }
+          res.status(201).send(results);
+        })
         .catch(errors => res.status(500).send(errors));
     });
   };
@@ -154,11 +179,15 @@ const badgeController = function (Badge) {
       const deleteRecord = record.remove();
 
       Promise.all([removeBadgeFromProfile, deleteRecord])
-        .then(
+        .then(() => {
+          // remove cache after new badge is deleted
+          if (cache.getCache('allBadges')) {
+            cache.removeCache('allBadges');
+          }
           res.status(200).send({
             message: 'Badge successfully deleted and user profiles updated',
-          }),
-        )
+          });
+        })
         .catch((errors) => {
           res.status(500).send(errors);
         });
@@ -204,6 +233,10 @@ const badgeController = function (Badge) {
       if (error || record === null) {
         res.status(400).send({ error: 'No valid records found' });
         return;
+      }
+      // remove cache after new badge is updated
+      if (cache.getCache('allBadges')) {
+        cache.removeCache('allBadges');
       }
       res.status(200).send({ message: 'Badge successfully updated' });
     });
