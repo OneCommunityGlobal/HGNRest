@@ -6,6 +6,9 @@ const permissionsRoles = [
   {
     roleName: 'Administrator',
     permissions: [
+      // Reports
+      'getWeeklySummaries',
+      'getReports', // Doesn't do anything on back-end.
       // Badges
       'seeBadges',
       'assignBadges',
@@ -65,8 +68,7 @@ const permissionsRoles = [
       // General
       'getUserProfiles',
       'getProjectMembers',
-      'getWeeklySummaries',
-      // 'getReportsPage',?
+
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
     ],
@@ -97,6 +99,7 @@ const permissionsRoles = [
       'getAllInvType',
       'postInvType',
       'getWeeklySummaries',
+      'getReports',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
     ],
@@ -124,7 +127,6 @@ const permissionsRoles = [
       'putInvType',
       'getAllInvType',
       'postInvType',
-      'getWeeklySummaries',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
     ],
@@ -151,7 +153,6 @@ const permissionsRoles = [
       'putInvType',
       'getAllInvType',
       'postInvType',
-      'getWeeklySummaries',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
     ],
@@ -212,6 +213,7 @@ const permissionsRoles = [
       'getAllInvType',
       'postInvType',
       'getWeeklySummaries',
+      'getReports',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'editTeamCode',
