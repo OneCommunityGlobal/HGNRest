@@ -1,10 +1,8 @@
 const express = require('express');
 
-
 const routes = function (information) {
   const controller = require('../controllers/informationController')(information);
   const informationRouter = express.Router();
-
 
   informationRouter.route('/informations')
     .get(controller.getInformations)

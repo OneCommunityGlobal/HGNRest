@@ -92,14 +92,6 @@ const userProfileSchema = new Schema({
       createdDate: { type: String },
     },
   ],
-<<<<<<< HEAD
-  location: {
-    userProvided: { type: String, default: "" },
-    coords: {
-      lat: { type: Number, default: "" },
-      lng: { type: Number, default: "" },
-    },
-=======
   warnings: [
     {
       date: { type: String, required: true },
@@ -128,7 +120,6 @@ const userProfileSchema = new Schema({
       lat: { type: Number, default: "" },
       lng: { type: Number, default: "" },
     },
->>>>>>> 0e6a1b4aac2aa7d5763cadcf7b77213e3186b1c0
     country: { type: String, default: "" },
     city: { type: String, default: "" },
   },
