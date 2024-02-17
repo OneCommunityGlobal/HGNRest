@@ -75,7 +75,7 @@ const userProfileSchema = new Schema({
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: "badge" },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
-      lastModified: { type: Date, required: true, default: Date.now() },
+      lastModified: { type: Date, required: true, default: new Date()},
       featured: {
         type: Boolean,
         required: true,
