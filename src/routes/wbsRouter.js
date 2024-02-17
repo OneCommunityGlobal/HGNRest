@@ -14,6 +14,9 @@ const routes = function (wbs) {
   wbsRouter.route('/wbsId/:id')
     .get(controller.getWBSById);
 
+  wbsRouter.route('/wbs/user/:userId')
+    .get(controller.getWBSByUserId);
+
   wbsRouter.route('/wbs').get(controller.getWBS);
 
   return wbsRouter;
