@@ -92,13 +92,14 @@ const userHelper = function () {
     timeRemaining,
     requestForTimeOffEmailBody
   ) {
-    let final_paragraph = "";
+    let finalParagraph = "";
 
-    if (timeRemaining == undefined) {
-      final_paragraph =
+    if (timeRemaining === undefined) {
+      finalParagraph =
         "<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>";
     } else {
-      final_paragraph = `Please complete ALL owened time this week to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">One Community Core Team Policies and Procedures page </a>" `;
+      finalParagraph =
+        'Please complete ALL owened time this week to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">One Community Core Team Policies and Procedures page </a>" ';
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
@@ -115,7 +116,7 @@ const userHelper = function () {
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
-        ${final_paragraph}
+        ${finalParagraph}
         <p>Thank you,<br />
         One Community</p>`;
 
@@ -290,7 +291,7 @@ const userHelper = function () {
         emailBody,
         null,
         null,
-        emailString,
+        emailString
       ).then(() => console.log("email sent"));
     } catch (err) {
       logger.logException(err);
@@ -454,9 +455,12 @@ const userHelper = function () {
             { new: true }
           );
         }
+        // No extra hours is needed if blue squares isn't over 5.
+        // length +1 is because new infringement hasn't been created at this stage.
+        const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
 
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, "second");
-        const utcEndMoment = moment(pdtStartOfLastWeek).subtract(1, "second");
+        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, "second");
 
         const requestsForTimeOff = await timeOffRequest.find({
           requestFor: personId,
@@ -472,7 +476,7 @@ const userHelper = function () {
         let requestForTimeOffEmailBody;
 
         if (hasTimeOffRequest) {
-          requestForTimeOff = requestsForTimeOff[0];
+          [requestForTimeOff] = requestsForTimeOff;
           requestForTimeOffStartingDate = moment(
             requestForTimeOff.startingDate
           ).format("dddd YYYY-MM-DD");
@@ -487,7 +491,7 @@ const userHelper = function () {
           if (foundReason) {
             description = foundReason.reason;
           } else if (timeNotMet && !hasWeeklySummary) {
-            if (person.role == "Core Team") {
+            if (person.role === "Core Team") {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
               )} and ending ${pdtEndOfLastWeek.format(
@@ -513,7 +517,7 @@ const userHelper = function () {
               )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
             }
           } else if (timeNotMet) {
-            if (person.role == "Core Team") {
+            if (person.role === "Core Team") {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
                 "dddd YYYY-MM-DD"
               )} and ending ${pdtEndOfLastWeek.format(
@@ -1235,8 +1239,8 @@ const userHelper = function () {
           duplicateBadges.push(badgeCollection[i]);
         }
       }
-      for (const badge of duplicateBadges) {
-        await removeDupBadge(personId, badge._id);
+      for (const b of duplicateBadges) {
+        await removeDupBadge(personId, b._id);
       }
     }
     await badge.findOne({ type: "Personal Max" }).then((results) => {
@@ -1495,23 +1499,23 @@ const userHelper = function () {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
-        results.every((badge) => {
-          if (teamMembers && teamMembers.length >= badge.people) {
+        results.every((bg) => {
+          if (teamMembers && teamMembers.length >= bg.people) {
             if (badgeOfType) {
               if (
-                badgeOfType._id.toString() !== badge._id.toString() &&
-                badgeOfType.people < badge.people
+                badgeOfType._id.toString() !== bg._id.toString() &&
+                badgeOfType.people < bg.people
               ) {
                 replaceBadge(
                   personId,
                   mongoose.Types.ObjectId(badgeOfType._id),
 
-                  mongoose.Types.ObjectId(badge._id)
+                  mongoose.Types.ObjectId(bg._id)
                 );
               }
               return false;
             }
-            addBadge(personId, mongoose.Types.ObjectId(badge._id));
+            addBadge(personId, mongoose.Types.ObjectId(bg._id));
             return false;
           }
           return true;
@@ -1731,7 +1735,7 @@ const userHelper = function () {
     try {
       await token.deleteMany({ expiration: { $lt: currentDate } });
     } catch (error) {
-      logger.logException(err);
+      logger.logException(error);
     }
   };
 
@@ -1742,7 +1746,6 @@ const userHelper = function () {
       .subtract(1, "week");
 
     const utcEndMoment = moment(endOfLastWeek).add(1, "second");
-    console.log(utcEndMoment);
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
       console.log("Deleted expired time off requests.");

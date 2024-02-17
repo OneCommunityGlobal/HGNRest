@@ -52,6 +52,7 @@ const userProfileSchema = new Schema({
       validate({ validator: "isEmail", message: "Email address is invalid" }),
     ],
   },
+  copiedAiPrompt: { type: Date, default: Date.now() },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -90,12 +91,43 @@ const userProfileSchema = new Schema({
       createdDate: { type: String },
     },
   ],
+<<<<<<< HEAD
   location: {
     userProvided: { type: String, default: "" },
     coords: {
       lat: { type: Number, default: "" },
       lng: { type: Number, default: "" },
     },
+=======
+  warnings: [
+    {
+      date: { type: String, required: true },
+      description: {
+        type: String,
+        required: true,
+        enum: [
+          "Better Descriptions",
+          "Log Time to Tasks",
+          "Log Time as You Go",
+          "Log Time to Action Items",
+          "Intangible Time Log w/o Reason",
+        ],
+      },
+      color: {
+        type: String,
+        enum: ["red", "blue", "white", "yellow"],
+        required: true,
+        default: "white",
+      },
+    },
+  ],
+  location: {
+    userProvided: { type: String, default: "" },
+    coords: {
+      lat: { type: Number, default: "" },
+      lng: { type: Number, default: "" },
+    },
+>>>>>>> 6fd6dfe74e75f01df3e3d4e51e9648eaac12e89d
     country: { type: String, default: "" },
     city: { type: String, default: "" },
   },

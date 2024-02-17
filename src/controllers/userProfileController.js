@@ -674,8 +674,9 @@ const userProfileController = function (UserProfile) {
 
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined)
+    if (!key || value === undefined) {
       return res.status(400).send({ error: "Missing property or value" });
+    }
 
     return UserProfile.findById(userId)
       .then((user) => {
