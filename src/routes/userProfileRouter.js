@@ -10,6 +10,9 @@ const routes = function (userProfile) {
 
   const userProfileRouter = express.Router();
 
+  userProfileRouter.route('/userProfile/authorizeUser/weeeklySummaries')
+    .post(controller.authorizeUser);
+
   userProfileRouter
     .route('/userProfile')
     .get(controller.getUserProfiles)
