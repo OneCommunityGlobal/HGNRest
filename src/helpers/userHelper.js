@@ -89,7 +89,8 @@ const userHelper = function () {
     infringement,
     totalInfringements,
     timeRemaining,
-    requestForTimeOffEmailBody
+    coreTeamExtraHour,
+    requestForTimeOffEmailBody,
   ) {
     let finalParagraph = "";
 
@@ -97,8 +98,7 @@ const userHelper = function () {
       finalParagraph =
         "<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>";
     } else {
-      finalParagraph =
-        'Please complete ALL owened time this week to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">One Community Core Team Policies and Procedures page </a>" ';
+      finalParagraph = `Please complete ALL owed time this week (${timeRemaining + coreTeamExtraHour} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
@@ -116,8 +116,7 @@ const userHelper = function () {
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${finalParagraph}
-        <p>Thank you,<br />
-        One Community</p>`;
+        <p>Thank you, One Community</p>`;
 
     return text;
   };
@@ -476,56 +475,73 @@ const userHelper = function () {
           if (foundReason) {
             description = foundReason.reason;
           } else if (timeNotMet && !hasWeeklySummary) {
-            if (person.role === "Core Team") {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )}. You logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${
-                person.weeklycommittedHours
-              } hours + ${
-                person.missedHours ?? 0
-              } hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
-                .localeData()
-                .ordinal(
-                  oldInfringements.length + 1
-                )} blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(
-                2
-              )} hours.`;
+            if (person.role === 'Core Team') {
+              description = (
+                `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }, you logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  person.weeklycommittedHours
+                } hours + ${
+                  person.missedHours ?? 0
+                } hours owed for last week + ${
+                  coreTeamExtraHour
+                } hours owed for this being your ${
+                  moment.localeData().ordinal(oldInfringements.length + 1)
+                } blue square. So you should have completed ${
+                  weeklycommittedHours
+                } hours and you completed ${
+                  timeSpent.toFixed(2)
+                } hours.`
+              );
             } else {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              description = (
+                `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  weeklycommittedHours
+                } hours in the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }.`);
             }
           } else if (timeNotMet) {
-            if (person.role === "Core Team") {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )}. You logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${
-                user.weeklycommittedHours
-              } hours + ${
-                person.missedHours ?? 0
-              } hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
-                .localeData()
-                .ordinal(
-                  oldInfringements.length + 1
-                )} blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(
-                2
-              )} hours.`;
+            if (person.role === 'Core Team') {
+              description = (
+                `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }, you logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  user.weeklycommittedHours
+                } hours + ${
+                  person.missedHours ?? 0
+                } hours owed for last week + ${
+                  coreTeamExtraHour
+                } hours owed for this being your ${
+                  moment.localeData().ordinal(oldInfringements.length + 1)
+                } blue square. So you should have completed ${
+                  weeklycommittedHours
+                } hours and you completed ${
+                  timeSpent.toFixed(2)
+                } hours.`);
             } else {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              description = (
+                `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  weeklycommittedHours
+                } hours in the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }.`);
             }
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
@@ -556,7 +572,8 @@ const userHelper = function () {
               infringement,
               status.infringements.length,
               timeRemaining,
-              requestForTimeOffEmailBody
+              coreTeamExtraHour,
+              requestForTimeOffEmailBody,
             );
           } else {
             emailBody = getInfringementEmailBody(
@@ -564,6 +581,8 @@ const userHelper = function () {
               status.lastName,
               infringement,
               status.infringements.length,
+              undefined,
+              null,
               requestForTimeOffEmailBody
             );
           }
