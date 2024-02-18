@@ -119,7 +119,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
         <p><a href="${frontEndUrl}/email-subscribe?token=${token}">Click here to confirm your email</a></p>
       </body>
       `;
-    console.log('email', email);
+    // console.log('email', email);
     emailSender(email, 'HGN Email Subscription', emailContent);
     return res.status(200).send('Email subsribed successfully');
   } catch (error) {
@@ -153,7 +153,7 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
         return res.status(200).send('Email already exists');
       }
     }
-    console.log('email', email);
+    // console.log('email', email);
     return res.status(200).send('Email subsribed successfully');
   } catch (error) {
     console.error('Error updating email subscriptions:', error);
@@ -170,7 +170,7 @@ const removeNonHgnEmailSubscription = async (req, res) => {
     await EmailSubcriptionList.findOneAndDelete({
       email: { $eq: email },
     });
-    console.log('delete', email);
+    // console.log('delete', email);
     return res.status(200).send('Email unsubsribed successfully');
   } catch (error) {
     console.error('Error updating email subscriptions:', error);
