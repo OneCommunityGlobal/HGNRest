@@ -128,7 +128,6 @@ const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schem
   code: { type: String, default: '001' },
 }));
 
-
 //-----------------
 // EQUIPMENT SCHEMA
 //-----------------
