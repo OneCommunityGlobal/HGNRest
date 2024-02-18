@@ -635,7 +635,10 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
-      .then((results) => res.status(200).send(results))
+
+      .then((results) => {
+        res.status(200).send(results);
+      })
       .catch((error) => res.status(404).send(error));
   };
 
@@ -866,7 +869,7 @@ const userProfileController = function (UserProfile) {
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
               const userIdx = allUserData.findIndex(
-                users => users._id === userId,
+                (users) => users._id === userId,
               );
               const userData = allUserData[userIdx];
               if (!status) {
@@ -944,6 +947,64 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
+  // Search for user by first name
+  const getUserBySingleName = (req, res) => {
+    const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+
+    // Searches for first or last name
+    UserProfile.find({
+      $or: [
+        { firstName: { $regex: pattern } },
+        { lastName: { $regex: pattern } },
+      ],
+    })
+      .select('firstName lastName')
+      .then((users) => {
+        if (users.length === 0) {
+          return res.status(404).send({ error: 'Users Not Found' });
+        }
+        res.status(200).send(users);
+      })
+      .catch((error) => res.status(500).send(error));
+  };
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // Search for user by full name (first and last)
+  const getUserByFullName = (req, res) => {
+    // Creates an array containing the first and last name and filters out whitespace
+    const fullName = req.params.fullName
+      .split(' ')
+      .filter((name) => name !== '');
+    // Creates a partial match regex for both first and last name
+    const firstNameRegex = new RegExp(`^${ escapeRegExp(fullName[0])}`, 'i');
+    const lastNameRegex = new RegExp(`^${ escapeRegExp(fullName[1])}`, 'i');
+
+    // Verfies both the first and last name are present
+    if (fullName.length < 2) {
+      return res
+        .status(400)
+        .send({ error: 'Both first name and last name are required.' });
+    }
+
+    UserProfile.find({
+      $and: [
+        { firstName: { $regex: firstNameRegex } },
+        { lastName: { $regex: lastNameRegex } },
+      ],
+    })
+      .select('firstName lastName')
+      .then((users) => {
+        if (users.length === 0) {
+          return res.status(404).send({ error: 'Users Not Found' });
+        }
+        res.status(200).send(users);
+      })
+      .catch((error) => res.status(500).send(error));
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -961,6 +1022,8 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
+    getUserBySingleName,
+    getUserByFullName,
   };
 };
 
