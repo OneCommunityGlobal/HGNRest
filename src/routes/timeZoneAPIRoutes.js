@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function () {
   const controller = require('../controllers/timeZoneAPIController')();
   const timeZoneAPIRouter = express.Router();

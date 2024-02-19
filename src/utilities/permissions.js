@@ -1,7 +1,6 @@
 const Role = require('../models/role');
 const UserProfile = require('../models/userProfile');
 
-
 const hasRolePermission = async (role, action) => Role.findOne({ roleName: role })
   .exec()
   .then(({ permissions }) => permissions.includes(action))
