@@ -1009,10 +1009,7 @@ const userHelper = function () {
               'badgeCollection.$.count': count,
               'badgeCollection.$.lastModified': Date.now().toString(),
               'badgeCollection.$.earnedDate': newEarnedDate,
-<<<<<<< HEAD
               'badgeCollection.$.hasBadgeDeletionImpact': recordToUpdate.count > count, // badge deletion impact set to true if the new count is less than the old count
-=======
->>>>>>> ee2aaa5b92c95a3a1f5d6ee9e67d1802e71ef6c1
             },
           },
           (err) => {
