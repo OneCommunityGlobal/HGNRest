@@ -94,7 +94,7 @@ const run = function () {
     // .then(deleteUserField)
     .then(addNewField)
     .then(checkNewField)
-    .catch(err => logger.logException(err)); // handles errors from the connect function
+    .catch((err) => logger.logException(err)); // handles errors from the connect function
 };
 
 run();

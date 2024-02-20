@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (task, userProfile) {
   const controller = require('../controllers/taskController')(task, userProfile);
   const wbsRouter = express.Router();
@@ -43,8 +42,8 @@ const routes = function (task, userProfile) {
   wbsRouter.route('/tasks/moveTasks/:wbsId')
     .put(controller.moveTask);
 
-  wbsRouter.route('/tasks/userProfile')
-    .get(controller.getTasksByUserList);
+  wbsRouter.route('/tasks/user/:userId')
+    .get(controller.getTasksByUserId);
 
   wbsRouter.route('/user/:userId/teams/tasks')
     .get(controller.getTasksForTeamsByUser);
