@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (wbs) {
   const controller = require('../controllers/wbsController')(wbs);
   const wbsRouter = express.Router();
@@ -13,6 +12,9 @@ const routes = function (wbs) {
 
   wbsRouter.route('/wbsId/:id')
     .get(controller.getWBSById);
+
+  wbsRouter.route('/wbs/user/:userId')
+    .get(controller.getWBSByUserId);
 
   wbsRouter.route('/wbs').get(controller.getWBS);
 

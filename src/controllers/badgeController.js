@@ -7,9 +7,19 @@ const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
 
 const badgeController = function (Badge) {
+  /**
+   * getAllBadges handles badges retrieval.
+   * @param {Object} req - Request object.
+   * @returns {Array<Object>} List containing badge records.
+   */
   const getAllBadges = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
+      return;
+    }
+    // Add cache to reduce database query and optimize performance
+    if (cache.hasCache('allBadges')) {
+      res.status(200).send(cache.getCache('allBadges'));
       return;
     }
 
@@ -25,8 +35,11 @@ const badgeController = function (Badge) {
         ranking: 1,
         badgeName: 1,
       })
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => {
+        cache.setCache('allBadges', results);
+        res.status(200).send(results);
+      })
+      .catch((error) => res.status(500).send(error));
   };
 
   /**
@@ -100,9 +113,9 @@ const badgeController = function (Badge) {
           // Combine and sort earnedDate arrays
           if (Array.isArray(item.earnedDate)) {
             const combinedEarnedDate = [...grouped[badge].earnedDate, ...item.earnedDate];
-            const timestampArray = combinedEarnedDate.map(date => new Date(date).getTime());
+            const timestampArray = combinedEarnedDate.map((date) => new Date(date).getTime());
             timestampArray.sort((a, b) => a - b);
-            grouped[badge].earnedDate = timestampArray.map(timestamp => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+            grouped[badge].earnedDate = timestampArray.map((timestamp) => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
               .replace(/ /g, '-')
               .replace(',', ''));
           }
@@ -113,7 +126,7 @@ const badgeController = function (Badge) {
           grouped[badge].earnedDate = fillEarnedDateToMatchCount(
             grouped[badge].earnedDate,
             grouped[badge].count,
-            );
+          );
           grouped[badge].lastModified = Date.now();
           logger.logInfo(
             `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
@@ -142,7 +155,9 @@ const badgeController = function (Badge) {
 
       record
       .save()
-      .then(results => res.status(201).send(results._id))
+      .then((results) => {
+        res.status(201).send(results._id);
+      })
       .catch((err) => {
         logger.logException(err);
         res.status(500).send('Internal Error: Unable to save the record.');
@@ -185,8 +200,14 @@ const badgeController = function (Badge) {
 
       badge
         .save()
-        .then(results => res.status(201).send(results))
-        .catch(errors => res.status(500).send(errors));
+        .then((results) => {
+          // remove cache after new badge is saved
+          if (cache.getCache('allBadges')) {
+            cache.removeCache('allBadges');
+          }
+          res.status(201).send(results);
+        })
+        .catch((errors) => res.status(500).send(errors));
     });
   };
 
@@ -210,11 +231,15 @@ const badgeController = function (Badge) {
       const deleteRecord = record.remove();
 
       Promise.all([removeBadgeFromProfile, deleteRecord])
-        .then(
+        .then(() => {
+          // remove cache after new badge is deleted
+          if (cache.getCache('allBadges')) {
+            cache.removeCache('allBadges');
+          }
           res.status(200).send({
             message: 'Badge successfully deleted and user profiles updated',
-          }),
-        )
+          });
+        })
         .catch((errors) => {
           res.status(500).send(errors);
         });
@@ -260,6 +285,10 @@ const badgeController = function (Badge) {
       if (error || record === null) {
         res.status(400).send({ error: 'No valid records found' });
         return;
+      }
+      // remove cache after new badge is updated
+      if (cache.getCache('allBadges')) {
+        cache.removeCache('allBadges');
       }
       res.status(200).send({ message: 'Badge successfully updated' });
     });

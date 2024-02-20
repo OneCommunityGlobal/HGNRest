@@ -2,10 +2,13 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-
 const TimeEntry = new Schema({
-  personId: { type: Schema.Types.ObjectId, required: [true, 'Resource is a required field'], ref: 'userProfile' },
-  projectId: { type: Schema.Types.ObjectId, required: [true, 'Project is a required field'], ref: 'project' },
+  entryType: { type: String, required: true, default: 'default' },
+  personId: { type: Schema.Types.ObjectId, ref: 'userProfile' },
+  projectId: { type: Schema.Types.ObjectId, ref: 'project' },
+  wbsId: { type: Schema.Types.ObjectId, default: null, ref: 'wbs' },
+  taskId: { type: Schema.Types.ObjectId, default: null, ref: 'task' },
+  teamId: { type: Schema.Types.ObjectId, ref: 'team' },
   dateOfWork: { type: String, required: true },
   totalSeconds: { type: Number },
   notes: { type: String },
