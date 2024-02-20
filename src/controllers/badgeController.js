@@ -6,7 +6,6 @@ const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
 
-
 const badgeController = function (Badge) {
   /**
    * getAllBadges handles badges retrieval.
@@ -40,7 +39,7 @@ const badgeController = function (Badge) {
         cache.setCache('allBadges', results);
         res.status(200).send(results);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   /**
@@ -155,7 +154,7 @@ const badgeController = function (Badge) {
           }
           res.status(201).send(results);
         })
-        .catch(errors => res.status(500).send(errors));
+        .catch((errors) => res.status(500).send(errors));
     });
   };
 

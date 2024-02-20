@@ -16,9 +16,9 @@ const buildingNewLesson = new Schema({
         {
             data: Buffer,
             contentType: String,
-            filename: String
-        }
-    ]
+            filename: String,
+        },
+    ],
 });
 
 module.exports = mongoose.model('buildingNewLesson', buildingNewLesson, 'buildingNewLessons');
