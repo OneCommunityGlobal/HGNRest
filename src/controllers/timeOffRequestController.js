@@ -3,9 +3,8 @@ const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');
 
 const timeOffRequestController = function (TimeOffRequest) {
- 
   const setTimeOffRequest = async (req, res) => {
-    const hasRolePermission = [ "Owner" , "Administrator" ].includes(req.body.requestor.role)
+    const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
     if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission) {
       res.status(403).send('You are not authorized to set time off requests.');
       return;
@@ -21,7 +20,6 @@ const timeOffRequestController = function (TimeOffRequest) {
 
     const startDate = moment(startingDate);
     const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'second');
-
 
     const newTimeOffRequest = new TimeOffRequest();
 
@@ -89,7 +87,7 @@ const timeOffRequestController = function (TimeOffRequest) {
   };
 
   const updateTimeOffRequestById = async (req, res) => {
-    const hasRolePermission = [ "Owner" , "Administrator" ].includes(req.body.requestor.role)
+    const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
     if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission) {
       res.status(403).send('You are not authorized to set time off requests.');
       return;
@@ -133,7 +131,7 @@ const timeOffRequestController = function (TimeOffRequest) {
   };
 
   const deleteTimeOffRequestById = async (req, res) => {
-    const hasRolePermission = [ "Owner" , "Administrator" ].includes(req.body.requestor.role)
+    const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
     if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission) {
       res.status(403).send('You are not authorized to set time off requests.');
       return;

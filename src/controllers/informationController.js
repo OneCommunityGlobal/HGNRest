@@ -18,9 +18,8 @@ const informationController = function (Information) {
         cache.setCache('informations', results);
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
-
 
   const addInformation = function (req, res) {
     Information.find({ infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' } })
@@ -42,14 +41,14 @@ const informationController = function (Information) {
                   }
                   res.status(201).send(newInformation);
                 })
-                .catch(error => res.status(400).send(error));
+                .catch((error) => res.status(400).send(error));
         })
-        .catch(error => res.status(500).send({ error }));
+        .catch((error) => res.status(500).send({ error }));
   };
 
   const deleteInformation = function (req, res) {
     Information.findOneAndDelete({ _id: req.params.id })
-      .then((deletedInformation) =>{
+      .then((deletedInformation) => {
         // remove cache if cache is available
         if (cache.hasCache('informations')) {
           cache.removeCache('informations');
@@ -57,7 +56,7 @@ const informationController = function (Information) {
         }
         res.status(200).send(deletedInformation);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   // Update existing information by id
@@ -71,7 +70,7 @@ const informationController = function (Information) {
         }
         res.status(200).send(updatedInformation);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   return {
@@ -81,6 +80,5 @@ const informationController = function (Information) {
     deleteInformation,
   };
 };
-
 
 module.exports = informationController;
