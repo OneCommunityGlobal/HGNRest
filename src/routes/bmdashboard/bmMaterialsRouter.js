@@ -13,7 +13,6 @@ const routes = function (buildingMaterial) {
   materialsRouter.route('/updateMaterialRecordBulk')
     .post(controller.bmPostMaterialUpdateBulk);
 
-
   return materialsRouter;
 };
 

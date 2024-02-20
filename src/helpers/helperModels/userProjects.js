@@ -8,7 +8,6 @@ const ProjectSchema = new Schema({
   category: { type: String },
 });
 
-
 const userProjectSchema = new Schema({
 
   _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
