@@ -43,13 +43,13 @@ const bmConsumableController = function (BuildingConsumable) {
       consumableId,
       quantity,
       priority,
-      brand,
+      brandRef,
       requestor: { requestorId },
     } = req.body;
     const newPurchaseRecord = {
       quantity,
       priority,
-      brand,
+      brandRef,
       requestedBy: requestorId,
     };
     try {
