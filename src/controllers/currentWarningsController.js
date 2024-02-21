@@ -48,7 +48,7 @@ const currentWarningsController = function (currentWarnings) {
         { new: true }
       );
 
-      console.log("response", response);
+      // console.log("response", response);
       const updatedWarningDescription = {
         _id: response._id,
         activeWarning: response.activeWarning,
