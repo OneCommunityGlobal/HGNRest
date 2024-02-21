@@ -16,8 +16,7 @@ const userProfileSchema = new Schema({
     required: true,
     validate: {
       validator(v) {
-        const passwordregex =
-          /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
         return passwordregex.test(v);
       },
       message:
@@ -236,16 +235,16 @@ userProfileSchema.pre("save", function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then((result) => bcrypt.hash(user.password, result))
+    .then(result => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch((error) => next(error));
+    .catch(error => next(error));
 });
 
 module.exports = mongoose.model(
   "userProfile",
   userProfileSchema,
-  "userProfiles"
+  "userProfiles",
 );
