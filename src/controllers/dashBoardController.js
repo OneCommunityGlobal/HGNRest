@@ -234,7 +234,11 @@ const dashboardcontroller = function () {
     let fieldaaray = [];
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
+<<<<<<< HEAD
         item => `<p>${item}</p>
+=======
+        (item) => `<p>${item}</p>
+>>>>>>> 5db3d2752199dc2e0b6e4edf3635727bcab4c8be
                    <p>${args[3][item]}</p>`,
       );
     }
@@ -319,7 +323,11 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.field = suggestionData.field.filter(
+<<<<<<< HEAD
             item => item !== req.body.newField,
+=======
+            (item) => item !== req.body.newField,
+>>>>>>> 5db3d2752199dc2e0b6e4edf3635727bcab4c8be
           );
         }
       }

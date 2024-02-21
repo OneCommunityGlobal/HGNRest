@@ -95,7 +95,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache("allusers", JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getProjectMembers = async function (req, res) {
@@ -271,7 +271,7 @@ const userProfileController = function (UserProfile) {
         allUserCache.push(userCache);
         cache.setCache("allusers", JSON.stringify(allUserCache));
       })
-      .catch(error => res.status(501).send(error));
+      .catch((error) => res.status(501).send(error));
   };
 
   const putUserProfile = async function (req, res) {
@@ -367,8 +367,13 @@ const userProfileController = function (UserProfile) {
       let userData;
       let userIdx;
       if (isUserInCache) {
+<<<<<<< HEAD
         allUserData = JSON.parse(cache.getCache("allusers"));
         userIdx = allUserData.findIndex(users => users._id === userid);
+=======
+        allUserData = JSON.parse(cache.getCache('allusers'));
+        userIdx = allUserData.findIndex((users) => users._id === userid);
+>>>>>>> 5db3d2752199dc2e0b6e4edf3635727bcab4c8be
         userData = allUserData[userIdx];
       }
       if (
@@ -497,7 +502,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache("allusers", JSON.stringify(allUserData));
           }
         })
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     });
   };
 
@@ -564,8 +569,13 @@ const userProfileController = function (UserProfile) {
     }
 
     cache.removeCache(`user-${userId}`);
+<<<<<<< HEAD
     const allUserData = JSON.parse(cache.getCache("allusers"));
     const userIdx = allUserData.findIndex(users => users._id === userId);
+=======
+    const allUserData = JSON.parse(cache.getCache('allusers'));
+    const userIdx = allUserData.findIndex((users) => users._id === userId);
+>>>>>>> 5db3d2752199dc2e0b6e4edf3635727bcab4c8be
     allUserData.splice(userIdx, 1);
     cache.setCache("allusers", JSON.stringify(allUserData));
 
@@ -632,7 +642,7 @@ const userProfileController = function (UserProfile) {
             res.status(200).send(results);
           });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -641,8 +651,10 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(" ")[0], lastName: name.split(" ")[1] },
       "_id, profilePic, badgeCollection",
     )
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((error) => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -679,9 +691,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: "updated property" });
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -754,12 +766,17 @@ const userProfileController = function (UserProfile) {
             });
             return user
               .save()
+<<<<<<< HEAD
               .then(() => res.status(200).send({ message: "updated password" }))
               .catch(error => res.status(500).send(error));
+=======
+              .then(() => res.status(200).send({ message: 'updated password' }))
+              .catch((error) => res.status(500).send(error));
+>>>>>>> 5db3d2752199dc2e0b6e4edf3635727bcab4c8be
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -798,7 +815,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -815,7 +832,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -872,7 +889,7 @@ const userProfileController = function (UserProfile) {
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache("allusers"));
               const userIdx = allUserData.findIndex(
-                users => users._id === userId,
+                (users) => users._id === userId,
               );
               const userData = allUserData[userIdx];
               if (!status) {
@@ -980,6 +997,64 @@ const userProfileController = function (UserProfile) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
+  // Search for user by first name
+  const getUserBySingleName = (req, res) => {
+    const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+
+    // Searches for first or last name
+    UserProfile.find({
+      $or: [
+        { firstName: { $regex: pattern } },
+        { lastName: { $regex: pattern } },
+      ],
+    })
+      .select('firstName lastName')
+      .then((users) => {
+        if (users.length === 0) {
+          return res.status(404).send({ error: 'Users Not Found' });
+        }
+        res.status(200).send(users);
+      })
+      .catch((error) => res.status(500).send(error));
+  };
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // Search for user by full name (first and last)
+  const getUserByFullName = (req, res) => {
+    // Creates an array containing the first and last name and filters out whitespace
+    const fullName = req.params.fullName
+      .split(' ')
+      .filter((name) => name !== '');
+    // Creates a partial match regex for both first and last name
+    const firstNameRegex = new RegExp(`^${ escapeRegExp(fullName[0])}`, 'i');
+    const lastNameRegex = new RegExp(`^${ escapeRegExp(fullName[1])}`, 'i');
+
+    // Verfies both the first and last name are present
+    if (fullName.length < 2) {
+      return res
+        .status(400)
+        .send({ error: 'Both first name and last name are required.' });
+    }
+
+    UserProfile.find({
+      $and: [
+        { firstName: { $regex: firstNameRegex } },
+        { lastName: { $regex: lastNameRegex } },
+      ],
+    })
+      .select('firstName lastName')
+      .then((users) => {
+        if (users.length === 0) {
+          return res.status(404).send({ error: 'Users Not Found' });
+        }
+        res.status(200).send(users);
+      })
+      .catch((error) => res.status(500).send(error));
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -997,7 +1072,12 @@ const userProfileController = function (UserProfile) {
     getUserByName,
     getAllUsersWithFacebookLink,
     refreshToken,
+<<<<<<< HEAD
     authorizeUser,
+=======
+    getUserBySingleName,
+    getUserByFullName,
+>>>>>>> 5db3d2752199dc2e0b6e4edf3635727bcab4c8be
   };
 };
 

@@ -1,4 +1,3 @@
-/* eslint-disable quotes */
 const mongoose = require("mongoose");
 const moment = require("moment-timezone");
 
@@ -16,7 +15,8 @@ const userProfileSchema = new Schema({
     required: true,
     validate: {
       validator(v) {
-        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        const passwordregex =
+          /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
         return passwordregex.test(v);
       },
       message:
@@ -39,8 +39,9 @@ const userProfileSchema = new Schema({
     required: true,
     trim: true,
     minlength: 2,
+    index: true,
   },
-  lastName: { type: String, required: true, minlength: 2 },
+  lastName: { type: String, required: true, minlength: 2, index: true },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -76,6 +77,10 @@ const userProfileSchema = new Schema({
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
       lastModified: { type: Date, required: true, default: Date.now() },
+      // This field is used to determine if the badge deletion will impact the user's badge collection.
+      // If the user has a badge with hasBadgeDeletionImpact set to true, then the a mismatch in badge
+      // count and earned date will be intentionally created.
+      hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
         required: true,
@@ -235,16 +240,16 @@ userProfileSchema.pre("save", function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then(result => bcrypt.hash(user.password, result))
+    .then((result) => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch(error => next(error));
+    .catch((error) => next(error));
 });
 
 module.exports = mongoose.model(
   "userProfile",
   userProfileSchema,
-  "userProfiles",
+  "userProfiles"
 );

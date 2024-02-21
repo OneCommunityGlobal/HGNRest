@@ -21,7 +21,6 @@ const timeOffRequestController = function (TimeOffRequest) {
     const startDate = moment(startingDate);
     const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'second');
 
-
     const newTimeOffRequest = new TimeOffRequest();
 
     newTimeOffRequest.requestFor = mongoose.Types.ObjectId(requestFor);

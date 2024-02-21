@@ -8,8 +8,8 @@ const bmNewLessonController = function (BuildingNewLesson) {
             BuildingNewLesson
             .find()
             .populate()
-            .then(result => res.status(200).send(result))
-            .catch(error => res.status(500).send(error));
+            .then((result) => res.status(200).send(result))
+            .catch((error) => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -17,8 +17,8 @@ const bmNewLessonController = function (BuildingNewLesson) {
     const bmPostLessonList = async (req, res) => {
         try {
             const newLesson = BuildingNewLesson.create(req.body)
-            .then(result => res.status(201).send(result))
-            .catch(error => res.status(500).send(error));
+            .then((result) => res.status(201).send(result))
+            .catch((error) => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -47,7 +47,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
             // Extract only allowed fields (content, tag, relatedProject and title)
             const allowedFields = ['content', 'tags', 'relatedProject', 'title', 'allowedRoles', 'files'];
             const filteredUpdateData = Object.keys(updateData)
-                .filter(key => allowedFields.includes(key))
+                .filter((key) => allowedFields.includes(key))
                 .reduce((obj, key) => {
                     obj[key] = updateData[key];
                     return obj;
@@ -86,7 +86,6 @@ const bmNewLessonController = function (BuildingNewLesson) {
         //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
         //   return;
         // }
-
 
         try {
           const deletedLesson = await BuildingNewLesson.findByIdAndDelete(lessonId);
