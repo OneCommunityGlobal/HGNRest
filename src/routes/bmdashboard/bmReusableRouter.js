@@ -5,8 +5,12 @@ const routes = function (BuildingReusable) {
   const controller = require('../../controllers/bmdashboard/bmReusableController')(BuildingReusable);
 
   BuildingReusableController.route('/reusables')
-    .get(controller.fetchBMReusables);
+    .get(controller.fetchBMReusables)
 
+  BuildingReusableController.route('/reusables/purchase')
+    .post(controller.purchaseReusable);
+
+  //TODO(Yan): Double check with manager(auth issue)
   BuildingReusableController.route('/reusables/:id')
     .delete(controller.deleteReusable);
 
@@ -15,7 +19,7 @@ const routes = function (BuildingReusable) {
 
   //TODO(Yan): Delete following line/func after Dev
   BuildingReusableController.route('/reusables/seedItem')
-  .get(controller.SeedReusableItems);
+    .get(controller.SeedReusableItems);
 
   return BuildingReusableController;
 };
