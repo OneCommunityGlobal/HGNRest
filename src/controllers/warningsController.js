@@ -26,9 +26,6 @@ async function getWarningDescriptions() {
 //   "Intangible Time Log w/o Reason",
 // ];
 
-//when deleteing a warning instead of actually deleteing
-// on the frontend it will be grey grayed out on the modal and a button of to re add it will appear
-// in the warnings component no wanring will be displayed
 const convertObjectToArray = (obj) => {
   const arr = [];
   for (let key of obj) {
@@ -41,7 +38,7 @@ const convertObjectToArray = (obj) => {
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
     currentWarningDescriptions = await currentWarnings.find(
-      {}
+      { activeWarning: true }
       // { warningTitle: 1, _id: 0 }
     );
     // console.log("currentWarningDescriptions", currentWarningDescriptions);
@@ -79,6 +76,10 @@ const warningsController = function (UserProfile) {
       if (!record) {
         return res.status(400).send({ message: "No valid records found" });
       }
+      console.log("req.body", req.body);
+      console.log("req.record", record.warnings);
+
+      // console.log("record", record.warnings);
 
       record.warnings = record.warnings.concat({
         userId,
@@ -87,6 +88,7 @@ const warningsController = function (UserProfile) {
         date,
         description,
       });
+
       await record.save();
 
       const completedData = filterWarnings(
@@ -94,9 +96,7 @@ const warningsController = function (UserProfile) {
         record.warnings
       );
 
-      console.log("completedData", completedData);
-
-      // res.status(201).send({ message: "success", warnings: completedData });
+      res.status(201).send({ message: "success", warnings: completedData });
     } catch (error) {
       res.status(400).send({ message: error.message || error });
     }
@@ -167,10 +167,10 @@ const sortByColorAndDate = (a, b) => {
 };
 
 const filterWarnings = (currentWarningDescriptions, warnings) => {
-  console.log(
-    "currentwanrings descriptions in filter",
-    currentWarningDescriptions
-  );
+  // console.log(
+  //   "currentwanrings descriptions in filter",
+  //   currentWarningDescriptions
+  // );
   const warningsObject = {};
 
   warnings.forEach((warning) => {
@@ -179,8 +179,6 @@ const filterWarnings = (currentWarningDescriptions, warnings) => {
     }
     warningsObject[warning.description].push(warning);
   });
-
-  console.log("warnings object", warningsObject);
 
   const warns = Object.keys(warningsObject)
     .sort(sortKeysAlphabetically)
