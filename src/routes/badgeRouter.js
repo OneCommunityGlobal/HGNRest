@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (badge) {
   const controller = require('../controllers/badgeController')(badge);
 
@@ -23,6 +22,5 @@ const routes = function (badge) {
 
   return badgeRouter;
 };
-
 
 module.exports = routes;

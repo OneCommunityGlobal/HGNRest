@@ -3,7 +3,6 @@ const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const escapeRegex = require('../utilities/escapeRegex');
 
-
 function getEmailMessageForForgotPassword(user, ranPwd) {
   const message = `<b> Hello ${user.firstName} ${user.lastName},</b>
     <p>Congratulations on successfully completing the Highest Good Network 3-question Change My Password Challenge. Your reward is this NEW PASSWORD! </p>

@@ -38,8 +38,9 @@ const userProfileSchema = new Schema({
     required: true,
     trim: true,
     minlength: 2,
+    index: true,
   },
-  lastName: { type: String, required: true, minlength: 2 },
+  lastName: { type: String, required: true, minlength: 2, index: true },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -51,6 +52,7 @@ const userProfileSchema = new Schema({
       validate({ validator: 'isEmail', message: 'Email address is invalid' }),
     ],
   },
+  copiedAiPrompt: { type: Date, default: Date.now() },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -74,6 +76,10 @@ const userProfileSchema = new Schema({
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
       lastModified: { type: Date, required: true, default: Date.now() },
+      // This field is used to determine if the badge deletion will impact the user's badge collection.
+      // If the user has a badge with hasBadgeDeletionImpact set to true, then the a mismatch in badge
+      // count and earned date will be intentionally created.
+      hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
         required: true,
@@ -86,6 +92,29 @@ const userProfileSchema = new Schema({
     {
       date: { type: String, required: true },
       description: { type: String, required: true },
+      createdDate: { type: String },
+    },
+  ],
+  warnings: [
+    {
+      date: { type: String, required: true },
+      description: {
+        type: String,
+        required: true,
+        enum: [
+          "Better Descriptions",
+          "Log Time to Tasks",
+          "Log Time as You Go",
+          "Log Time to Action Items",
+          "Intangible Time Log w/o Reason",
+        ],
+      },
+      color: {
+        type: String,
+        enum: ["red", "blue", "white", "yellow"],
+        required: true,
+        default: "white",
+      },
     },
   ],
   location: {

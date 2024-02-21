@@ -12,20 +12,19 @@ const taskHelper = function () {
     const requestorId = mongoose.Types.ObjectId(requestor.requestorId);
     const requestorRole = requestor.role;
     try {
-      const userById = await userProfile
-        .findOne(
-          { _id: userid, isActive: true },
-          {
-            role: 1,
-            firstName: 1,
-            lastName: 1,
-            isVisible: 1,
-            weeklycommittedHours: 1,
-            weeklySummaries: 1,
-            timeOffFrom: 1,
-            timeOffTill: 1,
-          },
-        );
+      const userById = await userProfile.findOne(
+        { _id: userid, isActive: true },
+        {
+          role: 1,
+          firstName: 1,
+          lastName: 1,
+          isVisible: 1,
+          weeklycommittedHours: 1,
+          weeklySummaries: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
+        },
+      );
 
       if (userById === null) return null;
       const userRole = userById.role;
@@ -42,8 +41,14 @@ const taskHelper = function () {
       let teamMemberIds = [userid];
       let teamMembers = [];
 
-      const isRequestorOwnerLike = ['Administrator', 'Owner', 'Core Team'].includes(requestorRole);
-      const isUserOwnerLike = ['Administrator', 'Owner', 'Core Team'].includes(userRole);
+      const isRequestorOwnerLike = [
+        'Administrator',
+        'Owner',
+        'Core Team',
+      ].includes(requestorRole);
+      const isUserOwnerLike = ['Administrator', 'Owner', 'Core Team'].includes(
+        userRole,
+      );
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
@@ -111,7 +116,7 @@ const taskHelper = function () {
         }
       }
 
-      teamMemberIds = teamMembers.map(member => member._id);
+      teamMemberIds = teamMembers.map((member) => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
@@ -132,7 +137,8 @@ const taskHelper = function () {
           };
         }
         if (timeEntry.isTangible) {
-          timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].tangibleSeconds
+            += timeEntry.totalSeconds;
         }
         timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
       });
@@ -143,8 +149,10 @@ const taskHelper = function () {
         path: 'wbsId',
         select: 'projectId',
       });
-      const teamMemberTaskIds = teamMemberTasks.map(task => task._id);
-      const teamMemberTaskNotifications = await TaskNotification.find({ taskId: { $in: teamMemberTaskIds } });
+      const teamMemberTaskIds = teamMemberTasks.map((task) => task._id);
+      const teamMemberTaskNotifications = await TaskNotification.find({
+        taskId: { $in: teamMemberTaskIds },
+      });
 
       const taskNotificationByTaskNdUser = [];
       teamMemberTaskNotifications.forEach((teamMemberTaskNotification) => {
@@ -190,9 +198,11 @@ const taskHelper = function () {
           name: `${teamMember.firstName} ${teamMember.lastName}`,
           weeklycommittedHours: teamMember.weeklycommittedHours,
           totaltangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600 || 0,
+            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+              / 3600 || 0,
           totaltime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600 || 0,
+            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600
+            || 0,
           tasks: taskByPerson[teamMember._id.toString()] || [],
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
