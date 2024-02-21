@@ -1,3 +1,4 @@
+/* eslint-disable quotes */
 const mongoose = require("mongoose");
 const moment = require("moment-timezone");
 
@@ -91,14 +92,6 @@ const userProfileSchema = new Schema({
       createdDate: { type: String },
     },
   ],
-<<<<<<< HEAD
-  location: {
-    userProvided: { type: String, default: "" },
-    coords: {
-      lat: { type: Number, default: "" },
-      lng: { type: Number, default: "" },
-    },
-=======
   warnings: [
     {
       date: { type: String, required: true },
@@ -127,7 +120,6 @@ const userProfileSchema = new Schema({
       lat: { type: Number, default: "" },
       lng: { type: Number, default: "" },
     },
->>>>>>> 6fd6dfe74e75f01df3e3d4e51e9648eaac12e89d
     country: { type: String, default: "" },
     city: { type: String, default: "" },
   },
