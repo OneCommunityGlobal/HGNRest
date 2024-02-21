@@ -7,9 +7,19 @@ const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
 
 const badgeController = function (Badge) {
+  /**
+   * getAllBadges handles badges retrieval.
+   * @param {Object} req - Request object.
+   * @returns {Array<Object>} List containing badge records.
+   */
   const getAllBadges = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
+      return;
+    }
+    // Add cache to reduce database query and optimize performance
+    if (cache.hasCache('allBadges')) {
+      res.status(200).send(cache.getCache('allBadges'));
       return;
     }
 
@@ -25,16 +35,19 @@ const badgeController = function (Badge) {
         ranking: 1,
         badgeName: 1,
       })
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => {
+        cache.setCache('allBadges', results);
+        res.status(200).send(results);
+      })
+      .catch((error) => res.status(500).send(error));
   };
 
   /**
-   * Updated Date: 12/06/2023
+   * Updated Date: 01/12/2024
    * Updated By: Shengwei
    * Function added:
    * - Added data validation for earned date and badge count mismatch.
-   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch.
+   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch. (Deleted due to new requirement)
    * - Refactored data validation for duplicate badge id.
    * - Added data validation for badge count should greater than 0.
    * - Added formatDate function to format date to MMM-DD-YY.
@@ -43,14 +56,6 @@ const badgeController = function (Badge) {
   const formatDate = () => {
     const currentDate = new Date(Date.now());
     return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
-  };
-
-  const fillEarnedDateToMatchCount = (earnedDate, count) => {
-    const result = [...earnedDate];
-    while (result.length < count) {
-      result.push(formatDate());
-    }
-    return result;
   };
 
   const assignBadges = async function (req, res) {
@@ -75,32 +80,16 @@ const badgeController = function (Badge) {
         newBadgeCollection = req.body.badgeCollection.map((element) => {
           if (badgeCounts[element.badge]) {
             throw new Error('Duplicate badges sent in.');
-            // res.status(500).send('Duplicate badges sent in.');
-            // return;
           }
           badgeCounts[element.badge] = element.count;
           // Validation: count should be greater than 0
           if (element.count < 1) {
             throw new Error('Badge count should be greater than 0.');
           }
-          if (element.count !== element.earnedDate.length) {
-            element.earnedDate = fillEarnedDateToMatchCount(
-              element.earnedDate,
-              element.count,
-            );
-            element.lastModified = Date.now();
-            logger.logInfo(
-              `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
-                element._id
-              }; Badge Type ID ${element.badge}`,
-            );
-          }
-          return element;
         });
       } catch (err) {
-        res
-          .status(500)
-          .send(`Internal Error: Badge Collection. ${err.message}`);
+        logger.logException(`Internal Error: Badge Collection. ${err.message} User ID: ${userToBeAssigned} Badge Collection: ${JSON.stringify(req.body.badgeCollection)}`);
+        res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
         return;
       }
       record.badgeCollection = newBadgeCollection;
@@ -158,8 +147,14 @@ const badgeController = function (Badge) {
 
       badge
         .save()
-        .then(results => res.status(201).send(results))
-        .catch(errors => res.status(500).send(errors));
+        .then((results) => {
+          // remove cache after new badge is saved
+          if (cache.getCache('allBadges')) {
+            cache.removeCache('allBadges');
+          }
+          res.status(201).send(results);
+        })
+        .catch((errors) => res.status(500).send(errors));
     });
   };
 
@@ -183,11 +178,15 @@ const badgeController = function (Badge) {
       const deleteRecord = record.remove();
 
       Promise.all([removeBadgeFromProfile, deleteRecord])
-        .then(
+        .then(() => {
+          // remove cache after new badge is deleted
+          if (cache.getCache('allBadges')) {
+            cache.removeCache('allBadges');
+          }
           res.status(200).send({
             message: 'Badge successfully deleted and user profiles updated',
-          }),
-        )
+          });
+        })
         .catch((errors) => {
           res.status(500).send(errors);
         });
@@ -233,6 +232,10 @@ const badgeController = function (Badge) {
       if (error || record === null) {
         res.status(400).send({ error: 'No valid records found' });
         return;
+      }
+      // remove cache after new badge is updated
+      if (cache.getCache('allBadges')) {
+        cache.removeCache('allBadges');
       }
       res.status(200).send({ message: 'Badge successfully updated' });
     });

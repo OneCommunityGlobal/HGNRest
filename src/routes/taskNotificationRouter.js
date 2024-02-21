@@ -22,7 +22,6 @@ const routes = function (TaskNotification) {
     controller.markTaskNotificationAsRead,
   );
 
-
   // newly created endpoint
 
   TaskNotificationRouter.route(
