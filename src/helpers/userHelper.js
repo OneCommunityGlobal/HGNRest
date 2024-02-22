@@ -184,7 +184,7 @@ const userHelper = function () {
 
         const googleDocLink = googleDocLinkValue
           ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
-          : 'Not provided!';
+          : null;
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
         const colorStyle = (() => {
