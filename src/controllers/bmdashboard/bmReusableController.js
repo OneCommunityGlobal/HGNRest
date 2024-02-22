@@ -160,8 +160,8 @@ const bmReusableController = function (BuildingReusable) {
             secondaryId: itemTypeId,
             quantity,
             priority,
-            brandPref,
-            requestorId
+            brand: brandPref,
+            requestor: { requestorId },
         } = req.body;
 
         try {
