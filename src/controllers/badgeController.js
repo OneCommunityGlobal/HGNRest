@@ -43,11 +43,11 @@ const badgeController = function (Badge) {
   };
 
   /**
-   * Updated Date: 01/12/2024
+   * Updated Date: 12/06/2023
    * Updated By: Shengwei
    * Function added:
    * - Added data validation for earned date and badge count mismatch.
-   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch. (Deleted due to new requirement)
+   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch.
    * - Refactored data validation for duplicate badge id.
    * - Added data validation for badge count should greater than 0.
    * - Added formatDate function to format date to MMM-DD-YY.
@@ -56,6 +56,14 @@ const badgeController = function (Badge) {
   const formatDate = () => {
     const currentDate = new Date(Date.now());
     return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
+  };
+
+  const fillEarnedDateToMatchCount = (earnedDate, count) => {
+    const result = [...earnedDate];
+    while (result.length < count) {
+      result.push(formatDate());
+    }
+    return result;
   };
 
   const assignBadges = async function (req, res) {
@@ -80,6 +88,8 @@ const badgeController = function (Badge) {
         newBadgeCollection = req.body.badgeCollection.map((element) => {
           if (badgeCounts[element.badge]) {
             throw new Error('Duplicate badges sent in.');
+            // res.status(500).send('Duplicate badges sent in.');
+            // return;
           }
           badgeCounts[element.badge] = element.count;
           // Validation: count should be greater than 0
@@ -89,8 +99,9 @@ const badgeController = function (Badge) {
           return element;
         });
       } catch (err) {
-        logger.logException(`Internal Error: Badge Collection. ${err.message} User ID: ${userToBeAssigned} Badge Collection: ${JSON.stringify(req.body.badgeCollection)}`);
-        res.status(500).send(`Internal Error: Badge Collection. ${ err.message}`);
+        res
+          .status(500)
+          .send(`Internal Error: Badge Collection. ${err.message}`);
         return;
       }
       record.badgeCollection = newBadgeCollection;
