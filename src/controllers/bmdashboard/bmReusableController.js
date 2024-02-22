@@ -156,8 +156,8 @@ const bmReusableController = function (BuildingReusable) {
 
     const purchaseReusable = async (req, res) => {
         const {
-            projectId,
-            itemTypeId,
+            primaryId: projectId,
+            secondaryId: itemTypeId,
             quantity,
             priority,
             brandPref,
