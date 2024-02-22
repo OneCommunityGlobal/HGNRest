@@ -178,7 +178,7 @@ const userHelper = function () {
           ? `<a href="${mediaUrl}">${mediaUrl}</a>`
           : 'Not provided!';
 
-        const googleDocLinkValue = adminLinks.length > 0
+        const googleDocLinkValue = adminLinks?.length > 0
         ? adminLinks.find(link => link.Name === 'Google Doc' && link.Link)
         : null;
 
@@ -280,8 +280,8 @@ const userHelper = function () {
       `;
 
       emailSender(
-        "onecommunityglobal@gmail.com, onecommunityhospitality@gmail.com",
-        "Weekly Summaries for all active users...",
+        'onecommunityglobal@gmail.com, onecommunityhospitality@gmail.com',
+        'Weekly Summaries for all active users...',
         emailBody,
         null,
         null,
