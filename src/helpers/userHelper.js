@@ -985,21 +985,18 @@ const userHelper = function () {
         if (!recordToUpdate) {
           throw new Error('Badge not found');
         }
-        // If the count is the same, do nothing
-        if (recordToUpdate.count === count) {
-          return;
-        }
         const copyOfEarnedDate = recordToUpdate.earnedDate;
-        // Update: We refrain from automatically correcting the mismatch problem as we intend to preserve the original
-        // earned date even when a badge is deleted. This approach ensures that a record of badges earned is maintained,
-        // preventing oversight of any mismatches caused by bugs.
-        if (recordToUpdate.count < count) {
-          let dateToAdd = count - recordToUpdate.count;
-        // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
-          while (dateToAdd > 0) {
+        if (copyOfEarnedDate.length < count) {
+          // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
+          while (copyOfEarnedDate.length < count) {
             copyOfEarnedDate.push(earnedDateBadge());
-            dateToAdd -= 1;
           }
+        } else {
+          // if the EarnedDate count is greater than the new count, remove the oldest earned date of the collection until it matches the new count - 1
+          while (copyOfEarnedDate.length >= count) {
+            copyOfEarnedDate.shift();
+          }
+          copyOfEarnedDate.push(earnedDateBadge());
         }
         newEarnedDate = [...copyOfEarnedDate];
         userProfile.updateOne(
@@ -1009,7 +1006,6 @@ const userHelper = function () {
               'badgeCollection.$.count': count,
               'badgeCollection.$.lastModified': Date.now().toString(),
               'badgeCollection.$.earnedDate': newEarnedDate,
-              'badgeCollection.$.hasBadgeDeletionImpact': recordToUpdate.count > count, // badge deletion impact set to true if the new count is less than the old count
             },
           },
           (err) => {
