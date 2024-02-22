@@ -2,12 +2,13 @@ const fs = require('fs');
 const fsPromises = require('fs/promises');
 
 const path = require('path');
+
 const filename = 'BuildingUnits.json';
 const currentFilePath = __filename;
 const rootPath = path.resolve(path.dirname(currentFilePath), '../../../'); // Go up three levels to the root
 const filepath = path.join(rootPath, filename);
-const readFile = fs.readFile;
-const writeFile = fs.writeFile;
+const { readFile } = fs;
+const { writeFile } = fs;
 
 function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
   async function fetchMaterialTypes(req, res) {
@@ -15,12 +16,24 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       MatType
         .find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
   }
+
+  const fetchToolTypes = async (req, res) => {
+    try {
+      ToolType
+        .find()
+        .exec()
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
@@ -43,7 +56,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.json(err);
     }
   };
-
 
   async function addMaterialType(req, res) {
     const {
@@ -107,7 +119,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
             });
           }
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
       } catch (error) {
       res.status(500).send(error);
       }
@@ -131,8 +143,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       SelectedType
         .find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -171,7 +183,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
             });
           }
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
       } catch (error) {
       res.status(500).send(error);
       }
@@ -325,6 +337,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   return {
     fetchMaterialTypes,
+    fetchToolTypes,
     addEquipmentType,
     fetchSingleInventoryType,
     updateNameAndUnit,
