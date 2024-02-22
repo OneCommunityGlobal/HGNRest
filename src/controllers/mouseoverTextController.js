@@ -1,4 +1,3 @@
-
 const mouseoverTextController = (function (MouseoverText) {
     const createMouseoverText = function (req, res) {
         const newMouseoverText = new MouseoverText();
@@ -6,13 +5,13 @@ const mouseoverTextController = (function (MouseoverText) {
         newMouseoverText.save().then(() => res.status(201).json({
             _serverMessage: 'MouseoverText succesfuly created!',
             mouseoverText: newMouseoverText,
-        })).catch(err => res.status(500).send({ err }));
+        })).catch((err) => res.status(500).send({ err }));
     };
 
     const getMouseoverText = function (req, res) {
         MouseoverText.find()
-            .then(results => res.status(200).send(results))
-            .catch(error => res.status(404).send(error));
+            .then((results) => res.status(200).send(results))
+            .catch((error) => res.status(404).send(error));
     };
 
     const updateMouseoverText = function (req, res) {
@@ -29,8 +28,8 @@ const mouseoverTextController = (function (MouseoverText) {
 
             mouseoverText.mouseoverText = req.body.newMouseoverText;
             mouseoverText.save()
-                .then(results => res.status(201).send(results))
-                .catch(errors => res.status(400).send(errors));
+                .then((results) => res.status(201).send(results))
+                .catch((errors) => res.status(400).send(errors));
         });
     };
 
