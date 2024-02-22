@@ -86,6 +86,7 @@ const badgeController = function (Badge) {
           if (element.count < 1) {
             throw new Error('Badge count should be greater than 0.');
           }
+          return element;
         });
       } catch (err) {
         logger.logException(`Internal Error: Badge Collection. ${err.message} User ID: ${userToBeAssigned} Badge Collection: ${JSON.stringify(req.body.badgeCollection)}`);
