@@ -96,18 +96,6 @@ const badgeController = function (Badge) {
           if (element.count < 1) {
             throw new Error('Badge count should be greater than 0.');
           }
-          if (element.count !== element.earnedDate.length) {
-            element.earnedDate = fillEarnedDateToMatchCount(
-              element.earnedDate,
-              element.count,
-            );
-            element.lastModified = Date.now();
-            logger.logInfo(
-              `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
-                element._id
-              }; Badge Type ID ${element.badge}`,
-            );
-          }
           return element;
         });
       } catch (err) {
