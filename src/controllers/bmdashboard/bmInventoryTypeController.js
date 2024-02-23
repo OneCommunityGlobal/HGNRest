@@ -128,13 +128,13 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;
     let SelectedType = InvType;
-    if (type === 'Materials') {
+    if (type === 'Material') {
       SelectedType = MatType;
-    } else if (type === 'Consumables') {
+    } else if (type === 'Consumable') {
       SelectedType = ConsType;
-    } else if (type === 'Reusables') {
+    } else if (type === 'Reusable') {
       SelectedType = ReusType;
-    } else if (type === 'Tools') {
+    } else if (type === 'Tool') {
       SelectedType = ToolType;
     } else if (type === 'Equipment') {
       SelectedType = EquipType;
@@ -198,37 +198,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       }
     };
 
-    const updateNameAndUnit = async (req, res) => {
-      try {
-        const { invtypeId } = req.params;
-        const { name, unit } = req.body;
-
-        const updateData = {};
-
-        if (name) {
-          updateData.name = name;
-        }
-
-        if (unit) {
-          updateData.unit = unit;
-        }
-
-        const updatedInvType = await InvType.findByIdAndUpdate(
-          invtypeId,
-          updateData,
-          { new: true, runValidators: true },
-        );
-
-        if (!updatedInvType) {
-          return res.status(404).json({ error: 'invType Material not found check Id' });
-        }
-
-        res.status(200).json(updatedInvType);
-      } catch (error) {
-        res.status(500).send(error);
-      }
-    };
-
   const addInvUnit = async (req, res) => {
     // NOTE: category is default to be Material as no other item types need units
     const { unit, category = 'Material' } = req.body;
@@ -287,7 +256,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   };
 
   const updateSingleInvType = async (req, res) => {
-    const { invtypeId } = req.params;
+    const { type, invtypeId } = req.params;
     const { name, description } = req.body;
 
     // send back errors if required fields are missing
@@ -309,7 +278,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       }
 
       // send the updated list
-      const updatedList = await InvType.find({});
+      const updatedList = await InvType.find({ category: type });
       res.status(200).json(updatedList);
     } catch (error) {
       res.status(500).send(error);
@@ -340,7 +309,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchToolTypes,
     addEquipmentType,
     fetchSingleInventoryType,
-    updateNameAndUnit,
     addMaterialType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
