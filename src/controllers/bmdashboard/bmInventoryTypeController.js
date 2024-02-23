@@ -136,7 +136,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       SelectedType = ReusType;
     } else if (type === 'Tools') {
       SelectedType = ToolType;
-    } else if (type === 'Equipments') {
+    } else if (type === 'Equipment') {
       SelectedType = EquipType;
     }
     try {
