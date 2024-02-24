@@ -54,14 +54,21 @@ const badgeController = function (Badge) {
   };
 
   const assignBadges = async function (req, res) {
-    if (
-      !(
-        (await hasPermission(req.body.requestor, "assignBadges")) ||
-        (await hasPermission(req.body.requestor, "modifyBadgeAmount"))
-      )
-    ) {
+    const canAssignBadges = await hasPermission(
+      req.body.requestor,
+      "assignBadges"
+    );
+    const canModifyBadgeAmount = await hasPermission(
+      req.body.requestor,
+      "modifyBadgeAmount"
+    );
+    if (!(canAssignBadges || canModifyBadgeAmount)) {
       res.status(403).send("You are not authorized to assign badges.");
       return;
+    } else if (!canAssignBadges) {
+      res.status(403).send("You are not authorized to assign badges.");
+    } else if (!canModifyBadgeAmount) {
+      res.status(403).send("You are not authorized to modify badge amounts.");
     }
 
     const userToBeAssigned = mongoose.Types.ObjectId(req.params.userId);
