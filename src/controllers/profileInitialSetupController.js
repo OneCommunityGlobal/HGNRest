@@ -196,7 +196,7 @@ const profileInitialSetupController = function (
  - Sends the JWT as a response.
 */
   const setUpNewUser = async (req, res) => {
-    let { token } = req.body;
+    const { token } = req.body;
     const currentMoment = moment.tz('America/Los_Angeles');
     try {
       const foundToken = await ProfileInitialSetupToken.findOne({ token });
@@ -264,13 +264,6 @@ const profileInitialSetupController = function (
             informManagerMessage(savedUser),
             null,
             null,
-          );
-          // Delete the token after the user has been created
-          // await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
-          // Find the token and update it to isSetupCompleted: true
-          await ProfileInitialSetupToken.findOneAndUpdate(
-            { _id: foundToken._id },
-            { isSetupCompleted: true },
           );
 
           const jwtPayload = {
@@ -345,15 +338,6 @@ const profileInitialSetupController = function (
     }
   };
 
-
-  function calculateTotalHours(hoursByCategory) {
-    let hours = 0;
-    Object.keys(hoursByCategory).forEach((x) => {
-      hours += hoursByCategory[x];
-    });
-    return hours;
-  }
-
   const getTotalCountryCount = async (req, res) => {
     try {
       const users = [];
@@ -388,6 +372,13 @@ const profileInitialSetupController = function (
     }
   };
 
+  function calculateTotalHours(hoursByCategory) {
+    let hours = 0;
+    Object.keys(hoursByCategory).forEach((x) => {
+      hours += hoursByCategory[x];
+    });
+    return hours;
+  }
 
   /**
    *
@@ -442,25 +433,39 @@ const profileInitialSetupController = function (
    * @param {*} res HTTP response include whether the setup invitation record is successfully refreshed
    * @returns updated result of the setup invitation record.
    */
-  const refreshSetupInvitation = (req, res) => {
+  const refreshSetupInvitation = async (req, res) => {
     const { role } = req.body.requestor;
-    const { token } = req.body;
+    const { token, baseUrl } = req.body;
+
     if (role === 'Admin' || role === 'Owner') {
-      ProfileInitialSetupToken
-      .findOneAndUpdate(
-        { token },
-        {
-          expiration: moment().tz('America/Los_Angeles').add(3, 'week'),
-          isCancelled: false,
-        },
-        (err, result) => {
-          if (err) {
-            // LOGGER.logException(err);
-            return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-          }
-            return res.status(200).send(result);
-        },
-      );
+      try {
+        ProfileInitialSetupToken
+        .findOneAndUpdate(
+          { token },
+          {
+            expiration: moment().tz('America/Los_Angeles').add(3, 'week'),
+            isCancelled: false,
+          },
+        )
+        .then((result) => {
+          const { email } = result;
+          // const email = 'testcorepp@gmail.com';
+          const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+          sendEmailWithAcknowledgment(
+             email,
+            'NEEDED: Complete your One Community profile setup',
+            sendLinkMessage(link),
+          );
+          return res.status(200).send(result);
+        })
+        .catch((err) =>
+          // LOGGER.logException(err);
+          res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator'));
+      } catch (error) {
+        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+      }
+    } else {
+      return res.status(403).send('You are not authorized to refresh setup invitation.');
     }
   };
 

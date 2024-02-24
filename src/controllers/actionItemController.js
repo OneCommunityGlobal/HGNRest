@@ -36,7 +36,6 @@ const actionItemController = function (ActionItem) {
     _actionItem.assignedTo = req.body.assignedTo;
     _actionItem.createdBy = req.body.requestor.requestorId;
 
-
     _actionItem.save()
       .then((result) => {
         notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
@@ -57,7 +56,6 @@ const actionItemController = function (ActionItem) {
 
   const deleteactionItem = async function (req, res) {
     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
-
 
     const _actionItem = await ActionItem.findById(actionItemId)
       .catch((error) => {
@@ -109,9 +107,8 @@ const actionItemController = function (ActionItem) {
 
     _actionItem.save()
       .then(res.status(200).send('Saved'))
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
-
 
   return {
     getactionItem,

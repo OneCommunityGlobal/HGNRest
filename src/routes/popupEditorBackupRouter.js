@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (popupEditorBackup) {
   const controller = require('../controllers/popupEditorBackupController')(popupEditorBackup);
   const popupEditorBackupRouter = express.Router();
