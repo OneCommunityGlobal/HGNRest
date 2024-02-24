@@ -76,10 +76,7 @@ const userProfileSchema = new Schema({
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: "badge" },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
-      lastModified: { type: Date, required: true, default: Date.now() },
-      // This field is used to determine if the badge deletion will impact the user's badge collection.
-      // If the user has a badge with hasBadgeDeletionImpact set to true, then the a mismatch in badge
-      // count and earned date will be intentionally created.
+      lastModified: { type: Date, required: true, default: new Date()},
       hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
