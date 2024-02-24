@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (popupEditor) {
   const controller = require('../controllers/popupEditorController')(popupEditor);
   const popupEditorRouter = express.Router();
