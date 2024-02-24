@@ -31,10 +31,11 @@ const bmMProjectController = function (BuildingProject) {
         { $unwind: '$buildingManager' },
         {
           $lookup: {
-            from: 'buildingMaterials',
+            from: 'buildingInventoryItems',
             let: { id: '$_id' },
             pipeline: [
               { $match: { $expr: { $eq: ['$project', '$$id'] } } },
+              { $match: { __t: 'material_item' } },
               { $project: { updateRecord: 0, project: 0 } },
               {
                 $lookup: {
@@ -77,7 +78,7 @@ const bmMProjectController = function (BuildingProject) {
         });
         res.status(200).send(results);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.status(500).send(err);
     }
@@ -104,7 +105,7 @@ const bmMProjectController = function (BuildingProject) {
           },
         ])
         .exec()
-        .then(project => res.status(200).send(project))
+        .then((project) => res.status(200).send(project))
         // TODO: uncomment this block to execute the auth check
         // authenticate request by comparing userId param with buildingManager id field
         // Note: _id has type object and must be converted to string
@@ -116,7 +117,7 @@ const bmMProjectController = function (BuildingProject) {
         //   }
         //   return res.status(200).send(project);
         // })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
