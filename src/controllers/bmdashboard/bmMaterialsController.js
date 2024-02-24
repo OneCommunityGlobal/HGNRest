@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
+const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
       BuildingMaterial.find()
@@ -29,8 +29,8 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
         },
       ])
       .exec()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(500).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -42,15 +42,9 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
       matTypeId,
       quantity,
       priority,
-      brand,
+      brand: brandPref,
       requestor: { requestorId },
     } = req.body;
-    const newPurchaseRecord = {
-      quantity,
-      priority,
-      brand,
-      requestedBy: requestorId,
-    };
     try {
       // check if requestor has permission to make purchase request
       //! Note: this code is disabled until permissions are added
@@ -64,6 +58,12 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
       // check if the material is already being used in the project
       // if no, add a new document to the collection
       // if yes, update the existing document
+      const newPurchaseRecord = {
+        quantity,
+        priority,
+        brandPref,
+        requestedBy: requestorId,
+      };
       const doc = await BuildingMaterial.findOne({ project: projectId, itemType: matTypeId });
       if (!doc) {
         const newDoc = {
@@ -74,7 +74,7 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
       BuildingMaterial
       .create(newDoc)
       .then(() => res.status(201).send())
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
       return;
       }
       BuildingMaterial
@@ -84,7 +84,7 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
           )
         .exec()
         .then(() => res.status(201).send())
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }
@@ -132,7 +132,7 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
 
         )
         .then((results) => { res.status(200).send(results); })
-        .catch(error => res.status(500).send({ message: error }));
+        .catch((error) => res.status(500).send({ message: error }));
    }
   };
 
@@ -183,7 +183,7 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
         res.status(500).send('Stock quantities submitted seems to be invalid');
         return;
       }
-    const updatePromises = updateRecordsToBeAdded.map(updateItem => BuildingMaterial.updateOne(
+    const updatePromises = updateRecordsToBeAdded.map((updateItem) => BuildingMaterial.updateOne(
         { _id: updateItem.updateId },
         {
           $set: updateItem.set,
@@ -194,7 +194,7 @@ const bmMaterialsController = function (ItemMaterial, BuildingMaterial) {
     .then((results) => {
       res.status(200).send({ result: `Successfully posted log for ${results.length} Material records.` });
     })
-    .catch(error => res.status(500).send(error));
+    .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }

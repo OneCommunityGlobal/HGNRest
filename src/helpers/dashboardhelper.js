@@ -2,9 +2,8 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
-const myTeam = require('../helpers/helperModels/myTeam');
+const myTeam = require('./helperModels/myTeam');
 const team = require('../models/team');
-
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
@@ -74,7 +73,10 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
                       },
                     ],
                   },
@@ -163,116 +165,161 @@ const dashboardhelper = function () {
 
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
-    const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 })
-                    .then(res => res).catch((e) => {});
+    try {
+      const userById = await userProfile.findOne(
+        { _id: userid, isActive: true },
+        { role: 1 },
+      );
 
-    if (userById == null) return null;
-    const userRole = userById.role;
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+      if (userById == null) return null;
+      const userRole = userById.role;
+      const pdtstart = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .format('YYYY-MM-DD');
 
-    let teamMemberIds = [userid];
-    let teamMembers = [];
+      const pdtend = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .format('YYYY-MM-DD');
 
-    if (userRole != 'Administrator' && userRole != 'Owner' && userRole != 'Core Team') // Manager , Mentor , Volunteer ... , Show only team members
-    {
-      const teamsResult = await team.find({ 'members.userId': { $in: [userid] } }, { members: 1 })
-      .then(res => res).catch((e) => {});
+      let teamMemberIds = [userid];
+      let teamMembers = [];
 
-      teamsResult.map((_myTeam) => {
-        _myTeam.members.map((teamMember) => {
-          if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-       });
+      if (
+        userRole !== 'Administrator'
+        && userRole !== 'Owner'
+        && userRole !== 'Core Team'
+      ) {
+        // Manager , Mentor , Volunteer ... , Show only team members
+        const teamsResult = await team.find(
+          { 'members.userId': { $in: [userid] } },
+          { members: 1 },
+        );
+
+        teamsResult.forEach((_myTeam) => {
+          _myTeam.members.forEach((teamMember) => {
+            if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+          });
+        });
+
+        teamMembers = await userProfile.find(
+          { _id: { $in: teamMemberIds }, isActive: true },
+          {
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          },
+        );
+      } else {
+        // 'Core Team', 'Owner' //All users
+        teamMembers = await userProfile.find(
+          { isActive: true },
+          {
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          },
+        );
+      }
+
+      teamMemberIds = teamMembers.map((member) => member._id);
+
+      const timeEntries = await timeentry.find({
+        dateOfWork: {
+          $gte: pdtstart,
+          $lte: pdtend,
+        },
+        personId: { $in: teamMemberIds },
       });
 
-      teamMembers = await userProfile.find({ _id: { $in: teamMemberIds }, isActive: true },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-    } else if (userRole == 'Administrator') { // All users except Owner and Core Team
-        const excludedRoles = ['Core Team', 'Owner'];
-        teamMembers = await userProfile.find({ isActive: true, role: { $nin: excludedRoles } },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      } else { // 'Core Team', 'Owner' //All users
-        teamMembers = await userProfile.find({ isActive: true },
-          {
- role: 1, firstName: 1, lastName: 1, isVisible: 1, weeklycommittedHours: 1, weeklySummaries: 1,
-})
-        .then(res => res).catch((e) => {});
-      }
+      const timeEntryByPerson = {};
+      timeEntries.forEach((timeEntry) => {
+        const personIdStr = timeEntry.personId.toString();
 
-    teamMemberIds = teamMembers.map(member => member._id);
+        if (timeEntryByPerson[personIdStr] == null) {
+          timeEntryByPerson[personIdStr] = {
+            tangibleSeconds: 0,
+            intangibleSeconds: 0,
+            totalSeconds: 0,
+          };
+        }
 
-    const timeEntries = await timeentry.find({
-      dateOfWork: {
-        $gte: pdtstart,
-        $lte: pdtend,
-      },
-      personId: { $in: teamMemberIds },
-    });
+        if (timeEntry.isTangible === true) {
+          timeEntryByPerson[personIdStr].tangibleSeconds
+            += timeEntry.totalSeconds;
+        } else {
+          timeEntryByPerson[personIdStr].intangibleSeconds
+            += timeEntry.totalSeconds;
+        }
 
-    const timeEntryByPerson = {};
-    timeEntries.map((timeEntry) => {
-      const personIdStr = timeEntry.personId.toString();
+        timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
+      });
 
-      if (timeEntryByPerson[personIdStr] == null) { timeEntryByPerson[personIdStr] = { tangibleSeconds: 0, intangibleSeconds: 0, totalSeconds: 0 }; }
-
-      if (timeEntry.isTangible === true) {
-        timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
-      } else {
-        timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
-      }
-
-      timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
-    });
-
-
-    const leaderBoardData = [];
-    teamMembers.map((teamMember) => {
+      const leaderBoardData = [];
+      teamMembers.forEach((teamMember) => {
         const obj = {
           personId: teamMember._id,
           role: teamMember.role,
-          name: `${teamMember.firstName } ${ teamMember.lastName}`,
+          name: `${teamMember.firstName} ${teamMember.lastName}`,
           isVisible: teamMember.isVisible,
-          hasSummary: teamMember.weeklySummaries?.length > 0 ? teamMember.weeklySummaries[0].summary != '' : false,
+          hasSummary:
+            teamMember.weeklySummaries?.length > 0
+              ? teamMember.weeklySummaries[0].summary !== ''
+              : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
-          totaltangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600) || 0),
-          totalintangibletime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600) || 0),
-          totaltime_hrs: ((timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600) || 0),
+          totaltangibletime_hrs:
+            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+              / 3600 || 0,
+          totalintangibletime_hrs:
+            timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds
+              / 3600 || 0,
+          totaltime_hrs:
+            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600
+            || 0,
           percentagespentintangible:
-              (timeEntryByPerson[teamMember._id.toString()] && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds != 0 && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds != 0)
-              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds) * 100
+            timeEntryByPerson[teamMember._id.toString()]
+            && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0
+            && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !== 0
+              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+                  / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds)
+                * 100
               : 0,
+          timeOffFrom: teamMember.timeOffFrom || null,
+          timeOffTill: teamMember.timeOffTill || null,
         };
         leaderBoardData.push(obj);
-    });
+      });
 
-    const sortedLBData = leaderBoardData.sort((a, b) => {
-      // Sort by totaltangibletime_hrs in descending order
-      if (b.totaltangibletime_hrs !== a.totaltangibletime_hrs) {
-        return b.totaltangibletime_hrs - a.totaltangibletime_hrs;
-      }
+      const sortedLBData = leaderBoardData.sort((a, b) => {
+        // Sort by totaltangibletime_hrs in descending order
+        if (b.totaltangibletime_hrs !== a.totaltangibletime_hrs) {
+          return b.totaltangibletime_hrs - a.totaltangibletime_hrs;
+        }
 
-      // Then sort by name in ascending order
-      if (a.name !== b.name) {
-        return a.name.localeCompare(b.name);
-      }
+        // Then sort by name in ascending order
+        if (a.name !== b.name) {
+          return a.name.localeCompare(b.name);
+        }
 
-      // Finally, sort by role in ascending order
-      return a.role.localeCompare(b.role);
-    });
-
-    return sortedLBData;
+        // Finally, sort by role in ascending order
+        return a.role.localeCompare(b.role);
+      });
+      return sortedLBData;
+    } catch (error) {
+      console.log(error);
+      return new Error(error);
+    }
 
     // return myTeam.aggregate([
     //   {
@@ -578,6 +625,8 @@ const dashboardhelper = function () {
           totalintangibletime_hrs: intangibleSeconds / 3600,
           percentagespentintangible:
             (intangibleSeconds / tangibleSeconds) * 100,
+          timeOffFrom: user.timeOffFrom,
+          timeOffTill: user.timeOffTill,
         },
       ];
     } catch (err) {
@@ -691,7 +740,10 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
                       },
                     ],
                   },
@@ -775,7 +827,10 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
+                        $in: [
+                          '$$timeentry.entryType',
+                          ['person', 'team', 'project'],
+                        ],
                       },
                     ],
                   },
