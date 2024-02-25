@@ -19,7 +19,6 @@ const ownerMessage = require('../models/ownerMessage');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
-const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
@@ -71,7 +70,6 @@ const roleRouter = require('../routes/roleRouter')(role);
 const rolePresetRouter = require('../routes/rolePresetRouter')(rolePreset);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 
-const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
@@ -111,7 +109,6 @@ module.exports = function (app) {
   app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', profileInitialSetupRouter);
-  app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
