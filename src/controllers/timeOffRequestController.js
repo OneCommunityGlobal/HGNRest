@@ -5,8 +5,11 @@ const { hasPermission } = require('../utilities/permissions');
 const timeOffRequestController = function (TimeOffRequest) {
  
   const setTimeOffRequest = async (req, res) => {
+    
     const hasRolePermission = [ "Owner" , "Administrator" ].includes(req.body.requestor.role)
-    if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission) {
+    const setOwnRequested = req.body.requestor.requestorId === req.body.requestFor
+
+    if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission && !setOwnRequested) {
       res.status(403).send('You are not authorized to set time off requests.');
       return;
     }
@@ -20,7 +23,7 @@ const timeOffRequestController = function (TimeOffRequest) {
     moment.tz.setDefault('America/Los_Angeles');
 
     const startDate = moment(startingDate);
-    const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'second');
+    const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'day');
 
 
     const newTimeOffRequest = new TimeOffRequest();
@@ -103,7 +106,7 @@ const timeOffRequestController = function (TimeOffRequest) {
     moment.tz.setDefault('America/Los_Angeles');
 
     const startDate = moment(startingDate);
-    const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'second');
+    const endDate = startDate.clone().add(Number(duration), 'weeks').subtract(1, 'day');
 
     const updateData = {
       reason,
@@ -133,12 +136,17 @@ const timeOffRequestController = function (TimeOffRequest) {
   };
 
   const deleteTimeOffRequestById = async (req, res) => {
+    const requestId = req.params.id;
     const hasRolePermission = [ "Owner" , "Administrator" ].includes(req.body.requestor.role)
-    if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission) {
+    
+    const document = await TimeOffRequest.findById(requestId);
+    const deleteOwnRequest = document?.requestFor.toString() === req.body.requestor.requestorId
+
+    if (!await hasPermission(req.body.requestor, 'manageTimeOffRequests') && !hasRolePermission && !deleteOwnRequest) {
       res.status(403).send('You are not authorized to set time off requests.');
       return;
     }
-    const requestId = req.params.id;
+    
 
     try {
       const deletedRequest = await TimeOffRequest.findByIdAndDelete(requestId);
