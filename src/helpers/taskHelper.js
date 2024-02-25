@@ -184,7 +184,7 @@ const taskHelper = function () {
       const taskIdStr = _teamMemberTask._id.toString();
 
       teamMemberTask.resources.map((resource) => {
-        const resourceIdStr = resource.userID.toString();
+        const resourceIdStr = resource.userID?.toString();
         const taskNdUserID = `${taskIdStr},${resourceIdStr}`;
         _teamMemberTask.taskNotifications =
           taskNotificationByTaskNdUser[taskNdUserID] || [];
