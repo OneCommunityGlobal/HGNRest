@@ -389,17 +389,22 @@ const profileInitialSetupController = function (
   const getSetupInvitation = (req, res) => {
     const { role } = req.body.requestor;
     if (role === 'Admin' || role === 'Owner') {
+      try{
       ProfileInitialSetupToken
       .find({ isSetupCompleted: false })
       .sort({ createdDate: -1 })
       .exec((err, result) => {
         // Handle the result
         if (err) {
-          // LOGGER.logException(err);
+          LOGGER.logException(err);
           return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
         }
           return res.status(200).send(result);
       });
+    } catch (error) {
+      LOGGER.logException(error);
+      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+    }
     } else {
       return res.status(403).send('You are not authorized to get setup history.');
     }
@@ -414,18 +419,25 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
     const { token } = req.body;
     if (role === 'Admin' || role === 'Owner') {
+      try {
     ProfileInitialSetupToken
       .findOneAndUpdate(
         { token },
         { isCancelled: true },
         (err, result) => {
           if (err) {
-            // LOGGER.logException(err);
+            LOGGER.logException(err);
             return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
           }
             return res.status(200).send(result);
         },
       );
+    } catch (error) {
+        LOGGER.logException(error);
+        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+      }
+    } else {
+      res.status(403).send('You are not authorized to cancel setup invitation.');
     }
   };
    /**
@@ -458,9 +470,10 @@ const profileInitialSetupController = function (
           );
           return res.status(200).send(result);
         })
-        .catch((err) =>
-          // LOGGER.logException(err);
-          res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator'));
+        .catch((err) => {
+          LOGGER.logException(err);
+          res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+        });
       } catch (error) {
         return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
       }
@@ -469,26 +482,26 @@ const profileInitialSetupController = function (
     }
   };
 
-  const expiredSetupInvitation = (req, res) => {
-    const { role } = req.body.requestor;
-    const { token } = req.body;
-    if (role === 'Admin' || role === 'Owner') {
-    ProfileInitialSetupToken
-      .findOneAndUpdate(
-        { token },
-        {
-          expiration: moment().tz('America/Los_Angeles').subtract(1, 'minutes'),
-        },
-        (err, result) => {
-          if (err) {
-            // LOGGER.logException(err);
-            return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-          }
-            return res.status(200).send(result);
-        },
-      );
-    }
-  };
+  // const expiredSetupInvitation = (req, res) => {
+  //   const { role } = req.body.requestor;
+  //   const { token } = req.body;
+  //   if (role === 'Admin' || role === 'Owner') {
+  //   ProfileInitialSetupToken
+  //     .findOneAndUpdate(
+  //       { token },
+  //       {
+  //         expiration: moment().tz('America/Los_Angeles').subtract(1, 'minutes'),
+  //       },
+  //       (err, result) => {
+  //         if (err) {
+  //           // LOGGER.logException(err);
+  //           return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+  //         }
+  //           return res.status(200).send(result);
+  //       },
+  //     );
+  //   }
+  // };
 
   return {
     getSetupToken,
@@ -499,7 +512,7 @@ const profileInitialSetupController = function (
     getSetupInvitation,
     cancelSetupInvitation,
     refreshSetupInvitation,
-    expiredSetupInvitation,
+    // expiredSetupInvitation,
   };
 };
 
