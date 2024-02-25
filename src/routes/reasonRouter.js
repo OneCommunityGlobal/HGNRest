@@ -19,7 +19,6 @@ const route = (ReasonModel, UserModel) => {
 
   reasonRouter.delete('/reason/:userId', reasonController.deleteReason);
 
-
   return reasonRouter;
 };
 
