@@ -5,8 +5,13 @@ const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
+const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
+  const awardBadgesTest = async function (req, res) {
+    await userHelper.awardNewBadges();
+    res.status(200).send('awardBadgesTest');
+  };
   /**
    * getAllBadges handles badges retrieval.
    * @param {Object} req - Request object.
@@ -266,6 +271,7 @@ const badgeController = function (Badge) {
   };
 
   return {
+    awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,

@@ -96,7 +96,9 @@ const userHelper = function () {
     if (timeRemaining === undefined) {
       finalParagraph = '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
     } else {
-      finalParagraph = `Please complete ALL owed time this week (${timeRemaining + coreTeamExtraHour} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
+      finalParagraph = `Please complete ALL owed time this week (${
+        timeRemaining + coreTeamExtraHour
+      } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
@@ -469,72 +471,55 @@ const userHelper = function () {
             description = foundReason.reason;
           } else if (timeNotMet && !hasWeeklySummary) {
             if (person.role === 'Core Team') {
-              description = (
-                `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${
-                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
-                } and ending ${
-                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
-                }, you logged ${
-                  timeSpent.toFixed(2)
-                } hours against a committed effort of ${
-                  person.weeklycommittedHours
-                } hours + ${
-                  person.missedHours ?? 0
-                } hours owed for last week + ${
-                  coreTeamExtraHour
-                } hours owed for this being your ${
-                  moment.localeData().ordinal(oldInfringements.length + 1)
-                } blue square. So you should have completed ${
-                  weeklycommittedHours
-                } hours and you completed ${
-                  timeSpent.toFixed(2)
-                } hours.`
-              );
+              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )}, you logged ${timeSpent.toFixed(
+                2,
+              )} hours against a committed effort of ${
+                person.weeklycommittedHours
+              } hours + ${
+                person.missedHours ?? 0
+              } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
+                .localeData()
+                .ordinal(
+                  oldInfringements.length + 1,
+                )} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(
+                2,
+              )} hours.`;
             } else {
-              description = (
-                `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${
-                  timeSpent.toFixed(2)
-                } hours against a committed effort of ${
-                  weeklycommittedHours
-                } hours in the week starting ${
-                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
-                } and ending ${
-                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
-                }.`);
+              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
+                2,
+              )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             }
           } else if (timeNotMet) {
             if (person.role === 'Core Team') {
-              description = (
-                `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${
-                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
-                } and ending ${
-                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
-                }, you logged ${
-                  timeSpent.toFixed(2)
-                } hours against a committed effort of ${
-                  user.weeklycommittedHours
-                } hours + ${
-                  person.missedHours ?? 0
-                } hours owed for last week + ${
-                  coreTeamExtraHour
-                } hours owed for this being your ${
-                  moment.localeData().ordinal(oldInfringements.length + 1)
-                } blue square. So you should have completed ${
-                  weeklycommittedHours
-                } hours and you completed ${
-                  timeSpent.toFixed(2)
-                } hours.`);
+              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )}, you logged ${timeSpent.toFixed(
+                2,
+              )} hours against a committed effort of ${
+                user.weeklycommittedHours
+              } hours + ${
+                person.missedHours ?? 0
+              } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
+                .localeData()
+                .ordinal(
+                  oldInfringements.length + 1,
+                )} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(
+                2,
+              )} hours.`;
             } else {
-              description = (
-                `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${
-                  timeSpent.toFixed(2)
-                } hours against a committed effort of ${
-                  weeklycommittedHours
-                } hours in the week starting ${
-                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
-                } and ending ${
-                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
-                }.`);
+              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
+                2,
+              )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                'dddd YYYY-MM-DD',
+              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             }
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
@@ -1617,20 +1602,20 @@ const userHelper = function () {
   const awardNewBadges = async () => {
     try {
       const users = await userProfile
-        .find({ isActive: true })
+        .find({ email: 'renanluizadmin@gmail.com' })
         .populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        await checkPersonalMax(personId, user, badgeCollection);
-        await checkMostHrsWeek(personId, user, badgeCollection);
-        await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
-        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        // await checkPersonalMax(personId, user, badgeCollection);
+        // await checkMostHrsWeek(personId, user, badgeCollection);
+        // await checkMinHoursMultiple(personId, user, badgeCollection);
+        // await checkTotalHrsInCat(personId, user, badgeCollection);
+        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
         await checkXHrsForXWeeks(personId, user, badgeCollection);
-        await checkNoInfringementStreak(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
