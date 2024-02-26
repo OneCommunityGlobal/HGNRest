@@ -1,9 +1,9 @@
 const express = require('express');
 
 
-const routes = function (timeOffRequest) {
+const routes = function (timeOffRequest, Team, UserProfile) {
     const timeOffRequestRouter = express.Router();
-    const controller = require('../controllers/timeOffRequestController')(timeOffRequest);
+    const controller = require('../controllers/timeOffRequestController')(timeOffRequest, Team, UserProfile);
 
     timeOffRequestRouter.route('/setTimeOffRequest')
         .post(controller.setTimeOffRequest);
