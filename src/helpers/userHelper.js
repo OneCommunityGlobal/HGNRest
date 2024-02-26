@@ -78,15 +78,15 @@ const userHelper = function () {
     infringement,
     totalInfringements,
     timeRemaining = null,
+    coreTeamExtraHour,
     requestForTimeOffEmailBody
   ) {
-    let final_paragraph = "";
+    let finalParagraph = '';
 
-    if (timeRemaining == null) {
-      final_paragraph =
-        "<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>";
+    if (timeRemaining === null) {
+      finalParagraph = '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
     } else {
-      final_paragraph = `Please complete ALL owened time this week to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">One Community Core Team Policies and Procedures page </a>" `;
+      finalParagraph = `Please complete ALL owed time this week (${timeRemaining + coreTeamExtraHour} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
 
     const text = `Dear <b>${firstName} ${lastName}</b>,
@@ -98,9 +98,8 @@ const userHelper = function () {
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
-        ${final_paragraph}
-        <p>Thank you,<br />
-        One Community</p>`;
+        ${finalParagraph}
+        <p>Thank you, One Community</p>`;
 
     return text;
   };
@@ -237,11 +236,11 @@ const userHelper = function () {
       // Necessary because our version of node is outdated
       // and doesn't have String.prototype.replaceAll
       let emailString = [...new Set(emails)].toString();
-      while (emailString.includes(",")) {
-        emailString = emailString.replace(",", "\n");
+      while (emailString.includes(',')) {
+        emailString = emailString.replace(',', '\n');
       }
-      while (emailString.includes("\n")) {
-        emailString = emailString.replace("\n", ", ");
+      while (emailString.includes('\n')) {
+        emailString = emailString.replace('\n', ', ');
       }
 
       emailBody += `\n
@@ -460,61 +459,78 @@ const userHelper = function () {
           if (hasTimeOffRequest) {
             description = requestForTimeOffreason;
           } else if (timeNotMet && !hasWeeklySummary) {
-            if (person.role == "Core Team") {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )}. You logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${
-                person.weeklycommittedHours
-              } hours + ${
-                person.missedHours ?? 0
-              } hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
-                .localeData()
-                .ordinal(
-                  oldInfringements.length + 1
-                )} blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(
-                2
-              )} hours.`;
+            if (person.role === 'Core Team') {
+              description = (
+                `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }, you logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  person.weeklycommittedHours
+                } hours + ${
+                  person.missedHours ?? 0
+                } hours owed for last week + ${
+                  coreTeamExtraHour
+                } hours owed for this being your ${
+                  moment.localeData().ordinal(oldInfringements.length + 1)
+                } blue square. So you should have completed ${
+                  weeklycommittedHours
+                } hours and you completed ${
+                  timeSpent.toFixed(2)
+                } hours.`
+              );
             } else {
-              description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              description = (
+                `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  weeklycommittedHours
+                } hours in the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }.`);
             }
           } else if (timeNotMet) {
-            if (person.role == "Core Team") {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )}. You logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${
-                user.weeklycommittedHours
-              } hours + ${
-                person.missedHours ?? 0
-              } hours owend for last week + ${coreTeamExtraHour} hours owend for this being your ${moment
-                .localeData()
-                .ordinal(
-                  oldInfringements.length + 1
-                )} blue square. So you should have completed ${weeklycommittedHours} hours and you only completed ${timeSpent.toFixed(
-                2
-              )} hours.`;
+            if (person.role === 'Core Team') {
+              description = (
+                `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }, you logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  user.weeklycommittedHours
+                } hours + ${
+                  person.missedHours ?? 0
+                } hours owed for last week + ${
+                  coreTeamExtraHour
+                } hours owed for this being your ${
+                  moment.localeData().ordinal(oldInfringements.length + 1)
+                } blue square. So you should have completed ${
+                  weeklycommittedHours
+                } hours and you completed ${
+                  timeSpent.toFixed(2)
+                } hours.`);
             } else {
-              description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
-                2
-              )} hours against committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                "dddd YYYY-MM-DD"
-              )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              description = (
+                `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${
+                  timeSpent.toFixed(2)
+                } hours against a committed effort of ${
+                  weeklycommittedHours
+                } hours in the week starting ${
+                  pdtStartOfLastWeek.format('dddd YYYY-MM-DD')
+                } and ending ${
+                  pdtEndOfLastWeek.format('dddd YYYY-MM-DD')
+                }.`);
             }
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-              "dddd YYYY-MM-DD"
-            )} and ending ${pdtEndOfLastWeek.format("dddd YYYY-MM-DD")}.`;
+              'dddd YYYY-MM-DD',
+            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
           }
 
           let infringement;
@@ -551,6 +567,7 @@ const userHelper = function () {
               infringement,
               status.infringements.length,
               timeRemaining,
+              coreTeamExtraHour,
               requestForTimeOffEmailBody
             );
           } else {
@@ -559,6 +576,7 @@ const userHelper = function () {
               status.lastName,
               infringement,
               status.infringements.length,
+              null,
               null,
               requestForTimeOffEmailBody
             );
@@ -966,32 +984,40 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          (item) => item.badge._id.toString() === badgeId.toString()
+          (item) => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error("Badge not found");
         }
+        // If the count is the same, do nothing
+        if (recordToUpdate.count === count) {
+          return;
+        }
+        // If the count is the same, do nothing
+        if (recordToUpdate.count === count) {
+          return;
+        }
         const copyOfEarnedDate = recordToUpdate.earnedDate;
-        if (copyOfEarnedDate.length < count) {
-          // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
-          while (copyOfEarnedDate.length < count) {
+        // Update: We refrain from automatically correcting the mismatch problem as we intend to preserve the original
+        // earned date even when a badge is deleted. This approach ensures that a record of badges earned is maintained,
+        // preventing oversight of any mismatches caused by bugs.
+        if (recordToUpdate.count < count) {
+          let dateToAdd = count - recordToUpdate.count;
+        // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
+          while (dateToAdd > 0) {
             copyOfEarnedDate.push(earnedDateBadge());
+            dateToAdd -= 1;
           }
-        } else {
-          // if the EarnedDate count is greater than the new count, remove the oldest earned date of the collection until it matches the new count - 1
-          while (copyOfEarnedDate.length >= count) {
-            copyOfEarnedDate.shift();
-          }
-          copyOfEarnedDate.push(earnedDateBadge());
         }
         newEarnedDate = [...copyOfEarnedDate];
         userProfile.updateOne(
           { _id: personId, "badgeCollection.badge": badgeId },
           {
             $set: {
-              "badgeCollection.$.count": count,
-              "badgeCollection.$.lastModified": Date.now().toString(),
-              "badgeCollection.$.earnedDate": newEarnedDate,
+              'badgeCollection.$.count': count,
+              'badgeCollection.$.lastModified': Date.now().toString(),
+              'badgeCollection.$.earnedDate': newEarnedDate,
+              'badgeCollection.$.hasBadgeDeletionImpact': recordToUpdate.count > count, // badge deletion impact set to true if the new count is less than the old count
             },
           },
           (err) => {
@@ -1179,7 +1205,7 @@ const userHelper = function () {
   ) {
     const badgesOfType = badgeCollection
       .map((obj) => obj.badge)
-      .filter((badgeItem) => badgeItem.type === "Minimum Hours Multiple");
+      .filter((badgeItem) => badgeItem.type === 'Minimum Hours Multiple');
     await badge
       .find({ type: "Minimum Hours Multiple" })
       .sort({ multiple: -1 })
@@ -1196,7 +1222,7 @@ const userHelper = function () {
             elem.multiple
           ) {
             const theBadge = badgesOfType.find(
-              (badgeItem) => badgeItem._id.toString() === elem._id.toString()
+              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(
@@ -1222,15 +1248,15 @@ const userHelper = function () {
           duplicateBadges.push(badgeCollection[i]);
         }
       }
-      for (const badge of duplicateBadges) {
-        await removeDupBadge(personId, badge._id);
+      for (const b of duplicateBadges) {
+        await removeDupBadge(personId, b._id);
       }
     }
     await badge.findOne({ type: "Personal Max" }).then((results) => {
       if (
-        user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+        user.lastWeekTangibleHrs
+        && user.lastWeekTangibleHrs >= 1
+        && user.lastWeekTangibleHrs === user.personalBestMaxHrs
       ) {
         if (badgeOfType) {
           changeBadgeCount(
@@ -1242,7 +1268,7 @@ const userHelper = function () {
           addBadge(
             personId,
             mongoose.Types.ObjectId(results._id),
-            user.personalBestMaxHrs
+            user.personalBestMaxHrs,
           );
         }
       }
@@ -1257,9 +1283,9 @@ const userHelper = function () {
       user.lastWeekTangibleHrs > user.weeklycommittedHours
     ) {
       const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === "Most Hrs in Week")
+        .filter((object) => object.badge.type === 'Most Hrs in Week')
         .map((object) => object.badge);
-      await badge.findOne({ type: "Most Hrs in Week" }).then((results) => {
+      await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
         userProfile
           .aggregate([
             { $match: { isActive: true } },
@@ -1482,23 +1508,23 @@ const userHelper = function () {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
-        results.every((badge) => {
-          if (teamMembers && teamMembers.length >= badge.people) {
+        results.every((bg) => {
+          if (teamMembers && teamMembers.length >= bg.people) {
             if (badgeOfType) {
               if (
-                badgeOfType._id.toString() !== badge._id.toString() &&
-                badgeOfType.people < badge.people
+                badgeOfType._id.toString() !== bg._id.toString()
+                && badgeOfType.people < bg.people
               ) {
                 replaceBadge(
                   personId,
                   mongoose.Types.ObjectId(badgeOfType._id),
 
-                  mongoose.Types.ObjectId(badge._id)
+                  mongoose.Types.ObjectId(bg._id),
                 );
               }
               return false;
             }
-            addBadge(personId, mongoose.Types.ObjectId(badge._id));
+            addBadge(personId, mongoose.Types.ObjectId(bg._id));
             return false;
           }
           return true;
@@ -1520,12 +1546,12 @@ const userHelper = function () {
     ];
 
     const badgesOfType = badgeCollection
-      .filter((object) => object.badge.type === "Total Hrs in Category")
+      .filter((object) => object.badge.type === 'Total Hrs in Category')
       .map((object) => object.badge);
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(
-        (elem) => elem === category
+        (elem) => elem === category,
       );
 
       let badgeOfType;
@@ -1604,7 +1630,7 @@ const userHelper = function () {
     try {
       const users = await userProfile
         .find({ isActive: true })
-        .populate("badgeCollection.badge");
+        .populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -1631,13 +1657,13 @@ const userHelper = function () {
     const userId = mongoose.Types.ObjectId(personId);
 
     const pdtstart = moment()
-      .tz("America/Los_Angeles")
-      .startOf("week")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .format('YYYY-MM-DD');
     const pdtend = moment()
-      .tz("America/Los_Angeles")
-      .endOf("week")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .format('YYYY-MM-DD');
 
     return timeEntries
       .find(
@@ -1718,15 +1744,15 @@ const userHelper = function () {
     try {
       await token.deleteMany({ expiration: { $lt: currentDate } });
     } catch (error) {
-      logger.logException(err);
+      logger.logException(error);
     }
   };
 
   const deleteOldTimeOffRequests = async () => {
     const endOfLastWeek = moment()
-      .tz("America/Los_Angeles")
-      .endOf("week")
-      .subtract(1, "week");
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(1, 'week');
 
     const utcEndMoment = moment(endOfLastWeek).add(1, "second");
     try {
