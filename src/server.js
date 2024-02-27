@@ -17,7 +17,7 @@ require("./startup/routes")(app);
 
 const port = process.env.PORT || 4500;
 
-app.on('uncaughtException', (error) => {
+process.on('uncaughtException', (error) => {
   logger.logException(error);
   console.error('Uncaught Exception:', error.message);
 });
