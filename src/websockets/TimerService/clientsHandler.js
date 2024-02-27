@@ -44,7 +44,6 @@ export const action = {
   FORCED_PAUSE: 'FORCED_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
-  HEARTBEAT: 'ping',
 };
 
 const MAX_HOURS = 5;
@@ -171,21 +170,22 @@ export const handleMessage = async (msg, clients, userId) => {
   const client = clients.get(userId);
   let resp = null;
 
-  switch (msg) {
+  const req = msg.toString();
+  switch (req) {
     case action.START_TIMER:
       startTimer(client);
       break;
-    case msg.match(/SET_GOAL=/i)?.input:
-      setGoal(client, msg);
+    case req.match(/SET_GOAL=/i)?.input:
+      setGoal(client, req);
       break;
-    case msg.match(/ADD_TO_GOAL=/i)?.input:
-      addGoal(client, msg);
+    case req.match(/ADD_TO_GOAL=/i)?.input:
+      addGoal(client, req);
       break;
-    case msg.match(/REMOVE_FROM_GOAL=/i)?.input:
-      removeGoal(client, msg);
+    case req.match(/REMOVE_FROM_GOAL=/i)?.input:
+      removeGoal(client, req);
       break;
-    case msg.match(/START_CHIME=/i)?.input:
-      startChime(client, msg);
+    case req.match(/START_CHIME=/i)?.input:
+      startChime(client, req);
       break;
     case action.PAUSE_TIMER:
       pauseTimer(client);
@@ -202,10 +202,11 @@ export const handleMessage = async (msg, clients, userId) => {
     case action.STOP_TIMER:
       stopTimer(client);
       break;
+
     default:
       resp = {
         ...client,
-        error: `Unknown operation ${msg}, please use one from { ${Object.values(action).join(', ')} }`,
+        error: `Unknown operation ${req}, please use one of ${action}`,
       };
       break;
   }
