@@ -77,18 +77,10 @@ function informManagerMessage(user) {
 }
 
 const sendEmailWithAcknowledgment = (email, subject, message) => new Promise((resolve, reject) => {
-    emailSender(
-      email,
-      subject,
-      message,
-      null,
-      null,
-      null,
-      (error, result) => {
-        if (result) resolve(result);
-        if (error) reject(result);
-      },
-    );
+    emailSender(email, subject, message, null, null, null, (error, result) => {
+      if (result) resolve(result);
+      if (error) reject(result);
+    });
   });
 
 const profileInitialSetupController = function (
@@ -106,7 +98,10 @@ const profileInitialSetupController = function (
       const response = await location.save();
       return response;
     } catch (err) {
-      return { type: 'Error', message: err.message || 'An error occurred while saving the location' };
+      return {
+        type: 'Error',
+        message: err.message || 'An error occurred while saving the location',
+      };
     }
   };
 
@@ -270,33 +265,33 @@ const profileInitialSetupController = function (
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-            const locationData = {
-              title: '',
-              firstName: req.body.firstName,
-              lastName: req.body.lastName,
-              jobTitle: req.body.jobTitle,
-              location: req.body.homeCountry,
-              isActive: true,
-            };
+          const locationData = {
+            title: '',
+            firstName: req.body.firstName,
+            lastName: req.body.lastName,
+            jobTitle: req.body.jobTitle,
+            location: req.body.homeCountry,
+            isActive: true,
+          };
 
           res.send({ token }).status(200);
 
-            const mapEntryResult = await setMapLocation(locationData);
-            if (mapEntryResult.type === 'Error') {
-              console.log(mapEntryResult.message);
-            }
+          const mapEntryResult = await setMapLocation(locationData);
+          if (mapEntryResult.type === 'Error') {
+            console.log(mapEntryResult.message);
+          }
 
-            const NewUserCache = {
-                permissions: savedUser.permissions,
-                isActive: true,
-                weeklycommittedHours: savedUser.weeklycommittedHours,
-                createdDate: savedUser.createdDate.toISOString(),
-                _id: savedUser._id,
-                role: savedUser.role,
-                firstName: savedUser.firstName,
-                lastName: savedUser.lastName,
-                email: savedUser.email,
-              };
+          const NewUserCache = {
+            permissions: savedUser.permissions,
+            isActive: true,
+            weeklycommittedHours: savedUser.weeklycommittedHours,
+            createdDate: savedUser.createdDate.toISOString(),
+            _id: savedUser._id,
+            role: savedUser.role,
+            firstName: savedUser.firstName,
+            lastName: savedUser.lastName,
+            email: savedUser.email,
+          };
 
           const allUserCache = JSON.parse(cache.getCache('allusers'));
           allUserCache.push(NewUserCache);
@@ -350,13 +345,13 @@ const profileInitialSetupController = function (
           users.push(item);
         }
       });
-      const modifiedUsers = users.map(item => ({
+      const modifiedUsers = users.map((item) => ({
         location: item.location,
       }));
 
       const mapUsers = await MapLocation.find({});
       const combined = [...modifiedUsers, ...mapUsers];
-      const countries = combined.map(user => user.location.country);
+      const countries = combined.map((user) => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
       res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
