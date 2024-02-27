@@ -9,7 +9,7 @@ const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
     WBS.find(
       { projectId: { $in: [req.params.projectId] } },
-      "wbsName isActive modifiedDatetime"
+      "wbsName isActive modifiedDatetime",
     )
       .sort({ modifiedDatetime: -1 })
       .then((results) => res.status(200).send(results))
