@@ -706,7 +706,7 @@ const userProfileController = function (UserProfile) {
     }
     // Check if the requestor has the permission to update passwords.
     const hasUpdatePasswordPermission = await hasPermission(
-      requestor.role,
+      requestor,
       'updatePassword',
     );
 

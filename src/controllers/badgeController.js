@@ -46,27 +46,10 @@ const badgeController = function (Badge) {
    * Updated Date: 12/17/2023
    * Updated By: Roberto
    * Function added:
-   * - Added data validation for earned date and badge count mismatch.
-   * - Added fillEarnedDateToMatchCount function to resolve earned date and badge count mismatch.
    * - Refactored data validation for duplicate badge id.
    * - Added data validation for badge count should greater than 0.
-   * - Added formatDate function to format date to MMM-DD-YY.
    * - Added logic to combine duplicate badges into one with updated properties.
    */
-
-  const fillEarnedDateToMatchCount = (earnedDate, count) => {
-    const currentDate = moment(new Date(Date.now())).tz('America/Los_Angeles').format('MMM-DD-YY');
-
-    if (earnedDate.length > count) {
-      const elementsToRemove = earnedDate.length - count;
-      earnedDate.splice(-elementsToRemove);
-    }
-
-    const additionalDates = new Array(count - earnedDate.length).fill(currentDate);
-    const result = [...earnedDate, ...additionalDates];
-
-    return result;
-  };
 
   const assignBadges = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'assignBadges'))) {
@@ -121,20 +104,6 @@ const badgeController = function (Badge) {
           }
         }
 
-        // if count doesn't match earnedDate length, fill earnedDate with current date
-        if (grouped[badge].earnedDate.length !== grouped[badge].count) {
-          grouped[badge].earnedDate = fillEarnedDateToMatchCount(
-            grouped[badge].earnedDate,
-            grouped[badge].count,
-          );
-          grouped[badge].lastModified = Date.now();
-          logger.logInfo(
-            `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
-              item._id
-            }; Badge Type ID ${badge}`,
-          );
-        }
-
         return grouped;
       }, {});
 
@@ -159,8 +128,7 @@ const badgeController = function (Badge) {
         res.status(201).send(results._id);
       })
       .catch((err) => {
-        logger.logException(err);
-        res.status(500).send('Internal Error: Unable to save the record.');
+        res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
       });
     });
   };
