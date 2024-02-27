@@ -205,7 +205,7 @@ export const handleMessage = async (msg, clients, userId) => {
     default:
       resp = {
         ...client,
-        error: `Unknown operation ${msg}, please use one of ${action}`,
+        error: `Unknown operation ${msg}, please use one from { ${Object.values(action).join(', ')} }`,
       };
       break;
   }
