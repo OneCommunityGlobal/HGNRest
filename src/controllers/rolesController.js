@@ -5,8 +5,8 @@ const { hasPermission } = require('../utilities/permissions');
 const rolesController = function (Role) {
   const getAllRoles = function (req, res) {
     Role.find({})
-    .then(results => res.status(200).send(results))
-    .catch(error => res.status(404).send({ error }));
+    .then((results) => res.status(200).send(results))
+    .catch((error) => res.status(404).send({ error }));
   };
 
   const createNewRole = async function (req, res) {
@@ -25,7 +25,7 @@ const rolesController = function (Role) {
     role.permissions = req.body.permissions;
     role.permissionsBackEnd = req.body.permissionsBackEnd;
 
-    role.save().then(results => res.status(201).send(results)).catch(err => res.status(500).send({ err }));
+    role.save().then((results) => res.status(201).send(results)).catch((err) => res.status(500).send({ err }));
   };
 
   const getRoleById = function (req, res) {
@@ -33,10 +33,9 @@ const rolesController = function (Role) {
       Role.findById(
         roleId,
       )
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send({ error }));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send({ error }));
 };
-
 
   const updateRoleById = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'putRole')) {
@@ -61,8 +60,8 @@ const rolesController = function (Role) {
       record.permissionsBackEnd = req.body.permissionsBackEnd;
 
       record.save()
-        .then(results => res.status(201).send(results))
-        .catch(errors => res.status(400).send(errors));
+        .then((results) => res.status(201).send(results))
+        .catch((errors) => res.status(400).send(errors));
     });
   };
 
@@ -74,7 +73,7 @@ const rolesController = function (Role) {
 
     const { roleId } = req.params;
     Role.findById(roleId)
-      .then(result => (
+      .then((result) => (
         result
           .remove()
           .then(UserProfile
@@ -93,12 +92,11 @@ const rolesController = function (Role) {
               }
               res.status(200).send({ message: 'Deleted role' });
             })
-            .catch(error => res.status(400).send({ error })))
-          .catch(error => res.status(400).send({ error }))
+            .catch((error) => res.status(400).send({ error })))
+          .catch((error) => res.status(400).send({ error }))
       ))
-      .catch(error => res.status(400).send({ error }));
+      .catch((error) => res.status(400).send({ error }));
   };
-
 
   return {
     getAllRoles,

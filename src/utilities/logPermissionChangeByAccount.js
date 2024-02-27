@@ -8,7 +8,7 @@ const changedPermissionsLogger = async (req, res, next) => {
 };
 
 // Helper function finds the latest log related to the permission
-const findLatestRelatedLog = roleId => new Promise((resolve, reject) => {
+const findLatestRelatedLog = (roleId) => new Promise((resolve, reject) => {
     PermissionChangeLog.findOne({ roleId })
       .sort({ logDateTime: -1 })
       .exec((err, document) => {
@@ -36,13 +36,12 @@ const logPermissionChangeByAccount = async (requestBody) => {
     const document = await findLatestRelatedLog(roleId);
 
     if (document) {
-      permissionsRemoved = document.permissions.filter(item => !(permissions.includes(item)));
-      permissionsAdded = permissions.filter(item => !(document.permissions.includes(item)));
+      permissionsRemoved = document.permissions.filter((item) => !(permissions.includes(item)));
+      permissionsAdded = permissions.filter((item) => !(document.permissions.includes(item)));
     } else {
       // else this is the first permissions change log for this particular role
       permissionsAdded = permissions;
     }
-
 
     const logEntry = new PermissionChangeLog({
       logDateTime: dateTime,
