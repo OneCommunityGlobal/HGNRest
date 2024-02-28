@@ -70,7 +70,6 @@ const logincontroller = function () {
   }
 };
 
-
   const getUser = function (req, res) {
     const { requestor } = req.body;
 

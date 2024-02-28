@@ -2,7 +2,6 @@ import { body } from 'express-validator';
 
 const express = require('express');
 
-
 const routes = function (userProfile) {
   const controller = require('../controllers/userProfileController')(
     userProfile,
@@ -14,8 +13,8 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer(value => value.trim()),
-      body('lastName').customSanitizer(value => value.trim()),
+      body('firstName').customSanitizer((value) => value.trim()),
+      body('lastName').customSanitizer((value) => value.trim()),
       controller.postUserProfile,
     );
 
@@ -23,28 +22,28 @@ const routes = function (userProfile) {
     .route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(
-      body('firstName').customSanitizer(value => value.trim()),
-      body('lastName').customSanitizer(value => value.trim()),
-      body('personalLinks').customSanitizer(value => value.map((link) => {
-        if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
-          return {
-            ...link,
-            Name: link.Name.trim(),
-            Link: link.Link.replace(/\s/g, ''),
-          };
-        }
-        throw new Error('Url not valid');
-      })),
-      body('adminLinks').customSanitizer(value => value.map((link) => {
-        if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
-          return {
-            ...link,
-            Name: link.Name.trim(),
-            Link: link.Link.replace(/\s/g, ''),
-          };
-        }
-        throw new Error('Url not valid');
-      })),
+      body('firstName').customSanitizer((value) => value.trim()),
+      body('lastName').customSanitizer((value) => value.trim()),
+      body('personalLinks').customSanitizer((value) => value.map((link) => {
+          if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+            return {
+              ...link,
+              Name: link.Name.trim(),
+              Link: link.Link.replace(/\s/g, ''),
+            };
+          }
+          throw new Error('Url not valid');
+        })),
+      body('adminLinks').customSanitizer((value) => value.map((link) => {
+          if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+            return {
+              ...link,
+              Name: link.Name.trim(),
+              Link: link.Link.replace(/\s/g, ''),
+            };
+          }
+          throw new Error('Url not valid');
+        })),
       controller.putUserProfile,
     )
     .delete(controller.deleteUserProfile)
@@ -53,6 +52,14 @@ const routes = function (userProfile) {
   userProfileRouter
     .route('/userProfile/name/:name')
     .get(controller.getUserByName);
+
+  userProfileRouter
+    .route('/userProfile/singleName/:singleName')
+    .get(controller.getUserBySingleName);
+
+  userProfileRouter
+    .route('/userProfile/fullName/:fullName')
+    .get(controller.getUserByFullName);
 
   userProfileRouter.route('/refreshToken/:userId').get(controller.refreshToken);
 
