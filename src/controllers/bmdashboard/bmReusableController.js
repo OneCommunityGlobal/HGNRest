@@ -47,21 +47,6 @@ const bmReusableController = function (BuildingReusable,) {
         }
     };
 
-    const deleteReusable = async (req, res) => {
-        const { id } = req.params;
-
-        try {
-            const deletedItem = await BuildingReusable.findByIdAndDelete(id);
-            if (!deletedItem) {
-                return res.status(404).send({ message: 'Item not found.' });
-            }
-            res.status(200).send({ message: 'Item deleted successfully.', deletedItem });
-        } catch (error) {
-            console.error('Error deleting the reusable item:', error);
-            res.status(500).send(error);
-        }
-    };
-
     const addReusable = async (req, res) => {
         try {
             const { itemTypeId, projectId, stockBought, stockAvailable, purchaseRecords, updateRecords, stockDestroyed } = req.body;
@@ -131,36 +116,10 @@ const bmReusableController = function (BuildingReusable,) {
         }
     };
     
-    //TODO(Yan): Delete following line/func after Dev
-    async function SeedReusableItems() {
-        try {
-            const names = [
-                'Test Item Four',
-                'Test Item Five',
-            ];
-            for (let i = 0; i < names.length; i++) {
-                const newReusableType = new ReusableType({
-                    __t: 'reusable_type',
-                    name: names[i],
-                    description: 'Mock item data hard coded by Chengyan to work on reusable list feature',
-                    createdBy: '6585fa42c53bf42bc52f237a', //Yan Admin
-                });
-
-                const savedItem = await newReusableType.save();
-                console.log('Saved itemType ID:', savedItem._id);
-            }
-            
-        } catch (error) {
-            console.error('Error saving the reusable type:', error);
-        }
-    }
 
     return {
         fetchBMReusables,
-        deleteReusable,
-        addReusable,
-        //TODO(Yan): Delete following line/func after Dev
-        SeedReusableItems,
+
     };
 };
 
