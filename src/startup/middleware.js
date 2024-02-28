@@ -2,7 +2,6 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 
-
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
     if (req.originalUrl === '/') {
@@ -22,7 +21,7 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' || req.originalUrl === '/api/getTimeZoneAPIKeyByToken' && req.method === 'POST' || req.originalUrl === '/api/getTotalCountryCount' && req.method === 'GET'
+    if (((req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' || req.originalUrl === '/api/getTimeZoneAPIKeyByToken') && req.method === 'POST') || (req.originalUrl === '/api/getTotalCountryCount' && req.method === 'GET') || (req.originalUrl.includes('/api/timezone') && req.method === 'POST')
     ) {
       next();
       return;
