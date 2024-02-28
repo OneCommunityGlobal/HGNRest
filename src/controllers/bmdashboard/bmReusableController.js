@@ -119,7 +119,6 @@ const bmReusableController = function (BuildingReusable,) {
 
     return {
         fetchBMReusables,
-
     };
 };
 
