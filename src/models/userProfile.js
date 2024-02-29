@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: "badge" },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
-      lastModified: { type: Date, required: true, default: new Date()},
+      lastModified: { type: Date, required: true, default: new Date() },
       hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
@@ -228,6 +228,7 @@ const userProfileSchema = new Schema({
   actualEmail: { type: String },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
+  getWeeklyReport: { type: Boolean },
 });
 
 userProfileSchema.pre("save", function (next) {
