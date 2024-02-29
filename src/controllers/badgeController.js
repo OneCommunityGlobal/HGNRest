@@ -5,6 +5,7 @@ const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
+const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -253,12 +254,19 @@ const badgeController = function (Badge) {
     });
   };
 
+  const testAssignBadges = async function (req, res) {
+    console.log('Hit!');
+    await userHelper.awardNewBadges();
+    res.status(200).send('Badges assigned');
+  };
+
   return {
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
     putBadge,
+    testAssignBadges,
   };
 };
 
