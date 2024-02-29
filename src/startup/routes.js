@@ -24,6 +24,7 @@ const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
+const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const {
   invTypeBase,
   materialType,
@@ -119,6 +120,9 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(
   buildingTool,
 );
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(
+  buildingIssue,
+);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -160,4 +164,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api', timeOffRequestRouter);
+  app.use('api', bmIssueRouter);
 };
