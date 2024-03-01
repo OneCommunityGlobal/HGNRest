@@ -97,7 +97,12 @@ export default async (expServer) => {
     * And we broadcast the response to all the clients that are connected to the same user.
     */
     ws.on("message", async (data) => {
-      const resp = await handleMessage(data, clients, userId);
+      const msg = data.toString();
+      if (msg === action.HEARTBEAT) {
+        ws.send(JSON.stringify({ heartbeat: "pong" }));
+        return;
+      }
+      const resp = await handleMessage(msg, clients, userId);
       broadcastToSameUser(connections, userId, resp);
     });
 
@@ -121,7 +126,6 @@ export default async (expServer) => {
   });
 
   // For each new connection we start a time interval of 1min to check if the connection is alive.
-  // change to 1min before push
   const interval = setInterval(() => {
     wss.clients.forEach((ws) => {
       if (ws.isAlive === false) {
@@ -130,7 +134,7 @@ export default async (expServer) => {
       ws.isAlive = false;
       ws.ping();
     });
-  }, 10000);
+  }, 60000);
 
   wss.on('close', () => {
     clearInterval(interval);
