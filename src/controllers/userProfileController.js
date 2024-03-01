@@ -246,7 +246,7 @@ const userProfileController = function (UserProfile) {
     up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
     up.actualEmail = req.body.actualEmail;
-    up.isVisible = !['Administrator', 'Mentor', 'Owner'].includes(req.body.role);
+    up.isVisible = !['Mentor'].includes(req.body.role);
 
     up.save()
       .then(() => {
