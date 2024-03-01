@@ -1071,7 +1071,7 @@ const userHelper = function () {
                 changeBadgeCount(
                   personId,
                   badgeCollection[i].badge._id,
-                  badgeCollection[i].badge.count - 1,
+                  badgeCollection[i].count - 1,
                 );
                 removed = true;
                 return false;
@@ -1318,8 +1318,8 @@ const userHelper = function () {
     await badge
       .find({ type: 'X Hours for X Week Streak', weeks: 1 })
       .sort({ totalHrs: -1 })
-      .then((results) => {
-        results.every((elem) => {
+      .then(results => {
+        results.every(elem => {
           if (elem.totalHrs <= user.lastWeekTangibleHrs) {
             let theBadge;
             for (let i = 0; i < badgesOfType.length; i += 1) {
@@ -1341,21 +1341,55 @@ const userHelper = function () {
     // Check each Streak Greater than One to check if it works
     await badge
       .aggregate([
-        { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1 } } },
-        { $sort: { weeks: -1, totalHrs: -1 } },
-        {
-          $group: {
-            _id: '$weeks',
-            badges: {
-              $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' },
+      { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1 } } },
+      // Group by 'week' property and sorting groups in descending order by 'week', then sorting badges within groups by 'totalHrs' in descending order.
+      {
+        $group: {
+          _id: '$weeks',
+          badges: {
+            $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          badges: {
+            $slice: [
+              {
+                $map: {
+                  input: '$badges',
+                  in: {
+                    _id: '$$this._id',
+                    hrs: '$$this.hrs',
+                    weeks: '$$this.weeks',
+                  },
+                },
+              },
+              { $size: '$badges' },
+            ],
+          },
+        },
+      },
+      { $unwind: '$badges' },
+      { $sort: { _id: -1, 'badges.hrs': -1 } }, // Primary sort on _id, secondary sort on badges.hrs
+      {
+        $group: {
+          _id: '$_id',
+          badges: {
+            $push: {
+              _id: '$badges._id',
+              hrs: '$badges.hrs',
+              weeks: '$badges.weeks',
             },
           },
         },
-      ])
-      .then((results) => {
+      },
+      { $sort: { _id: -1 } }, // Add this $sort stage for the final sorting by _id
+    ]).then(results => {
         let lastHr = -1;
-        results.forEach((streak) => {
-          streak.badges.every((bdge) => {
+        results.forEach(streak => {
+          streak.badges.every(bdge => {
             let badgeOfType;
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
@@ -1416,22 +1450,80 @@ const userHelper = function () {
                     bdge.weeks,
                   );
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
-                  increaseBadgeCount(
-                    personId,
-                    mongoose.Types.ObjectId(badgeOfType._id),
-                  );
-                  removePrevHrBadge(
-                    personId,
-                    user,
-                    badgeCollection,
-                    bdge.hrs,
-                    bdge.weeks,
-                  );
+                    const lowerBound = badgeOfType.weeks;
+                    let upperBound;
+                    streak = 0;
+  
+                    switch (bdge.weeks) {
+                      case 2:
+                        // In between 2Wk and 3Wk
+                        upperBound = 3;
+                        break;
+                      case 3:
+                        // In between 3Wk and 4Wk
+                        upperBound = 4;
+                        break;
+                      case 4:
+                        // In between 4Wk and 6Wk
+                        upperBound = 6;
+                        break;
+                      case 6:
+                        // In between 6Wk and 10Wk
+                        upperBound = 10;
+                        break;
+                      case 10:
+                        // In between 10Wk and 15Wk
+                        upperBound = 15;
+                        break;
+                      case 15:
+                        // In between 50Wk and 20Wk
+                        upperBound = 20;
+                        break;
+                      case 20:
+                        // In between 20Wk and 40Wk
+                        upperBound = 40;
+                        break;
+                      case 40:
+                        // In between 40Wk and 60Wk
+                        upperBound = 60;
+                        break;
+                      case 60:
+                        // In between 60Wk and 80Wk
+                        upperBound = 80;
+                        break;
+                      case 80:
+                        // In between 80Wk and 100Wk
+                        upperBound = 100;
+                        break;
+                      case 100:
+                        // In between 100Wk and 150Wk
+                        upperBound = 150;
+                        break;
+                      case 150:
+                        // In between 150Wk and 200Wk
+                        upperBound = 200;
+                        break;
+                      default:
+                        // Default case. Exiting function.
+                        return;
+                    }
+                    for (let i = endOfArr; i >= endOfArr - upperBound + 1; i -= 1) {
+                      if (user.savedTangibleHrs[i] >= bdge.hrs) {
+                        streak += 1;
+                      }
+                    }
+                    if (streak > lowerBound && streak < upperBound) {
+                      console.log('You are currently building an existing streak, no badge awarded.');
+                    } else {
+                      console.log('You are currently building a new streak, new badge awarded');
+                      increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
+                      removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
+                    }
+                  }
+                  return false;
                 }
-                return false;
               }
-            }
-            return true;
+              return true;
           });
         });
       });
@@ -1769,6 +1861,7 @@ const userHelper = function () {
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
+    checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
