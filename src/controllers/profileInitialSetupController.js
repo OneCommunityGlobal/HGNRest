@@ -8,6 +8,14 @@ const cache = require('../utilities/nodeCache')();
 const { hasPermission } = require('../utilities/permissions');
 const LOGGER = require('../startup/logger');
 
+
+const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
+const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
+const TOKEN_INVALID_MESSAGE = 'INVALID';
+const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
+const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
+
+
 // returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
   const message = `<p>Hello,</p>
@@ -77,6 +85,7 @@ function informManagerMessage(user) {
     <p>One Community</p>`;
   return message;
 }
+
 
 const sendEmailWithAcknowledgment = (email, subject, message) => new Promise((resolve, reject) => {
     emailSender(email, subject, message, null, null, null, (error, result) => {
@@ -170,16 +179,18 @@ const profileInitialSetupController = function (
         const expirationMoment = moment(foundToken.expiration);
 
         if (foundToken.isSetupCompleted) {
-          res.status(400).send('User has been setup already.');
+          res.status(400).send(TOKEN_HAS_SETUP_MESSAGE);
         } else if (foundToken.isCancelled) {
-          res.status(400).send('Token is invalided by admin.');
+          res.status(400).send(TOKEN_CANCEL_MESSAGE);
         } else if (expirationMoment.isAfter(currentMoment)) {
           res.status(200).send(foundToken);
+        } else if (expirationMoment.isBefore(currentMoment)) {
+          res.status(400).send(TOKEN_EXPIRED_MESSAGE);
         } else {
-          res.status(400).send('Invalid token');
+          res.status(400).send(TOKEN_INVALID_MESSAGE);
         }
       } else {
-        res.status(404).send('Token not found');
+        res.status(404).send(TOKEN_NOT_FOUND_MESSAGE);
       }
     } catch (error) {
       res.status(500).send(`Error finding token: ${error}`);
