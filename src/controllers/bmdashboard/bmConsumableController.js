@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const bmConsumableController = function (BuildingConsumable) {
   const fetchBMConsumables = async (req, res) => {
     try {
@@ -43,16 +45,16 @@ const bmConsumableController = function (BuildingConsumable) {
       consumableId,
       quantity,
       priority,
-      brandRef,
+      brand : brandPref,
       requestor: { requestorId },
     } = req.body;
     const newPurchaseRecord = {
       quantity,
       priority,
-      brandRef,
+      brandPref,
       requestedBy: requestorId,
     };
-    try {
+     try {
       const doc = await BuildingConsumable.findOne({ project: projectId, itemType: consumableId });
       if (!doc) {
         const newDoc = {
@@ -74,7 +76,7 @@ const bmConsumableController = function (BuildingConsumable) {
         .exec()
         .then(() => res.status(201).send())
         .catch(error => res.status(500).send(error));
-    } catch (error) {
+      } catch (error) {
       res.status(500).send(error);
     }
   };
