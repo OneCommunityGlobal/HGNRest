@@ -299,7 +299,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch((error) => logger.logException(error));
+      .catch(error => logger.logException(error));
   };
 
   /**
@@ -980,7 +980,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          (item) => item.badge._id.toString() === badgeId.toString(),
+          item => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error('Badge not found');
@@ -1192,8 +1192,8 @@ const userHelper = function () {
     badgeCollection,
   ) {
     const badgesOfType = badgeCollection
-      .map((obj) => obj.badge)
-      .filter((badgeItem) => badgeItem.type === 'Minimum Hours Multiple');
+      .map(obj => obj.badge)
+      .filter(badgeItem => badgeItem.type === 'Minimum Hours Multiple');
     await badge
       .find({ type: 'Minimum Hours Multiple' })
       .sort({ multiple: -1 })
@@ -1210,7 +1210,7 @@ const userHelper = function () {
             >= elem.multiple
           ) {
             const theBadge = badgesOfType.find(
-              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
+              badgeItem => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(
@@ -1271,8 +1271,8 @@ const userHelper = function () {
       && user.lastWeekTangibleHrs > user.weeklycommittedHours
     ) {
       const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === 'Most Hrs in Week')
-        .map((object) => object.badge);
+        .filter(object => object.badge.type === 'Most Hrs in Week')
+        .map(object => object.badge);
       await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
         userProfile
           .aggregate([
@@ -1534,12 +1534,12 @@ const userHelper = function () {
     ];
 
     const badgesOfType = badgeCollection
-      .filter((object) => object.badge.type === 'Total Hrs in Category')
-      .map((object) => object.badge);
+      .filter(object => object.badge.type === 'Total Hrs in Category')
+      .map(object => object.badge);
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(
-        (elem) => elem === category,
+        elem => elem === category,
       );
 
       let badgeOfType;
