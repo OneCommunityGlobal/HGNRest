@@ -977,18 +977,21 @@ const userHelper = function () {
         if (!recordToUpdate) {
           throw new Error("Badge not found");
         }
+        // If the count is the same, do nothing
+        if (recordToUpdate.count === count) {
+          return;
+        }
         const copyOfEarnedDate = recordToUpdate.earnedDate;
-        if (copyOfEarnedDate.length < count) {
+        // Update: We refrain from automatically correcting the mismatch problem as we intend to preserve the original
+        // earned date even when a badge is deleted. This approach ensures that a record of badges earned is maintained,
+        // preventing oversight of any mismatches caused by bugs.
+        if (recordToUpdate.count < count) {
+          let dateToAdd = count - recordToUpdate.count;
           // if the EarnedDate count is less than the new count, add a earned date to the end of the collection
-          while (copyOfEarnedDate.length < count) {
+          while (dateToAdd > 0) {
             copyOfEarnedDate.push(earnedDateBadge());
+            dateToAdd -= 1;
           }
-        } else {
-          // if the EarnedDate count is greater than the new count, remove the oldest earned date of the collection until it matches the new count - 1
-          while (copyOfEarnedDate.length >= count) {
-            copyOfEarnedDate.shift();
-          }
-          copyOfEarnedDate.push(earnedDateBadge());
         }
         newEarnedDate = [...copyOfEarnedDate];
         userProfile.updateOne(
@@ -998,6 +1001,8 @@ const userHelper = function () {
               "badgeCollection.$.count": count,
               "badgeCollection.$.lastModified": Date.now().toString(),
               "badgeCollection.$.earnedDate": newEarnedDate,
+              "badgeCollection.$.hasBadgeDeletionImpact":
+                recordToUpdate.count > count, // badge deletion impact set to true if the new count is less than the old count
             },
           },
           (err) => {
@@ -1183,6 +1188,7 @@ const userHelper = function () {
     user,
     badgeCollection
   ) {
+    console.log("#2");
     const badgesOfType = badgeCollection
       .map((obj) => obj.badge)
       .filter((badgeItem) => badgeItem.type === "Minimum Hours Multiple");
@@ -1297,7 +1303,6 @@ const userHelper = function () {
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
     // Handle Increasing the 1 week streak badges
-    console.log("#2");
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === "X Hours for X Week Streak") {
@@ -1608,11 +1613,11 @@ const userHelper = function () {
   };
 
   const awardNewBadges = async () => {
-    console.log("#1");
     try {
       const users = await userProfile
-        .find({ email: "renanluizadmin@gmail.com" })
+        .find({ email: "renanvolunteer@gmail.com" })
         .populate("badgeCollection.badge");
+
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;

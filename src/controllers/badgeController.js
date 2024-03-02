@@ -42,7 +42,11 @@ const badgeController = function (Badge) {
       })
       .catch((error) => res.status(500).send(error));
   };
-
+  const testHourSequence = async function (req, res) {
+    console.log("entered");
+    await userHelper.awardNewBadges();
+    res.status(200).send("Badges tested");
+  };
   /**
    * Updated Date: 12/06/2023
    * Updated By: Shengwei
@@ -264,21 +268,15 @@ const badgeController = function (Badge) {
       }
       res.status(200).send({ message: "Badge successfully updated" });
     });
-
-    const testHourSequence = async function (req, res) {
-      console.log("entered");
-      await userHelper.awardNewBadges();
-      res.status(200).send("Badges tested");
-    };
   };
 
   return {
+    testHourSequence,
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
     putBadge,
-    testHourSequence,
   };
 };
 
