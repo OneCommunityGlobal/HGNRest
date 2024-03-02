@@ -1750,14 +1750,12 @@ const userHelper = function () {
 
   const deleteOldTimeOffRequests = async () => {
     const endOfLastWeek = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(1, 'week');
-
-    const utcEndMoment = moment(endOfLastWeek).add(1, "second");
+    .tz("America/Los_Angeles")
+    .endOf("week")
+    .subtract(1, "week");
+    const utcEndMoment = moment(endOfLastWeek).subtract(1, 'day').add(1, "second");
     try {
-      await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
-      console.log("Deleted expired time off requests.");
+       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
     } catch (error) {
       console.error("Error deleting expired time off requests:", error);
     }
