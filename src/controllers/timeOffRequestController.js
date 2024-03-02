@@ -12,8 +12,8 @@ function userNotificationEmail(name, action = "") {
     <p>Thank you,</p>
     <p>One Community</p>`
       : `<p>Hello,</p>
-    <p>Thank you ${name} for scheduling your time off.<br> 
-    The Admin and your Managers have been notified of this request and no further action is needed on your part.</p>   
+    <p>Thank you ${name} for scheduling your time off.</p> 
+    <p>The Admin and your Managers have been notified of this request and no further action is needed on your part.</p>   
     <p>Thank you,</p>
     <p>One Community</p>`;
   return message;
@@ -41,7 +41,7 @@ function adminsNotificationEmail(
           startDate
         ).format("YYYY-MM-DD")} to ${moment(endDate).format("YYYY-MM-DD")}</p>
     <p>If you need to, please make a note of this in your schedule and make any necessary plans for their action item(s).<br>
-     As an additional reminder, their name in the Leaderboard and Tasks list will also reflect their absence for the week they are off.</p>
+     As an additional reminder, their name in the Leaderboard and Tasks list will also reflect their absence for the time they are off.</p>
      <p>Thank you,</p>
     <p>One Community</p>`;
   return message;
