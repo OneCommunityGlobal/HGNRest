@@ -19,12 +19,12 @@ const ownerMessage = require('../models/ownerMessage');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
-const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
+const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const {
   invTypeBase,
   materialType,
@@ -99,7 +99,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
 const emailRouter = require('../routes/emailRouter')();
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest,team,userProfile);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -123,6 +123,9 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   );
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(
   buildingTool,
+);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(
+  buildingIssue,
 );
 
 module.exports = function (app) {
@@ -150,7 +153,6 @@ module.exports = function (app) {
   app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', profileInitialSetupRouter);
-  app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
@@ -167,4 +169,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api', timeOffRequestRouter);
+  app.use('api', bmIssueRouter);
 };

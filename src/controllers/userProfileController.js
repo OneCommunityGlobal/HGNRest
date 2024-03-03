@@ -243,6 +243,7 @@ const userProfileController = function (UserProfile) {
     up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
     up.actualEmail = req.body.actualEmail;
+    up.isVisible = !['Mentor'].includes(req.body.role);
 
     up.save()
       .then(() => {
@@ -702,7 +703,7 @@ const userProfileController = function (UserProfile) {
     }
     // Check if the requestor has the permission to update passwords.
     const hasUpdatePasswordPermission = await hasPermission(
-      requestor.role,
+      requestor,
       'updatePassword',
     );
 

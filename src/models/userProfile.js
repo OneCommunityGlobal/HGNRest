@@ -81,6 +81,7 @@ const userProfileSchema = new Schema({
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
       lastModified: { type: Date, required: true, default: new Date()},
+      hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
         required: true,
