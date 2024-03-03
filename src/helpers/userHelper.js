@@ -1773,9 +1773,9 @@ const userHelper = function () {
       const cheerio = require('cheerio');
       const $ = cheerio.load(response);
       const imgElements = $('img');
-      const userProfiles = await userProfile.find( {
+      const userProfiles = await userProfile.find({
         // comment out the line below for testing
-        // firstName: 'yourname',
+        // firstName: 'your name here',
         isActive: true
       });
 
@@ -1827,13 +1827,6 @@ const userHelper = function () {
           profile.profilePic = pictureList[0];
         } else if (pictureList.length > 1) {
           profile.storedPics = pictureList;
-          const emailBody = `Hi ${ firstName }, <br><br> We found multiple pictures for you on our website. Please choose one of them and send it to us. <br><br> Thanks, <br> One Community`;
-          // console.log(email)
-          emailSender( email, 
-            'Multiple pictures found in team page',
-            emailBody,
-            null,
-            'onecommunityglobal@gmail.com');
         }
         try {
           await profile.save();
