@@ -290,7 +290,7 @@ const userProfileController = function (UserProfile) {
       || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
     if (!isRequestorAuthorized && !canToggleRequestBio) {
-orized) {
+        {
 
       res.status(403).send('You are not authorized to update this user');
       return;
