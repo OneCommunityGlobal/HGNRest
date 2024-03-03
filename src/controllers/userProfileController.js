@@ -373,18 +373,11 @@ const userProfileController = function (UserProfile) {
         userData = allUserData[userIdx];
       }
       if (
-
-        (await hasPermission(
-          req.body.requestor,
-          "putUserProfileImportantInfo"
-        )) ||
-        (await hasPermission(req.body.requestor, "manageAdminLinks"))
+        await hasPermission(req.body.requestor, "manageAdminLinks")
       ) {
-        record.role = req.body.role;
-        record.isRehireable = req.body.isRehireable;
-        record.isActive = req.body.isActive;
+        record.adminLinks = req.body.adminLinks;
 
-       
+       if (await hasPermission(req.body.requestor, "putUserProfileImportantInfo")
       ) {
         const importantFields = [
           'role',
