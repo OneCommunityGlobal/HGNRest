@@ -92,7 +92,6 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(
   ownerMessage,
 );
 
-const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
   mouseoverText,
 );
