@@ -1,21 +1,21 @@
-const express = require("express");
+const express = require('express');
 
 const routes = function (badge) {
-  const controller = require("../controllers/badgeController")(badge);
+  const controller = require('../controllers/badgeController')(badge);
 
   const badgeRouter = express.Router();
-  badgeRouter.route("/badge/testHourSequence").get(controller.testHourSequence);
+  badgeRouter.route('/badge/testHourSequence').get(controller.testHourSequence);
   badgeRouter
-    .route("/badge")
+    .route('/badge')
     .get(controller.getAllBadges)
     .post(controller.postBadge);
 
   badgeRouter
-    .route("/badge/:badgeId")
+    .route('/badge/:badgeId')
     .delete(controller.deleteBadge)
     .put(controller.putBadge);
 
-  badgeRouter.route("/badge/assign/:userId").put(controller.assignBadges);
+  badgeRouter.route('/badge/assign/:userId').put(controller.assignBadges);
 
   return badgeRouter;
 };
