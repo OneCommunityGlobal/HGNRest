@@ -1032,9 +1032,12 @@ const userProfileController = function (UserProfile) {
 
   // Search for user by full name (first and last)
   const getUserByFullName = (req, res) => {
-    // Creates an array containing the first and last name and filters out whitespace
-    const fullNameRegex = new RegExp(`${req.params.fullName}`, 'i');
-
+    // Sanitize user input and escape special characters
+    const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
+  
+    // Create a regular expression to match the sanitized full name, ignoring case
+    const fullNameRegex = new RegExp(sanitizedFullName, 'i');
+  
     UserProfile.find({
       $or: [
         { firstName: { $regex: fullNameRegex } },
@@ -1050,6 +1053,10 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(500).send(error));
   };
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   return {
     postUserProfile,
