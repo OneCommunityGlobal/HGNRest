@@ -1188,7 +1188,6 @@ const userHelper = function () {
     user,
     badgeCollection
   ) {
-    console.log("#2");
     const badgesOfType = badgeCollection
       .map((obj) => obj.badge)
       .filter((badgeItem) => badgeItem.type === "Minimum Hours Multiple");
