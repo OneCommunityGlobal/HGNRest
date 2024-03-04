@@ -991,7 +991,6 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
-
   // function escapeRegExp(string) {
   //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // }
