@@ -19,6 +19,7 @@ const ownerMessage = require('../models/ownerMessage');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
+const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
@@ -92,13 +93,14 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(
   ownerMessage,
 );
 
+const emailRouter = require('../routes/emailRouter')();
+const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
   mouseoverText,
 );
-const emailRouter = require('../routes/emailRouter')();
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest,team,userProfile);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -152,6 +154,7 @@ module.exports = function (app) {
   app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', profileInitialSetupRouter);
+  app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
