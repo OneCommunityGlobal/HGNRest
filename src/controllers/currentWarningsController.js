@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const userProfile = require("../models/userProfile");
 const currentWarningsController = function (currentWarnings) {
   const getCurrentWarnings = async (req, res) => {
     try {
@@ -63,6 +63,37 @@ const currentWarningsController = function (currentWarnings) {
   //delete will delete the  warning and all warnings assocaited with it
   const deleteWarningDescription = async (req, res) => {
     try {
+      //   if (!await hasPermission(req.body.requestor, 'deleteRole')) {
+      //     res.status(403).send('You are not authorized to delete roles.');
+      //     return;
+      //   }
+
+      //   const { roleId } = req.params;
+      //   Role.findById(roleId)
+      //     .then(result => (
+      //       result
+      //         .remove()
+      //         .then(UserProfile
+      //           .updateMany({ role: result.roleName }, { role: 'Volunteer' })
+      //           .then(() => {
+      //             const isUserInCache = cache.hasCache('allusers');
+      //             if (isUserInCache) {
+      //               const allUserData = JSON.parse(cache.getCache('allusers'));
+      //               allUserData.forEach((user) => {
+      //                 if (user.role === result.roleName) {
+      //                   user.role = 'Volunteer';
+      //                   cache.removeCache(`user-${user._id}`);
+      //                 }
+      //               });
+      //               cache.setCache('allusers', JSON.stringify(allUserData));
+      //             }
+      //             res.status(200).send({ message: 'Deleted role' });
+      //           })
+      //           .catch(error => res.status(400).send({ error })))
+      //         .catch(error => res.status(400).send({ error }))
+      //     ))
+      //     .catch(error => res.status(400).send({ error }));
+      // };
       // if (!(await hasPermission(req.body.requestor, 'deleteBadges'))) {
       //   res
       //     .status(403)
@@ -90,13 +121,80 @@ const currentWarningsController = function (currentWarnings) {
       //     .catch((errors) => {
       //       res.status(500).send(errors);
       //     });
+      // const { MongoClient } = require('mongodb');
+
+      // async function deleteAndReturnDocument(client, dbName, collectionName, filter) {
+      //     const db = client.db(dbName);
+      //     const collection = db.collection(collectionName);
+
+      //     try {
+      //         // Find the document to be deleted
+      //         const documentToDelete = await collection.findOne(filter);
+
+      //         // Delete the document
+      //         const result = await collection.deleteOne(filter);
+      //         console.log(`Deleted ${result.deletedCount} document.`);
+
+      //         // Return the deleted document
+      //         return documentToDelete;
+      //     } catch (error) {
+      //         console.error('Error deleting document:', error);
+      //         return null;
+      //     }
+      // }
+
+      // async function main() {
+      //     const uri = 'mongodb://localhost:27017';
+      //     const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+
+      //     try {
+      //         await client.connect();
+
+      //         const dbName = 'myDatabase';
+      //         const collectionName = 'myCollection';
+      //         const filter = { _id: 'someDocumentId' };
+
+      //         const deletedDocument = await deleteAndReturnDocument(client, dbName, collectionName, filter);
+      //         console.log('Deleted document:', deletedDocument);
+      //     } finally {
+      //         await client.close();
+      //     }
+      // }
+
+      // main().catch(console.error);
+
+      //find the document to be dleted via the id
+      //then delte the document
+      //then itertate through all the usres' descritpions and delete the warning
 
       const { warningDescriptionId } = req.params;
+      console.log("warningDescriptionId", warningDescriptionId);
+      // Find the document to be deleted
+      const documentToDelete = await currentWarnings.findById(
+        warningDescriptionId
+      );
 
       await currentWarnings.deleteOne({
         _id: mongoose.Types.ObjectId(warningDescriptionId),
       });
 
+      console.log("document to delete", documentToDelete);
+      const deletedDescription = documentToDelete.warningTitle;
+
+      await userProfile
+        .updateMany(
+          {
+            "warnings.description": deletedDescription,
+          },
+          {
+            $pull: {
+              warnings: { description: deletedDescription },
+            },
+          }
+        )
+        .then((response) => console.log("res", response));
+
+      // UserProfile.updateMany(
       // will delete all corresponding warnings on each user
       //new feature and needs to incorpoarted
 
