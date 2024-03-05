@@ -19,12 +19,12 @@ const ownerMessage = require('../models/ownerMessage');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
-const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
+const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const {
   invTypeBase,
   materialType,
@@ -93,13 +93,10 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(
   ownerMessage,
 );
 
-const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
-const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
-  mouseoverText,
-);
+const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest,team,userProfile);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -113,9 +110,13 @@ const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(
   buildingNewLesson,
 );
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
+
 const bmEquipmentsRouter = require('../routes/bmdashboard/bmEquipmentsRouter')(buildingEquipment);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(
+  buildingIssue,
+);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -142,7 +143,6 @@ module.exports = function (app) {
   app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', profileInitialSetupRouter);
-  app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
@@ -159,4 +159,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmEquipmentsRouter);
   app.use('/api', timeOffRequestRouter);
+  app.use('api', bmIssueRouter);
 };
