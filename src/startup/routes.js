@@ -95,7 +95,7 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest,team,userProfile);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest, team, userProfile);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
