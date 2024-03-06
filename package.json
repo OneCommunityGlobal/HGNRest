@@ -72,6 +72,9 @@
   "nodemonConfig": {
     "watch": [
       "/src/**/*"
-    ]
+    ],
+    "env": {
+      "PORT": 3001
+    }
   }
 }
