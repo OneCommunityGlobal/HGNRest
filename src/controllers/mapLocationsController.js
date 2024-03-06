@@ -18,7 +18,7 @@ const mapLocationsController = function (MapLocation) {
           users.push(item);
         }
       });
-      const modifiedUsers = users.map((item) => ({
+      const modifiedUsers = users.map(item => ({
         location: item.location,
         isActive: item.isActive,
         jobTitle: item.jobTitle[0],
@@ -42,7 +42,7 @@ const mapLocationsController = function (MapLocation) {
 
     MapLocation.findOneAndDelete({ _id: locationId })
       .then(() => res.status(200).send({ message: 'The location was successfully removed!' }))
-      .catch((error) => res.status(500).send({ message: error || "Couldn't remove the location" }));
+      .catch(error => res.status(500).send({ message: error || "Couldn't remove the location" }));
   };
   const putUserLocation = async function (req, res) {
     if (!req.body.requestor.role === 'Owner') {
