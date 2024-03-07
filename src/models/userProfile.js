@@ -1,9 +1,9 @@
-const mongoose = require("mongoose");
-const moment = require("moment-timezone");
+const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 
 const { Schema } = mongoose;
-const validate = require("mongoose-validator");
-const bcrypt = require("bcryptjs");
+const validate = require('mongoose-validator');
+const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
 const nextDay = new Date();
@@ -15,12 +15,11 @@ const userProfileSchema = new Schema({
     required: true,
     validate: {
       validator(v) {
-        const passwordregex =
-          /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
         return passwordregex.test(v);
       },
       message:
-        "{VALUE} is not a valid password!password should be at least 8 charcaters long with uppercase, lowercase and number/special char.",
+        '{VALUE} is not a valid password!password should be at least 8 charcaters long with uppercase, lowercase and number/special char.',
     },
   },
   isActive: { type: Boolean, required: true, default: true },
@@ -41,7 +40,9 @@ const userProfileSchema = new Schema({
     minlength: 2,
     index: true,
   },
-  lastName: { type: String, required: true, minlength: 2, index: true },
+  lastName: {
+ type: String, required: true, minlength: 2, index: true,
+},
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -50,7 +51,7 @@ const userProfileSchema = new Schema({
     required: true,
     unique: true,
     validate: [
-      validate({ validator: "isEmail", message: "Email address is invalid" }),
+      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
     ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
@@ -69,11 +70,11 @@ const userProfileSchema = new Schema({
     { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
   ],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
-  teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: "team" }],
-  projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: "project" }],
+  teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
-      badge: { type: mongoose.SchemaTypes.ObjectId, ref: "badge" },
+      badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
       lastModified: { type: Date, required: true, default: new Date() },
@@ -100,29 +101,29 @@ const userProfileSchema = new Schema({
         type: String,
         required: true,
         enum: [
-          "Better Descriptions",
-          "Log Time to Tasks",
-          "Log Time as You Go",
-          "Log Time to Action Items",
-          "Intangible Time Log w/o Reason",
+          'Better Descriptions',
+          'Log Time to Tasks',
+          'Log Time as You Go',
+          'Log Time to Action Items',
+          'Intangible Time Log w/o Reason',
         ],
       },
       color: {
         type: String,
-        enum: ["red", "blue", "white", "yellow"],
+        enum: ['red', 'blue', 'white', 'yellow'],
         required: true,
-        default: "white",
+        default: 'white',
       },
     },
   ],
   location: {
-    userProvided: { type: String, default: "" },
+    userProvided: { type: String, default: '' },
     coords: {
-      lat: { type: Number, default: "" },
-      lng: { type: Number, default: "" },
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
     },
-    country: { type: String, default: "" },
-    city: { type: String, default: "" },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
   },
   oldInfringements: [
     {
@@ -144,7 +145,7 @@ const userProfileSchema = new Schema({
       dueDate: {
         type: Date,
         required: true,
-        default: moment().tz("America/Los_Angeles").endOf("week"),
+        default: moment().tz('America/Los_Angeles').endOf('week'),
       },
       summary: { type: String },
       uploadDate: { type: Date },
@@ -174,17 +175,17 @@ const userProfileSchema = new Schema({
       category: {
         type: String,
         enum: [
-          "Food",
-          "Energy",
-          "Housing",
-          "Education",
-          "Society",
-          "Economics",
-          "Stewardship",
-          "Other",
-          "Unspecified",
+          'Food',
+          'Energy',
+          'Housing',
+          'Education',
+          'Society',
+          'Economics',
+          'Stewardship',
+          'Other',
+          'Unspecified',
         ],
-        default: "Other",
+        default: 'Other',
       },
       hrs: { type: Number, default: 0 },
     },
@@ -195,27 +196,27 @@ const userProfileSchema = new Schema({
       date: {
         type: Date,
         required: true,
-        default: moment().tz("America/Los_Angeles").toDate(),
+        default: moment().tz('America/Los_Angeles').toDate(),
       },
       initialSeconds: { type: Number, required: true },
       newSeconds: { type: Number, required: true },
     },
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
-  timeZone: { type: String, required: true, default: "America/Los_Angeles" },
+  timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
   isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
-  bioPosted: { type: String, default: "default" },
+  bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
   teamCode: {
     type: String,
-    default: "",
+    default: '',
     validate: {
       validator(v) {
         const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
         return teamCoderegex.test(v);
       },
-      message: "Please enter a code in the format of A-AAA or AAAAA",
+      message: 'Please enter a code in the format of A-AAA or AAAAA',
     },
   },
   infoCollections: [
@@ -231,9 +232,9 @@ const userProfileSchema = new Schema({
   getWeeklyReport: { type: Boolean },
 });
 
-userProfileSchema.pre("save", function (next) {
+userProfileSchema.pre('save', function (next) {
   const user = this;
-  if (!user.isModified("password")) return next();
+  if (!user.isModified('password')) return next();
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
@@ -246,7 +247,7 @@ userProfileSchema.pre("save", function (next) {
 });
 
 module.exports = mongoose.model(
-  "userProfile",
+  'userProfile',
   userProfileSchema,
-  "userProfiles"
+  'userProfiles',
 );

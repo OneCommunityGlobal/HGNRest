@@ -169,8 +169,8 @@ const reporthelper = function () {
       result.timeEntries.forEach((entry) => {
         const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
         if (
-          result.totalSeconds[index] === undefined ||
-          result.totalSeconds[index] === null
+          result.totalSeconds[index] === undefined
+          || result.totalSeconds[index] === null
         ) {
           result.totalSeconds[index] = 0;
         }
@@ -193,7 +193,7 @@ const reporthelper = function () {
         mappedResults = results.map((ele) => ele.email);
         mappedResults.push(
           "onecommunityglobal@gmail.com",
-          "onecommunityhospitality@gmail.com"
+          "onecommunityhospitality@gmail.com",
         );
         console.log("results:", mappedResults);
       });
