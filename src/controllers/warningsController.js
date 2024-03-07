@@ -76,10 +76,6 @@ const warningsController = function (UserProfile) {
       if (!record) {
         return res.status(400).send({ message: "No valid records found" });
       }
-      console.log("req.body", req.body);
-      console.log("req.record", record.warnings);
-
-      // console.log("record", record.warnings);
 
       record.warnings = record.warnings.concat({
         userId,
@@ -167,10 +163,6 @@ const sortByColorAndDate = (a, b) => {
 };
 
 const filterWarnings = (currentWarningDescriptions, warnings) => {
-  // console.log(
-  //   "currentwanrings descriptions in filter",
-  //   currentWarningDescriptions
-  // );
   const warningsObject = {};
 
   warnings.forEach((warning) => {

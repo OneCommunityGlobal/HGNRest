@@ -9,13 +9,14 @@ const currentWarningsController = function (currentWarnings) {
       }
       return res.status(201).send({ currentWarningDescriptions: response });
     } catch (error) {
-      console.log("error", error);
+      res.status(401).send({ message: error.message || error });
     }
   };
 
   const postNewWarningDescription = async (req, res) => {
     //post to the db using mongodb methods
     //search a method to post id will be generated
+
     try {
       const { newWarning, activeWarning } = req.body;
 
@@ -25,6 +26,14 @@ const currentWarningsController = function (currentWarnings) {
         return res.status(400).send({ message: "no valid records" });
       }
 
+      const duplicateFound = warnings.some(
+        (warning) => warning.warningTitle === newWarning
+      );
+      if (duplicateFound) {
+        console.log("duplicateFound", duplicateFound);
+        return res.status(422).send({ error: "warning already exists" });
+      }
+      // console.log("warnings", warnings);
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
       newWarningDescription.activeWarning = activeWarning;
@@ -33,8 +42,8 @@ const currentWarningsController = function (currentWarnings) {
       await newWarningDescription.save();
 
       return res.status(201).send({ newWarnings: warnings });
-    } catch (err) {
-      console.log("error", err);
+    } catch (error) {
+      res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -48,15 +57,14 @@ const currentWarningsController = function (currentWarnings) {
         { new: true }
       );
 
-      // console.log("response", response);
       const updatedWarningDescription = {
         _id: response._id,
         activeWarning: response.activeWarning,
       };
 
       res.status(201).send(updatedWarningDescription);
-    } catch (err) {
-      console.log("error", err);
+    } catch (error) {
+      res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -178,21 +186,22 @@ const currentWarningsController = function (currentWarnings) {
         _id: mongoose.Types.ObjectId(warningDescriptionId),
       });
 
-      console.log("document to delete", documentToDelete);
+      // console.log("document to delete", documentToDelete);
       const deletedDescription = documentToDelete.warningTitle;
 
-      await userProfile
-        .updateMany(
-          {
-            "warnings.description": deletedDescription,
-          },
-          {
-            $pull: {
-              warnings: { description: deletedDescription },
-            },
-          }
-        )
-        .then((response) => console.log("res", response));
+      //deletes all warnings from users too
+      // await userProfile
+      //   .updateMany(
+      //     {
+      //       "warnings.description": deletedDescription,
+      //     },
+      //     {
+      //       $pull: {
+      //         warnings: { description: deletedDescription },
+      //       },
+      //     }
+      //   )
+      //   .then((response) => console.log("res", response));
 
       // UserProfile.updateMany(
       // will delete all corresponding warnings on each user
@@ -211,8 +220,8 @@ const currentWarningsController = function (currentWarnings) {
         message:
           "warning description was successfully deleted and user profiles updated",
       });
-    } catch (err) {
-      console.log("error", err);
+    } catch (error) {
+      res.status(401).send({ message: error.message || error });
     }
   };
 
