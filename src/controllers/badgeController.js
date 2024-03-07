@@ -205,7 +205,7 @@ const badgeController = function (Badge) {
         return;
       }
       // Return badge count from user profile
-      res.status(200).send({ count: record.badgeCount });
+      res.status(200).send({ badgeCount: record.badgeCount });
     });
   };
 
@@ -217,7 +217,7 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
-      record.badgeCount = 1;
+      record.badgeCount = 5;
 
       record
         .save()
@@ -228,6 +228,26 @@ const badgeController = function (Badge) {
         });
     });
   };
+
+  const resetBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 0;
+
+      record
+        .save()
+        .then(results => res.status(201).send(results._id))
+        .catch((err) => {
+          logger.logException(err);
+          res.status(500).send('Internal Error: Unable to save the record.');
+        });
+    });
+  }
 
   const putBadge = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'updateBadges'))) {
@@ -283,6 +303,7 @@ const badgeController = function (Badge) {
     putBadge,
     getBadgeCount,
     putBadgecount,
+    resetBadgecount,
   };
 };
 

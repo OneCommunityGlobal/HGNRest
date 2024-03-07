@@ -20,6 +20,9 @@ const routes = function (badge) {
     .get(controller.getBadgeCount)
     .put(controller.putBadgecount);
 
+  badgeRouter.route('/badge/badgecount/reset/:userId')
+    .put(controller.resetBadgecount);
+
   return badgeRouter;
 };
 

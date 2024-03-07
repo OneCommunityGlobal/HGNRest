@@ -142,7 +142,6 @@ module.exports = function (app) {
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
-  app.use('/api', badgeCountRouter);
   app.use('/api', inventoryRouter);
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
