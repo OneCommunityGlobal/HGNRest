@@ -16,6 +16,7 @@ const Reason = require("../models/reason");
 const token = require("../models/profileInitialSetupToken");
 const cache = require("../utilities/nodeCache")();
 const timeOffRequest = require("../models/timeOffRequest");
+const { chromium } = require( "playwright" );
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -1755,6 +1756,92 @@ const userHelper = function () {
       console.error("Error deleting expired time off requests:", error);
     }
   };
+  const updateProfilesPic = async () => {
+    try {
+      console.log('update picture')
+      const browser = await chromium.launch();
+      const page = await browser.newPage();
+      await page.goto('https://www.onecommunityglobal.org/team/', { waitUntil: 'networkidle' }); // Wait for network to be idle
+      
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+      await page.waitForTimeout(1000); 
+
+
+      const response = await page.content();
+      await browser.close();
+
+      // Now you can parse the response with Cheerio
+      const cheerio = require('cheerio');
+      const $ = cheerio.load(response);
+      const imgElements = $('img');
+      const userProfiles = await userProfile.find({
+        // comment out the line below for testing
+        // firstName: 'your name here',
+        isActive: true
+      });
+
+      for (let profile of userProfiles) {
+        const { firstName, lastName, profilePic, isActive, email } = profile;
+        if (profilePic) {
+          if (profilePic.includes('onecommunityglobal.org')) {
+            let startIndex = profilePic.indexOf('onecommunityglobal.org/');
+            // Extract from 'onecommunityglobal.org/' to the end of the string
+            let profilePicName = profilePic.substring(startIndex);
+            for (let i = 0; i < imgElements.length; i++) {
+              const imgElement = imgElements[i];
+              const imgSrc = $(imgElement).attr('src'); // Use 'src' instead of 'nitro-lazy-src'
+                if (imgSrc && imgSrc.includes(profilePicName)) {
+                  profile.profilePic = imgSrc;
+                  break;
+                }
+            }
+          }
+          continue;
+        }
+        const pictureList = [];
+        for (let i = 0; i < imgElements.length; i++) {
+          const imgElement = imgElements[i];
+          const imgAlt = $(imgElement).attr('alt');
+          let imgSrc = $(imgElement).attr('nitro-lazy-src'); // Use 'src' instead of 'nitro-lazy-src'
+          if (imgSrc && imgSrc.includes('onecommunityglobal.org')) {
+             let startIndex = imgSrc.indexOf('onecommunityglobal.org/');
+            // Extract from 'onecommunityglobal.org/' to the end of the string
+            let profilePicName = imgSrc.substring(startIndex);
+            imgSrc = 'https://www.' + profilePicName;
+          }
+          if (
+            imgAlt &&
+            imgAlt.toLowerCase().includes(firstName.toLowerCase()) &&
+            imgAlt.toLowerCase().includes(lastName.toLowerCase())
+          ) {
+            pictureList.push(imgSrc);
+            // console.log(imgSrc)
+          } else if (
+            imgAlt &&
+            imgAlt.toLowerCase().includes(lastName.toLowerCase())
+          ) {
+            pictureList.push(imgSrc);
+            // console.log(imgSrc)
+          }
+        }
+        if (pictureList.length === 1) {
+          profile.profilePic = pictureList[0];
+        } else if (pictureList.length > 1) {
+          profile.storedPics = pictureList;
+        }
+        try {
+          await profile.save();
+          console.log(`Profile for ${firstName} ${lastName} updated successfully.`);
+        } catch (error) {
+          console.error('Error saving profile:', error);
+        }
+      }
+      console.log('Profiles updated successfully');
+    } catch (error) {
+      console.error('Error updating profiles:', error);
+    }
+  };
+
 
   return {
     changeBadgeCount,
@@ -1773,6 +1860,7 @@ const userHelper = function () {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
+    updateProfilesPic
   };
 };
 
