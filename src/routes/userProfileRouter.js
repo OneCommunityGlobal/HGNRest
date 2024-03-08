@@ -54,6 +54,10 @@ const routes = function (userProfile) {
     .get(controller.getUserByName);
 
   userProfileRouter
+    .route('/userProfile/:userId/rehireable')
+    .patch(controller.changeUserRehireableStatus);
+
+  userProfileRouter
     .route('/userProfile/singleName/:singleName')
     .get(controller.getUserBySingleName);
 
