@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
+
 const filename = 'BuildingUnits.json';
 const currentFilePath = __filename;
 const rootPath = path.resolve(path.dirname(currentFilePath), '../../../'); // Go up three levels to the root
 const filepath = path.join(rootPath, filename);
-const readFile = fs.readFile;
-const writeFile = fs.writeFile;
+const { readFile } = fs;
+const { writeFile } = fs;
 
 function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
   async function fetchMaterialTypes(req, res) {
@@ -22,7 +23,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
-      console.log(__dirname,filepath)
+      console.log(__dirname, filepath);
       readFile(filepath, 'utf8', (err, data) => {
         if (err) {
           console.error('Error reading file:', err);
