@@ -103,6 +103,9 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRe
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
+
+const chatGPTRouter = require('../routes/chatGPTRouter')();
+
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(
   buildingMaterial,
 );
@@ -166,6 +169,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
+  app.use('/api', chatGPTRouter);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api', timeOffRequestRouter);

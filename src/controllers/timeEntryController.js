@@ -628,6 +628,39 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const removeHtml = str => `${str}`.replace(/<\/?[^>]*>|(\n|\t|)|(\s)/g, '');
+
+  // get timeEntries for current week
+  const getTimeEntriesForCurrentWeek = async (req) => {
+    const { userid } = req.body;
+    const startOfWeek = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const endOfWeek = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+
+
+    try {
+      const timeEntries = await TimeEntry.find({
+        personId: userid,
+        dateOfWork: { $gte: startOfWeek, $lte: endOfWeek },
+      });
+
+      // Extract and return the notes
+      const notes = timeEntries.map(entry => entry.notes);
+
+      const tmp = [];
+      if (Array.isArray(notes)) {
+        notes.forEach((item) => {
+          tmp.push(removeHtml(item));
+        });
+      }
+      // console.log(tmp, 22222);
+      return tmp;
+      // res.status(200).json(notes);
+    } catch (e) {
+      // console.error(e);
+      return null;
+    }
+  };
+
   const getLostTimeEntriesForUserList = function (req, res) {
     const { users, fromDate, toDate } = req.body;
 
@@ -749,6 +782,7 @@ const timeEntrycontroller = function (TimeEntry) {
     deleteTimeEntry,
     getTimeEntriesForSpecifiedProject,
     checkTaskOvertime,
+    getTimeEntriesForCurrentWeek,
     getLostTimeEntriesForUserList,
     getLostTimeEntriesForProjectList,
     getLostTimeEntriesForTeamList,
