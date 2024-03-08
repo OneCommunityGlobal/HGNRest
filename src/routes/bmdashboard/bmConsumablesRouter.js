@@ -6,6 +6,9 @@ const routes = function (BuildingConsumable) {
 
   BuildingConsumableController.route('/consumables')
     .get(controller.fetchBMConsumables);
+  
+  BuildingConsumableController.route('/updateConsumablesRecord')
+    .post(controller.bmPostConsumableUpdateRecord);
 
   return BuildingConsumableController;
 };
