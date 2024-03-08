@@ -896,6 +896,53 @@ const userProfileController = function (UserProfile) {
       });
   };
 
+  const changeUserRehireableStatus = async function (req, res) {
+    const { userId } = req.params;
+    const { isRehireable } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).send({ error: 'Bad Request' });
+    }
+    if (!(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))) {
+        return res.status(403).send('You are not authorized to change rehireable status');
+    }
+
+    // Invalidate the cache for this user
+    cache.removeCache(`user-${userId}`);
+
+    UserProfile.findByIdAndUpdate(
+        userId,
+        { $set: { isRehireable } },
+        { new: true },
+        (error, updatedUser) => {
+            if (error) {
+                return res.status(500).send(error);
+            }
+            // Check if there's a cache for all users and update it accordingly
+            const isUserInCache = cache.hasCache('allusers');
+            if (isUserInCache) {
+                const allUserData = JSON.parse(cache.getCache('allusers'));
+                const userIdx = allUserData.findIndex((users) => users._id === userId);
+                const userData = allUserData[userIdx];
+                userData.isRehireable = isRehireable;
+                allUserData.splice(userIdx, 1, userData);
+                cache.setCache('allusers', JSON.stringify(allUserData));
+            }
+
+            // Optionally, re-fetch the user to verify the updated data
+            UserProfile.findById(userId, (err, verifiedUser) => {
+                if (err) {
+                    return res.status(500).send('Error fetching updated user data.');
+                }
+                res.status(200).send({
+                    message: 'Rehireable status updated and verified successfully',
+                    isRehireable: verifiedUser.isRehireable,
+                });
+            });
+        },
+    );
+};
+
   const resetPassword = function (req, res) {
     ValidatePassword(req);
 
@@ -1028,6 +1075,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    changeUserRehireableStatus,
   };
 };
 
