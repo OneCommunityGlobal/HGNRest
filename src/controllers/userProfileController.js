@@ -664,9 +664,9 @@ const userProfileController = function (UserProfile) {
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
-}
+    }
 
-      return UserProfile.findById(userId)
+    return UserProfile.findById(userId)
       .then((user) => {
         user.set({
           [key]: value,
@@ -950,7 +950,7 @@ const userProfileController = function (UserProfile) {
 
   // Search for user by first name
   const getUserBySingleName = (req, res) => {
-    const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+    const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
     // Searches for first or last name
     UserProfile.find({
@@ -980,8 +980,8 @@ const userProfileController = function (UserProfile) {
       .split(' ')
       .filter((name) => name !== '');
     // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${ escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${ escapeRegExp(fullName[1])}`, 'i');
+    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
+    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
 
     // Verfies both the first and last name are present
     if (fullName.length < 2) {
@@ -1006,6 +1006,38 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
+  /**
+   * Authorizes user to be able to add Weekly Report Recipients
+   */
+  const authorizeUser = async (req, res) => {
+    try {
+      await UserProfile.findOne({
+        email: {
+          $regex: escapeRegex('jae@onecommunityglobal.org'), // PLEASE CHANGE THIS EMAIL TO MATCH THE USER PROFILE WHILE TESTING THE PR
+          $options: 'i',
+        },
+      }).then(async (user) => {
+        await bcrypt
+          .compare(req.body.currentPassword, user.password)
+          .then((passwordMatch) => {
+            if (!passwordMatch) {
+              return res.status(400).send({
+                error: 'Incorrect current password',
+              });
+            }
+            return res
+              .status(200)
+              .send({ message: 'Correct Password, Password matches!' });
+          })
+          .catch((error) => {
+            res.status(500).send(error);
+          });
+      });
+    } catch (err) {
+      res.status(500).send(err);
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1025,6 +1057,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    authorizeUser,
   };
 };
 
