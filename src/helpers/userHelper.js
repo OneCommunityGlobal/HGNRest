@@ -92,8 +92,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
         <p><b>Description:</b> ${
-          requestForTimeOffEmailBody ? requestForTimeOffEmailBody :
-          infringement.description }</p>
+          requestForTimeOffEmailBody || infringement.description }</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -283,7 +282,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch((error) => logger.logException(error));
+      .catch(error => logger.logException(error));
   };
 
   /**
@@ -440,7 +439,7 @@ const userHelper = function () {
             requestForTimeOff.endingDate,
           ).format('dddd YYYY-MM-DD');
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, Due to ${requestForTimeOffreason}`
+          requestForTimeOffEmailBody = `You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, Due to ${requestForTimeOffreason}`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -524,7 +523,7 @@ const userHelper = function () {
           const infringement = {
             date: moment().utc().format('YYYY-MM-DD'),
             description,
-            createdDate : hasTimeOffRequest ? moment(requestForTimeOff.createdAt).format("YYYY-MM-DD") : null
+            createdDate: hasTimeOffRequest ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD') : null,
           };
 
           const status = await userProfile.findByIdAndUpdate(
@@ -960,7 +959,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          (item) => item.badge._id.toString() === badgeId.toString(),
+          item => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error('Badge not found');
@@ -1176,8 +1175,8 @@ const userHelper = function () {
     badgeCollection,
   ) {
     const badgesOfType = badgeCollection
-      .map((obj) => obj.badge)
-      .filter((badgeItem) => badgeItem.type === 'Minimum Hours Multiple');
+      .map(obj => obj.badge)
+      .filter(badgeItem => badgeItem.type === 'Minimum Hours Multiple');
     await badge
       .find({ type: 'Minimum Hours Multiple' })
       .sort({ multiple: -1 })
@@ -1194,7 +1193,7 @@ const userHelper = function () {
             >= elem.multiple
           ) {
             const theBadge = badgesOfType.find(
-              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
+              badgeItem => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(
@@ -1255,8 +1254,8 @@ const userHelper = function () {
       && user.lastWeekTangibleHrs > user.weeklycommittedHours
     ) {
       const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === 'Most Hrs in Week')
-        .map((object) => object.badge);
+        .filter(object => object.badge.type === 'Most Hrs in Week')
+        .map(object => object.badge);
       await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
         userProfile
           .aggregate([
@@ -1518,12 +1517,12 @@ const userHelper = function () {
     ];
 
     const badgesOfType = badgeCollection
-      .filter((object) => object.badge.type === 'Total Hrs in Category')
-      .map((object) => object.badge);
+      .filter(object => object.badge.type === 'Total Hrs in Category')
+      .map(object => object.badge);
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(
-        (elem) => elem === category,
+        elem => elem === category,
       );
 
       let badgeOfType;

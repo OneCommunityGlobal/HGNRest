@@ -99,7 +99,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
 );
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest,team,userProfile);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest, team, userProfile);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
