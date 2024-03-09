@@ -1042,7 +1042,10 @@ const userProfileController = function (UserProfile) {
             }
             return res
               .status(200)
-              .send({ message: "Correct Password, Password matches!" });
+              .send({
+                message: "Correct Password, Password matches!",
+                password: req.body.currentPassword,
+              });
           })
           .catch((error) => {
             res.status(500).send(error);
