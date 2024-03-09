@@ -38,8 +38,14 @@ const userProfileSchema = new Schema({
     required: true,
     trim: true,
     minlength: 2,
+    index: true,
   },
-  lastName: { type: String, required: true, minlength: 2 },
+  lastName: {
+    type: String,
+    required: true,
+    minlength: 2,
+    index: true,
+  },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -51,6 +57,7 @@ const userProfileSchema = new Schema({
       validate({ validator: 'isEmail', message: 'Email address is invalid' }),
     ],
   },
+  copiedAiPrompt: { type: Date, default: Date.now() },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -73,7 +80,8 @@ const userProfileSchema = new Schema({
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
-      lastModified: { type: Date, required: true, default: Date.now() },
+      lastModified: { type: Date, required: true, default: new Date() },
+      hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
         required: true,
@@ -86,6 +94,29 @@ const userProfileSchema = new Schema({
     {
       date: { type: String, required: true },
       description: { type: String, required: true },
+      createdDate: { type: String },
+    },
+  ],
+  warnings: [
+    {
+      date: { type: String, required: true },
+      description: {
+        type: String,
+        required: true,
+        enum: [
+          'Better Descriptions',
+          'Log Time to Tasks',
+          'Log Time as You Go',
+          'Log Time to Action Items',
+          'Intangible Time Log w/o Reason',
+        ],
+      },
+      color: {
+        type: String,
+        enum: ['red', 'blue', 'white', 'yellow'],
+        required: true,
+        default: 'white',
+      },
     },
   ],
   location: {
@@ -176,7 +207,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
@@ -201,6 +232,7 @@ const userProfileSchema = new Schema({
   actualEmail: { type: String },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
+  getWeeklyReport: { type: Boolean },
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -209,12 +241,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then(result => bcrypt.hash(user.password, result))
+    .then((result) => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch(error => next(error));
+    .catch((error) => next(error));
 });
 
 module.exports = mongoose.model(
