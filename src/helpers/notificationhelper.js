@@ -41,7 +41,6 @@ const notificationhelper = function () {
       });
   };
 
-
   return {
     notificationcreated,
     notificationedited,
