@@ -46,8 +46,8 @@ const bmToolController = (BuildingTool) => {
                     },
                 ])
                 .exec()
-                .then((tool) => res.status(200).send(tool))
-                .catch((error) => res.status(500).send(error));
+                .then(tool => res.status(200).send(tool))
+                .catch(error => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -84,7 +84,7 @@ const bmToolController = (BuildingTool) => {
             BuildingTool
               .create(newDoc)
               .then(() => res.status(201).send())
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
               return;
           }
 
@@ -95,7 +95,7 @@ const bmToolController = (BuildingTool) => {
               )
               .exec()
               .then(() => res.status(201).send())
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
         } catch (error) {
           res.status(500).send(error);
         }
