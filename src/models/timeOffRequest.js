@@ -9,6 +9,6 @@ const timeOffRequest = new Schema({
   endingDate: { type: Date },
   duration: { type: Number, required: true }, // in weeks
 
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('timeOffRequest', timeOffRequest, 'timeOffRequests');

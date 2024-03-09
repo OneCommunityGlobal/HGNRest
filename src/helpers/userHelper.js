@@ -71,17 +71,6 @@ const userHelper = function () {
     };
   };
 
-  const formatTimeOffRequestsDescription = (inputString) => {
-    const searchTerm = 'Notice:';
-    if (inputString.includes(searchTerm)) {
-      const parts = inputString.split(searchTerm);
-      const formattedString = `${parts[0]}<br><b>${searchTerm}</b>`
-        + `<span style="font-style: italic;">${parts[1]}<span/>`;
-      return formattedString;
-    }
-    return inputString;
-  };
-
   const getInfringementEmailBody = function (
     firstName,
     lastName,
@@ -102,14 +91,9 @@ const userHelper = function () {
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        ${
-          requestForTimeOffEmailBody
-            ? `\n<p><b>Reason Time Requested Off:</b> ${requestForTimeOffEmailBody} </p>`
-            : ''
-        }
-        <p><b>Description:</b> ${formatTimeOffRequestsDescription(
-          infringement.description,
-        )}</p>
+        <p><b>Description:</b> ${
+          requestForTimeOffEmailBody ? requestForTimeOffEmailBody :
+          infringement.description }</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -343,11 +327,6 @@ const userHelper = function () {
 
         const person = await userProfile.findById(user._id);
 
-        const foundReason = await Reason.findOne({
-          date: currentUTCDate,
-          userId: user._id,
-        });
-
         const personId = mongoose.Types.ObjectId(user._id);
 
         let hasWeeklySummary = false;
@@ -437,7 +416,7 @@ const userHelper = function () {
         const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
 
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'second');
+        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
 
         const requestsForTimeOff = await timeOffRequest.find({
           requestFor: personId,
@@ -453,7 +432,7 @@ const userHelper = function () {
         let requestForTimeOffEmailBody;
 
         if (hasTimeOffRequest) {
-          [requestForTimeOff] = requestsForTimeOff;
+          requestForTimeOff = requestsForTimeOff[0];
           requestForTimeOffStartingDate = moment(
             requestForTimeOff.startingDate,
           ).format('dddd YYYY-MM-DD');
@@ -461,12 +440,12 @@ const userHelper = function () {
             requestForTimeOff.endingDate,
           ).format('dddd YYYY-MM-DD');
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `Unavailable from ${requestForTimeOffStartingDate}, to ${requestForTimeOffEndingDate}, due to ${requestForTimeOffreason}`;
+          requestForTimeOffEmailBody = `You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, Due to ${requestForTimeOffreason}`
         }
 
         if (timeNotMet || !hasWeeklySummary) {
-          if (foundReason) {
-            description = foundReason.reason;
+          if (hasTimeOffRequest) {
+            description = requestForTimeOffreason;
           } else if (timeNotMet && !hasWeeklySummary) {
             if (person.role === 'Core Team') {
               description = (
@@ -545,6 +524,7 @@ const userHelper = function () {
           const infringement = {
             date: moment().utc().format('YYYY-MM-DD'),
             description,
+            createdDate : hasTimeOffRequest ? moment(requestForTimeOff.createdAt).format("YYYY-MM-DD") : null
           };
 
           const status = await userProfile.findByIdAndUpdate(
@@ -1746,10 +1726,9 @@ const userHelper = function () {
       .endOf('week')
       .subtract(1, 'week');
 
-    const utcEndMoment = moment(endOfLastWeek).add(1, 'second');
+    const utcEndMoment = moment(endOfLastWeek).subtract(1, 'day').add(1, 'second');
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
-      console.log('Deleted expired time off requests.');
     } catch (error) {
       console.error('Error deleting expired time off requests:', error);
     }
