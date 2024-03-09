@@ -1,4 +1,5 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
 
 const currentWarnings = new Schema({
@@ -7,7 +8,7 @@ const currentWarnings = new Schema({
 });
 
 module.exports = mongoose.model(
-  "currentWarning",
+  'currentWarning',
   currentWarnings,
-  "currentWarnings"
+  'currentWarnings',
 );
