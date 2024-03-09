@@ -4,32 +4,16 @@ const currentWarnings = require("../models/currentWarnings");
 
 let currentWarningDescriptions = null;
 
-// check user profile for caching the warnings
-//see how they do it.
-//check if its in cache if not then fetch it
-// return cachce
-//otherwise fetch and store the data and return it to the users'
-//when deleteing on a warning should refresh the frontend even if it is opened
-// the button
-
 async function getWarningDescriptions() {
   currentWarningDescriptions = await currentWarnings.find(
     {},
     { warningTitle: 1, _id: 0 }
   );
 }
-// const descriptions = [
-//   "Better Descriptions",
-//   "Log Time to Tasks",
-//   "Log Time as You Go",
-//   "Log Time to Action Items",
-//   "Intangible Time Log w/o Reason",
-// ];
 
 const convertObjectToArray = (obj) => {
   const arr = [];
-  for (let key of obj) {
-    // console.log("key", key);
+  for (const key of obj) {
     arr.push(key.warningTitle);
   }
   return arr;
@@ -37,16 +21,13 @@ const convertObjectToArray = (obj) => {
 
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
-    currentWarningDescriptions = await currentWarnings.find(
-      { activeWarning: true }
-      // { warningTitle: 1, _id: 0 }
-    );
-    // console.log("currentWarningDescriptions", currentWarningDescriptions);
+    currentWarningDescriptions = await currentWarnings.find({
+      activeWarning: true,
+    });
 
     currentWarningDescriptions = convertObjectToArray(
       currentWarningDescriptions
     );
-    // console.log("currentWarningDescriptions", currentWarningDescriptions);
     const { userId } = req.params;
 
     try {
@@ -133,12 +114,10 @@ const warningsController = function (UserProfile) {
 };
 
 // gests the dsecriptions key from the array
-const getDescriptionKey = (val) => {
+const getDescriptionKey = (val) =>
   //  currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
 
-  return currentWarningDescriptions.indexOf(val);
-};
-
+  currentWarningDescriptions.indexOf(val);
 const sortKeysAlphabetically = (a, b) =>
   getDescriptionKey(a) - getDescriptionKey(b);
 
