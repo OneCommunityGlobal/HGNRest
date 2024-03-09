@@ -6,8 +6,8 @@ const bmIssueController = function (BuildingIssue) {
             BuildingIssue
             .find()
             .populate()
-            .then(result => res.status(200).send(result))
-            .catch(error => res.status(500).send(error));
+            .then((result) => res.status(200).send(result))
+            .catch((error) => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -16,8 +16,8 @@ const bmIssueController = function (BuildingIssue) {
     const bmPostIssue = async (req, res) => {
         try {
             const newIssue = BuildingIssue.create(req.body)
-            .then(result => res.status(201).send(result))
-            .catch(error => res.status(500).send(error));
+            .then((result) => res.status(201).send(result))
+            .catch((error) => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
