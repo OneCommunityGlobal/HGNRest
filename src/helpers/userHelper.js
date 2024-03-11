@@ -16,6 +16,7 @@ const Reason = require("../models/reason");
 const token = require("../models/profileInitialSetupToken");
 const cache = require("../utilities/nodeCache")();
 const timeOffRequest = require("../models/timeOffRequest");
+const timeUtils = require("../utilities/timeUtils");
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -362,6 +363,9 @@ const userHelper = function () {
         .endOf("week")
         .subtract(1, "week");
 
+      /* Note from Shengwei (3/11/24) Potential enhancement:
+        The following code block would cache the result in memory. What if we have millions of user -> may lead to perforamnce.
+      */
       const users = await userProfile.find(
         { isActive: true },
         "_id weeklycommittedHours weeklySummaries missedHours",
@@ -370,7 +374,19 @@ const userHelper = function () {
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
       // There's no need to put Promise.all here
-      for (let i = 0; i < users.length; i += 1) {
+      /*
+      Note from Shengwei (3/11/24) Potential enhancement:
+        I think we could remove the for loop to update find user profile by batch to reduce db roundtrips.
+        Otherwise, each record checking and update require at least 1 db roundtrip. Then, we could use for loop to do email sending.
+
+        Do something like:
+        do while (batch != lastBatch)
+          const lsOfResult = await userProfile.find({ _id: { $in: arrayOfIds } }
+          for item in lsOfResult:
+            // do the update and checking
+          // save updated records in batch (mongoose updateMany) and do asyc email sending
+      */
+     for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
         const person = await userProfile.findById(user._id);
@@ -412,6 +428,24 @@ const userHelper = function () {
         let description;
 
         const timeRemaining = weeklycommittedHours - timeSpent;
+
+         /** Check if the user is new user to prevent blue sqaure assignment
+         * Condition:
+         *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *
+         * Notes:
+         *  1. Start date is automatically updated upon frist time-log.
+         *  2. User meet above condition but meet minimum hours without submitting weekly summary
+         *     should get a blue square as reminder.
+         *  */
+         let isNewUser = false;
+         if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0) {
+           if ((moment(person.startDate).isAfter(pdtStartOfLastWeek))
+             || (moment(person.startDate).isBefore(pdtStartOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
+               isNewUser = true;
+             }
+         }
 
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
@@ -560,50 +594,55 @@ const userHelper = function () {
           const infringement = {
             date: moment().utc().format("YYYY-MM-DD"),
             description,
+
           };
-
-          const status = await userProfile.findByIdAndUpdate(
-            personId,
-            {
-              $push: {
-                infringements: infringement,
+          // Only assign blue square if:
+          // 1. The user is not a new user
+          // 2. The user is a new user and met the time requirement but weekly summary not submitted
+          if (!isNewUser || (isNewUser && !timeNotMet && !hasWeeklySummary)) {
+            const status = await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $push: {
+                  infringements: infringement,
+                },
               },
-            },
-            { new: true },
-          );
-
-          let emailBody = "";
-          if (person.role === "Core Team" && timeRemaining > 0) {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              timeRemaining,
-              coreTeamExtraHour,
-              requestForTimeOffEmailBody,
+              { new: true },
             );
-          } else {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              undefined,
+
+            let emailBody = "";
+            if (person.role === "Core Team" && timeRemaining > 0) {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                timeRemaining,
+                coreTeamExtraHour,
+                requestForTimeOffEmailBody,
+              );
+            } else {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                undefined,
+                null,
+                requestForTimeOffEmailBody,
+              );
+            }
+
+            emailSender(
+              status.email,
+              "New Infringement Assigned",
+              emailBody,
               null,
-              requestForTimeOffEmailBody,
+              "onecommunityglobal@gmail.com",
+              status.email,
+              null,
             );
           }
-
-          emailSender(
-            status.email,
-            "New Infringement Assigned",
-            emailBody,
-            null,
-            "onecommunityglobal@gmail.com",
-            status.email,
-            null,
-          );
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,
