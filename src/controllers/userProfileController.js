@@ -142,8 +142,7 @@ const userProfileController = function (UserProfile) {
 
     if (userByEmail) {
       res.status(400).send({
-        error:
-          'That email address is already in use. Please choose another email address.',
+        error: 'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
@@ -191,8 +190,7 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error:
-            'That phone number is already in use. Please choose another number.',
+          error: 'That phone number is already in use. Please choose another number.',
           type: 'phoneNumber',
         });
         return;
@@ -206,8 +204,7 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error:
-          'That name is already in use. Please confirm if you want to use this name.',
+        error: 'That name is already in use. Please confirm if you want to use this name.',
         type: 'name',
       });
       return;
@@ -246,6 +243,7 @@ const userProfileController = function (UserProfile) {
     up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
     up.actualEmail = req.body.actualEmail;
+    up.isVisible = !['Mentor'].includes(req.body.role);
 
     up.save()
       .then(() => {
@@ -408,9 +406,7 @@ const userProfileController = function (UserProfile) {
 
           // If their last update was made today, remove that
           const lasti = record.weeklycommittedHoursHistory.length - 1;
-          const lastChangeDate = moment(
-            record.weeklycommittedHoursHistory[lasti].dateChanged,
-          );
+          const lastChangeDate = moment(record.weeklycommittedHoursHistory[lasti].dateChanged);
           const now = moment();
 
           if (lastChangeDate.isSame(now, 'day')) {
@@ -640,6 +636,7 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
+
       .then((results) => {
         res.status(200).send(results);
       })
@@ -667,9 +664,9 @@ const userProfileController = function (UserProfile) {
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
-}
+    }
 
-      return UserProfile.findById(userId)
+    return UserProfile.findById(userId)
       .then((user) => {
         user.set({
           [key]: value,
@@ -953,7 +950,7 @@ const userProfileController = function (UserProfile) {
 
   // Search for user by first name
   const getUserBySingleName = (req, res) => {
-    const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+    const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
     // Searches for first or last name
     UserProfile.find({
@@ -983,8 +980,8 @@ const userProfileController = function (UserProfile) {
       .split(' ')
       .filter((name) => name !== '');
     // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${ escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${ escapeRegExp(fullName[1])}`, 'i');
+    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
+    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
 
     // Verfies both the first and last name are present
     if (fullName.length < 2) {
@@ -1009,6 +1006,38 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
+  /**
+   * Authorizes user to be able to add Weekly Report Recipients
+   */
+  const authorizeUser = async (req, res) => {
+    try {
+      await UserProfile.findOne({
+        email: {
+          $regex: escapeRegex('jae@onecommunityglobal.org'), // PLEASE CHANGE THIS EMAIL TO MATCH THE USER PROFILE WHILE TESTING THE PR
+          $options: 'i',
+        },
+      }).then(async (user) => {
+        await bcrypt
+          .compare(req.body.currentPassword, user.password)
+          .then((passwordMatch) => {
+            if (!passwordMatch) {
+              return res.status(400).send({
+                error: 'Incorrect current password',
+              });
+            }
+            return res
+              .status(200)
+              .send({ message: 'Correct Password, Password matches!' });
+          })
+          .catch((error) => {
+            res.status(500).send(error);
+          });
+      });
+    } catch (err) {
+      res.status(500).send(err);
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1028,6 +1057,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    authorizeUser,
   };
 };
 
