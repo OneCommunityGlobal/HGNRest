@@ -36,9 +36,7 @@ const rolesController = function (Role) {
   const getRoleById = function (req, res) {
     const { roleId } = req.params;
     Role.findById(roleId)
-      .then((results) => {
-        return res.status(200).send(results);
-      })
+      .then((results) => res.status(200).send(results))
       .catch((error) => res.status(404).send({ error }));
   };
 
