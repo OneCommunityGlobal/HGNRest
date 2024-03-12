@@ -38,13 +38,14 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const bmPurchaseMaterials = async function (req, res) {
     const {
-      projectId,
-      matTypeId,
+      primaryId: projectId,
+      secondaryId: matTypeId,
       quantity,
       priority,
       brand: brandPref,
       requestor: { requestorId },
     } = req.body;
+
     try {
       // check if requestor has permission to make purchase request
       //! Note: this code is disabled until permissions are added
@@ -221,11 +222,9 @@ const bmMaterialsController = function (BuildingMaterial) {
       );
       Promise.all(updatePromises)
         .then((results) => {
-          res
-            .status(200)
-            .send({
-              result: `Successfully posted log for ${results.length} Material records.`,
-            });
+          res.status(200).send({
+            result: `Successfully posted log for ${results.length} Material records.`,
+          });
         })
         .catch((error) => res.status(500).send(error));
     } catch (err) {

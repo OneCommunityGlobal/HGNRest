@@ -2,7 +2,7 @@ const moment = require("moment-timezone");
 const mongoose = require("mongoose");
 const userProfile = require("../models/userProfile");
 const timeentry = require("../models/timeentry");
-const myTeam = require("../helpers/helperModels/myTeam");
+const myTeam = require("./helperModels/myTeam");
 const team = require("../models/team");
 
 const dashboardhelper = function () {

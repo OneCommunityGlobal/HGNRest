@@ -6,7 +6,7 @@ const routes = function (BuildingTool) {
 
     toolRouter.route('/tools/:toolId')
         .get(controller.fetchSingleTool);
-    
+
     toolRouter.route('/tools/purchase')
         .post(controller.bmPurchaseTools);
 
