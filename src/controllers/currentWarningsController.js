@@ -86,18 +86,17 @@ const currentWarningsController = function (currentWarnings) {
       // deletes all warnings from users too
       //look into why this works
 
-      await userProfile
-        .updateMany(
-          {
-            "warnings.description": deletedDescription,
+      await userProfile.updateMany(
+        {
+          "warnings.description": deletedDescription,
+        },
+        {
+          $pull: {
+            warnings: { description: deletedDescription },
           },
-          {
-            $pull: {
-              warnings: { description: deletedDescription },
-            },
-          }
-        )
-        .then((response) => console.log("res", response));
+        }
+      );
+      // .then((response) => console.log("res", response));
 
       res.status(200).send({
         message:
