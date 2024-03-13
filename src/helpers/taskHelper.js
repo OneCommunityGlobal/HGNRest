@@ -23,6 +23,7 @@ const taskHelper = function () {
           weeklySummaries: 1,
           timeOffFrom: 1,
           timeOffTill: 1,
+          adminLinks: 1,
         },
       );
 
@@ -61,6 +62,7 @@ const taskHelper = function () {
               weeklycommittedHours: 1,
               timeOffFrom: 1,
               timeOffTill: 1,
+              adminLinks: 1,
             },
           );
           break;
@@ -86,6 +88,7 @@ const taskHelper = function () {
               weeklycommittedHours: 1,
               timeOffFrom: 1,
               timeOffTill: 1,
+              adminLinks: 1,
             },
           );
           break;
@@ -111,12 +114,13 @@ const taskHelper = function () {
               weeklycommittedHours: 1,
               timeOffFrom: 1,
               timeOffTill: 1,
+              adminLinks: 1,
             },
           );
         }
       }
 
-      teamMemberIds = teamMembers.map((member) => member._id);
+      teamMemberIds = teamMembers.map(member => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
@@ -149,7 +153,7 @@ const taskHelper = function () {
         path: 'wbsId',
         select: 'projectId',
       });
-      const teamMemberTaskIds = teamMemberTasks.map((task) => task._id);
+      const teamMemberTaskIds = teamMemberTasks.map(task => task._id);
       const teamMemberTaskNotifications = await TaskNotification.find({
         taskId: { $in: teamMemberTaskIds },
       });
@@ -206,6 +210,7 @@ const taskHelper = function () {
           tasks: taskByPerson[teamMember._id.toString()] || [],
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
+          adminLinks: teamMember.adminLinks || null,
         };
         teamMemberTasksData.push(obj);
       });

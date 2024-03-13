@@ -39,7 +39,7 @@ const badgeController = function (Badge) {
         cache.setCache('allBadges', results);
         res.status(200).send(results);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   /**
@@ -95,18 +95,6 @@ const badgeController = function (Badge) {
           // Validation: count should be greater than 0
           if (element.count < 1) {
             throw new Error('Badge count should be greater than 0.');
-          }
-          if (element.count !== element.earnedDate.length) {
-            element.earnedDate = fillEarnedDateToMatchCount(
-              element.earnedDate,
-              element.count,
-            );
-            element.lastModified = Date.now();
-            logger.logInfo(
-              `Badge count and earned dates mismatched found. ${Date.now()} was generated for user ${userToBeAssigned}. Badge record ID ${
-                element._id
-              }; Badge Type ID ${element.badge}`,
-            );
           }
           return element;
         });
@@ -178,7 +166,7 @@ const badgeController = function (Badge) {
           }
           res.status(201).send(results);
         })
-        .catch((errors) => res.status(500).send(errors));
+        .catch(errors => res.status(500).send(errors));
     });
   };
 
