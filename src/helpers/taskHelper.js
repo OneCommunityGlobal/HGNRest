@@ -122,7 +122,7 @@ const taskHelper = function () {
         }
       }
 
-      teamMemberIds = teamMembers.map((member) => member._id);
+      teamMemberIds = teamMembers.map(member => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
@@ -155,7 +155,7 @@ const taskHelper = function () {
         path: "wbsId",
         select: "projectId",
       });
-      const teamMemberTaskIds = teamMemberTasks.map((task) => task._id);
+      const teamMemberTaskIds = teamMemberTasks.map(task => task._id);
       const teamMemberTaskNotifications = await TaskNotification.find({
         taskId: { $in: teamMemberTaskIds },
       });

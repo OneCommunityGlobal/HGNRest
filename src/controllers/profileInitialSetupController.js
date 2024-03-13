@@ -347,13 +347,13 @@ const profileInitialSetupController = function (
           users.push(item);
         }
       });
-      const modifiedUsers = users.map((item) => ({
+      const modifiedUsers = users.map(item => ({
         location: item.location,
       }));
 
       const mapUsers = await MapLocation.find({});
       const combined = [...modifiedUsers, ...mapUsers];
-      const countries = combined.map((user) => user.location.country);
+      const countries = combined.map(user => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
       res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
