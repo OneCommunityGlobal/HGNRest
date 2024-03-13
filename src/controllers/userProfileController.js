@@ -94,7 +94,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getProjectMembers = async function (req, res) {
@@ -142,8 +142,7 @@ const userProfileController = function (UserProfile) {
 
     if (userByEmail) {
       res.status(400).send({
-        error:
-          'That email address is already in use. Please choose another email address.',
+        error: 'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
@@ -191,8 +190,7 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error:
-            'That phone number is already in use. Please choose another number.',
+          error: 'That phone number is already in use. Please choose another number.',
           type: 'phoneNumber',
         });
         return;
@@ -206,8 +204,7 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error:
-          'That name is already in use. Please confirm if you want to use this name.',
+        error: 'That name is already in use. Please confirm if you want to use this name.',
         type: 'name',
       });
       return;
@@ -271,7 +268,7 @@ const userProfileController = function (UserProfile) {
         allUserCache.push(userCache);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch((error) => res.status(501).send(error));
+      .catch(error => res.status(501).send(error));
   };
 
   const putUserProfile = async function (req, res) {
@@ -368,7 +365,7 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
       if (
@@ -409,9 +406,7 @@ const userProfileController = function (UserProfile) {
 
           // If their last update was made today, remove that
           const lasti = record.weeklycommittedHoursHistory.length - 1;
-          const lastChangeDate = moment(
-            record.weeklycommittedHoursHistory[lasti].dateChanged,
-          );
+          const lastChangeDate = moment(record.weeklycommittedHoursHistory[lasti].dateChanged);
           const now = moment();
 
           if (lastChangeDate.isSame(now, 'day')) {
@@ -497,7 +492,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch((error) => res.status(400).send(error));
+        .catch(error => res.status(400).send(error));
     });
   };
 
@@ -565,7 +560,7 @@ const userProfileController = function (UserProfile) {
 
     cache.removeCache(`user-${userId}`);
     const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex((users) => users._id === userId);
+    const userIdx = allUserData.findIndex(users => users._id === userId);
     allUserData.splice(userIdx, 1);
     cache.setCache('allusers', JSON.stringify(allUserData));
 
@@ -632,7 +627,7 @@ const userProfileController = function (UserProfile) {
             res.status(200).send(results);
           });
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -641,10 +636,11 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
+
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -681,9 +677,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -757,11 +753,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -800,7 +796,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -817,7 +813,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -874,7 +870,7 @@ const userProfileController = function (UserProfile) {
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
               const userIdx = allUserData.findIndex(
-                (users) => users._id === userId,
+                users => users._id === userId,
               );
               const userData = allUserData[userIdx];
               if (!status) {
@@ -970,7 +966,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   function escapeRegExp(string) {
@@ -982,7 +978,7 @@ const userProfileController = function (UserProfile) {
     // Creates an array containing the first and last name and filters out whitespace
     const fullName = req.params.fullName
       .split(' ')
-      .filter((name) => name !== '');
+      .filter(name => name !== '');
     // Creates a partial match regex for both first and last name
     const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
     const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
@@ -1007,7 +1003,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   /**
