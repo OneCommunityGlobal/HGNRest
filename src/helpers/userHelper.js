@@ -1263,6 +1263,10 @@ const userHelper = function () {
   // 'Most Hrs in Week'
 
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
+    console.log("#2");
+    console.log(personId);
+    console.log(user);
+    console.log(badgeCollection);
     if (
       user.weeklycommittedHours > 0 &&
       user.lastWeekTangibleHrs > user.weeklycommittedHours
@@ -1301,6 +1305,9 @@ const userHelper = function () {
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
+    console.log(personId);
+    console.log(user);
+    console.log(badgeCollection);
     // Handle Increasing the 1 week streak badges
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
@@ -1615,9 +1622,10 @@ const userHelper = function () {
   };
 
   const awardNewBadges = async () => {
+    console.log("#1");
     try {
       const users = await userProfile
-        .find({ email: "renanluizsantiago@gmail.com" })
+        .find({ firstName: "renan" })
         .populate("badgeCollection.badge");
 
       for (let i = 0; i < users.length; i += 1) {
@@ -1626,13 +1634,13 @@ const userHelper = function () {
         const personId = mongoose.Types.ObjectId(_id);
 
         // await checkPersonalMax(personId, user, badgeCollection);
-        // await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkMostHrsWeek(personId, user, badgeCollection);
         // await checkMinHoursMultiple(personId, user, badgeCollection);
         // await checkTotalHrsInCat(personId, user, badgeCollection);
         // await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        await checkXHrsForXWeeks(personId, user, badgeCollection);
-        // await checkNoInfringementStreak(personId, user, badgeCollection);
-        // remove cache after badge asssignment.
+        // await checkXHrsForXWeeks(personId, user, badgeCollection);
+        // // await checkNoInfringementStreak(personId, user, badgeCollection);
+        // // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
         }
