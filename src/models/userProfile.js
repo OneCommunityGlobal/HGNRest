@@ -58,6 +58,10 @@ const userProfileSchema = new Schema({
     ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
+  emailSubscriptions: {
+    type: Boolean,
+    default: false,
+  },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -241,12 +245,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then((result) => bcrypt.hash(user.password, result))
+    .then(result => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch((error) => next(error));
+    .catch(error => next(error));
 });
 
 module.exports = mongoose.model(
