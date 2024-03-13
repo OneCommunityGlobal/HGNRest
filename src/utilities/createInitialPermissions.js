@@ -9,6 +9,7 @@ const permissionsRoles = [
       // Reports
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
+      'totalValidWeeklySummaries',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -75,10 +76,7 @@ const permissionsRoles = [
   },
   {
     roleName: 'Volunteer',
-    permissions: [
-      'getReporteesLimitRoles',
-      'suggestTask',
-    ],
+    permissions: ['getReporteesLimitRoles', 'suggestTask'],
   },
   {
     roleName: 'Core Team',
@@ -217,6 +215,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'editTeamCode',
+      'totalValidWeeklySummaries',
     ],
   },
 ];
@@ -251,18 +250,21 @@ const createInitialPermissions = async () => {
       } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
-        promises.push(Role.findById(roleId, (_, record) => {
-          permissions.forEach((perm) => {
-            if (!record.permissions.includes(perm)) {
-              record.permissions.push(perm);
-            }
-          });
-          record.save();
-        }));
+        promises.push(
+          Role.findById(roleId, (_, record) => {
+            permissions.forEach((perm) => {
+              if (!record.permissions.includes(perm)) {
+                record.permissions.push(perm);
+              }
+            });
+            record.save();
+          }),
+        );
       }
     }
 
     // Update Default presets
+
     const presetDataBase = allPresets.find((preset) => preset.roleName === roleName && preset.presetName === 'default');
 
     // If role does not exist in db, create it
@@ -277,10 +279,12 @@ const createInitialPermissions = async () => {
     } else if (!presetDataBase.permissions.every((perm) => permissions.includes(perm)) || !permissions.every((perm) => presetDataBase.permissions.includes(perm))) {
       const presetId = presetDataBase._id;
 
-      promises.push(RolePreset.findById(presetId, (_, record) => {
-        record.permissions = permissions;
-        record.save();
-      }));
+      promises.push(
+        RolePreset.findById(presetId, (_, record) => {
+          record.permissions = permissions;
+          record.save();
+        }),
+      );
     }
   }
   await Promise.all(promises);
