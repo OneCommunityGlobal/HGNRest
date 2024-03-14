@@ -12,6 +12,7 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
+
 const { authorizedUserSara, authorizedUserJae } = process.env;
 
 const {
@@ -41,8 +42,8 @@ async function ValidatePassword(req, res) {
   }
   // Verify request is authorized by self or adminsitrator
   if (
-    userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
+    userId !== requestor.requestorId
+    && !(await hasPermission(req.body.requestor, 'updatePassword'))
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -52,8 +53,8 @@ async function ValidatePassword(req, res) {
 
   // Verify request is authorized by self or adminsitrator
   if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
+    userId === requestor.requestorId
+    || !(await hasPermission(req.body.requestor, 'updatePassword'))
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -78,7 +79,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate'
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -117,7 +118,7 @@ const userProfileController = function (UserProfile) {
           return;
         }
         res.json(profiles);
-      }
+      },
     );
   };
 
@@ -128,8 +129,8 @@ const userProfileController = function (UserProfile) {
     }
 
     if (
-      req.body.role === 'Owner' &&
-      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
       res.status(403).send('You are not authorized to create new owners');
       return;
@@ -279,9 +280,9 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+      canRequestorUpdateUser(req.body.requestor.requestorId, userid)
+      && ((await hasPermission(req.body.requestor, 'putUserProfile'))
+        || req.body.requestor.requestorId === userid)
     );
 
     if (!isRequestorAuthorized) {
@@ -290,8 +291,8 @@ const userProfileController = function (UserProfile) {
     }
 
     if (
-      req.body.role === 'Owner' &&
-      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
       res.status(403).send('You are not authorized to update this user');
       return;
@@ -314,11 +315,10 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes(
-          'editTeamCode'
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes(
+          'editTeamCode',
         );
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
@@ -403,8 +403,7 @@ const userProfileController = function (UserProfile) {
         });
 
         if (req.body.missedHours !== undefined) {
-          record.missedHours =
-            req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
+          record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
         }
 
         if (req.body.teams !== undefined) {
@@ -421,15 +420,15 @@ const userProfileController = function (UserProfile) {
 
         // Logic to update weeklycommittedHours and the history of the committed hours made
         if (
-          req.body.weeklycommittedHours !== undefined &&
-          record.weeklycommittedHours !== req.body.weeklycommittedHours
+          req.body.weeklycommittedHours !== undefined
+          && record.weeklycommittedHours !== req.body.weeklycommittedHours
         ) {
           record.weeklycommittedHours = req.body.weeklycommittedHours;
 
           // If their last update was made today, remove that
           const lasti = record.weeklycommittedHoursHistory.length - 1;
           const lastChangeDate = moment(
-            record.weeklycommittedHoursHistory[lasti].dateChanged
+            record.weeklycommittedHoursHistory[lasti].dateChanged,
           );
           const now = moment();
 
@@ -447,8 +446,8 @@ const userProfileController = function (UserProfile) {
         }
 
         if (
-          req.body.createdDate !== undefined &&
-          record.createdDate !== req.body.createdDate
+          req.body.createdDate !== undefined
+          && record.createdDate !== req.body.createdDate
         ) {
           record.createdDate = moment(req.body.createdDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
@@ -460,13 +459,12 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
-          record.weeklycommittedHoursHistory[0].dateChanged =
-            record.createdDate;
+          record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
         }
 
         if (
-          req.body.permissions !== undefined &&
-          (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+          req.body.permissions !== undefined
+          && (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
         }
@@ -491,8 +489,8 @@ const userProfileController = function (UserProfile) {
         }
       }
       if (
-        req.body.infringements !== undefined &&
-        (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
+        req.body.infringements !== undefined
+        && (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
       ) {
         record.infringements = req.body.infringements;
       }
@@ -505,7 +503,7 @@ const userProfileController = function (UserProfile) {
             results.infringements,
             results.firstName,
             results.lastName,
-            results.email
+            results.email,
           );
           res.status(200).json({
             _id: record._id,
@@ -529,8 +527,8 @@ const userProfileController = function (UserProfile) {
     }
 
     if (
-      req.body.role === 'Owner' &&
-      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
       res.status(403).send('You are not authorized to delete this user');
       return;
@@ -557,12 +555,12 @@ const userProfileController = function (UserProfile) {
           firstName: process.env.TIME_ARCHIVE_FIRST_NAME,
           lastName: process.env.TIME_ARCHIVE_LAST_NAME,
         },
-        '_id'
+        '_id',
       );
 
       if (!timeArchiveUser) {
         logger.logException(
-          'Time Archive user was not found. Please check the database'
+          'Time Archive user was not found. Please check the database',
         );
         res.status(500).send({
           error:
@@ -579,7 +577,7 @@ const userProfileController = function (UserProfile) {
           $set: {
             personId: mongoose.Types.ObjectId(timeArchiveUser._id),
           },
-        }
+        },
       );
     }
 
@@ -605,7 +603,7 @@ const userProfileController = function (UserProfile) {
 
     UserProfile.findById(
       userid,
-      '-password -refreshTokens -lastModifiedDate -__v'
+      '-password -refreshTokens -lastModifiedDate -__v',
     )
       .populate([
         {
@@ -659,7 +657,7 @@ const userProfileController = function (UserProfile) {
     const { name } = req.params;
     UserProfile.find(
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
-      '_id, profilePic, badgeCollection'
+      '_id, profilePic, badgeCollection',
     )
 
       .then((results) => {
@@ -673,11 +671,10 @@ const userProfileController = function (UserProfile) {
     const { key, value } = req.body;
 
     if (key === 'teamCode') {
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes(
-          'editTeamCode'
+      const canEditTeamCode = req.body.requestor.role === 'Owner'
+        || req.body.requestor.role === 'Administrator'
+        || req.body.requestor.permissions?.frontPermissions.includes(
+          'editTeamCode',
         );
 
       if (!canEditTeamCode) {
@@ -719,9 +716,9 @@ const userProfileController = function (UserProfile) {
 
     // Verify correct params in body
     if (
-      !req.body.currentpassword ||
-      !req.body.newpassword ||
-      !req.body.confirmnewpassword
+      !req.body.currentpassword
+      || !req.body.newpassword
+      || !req.body.confirmnewpassword
     ) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
@@ -730,7 +727,7 @@ const userProfileController = function (UserProfile) {
     // Check if the requestor has the permission to update passwords.
     const hasUpdatePasswordPermission = await hasPermission(
       requestor,
-      'updatePassword'
+      'updatePassword',
     );
 
     // If the requestor is updating their own password, allow them to proceed.
@@ -740,7 +737,7 @@ const userProfileController = function (UserProfile) {
     // Else if they're updating someone else's password, they need the 'updatePassword' permission.
     else if (!hasUpdatePasswordPermission) {
       console.log(
-        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission"
+        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission",
       );
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
