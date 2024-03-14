@@ -101,9 +101,67 @@ const bmToolController = (BuildingTool) => {
         }
       };
 
+      const bmLogTools = async function (req, res) {
+        console.log("*******************************************")
+        console.log("bmLogTools in bmToolController called");
+        console.log("requestorId: ", req.body.requestor.requestorId);
+
+        const {toolId, date, project, check} = req.body; 
+        const requestor = req.body.requestor.requestorId;
+        console.log("toolId: ",toolId, ", date: ", date, ", project: ", project, ', check: ', check);
+
+     
+
+        // logRecord: [{ // track tool daily check in/out and responsible user
+        //   date: { type: Date, default: Date.now() },
+        //   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+        //   responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+        //   type: { type: String, enum: ['Check In', 'Check Out'] },
+        // let doc = await BuildingTool.findOne({ _id:  toolId});
+    
+        try {
+          const document = await BuildingTool.findOne({ _id: toolId })
+
+          if(document){
+            // console.log("document: ", document)
+            const {available, using, userResponsible} = document;
+            const newLogRecord = {
+              date: date,
+              createdBy: requestor,
+              responsibleUser: userResponsible, 
+              type: check,
+            };
+            
+            console.log("available: ", available, ", using: ", using, ", userResponsible: ", userResponsible, ", newLogRecord: ", newLogRecord);
+            document.logRecord.push(newLogRecord)
+            console.log("document.logRecord: ", document.logRecord);
+
+            await document.save();
+            res.status(200).send('Tool log record added successfully.');
+          }else{
+            res.status(404).send('Tool with this id was not found.');
+          }
+
+          // BuildingTool
+          //       .findOneAndUpdate(
+          //         { _id: mongoose.Types.ObjectId(toolId) },
+          //         { $push: { logRecord: newLogRecord } },
+          //       )
+          //       .exec()
+          //       .then(() => res.status(201).send("Saved"))
+          //       .catch(error => res.status(500).send(error));
+        }catch(error){
+          console.log("error: ", error); //delete later
+          res.status(500).send(error);
+        }
+
+        // res.status(200).send("Thanks");
+      }
+
       return {
         fetchSingleTool,
         bmPurchaseTools,
+        bmLogTools
       };
 };
 

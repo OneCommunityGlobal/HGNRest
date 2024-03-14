@@ -10,6 +10,9 @@ const routes = function (BuildingTool) {
     toolRouter.route('/tools/purchase')
         .post(controller.bmPurchaseTools);
 
+    toolRouter.route('/tools/log')
+        .post(controller.bmLogTools);
+
     return toolRouter;
 };
 

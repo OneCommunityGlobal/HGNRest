@@ -52,6 +52,8 @@ const largeItemBaseSchema = mongoose.Schema({
   imageUrl: { type: String, default: 'https://ik.imagekit.io/tuc2020/wp-content/uploads/2021/01/HW2927.jpg' },
   // this can be updated to purchaseRequestRecord
   // some fields (i.e. status) may be transferred to purchaseRecord when it is added
+  available: { type: Number, default: 0 }, //new field
+  using: { type: Number, default: 0 },//new field
   purchaseRecord: [{
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
@@ -73,6 +75,7 @@ const largeItemBaseSchema = mongoose.Schema({
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       type: { type: String, enum: ['Check In', 'Check Out'] },
   }],
+  userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }, //new field
 });
 
 const largeItemBase = mongoose.model('largeItemBase', largeItemBaseSchema, 'buildingInventoryItems');
