@@ -199,14 +199,6 @@ const userHelper = function () {
           ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
           : null;
 
-        const googleDocLinkValue = adminLinks?.length > 0
-        ? adminLinks.find(link => link.Name === 'Google Doc' && link.Link)
-        : null;
-
-        const googleDocLink = googleDocLinkValue
-          ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
-          : null;
-
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
         const colorStyle = (() => {
           switch (weeklySummaryOption) {
