@@ -1,13 +1,13 @@
-const mongoose = require('mongoose');
-const reporthelper = require('../helpers/reporthelper')();
-const { hasPermission } = require('../utilities/permissions');
-const UserProfile = require('../models/userProfile');
-const userhelper = require('../helpers/userHelper')();
+const mongoose = require("mongoose");
+const reporthelper = require("../helpers/reporthelper")();
+const { hasPermission } = require("../utilities/permissions");
+const UserProfile = require("../models/userProfile");
+const userhelper = require("../helpers/userHelper")();
 
 const reportsController = function () {
   const getWeeklySummaries = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
+    if (!(await hasPermission(req.body.requestor, "getWeeklySummaries"))) {
+      res.status(403).send("You are not authorized to view all users");
       return;
     }
 
@@ -17,7 +17,7 @@ const reportsController = function () {
         const summaries = reporthelper.formatSummaries(results);
         res.status(200).send(summaries);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   /**
@@ -36,17 +36,18 @@ const reportsController = function () {
           lastName: 1,
           createdDate: 1,
           getWeeklyReport: 1,
-        },
+          permissionGrantedToGetWeeklySummaryReport: 1,
+        }
       )
         .then((results) => {
           res.status(200).send(results);
         })
         .catch((error) => {
-          console.log('error:', error); // need to delete later *
+          console.log("error:", error); // need to delete later *
           res.status(404).send({ error });
         });
     } catch (err) {
-      console.log('error:', err); // need to delete later *
+      console.log("error:", err); // need to delete later *
       res.status(404).send(err);
     }
   };
@@ -71,15 +72,15 @@ const reportsController = function () {
         .then((record) => {
           if (!record) {
             console.log("'No valid records found'");
-            res.status(404).send('No valid records found');
+            res.status(404).send("No valid records found");
             return;
           }
           res.status(200).send({
-            message: 'updated user record with getWeeklyReport false',
+            message: "updated user record with getWeeklyReport false",
           });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
+          console.log("error in catch block last:", err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -97,19 +98,27 @@ const reportsController = function () {
         });
       }
 
-      UserProfile.updateOne({ _id: id }, { $set: { getWeeklyReport: true } })
+      UserProfile.updateOne(
+        { _id: id },
+        {
+          $set: {
+            getWeeklyReport: true,
+            permissionGrantedToGetWeeklySummaryReport: Date.now(), // The date when the user was granted permission to receive the summary report will be updated and shown
+          },
+        },
+      )
         .then((record) => {
           if (!record) {
             console.log("'No valid records found'");
-            res.status(404).send('No valid records found');
+            res.status(404).send("No valid records found");
             return;
           }
           res
             .status(200)
-            .send({ message: 'updated user record with getWeeklyReport true' });
+            .send({ message: "updated user record with getWeeklyReport true" });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
+          console.log("error in catch block last:", err);
           res.status(404).send(err);
         });
     } catch (error) {
