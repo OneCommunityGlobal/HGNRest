@@ -12,7 +12,8 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
-const authorizedUser = process.env.authorizedUser1;
+const { authorizedUserSara, authorizedUserJae } = process.env;
+
 const {
   hasPermission,
   canRequestorUpdateUser,
@@ -313,7 +314,10 @@ const userProfileController = function (UserProfile) {
         }
       }
 
-      const canEditTeamCode = req.body.requestor.role === 'Owner' || req.body.requestor.role === 'Administrator' || req.body.requestor.permissions?.frontPermissions.includes(
+      const canEditTeamCode =
+        req.body.requestor.role === 'Owner' ||
+        req.body.requestor.role === 'Administrator' ||
+        req.body.requestor.permissions?.frontPermissions.includes(
           'editTeamCode'
         );
 
@@ -399,7 +403,8 @@ const userProfileController = function (UserProfile) {
         });
 
         if (req.body.missedHours !== undefined) {
-          record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
+          record.missedHours =
+            req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
         }
 
         if (req.body.teams !== undefined) {
@@ -416,7 +421,8 @@ const userProfileController = function (UserProfile) {
 
         // Logic to update weeklycommittedHours and the history of the committed hours made
         if (
-          req.body.weeklycommittedHours !== undefined && record.weeklycommittedHours !== req.body.weeklycommittedHours
+          req.body.weeklycommittedHours !== undefined &&
+          record.weeklycommittedHours !== req.body.weeklycommittedHours
         ) {
           record.weeklycommittedHours = req.body.weeklycommittedHours;
 
@@ -441,7 +447,8 @@ const userProfileController = function (UserProfile) {
         }
 
         if (
-          req.body.createdDate !== undefined && record.createdDate !== req.body.createdDate
+          req.body.createdDate !== undefined &&
+          record.createdDate !== req.body.createdDate
         ) {
           record.createdDate = moment(req.body.createdDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
@@ -453,11 +460,13 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
-          record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
+          record.weeklycommittedHoursHistory[0].dateChanged =
+            record.createdDate;
         }
 
         if (
-          req.body.permissions !== undefined && (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+          req.body.permissions !== undefined &&
+          (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
         }
@@ -482,7 +491,8 @@ const userProfileController = function (UserProfile) {
         }
       }
       if (
-        req.body.infringements !== undefined && (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
+        req.body.infringements !== undefined &&
+        (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
       ) {
         record.infringements = req.body.infringements;
       }
@@ -495,7 +505,7 @@ const userProfileController = function (UserProfile) {
             results.infringements,
             results.firstName,
             results.lastName,
-            results.email,
+            results.email
           );
           res.status(200).json({
             _id: record._id,
@@ -547,7 +557,7 @@ const userProfileController = function (UserProfile) {
           firstName: process.env.TIME_ARCHIVE_FIRST_NAME,
           lastName: process.env.TIME_ARCHIVE_LAST_NAME,
         },
-        '_id',
+        '_id'
       );
 
       if (!timeArchiveUser) {
@@ -569,7 +579,7 @@ const userProfileController = function (UserProfile) {
           $set: {
             personId: mongoose.Types.ObjectId(timeArchiveUser._id),
           },
-        },
+        }
       );
     }
 
@@ -886,7 +896,7 @@ const userProfileController = function (UserProfile) {
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
               const userIdx = allUserData.findIndex(
-                (users) => users._id === userId
+                (users) => users._id === userId,
               );
               const userData = allUserData[userIdx];
               if (!status) {
@@ -1024,12 +1034,19 @@ const userProfileController = function (UserProfile) {
 
   /**
    * Authorizes user to be able to add Weekly Report Recipients
+   *
    */
   const authorizeUser = async (req, res) => {
     try {
+      let authorizedUser;
+      if (req.body.currentUser === authorizedUserJae) {
+        authorizedUser = authorizedUserJae;
+      } else if (req.body.currentUser === authorizedUserSara) {
+        authorizedUser = authorizedUserSara;
+      }
       await UserProfile.findOne({
         email: {
-          $regex: escapeRegex(authorizedUser), // PLEASE CHANGE THIS EMAIL TO MATCH THE USER PROFILE WHILE TESTING THE PR
+          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
           $options: 'i',
         },
       }).then(async (user) => {
