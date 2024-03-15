@@ -12,6 +12,9 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
+
+const { authorizedUserSara, authorizedUserJae } = process.env;
+
 const {
   hasPermission,
   canRequestorUpdateUser,
@@ -246,6 +249,7 @@ const userProfileController = function (UserProfile) {
     up.bioPosted = req.body.bioPosted || 'default';
     up.isFirstTimelog = true;
     up.actualEmail = req.body.actualEmail;
+    up.isVisible = !['Mentor'].includes(req.body.role);
 
     up.save()
       .then(() => {
@@ -355,7 +359,9 @@ const userProfileController = function (UserProfile) {
       ];
 
       commonFields.forEach((fieldName) => {
-        if (req.body[fieldName] !== undefined) record[fieldName] = req.body[fieldName];
+        if (req.body[fieldName] !== undefined) {
+          record[fieldName] = req.body[fieldName];
+        }
       });
 
       record.lastModifiedDate = Date.now();
@@ -391,13 +397,26 @@ const userProfileController = function (UserProfile) {
         ];
 
         importantFields.forEach((fieldName) => {
-          if (req.body[fieldName] !== undefined) record[fieldName] = req.body[fieldName];
+          if (req.body[fieldName] !== undefined) {
+            record[fieldName] = req.body[fieldName];
+          }
         });
 
-        if (req.body.missedHours !== undefined) record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
-        if (req.body.teams !== undefined) record.teams = Array.from(new Set(req.body.teams));
-        if (req.body.projects !== undefined) record.projects = Array.from(new Set(req.body.projects));
-        if (req.body.email !== undefined) record.email = req.body.email.toLowerCase();
+        if (req.body.missedHours !== undefined) {
+          record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
+        }
+
+        if (req.body.teams !== undefined) {
+          record.teams = Array.from(new Set(req.body.teams));
+        }
+
+        if (req.body.projects !== undefined) {
+          record.projects = Array.from(new Set(req.body.projects));
+        }
+
+        if (req.body.email !== undefined) {
+          record.email = req.body.email.toLowerCase();
+        }
 
         // Logic to update weeklycommittedHours and the history of the committed hours made
         if (
@@ -640,6 +659,7 @@ const userProfileController = function (UserProfile) {
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
       '_id, profilePic, badgeCollection',
     )
+
       .then((results) => {
         res.status(200).send(results);
       })
@@ -667,9 +687,9 @@ const userProfileController = function (UserProfile) {
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
-}
+    }
 
-      return UserProfile.findById(userId)
+    return UserProfile.findById(userId)
       .then((user) => {
         user.set({
           [key]: value,
@@ -953,7 +973,7 @@ const userProfileController = function (UserProfile) {
 
   // Search for user by first name
   const getUserBySingleName = (req, res) => {
-    const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+    const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
     // Searches for first or last name
     UserProfile.find({
@@ -983,8 +1003,8 @@ const userProfileController = function (UserProfile) {
       .split(' ')
       .filter((name) => name !== '');
     // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${ escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${ escapeRegExp(fullName[1])}`, 'i');
+    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
+    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
 
     // Verfies both the first and last name are present
     if (fullName.length < 2) {
@@ -1009,6 +1029,46 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
+  /**
+   * Authorizes user to be able to add Weekly Report Recipients
+   *
+   */
+  const authorizeUser = async (req, res) => {
+    try {
+      let authorizedUser;
+      if (req.body.currentUser === authorizedUserJae) {
+        authorizedUser = authorizedUserJae;
+      } else if (req.body.currentUser === authorizedUserSara) {
+        authorizedUser = authorizedUserSara;
+      }
+      await UserProfile.findOne({
+        email: {
+          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
+          $options: 'i',
+        },
+      }).then(async (user) => {
+        await bcrypt
+          .compare(req.body.currentPassword, user.password)
+          .then((passwordMatch) => {
+            if (!passwordMatch) {
+              return res.status(400).send({
+                error: 'Incorrect current password',
+              });
+            }
+            return res.status(200).send({
+              message: 'Correct Password, Password matches!',
+              password: req.body.currentPassword,
+            });
+          })
+          .catch((error) => {
+            res.status(500).send(error);
+          });
+      });
+    } catch (err) {
+      res.status(500).send(err);
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1028,6 +1088,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    authorizeUser,
   };
 };
 
