@@ -11,21 +11,21 @@ const UserProfile = require('../models/userProfile');
 const Teams = require('../models/team');
 
 const addMembersField = async () => {
-  await Teams.updateMany({}, { $set: { members: [] } }).catch(error => logger.logException('Error adding field:', error));
+  await Teams.updateMany({}, { $set: { members: [] } }).catch((error) => logger.logException('Error adding field:', error));
 
   const allUsers = await UserProfile.find({});
   const updateOperations = allUsers
     .map((user) => {
       const { _id, teams, createdDate } = user;
-      return teams.map(team => Teams.updateOne({ _id: team }, { $addToSet: { members: { userId: _id, addDateTime: createdDate, visibility: true  } } }));
+      return teams.map((team) => Teams.updateOne({ _id: team }, { $addToSet: { members: { userId: _id, addDateTime: createdDate, visibility: true  } } }));
     })
     .flat();
 
-  await Promise.all(updateOperations).catch(error => logger.logException(error));
+  await Promise.all(updateOperations).catch((error) => logger.logException(error));
 };
 
 const deleteMembersField = async () => {
-  await Teams.updateMany({}, { $unset: { members: '' } }).catch(err => console.error(err));
+  await Teams.updateMany({}, { $unset: { members: '' } }).catch((err) => console.error(err));
 };
 
 const run = () => {
@@ -42,7 +42,7 @@ const run = () => {
     })
     // .then(deleteMembersField)
     .then(addMembersField)
-    .catch(err => logger.logException(err))
+    .catch((err) => logger.logException(err))
     .finally(() => {
       mongoose.connection.close();
       console.log('Done! ✅');

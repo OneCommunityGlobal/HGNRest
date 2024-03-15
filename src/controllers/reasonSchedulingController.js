@@ -1,19 +1,19 @@
-const moment = require("moment-timezone");
-const UserModel = require("../models/userProfile");
-const ReasonModel = require("../models/reason");
-const emailSender = require("../utilities/emailSender");
-
+const moment = require('moment-timezone');
+const UserModel = require('../models/userProfile');
+const ReasonModel = require('../models/reason');
+const emailSender = require('../utilities/emailSender');
+// no longer in use replaced with timeoff requests
 const postReason = async (req, res) => {
   try {
     const { userId, requestor, reasonData } = req.body;
 
     const newDate = moment
-      .tz(reasonData.date, "America/Los_Angeles")
-      .startOf("day");
-    const currentDate = moment.tz("America/Los_Angeles").startOf("day");
+      .tz(reasonData.date, 'America/Los_Angeles')
+      .startOf('day');
+    const currentDate = moment.tz('America/Los_Angeles').startOf('day');
 
     // error case 0
-    if (moment.tz(reasonData.date, "America/Los_Angeles").day() !== 0) {
+    if (moment.tz(reasonData.date, 'America/Los_Angeles').day() !== 0) {
       return res.status(400).json({
         message:
           "You must choose the Sunday YOU'LL RETURN as your date. This is so your reason ends up as a note on that blue square.",
@@ -23,14 +23,14 @@ const postReason = async (req, res) => {
 
     if (newDate.isBefore(currentDate)) {
       return res.status(400).json({
-        message: "You should select a date that is yet to come",
+        message: 'You should select a date that is yet to come',
         errorCode: 7,
       });
     }
 
     if (!reasonData.message) {
       return res.status(400).json({
-        message: "You must provide a reason.",
+        message: 'You must provide a reason.',
         errorCode: 6,
       });
     }
@@ -50,7 +50,7 @@ const postReason = async (req, res) => {
     // error case 2
     if (!foundUser) {
       return res.status(404).json({
-        message: "User not found",
+        message: 'User not found',
         errorCode: 2,
       });
     }
@@ -58,8 +58,8 @@ const postReason = async (req, res) => {
     // conditions added to check if timeOffFrom and timeOffTill fields existed
 
     if (
-      foundUser.hasOwnProperty("timeOffFrom") &&
-      foundUser.hasOwnProperty("timeOffTill")
+      foundUser.hasOwnProperty('timeOffFrom')
+      && foundUser.hasOwnProperty('timeOffTill')
     ) {
       // if currentDate is greater than or equal to the last timeOffTill date then both the fields will be updated
       if (currentDate >= foundUser.timeOffTill) {
@@ -72,7 +72,7 @@ const postReason = async (req, res) => {
               timeOffFrom: currentDate,
               timeOffTill: newDate,
             },
-          }
+          },
         );
       } else {
         // else only timeOffTill will be updated
@@ -84,7 +84,7 @@ const postReason = async (req, res) => {
             $set: {
               timeOffTill: newDate,
             },
-          }
+          },
         );
       }
     } else {
@@ -98,7 +98,7 @@ const postReason = async (req, res) => {
             timeOffFrom: currentDate,
             timeOffTill: newDate,
           },
-        }
+        },
       );
     }
 
@@ -106,8 +106,8 @@ const postReason = async (req, res) => {
 
     const foundReason = await ReasonModel.findOne({
       date: moment
-        .tz(reasonData.date, "America/Los_Angeles")
-        .startOf("day")
+        .tz(reasonData.date, 'America/Los_Angeles')
+        .startOf('day')
         .toISOString(),
       userId,
     });
@@ -115,14 +115,14 @@ const postReason = async (req, res) => {
     // error case 3
     if (foundReason) {
       return res.status(403).json({
-        message: "The reason must be unique to the date",
+        message: 'The reason must be unique to the date',
         errorCode: 3,
       });
     }
 
     const savingDate = moment
-      .tz(reasonData.date, "America/Los_Angeles")
-      .startOf("day")
+      .tz(reasonData.date, 'America/Los_Angeles')
+      .startOf('day')
       .toISOString();
 
     const newReason = new ReasonModel({
@@ -160,7 +160,7 @@ const postReason = async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(400).json({
-      errMessage: "Something went wrong",
+      errMessage: 'Something went wrong',
     });
   }
 };
@@ -183,7 +183,7 @@ const getAllReasons = async (req, res) => {
     // error case 2
     if (!foundUser) {
       return res.status(404).json({
-        message: "User not found",
+        message: 'User not found',
       });
     }
 
@@ -197,7 +197,7 @@ const getAllReasons = async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(400).json({
-      errMessage: "Something went wrong while fetching the user",
+      errMessage: 'Something went wrong while fetching the user',
     });
   }
 };
@@ -221,24 +221,24 @@ const getSingleReason = async (req, res) => {
     // error case 2
     if (!foundUser) {
       return res.status(404).json({
-        message: "User not found",
+        message: 'User not found',
         errorCode: 2,
       });
     }
 
     const foundReason = await ReasonModel.findOne({
       date: moment
-        .tz(queryDate, "America/Los_Angeles")
-        .startOf("day")
+        .tz(queryDate, 'America/Los_Angeles')
+        .startOf('day')
         .toISOString(),
       userId,
     });
 
     if (!foundReason) {
       return res.status(200).json({
-        reason: "",
-        date: "",
-        userId: "",
+        reason: '',
+        date: '',
+        userId: '',
         isSet: false,
       });
     }
@@ -247,7 +247,7 @@ const getSingleReason = async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(400).json({
-      message: "Something went wrong while fetching single reason",
+      message: 'Something went wrong while fetching single reason',
     });
   }
 };
@@ -268,7 +268,7 @@ const patchReason = async (req, res) => {
 
     if (!reasonData.message) {
       return res.status(400).json({
-        message: "You must provide a reason.",
+        message: 'You must provide a reason.',
         errorCode: 6,
       });
     }
@@ -278,22 +278,22 @@ const patchReason = async (req, res) => {
     // error case 2
     if (!foundUser) {
       return res.status(404).json({
-        message: "User not found",
+        message: 'User not found',
         errorCode: 2,
       });
     }
 
     const foundReason = await ReasonModel.findOne({
       date: moment
-        .tz(reasonData.date, "America/Los_Angeles")
-        .startOf("day")
+        .tz(reasonData.date, 'America/Los_Angeles')
+        .startOf('day')
         .toISOString(),
       userId,
     });
     // error case 4
     if (!foundReason) {
       return res.status(404).json({
-        message: "Reason not found",
+        message: 'Reason not found',
         errorCode: 4,
       });
     }
@@ -325,12 +325,12 @@ const patchReason = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "Reason Updated!",
-      message: "Reason Updated!",
+      message: 'Reason Updated!',
+      message: 'Reason Updated!',
     });
   } catch (error) {
     return res.status(400).json({
-      message: "something went wrong while patching the reason",
+      message: 'something went wrong while patching the reason',
     });
   }
 };
@@ -341,10 +341,10 @@ const deleteReason = async (req, res) => {
     const { userId } = req.params;
 
     // error case 1
-    if (requestor.role !== "Owner" && requestor.role !== "Administrator") {
+    if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
       return res.status(403).json({
         message:
-          "You must be an Owner or Administrator to schedule a reason for a Blue Square",
+          'You must be an Owner or Administrator to schedule a reason for a Blue Square',
 
         errorCode: 1,
       });
@@ -355,21 +355,21 @@ const deleteReason = async (req, res) => {
     // error case 2
     if (!foundUser) {
       return res.status(404).json({
-        message: "User not found",
+        message: 'User not found',
         errorCode: 2,
       });
     }
 
     const foundReason = await ReasonModel.findOne({
       date: moment
-        .tz(reasonData.date, "America/Los_Angeles")
-        .startOf("day")
+        .tz(reasonData.date, 'America/Los_Angeles')
+        .startOf('day')
         .toISOString(),
     });
 
     if (!foundReason) {
       return res.status(404).json({
-        message: "Reason not found",
+        message: 'Reason not found',
         errorCode: 4,
       });
     }
@@ -377,13 +377,13 @@ const deleteReason = async (req, res) => {
     foundReason.remove((err) => {
       if (err) {
         return res.status(500).json({
-          message: "Error while deleting document",
+          message: 'Error while deleting document',
           errorCode: 5,
         });
       }
 
       return res.status(200).json({
-        message: "Document deleted",
+        message: 'Document deleted',
       });
     });
   } catch (error) {}

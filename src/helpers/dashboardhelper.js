@@ -2,7 +2,7 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
-const myTeam = require('../helpers/helperModels/myTeam');
+const myTeam = require('./helperModels/myTeam');
 const team = require('../models/team');
 
 const dashboardhelper = function () {
@@ -166,8 +166,10 @@ const dashboardhelper = function () {
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     try {
-      const userById = await userProfile
-        .findOne({ _id: userid, isActive: true }, { role: 1 });
+      const userById = await userProfile.findOne(
+        { _id: userid, isActive: true },
+        { role: 1 },
+      );
 
       if (userById == null) return null;
       const userRole = userById.role;
@@ -190,8 +192,10 @@ const dashboardhelper = function () {
         && userRole !== 'Core Team'
       ) {
         // Manager , Mentor , Volunteer ... , Show only team members
-        const teamsResult = await team
-          .find({ 'members.userId': { $in: [userid] } }, { members: 1 });
+        const teamsResult = await team.find(
+          { 'members.userId': { $in: [userid] } },
+          { members: 1 },
+        );
 
         console.log(teamsResult);
         teamsResult.forEach((_myTeam) => {
@@ -209,39 +213,37 @@ const dashboardhelper = function () {
 
         });
 
-        teamMembers = await userProfile
-          .find(
-            { _id: { $in: teamMemberIds }, isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              isVisible: 1,
-              weeklycommittedHours: 1,
-              weeklySummaries: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-            },
-          );
+        teamMembers = await userProfile.find(
+          { _id: { $in: teamMemberIds }, isActive: true },
+          {
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          },
+        );
       } else {
         // 'Core Team', 'Owner' //All users
-        teamMembers = await userProfile
-          .find(
-            { isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              isVisible: 1,
-              weeklycommittedHours: 1,
-              weeklySummaries: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-            },
-          );
+        teamMembers = await userProfile.find(
+          { isActive: true },
+          {
+            role: 1,
+            firstName: 1,
+            lastName: 1,
+            isVisible: 1,
+            weeklycommittedHours: 1,
+            weeklySummaries: 1,
+            timeOffFrom: 1,
+            timeOffTill: 1,
+          },
+        );
       }
 
-      teamMemberIds = teamMembers.map(member => member._id);
+      teamMemberIds = teamMembers.map((member) => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
@@ -264,9 +266,11 @@ const dashboardhelper = function () {
         }
 
         if (timeEntry.isTangible === true) {
-          timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].tangibleSeconds
+            += timeEntry.totalSeconds;
         } else {
-          timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].intangibleSeconds
+            += timeEntry.totalSeconds;
         }
 
         timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
@@ -285,11 +289,14 @@ const dashboardhelper = function () {
               : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
           totaltangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds / 3600 || 0,
+            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
+              / 3600 || 0,
           totalintangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds / 3600 || 0,
+            timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds
+              / 3600 || 0,
           totaltime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600 || 0,
+            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600
+            || 0,
           percentagespentintangible:
             timeEntryByPerson[teamMember._id.toString()]
             && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0
