@@ -9,6 +9,7 @@ const permissionsRoles = [
       // Reports
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
+      'totalValidWeeklySummaries',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -75,10 +76,7 @@ const permissionsRoles = [
   },
   {
     roleName: 'Volunteer',
-    permissions: [
-      'getReporteesLimitRoles',
-      'suggestTask',
-    ],
+    permissions: ['getReporteesLimitRoles', 'suggestTask'],
   },
   {
     roleName: 'Core Team',
@@ -217,10 +215,10 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'editTeamCode',
+      'totalValidWeeklySummaries',
     ],
   },
 ];
-
 
 const createInitialPermissions = async () => {
   // Create Initial Owner
@@ -239,7 +237,7 @@ const createInitialPermissions = async () => {
     const { roleName, permissions } = permissionsRoles[i];
 
     if (!onlyUpdateOwner || roleName === 'Owner') {
-      const roleDataBase = allRoles.find(role => role.roleName === roleName);
+      const roleDataBase = allRoles.find((role) => role.roleName === roleName);
 
       // If role does not exist in db, create it
       if (!roleDataBase) {
@@ -249,22 +247,25 @@ const createInitialPermissions = async () => {
         role.save();
 
       // If role exists in db and does not have every permission, add the missing permissions
-      } else if (!permissions.every(perm => roleDataBase.permissions.includes(perm))) {
+      } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
-        promises.push(Role.findById(roleId, (_, record) => {
-          permissions.forEach((perm) => {
-            if (!record.permissions.includes(perm)) {
-              record.permissions.push(perm);
-            }
-          });
-          record.save();
-        }));
+        promises.push(
+          Role.findById(roleId, (_, record) => {
+            permissions.forEach((perm) => {
+              if (!record.permissions.includes(perm)) {
+                record.permissions.push(perm);
+              }
+            });
+            record.save();
+          }),
+        );
       }
     }
 
     // Update Default presets
-    const presetDataBase = allPresets.find(preset => preset.roleName === roleName && preset.presetName === 'default');
+
+    const presetDataBase = allPresets.find((preset) => preset.roleName === roleName && preset.presetName === 'default');
 
     // If role does not exist in db, create it
     if (!presetDataBase) {
@@ -275,13 +276,15 @@ const createInitialPermissions = async () => {
       defaultPreset.save();
 
     // If role exists in db and is not updated, update default
-    } else if (!presetDataBase.permissions.every(perm => permissions.includes(perm)) || !permissions.every(perm => presetDataBase.permissions.includes(perm))) {
+    } else if (!presetDataBase.permissions.every((perm) => permissions.includes(perm)) || !permissions.every((perm) => presetDataBase.permissions.includes(perm))) {
       const presetId = presetDataBase._id;
 
-      promises.push(RolePreset.findById(presetId, (_, record) => {
-        record.permissions = permissions;
-        record.save();
-      }));
+      promises.push(
+        RolePreset.findById(presetId, (_, record) => {
+          record.permissions = permissions;
+          record.save();
+        }),
+      );
     }
   }
   await Promise.all(promises);

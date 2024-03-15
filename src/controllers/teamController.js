@@ -7,15 +7,15 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
   const postTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'postTeam')) {
@@ -43,11 +43,11 @@ const teamcontroller = function (Team) {
         } else {
           // If no team with the same name exists, save the new team
           team.save()
-            .then(results => res.send(results).status(200))
-            .catch(error => res.send(error).status(404));
+            .then((results) => res.send(results).status(200))
+            .catch((error) => res.send(error).status(404));
         }
       })
-      .catch(error => res.send(error).status(404));
+      .catch((error) => res.send(error).status(404));
   };
   const deleteTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
@@ -102,8 +102,8 @@ const teamcontroller = function (Team) {
 
       record
         .save()
-        .then(results => res.status(200).send(results._id))
-        .catch(errors => res.status(400).send(errors));
+        .then((results) => res.status(200).send(results._id))
+        .catch((errors) => res.status(400).send(errors));
     });
   };
 
@@ -135,7 +135,6 @@ const teamcontroller = function (Team) {
 
       // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
       if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
-
 
       if (operation === 'Assign') {
         await Team.findOneAndUpdate({ _id: teamId }, { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } }, { new: true });
@@ -179,8 +178,8 @@ const teamcontroller = function (Team) {
         },
       },
     ])
-      .then(result => res.status(200).send(result))
-      .catch(error => res.status(500).send(error));
+      .then((result) => res.status(200).send(result))
+      .catch((error) => res.status(500).send(error));
   };
   const updateTeamVisibility = async (req, res) => {
     console.log("==============>   9 ");
