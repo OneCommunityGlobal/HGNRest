@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const {
-    reusableType: ReusableType
+    reusableType: ReusableType,
 } = require('../../models/bmdashboard/buildingInventoryType');
 
 function isValidDate(dateString) {
@@ -41,7 +41,7 @@ const bmReusableController = function (BuildingReusable) {
                 .then((result) => {
                     res.status(200).send(result);
                 })
-                .catch(error => res.status(500).send(error));
+                .catch((error) => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
