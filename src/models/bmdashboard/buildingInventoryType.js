@@ -59,7 +59,12 @@ const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Sch
 const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
   category: { type: String, enum: ['Tool'] },
   isPowered: { type: Boolean, required: true },
-  powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
+  powerSource: { type: String, required: function() {
+    return this.isPowered; // required if isPowered = true 
+  },
+},
+  available: { type: Number, default: 0 }, //new field
+  using: { type: Number, default: 0 },//new field
 }));
 
 //---------------------------

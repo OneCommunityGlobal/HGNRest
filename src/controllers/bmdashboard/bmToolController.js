@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const bmToolController = (BuildingTool) => {
+const bmToolController = (BuildingTool, ToolType) => {
     const fetchSingleTool = async (req, res) => {
         const { toolId } = req.params;
         try {
@@ -102,6 +102,11 @@ const bmToolController = (BuildingTool) => {
       };
 
       const bmLogTools = async function (req, res) {
+        //TODO: add loops to accept an array of toolItem id's
+        //logically this should accept a type id too, I await the currentToolType early on,
+        //the loop through array of tools added and perform the function below. 
+        //might have to declare a new available and used constants to keep track of shit outside of the loop and update the tool type after to loop exits
+        //this is going to be a pretty slow function...
         console.log("*******************************************")
         console.log("bmLogTools in bmToolController called");
         console.log("requestorId: ", req.body.requestor.requestorId);
@@ -110,7 +115,6 @@ const bmToolController = (BuildingTool) => {
         const requestor = req.body.requestor.requestorId;
         console.log("toolId: ",toolId, ", date: ", date, ", project: ", project, ', check: ', check);
 
-     
 
         // logRecord: [{ // track tool daily check in/out and responsible user
         //   date: { type: Date, default: Date.now() },
@@ -124,7 +128,11 @@ const bmToolController = (BuildingTool) => {
 
           if(document){
             // console.log("document: ", document)
-            const {available, using, userResponsible} = document;
+            // console.log("document.itemType: ", document.itemType)
+            const {userResponsible, itemType} = document;
+            const currentToolType = await ToolType.findOne({ _id: document.itemType }) 
+            // console.log("currentToolType: ", currentToolType)
+
             const newLogRecord = {
               date: date,
               createdBy: requestor,
@@ -132,30 +140,49 @@ const bmToolController = (BuildingTool) => {
               type: check,
             };
             
-            console.log("available: ", available, ", using: ", using, ", userResponsible: ", userResponsible, ", newLogRecord: ", newLogRecord);
-            document.logRecord.push(newLogRecord)
-            console.log("document.logRecord: ", document.logRecord);
+            // console.log("available: ", available, ", using: ", using, ", userResponsible: ", userResponsible, ", newLogRecord: ", newLogRecord);
+            document.logRecord.push(newLogRecord);
+            if(check === "Check Out"){
+              console.log("Check Out: ", check);
+              if(currentToolType.available > 0){
+                // console.log("currentToolType.available > 0: ", currentToolType.available);
+                currentToolType.available --;
+                currentToolType.using++;
+              }else{
+                // console.log("currentToolType.available <= 0: ", currentToolType.available);
+                return res.status(400).send(`Can not process request "${check}". ${currentToolType.name} stock exceeded`);//TODO: convert to {message: ''} 
+              }
+            }else if(check === "Check In"){
+              console.log("Check In: ", check);
+              if(currentToolType.using > 0){
+                // console.log("currentToolType.using > 0: ", currentToolType.using);
+                currentToolType.available++;
+                currentToolType.using--;
+              }else{ 
+                // console.log("currentToolType.using <= 0: ", currentToolType.using);
+                return res.status(400).send(`Can not process request "${check}". No items are currently checked out`);//TODO: convert to {message: ''} 
+              }
+            }else{
+              // console.log("Invalid check: ", check);
+              return res.status(400).send('Invalid entry for the field "Check In or Out".');
+            }
 
+            
             await document.save();
+            await currentToolType.save();
+            
+            // console.log("document.logRecord: ", document.logRecord, ", currentToolType: ", currentToolType);
+
+            // console.log("currentToolType: ", currentToolType);
+            
             res.status(200).send('Tool log record added successfully.');
           }else{
             res.status(404).send('Tool with this id was not found.');
           }
-
-          // BuildingTool
-          //       .findOneAndUpdate(
-          //         { _id: mongoose.Types.ObjectId(toolId) },
-          //         { $push: { logRecord: newLogRecord } },
-          //       )
-          //       .exec()
-          //       .then(() => res.status(201).send("Saved"))
-          //       .catch(error => res.status(500).send(error));
         }catch(error){
-          console.log("error: ", error); //delete later
+          console.log("183. error: ", error); //delete later
           res.status(500).send(error);
         }
-
-        // res.status(200).send("Thanks");
       }
 
       return {

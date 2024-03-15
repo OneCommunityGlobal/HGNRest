@@ -120,6 +120,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   );
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(
   buildingTool,
+  toolType,
 );
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(
   buildingIssue,
