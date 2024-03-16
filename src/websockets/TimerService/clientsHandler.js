@@ -1,8 +1,8 @@
 /* eslint-disable no-multi-assign */
 /* eslint-disable radix */
-const moment = require('moment');
-const Timer = require('../../models/timer');
-const logger = require('../../startup/logger');
+const moment = require("moment");
+const Timer = require("../../models/timer");
+const logger = require("../../startup/logger");
 
 export const getClient = async (clients, userId) => {
   // In case of there is already a connection that is open for this user
@@ -15,7 +15,7 @@ export const getClient = async (clients, userId) => {
     } catch (e) {
       logger.logException(e);
       throw new Error(
-        'Something happened when trying to retrieve timer from mongo',
+        "Something happened when trying to retrieve timer from mongo"
       );
     }
   }
@@ -28,22 +28,26 @@ export const saveClient = async (client) => {
   } catch (e) {
     logger.logException(e);
     throw new Error(
-      `Something happened when trying to save user timer to mongo, Error: ${e}`,
+      `Something happened when trying to save user timer to mongo, Error: ${e}`
     );
   }
 };
 
 export const action = {
-  START_TIMER: 'START_TIMER',
-  PAUSE_TIMER: 'PAUSE_TIMER',
-  STOP_TIMER: 'STOP_TIMER',
-  CLEAR_TIMER: 'CLEAR_TIMER',
-  SET_GOAL: 'SET_GOAL=',
-  ADD_GOAL: 'ADD_TO_GOAL=',
-  REMOVE_GOAL: 'REMOVE_FROM_GOAL=',
-  FORCED_PAUSE: 'FORCED_PAUSE',
-  ACK_FORCED: 'ACK_FORCED',
-  START_CHIME: 'START_CHIME',
+  START_TIMER: "START_TIMER",
+  PAUSE_TIMER: "PAUSE_TIMER",
+  STOP_TIMER: "STOP_TIMER",
+  CLEAR_TIMER: "CLEAR_TIMER",
+  SET_GOAL: "SET_GOAL=",
+  ADD_GOAL: "ADD_TO_GOAL=",
+  REMOVE_GOAL: "REMOVE_FROM_GOAL=",
+  FORCED_PAUSE: "FORCED_PAUSE",
+  ACK_FORCED: "ACK_FORCED",
+  START_CHIME: "START_CHIME",
+  BM_START_TIMER: "BM_START_TIMER",
+  BM_PAUSE_TIMER: "BM_PAUSE_TIMER",
+  BM_STOP_TIMER: "BM_STOP_TIMER",
+  BM_CLEAR_TIMER: "BM_CLEAR_TIMER",
 };
 
 const MAX_HOURS = 5;
@@ -59,6 +63,8 @@ const updatedTimeSinceStart = (client) => {
 };
 
 const startTimer = (client) => {
+  console.log("TIMER HERE")
+
   client.startAt = moment.utc();
   client.paused = false;
   if (!client.started) {
@@ -77,8 +83,8 @@ const pauseTimer = (client, forced = false) => {
 };
 
 const startChime = (client, msg) => {
-  const state = msg.split('=')[1];
-  client.chiming = state === 'true';
+  const state = msg.split("=")[1];
+  client.chiming = state === "true";
 };
 
 const ackForcedPause = (client) => {
@@ -110,61 +116,77 @@ const clearTimer = (client) => {
 };
 
 const setGoal = (client, msg) => {
-  const newGoal = parseInt(msg.split('=')[1]);
+  const newGoal = parseInt(msg.split("=")[1]);
   client.goal = newGoal;
   client.time = newGoal;
   client.initialGoal = newGoal;
 };
 
 const addGoal = (client, msg) => {
-  const duration = parseInt(msg.split('=')[1]);
+  const duration = parseInt(msg.split("=")[1]);
   const goalAfterAddition = moment
     .duration(client.goal)
-    .add(duration, 'milliseconds')
+    .add(duration, "milliseconds")
     .asHours();
 
   if (goalAfterAddition > MAX_HOURS) return;
 
   client.goal = moment
     .duration(client.goal)
-    .add(duration, 'milliseconds')
+    .add(duration, "milliseconds")
     .asMilliseconds()
     .toFixed();
   client.time = moment
     .duration(client.time)
-    .add(duration, 'milliseconds')
+    .add(duration, "milliseconds")
     .asMilliseconds()
     .toFixed();
 };
 
 const removeGoal = (client, msg) => {
-  const duration = parseInt(msg.split('=')[1]);
+  const duration = parseInt(msg.split("=")[1]);
   const goalAfterRemoval = moment
     .duration(client.goal)
-    .subtract(duration, 'milliseconds')
+    .subtract(duration, "milliseconds")
     .asMinutes();
   const timeAfterRemoval = moment
     .duration(client.time)
-    .subtract(duration, 'milliseconds')
+    .subtract(duration, "milliseconds")
     .asMinutes();
 
   if (goalAfterRemoval < MIN_MINS || timeAfterRemoval < 0) return;
 
   client.goal = moment
     .duration(client.goal)
-    .subtract(duration, 'milliseconds')
+    .subtract(duration, "milliseconds")
     .asMilliseconds()
     .toFixed();
   client.time = moment
     .duration(client.time)
-    .subtract(duration, 'milliseconds')
+    .subtract(duration, "milliseconds")
     .asMilliseconds()
     .toFixed();
 };
 
+const bmStartTimer = (userID) => {
+  console.log("START")
+}
+
+const bmPauseTimer = (userID) => {
+  console.log("PAUSE")
+}
+
+const bmStopTimer = (userID) => {
+  console.log("STOP")
+}
+
+const bmClearTimer = (userID) => {
+  console.log("CLEAR")
+}
+
 export const handleMessage = async (msg, clients, userId) => {
   if (!clients.has(userId)) {
-    throw new Error('It should have this user in memory');
+    throw new Error("It should have this user in memory");
   }
 
   const client = clients.get(userId);
@@ -201,6 +223,18 @@ export const handleMessage = async (msg, clients, userId) => {
       break;
     case action.STOP_TIMER:
       stopTimer(client);
+      break;
+    case action.BM_START_TIMER:
+      bmStartTimer(client);
+      break;
+    case action.BM_PAUSE_TIMER:
+      bmPauseTimer(client);
+      break;
+    case action.BM_STOP_TIMER:
+      bmStopTimer(client);
+      break;
+    case action.BM_CLEAR_TIMER:
+      bmClearTimer(client);
       break;
 
     default:
