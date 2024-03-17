@@ -396,6 +396,8 @@ const userProfileController = function (UserProfile) {
           'timeEntryEditHistory',
         ];
 
+        if (req.body.role !== record.role && req.body.role === 'Mentor') record.isVisible = false;
+
         importantFields.forEach((fieldName) => {
           if (req.body[fieldName] !== undefined) {
             record[fieldName] = req.body[fieldName];
