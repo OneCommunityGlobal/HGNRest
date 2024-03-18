@@ -4,33 +4,33 @@ const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
       BuildingMaterial.find()
-        .populate([
-          {
-            path: 'project',
-            select: '_id name',
+      .populate([
+        {
+          path: 'project',
+          select: '_id name',
+        },
+        {
+          path: 'itemType',
+          select: '_id name unit',
+        },
+        {
+          path: 'updateRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
           },
-          {
-            path: 'itemType',
-            select: '_id name unit',
+        },
+        {
+          path: 'purchaseRecord',
+          populate: {
+            path: 'requestedBy',
+            select: '_id firstName lastName',
           },
-          {
-            path: 'updateRecord',
-            populate: {
-              path: 'createdBy',
-              select: '_id firstName lastName',
-            },
-          },
-          {
-            path: 'purchaseRecord',
-            populate: {
-              path: 'requestedBy',
-              select: '_id firstName lastName',
-            },
-          },
-        ])
-        .exec()
-        .then(results => res.status(200).send(results))
-        .catch(error => res.status(500).send(error));
+        },
+      ])
+      .exec()
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -38,13 +38,14 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const bmPurchaseMaterials = async function (req, res) {
     const {
-      projectId,
-      matTypeId,
+      primaryId: projectId,
+      secondaryId: matTypeId,
       quantity,
       priority,
       brand: brandPref,
       requestor: { requestorId },
     } = req.body;
+
     try {
       // check if requestor has permission to make purchase request
       //! Note: this code is disabled until permissions are added
@@ -71,11 +72,11 @@ const bmMaterialsController = function (BuildingMaterial) {
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
         };
-        BuildingMaterial
-          .create(newDoc)
-          .then(() => res.status(201).send())
-          .catch(error => res.status(500).send(error));
-        return;
+      BuildingMaterial
+      .create(newDoc)
+      .then(() => res.status(201).send())
+      .catch((error) => res.status(500).send(error));
+      return;
       }
       BuildingMaterial
         .findOneAndUpdate(
@@ -133,7 +134,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       )
         .then((results) => { res.status(200).send(results); })
         .catch((error) => res.status(500).send({ message: error }));
-   }
+    }
   };
 
   const bmPostMaterialUpdateBulk = function (req, res) {
@@ -183,18 +184,18 @@ const bmMaterialsController = function (BuildingMaterial) {
         res.status(500).send('Stock quantities submitted seems to be invalid');
         return;
       }
-    const updatePromises = updateRecordsToBeAdded.map((updateItem) => BuildingMaterial.updateOne(
+      const updatePromises = updateRecordsToBeAdded.map((updateItem) => BuildingMaterial.updateOne(
         { _id: updateItem.updateId },
         {
           $set: updateItem.set,
           $push: { updateRecord: updateItem.updateValue },
         },
       ).exec());
-    Promise.all(updatePromises)
-    .then((results) => {
-      res.status(200).send({ result: `Successfully posted log for ${results.length} Material records.` });
-    })
-    .catch((error) => res.status(500).send(error));
+      Promise.all(updatePromises)
+        .then((results) => {
+          res.status(200).send({ result: `Successfully posted log for ${results.length} Material records.` });
+        })
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
