@@ -5,7 +5,7 @@ const routes = function (BuildingReusable) {
   const controller = require('../../controllers/bmdashboard/bmReusableController')(BuildingReusable);
 
   BuildingReusableController.route('/reusables')
-    .get(controller.fetchBMReusables)
+    .get(controller.fetchBMReusables);
 
   BuildingReusableController.route('/reusables/purchase')
     .post(controller.purchaseReusable);
