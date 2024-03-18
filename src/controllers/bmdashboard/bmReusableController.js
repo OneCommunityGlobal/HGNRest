@@ -47,17 +47,10 @@ const bmReusableController = function (BuildingReusable) {
         }
     };
 
-    const purchaseReusable = async (req, res) => {
-        const {
-            primaryId: projectId,
-            secondaryId: itemTypeId,
-            quantity,
-            priority,
-            brand: brandPref,
-            requestor: { requestorId },
-        } = req.body;
-
+    const addReusable = async (req, res) => {
         try {
+            const { itemTypeId, projectId, stockBought, stockAvailable, purchaseRecords, updateRecords, stockDestroyed } = req.body;
+    
             if (!mongoose.Types.ObjectId.isValid(itemTypeId) || !mongoose.Types.ObjectId.isValid(projectId)) {
                 return res.status(400).send('Invalid itemTypeId or projectId.');
             }
