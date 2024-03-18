@@ -7,8 +7,9 @@ const routes = function (BuildingReusable) {
   BuildingReusableController.route('/reusables')
     .get(controller.fetchBMReusables);
 
-  BuildingReusableController.route('/reusables/:id')
-    .delete(controller.deleteReusable);
+  BuildingReusableController.route('/reusables/purchase')
+    .post(controller.purchaseReusable);
+
   return BuildingReusableController;
 };
 
