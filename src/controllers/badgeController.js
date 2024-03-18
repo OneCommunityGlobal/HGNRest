@@ -254,12 +254,6 @@ const badgeController = function (Badge) {
     });
   };
 
-  const testAssignBadges = async function (req, res) {
-    console.log('Hit!');
-    await userHelper.awardNewBadges();
-    res.status(200).send('Badges assigned');
-  };
-
   return {
     getAllBadges,
     assignBadges,

@@ -1642,23 +1642,21 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      console.log('Before finding users');
-
       const users = await userProfile
-        .find({ email: 'xzhang@volunteer.com' })
+        .find({ isActive: true })
         .populate('badgeCollection.badge');      
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        // await checkPersonalMax(personId, user, badgeCollection);
-        // await checkMostHrsWeek(personId, user, badgeCollection);
-        // await checkMinHoursMultiple(personId, user, badgeCollection);
-        // await checkTotalHrsInCat(personId, user, badgeCollection);
-        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkPersonalMax(personId, user, badgeCollection);
+        await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
         await checkXHrsForXWeeks(personId, user, badgeCollection);
-        // await checkNoInfringementStreak(personId, user, badgeCollection);
+        await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);

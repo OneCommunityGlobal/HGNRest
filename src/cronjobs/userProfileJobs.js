@@ -5,8 +5,8 @@ const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
-    // '* * * * *', // Comment out for testing. Run Every minute.
-    '1 0 * * 0', // Every Sunday, 1 minute past midnight.
+    '* * * * *', // Comment out for testing. Run Every minute.
+    // '1 0 * * 0', // Every Sunday, 1 minute past midnight.
 
     async () => {
       const SUNDAY = 0;
@@ -17,6 +17,7 @@ const userProfileJobs = () => {
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.deleteExpiredTokens();
       }
+      console.log('Hit cronjob for user profile jobs.');
       await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
