@@ -45,7 +45,6 @@ const adminsNotificationEmail = (
   return message;
 };
 
-
 const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
   const notifyUser = async (userId, action = '') => {
     try {
@@ -236,7 +235,6 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       endingDate: endDate.toDate(),
       duration,
     };
-
 
       const updatedRequest = await TimeOffRequest.findByIdAndUpdate(
         requestId,

@@ -233,7 +233,7 @@ const dashboardhelper = function () {
         );
       }
 
-      teamMemberIds = teamMembers.map(member => member._id);
+      teamMemberIds = teamMembers.map((member) => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
