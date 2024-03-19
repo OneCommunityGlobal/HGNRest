@@ -4,14 +4,14 @@ const followUpController = function (followUp) {
       const result = await followUp.aggregate([
         {
           $group: {
-            _id: "$userId",
-            entries: { $push: "$$ROOT" },
+            _id: '$userId',
+            entries: { $push: '$$ROOT' },
           },
         },
         {
           $project: {
             _id: 0,
-            userId: "$_id",
+            userId: '$_id',
             entries: 1,
           },
         },
@@ -34,19 +34,17 @@ const followUpController = function (followUp) {
 
       const updateData = req.body;
 
-      if (
-        typeof updateData.followUpCheck !== "boolean" ||
-        (!updateData.followUpPercentageDeadline &&
-          updateData.followUpPercentageDeadline !== 0)
-      ) {
-        res.status(400).send("bad request");
+      if (typeof updateData.followUpCheck !== 'boolean'
+        || (!updateData.followUpPercentageDeadline
+        && updateData.followUpPercentageDeadline !== 0)) {
+        res.status(400).send('bad request');
         return;
       }
       const updatedFollowUp = await followUp.findOneAndUpdate(
-        { userId: userId, taskId: taskId },
+        { userId, taskId },
         updateData,
-        { new: true, upsert: true }
-      );
+        { new: true, upsert: true },
+        );
 
       res.status(200).send(updatedFollowUp);
     } catch (error) {
