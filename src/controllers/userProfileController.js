@@ -254,58 +254,64 @@ const userProfileController = function (UserProfile) {
 
     up.save()
       .then(() => {
-        res.status(200).send({
-          _id: up._id,
-        });
-
-        if (up.role === 'Owner') {
-          const subject = 'New Owner Role Created';
+        // if connected to dev db just check for Owner roles, else it's main branch so also check admin too
+        const condition = process.env.dbName === 'hgnData_dev' ? (up.role === 'Owner') : (up.role === 'Owner' || up.role === 'Administrator');
+        if (condition) {
+          const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}New ${up.role} Role Created`;
 
           const emailBody = `<p> Hi Admin! </p>
           
           <p><strong>New Account Details</strong></p>
-          <p>This email is to inform you that <strong>${up.firstName} ${up.lastName}</strong> has been created as a new owner account on the Highest Good Network application.</p>
-                   
-          <p><strong>Here are the details for the new owner account:</strong></p>
+          <p>This email is to inform you that <strong>${up.firstName} ${up.lastName}</strong> has been created as a new ${up.role} account on the Highest Good Network application.</p>
+          
+          <p><strong>Here are the details for the new ${up.role} account:</strong></p>
           <ul>
-              <li><strong>Name:</strong> ${up.firstName} ${up.lastName}</li>
-              <li><strong>Email:</strong> <a href="mailto:${up.email}">${up.email}</a></li>
-           </ul>
-
+          <li><strong>Name:</strong> ${up.firstName} ${up.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${up.email}">${up.email}</a></li>
+          </ul>
+          
           <p><strong>Who created this new account?</strong></p>
           <ul>
-              <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
-              <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
-           </ul>
-
-           <p>If you have any questions or notice any issues, please investigate further.</p>
-
-           <p>Thank you for your attention to this matter.</p>
-           
-           <p>Sincerely,</p>
-           <p>The HGN A.I. (and One Community)</p>`;
+          <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+          </ul>
+          
+          <p>If you have any questions or notice any issues, please investigate further.</p>
+          
+          <p>Thank you for your attention to this matter.</p>
+          
+          <p>Sincerely,</p>
+          <p>The HGN A.I. (and One Community)</p>`;
 
           emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
         }
-        // update backend cache
 
-        const userCache = {
-          permissions: up.permissions,
-          isActive: true,
-          weeklycommittedHours: up.weeklycommittedHours,
-          createdDate: up.createdDate.toISOString(),
+        // update backend cache if cache exists
+        if (cache.getCache('allusers')) {
+          const userCache = {
+            permissions: up.permissions,
+            isActive: true,
+            weeklycommittedHours: up.weeklycommittedHours,
+            createdDate: up.createdDate.toISOString(),
+            _id: up._id,
+            role: up.role,
+            firstName: up.firstName,
+            lastName: up.lastName,
+            email: up.email,
+          };
+          const allUserCache = JSON.parse(cache.getCache('allusers'));
+          allUserCache.push(userCache);
+          cache.setCache('allusers', JSON.stringify(allUserCache));
+        }
+
+        res.status(200).send({
           _id: up._id,
-          role: up.role,
-          firstName: up.firstName,
-          lastName: up.lastName,
-          email: up.email,
-        };
-        const allUserCache = JSON.parse(cache.getCache('allusers'));
-        allUserCache.push(userCache);
-        cache.setCache('allusers', JSON.stringify(allUserCache));
+        });
       })
-      .catch((error) => res.status(501).send(error));
-  };
+      .catch((error) => {
+        res.status(501).send(error);
+      });
+    };
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
@@ -597,15 +603,20 @@ const userProfileController = function (UserProfile) {
     }
 
     cache.removeCache(`user-${userId}`);
-    const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex((users) => users._id === userId);
-    allUserData.splice(userIdx, 1);
-    cache.setCache('allusers', JSON.stringify(allUserData));
+    if (cache.getCache('allusers')) {
+      const allUserData = JSON.parse(cache.getCache('allusers'));
+      const userIdx = allUserData.findIndex((users) => users._id === userId);
+      allUserData.splice(userIdx, 1);
+      cache.setCache('allusers', JSON.stringify(allUserData));
+    }
 
     await UserProfile.deleteOne({
       _id: userId,
+    }).then(() => {
+      res.status(200).send({ message: 'Executed Successfully' });
+    }).catch((err) => {
+      res.status(500).send(err);
     });
-    res.status(200).send({ message: 'Executed Successfully' });
   };
 
   const getUserById = function (req, res) {
@@ -953,19 +964,20 @@ const userProfileController = function (UserProfile) {
 
       await user.save();
 
-      if (user.role === 'Owner') {
-        const subject = 'Owner Password Reset Notification';
+      const condition = process.env.dbName === 'hgnData_dev' ? (user.role === 'Owner') : (user.role === 'Owner' || user.role === 'Administrator');
+      if (condition) {
+        const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}${user.role} Password Reset Notification`;
         const emailBody = `<p>Hi Admin! </p>
 
         <p><strong>Account Details</strong></p>
-        <p>This email is to inform you that a password reset has been executed for an Owner account:</p>
+        <p>This email is to inform you that a password reset has been executed for an ${user.role} account:</p>
     
         <ul>
             <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
             <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
         </ul>
         
-        <p><strong>Account that reset the Owner's password</strong></p>
+        <p><strong>Account that reset the ${user.role}'s password</strong></p>
         <p>The password reset was made by:</p>
     
         <ul>
