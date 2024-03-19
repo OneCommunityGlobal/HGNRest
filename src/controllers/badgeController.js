@@ -269,7 +269,6 @@ const badgeController = function (Badge) {
     postBadge,
     deleteBadge,
     putBadge,
-    testAssignBadges,
   };
 };
 
