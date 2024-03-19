@@ -5,6 +5,7 @@ const UserProfile = require('../models/userProfile');
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
+const followUp = require('../models/followUp');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -683,6 +684,9 @@ const taskController = function (Task) {
             return task.save();
           })
         : Promise.resolve(1);
+    
+      // delete followUp for deleted task
+      await followUp.findOneAndDelete({ taskId })  
 
     Promise.all([removeChildTasks, updateMotherChildrenQty])
       .then(() => res.status(200).send({ message: 'Task successfully deleted' })) // no need to resetNum(taskId, mother);
@@ -708,7 +712,11 @@ const taskController = function (Task) {
         removeTasks.push(rec.remove());
       });
 
-      Promise.all([...removeTasks])
+      const deleteFollowUps = records.map(rec =>
+        followUp.findOneAndDelete({ taskId: rec._id })
+      );
+
+      Promise.all([...removeTasks,...deleteFollowUps])
         .then(() => res.status(200).send({ message: ' Tasks were successfully deleted' }))
         .catch((errors) => {
           res.status(400).send(errors);
