@@ -567,6 +567,10 @@ const userProfileController = function (UserProfile) {
     await UserProfile.deleteOne({
       _id: userId,
     });
+
+    // delete followUp for deleted user
+    await followUp.findOneAndDelete({ userId })  
+
     res.status(200).send({ message: 'Executed Successfully' });
   };
 
