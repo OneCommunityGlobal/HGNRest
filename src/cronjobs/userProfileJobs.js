@@ -17,7 +17,6 @@ const userProfileJobs = () => {
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.deleteExpiredTokens();
       }
-      console.log('Hit cronjob for user profile jobs.');
       await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
       await userhelper.deActivateUser();
