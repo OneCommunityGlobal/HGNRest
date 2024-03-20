@@ -470,7 +470,7 @@ const userHelper = function () {
             requestForTimeOff.endingDate,
           ).format("dddd YYYY-MM-DD");
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, Due to ${requestForTimeOffreason}`;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> ${requestForTimeOffreason}`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
