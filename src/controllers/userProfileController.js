@@ -2,6 +2,7 @@ const moment = require('moment-timezone');
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+// eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
 
 const moment_ = require('moment');
@@ -20,6 +21,7 @@ const {
   canRequestorUpdateUser,
 } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
+const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 
 async function ValidatePassword(req, res) {
@@ -251,31 +253,68 @@ const userProfileController = function (UserProfile) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
+    const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
+
     up.save()
       .then(() => {
+        // if connected to dev db just check for Owner roles, else it's main branch so also check admin too
+        const condition = process.env.dbName === 'hgnData_dev' ? (up.role === 'Owner') : (up.role === 'Owner' || up.role === 'Administrator');
+        if (condition) {
+          const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}New ${up.role} Role Created`;
+
+          const emailBody = `<p> Hi Admin! </p>
+          
+          <p><strong>New Account Details</strong></p>
+          <p>This email is to inform you that <strong>${up.firstName} ${up.lastName}</strong> has been created as a new ${up.role} account on the Highest Good Network application.</p>
+          
+          <p><strong>Here are the details for the new ${up.role} account:</strong></p>
+          <ul>
+          <li><strong>Name:</strong> ${up.firstName} ${up.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${up.email}">${up.email}</a></li>
+          </ul>
+          
+          <p><strong>Who created this new account?</strong></p>
+          <ul>
+          <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+          </ul>
+          
+          <p>If you have any questions or notice any issues, please investigate further.</p>
+          
+          <p>Thank you for your attention to this matter.</p>
+          
+          <p>Sincerely,</p>
+          <p>The HGN A.I. (and One Community)</p>`;
+
+          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
+        }
+
+        // update backend cache if cache exists
+        if (cache.getCache('allusers')) {
+          const userCache = {
+            permissions: up.permissions,
+            isActive: true,
+            weeklycommittedHours: up.weeklycommittedHours,
+            createdDate: up.createdDate.toISOString(),
+            _id: up._id,
+            role: up.role,
+            firstName: up.firstName,
+            lastName: up.lastName,
+            email: up.email,
+          };
+          const allUserCache = JSON.parse(cache.getCache('allusers'));
+          allUserCache.push(userCache);
+          cache.setCache('allusers', JSON.stringify(allUserCache));
+        }
+
         res.status(200).send({
           _id: up._id,
         });
-
-        // update backend cache
-
-        const userCache = {
-          permissions: up.permissions,
-          isActive: true,
-          weeklycommittedHours: up.weeklycommittedHours,
-          createdDate: up.createdDate.toISOString(),
-          _id: up._id,
-          role: up.role,
-          firstName: up.firstName,
-          lastName: up.lastName,
-          email: up.email,
-        };
-        const allUserCache = JSON.parse(cache.getCache('allusers'));
-        allUserCache.push(userCache);
-        cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch((error) => res.status(501).send(error));
-  };
+      .catch((error) => {
+        res.status(501).send(error);
+      });
+    };
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
@@ -584,15 +623,20 @@ const userProfileController = function (UserProfile) {
     }
 
     cache.removeCache(`user-${userId}`);
-    const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex((users) => users._id === userId);
-    allUserData.splice(userIdx, 1);
-    cache.setCache('allusers', JSON.stringify(allUserData));
+    if (cache.getCache('allusers')) {
+      const allUserData = JSON.parse(cache.getCache('allusers'));
+      const userIdx = allUserData.findIndex((users) => users._id === userId);
+      allUserData.splice(userIdx, 1);
+      cache.setCache('allusers', JSON.stringify(allUserData));
+    }
 
     await UserProfile.deleteOne({
       _id: userId,
+    }).then(() => {
+      res.status(200).send({ message: 'Executed Successfully' });
+    }).catch((err) => {
+      res.status(500).send(err);
     });
-    res.status(200).send({ message: 'Executed Successfully' });
   };
 
   const getUserById = function (req, res) {
@@ -688,10 +732,11 @@ const userProfileController = function (UserProfile) {
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
-      return res.status(400).send({ error: 'Missing property or value' });
+      res.status(400).send({ error: 'Missing property or value' });
+      return;
     }
 
-    return UserProfile.findById(userId)
+    UserProfile.findById(userId)
       .then((user) => {
         user.set({
           [key]: value,
@@ -727,20 +772,10 @@ const userProfileController = function (UserProfile) {
       });
     }
     // Check if the requestor has the permission to update passwords.
-    const hasUpdatePasswordPermission = await hasPermission(
-      requestor,
-      'updatePassword',
-    );
+  const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
-    // If the requestor is updating their own password, allow them to proceed.
-    if (userId === requestor.requestorId) {
-      console.log('Requestor is updating their own password');
-    }
-    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
-    else if (!hasUpdatePasswordPermission) {
-      console.log(
-        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission",
-      );
+    // if they're updating someone else's password, they need the 'updatePassword' permission.
+    if (!hasUpdatePasswordPermission) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -918,28 +953,76 @@ const userProfileController = function (UserProfile) {
       });
   };
 
-  const resetPassword = function (req, res) {
-    ValidatePassword(req);
+  const resetPassword = async function (req, res) {
+    try {
+      ValidatePassword(req);
 
-    UserProfile.findById(req.params.userId, 'password')
-      .then((user) => {
-        user.set({
-          password: req.body.newpassword,
-        });
-        user
-          .save()
-          .then(() => {
-            res.status(200).send({
-              message: ' password Reset',
-            });
-          })
-          .catch((error) => {
-            res.status(500).send(error);
-          });
-      })
-      .catch((error) => {
-        res.status(500).send(error);
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
+
+      if (!requestor) {
+        res.status(404).send({ error: 'Requestor not found' });
+        return;
+      }
+
+      const user = await UserProfile.findById(req.params.userId).select('firstName lastName email role').exec();
+
+      if (!user) {
+        res.status(404).send({ error: 'User not found' });
+        return;
+      }
+
+      if (!await hasPermission(requestor, 'putUserProfileImportantInfo')) {
+        res.status(403).send('You are not authorized to reset this users password');
+        return;
+      }
+
+      if (user.role === 'Owner' && !await hasPermission(requestor, 'addDeleteEditOwners')) {
+        res.status(403).send('You are not authorized to reset this user password');
+        return;
+      }
+
+      user.password = req.body.newpassword;
+
+      await user.save();
+
+      const condition = process.env.dbName === 'hgnData_dev' ? (user.role === 'Owner') : (user.role === 'Owner' || user.role === 'Administrator');
+      if (condition) {
+        const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}${user.role} Password Reset Notification`;
+        const emailBody = `<p>Hi Admin! </p>
+
+        <p><strong>Account Details</strong></p>
+        <p>This email is to inform you that a password reset has been executed for an ${user.role} account:</p>
+    
+        <ul>
+            <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
+        </ul>
+        
+        <p><strong>Account that reset the ${user.role}'s password</strong></p>
+        <p>The password reset was made by:</p>
+    
+        <ul>
+            <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+        </ul>
+
+        <p>If you have any questions or need to verify this password reset, please investigate further.</p>
+
+        <p>Thank you for your attention to this matter.</p>
+    
+        <p>Sincerely,</p>
+        <p>The HGN A.I. (and One Community)</p>
+        `;
+
+        emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
+      }
+
+      res.status(200).send({
+        message: 'Password Reset',
       });
+    } catch (error) {
+      res.status(500).send(error);
+    }
   };
 
   const getAllUsersWithFacebookLink = function (req, res) {
