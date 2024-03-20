@@ -17,4 +17,4 @@ const DAY_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fr
  * @param {String} utcTs A UTC timestamp String
  * @returns {Number} The day of the week. Starting from Sunday. 0 -> Sunday
  */
-export const getDayOfWeekStringFromUTC = utcTs => moment(utcTs).tz('America/Los_Angeles').day();
+export const getDayOfWeekStringFromUTC = utcTs => moment(utcTs).day();
