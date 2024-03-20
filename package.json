@@ -11,7 +11,7 @@
     "start": "node dist/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
     "serve": "babel-node src/server.js",
-    "prepare": "husky install"
+    "prepare": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*"
   },
   "author": "AK",
   "license": "ISC",
