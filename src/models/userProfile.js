@@ -241,6 +241,7 @@ const userProfileSchema = new Schema({
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
+  permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre('save', function (next) {
