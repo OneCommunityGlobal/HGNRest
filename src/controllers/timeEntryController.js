@@ -6,6 +6,7 @@ const Task = require('../models/task');
 const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
+const cache = require('../utilities/nodeCache')();
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -365,6 +366,25 @@ const timeEntrycontroller = function (TimeEntry) {
     });
   };
 
+  /**
+   *  Check if this is the first time entry for the given user id
+   * */
+  const checkIsUserFirstTimeEntry = async (personId) => {
+    try {
+      const timeEntry = await TimeEntry.findOne({
+        personId,
+      });
+      if (timeEntry) {
+        return false;
+      }
+    } catch (error) {
+      console.log(
+        `Failed to check for user with id ${personId} on entry`,
+      );
+    }
+    return true;
+  };
+
   const postTimeEntry = async function (req, res) {
     const isInvalid = !req.body.dateOfWork
       || !moment(req.body.dateOfWork).isValid()
@@ -431,18 +451,34 @@ const timeEntrycontroller = function (TimeEntry) {
       checkTaskOvertime(timeEntry, timeEntryUser, timeEntryTask);
       await timeEntryTask.save();
     }
+    // Check if this is the first time entry for the user
+    const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
 
     try {
       return timeEntry
         .save()
-        .then((results) => res.status(200).send({
+        .then((results) => {
+            // update user profile
+            if (isFirstTimeEntry) {
+              UserProfile.findByIdAndUpdate(
+                timeEntry.personId,
+                { $set: { firstTimeEntry: false, startDate: moment().utc().toISOString() } },
+              ).exec();
+              if (cache.getCache(`user-${timeEntry.personId}`)) {
+                // remove user cache
+                cache.removeCache(`user-${timeEntry.personId}`);
+              }
+            }
+            res.status(200).send({
             message: `Time Entry saved with id as ${results._id}`,
-          }))
+          });
+        })
         .catch((error) => res.status(400).send(error));
     } catch (error) {
       return res.status(500).send(error);
     }
   };
+
 
   const getTimeEntriesForSpecifiedPeriod = async function (req, res) {
     if (

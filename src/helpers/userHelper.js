@@ -440,9 +440,10 @@ const userHelper = function () {
          *     should get a blue square as reminder.
          *  */
          let isNewUser = false;
+
          if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0) {
-           if ((moment(person.startDate).isAfter(pdtStartOfLastWeek))
-             || (moment(person.startDate).isBefore(pdtStartOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
+           if ((moment(person.startDate).isAfter(pdtEndOfLastWeek))
+             || (moment(person.startDate).isAfter(pdtStartOfLastWeek) && moment(person.startDate).isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
                isNewUser = true;
              }
          }
@@ -634,11 +635,11 @@ const userHelper = function () {
             }
 
             emailSender(
-              status.email,
+              status.email, // change this to hardcoded email for testing if needed
               "New Infringement Assigned",
               emailBody,
               null,
-              "onecommunityglobal@gmail.com",
+              "onecommunityglobal@gmail.com", // change this to hardcoded email for testing if needed
               status.email,
               null,
             );
@@ -689,6 +690,9 @@ const userHelper = function () {
               );
             }
           }
+        }
+        if (cache.hasCache(`user-${personId}`)) {
+          cache.removeCache(`user-${personId}`);
         }
       }
       await deleteOldTimeOffRequests();
