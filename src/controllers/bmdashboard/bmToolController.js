@@ -109,79 +109,90 @@ const bmToolController = (BuildingTool, ToolType) => {
         //this is going to be a pretty slow function...
         console.log("*******************************************")
         console.log("bmLogTools in bmToolController called");
-        console.log("requestorId: ", req.body.requestor.requestorId);
-
-        const {toolId, date, project, check} = req.body; 
         const requestor = req.body.requestor.requestorId;
-        console.log("toolId: ",toolId, ", date: ", date, ", project: ", project, ', check: ', check);
+        // const typesArray = req.body.typesArray;
+        // const action = req.body.action; 
+        // const date = req.body.date;
+        const {typesArray, action, date} = req.body
+        console.log("requestor: ",requestor, /*", typesArray: ", typesArray,*/ ", action: ",action, ", date: ", date);
 
-
-        // logRecord: [{ // track tool daily check in/out and responsible user
-        //   date: { type: Date, default: Date.now() },
-        //   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-        //   responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-        //   type: { type: String, enum: ['Check In', 'Check Out'] },
-        // let doc = await BuildingTool.findOne({ _id:  toolId});
-    
-        try {
-          const document = await BuildingTool.findOne({ _id: toolId })
-
-          if(document){
-            // console.log("document: ", document)
-            // console.log("document.itemType: ", document.itemType)
-            const {userResponsible, itemType} = document;
-            const currentToolType = await ToolType.findOne({ _id: document.itemType }) 
-            // console.log("currentToolType: ", currentToolType)
-
-            const newLogRecord = {
-              date: date,
-              createdBy: requestor,
-              responsibleUser: userResponsible, 
-              type: check,
-            };
-            
-            // console.log("available: ", available, ", using: ", using, ", userResponsible: ", userResponsible, ", newLogRecord: ", newLogRecord);
-            document.logRecord.push(newLogRecord);
-            if(check === "Check Out"){
-              console.log("Check Out: ", check);
-              if(currentToolType.available > 0){
-                // console.log("currentToolType.available > 0: ", currentToolType.available);
-                currentToolType.available --;
-                currentToolType.using++;
-              }else{
-                // console.log("currentToolType.available <= 0: ", currentToolType.available);
-                return res.status(400).send(`Can not process request "${check}". ${currentToolType.name} stock exceeded`);//TODO: convert to {message: ''} 
-              }
-            }else if(check === "Check In"){
-              console.log("Check In: ", check);
-              if(currentToolType.using > 0){
-                // console.log("currentToolType.using > 0: ", currentToolType.using);
-                currentToolType.available++;
-                currentToolType.using--;
-              }else{ 
-                // console.log("currentToolType.using <= 0: ", currentToolType.using);
-                return res.status(400).send(`Can not process request "${check}". No items are currently checked out`);//TODO: convert to {message: ''} 
-              }
-            }else{
-              // console.log("Invalid check: ", check);
-              return res.status(400).send('Invalid entry for the field "Check In or Out".');
+         
+        try{
+          console.log("try block")
+          for (const type of typesArray) {
+            console.log("looping typesArray")
+            const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
+            if (!toolTypeDoc) {
+             console.log("Tool type with this id was not found")
+             return res.status(404).send('Tool type with this id was not found.');
             }
+            console.log("toolTypeDoc found, name: ", toolTypeDoc.name)
+            const availableItems = toolTypeDoc.available;
+            const usingItems = toolTypeDoc.using;
+            console.log("availableItems: ", availableItems, ", usingItems: ", usingItems)
+            //is it more efficient to loop through type.toolItems first and then perform an action accord to check in or check out? Might reduce the amount of code! 
+        
+            
+            type.toolItems.forEach(async toolItem=>{
+              console.log("looping toolItems. toolItem code: ", toolItem.code);
+              if(action === "Check Out" && availableItems.length > 0){
+                  console.log("check out && availableItems > 0")
+                  const foundIndex = availableItems.indexOf(toolItem);
+                  if(foundIndex >= 0){
+                    console.log("found toolItem in availableItems: ", foundIndex);
+                    availableItems.splice(foundIndex, 1);
+                    usingItems.push(toolItem);
+                    console.log("Check out spliced and pushed")
+                  }else{
+                    console.log("Didn't find this id in availableItems array")
+                    //return 400
+                  }
+              }else if(action === "Check Out" && availableItems.length < 0){
+                console.log(`168. Can not process request "${action}". ${toolTypeDoc.name} stock exceeded`)
+               // return 400          
+              }
 
-            
-            await document.save();
-            await currentToolType.save();
-            
-            // console.log("document.logRecord: ", document.logRecord, ", currentToolType: ", currentToolType);
-
-            // console.log("currentToolType: ", currentToolType);
-            
-            res.status(200).send('Tool log record added successfully.');
-          }else{
-            res.status(404).send('Tool with this id was not found.');
-          }
+              if(action === "Check In" && usingItems.length > 0){
+                console.log("check in && usingItems > 0")
+                const foundIndex = usingItems.indexOf(toolItem);
+                  
+                  if(foundIndex >= 0){
+                    console.log("found toolItem in usingItems: ", foundIndex);
+                    usingItems.splice(foundIndex, 1);
+                    availableItems.push(toolItem);
+                    console.log("Check in spliced and pushed")
+                  }else{
+                    console.log("Didn't find this id in availableItems array")
+                    // return 400
+                  }
+              } else if(action === "Check In" && usingItems.length < 0){
+                console.log(`168. Can not process request "${action}". No items of type ${toolTypeDoc.name} are currently checked out`)
+                // return 400
+              }
+              // if we are here the function did not return 
+              const buildingToolDoc = await BuildingTool.findOne({ _id: mongoose.Types.ObjectId(toolItem)});
+              if(!buildingToolDoc){
+                console.log("STATUS 404 didnt find item ");
+                // return res.status(404).send({message: 'Tool item with this id was not found.'});
+              }
+              console.log("found item buildingToolDoc, ", buildingToolDoc._id);
+              const newRecord = {
+                date: date,
+                createdBy: requestor,
+                responsibleUser: buildingToolDoc.userResponsible, 
+                type: action
+              }
+              buildingToolDoc.logRecord.push(newRecord);
+              console.log("buildingToolDoc.logRecord: ", buildingToolDoc.logRecord)
+              buildingToolDoc.save();
+              console.log("saved buildingToolDoc");
+            })
+            await toolTypeDoc.save();
+          } //end loop through typesArray 
+          res.status(200).send({message: 'Log request processed successfully!'});
         }catch(error){
-          console.log("183. error: ", error); //delete later
-          res.status(500).send(error);
+            console.log("183. error: ", error); //delete later
+            res.status(500).send(error);
         }
       }
 

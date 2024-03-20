@@ -63,8 +63,15 @@ const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
     return this.isPowered; // required if isPowered = true 
   },
 },
-  available: { type: Number, default: 0 }, //new field
-  using: { type: Number, default: 0 },//new field
+  // available: { type: Number, default: 0 }, //new field
+  // available: [{
+  //   itemId: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingTool' }, //careful that this does not ref the buildingTool model which is depricated. buildingTool is exported tho, so should work
+  //   code: {type: String}
+  // }],
+  available: [{type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item'}],
+  // using: { type: Number, default: 0 },//new field
+  using: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
+  //add a date last updated field? 
 }));
 
 //---------------------------

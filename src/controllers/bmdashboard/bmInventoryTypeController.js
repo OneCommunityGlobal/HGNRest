@@ -37,9 +37,21 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     try {
       ToolType
         .find()
+        .populate([  
+          {
+            path: 'available',
+            select: '_id code project',
+          },
+          {
+            path: 'using',
+            select: '_id code project',
+          }
+        ])
         .exec()
         .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .catch(error => {
+          console.log("53. fetchToolTypes error: ", error)
+          res.status(500).send(error)});
     } catch (err) {
       res.json(err);
     }
