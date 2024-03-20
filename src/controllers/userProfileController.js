@@ -280,9 +280,11 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid)
-      && ((await hasPermission(req.body.requestor, 'putUserProfile'))
-        || req.body.requestor.requestorId === userid)
+
+      canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
+        await hasPermission(req.body.requestor, 'putUserProfile')
+        || await hasPermission(req.body.requestor, 'manageAdminLinks') || req.body.requestor.requestorId === userid
+      )
     );
 
     if (!isRequestorAuthorized) {
@@ -377,7 +379,11 @@ const userProfileController = function (UserProfile) {
         userData = allUserData[userIdx];
       }
       if (
-        await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')
+        await hasPermission(req.body.requestor, "manageAdminLinks")
+      ) {
+        record.adminLinks = req.body.adminLinks;
+
+       if (await hasPermission(req.body.requestor, "putUserProfileImportantInfo")
       ) {
         const importantFields = [
           'role',
@@ -419,6 +425,7 @@ const userProfileController = function (UserProfile) {
         if (req.body.email !== undefined) {
           record.email = req.body.email.toLowerCase();
         }
+
 
         // Logic to update weeklycommittedHours and the history of the committed hours made
         if (
@@ -464,9 +471,12 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
         }
 
+        record.bioPosted = req.body.bioPosted || 'default';
+
         if (
           req.body.permissions !== undefined
           && (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+
         ) {
           record.permissions = req.body.permissions;
         }
