@@ -5,7 +5,6 @@ const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
-const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
