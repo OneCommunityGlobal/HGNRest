@@ -58,6 +58,7 @@ const dashboardhelper = function () {
           name: 1,
           weeklycommittedHours: 1,
           role: 1,
+          endDate: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -96,6 +97,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           weeklycommittedHours: 1,
+          endDate: 1,
           totalSeconds: {
             $cond: [
               {
@@ -214,6 +216,7 @@ const dashboardhelper = function () {
             weeklySummaries: 1,
             timeOffFrom: 1,
             timeOffTill: 1,
+            endDate: 1,
           },
         );
       } else {
@@ -229,6 +232,7 @@ const dashboardhelper = function () {
             weeklySummaries: 1,
             timeOffFrom: 1,
             timeOffTill: 1,
+            endDate: 1,
           },
         );
       }
@@ -297,6 +301,7 @@ const dashboardhelper = function () {
               : 0,
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
+          endDate: teamMember.endDate || null,
         };
         leaderBoardData.push(obj);
       });
@@ -627,6 +632,7 @@ const dashboardhelper = function () {
             (intangibleSeconds / tangibleSeconds) * 100,
           timeOffFrom: user.timeOffFrom,
           timeOffTill: user.timeOffTill,
+          endDate: user.endDate || null,
         },
       ];
     } catch (err) {
