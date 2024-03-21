@@ -1,13 +1,13 @@
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
-const currentWarnings = require("../models/currentWarnings");
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const currentWarnings = require('../models/currentWarnings');
 
 let currentWarningDescriptions = null;
 
 async function getWarningDescriptions() {
   currentWarningDescriptions = await currentWarnings.find(
     {},
-    { warningTitle: 1, _id: 0 }
+    { warningTitle: 1, _id: 0 },
   );
 }
 
@@ -26,7 +26,7 @@ const warningsController = function (UserProfile) {
     });
 
     currentWarningDescriptions = convertObjectToArray(
-      currentWarningDescriptions
+      currentWarningDescriptions,
     );
     const { userId } = req.params;
 
@@ -35,11 +35,11 @@ const warningsController = function (UserProfile) {
 
       const completedData = filterWarnings(
         currentWarningDescriptions,
-        warnings
+        warnings,
       );
 
       if (!warnings) {
-        return res.status(400).send({ message: "no valiud records" });
+        return res.status(400).send({ message: 'no valiud records' });
       }
       res.status(201).send({ warnings: completedData });
     } catch (error) {
@@ -51,11 +51,13 @@ const warningsController = function (UserProfile) {
     try {
       const { userId } = req.params;
 
-      const { iconId, color, date, description } = req.body;
+      const {
+ iconId, color, date, description,
+} = req.body;
 
       const record = await UserProfile.findById(userId);
       if (!record) {
-        return res.status(400).send({ message: "No valid records found" });
+        return res.status(400).send({ message: 'No valid records found' });
       }
 
       record.warnings = record.warnings.concat({
@@ -70,10 +72,10 @@ const warningsController = function (UserProfile) {
 
       const completedData = filterWarnings(
         currentWarningDescriptions,
-        record.warnings
+        record.warnings,
       );
 
-      res.status(201).send({ message: "success", warnings: completedData });
+      res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
       res.status(400).send({ message: error.message || error });
     }
@@ -87,20 +89,20 @@ const warningsController = function (UserProfile) {
       const warnings = await UserProfile.findOneAndUpdate(
         { _id: userId },
         { $pull: { warnings: { _id: warningId } } },
-        { new: true, upsert: true }
+        { new: true, upsert: true },
       );
 
       if (!warnings) {
-        return res.status(400).send({ message: "no valid records" });
+        return res.status(400).send({ message: 'no valid records' });
       }
 
       const sortedWarnings = filterWarnings(
         currentWarningDescriptions,
-        warnings.warnings
+        warnings.warnings,
       );
       res
         .status(201)
-        .send({ message: "succesfully deleted", warnings: sortedWarnings });
+        .send({ message: 'succesfully deleted', warnings: sortedWarnings });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -114,16 +116,15 @@ const warningsController = function (UserProfile) {
 };
 
 // gests the dsecriptions key from the array
-const getDescriptionKey = (val) =>
+const getDescriptionKey = val =>
   //  currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
 
   currentWarningDescriptions.indexOf(val);
-const sortKeysAlphabetically = (a, b) =>
-  getDescriptionKey(a) - getDescriptionKey(b);
+const sortKeysAlphabetically = (a, b) => getDescriptionKey(a) - getDescriptionKey(b);
 
 // method to see which color is first
 const getColorIndex = (color) => {
-  const colorOrder = ["blue", "yellow", "red"];
+  const colorOrder = ['blue', 'yellow', 'red'];
   return colorOrder.indexOf(color);
 };
 

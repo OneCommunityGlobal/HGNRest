@@ -1,12 +1,13 @@
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
 
 const currentWarningsController = function (currentWarnings) {
   const getCurrentWarnings = async (req, res) => {
     try {
       const response = await currentWarnings.find({});
+
       if (response.length === 0) {
-        return res.status(400).send({ message: "no valid records" });
+        return res.status(400).send({ message: 'no valid records' });
       }
       return res.status(201).send({ currentWarningDescriptions: response });
     } catch (error) {
@@ -15,23 +16,20 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const postNewWarningDescription = async (req, res) => {
-    // post to the db using mongodb methods
-    // search a method to post id will be generated
-
     try {
       const { newWarning, activeWarning } = req.body;
 
       const warnings = await currentWarnings.find({});
 
       if (warnings.length === 0) {
-        return res.status(400).send({ message: "no valid records" });
+        return res.status(400).send({ message: 'no valid records' });
       }
 
       const duplicateFound = warnings.some(
-        (warning) => warning.warningTitle === newWarning
+        warning => warning.warningTitle === newWarning,
       );
       if (duplicateFound) {
-        return res.status(422).send({ error: "warning already exists" });
+        return res.status(422).send({ error: 'warning already exists' });
       }
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
@@ -46,35 +44,45 @@ const currentWarningsController = function (currentWarnings) {
     }
   };
 
+  const editWarningDescription = async (req, res) => {
+    try {
+      const { editedWarning } = req.body;
+
+      const id = editedWarning._id;
+
+      const response = await currentWarnings.findOneAndUpdate(
+        { _id: id },
+        [{ $set: { warningTitle: editedWarning.warningTitle.trim() } }],
+        { new: true },
+      );
+
+      res.status(201).send({ message: 'warning description was updated' });
+    } catch (error) {
+      res.status(401).send({ message: error.message || error });
+    }
+  };
   const updateWarningDescription = async (req, res) => {
     try {
       const { warningDescriptionId } = req.params;
 
-      const response = await currentWarnings.findOneAndUpdate(
+      await currentWarnings.findOneAndUpdate(
         { _id: warningDescriptionId },
-        [{ $set: { activeWarning: { $not: "$activeWarning" } } }],
-        { new: true }
+        [{ $set: { activeWarning: { $not: '$activeWarning' } } }],
+        { new: true },
       );
 
-      const updatedWarningDescription = {
-        _id: response._id,
-        activeWarning: response.activeWarning,
-      };
-
-      res.status(201).send(updatedWarningDescription);
+      res.status(201).send({ message: 'warning description was updated' });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
   };
 
-  // delete will delete the  warning and all warnings assocaited with it
   const deleteWarningDescription = async (req, res) => {
     try {
       const { warningDescriptionId } = req.params;
-      console.log("warningDescriptionId", warningDescriptionId);
-      // Find the document to be deleted
+      console.log('warningDescriptionId', warningDescriptionId);
       const documentToDelete = await currentWarnings.findById(
-        warningDescriptionId
+        warningDescriptionId,
       );
 
       await currentWarnings.deleteOne({
@@ -83,24 +91,20 @@ const currentWarningsController = function (currentWarnings) {
 
       const deletedDescription = documentToDelete.warningTitle;
 
-      // deletes all warnings from users too
-      //look into why this works
-
       await userProfile.updateMany(
         {
-          "warnings.description": deletedDescription,
+          'warnings.description': deletedDescription,
         },
         {
           $pull: {
             warnings: { description: deletedDescription },
           },
-        }
+        },
       );
-      // .then((response) => console.log("res", response));
 
       res.status(200).send({
         message:
-          "warning description was successfully deleted and user profiles updated",
+          'warning description was successfully deleted and user profiles updated',
       });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
@@ -112,6 +116,7 @@ const currentWarningsController = function (currentWarnings) {
     postNewWarningDescription,
     updateWarningDescription,
     deleteWarningDescription,
+    editWarningDescription,
   };
 };
 module.exports = currentWarningsController;

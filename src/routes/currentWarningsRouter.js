@@ -13,11 +13,13 @@ const route = function (currentWarnings) {
     .post(controller.postNewWarningDescription);
 
   currentWarningsRouter
+    .route('/currentWarnings/edit')
+    .put(controller.editWarningDescription);
+
+  currentWarningsRouter
     .route('/currentWarnings/:warningDescriptionId')
     .delete(controller.deleteWarningDescription)
     .put(controller.updateWarningDescription);
-  // .put(controller.updateCurrentDescriptions)
-  // .delete(controller.deleteCurrentDescriptions);
 
   return currentWarningsRouter;
 };
