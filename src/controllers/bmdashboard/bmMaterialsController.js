@@ -29,8 +29,8 @@ const bmMaterialsController = function (BuildingMaterial) {
           },
         ])
         .exec()
-        .then((results) => res.status(200).send(results))
-        .catch((error) => res.status(500).send(error));
+        .then(results => res.status(200).send(results))
+        .catch(error => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -75,7 +75,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         BuildingMaterial
           .create(newDoc)
           .then(() => res.status(201).send())
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
         return;
       }
       BuildingMaterial
@@ -85,7 +85,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         )
         .exec()
         .then(() => res.status(201).send())
-        .catch((error) => res.status(500).send(error));
+        .catch(error => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }
@@ -133,7 +133,7 @@ const bmMaterialsController = function (BuildingMaterial) {
 
       )
         .then((results) => { res.status(200).send(results); })
-        .catch((error) => res.status(500).send({ message: error }));
+        .catch(error => res.status(500).send({ message: error }));
     }
   };
 
@@ -184,7 +184,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         res.status(500).send('Stock quantities submitted seems to be invalid');
         return;
       }
-      const updatePromises = updateRecordsToBeAdded.map((updateItem) => BuildingMaterial.updateOne(
+      const updatePromises = updateRecordsToBeAdded.map(updateItem => BuildingMaterial.updateOne(
         { _id: updateItem.updateId },
         {
           $set: updateItem.set,
@@ -195,7 +195,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         .then((results) => {
           res.status(200).send({ result: `Successfully posted log for ${results.length} Material records.` });
         })
-        .catch((error) => res.status(500).send(error));
+        .catch(error => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }

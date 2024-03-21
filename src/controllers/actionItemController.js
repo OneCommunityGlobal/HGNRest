@@ -107,7 +107,7 @@ const actionItemController = function (ActionItem) {
 
     _actionItem.save()
       .then(res.status(200).send('Saved'))
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   return {
