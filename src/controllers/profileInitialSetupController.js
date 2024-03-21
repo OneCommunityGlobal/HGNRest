@@ -109,14 +109,14 @@ const profileInitialSetupController = function (
   Function to handle token generation and email process:
   - Generates a new token and saves it to the database.
   - If the email already has a token, the old one is deleted.
-  - Sets the token expiration to one week.
+  - Sets the token expiration to three weeks.
   - Generates a link using the token and emails it to the recipient.
    */
   const getSetupToken = async (req, res) => {
     let { email, baseUrl, weeklyCommittedHours } = req.body;
     email = email.toLowerCase();
     const token = uuidv4();
-    const expiration = moment().tz('America/Los_Angeles').add(1, 'week');
+    const expiration = moment().tz('America/Los_Angeles').add(3, 'week');
     try {
       const existingEmail = await userProfile.findOne({
         email,
@@ -345,13 +345,13 @@ const profileInitialSetupController = function (
           users.push(item);
         }
       });
-      const modifiedUsers = users.map(item => ({
+      const modifiedUsers = users.map((item) => ({
         location: item.location,
       }));
 
       const mapUsers = await MapLocation.find({});
       const combined = [...modifiedUsers, ...mapUsers];
-      const countries = combined.map(user => user.location.country);
+      const countries = combined.map((user) => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
       res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
