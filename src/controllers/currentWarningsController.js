@@ -21,6 +21,7 @@ const currentWarningsController = function (currentWarnings) {
     try {
       const { newWarning, activeWarning } = req.body;
 
+      const trimmedWarning = newWarning.trim();
       const warnings = await currentWarnings.find({});
 
       if (warnings.length === 0) {
@@ -28,13 +29,14 @@ const currentWarningsController = function (currentWarnings) {
       }
 
       const duplicateFound = warnings.some(
-        (warning) => warning.warningTitle === newWarning
+        (warning) => warning.warningTitle === trimmedWarning
       );
       if (duplicateFound) {
         return res.status(422).send({ error: "warning already exists" });
       }
+
       const newWarningDescription = new currentWarnings();
-      newWarningDescription.warningTitle = newWarning;
+      newWarningDescription.warningTitle = trimmedWarning;
       newWarningDescription.activeWarning = activeWarning;
 
       warnings.push(newWarningDescription);
