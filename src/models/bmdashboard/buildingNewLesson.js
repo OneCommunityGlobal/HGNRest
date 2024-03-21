@@ -9,6 +9,16 @@ const buildingNewLesson = new Schema({
     author: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
     tags: [{ type: String, required: true, maxLength: 10 }],
     relatedProject: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject', required: true },
+    likes: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'Like' }],
+    totalLikes: { type: Number, default: 0 },
+    allowedRoles: { type: String, required: true },
+    files: [
+        {
+            data: Buffer,
+            contentType: String,
+            filename: String,
+        },
+    ],
 });
 
 module.exports = mongoose.model('buildingNewLesson', buildingNewLesson, 'buildingNewLessons');

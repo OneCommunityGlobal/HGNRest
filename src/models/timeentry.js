@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-
 const TimeEntry = new Schema({
   entryType: { type: String, required: true, default: 'default' },
   personId: { type: Schema.Types.ObjectId, ref: 'userProfile' },

@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const logger = require('./logger');
 const userProfile = require('../models/userProfile');
@@ -24,8 +23,8 @@ const afterConnect = async () => {
         role: 'Volunteer',
         password: process.env.DEF_PWD,
       })
-        .then(result => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
-        .catch(error => logger.logException(error));
+        .then((result) => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
+        .catch((error) => logger.logException(error));
     }
   } catch (error) {
     throw new Error(error);
@@ -41,5 +40,5 @@ module.exports = function () {
     useFindAndModify: false,
   })
     .then(afterConnect)
-    .catch(err => logger.logException(err));
+    .catch((err) => logger.logException(err));
 };
