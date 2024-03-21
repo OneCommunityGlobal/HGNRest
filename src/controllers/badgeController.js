@@ -39,7 +39,7 @@ const badgeController = function (Badge) {
         cache.setCache('allBadges', results);
         res.status(200).send(results);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   /**
@@ -96,9 +96,9 @@ const badgeController = function (Badge) {
           // Combine and sort earnedDate arrays
           if (Array.isArray(item.earnedDate)) {
             const combinedEarnedDate = [...grouped[badge].earnedDate, ...item.earnedDate];
-            const timestampArray = combinedEarnedDate.map((date) => new Date(date).getTime());
+            const timestampArray = combinedEarnedDate.map(date => new Date(date).getTime());
             timestampArray.sort((a, b) => a - b);
-            grouped[badge].earnedDate = timestampArray.map((timestamp) => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+            grouped[badge].earnedDate = timestampArray.map(timestamp => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
               .replace(/ /g, '-')
               .replace(',', ''));
           }
@@ -175,7 +175,7 @@ const badgeController = function (Badge) {
           }
           res.status(201).send(results);
         })
-        .catch((errors) => res.status(500).send(errors));
+        .catch(errors => res.status(500).send(errors));
     });
   };
 
