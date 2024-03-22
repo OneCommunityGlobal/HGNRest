@@ -23,5 +23,13 @@
     "import/resolver": {
       "babel-module": {}
     }
-  }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.js", "**/*.spec.js", "src/test/*.js"],
+      "env": {
+        "jest": true
+      }
+    }
+  ]
 }
