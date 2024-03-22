@@ -41,18 +41,17 @@ const userHelper = function () {
   };
 
   const validateProfilePic = function (profilePic) {
-    
-    // if it is a url 
+    // if it is a url
     if (typeof profilePic !== "string") {
       return {
         result: false,
-        errors: "Invalid image"
+        errors: "Invalid image",
       };
     }
     if (profilePic.startsWith('http') || profilePic.startsWith('https')) {
       return {
         result: true,
-        errors: "Valid image"
+        errors: "Valid image",
       };
     }
 
@@ -330,7 +329,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch(error => logger.logException(error));
+      .catch((error) => logger.logException(error));
   };
 
   /**
@@ -487,7 +486,7 @@ const userHelper = function () {
             requestForTimeOff.endingDate,
           ).format("dddd YYYY-MM-DD");
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, Due to ${requestForTimeOffreason}`;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> ${requestForTimeOffreason}`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -990,7 +989,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          item => item.badge._id.toString() === badgeId.toString(),
+          (item) => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error("Badge not found");
@@ -1225,7 +1224,7 @@ const userHelper = function () {
             >= elem.multiple
           ) {
             const theBadge = badgesOfType.find(
-              badgeItem => badgeItem._id.toString() === elem._id.toString(),
+              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(
@@ -1554,7 +1553,7 @@ const userHelper = function () {
 
     categories.forEach(async (category) => {
       const categoryHrs = Object.keys(hoursByCategory).find(
-        elem => elem === category,
+        (elem) => elem === category,
       );
 
       let badgeOfType;

@@ -56,7 +56,7 @@ const dashboardcontroller = function () {
         .then(() => {
           res.status(200).send("Successfully saved AI prompt.");
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     }
   };
 
@@ -82,7 +82,7 @@ const dashboardcontroller = function () {
             });
         }
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -133,7 +133,7 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const orgData = function (req, res) {
@@ -143,7 +143,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -234,7 +234,7 @@ const dashboardcontroller = function () {
     let fieldaaray = [];
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
-        item => `<p>${item}</p>
+        (item) => `<p>${item}</p>
                    <p>${args[3][item]}</p>`,
       );
     }
@@ -319,7 +319,7 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.field = suggestionData.field.filter(
-            item => item !== req.body.newField,
+            (item) => item !== req.body.newField,
           );
         }
       }

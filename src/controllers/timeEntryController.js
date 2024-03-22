@@ -436,10 +436,10 @@ const timeEntrycontroller = function (TimeEntry) {
     try {
       return timeEntry
         .save()
-        .then(results => res.status(200).send({
+        .then((results) => res.status(200).send({
             message: `Time Entry saved with id as ${results._id}`,
           }))
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     } catch (error) {
       return res.status(500).send(error);
     }
