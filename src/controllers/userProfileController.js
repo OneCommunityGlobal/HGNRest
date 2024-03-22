@@ -19,6 +19,7 @@ const {
   hasPermission,
   canRequestorUpdateUser,
 } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const config = require('../config');
 
@@ -71,6 +72,14 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
+  const forbidden = function (res, message) {
+    res.status(403).send(message);
+  };
+
+  const checkPermission = async function (req, permission) {
+    return helper.hasPermission(req.body.requestor, permission);
+  };
+
   const getUserProfiles = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
       res.status(403).send('You are not authorized to view all users');
@@ -123,16 +132,13 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postUserProfile'))) {
-      res.status(403).send('You are not authorized to create new users');
+    if (!(await checkPermission(req, 'postUserProfile'))) {
+      forbidden(res, 'You are not authorized to create new users');
       return;
     }
 
-    if (
-      req.body.role === 'Owner'
-      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
-    ) {
-      res.status(403).send('You are not authorized to create new owners');
+    if (req.body.role === 'Owner' && !(await checkPermission(req, 'addDeleteEditOwners'))) {
+      forbidden(res, 'You are not authorized to create new owners');
       return;
     }
 
@@ -274,7 +280,9 @@ const userProfileController = function (UserProfile) {
         allUserCache.push(userCache);
         cache.setCache('allusers', JSON.stringify(allUserCache));
       })
-      .catch((error) => res.status(501).send(error));
+      .catch((error) => {
+        res.status(501).send(error);
+      });
   };
 
   const putUserProfile = async function (req, res) {
