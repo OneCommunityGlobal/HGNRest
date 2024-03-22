@@ -52,6 +52,7 @@ const logincontroller = function () {
           access: {
             canAccessBMPortal: false,
           },
+          email: user.email,
           expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
         };
 

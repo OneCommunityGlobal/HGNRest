@@ -1,22 +1,22 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const { getInfringementEmailBody } = require("../helpers/userHelper")();
-const UserProfile = require("../models/userProfile");
-const Task = require("../models/task");
-const WBS = require("../models/wbs");
-const emailSender = require("../utilities/emailSender");
-const { hasPermission } = require("../utilities/permissions");
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const { getInfringementEmailBody } = require('../helpers/userHelper')();
+const UserProfile = require('../models/userProfile');
+const Task = require('../models/task');
+const WBS = require('../models/wbs');
+const emailSender = require('../utilities/emailSender');
+const { hasPermission } = require('../utilities/permissions');
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
-    moment.duration(formattedseconds, "seconds").asHours(),
-  )}:${moment.duration(formattedseconds, "seconds").minutes()}`;
-  return values.split(":");
+    moment.duration(formattedseconds, 'seconds').asHours(),
+  )}:${moment.duration(formattedseconds, 'seconds').minutes()}`;
+  return values.split(':');
 };
 
 const isGeneralTimeEntry = function (type) {
-  if (type === undefined || type === "default") {
+  if (type === undefined || type === 'default') {
     return true;
   }
   return false;
@@ -42,10 +42,10 @@ const getEditedTimeEntryEmailBody = (
 ) => {
   const formattedOriginal = moment
     .utc(originalTime * 1000)
-    .format("HH[ hours ]mm[ minutes]");
+    .format('HH[ hours ]mm[ minutes]');
   const formattedFinal = moment
     .utc(finalTime * 1000)
-    .format("HH[ hours ]mm[ minutes]");
+    .format('HH[ hours ]mm[ minutes]');
   return `
   A time entry belonging to ${firstName} ${lastName} (${email}) was modified by ${requestor.firstName} ${requestor.lastName} (${requestor.email}).
   The entry's duration was changed from [${formattedOriginal}] to [${formattedFinal}]
@@ -63,8 +63,7 @@ const getEditedTimeEntryEmailBody = (
 const notifyEditByEmail = async (personId, originalTime, finalTime, final) => {
   try {
     const record = await UserProfile.findById(personId);
-    const requestor =
-      personId !== final.requestor.requestorId
+    const requestor = personId !== final.requestor.requestorId
         ? await UserProfile.findById(final.requestor.requestorId)
         : record;
     const emailBody = getEditedTimeEntryEmailBody(
@@ -76,7 +75,7 @@ const notifyEditByEmail = async (personId, originalTime, finalTime, final) => {
       requestor,
     );
     emailSender(
-      "onecommunityglobal@gmail.com",
+      'onecommunityglobal@gmail.com',
       `A Time Entry was Edited for ${record.firstName} ${record.lastName}`,
       emailBody,
     );
@@ -105,9 +104,9 @@ const notifyTaskOvertimeEmailBody = async (
       <p>One Community</p>`;
     emailSender(
       record.email,
-      "Logged more hours than estimated for a task",
+      'Logged more hours than estimated for a task',
       text,
-      "onecommunityglobal@gmail.com",
+      'onecommunityglobal@gmail.com',
       null,
       record.email,
       null,
@@ -159,14 +158,14 @@ const timeEntrycontroller = function (TimeEntry) {
     const { timeEntryId } = req.params;
 
     if (!timeEntryId) {
-      const error = "ObjectId in request param is not in correct format";
+      const error = 'ObjectId in request param is not in correct format';
       return res.status(400).send({ error });
     }
 
     const {
       personId,
-      hours: newHours = "00",
-      minutes: newMinutes = "00",
+      hours: newHours = '00',
+      minutes: newMinutes = '00',
       notes: newNotes,
       isTangible: newIsTangible,
       projectId: newProjectId,
@@ -179,23 +178,21 @@ const timeEntrycontroller = function (TimeEntry) {
     const isGeneralEntry = isGeneralTimeEntry(type);
 
     if (
-      !mongoose.Types.ObjectId.isValid(timeEntryId) ||
-      ((isGeneralEntry || type === "project") &&
-        !mongoose.Types.ObjectId.isValid(newProjectId))
+      !mongoose.Types.ObjectId.isValid(timeEntryId)
+      || ((isGeneralEntry || type === 'project')
+        && !mongoose.Types.ObjectId.isValid(newProjectId))
     ) {
-      const error = "ObjectIds are not correctly formed";
+      const error = 'ObjectIds are not correctly formed';
       return res.status(400).send({ error });
     }
 
     const isForAuthUser = personId === req.body.requestor.requestorId;
-    const isSameDayTimeEntry =
-      moment().tz("America/Los_Angeles").format("YYYY-MM-DD") === newDateOfWork;
-    const canEdit =
-      (await hasPermission(req.body.requestor, "editTimeEntry")) ||
-      (isForAuthUser && isSameDayTimeEntry);
+    const isSameDayTimeEntry = moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
+    const canEdit = (await hasPermission(req.body.requestor, 'editTimeEntry'))
+      || (isForAuthUser && isSameDayTimeEntry);
 
     if (!canEdit) {
-      const error = "Unauthorized request";
+      const error = 'Unauthorized request';
       return res.status(403).send({ error });
     }
 
@@ -215,10 +212,10 @@ const timeEntrycontroller = function (TimeEntry) {
         .asSeconds();
 
       if (
-        isGeneralEntry &&
-        timeEntry.isTangible &&
-        newIsTangible &&
-        newTotalSeconds !== timeEntry.totalSeconds
+        isGeneralEntry
+        && timeEntry.isTangible
+        && newIsTangible
+        && newTotalSeconds !== timeEntry.totalSeconds
       ) {
         notifyEditByEmail(
           timeEntry.personId.toString(),
@@ -230,8 +227,8 @@ const timeEntrycontroller = function (TimeEntry) {
 
       // update task data if project/task is changed
       if (
-        newTaskId === timeEntry.taskId &&
-        newProjectId === timeEntry.projectId
+        newTaskId === timeEntry.taskId
+        && newProjectId === timeEntry.projectId
       ) {
         // when project/task is the same
         const timeEntryTask = await Task.findById(newTaskId);
@@ -264,19 +261,19 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // Update edit history
-      if (
-        (isGeneralEntry || type === "person") &&
-        timeEntry.totalSeconds !== newTotalSeconds &&
-        timeEntry.isTangible &&
-        isForAuthUser &&
-        !(await hasPermission(req.body.requestor, "editTimeEntry"))
+      if ((isGeneralEntry || type === 'person')
+        && timeEntry.totalSeconds !== newTotalSeconds
+        && timeEntry.isTangible
+        && isForAuthUser
+        && (await hasPermission(req.body.requestor, 'editTimeEntry'))
+        && (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator')
       ) {
         const requestor = await UserProfile.findById(
           req.body.requestor.requestorId,
         );
 
         requestor.timeEntryEditHistory.push({
-          date: moment().tz("America/Los_Angeles").toDate(),
+          date: moment().tz('America/Los_Angeles').toDate(),
           initialSeconds: timeEntry.totalSeconds,
           newSeconds: newTotalSeconds,
         });
@@ -287,19 +284,18 @@ const timeEntrycontroller = function (TimeEntry) {
 
           requestor.timeEntryEditHistory.forEach((edit) => {
             if (
-              moment().tz("America/Los_Angeles").diff(edit.date, "days") <= 365
-            )
-              totalRecentEdits += 1;
+              moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365
+            ) totalRecentEdits += 1;
           });
 
           if (totalRecentEdits >= 5) {
             requestor.infringements.push({
-              date: moment().tz("America/Los_Angeles"),
+              date: moment().tz('America/Los_Angeles'),
               description: `${totalRecentEdits} time entry edits in the last calendar year`,
             });
 
             emailSender(
-              "onecommunityglobal@gmail.com",
+              'onecommunityglobal@gmail.com',
               `${requestor.firstName} ${requestor.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`,
               `
               <p>
@@ -313,7 +309,7 @@ const timeEntrycontroller = function (TimeEntry) {
             );
 
             const emailInfringement = {
-              date: moment().tz("America/Los_Angeles").format("MMMM-DD-YY"),
+              date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
               description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
             };
 
@@ -339,7 +335,7 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.projectId = mongoose.Types.ObjectId(newProjectId);
       timeEntry.wbsId = newWbsId ? mongoose.Types.ObjectId(newWbsId) : null;
       timeEntry.taskId = newTaskId ? mongoose.Types.ObjectId(newTaskId) : null;
-      timeEntry.dateOfWork = moment(newDateOfWork).format("YYYY-MM-DD");
+      timeEntry.dateOfWork = moment(newDateOfWork).format('YYYY-MM-DD');
       await timeEntry.save();
 
       return res.status(200).send(timeEntry);
@@ -366,12 +362,12 @@ const timeEntrycontroller = function (TimeEntry) {
           timeentry.wbsId = element.wbsId;
           timeentry.taskId = element.taskId;
           timeentry.dateOfWork = element.dateOfWork;
-          timeentry.timeSpent = moment("1900-01-01 00:00:00")
-            .add(element.totalSeconds, "seconds")
-            .format("HH:mm:ss");
+          timeentry.timeSpent = moment('1900-01-01 00:00:00')
+            .add(element.totalSeconds, 'seconds')
+            .format('HH:mm:ss');
           timeentry.notes = element.notes;
           timeentry.isTangible = element.isTangible;
-          timeentry.entryType = "default";
+          timeentry.entryType = 'default';
           items.push(timeentry);
         }
       });
@@ -380,36 +376,35 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   const postTimeEntry = async function (req, res) {
-    const isInvalid =
-      !req.body.dateOfWork ||
-      !moment(req.body.dateOfWork).isValid() ||
-      !req.body.timeSpent;
+    const isInvalid = !req.body.dateOfWork
+      || !moment(req.body.dateOfWork).isValid()
+      || !req.body.timeSpent;
 
     const returnErr = (result) => {
-      result.status(400).send({ error: "Bad request" });
+      result.status(400).send({ error: 'Bad request' });
     };
 
     switch (req.body.entryType) {
-      case "person":
+      case 'person':
         if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) {
           returnErr(res);
         }
         break;
-      case "project":
+      case 'project':
         if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid) {
           returnErr(res);
         }
         break;
-      case "team":
+      case 'team':
         if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) {
           returnErr(res);
         }
         break;
       default:
         if (
-          !mongoose.Types.ObjectId.isValid(req.body.personId) ||
-          !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
-          isInvalid
+          !mongoose.Types.ObjectId.isValid(req.body.personId)
+          || !mongoose.Types.ObjectId.isValid(req.body.projectId)
+          || isInvalid
         ) {
           returnErr(res);
         }
@@ -423,7 +418,7 @@ const timeEntrycontroller = function (TimeEntry) {
     timeEntry.wbsId = req.body.wbsId;
     timeEntry.taskId = req.body.taskId;
     timeEntry.teamId = req.body.teamId;
-    timeEntry.dateOfWork = moment(dateOfWork).format("YYYY-MM-DD");
+    timeEntry.dateOfWork = moment(dateOfWork).format('YYYY-MM-DD');
     timeEntry.totalSeconds = moment.duration(timeSpent).asSeconds();
     timeEntry.notes = req.body.notes;
     timeEntry.isTangible = req.body.isTangible;
@@ -444,11 +439,9 @@ const timeEntrycontroller = function (TimeEntry) {
     try {
       return timeEntry
         .save()
-        .then((results) =>
-          res.status(200).send({
+        .then((results) => res.status(200).send({
             message: `Time Entry saved with id as ${results._id}`,
-          }),
-        )
+          }))
         .catch((error) => res.status(400).send(error));
     } catch (error) {
       return res.status(500).send(error);
@@ -457,31 +450,31 @@ const timeEntrycontroller = function (TimeEntry) {
 
   const getTimeEntriesForSpecifiedPeriod = async function (req, res) {
     if (
-      !req.params ||
-      !req.params.fromdate ||
-      !req.params.todate ||
-      !req.params.userId ||
-      !moment(req.params.fromdate).isValid() ||
-      !moment(req.params.toDate).isValid()
+      !req.params
+      || !req.params.fromdate
+      || !req.params.todate
+      || !req.params.userId
+      || !moment(req.params.fromdate).isValid()
+      || !moment(req.params.toDate).isValid()
     ) {
-      res.status(400).send({ error: "Invalid request" });
+      res.status(400).send({ error: 'Invalid request' });
       return;
     }
 
     const fromdate = moment(req.params.fromdate)
-      .tz("America/Los_Angeles")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .format('YYYY-MM-DD');
     const todate = moment(req.params.todate)
-      .tz("America/Los_Angeles")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .format('YYYY-MM-DD');
     const { userId } = req.params;
 
     try {
       const timeEntries = await TimeEntry.find({
-        entryType: { $in: ["default", null] },
+        entryType: { $in: ['default', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
-      }).sort("-lastModifiedDateTime");
+      }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
@@ -506,16 +499,16 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: { $in: ["default", null, "person"] },
+        entryType: { $in: ['default', null, 'person'] },
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      " -createdDateTime",
+      ' -createdDateTime',
     )
-      .populate("personId")
-      .populate("projectId")
-      .populate("taskId")
-      .populate("wbsId")
+      .populate('personId')
+      .populate('projectId')
+      .populate('taskId')
+      .populate('wbsId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
@@ -534,8 +527,7 @@ const timeEntrycontroller = function (TimeEntry) {
           record.projectCategory = element.projectId.category.toLowerCase();
           record.taskId = element.taskId?._id || null;
           record.taskName = element.taskId?.taskName || null;
-          record.taskClassification =
-            element.taskId?.classification?.toLowerCase() || null;
+          record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
           record.wbsId = element.wbsId?._id || null;
           record.wbsName = element.wbsId?.wbsName || null;
 
@@ -551,25 +543,25 @@ const timeEntrycontroller = function (TimeEntry) {
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
     if (
-      !req.params ||
-      !req.params.fromDate ||
-      !req.params.toDate ||
-      !req.params.projectId
+      !req.params
+      || !req.params.fromDate
+      || !req.params.toDate
+      || !req.params.projectId
     ) {
-      res.status(400).send({ error: "Invalid request" });
+      res.status(400).send({ error: 'Invalid request' });
       return;
     }
-    const todate = moment(req.params.toDate).format("YYYY-MM-DD");
-    const fromDate = moment(req.params.fromDate).format("YYYY-MM-DD");
+    const todate = moment(req.params.toDate).format('YYYY-MM-DD');
+    const fromDate = moment(req.params.fromDate).format('YYYY-MM-DD');
     const { projectId } = req.params;
     TimeEntry.find(
       {
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
       },
-      "-createdDateTime -lastModifiedDateTime",
+      '-createdDateTime -lastModifiedDateTime',
     )
-      .populate("userId")
+      .populate('userId')
       .sort({ dateOfWork: -1 })
       .then((results) => {
         res.status(200).send(results);
@@ -581,26 +573,26 @@ const timeEntrycontroller = function (TimeEntry) {
 
   const deleteTimeEntry = async function (req, res) {
     if (!req.params.timeEntryId) {
-      res.status(400).send({ error: "Bad request" });
+      res.status(400).send({ error: 'Bad request' });
       return;
     }
 
     TimeEntry.findById(req.params.timeEntryId)
       .then(async (record) => {
         if (!record) {
-          res.status(400).send({ message: "No valid record found" });
+          res.status(400).send({ message: 'No valid record found' });
           return;
         }
 
         if (
-          record.entryType === "project" ||
-          record.entryType === "person" ||
-          record.entryType === "team"
+          record.entryType === 'project'
+          || record.entryType === 'person'
+          || record.entryType === 'team'
         ) {
           record
             .remove()
             .then(() => {
-              res.status(200).send({ message: "Successfully deleted" });
+              res.status(200).send({ message: 'Successfully deleted' });
             })
             .catch((error) => {
               res.status(500).send(error);
@@ -609,9 +601,9 @@ const timeEntrycontroller = function (TimeEntry) {
         }
 
         if (
-          record.personId.toString() ===
-            req.body.requestor.requestorId.toString() ||
-          (await hasPermission(req.body.requestor, "deleteTimeEntry"))
+          record.personId.toString()
+            === req.body.requestor.requestorId.toString()
+          || (await hasPermission(req.body.requestor, 'deleteTimeEntry'))
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
           if (record.isTangible === true) {
@@ -631,13 +623,13 @@ const timeEntrycontroller = function (TimeEntry) {
           record
             .remove()
             .then(() => {
-              res.status(200).send({ message: "Successfully deleted" });
+              res.status(200).send({ message: 'Successfully deleted' });
             })
             .catch((error) => {
               res.status(500).send(error);
             });
         } else {
-          res.status(403).send({ error: "Unauthorized request" });
+          res.status(403).send({ error: 'Unauthorized request' });
         }
       })
       .catch((error) => {
@@ -645,19 +637,19 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const removeHtml = (str) => `${str}`.replace(/<\/?[^>]*>|(\n|\t|)|(\s)/g, "");
+  const removeHtml = (str) => `${str}`.replace(/<\/?[^>]*>|(\n|\t|)|(\s)/g, '');
 
   // get timeEntries for current week
   const getTimeEntriesForCurrentWeek = async (req) => {
     const userid = req.requestorId;
     const startOfWeek = moment()
-      .tz("America/Los_Angeles")
-      .startOf("week")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .format('YYYY-MM-DD');
     const endOfWeek = moment()
-      .tz("America/Los_Angeles")
-      .endOf("week")
-      .format("YYYY-MM-DD");
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .format('YYYY-MM-DD');
 
     try {
       const timeEntries = await TimeEntry.find({
@@ -688,13 +680,13 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: "person",
+        entryType: 'person',
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      " -createdDateTime",
+      ' -createdDateTime',
     )
-      .populate("personId")
+      .populate('personId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
@@ -705,8 +697,8 @@ const timeEntrycontroller = function (TimeEntry) {
           record.notes = element.notes;
           record.isTangible = element.isTangible;
           record.personId = element.personId;
-          record.firstName = element.personId ? element.personId.firstName : "";
-          record.lastName = element.personId ? element.personId.lastName : "";
+          record.firstName = element.personId ? element.personId.firstName : '';
+          record.lastName = element.personId ? element.personId.lastName : '';
           record.dateOfWork = element.dateOfWork;
           record.entryType = element.entryType;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
@@ -724,13 +716,13 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: "project",
+        entryType: 'project',
         projectId: { $in: projects },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      " -createdDateTime",
+      ' -createdDateTime',
     )
-      .populate("projectId")
+      .populate('projectId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
@@ -739,10 +731,10 @@ const timeEntrycontroller = function (TimeEntry) {
           record._id = element._id;
           record.notes = element.notes;
           record.isTangible = element.isTangible;
-          record.projectId = element.projectId ? element.projectId._id : "";
+          record.projectId = element.projectId ? element.projectId._id : '';
           record.projectName = element.projectId
             ? element.projectId.projectName
-            : "";
+            : '';
           record.dateOfWork = element.dateOfWork;
           record.entryType = element.entryType;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
@@ -760,13 +752,13 @@ const timeEntrycontroller = function (TimeEntry) {
 
     TimeEntry.find(
       {
-        entryType: "team",
+        entryType: 'team',
         teamId: { $in: teams },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      " -createdDateTime",
+      ' -createdDateTime',
     )
-      .populate("teamId")
+      .populate('teamId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
@@ -775,8 +767,8 @@ const timeEntrycontroller = function (TimeEntry) {
           record._id = element._id;
           record.notes = element.notes;
           record.isTangible = element.isTangible;
-          record.teamId = element.teamId ? element.teamId._id : "";
-          record.teamName = element.teamId ? element.teamId.teamName : "";
+          record.teamId = element.teamId ? element.teamId._id : '';
+          record.teamName = element.teamId ? element.teamId.teamName : '';
           record.dateOfWork = element.dateOfWork;
           record.entryType = element.entryType;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
