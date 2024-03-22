@@ -48,7 +48,12 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
           }
         ])
         .exec()
-        .then(result => res.status(200).send(result))
+        .then(result => {
+        //make one line later
+          // console.log("fetchToolTypes result: ", result)
+          res.status(200).send(result)
+        
+        })
         .catch(error => {
           console.log("53. fetchToolTypes error: ", error)
           res.status(500).send(error)});
