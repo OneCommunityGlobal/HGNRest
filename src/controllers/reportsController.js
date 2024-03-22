@@ -17,7 +17,7 @@ const reportsController = function () {
         const summaries = reporthelper.formatSummaries(results);
         res.status(200).send(summaries);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   /**
@@ -36,6 +36,7 @@ const reportsController = function () {
           lastName: 1,
           createdDate: 1,
           getWeeklyReport: 1,
+          permissionGrantedToGetWeeklySummaryReport: 1,
         },
       )
         .then((results) => {
@@ -97,7 +98,15 @@ const reportsController = function () {
         });
       }
 
-      UserProfile.updateOne({ _id: id }, { $set: { getWeeklyReport: true } })
+      UserProfile.updateOne(
+        { _id: id },
+        {
+          $set: {
+            getWeeklyReport: true,
+            permissionGrantedToGetWeeklySummaryReport: Date.now(), // The date when the user was granted permission to receive the summary report will be updated and shown
+          },
+        },
+      )
         .then((record) => {
           if (!record) {
             console.log("'No valid records found'");
