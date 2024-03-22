@@ -14,8 +14,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       MatType
         .find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -38,8 +38,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       ToolType
         .find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -129,7 +129,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
             });
           }
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
       } catch (error) {
       res.status(500).send(error);
       }
@@ -153,8 +153,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       SelectedType
         .find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -193,7 +193,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
             });
           }
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
       } catch (error) {
       res.status(500).send(error);
       }
