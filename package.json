@@ -12,13 +12,8 @@
     "buildw": "babel src -d dist --watch",
     "start": "node dist/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
-    "serve": "babel-node src/server.js"
-  },
-  "pre-commit": [
-    "lint"
-  ],
-  "lint-staged": {
-    "**/*.{js,jsx,ts,tsx}": "lint"
+    "serve": "babel-node src/server.js",
+    "prepare": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*"
   },
   "author": "AK",
   "license": "ISC",
@@ -28,18 +23,14 @@
     "@types/node": "^8.10.61",
     "@types/jest": "^29.5.12",
     "eslint": "^8.47.0",
-    "eslint-config-airbnb": "^19.0.4",
     "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-babel-module": "^5.3.1",
     "eslint-plugin-import": "^2.28.0",
-    "eslint-plugin-jsx-a11y": "^6.7.1",
-    "eslint-plugin-react": "^7.33.1",
-    "eslint-plugin-react-hooks": "^4.6.0",
     "lint-staged": "^13.0.3",
     "nodemon": "^3.0.1",
-    "jest": "^29.7.0",
-    "mongodb-memory-server": "^7.2.1",
-    "pre-commit": "^1.2.2"
+    "husky": "^8.0.1",
+    "prettier": "3.2.5"
   },
   "dependencies": {
     "@babel/cli": "^7.15.4",
