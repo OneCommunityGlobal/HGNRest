@@ -712,7 +712,7 @@ const taskController = function (Task) {
         removeTasks.push(rec.remove());
       });
 
-      const deleteFollowUps = records.map(rec =>
+      const deleteFollowUps = record.map(rec =>
         followUp.findOneAndDelete({ taskId: rec._id })
       );
 
