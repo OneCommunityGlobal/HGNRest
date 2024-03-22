@@ -7,6 +7,7 @@ const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * 0', // Every Sunday, 1 minute past midnight.
+
     async () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
