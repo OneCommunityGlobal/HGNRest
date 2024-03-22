@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const userProfile = require('../models/userProfile');
+const mongoose = require("mongoose");
+const userProfile = require("../models/userProfile");
 
 const currentWarningsController = function (currentWarnings) {
   const getCurrentWarnings = async (req, res) => {
@@ -7,7 +7,7 @@ const currentWarningsController = function (currentWarnings) {
       const response = await currentWarnings.find({});
 
       if (response.length === 0) {
-        return res.status(400).send({ message: 'no valid records' });
+        return res.status(400).send({ message: "no valid records" });
       }
       return res.status(201).send({ currentWarningDescriptions: response });
     } catch (error) {
@@ -22,14 +22,14 @@ const currentWarningsController = function (currentWarnings) {
       const warnings = await currentWarnings.find({});
 
       if (warnings.length === 0) {
-        return res.status(400).send({ message: 'no valid records' });
+        return res.status(400).send({ message: "no valid records" });
       }
 
       const duplicateFound = warnings.some(
-        warning => warning.warningTitle === newWarning,
+        (warning) => warning.warningTitle === newWarning
       );
       if (duplicateFound) {
-        return res.status(422).send({ error: 'warning already exists' });
+        return res.status(422).send({ error: "warning already exists" });
       }
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
@@ -53,10 +53,10 @@ const currentWarningsController = function (currentWarnings) {
       const response = await currentWarnings.findOneAndUpdate(
         { _id: id },
         [{ $set: { warningTitle: editedWarning.warningTitle.trim() } }],
-        { new: true },
+        { new: true }
       );
 
-      res.status(201).send({ message: 'warning description was updated' });
+      res.status(201).send({ message: "warning description was updated" });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -67,11 +67,11 @@ const currentWarningsController = function (currentWarnings) {
 
       await currentWarnings.findOneAndUpdate(
         { _id: warningDescriptionId },
-        [{ $set: { activeWarning: { $not: '$activeWarning' } } }],
-        { new: true },
+        [{ $set: { activeWarning: { $not: "$activeWarning" } } }],
+        { new: true }
       );
 
-      res.status(201).send({ message: 'warning description was updated' });
+      res.status(201).send({ message: "warning description was updated" });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -80,9 +80,8 @@ const currentWarningsController = function (currentWarnings) {
   const deleteWarningDescription = async (req, res) => {
     try {
       const { warningDescriptionId } = req.params;
-      console.log('warningDescriptionId', warningDescriptionId);
       const documentToDelete = await currentWarnings.findById(
-        warningDescriptionId,
+        warningDescriptionId
       );
 
       await currentWarnings.deleteOne({
@@ -93,18 +92,18 @@ const currentWarningsController = function (currentWarnings) {
 
       await userProfile.updateMany(
         {
-          'warnings.description': deletedDescription,
+          "warnings.description": deletedDescription,
         },
         {
           $pull: {
             warnings: { description: deletedDescription },
           },
-        },
+        }
       );
 
       res.status(200).send({
         message:
-          'warning description was successfully deleted and user profiles updated',
+          "warning description was successfully deleted and user profiles updated",
       });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
