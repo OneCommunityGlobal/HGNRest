@@ -3,8 +3,8 @@ const { hasPermission } = require('../utilities/permissions');
 const popupEditorBackupController = function (PopupEditorBackups) {
   const getAllPopupEditorBackups = function (req, res) {
     PopupEditorBackups.find()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const getPopupEditorBackupById = function (req, res) {
@@ -39,8 +39,8 @@ const popupEditorBackupController = function (PopupEditorBackups) {
     popup.popupContent = req.body.popupContent;
 
     popup.save()
-      .then((results) => res.status(201).send(results))
-      .catch((error) => res.status(500).send({ error }));
+      .then(results => res.status(201).send(results))
+      .catch(error => res.status(500).send({ error }));
   };
 
   const updatePopupEditorBackup = async function (req, res) {
@@ -64,15 +64,15 @@ const popupEditorBackupController = function (PopupEditorBackups) {
       PopupEditorBackups.find({ popupId: { $in: popupId } }, (error, popupBackup) => {
         if (popupBackup.length > 0) {
           popupBackup[0].popupContent = req.body.popupContent;
-          popupBackup[0].save().then((results) => res.status(201).send(results));
+          popupBackup[0].save().then(results => res.status(201).send(results));
         } else {
           const popup = new PopupEditorBackups();
           popup.popupId = req.params.id;
           popup.popupContent = req.body.popupContent;
           popup.popupName = req.body.popupName;
           popup.save()
-            .then((results) => res.status(201).send(results))
-            .catch((err) => res.status(500).send({ err }));
+            .then(results => res.status(201).send(results))
+            .catch(err => res.status(500).send({ err }));
         }
       });
     } catch (error) {

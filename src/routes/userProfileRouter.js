@@ -13,8 +13,8 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer((value) => value.trim()),
-      body('lastName').customSanitizer((value) => value.trim()),
+      body('firstName').customSanitizer(value => value.trim()),
+      body('lastName').customSanitizer(value => value.trim()),
       controller.postUserProfile,
     );
 
@@ -22,9 +22,9 @@ const routes = function (userProfile) {
     .route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(
-      body('firstName').customSanitizer((value) => value.trim()),
-      body('lastName').customSanitizer((value) => value.trim()),
-      body('personalLinks').customSanitizer((value) => value.map((link) => {
+      body('firstName').customSanitizer(value => value.trim()),
+      body('lastName').customSanitizer(value => value.trim()),
+      body('personalLinks').customSanitizer(value => value.map((link) => {
           if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
             return {
               ...link,
@@ -34,7 +34,7 @@ const routes = function (userProfile) {
           }
           throw new Error('Url not valid');
         })),
-      body('adminLinks').customSanitizer((value) => value.map((link) => {
+      body('adminLinks').customSanitizer(value => value.map((link) => {
           if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
             return {
               ...link,

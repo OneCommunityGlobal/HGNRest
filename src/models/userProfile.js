@@ -107,13 +107,13 @@ const userProfileSchema = new Schema({
       description: {
         type: String,
         required: true,
-        enum: [
-          'Better Descriptions',
-          'Log Time to Tasks',
-          'Log Time as You Go',
-          'Log Time to Action Items',
-          'Intangible Time Log w/o Reason',
-        ],
+        // enum: [
+        //   'Better Descriptions',
+        //   'Log Time to Tasks',
+        //   'Log Time as You Go',
+        //   'Log Time to Action Items',
+        //   'Intangible Time Log w/o Reason',
+        // ],
       },
       color: {
         type: String,
@@ -246,12 +246,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then((result) => bcrypt.hash(user.password, result))
+    .then(result => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch((error) => next(error));
+    .catch(error => next(error));
 });
 
 module.exports = mongoose.model(

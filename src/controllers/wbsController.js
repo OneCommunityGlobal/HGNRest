@@ -12,8 +12,8 @@ const wbsController = function (WBS) {
       "wbsName isActive modifiedDatetime",
     )
       .sort({ modifiedDatetime: -1 })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const postWBS = async function (req, res) {
@@ -49,8 +49,8 @@ const wbsController = function (WBS) {
 
     _wbs
       .save()
-      .then((results) => res.status(201).send(results))
-      .catch((error) => res.status(500).send({ error }));
+      .then(results => res.status(201).send(results))
+      .catch(error => res.status(500).send({ error }));
   };
 
   const deleteWBS = async function (req, res) {
@@ -81,8 +81,8 @@ const wbsController = function (WBS) {
 
   const getWBS = function (req, res) {
     WBS.find()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(500).send({ error }));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(500).send({ error }));
   };
 
   const getWBSById = function (req, res) {
@@ -91,7 +91,7 @@ const wbsController = function (WBS) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getWBSByUserId = async function (req, res) {

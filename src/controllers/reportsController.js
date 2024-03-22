@@ -17,7 +17,7 @@ const reportsController = function () {
         const summaries = reporthelper.formatSummaries(results);
         res.status(200).send(summaries);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   /**

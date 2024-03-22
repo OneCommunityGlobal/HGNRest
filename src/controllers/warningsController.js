@@ -1,21 +1,42 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const currentWarnings = require('../models/currentWarnings');
 
-const descriptions = [
-  'Better Descriptions',
-  'Log Time to Tasks',
-  'Log Time as You Go',
-  'Log Time to Action Items',
-  'Intangible Time Log w/o Reason',
-];
+let currentWarningDescriptions = null;
+
+async function getWarningDescriptions() {
+  currentWarningDescriptions = await currentWarnings.find(
+    {},
+    { warningTitle: 1, _id: 0 },
+  );
+}
+
+const convertObjectToArray = (obj) => {
+  const arr = [];
+  for (const key of obj) {
+    arr.push(key.warningTitle);
+  }
+  return arr;
+};
+
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
+    currentWarningDescriptions = await currentWarnings.find({
+      activeWarning: true,
+    });
+
+    currentWarningDescriptions = convertObjectToArray(
+      currentWarningDescriptions,
+    );
     const { userId } = req.params;
 
     try {
       const { warnings } = await UserProfile.findById(userId);
 
-      const completedData = filterWarnings(warnings);
+      const completedData = filterWarnings(
+        currentWarningDescriptions,
+        warnings,
+      );
 
       if (!warnings) {
         return res.status(400).send({ message: 'no valiud records' });
@@ -46,9 +67,13 @@ const warningsController = function (UserProfile) {
         date,
         description,
       });
+
       await record.save();
 
-      const completedData = filterWarnings(record.warnings);
+      const completedData = filterWarnings(
+        currentWarningDescriptions,
+        record.warnings,
+      );
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
@@ -71,7 +96,10 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'no valid records' });
       }
 
-      const sortedWarnings = filterWarnings(warnings.warnings);
+      const sortedWarnings = filterWarnings(
+        currentWarningDescriptions,
+        warnings.warnings,
+      );
       res
         .status(201)
         .send({ message: 'succesfully deleted', warnings: sortedWarnings });
@@ -88,18 +116,10 @@ const warningsController = function (UserProfile) {
 };
 
 // gests the dsecriptions key from the array
-const getDescriptionKey = (val) => {
-  const descriptions = [
-    'Better Descriptions',
-    'Log Time to Tasks',
-    'Log Time as You Go',
-    'Log Time to Action Items',
-    'Intangible Time Log w/o Reason',
-  ];
+const getDescriptionKey = val =>
+  //  currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
 
-  return descriptions.indexOf(val);
-};
-
+  currentWarningDescriptions.indexOf(val);
 const sortKeysAlphabetically = (a, b) => getDescriptionKey(a) - getDescriptionKey(b);
 
 // method to see which color is first
@@ -122,7 +142,7 @@ const sortByColorAndDate = (a, b) => {
   return colorComparison;
 };
 
-const filterWarnings = (warnings) => {
+const filterWarnings = (currentWarningDescriptions, warnings) => {
   const warningsObject = {};
 
   warnings.forEach((warning) => {
@@ -145,7 +165,7 @@ const filterWarnings = (warnings) => {
 
   const completedData = [];
 
-  for (const descrip of descriptions) {
+  for (const descrip of currentWarningDescriptions) {
     completedData.push({
       title: descrip,
       warnings: warns[descrip] ? warns[descrip] : [],
