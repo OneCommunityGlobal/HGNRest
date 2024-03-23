@@ -235,7 +235,7 @@ const dashboardcontroller = function () {
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
         (item) => `<p>${item}</p>
-                   <p>${args[3][item]}</p>`
+                   <p>${args[3][item]}</p>`,
       );
     }
     const text = `New Suggestion From <b>${args[3].firstName} ${
@@ -317,7 +317,7 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.field = suggestionData.field.filter(
-            (item) => item !== req.body.newField
+            (item) => item !== req.body.newField,
           );
         }
       }
