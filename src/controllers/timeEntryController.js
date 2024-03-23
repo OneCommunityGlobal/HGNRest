@@ -254,7 +254,8 @@ const timeEntrycontroller = function (TimeEntry) {
         && timeEntry.totalSeconds !== newTotalSeconds
         && timeEntry.isTangible
         && isForAuthUser
-        && !(await hasPermission(req.body.requestor, 'editTimeEntry'))
+        && (await hasPermission(req.body.requestor, 'editTimeEntry'))
+        && (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator')
       ) {
         const requestor = await UserProfile.findById(
           req.body.requestor.requestorId,
@@ -435,10 +436,10 @@ const timeEntrycontroller = function (TimeEntry) {
     try {
       return timeEntry
         .save()
-        .then(results => res.status(200).send({
+        .then((results) => res.status(200).send({
             message: `Time Entry saved with id as ${results._id}`,
           }))
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     } catch (error) {
       return res.status(500).send(error);
     }
