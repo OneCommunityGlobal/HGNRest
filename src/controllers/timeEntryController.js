@@ -188,7 +188,8 @@ const timeEntrycontroller = function (TimeEntry) {
 
     const isForAuthUser = personId === req.body.requestor.requestorId;
     const isSameDayTimeEntry = moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
-    const canEdit = (await hasPermission(req.body.requestor, 'editTimeEntry')) || (isForAuthUser && isSameDayTimeEntry);
+    const canEdit = (await hasPermission(req.body.requestor, 'editTimeEntry'))
+      || (isForAuthUser && isSameDayTimeEntry);
 
     if (!canEdit) {
       const error = 'Unauthorized request';
@@ -206,9 +207,16 @@ const timeEntrycontroller = function (TimeEntry) {
         return res.status(400).send({ error });
       }
 
-      const newTotalSeconds = moment.duration({ hours: newHours, minutes: newMinutes }).asSeconds();
+      const newTotalSeconds = moment
+        .duration({ hours: newHours, minutes: newMinutes })
+        .asSeconds();
 
-      if (isGeneralEntry && timeEntry.isTangible && newIsTangible && newTotalSeconds !== timeEntry.totalSeconds) {
+      if (
+        isGeneralEntry
+        && timeEntry.isTangible
+        && newIsTangible
+        && newTotalSeconds !== timeEntry.totalSeconds
+      ) {
         notifyEditByEmail(
           timeEntry.personId.toString(),
           timeEntry.totalSeconds,
@@ -218,7 +226,10 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       // update task data if project/task is changed
-      if (newTaskId === timeEntry.taskId && newProjectId === timeEntry.projectId) {
+      if (
+        newTaskId === timeEntry.taskId
+        && newProjectId === timeEntry.projectId
+      ) {
         // when project/task is the same
         const timeEntryTask = await Task.findById(newTaskId);
         if (timeEntryTask) {
@@ -273,9 +284,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
           requestor.timeEntryEditHistory.forEach((edit) => {
             if (
-              moment()
-                .tz('America/Los_Angeles')
-                .diff(edit.date, 'days') <= 365
+              moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365
             ) totalRecentEdits += 1;
           });
 
@@ -376,32 +385,26 @@ const timeEntrycontroller = function (TimeEntry) {
     };
 
     switch (req.body.entryType) {
+      case 'person':
+        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) {
+          returnErr(res);
+        }
+        break;
+      case 'project':
+        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid) {
+          returnErr(res);
+        }
+        break;
+      case 'team':
+        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) {
+          returnErr(res);
+        }
+        break;
       default:
         if (
           !mongoose.Types.ObjectId.isValid(req.body.personId)
           || !mongoose.Types.ObjectId.isValid(req.body.projectId)
           || isInvalid
-        ) {
-          returnErr(res);
-        }
-        break;
-      case 'person':
-        if (
-          !mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid
-        ) {
-          returnErr(res);
-        }
-        break;
-      case 'project':
-        if (
-          !mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid
-        ) {
-          returnErr(res);
-        }
-        break;
-      case 'team':
-        if (
-          !mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid
         ) {
           returnErr(res);
         }
@@ -473,15 +476,17 @@ const timeEntrycontroller = function (TimeEntry) {
         dateOfWork: { $gte: fromdate, $lte: todate },
       }).sort('-lastModifiedDateTime');
 
-      const results = await Promise.all(timeEntries.map(async (timeEntry) => {
-        timeEntry = { ...timeEntry.toObject() };
-        const { projectId, taskId } = timeEntry;
-        if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
-        const hours = Math.floor(timeEntry.totalSeconds / 3600);
-        const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
-        Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
-        return timeEntry;
-      }));
+      const results = await Promise.all(
+        timeEntries.map(async (timeEntry) => {
+          timeEntry = { ...timeEntry.toObject() };
+          const { projectId, taskId } = timeEntry;
+          if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
+          const hours = Math.floor(timeEntry.totalSeconds / 3600);
+          const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
+          Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
+          return timeEntry;
+        }),
+      );
 
       res.status(200).send(results);
     } catch (error) {
@@ -500,40 +505,40 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       ' -createdDateTime',
     )
-    .populate('personId')
-    .populate('projectId')
-    .populate('taskId')
-    .populate('wbsId')
-    .sort({ lastModifiedDateTime: -1 })
-    .then((results) => {
-      const data = [];
+      .populate('personId')
+      .populate('projectId')
+      .populate('taskId')
+      .populate('wbsId')
+      .sort({ lastModifiedDateTime: -1 })
+      .then((results) => {
+        const data = [];
 
-      results.forEach((element) => {
-        const record = {};
-        record._id = element._id;
-        record.notes = element.notes;
-        record.isTangible = element.isTangible;
-        record.personId = element.personId._id;
-        record.userProfile = element.personId;
-        record.dateOfWork = element.dateOfWork;
-        [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-        record.projectId = element.projectId._id;
-        record.projectName = element.projectId.projectName;
-        record.projectCategory = element.projectId.category.toLowerCase();
-        record.taskId = element.taskId?._id || null;
-        record.taskName = element.taskId?.taskName || null;
-        record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
-        record.wbsId = element.wbsId?._id || null;
-        record.wbsName = element.wbsId?.wbsName || null;
+        results.forEach((element) => {
+          const record = {};
+          record._id = element._id;
+          record.notes = element.notes;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId._id;
+          record.userProfile = element.personId;
+          record.dateOfWork = element.dateOfWork;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          record.projectId = element.projectId._id;
+          record.projectName = element.projectId.projectName;
+          record.projectCategory = element.projectId.category.toLowerCase();
+          record.taskId = element.taskId?._id || null;
+          record.taskName = element.taskId?.taskName || null;
+          record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
+          record.wbsId = element.wbsId?._id || null;
+          record.wbsName = element.wbsId?.wbsName || null;
 
-        data.push(record);
+          data.push(record);
+        });
+
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        res.status(400).send(error);
       });
-
-      res.status(200).send(data);
-    })
-    .catch((error) => {
-      res.status(400).send(error);
-    });
   };
 
   const getTimeEntriesForSpecifiedProject = function (req, res) {
@@ -579,7 +584,11 @@ const timeEntrycontroller = function (TimeEntry) {
           return;
         }
 
-        if (record.entryType === 'project' || record.entryType === 'person' || record.entryType === 'team') {
+        if (
+          record.entryType === 'project'
+          || record.entryType === 'person'
+          || record.entryType === 'team'
+        ) {
           record
             .remove()
             .then(() => {
@@ -588,7 +597,7 @@ const timeEntrycontroller = function (TimeEntry) {
             .catch((error) => {
               res.status(500).send(error);
             });
-            return;
+          return;
         }
 
         if (
@@ -598,8 +607,7 @@ const timeEntrycontroller = function (TimeEntry) {
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
           if (record.isTangible === true) {
-            Task
-              .findById(record.projectId)
+            Task.findById(record.projectId)
               .then((currentTask) => {
                 // If the time entry isn't related to a task (i.e. it's a project), then don't revert hours (Most likely pr team)
                 if (currentTask) {
@@ -629,6 +637,44 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const removeHtml = (str) => `${str}`.replace(/<\/?[^>]*>|(\n|\t|)|(\s)/g, '');
+
+  // get timeEntries for current week
+  const getTimeEntriesForCurrentWeek = async (req) => {
+    const userid = req.requestorId;
+    const startOfWeek = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .format('YYYY-MM-DD');
+    const endOfWeek = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .format('YYYY-MM-DD');
+
+    try {
+      const timeEntries = await TimeEntry.find({
+        personId: userid,
+        dateOfWork: { $gte: startOfWeek, $lte: endOfWeek },
+      });
+
+      // Extract and return the notes
+      const notes = timeEntries.map((entry) => entry.notes);
+
+      const tmp = [];
+      if (Array.isArray(notes)) {
+        notes.forEach((item) => {
+          tmp.push(removeHtml(item));
+        });
+      }
+      // console.log(tmp, 22222);
+      return tmp;
+      // res.status(200).json(notes);
+    } catch (e) {
+      // console.error(e);
+      return null;
+    }
+  };
+
   const getLostTimeEntriesForUserList = function (req, res) {
     const { users, fromDate, toDate } = req.body;
 
@@ -651,12 +697,8 @@ const timeEntrycontroller = function (TimeEntry) {
           record.notes = element.notes;
           record.isTangible = element.isTangible;
           record.personId = element.personId;
-          record.firstName = element.personId
-            ? element.personId.firstName
-            : '';
-          record.lastName = element.personId
-            ? element.personId.lastName
-            : '';
+          record.firstName = element.personId ? element.personId.firstName : '';
+          record.lastName = element.personId ? element.personId.lastName : '';
           record.dateOfWork = element.dateOfWork;
           record.entryType = element.entryType;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
@@ -726,9 +768,7 @@ const timeEntrycontroller = function (TimeEntry) {
           record.notes = element.notes;
           record.isTangible = element.isTangible;
           record.teamId = element.teamId ? element.teamId._id : '';
-          record.teamName = element.teamId
-            ? element.teamId.teamName
-            : '';
+          record.teamName = element.teamId ? element.teamId.teamName : '';
           record.dateOfWork = element.dateOfWork;
           record.entryType = element.entryType;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
@@ -750,6 +790,7 @@ const timeEntrycontroller = function (TimeEntry) {
     deleteTimeEntry,
     getTimeEntriesForSpecifiedProject,
     checkTaskOvertime,
+    getTimeEntriesForCurrentWeek,
     getLostTimeEntriesForUserList,
     getLostTimeEntriesForProjectList,
     getLostTimeEntriesForTeamList,

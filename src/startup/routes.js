@@ -109,6 +109,7 @@ const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(bui
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
+const chatGPTRouter = require('../routes/chatGPTRouter')();
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
     invTypeBase,
@@ -165,6 +166,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
+  app.use('/api', chatGPTRouter);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api', timeOffRequestRouter);

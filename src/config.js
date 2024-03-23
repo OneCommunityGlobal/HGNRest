@@ -11,4 +11,7 @@ config.JWT_HEADER = {
   typ: 'JWT',
 };
 
+// ChatGPT configurations
+config.OPENAI_API_KEY_API_KEY = process.env.OPENAI_API_KEY;
+
 module.exports = config;
