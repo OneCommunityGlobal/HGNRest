@@ -156,7 +156,7 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
 const timeEntrycontroller = function (TimeEntry) {
   const editTimeEntry = async (req, res) => {
     const { timeEntryId } = req.params;
-
+   console.log('Malav');
     if (!timeEntryId) {
       const error = 'ObjectId in request param is not in correct format';
       return res.status(400).send({ error });
@@ -589,11 +589,11 @@ const timeEntrycontroller = function (TimeEntry) {
             });
             return;
         }
-
+             const hasAdminPermission = UserProfile.findById(record.personId).then((user) => user.role == 'Owner' || user.role == 'Administrator' || user.role == 'Manager');
         if (
           record.personId.toString()
             === req.body.requestor.requestorId.toString()
-          || (await hasPermission(req.body.requestor, 'deleteTimeEntry'))
+          || (await hasPermission(req.body.requestor, 'deleteTimeEntry') && !(hasAdminPermission && req.body.requestor.role == 'Volunteer'))
         ) {
           // Revert this tangible timeEntry of related task's hoursLogged
           if (record.isTangible === true) {
