@@ -19,6 +19,14 @@ const route = function () {
     .route("/reports/weeklysummaries")
     .get(controller.getWeeklySummaries);
 
+  reportsRouter
+    .route("/reports/overviewsummaries/bluestats")
+    .get(controller.getBlueSquareStats);
+
+  reportsRouter
+  .route("/reports/overviewsummaries/volunteerrolestats")
+  .get(controller.getVolunteerRoleStats);
+
   return reportsRouter;
 };
 
