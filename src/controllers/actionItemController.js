@@ -4,9 +4,12 @@ const notificationhelper = require('../helpers/notificationhelper')();
 const actionItemController = function (ActionItem) {
   const getactionItem = function (req, res) {
     const userid = req.params.userId;
-    ActionItem.find({
-      assignedTo: userid,
-    }, ('-createdDateTime -__v'))
+    ActionItem.find(
+      {
+        assignedTo: userid,
+      },
+      '-createdDateTime -__v',
+    )
       .populate('createdBy', 'firstName lastName')
       .then((results) => {
         const actionitems = [];
@@ -28,7 +31,7 @@ const actionItemController = function (ActionItem) {
         res.status(400).send(error);
       });
   };
-  const postactionItem = function (req, res) {
+  const postactionItem = async function (req, res) {
     const { requestorId, assignedTo } = req.body.requestor;
     const _actionItem = new ActionItem();
 
@@ -36,31 +39,29 @@ const actionItemController = function (ActionItem) {
     _actionItem.assignedTo = req.body.assignedTo;
     _actionItem.createdBy = req.body.requestor.requestorId;
 
-    _actionItem.save()
-      .then((result) => {
-        notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
+    try {
+      const savedItem = await _actionItem.save();
+      notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
 
-        const actionitem = {};
+      const actionitem = {};
 
-        actionitem.createdBy = 'You';
-        actionitem.description = _actionItem.description;
-        actionitem._id = result._id;
-        actionitem.assignedTo = _actionItem.assignedTo;
+      actionitem.createdBy = 'You';
+      actionitem.description = _actionItem.description;
+      actionitem._id = savedItem._id;
+      actionitem.assignedTo = _actionItem.assignedTo;
 
-        res.status(200).send(actionitem);
-      })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+      res.status(200).send(actionitem);
+    } catch (err) {
+      res.status(400).send(err);
+    }
   };
 
   const deleteactionItem = async function (req, res) {
     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
-    const _actionItem = await ActionItem.findById(actionItemId)
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+    const _actionItem = await ActionItem.findById(actionItemId).catch((error) => {
+      res.status(400).send(error);
+    });
 
     if (!_actionItem) {
       res.status(400).send({
@@ -73,7 +74,8 @@ const actionItemController = function (ActionItem) {
 
     notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
 
-    _actionItem.remove()
+    _actionItem
+      .remove()
       .then(() => {
         res.status(200).send({
           message: 'removed',
@@ -89,10 +91,9 @@ const actionItemController = function (ActionItem) {
 
     const { requestorId, assignedTo } = req.body.requestor;
 
-    const _actionItem = await ActionItem.findById(actionItemId)
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+    const _actionItem = await ActionItem.findById(actionItemId).catch((error) => {
+      res.status(400).send(error);
+    });
 
     if (!_actionItem) {
       res.status(400).send({
@@ -100,12 +101,18 @@ const actionItemController = function (ActionItem) {
       });
       return;
     }
-    notificationhelper.notificationedited(requestorId, assignedTo, _actionItem.description, req.body.description);
+    notificationhelper.notificationedited(
+      requestorId,
+      assignedTo,
+      _actionItem.description,
+      req.body.description,
+    );
 
     _actionItem.description = req.body.description;
     _actionItem.assignedTo = req.body.assignedTo;
 
-    _actionItem.save()
+    _actionItem
+      .save()
       .then(res.status(200).send('Saved'))
       .catch((error) => res.status(400).send(error));
   };
@@ -115,7 +122,6 @@ const actionItemController = function (ActionItem) {
     postactionItem,
     deleteactionItem,
     editactionItem,
-
   };
 };
 
