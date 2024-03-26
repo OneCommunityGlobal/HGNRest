@@ -188,96 +188,91 @@ describe('userProfileController module', () => {
       expect(saveSpy).toHaveBeenCalled();
     });
 
-    // test('Ensure postUserProfile returns error 501 if there is an error when trying to create the userProfile', async () => {
-    //     const { postUserProfile } = makeSut();
+    test('Ensure postUserProfile returns error 501 if there is an error when trying to create the userProfile', async () => {
+      const { postUserProfile } = makeSut();
 
-    //     jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(true));
+      jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(true));
 
-    //     jest
-    //         .spyOn(UserProfile, 'findOne')
-    //         .mockImplementationOnce(() => null)
-    //         .mockImplementationOnce(() => mockUser());
+      jest.spyOn(UserProfile, 'findOne').mockImplementationOnce(() => null);
 
-    //     const errorMsg = 'any_error';
+      const errorMsg = 'any_error';
 
-    //     jest
-    //         .spyOn(UserProfile.prototype, 'save')
-    //         .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+      jest
+        .spyOn(UserProfile.prototype, 'save')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
 
-    //     const newMockReq = {
-    //         body: {
-    //             ...mockReq.body,
-    //             ...mockUser(),
-    //         },
-    //     };
+      const newMockReq = {
+        body: {
+          ...mockReq.body,
+          ...mockUser(),
+        },
+      };
 
-    //     newMockReq.body.allowsDuplicateName = true;
+      const response = await postUserProfile(newMockReq, mockRes);
 
-    //     const response = await postUserProfile(newMockReq, mockRes);
+      assertResMock(501, new Error(errorMsg), response);
+    });
 
-    //     assertResMock(501, new Error(errorMsg).toString(), response);
-    // });
+    test('Ensure postUserProfile returns 200 if the userProfile is saved', async () => {
+      const { postUserProfile } = makeSut();
 
-    // test('Ensure postUserProfile returns 200 if the userProfile is saved', async () => {
-    //     const { postUserProfile } = makeSut();
+      jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(true));
 
-    //     jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(true));
+      jest.spyOn(UserProfile, 'findOne').mockImplementationOnce(() => Promise.resolve(null));
 
-    //     jest.spyOn(UserProfile, 'findOne').mockImplementation(() => Promise.resolve(null));
+      const newMockReq = {
+        body: {
+          ...mockReq.body,
+          ...mockUser(),
+        },
+      };
 
-    //     const newMockReq = {
-    //         body: {
-    //             ...mockReq.body,
-    //             ...mockUser(),
-    //         },
-    //     };
+      const response = await postUserProfile(newMockReq, mockRes);
 
-    //     const response = await postUserProfile(newMockReq, mockRes);
+      const userProfileSaved = await UserProfile.findOne({
+        email: {
+          $regex: escapeRegex(newMockReq.body.email),
+          $options: 'i',
+        },
+      });
 
-    //     const userProfileSaved = await UserProfile.findOne({
-    //         email: {
-    //             $regex: escapeRegex(newMockReq.body.email),
-    //             $options: 'i',
-    //         },
-    //     });
+      const saved = userProfileSaved.toJSON();
 
-    //     const saved = userProfileSaved.toJSON();
+      expect(saved.role).toBe(newMockReq.body.role);
+      expect(saved.firstName).toBe(newMockReq.body.firstName);
+      expect(saved.lastName).toBe(newMockReq.body.lastName);
+      expect(saved.jobTitle).toEqual(newMockReq.body.jobTitle);
+      expect(saved.phoneNumber).toEqual(newMockReq.body.phoneNumber);
+      expect(saved.bio).toBe(newMockReq.body.bio);
+      expect(saved.weeklycommittedHours).toBe(newMockReq.body.weeklycommittedHours);
+      expect(saved.weeklycommittedHoursHistory[0].hours).toBe(newMockReq.body.weeklycommittedHours);
+      expect(saved.personalLinks).toEqual(newMockReq.body.personalLinks);
+      expect(saved.adminLinks).toEqual(newMockReq.body.adminLinks);
+      expect(saved.teams).toEqual(newMockReq.body.teams);
+      expect(saved.projects).toEqual(newMockReq.body.projects);
+      expect(saved.createdDate).toEqual(new Date(newMockReq.body.createdDate));
+      expect(saved.email).toBe(newMockReq.body.email);
+      expect(saved.weeklySummaries[0].summary).toBe(newMockReq.body.weeklySummaries[0].summary);
+      expect(saved.weeklySummariesCount).toBe(newMockReq.body.weeklySummariesCount);
+      expect(saved.weeklySummaryOption).toBe(newMockReq.body.weeklySummaryOption);
+      expect(saved.mediaUrl).toBe(newMockReq.body.mediaUrl);
+      expect(saved.collaborationPreference).toBe(newMockReq.body.collaborationPreference);
+      expect(saved.timeZone).toBe(newMockReq.body.timeZone);
+      expect(saved.weeklySummaryOption).toBe(newMockReq.body.weeklySummaryOption);
+      expect(saved.location).toEqual(newMockReq.body.location);
+      expect(saved.permissions).toEqual(newMockReq.body.permissions);
+      expect(saved.bioPosted).toBe(newMockReq.body.bioPosted);
+      expect(saved.isFirstTimelog).toBe(newMockReq.body.isFirstTimelog);
+      expect(saved.actualEmail).toBe(newMockReq.body.actualEmail);
+      expect(saved.isVisible).toBe(newMockReq.body.isVisible);
 
-    //     expect(saved.role).toBe(newMockReq.body.role);
-    //     expect(saved.firstName).toBe(newMockReq.body.firstName);
-    //     expect(saved.lastName).toBe(newMockReq.body.lastName);
-    //     expect(saved.jobTitle).toEqual(newMockReq.body.jobTitle);
-    //     expect(saved.phoneNumber).toEqual(newMockReq.body.phoneNumber);
-    //     expect(saved.bio).toBe(newMockReq.body.bio);
-    //     expect(saved.weeklycommittedHours).toBe(newMockReq.body.weeklycommittedHours);
-    //     expect(saved.weeklycommittedHoursHistory[0].hours).toBe(newMockReq.body.weeklycommittedHours);
-    //     expect(saved.personalLinks).toEqual(newMockReq.body.personalLinks);
-    //     expect(saved.adminLinks).toEqual(newMockReq.body.adminLinks);
-    //     expect(saved.teams).toEqual(newMockReq.body.teams);
-    //     expect(saved.projects).toEqual(newMockReq.body.projects);
-    //     expect(saved.createdDate).toEqual(new Date(newMockReq.body.createdDate));
-    //     expect(saved.email).toBe(newMockReq.body.email);
-    //     expect(saved.weeklySummaries[0].summary).toBe(newMockReq.body.weeklySummaries[0].summary);
-    //     expect(saved.weeklySummariesCount).toBe(newMockReq.body.weeklySummariesCount);
-    //     expect(saved.weeklySummaryOption).toBe(newMockReq.body.weeklySummaryOption);
-    //     expect(saved.mediaUrl).toBe(newMockReq.body.mediaUrl);
-    //     expect(saved.collaborationPreference).toBe(newMockReq.body.collaborationPreference);
-    //     expect(saved.timeZone).toBe(newMockReq.body.timeZone);
-    //     expect(saved.weeklySummaryOption).toBe(newMockReq.body.weeklySummaryOption);
-    //     expect(saved.location).toEqual(newMockReq.body.location);
-    //     expect(saved.permissions).toEqual(newMockReq.body.permissions);
-    //     expect(saved.bioPosted).toBe(newMockReq.body.bioPosted);
-    //     expect(saved.isFirstTimelog).toBe(newMockReq.body.isFirstTimelog);
-    //     expect(saved.actualEmail).toBe(newMockReq.body.actualEmail);
-    //     expect(saved.isVisible).toBe(newMockReq.body.isVisible);
-
-    //     assertResMock(
-    //         200,
-    //         {
-    //             _id: userProfileSaved._id,
-    //         },
-    //         response,
-    //     );
-    // });
+      assertResMock(
+        200,
+        {
+          _id: userProfileSaved._id,
+        },
+        response,
+      );
+    });
   });
 });
