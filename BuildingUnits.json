@@ -114,9 +114,5 @@
 {
   "unit": "Sand",
   "category": "Material"
-},
-{
-  "unit": "FakeUnitForTesting",
-  "category": "Material"
 }
 ]

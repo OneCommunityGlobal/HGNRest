@@ -19,7 +19,7 @@ const smallItemBaseSchema = mongoose.Schema({
   purchaseRecord: [{
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    quantity: { type: Number, required: true, default: 1 }, // default 1 for tool or equipment purchases
+    quantity: { type: Number, required: true },
     priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
     brandPref: String,
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
@@ -41,17 +41,25 @@ const smallItemBase = mongoose.model('smallItemBase', smallItemBaseSchema, 'buil
 const largeItemBaseSchema = mongoose.Schema({
   itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
-  purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], required: true },
-  // rental fields are required if purchaseStatus = "Rental" (hopefully correct syntax)
-  rentedOnDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
-  rentalDueDate: { type: Date, required: () => this.purchaseStatus === 'Rental' },
-  imageUrl: String,
+  // actual purchases (once there is a system) may need their own subdoc
+  // subdoc may contain below purchaseStatus and rental fields
+  // for now they have default dummy values
+  purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], default: 'Rental' },
+  // TODO: rental fields should be required if purchaseStatus === "Rental"
+  rentedOnDate: { type: Date, default: Date.now() },
+  rentalDueDate: { type: Date, default: new Date(Date.now() + (3600 * 1000 * 24 * 14)) },
+  // image of actual tool (remove default once there is a system for this)
+  imageUrl: { type: String, default: 'https://ik.imagekit.io/tuc2020/wp-content/uploads/2021/01/HW2927.jpg' },
+  // this can be updated to purchaseRequestRecord
+  // some fields (i.e. status) may be transferred to purchaseRecord when it is added
   purchaseRecord: [{
     date: { type: Date, default: Date.now() },
     requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+    quantity: { type: Number, required: true },
     priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
     makeModelPref: String,
-    estTimeRequired: { type: Number, required: true }, // estimated time required on site
+    estUsageTime: { type: String, required: true },
+    usageDesc: { type: String, required: true, maxLength: 150 },
     status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
   }],
   updateRecord: [{ // track tool condition updates
@@ -116,9 +124,9 @@ const buildingReusable = smallItemBase.discriminator('reusable_item', new mongoo
 // ex: power drills, wheelbarrows, shovels, jackhammers
 
 const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schema({
-  code: { type: Number, required: true }, // TODO: add function to create simple numeric code for on-site tool tracking
+  // TODO: add function to create simple numeric code for on-site tool tracking
+  code: { type: String, default: '001' },
 }));
-
 
 //-----------------
 // EQUIPMENT SCHEMA

@@ -2,7 +2,7 @@ const moment = require('moment-timezone');
 const UserModel = require('../models/userProfile');
 const ReasonModel = require('../models/reason');
 const emailSender = require('../utilities/emailSender');
-
+// no longer in use replaced with timeoff requests
 const postReason = async (req, res) => {
   try {
     const { userId, requestor, reasonData } = req.body;
