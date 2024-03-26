@@ -1,15 +1,12 @@
 const express = require('express');
 
-
 const routes = function (project) {
   const controller = require('../controllers/projectController')(project);
   const projectRouter = express.Router();
 
-
   projectRouter.route('/projects')
     .get(controller.getAllProjects)
     .post(controller.postProject);
-
 
   projectRouter.route('/project/:projectId')
     .get(controller.getProjectById)
@@ -20,11 +17,9 @@ const routes = function (project) {
   projectRouter.route('/projects/user/:userId')
     .get(controller.getUserProjects);
 
-
   projectRouter.route('/project/:projectId/users/')
     .post(controller.assignProjectToUsers)
     .get(controller.getprojectMembership);
-
 
   return projectRouter;
 };
