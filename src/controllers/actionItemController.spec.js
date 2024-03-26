@@ -5,7 +5,10 @@ const {
   mongoHelper: { dbConnect, dbDisconnect },
   assertResMock,
 } = require('../test');
-// const notificationhelper = require('../helpers/notificationhelper')();
+
+jest.mock('../helpers/notificationhelper');
+const notificationhelper = require('../helpers/notificationhelper');
+
 const ActionItem = require('../models/actionItem');
 
 // Sut = Systems Under Test, aka the functions inside the controllers we are testing.
@@ -21,6 +24,12 @@ const makeSut = () => {
 describe('Action Item Controller tests', () => {
   beforeAll(async () => {
     await dbConnect();
+
+    notificationhelper.mockImplementation(() => ({
+      notificationcreated: jest.fn(() => true),
+      notificationedited: jest.fn(() => true),
+      notificationdeleted: jest.fn(() => true),
+    }));
   });
 
   beforeEach(() => {
@@ -52,6 +61,30 @@ describe('Action Item Controller tests', () => {
       assertResMock(400, new Error(errorMsg), response, mockRes);
     });
 
+    test('Returns 400 if notificationcreated method throws an error.', async () => {
+      const errorMsg = 'Error occured in notificationcreated method';
+
+      notificationhelper.mockImplementationOnce(() => ({
+        notificationcreated: jest.fn(() => {
+          throw new Error(errorMsg);
+        }),
+      }));
+
+      const { postactionItem } = makeSut();
+
+      const newActionItem = {
+        _id: 'random123id',
+      };
+
+      jest
+        .spyOn(ActionItem.prototype, 'save')
+        .mockImplementationOnce(() => Promise.resolve(newActionItem));
+
+      const response = await postactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
     test('Returns 200 if postactionItem is saved correctly.', async () => {
       const { postactionItem } = makeSut();
 
@@ -68,14 +101,17 @@ describe('Action Item Controller tests', () => {
 
       const response = await postactionItem(mockReq, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.send).toHaveBeenCalledWith({
-        _id: newActionItem._id,
-        createdBy: 'You',
-        description: mockReq.body.description,
-        assignedTo: mockReq.body.assignedTo,
-      });
-      expect(response).toBeUndefined();
+      assertResMock(
+        200,
+        {
+          _id: newActionItem._id,
+          createdBy: 'You',
+          description: mockReq.body.description,
+          assignedTo: mockReq.body.assignedTo,
+        },
+        response,
+        mockRes,
+      );
     });
   });
 });
