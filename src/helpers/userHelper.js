@@ -1316,9 +1316,8 @@ const userHelper = function () {
     }
   };
 
-  // 'X Hours for X Week Streak',
-  const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    // Handle Increasing the 1 week streak badges
+  // 'X Hours in one week',
+  const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === "X Hours for X Week Streak") {
@@ -1348,6 +1347,13 @@ const userHelper = function () {
           return true;
         });
       });
+  }
+
+  // 'X Hours for X Week Streak',
+  const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
+    // Handle Increasing the 1 week streak badges
+    await checkXHrsInOneWeek(personId, user, badgeCollection);
+
     // Check each Streak Greater than One to check if it works
     await badge
       .aggregate([
@@ -1632,7 +1638,7 @@ const userHelper = function () {
     try {
       const users = await userProfile
         .find({ isActive: true })
-        .populate("badgeCollection.badge");
+        .populate('badgeCollection.badge');      
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
