@@ -1,10 +1,5 @@
 const actionItemController = require('./actionItemController');
-const {
-  mockReq,
-  mockRes,
-  mongoHelper: { dbConnect, dbDisconnect },
-  assertResMock,
-} = require('../test');
+const { mockReq, mockRes, assertResMock } = require('../test');
 
 jest.mock('../helpers/notificationhelper');
 const notificationhelper = require('../helpers/notificationhelper');
@@ -22,9 +17,7 @@ const makeSut = () => {
 };
 
 describe('Action Item Controller tests', () => {
-  beforeAll(async () => {
-    await dbConnect();
-
+  beforeAll(() => {
     notificationhelper.mockImplementation(() => ({
       notificationcreated: jest.fn(() => true),
       notificationedited: jest.fn(() => true),
@@ -42,10 +35,6 @@ describe('Action Item Controller tests', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  afterAll(async () => {
-    await dbDisconnect();
   });
 
   describe('postactionItem function', () => {
