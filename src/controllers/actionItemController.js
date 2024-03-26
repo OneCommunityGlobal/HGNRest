@@ -4,34 +4,33 @@ const closure = require('../helpers/notificationhelper');
 const actionItemController = function (ActionItem) {
   const notificationhelper = closure();
 
-  const getactionItem = function (req, res) {
+  const getactionItem = async function (req, res) {
     const userid = req.params.userId;
-    ActionItem.find(
-      {
-        assignedTo: userid,
-      },
-      '-createdDateTime -__v',
-    )
-      .populate('createdBy', 'firstName lastName')
-      .then((results) => {
-        const actionitems = [];
 
-        results.forEach((element) => {
-          const actionitem = {};
+    try {
+      const actionItems = await ActionItem.find(
+        {
+          assignedTo: userid,
+        },
+        '-createdDateTime -__v',
+      ).populate('createdBy', 'firstName lastName');
+      const actionitems = [];
 
-          actionitem._id = element._id;
-          actionitem.description = element.description;
-          actionitem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
-          actionitem.assignedTo = element.assignedTo;
+      actionItems.forEach((element) => {
+        const actionitem = {};
 
-          actionitems.push(actionitem);
-        });
+        actionitem._id = element._id;
+        actionitem.description = element.description;
+        actionitem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
+        actionitem.assignedTo = element.assignedTo;
 
-        res.status(200).send(actionitems);
-      })
-      .catch((error) => {
-        res.status(400).send(error);
+        actionitems.push(actionitem);
       });
+
+      res.status(200).send(actionitems);
+    } catch (error) {
+      res.status(400).send(error);
+    }
   };
   const postactionItem = async function (req, res) {
     const { requestorId, assignedTo } = req.body.requestor;
