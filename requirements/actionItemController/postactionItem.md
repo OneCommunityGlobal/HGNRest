@@ -15,4 +15,4 @@ Cross Mark: ❌
 
 > ## Edge case
 
-1.  ❌
+1.  ✅ Returns 400 if notificationcreated method throws an error.

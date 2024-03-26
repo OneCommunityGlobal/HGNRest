@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
-const notificationhelper = require('../helpers/notificationhelper')();
+const closure = require('../helpers/notificationhelper');
 
 const actionItemController = function (ActionItem) {
+  const notificationhelper = closure();
+
   const getactionItem = function (req, res) {
     const userid = req.params.userId;
     ActionItem.find(
