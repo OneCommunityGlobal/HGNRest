@@ -280,6 +280,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = async function (req, res) {
+
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid)

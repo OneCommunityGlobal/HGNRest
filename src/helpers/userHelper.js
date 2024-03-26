@@ -17,6 +17,8 @@ const token = require("../models/profileInitialSetupToken");
 const cache = require("../utilities/nodeCache")();
 const timeOffRequest = require("../models/timeOffRequest");
 const timeUtils = require("../utilities/timeUtils");
+const notificationService = require("../services/notificationService");
+const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require("../constants/message");
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -345,17 +347,19 @@ const userHelper = function () {
         .endOf("week")
         .subtract(1, "week");
 
-      /* Note from Shengwei (3/11/24) Potential enhancement:
+      /* Note from Shengwei (3/11/24) Potential performance issue:
         The following code block would cache the result in memory. What if we have millions of user -> may lead to perforamnce.
       */
       const users = await userProfile.find(
         { isActive: true },
         "_id weeklycommittedHours weeklySummaries missedHours",
       );
-
+      
+      const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
       // There's no need to put Promise.all here
+
       /*
       Note from Shengwei (3/11/24) Potential enhancement:
         I think we could remove the for loop to update find user profile by batch to reduce db roundtrips.
@@ -410,20 +414,24 @@ const userHelper = function () {
          * Condition:
          *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
          *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *  3. No hour logged
          *
          * Notes:
          *  1. Start date is automatically updated upon frist time-log.
          *  2. User meet above condition but meet minimum hours without submitting weekly summary
          *     should get a blue square as reminder.
          *  */
-         let isNewUser = false;
+        let isNewUser = false;
 
-         if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0) {
-           if ((moment(person.startDate).isAfter(pdtEndOfLastWeek))
-             || (moment(person.startDate).isAfter(pdtStartOfLastWeek) && moment(person.startDate).isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
-               isNewUser = true;
-             }
+        const userStartDate = moment(person.startDate);
+
+        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0) {
+            if (timeSpent === 0
+              || (userStartDate.isAfter(pdtEndOfLastWeek))
+               || (userStartDate.isAfter(pdtStartOfLastWeek) && userStartDate.isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
+              isNewUser = true;
          }
+        }
 
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
@@ -576,8 +584,9 @@ const userHelper = function () {
           };
           // Only assign blue square if:
           // 1. The user is not a new user
-          // 2. The user is a new user and met the time requirement but weekly summary not submitted
-          if (!isNewUser || (isNewUser && !timeNotMet && !hasWeeklySummary)) {
+          // Display notification to users rather than assigning blue square when:
+          // 1. The user is a new user and met the time requirement but weekly summary not submitted
+          if (!isNewUser) {
             const status = await userProfile.findByIdAndUpdate(
               personId,
               {
@@ -620,6 +629,8 @@ const userHelper = function () {
               status.email,
               null,
             );
+          } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
+            usersRequiringBlueSqNotification.push(personId);
           }
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
@@ -673,6 +684,11 @@ const userHelper = function () {
         }
       }
       await deleteOldTimeOffRequests();
+      // Create notification for users who are new and met the time requirement but weekly summary not submitted
+      // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
+      const senderId = await userProfile.findOne({ role: "Owner", isActive: true }, "_id");
+      const notifications = await notificationService.createNotification(senderId, usersRequiringBlueSqNotification, NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE, true);
+
     } catch (err) {
       logger.logException(err);
     }
