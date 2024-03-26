@@ -11,6 +11,7 @@ const team = new Schema({
     {
       userId: { type: mongoose.SchemaTypes.ObjectId, required: true },
       addDateTime: { type: Date, default: Date.now(), ref: 'userProfile' },
+      visible: { type : 'Boolean', default:true},
     },
   ],
   teamCode: {
