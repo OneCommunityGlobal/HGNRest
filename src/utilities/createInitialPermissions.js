@@ -49,6 +49,7 @@ const permissionsRoles = [
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'toggleInvisibility',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -164,6 +165,7 @@ const permissionsRoles = [
       'addDeleteEditOwners',
       'putUserProfilePermissions',
       'changeUserStatus',
+      'toggleInvisibility',
       'seeBadges',
       'assignBadges',
       'createBadges',

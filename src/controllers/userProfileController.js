@@ -285,8 +285,9 @@ const userProfileController = function (UserProfile) {
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
         req.body.requestor.requestorId === userid)
     );
+    const canUserToggleInvisibility = await hasPermission(req.body.requestor, 'toggleInvisibility');
+    if (!isRequestorAuthorized && !canUserToggleInvisibility) {
 
-    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
