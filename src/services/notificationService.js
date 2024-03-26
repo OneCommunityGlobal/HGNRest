@@ -1,49 +1,155 @@
+/**
+ * This module contains functions for creating and fetching notifications. {@link NotificationModel}
+ */
 const mongoose = require('mongoose');
+const validator = require('express-validator');
 const NotificationModel = require('../models/notification');
+
+const { startSession } = mongoose;
 
 const isValidObjectId = mongoose.Types.ObjectId.isValid;
 
 /**
- * This function creates a new notification.
- * @param {Object} notificationData Required fields: sender: ObjectId, recipient: ObjectId, message: String.
- * Optional fields: isSystemGenerated: Boolean, isRead: Boolean, eventType: String
+ * This function creates new notification for the given recipients.
+ * @param {Object} notificationData Required fields: sender: ObjectId, recipients: List of ObjectId, message: String.
+ * Optional fields: isSystemGenerated: Boolean, isRead: Boolean
  * @returns {NotificationModel} The persisted notification document object.
  */
-async function createNotification(notificationData) {
-    if (!isValidObjectId(notificationData.sender) || !isValidObjectId(notificationData.recipient)) {
-      throw new Error('Invalid sender or recipient ID');
-    }
+async function createNotification(
+  senderId,
+  recipientIds,
+  message,
+  isSystemGenerated = false,
+  isRead = false,
+) {
+  const isValidRecipientId = recipientIds ? (Array.isArray(recipientIds) && recipientIds.length > 0 && recipientIds.every((id) => isValidObjectId(id))) : false;
 
-    try {
-      const notification = new NotificationModel();
-      notification.message = notificationData.message;
-      notification.sender = notificationData.sender;
-      notification.recipient = notificationData.recipient;
-      notification.isSystemGenerated = notificationData.isSystemGenerated;
-      notification.eventType = notificationData.eventType;
-      return await notification.save();
-    } catch (error) {
-      throw new Error('Could not create notification: ' + error.message);
-    }
+  if (!isValidObjectId(senderId)) {
+    throw new Error('Invalid sender ID');
+  }
+  if (isValidRecipientId) {
+    throw new Error('Invalid recipient ID');
   }
 
-  /**
-   * This function returns a list of notification to user.
-   * @param {Mongoose.Types.ObjectId} userId The user ID
-   * @returns {} A list of notifications document objects
-   */
-  async function getNotifications(userId) {
-    if (!isValidObjectId(userId)) {
-      throw new Error('Invalid user ID');
-    }
-    try {
-      return await NotificationModel.find().sort({ createdAt: -1 });
-    } catch (error) {
-      throw new Error('Could not fetch notifications: ' + error.message);
-    }
+  const session = await startSession();
+  try {
+    // Start a transaction and rollback if any error occurs
+    session.startTransaction();
+
+    const models = recipientIds.map((recipientId) => ({
+        message: validator.escape(message.trim()), // Snanitize the message
+        sender: senderId,
+        recipient: recipientId,
+        isSystemGenerated,
+        isRead,
+        createdTimeStamps: new Date(),
+      }));
+
+    const result = await NotificationModel.insertMany(models, { session });
+    await session.commitTransaction();
+    session.endSession();
+
+    return result;
+  } catch (error) {
+    // Abort the transaction and rollback
+    await session.abortTransaction();
+    session.endSession();
+
+    throw new Error(`Could not create notification: ${ error.message}`);
+  }
+}
+
+/**
+ * This function returns a list of notification to user.
+ * @param {Mongoose.Types.ObjectId} userId The user ID
+ * @returns {} A list of notifications document objects
+ */
+async function getNotifications(userId) {
+  if (!isValidObjectId(userId)) {
+    throw new Error('Invalid user ID');
+  }
+  try {
+    return await NotificationModel.find({ recipient: userId })
+      .populate('userInfo', 'recipientInfo')
+      .sort({ createdTimeStamps: -1 });
+  } catch (error) {
+    throw new Error(`Could not fetch notifications: ${ error.message}`);
+  }
+}
+
+/**
+ * This function returns a list of unread notifications to user.
+ * @param {Mongoose.Types.ObjectId} userId The user ID
+ * @returns {} A list of unread notifications document objects
+ */
+async function getUnreadUserNotifications(userId) {
+  if (!isValidObjectId(userId)) {
+    throw new Error('Invalid user ID');
+  }
+  try {
+    return await NotificationModel.find({ recipient: userId, isRead: false })
+      .populate('userInfo', 'recipientInfo')
+      .sort({ createdTimeStamps: -1 });
+  } catch (error) {
+    throw new Error(`Could not fetch notifications: ${ error.message}`);
+  }
+}
+
+/**
+ * This function returns a list of notifications sent by the admin/owner user.
+ * @param {*} senderId The sender ID
+ * @returns a list of notification document objects
+ */
+async function getSentNotifications(senderId) {
+  if (!isValidObjectId(senderId)) {
+    throw new Error('Invalid sender ID');
+  }
+  try {
+    return await NotificationModel.find({ sender: senderId })
+      .populate('userInfo', 'senderInfo')
+      .sort({ createdTimeStamps: -1 });
+  } catch (error) {
+    throw new Error(`Could not fetch notifications: ${ error.message}`);
+  }
+}
+
+/**
+ * This function marks a notification as read. The recipient should match with the requestor ID.
+ * @param {Mongoose.Types.ObjectId} notificationId The notification ID
+ * @returns {NotificationModel} The updated notification document object
+ */
+async function markNotificationAsRead(notificationId, recipientId) {
+  if (!isValidObjectId(notificationId)) {
+    throw new Error('Invalid notification ID');
+  }
+  try {
+    return await NotificationModel.findOneAndUpdate({ _id: notificationId, recipient: recipientId }, { isRead: true }, { new: true });
+  } catch (error) {
+    throw new Error(`Could not mark notification as read: ${ error.message}`);
+  }
+}
+
+/**
+ * This function deletes a notification.
+ * @param {Mongoose.Types.ObjectId} notificationId The notification ID
+ * @returns {NotificationModel} The deleted notification document object
+ */
+async function deleteNotification(notificationId) {
+  if (!isValidObjectId(notificationId)) {
+    throw new Error('Invalid notification ID');
+  }
+  try {
+    return await NotificationModel.findByIdAndDelete(notificationId);
+  } catch (error) {
+    throw new Error(`Could not delete notification: ${ error.message}`);
+  }
 }
 
 module.exports = {
-    createNotification,
-    getNotifications,
+  createNotification,
+  getNotifications,
+  getUnreadUserNotifications,
+  getSentNotifications,
+  markNotificationAsRead,
+  deleteNotification,
 };
