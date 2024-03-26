@@ -13,6 +13,7 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
+const followUp = require('../models/followUp');
 
 const { authorizedUserSara, authorizedUserJae } = process.env;
 
@@ -588,6 +589,10 @@ const userProfileController = function (UserProfile) {
     await UserProfile.deleteOne({
       _id: userId,
     });
+
+    // delete followUp for deleted user
+    await followUp.findOneAndDelete({ userId })  
+
     res.status(200).send({ message: 'Executed Successfully' });
   };
 

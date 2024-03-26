@@ -42,6 +42,8 @@ const {
 } = require('../models/bmdashboard/buildingInventoryItem');
 // const buildingTool = require('../models/bmdashboard/buildingTool');
 const timeOffRequest = require('../models/timeOffRequest');
+const followUp = require('../models/followUp');
+
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -102,6 +104,7 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest, team, userProfile);
+const followUpRouter = require('../routes/followUpRouter')(followUp)
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -158,6 +161,8 @@ module.exports = function (app) {
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
+  app.use('/api', timeOffRequestRouter);
+  app.use('/api', followUpRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -167,6 +172,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
-  app.use('/api', timeOffRequestRouter);
   app.use('api', bmIssueRouter);
 };
