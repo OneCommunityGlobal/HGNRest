@@ -9,10 +9,11 @@ const ActionItem = require('../models/actionItem');
 // Sut = Systems Under Test, aka the functions inside the controllers we are testing.
 // this function creates the actionItemController then returns the individual functions inside the controller.
 const makeSut = () => {
-  const { postactionItem } = actionItemController(ActionItem);
+  const { postactionItem, getactionItem } = actionItemController(ActionItem);
 
   return {
     postactionItem,
+    getactionItem,
   };
 };
 
@@ -101,6 +102,21 @@ describe('Action Item Controller tests', () => {
         response,
         mockRes,
       );
+    });
+  });
+
+  describe('getactionItem function', () => {
+    test('Returns 400 if any error occurs when finding an ActionItem.', async () => {
+      const { getactionItem } = makeSut();
+      const errorMsg = 'Error when finding action items';
+
+      jest.spyOn(ActionItem, 'find').mockReturnValueOnce({
+        populate: () => Promise.reject(new Error(errorMsg)),
+      });
+
+      const response = await getactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
     });
   });
 });
