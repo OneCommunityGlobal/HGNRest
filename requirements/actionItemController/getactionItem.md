@@ -11,7 +11,7 @@ Cross Mark: ❌
    > ## Negative case
 
 3. ❌ Returns error 404 if the API does not exist
-4. ✅ Returns 400 if any error when finding an ActionItem.
+4. ✅ Returns 400 if any error occurs when finding an ActionItem.
 
 > ## Edge case
 
