@@ -51,11 +51,31 @@ describe('Action Item Controller tests', () => {
 
       assertResMock(400, new Error(errorMsg), response, mockRes);
     });
-  });
 
-  // describe("getActionItem function", () => {
-  //     test('Ensures getactionItem returns 400 if userid is not in req.params', async () => {
-  //         const { getactionItem } = makeSut()
-  //     })
-  // })
+    test('Returns 200 if postactionItem is saved correctly.', async () => {
+      const { postactionItem } = makeSut();
+
+      mockReq.body.description = 'Any description';
+      mockReq.body.assignedTo = null;
+
+      const newActionItem = {
+        _id: 'random123id',
+      };
+
+      jest
+        .spyOn(ActionItem.prototype, 'save')
+        .mockImplementationOnce(() => Promise.resolve(newActionItem));
+
+      const response = await postactionItem(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        _id: newActionItem._id,
+        createdBy: 'You',
+        description: mockReq.body.description,
+        assignedTo: mockReq.body.assignedTo,
+      });
+      expect(response).toBeUndefined();
+    });
+  });
 });
