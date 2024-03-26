@@ -118,5 +118,34 @@ describe('Action Item Controller tests', () => {
 
       assertResMock(400, new Error(errorMsg), response, mockRes);
     });
+
+    test('Returns 200 if get actionItem successfully finds a matching ActionItem', async () => {
+      const { getactionItem } = makeSut();
+      const mockActionItems = [
+        {
+          _id: 'randomid123',
+          description: 'Random description',
+          assignedTo: 'randomuser123',
+          createdBy: { firstName: 'Bob', lastName: 'Builder' },
+          createdDateTime: new Date().toISOString(),
+        },
+      ];
+
+      jest
+        .spyOn(ActionItem, 'find')
+        .mockReturnValueOnce({ populate: () => Promise.resolve(mockActionItems) });
+
+      const returnValue = [
+        {
+          _id: mockActionItems[0]._id,
+          description: mockActionItems[0].description,
+          assignedTo: mockActionItems[0].assignedTo,
+          createdBy: `${mockActionItems[0].createdBy.firstName} ${mockActionItems[0].createdBy.lastName}`,
+        },
+      ];
+
+      const response = await getactionItem(mockReq, mockRes);
+      assertResMock(200, returnValue, response, mockRes);
+    });
   });
 });
