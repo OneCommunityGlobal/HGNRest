@@ -9,11 +9,12 @@ const ActionItem = require('../models/actionItem');
 // Sut = Systems Under Test, aka the functions inside the controllers we are testing.
 // this function creates the actionItemController then returns the individual functions inside the controller.
 const makeSut = () => {
-  const { postactionItem, getactionItem } = actionItemController(ActionItem);
+  const { postactionItem, getactionItem, deleteactionItem } = actionItemController(ActionItem);
 
   return {
     postactionItem,
     getactionItem,
+    deleteactionItem,
   };
 };
 
@@ -28,6 +29,7 @@ describe('Action Item Controller tests', () => {
 
   beforeEach(() => {
     mockReq.params.userid = '5a7e21f00317bc1538def4b7';
+    mockReq.params.actionItemId = '7d7e21f00317bc1538deabc2';
     mockReq.body.requestor = {
       requestorId: '5a7e21f00317bc1538def4b7',
       assignedTo: '5a7ccd20fde60f1f1857ba16',
@@ -146,6 +148,81 @@ describe('Action Item Controller tests', () => {
 
       const response = await getactionItem(mockReq, mockRes);
       assertResMock(200, returnValue, response, mockRes);
+    });
+  });
+
+  describe('deleteactionItem function', () => {
+    test('Returns 400 if any error occurs when finding an ActionItem', async () => {
+      const { deleteactionItem } = makeSut();
+      const errorMsg = 'Error when finding ActionItem';
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+
+      const response = await deleteactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
+    test('Returns 400 if no ActionItem is found', async () => {
+      const { deleteactionItem } = makeSut();
+      const errorMsg = {
+        message: 'No valid records found',
+      };
+
+      jest.spyOn(ActionItem, 'findById').mockImplementationOnce(() => Promise.resolve(null));
+
+      const response = await deleteactionItem(mockReq, mockRes);
+
+      assertResMock(400, errorMsg, response, mockRes);
+    });
+
+    test('Returns 400 if any error occurs when deleting an ActionItem', async () => {
+      const { deleteactionItem } = makeSut();
+      const errorMsg = 'Error when removing ActionItem';
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockReturnValueOnce({ remove: () => Promise.reject(new Error(errorMsg)) });
+
+      const response = await deleteactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
+    test('Returns 400 if notificationdeleted method throws an error.', async () => {
+      const errorMsg = 'Error occured in notificationdeleted method';
+
+      notificationhelper.mockImplementationOnce(() => ({
+        notificationdeleted: jest.fn(() => {
+          throw new Error(errorMsg);
+        }),
+      }));
+
+      const { deleteactionItem } = makeSut();
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockReturnValueOnce({ remove: () => Promise.resolve(true) });
+
+      const response = await deleteactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
+    test('Returns 200 if get actionItem successfully finds and removes the matching ActionItem', async () => {
+      const message = { message: 'removed' };
+
+      const { deleteactionItem } = makeSut();
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockReturnValueOnce({ remove: () => Promise.resolve(true) });
+
+      const response = await deleteactionItem(mockReq, mockRes);
+
+      assertResMock(200, message, response, mockRes);
     });
   });
 });
