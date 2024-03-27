@@ -1,6 +1,6 @@
-const UserProfile = require('../models/userProfile');
-const cache = require('../utilities/nodeCache')();
-const { hasPermission } = require('../utilities/permissions');
+const UserProfile = require("../models/userProfile");
+const cache = require("../utilities/nodeCache")();
+const { hasPermission } = require("../utilities/permissions");
 
 const rolesController = function (Role) {
   const getAllRoles = function (req, res) {
@@ -10,13 +10,15 @@ const rolesController = function (Role) {
   };
 
   const createNewRole = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'postRole')) {
-      res.status(403).send('You are not authorized to create new roles.');
+    if (!(await hasPermission(req.body.requestor, "postRole"))) {
+      res.status(403).send("You are not authorized to create new roles.");
       return;
     }
 
     if (!req.body.roleName || !req.body.permissions) {
-      res.status(400).send({ error: 'roleName and permissions are mandatory fields.' });
+      res
+        .status(400)
+        .send({ error: "roleName and permissions are mandatory fields." });
       return;
     }
 
@@ -38,23 +40,24 @@ const rolesController = function (Role) {
 };
 
   const updateRoleById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'putRole')) {
-      res.status(403).send('You are not authorized to make changes to roles.');
+    if (!(await hasPermission(req.body.requestor, "putRole"))) {
+      res.status(403).send("You are not authorized to make changes to roles.");
       return;
     }
 
     const { roleId } = req.params;
 
     if (!req.body.permissions) {
-      res.status(400).send({ error: 'Permissions is a mandatory field' });
+      res.status(400).send({ error: "Permissions is a mandatory field" });
       return;
-  }
+    }
 
     Role.findById(roleId, (error, record) => {
       if (error || record === null) {
-        res.status(400).send('No valid records found');
+        res.status(400).send("No valid records found");
         return;
       }
+
       record.roleName = req.body.roleName;
       record.permissions = req.body.permissions;
       record.permissionsBackEnd = req.body.permissionsBackEnd;
@@ -66,8 +69,8 @@ const rolesController = function (Role) {
   };
 
   const deleteRoleById = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'deleteRole')) {
-      res.status(403).send('You are not authorized to delete roles.');
+    if (!(await hasPermission(req.body.requestor, "deleteRole"))) {
+      res.status(403).send("You are not authorized to delete roles.");
       return;
     }
 
