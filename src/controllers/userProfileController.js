@@ -12,7 +12,7 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cache = require('../utilities/nodeCache')();
+const cacheClosure = require('../utilities/nodeCache');
 
 const { authorizedUserSara, authorizedUserJae } = process.env;
 
@@ -70,6 +70,8 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
+  const cache = cacheClosure();
+
   const forbidden = function (res, message) {
     res.status(403).send(message);
   };

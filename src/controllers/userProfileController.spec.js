@@ -9,6 +9,9 @@ const helper = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
 
+jest.mock('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache');
+
 jest.mock('node-fetch');
 
 // eslint-disable-next-line import/no-extraneous-dependencies, import/order
@@ -32,6 +35,10 @@ const assertResMock = (statusCode, message, response) => {
 describe('userProfileController module', () => {
   beforeAll(async () => {
     await dbConnect();
+    cache.mockImplementation(() => ({
+      setCache: jest.fn(() => false),
+      getCache: jest.fn(() => false),
+    }));
   });
 
   beforeEach(() => {
@@ -284,6 +291,22 @@ describe('userProfileController module', () => {
       const response = await getUserProfiles(mockReq, mockRes);
 
       assertResMock(403, 'You are not authorized to view all users', response);
+    });
+
+    test("Ensure getUserProfiles returns 500 if there are no users in the database and the allusers key doesn't exist in NodeCache", async () => {
+      const { getUserProfiles } = makeSut();
+
+      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+
+      const databaseUsers = null;
+
+      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
+        sort: () => Promise.resolve(databaseUsers),
+      });
+
+      const response = await getUserProfiles(mockReq, mockRes);
+
+      assertResMock(500, { error: 'User result was invalid' }, response);
     });
   });
 });
