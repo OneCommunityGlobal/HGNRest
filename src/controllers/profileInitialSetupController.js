@@ -5,6 +5,16 @@ const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
+const { hasPermission } = require('../utilities/permissions');
+const LOGGER = require('../startup/logger');
+
+
+const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
+const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
+const TOKEN_INVALID_MESSAGE = 'INVALID';
+const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
+const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
+
 
 // returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
@@ -76,6 +86,7 @@ function informManagerMessage(user) {
   return message;
 }
 
+
 const sendEmailWithAcknowledgment = (email, subject, message) => new Promise((resolve, reject) => {
     emailSender(email, subject, message, null, null, null, (error, result) => {
       if (result) resolve(result);
@@ -131,11 +142,14 @@ const profileInitialSetupController = function (
           email,
           weeklyCommittedHours,
           expiration: expiration.toDate(),
+          isSetupCompleted: false,
+          isCancelled: false,
+          createdDate: Date.now(),
         });
 
         const savedToken = await newToken.save();
         const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
-
+        console.log(baseUrl, savedToken.token);
         const acknowledgment = await sendEmailWithAcknowledgment(
           email,
           'NEEDED: Complete your One Community profile setup',
@@ -145,6 +159,7 @@ const profileInitialSetupController = function (
         res.status(200).send(acknowledgment);
       }
     } catch (error) {
+      console.log(error);
       res.status(400).send(`Error: ${error}`);
     }
   };
@@ -163,13 +178,19 @@ const profileInitialSetupController = function (
       if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
 
-        if (expirationMoment.isAfter(currentMoment)) {
+        if (foundToken.isSetupCompleted) {
+          res.status(400).send(TOKEN_HAS_SETUP_MESSAGE);
+        } else if (foundToken.isCancelled) {
+          res.status(400).send(TOKEN_CANCEL_MESSAGE);
+        } else if (expirationMoment.isAfter(currentMoment)) {
           res.status(200).send(foundToken);
+        } else if (expirationMoment.isBefore(currentMoment)) {
+          res.status(400).send(TOKEN_EXPIRED_MESSAGE);
         } else {
-          res.status(400).send('Invalid token');
+          res.status(400).send(TOKEN_INVALID_MESSAGE);
         }
       } else {
-        res.status(404).send('Token not found');
+        res.status(404).send(TOKEN_NOT_FOUND_MESSAGE);
       }
     } catch (error) {
       res.status(500).send(`Error finding token: ${error}`);
@@ -195,6 +216,10 @@ const profileInitialSetupController = function (
       });
       if (existingEmail) {
         res.status(400).send('email already in use');
+      } if (foundToken.isSetupCompleted) {
+        res.status(400).send('User has been setup already.');
+      } else if (foundToken.isCancelled) {
+        res.status(400).send('Token is invalided by admin.');
       } else if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
 
@@ -251,7 +276,6 @@ const profileInitialSetupController = function (
             null,
             null,
           );
-          await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
 
           const jwtPayload = {
             userid: savedUser._id,
@@ -263,7 +287,7 @@ const profileInitialSetupController = function (
             ),
           };
 
-          const token = jwt.sign(jwtPayload, JWT_SECRET);
+          token = jwt.sign(jwtPayload, JWT_SECRET);
 
           const locationData = {
             title: '',
@@ -275,7 +299,7 @@ const profileInitialSetupController = function (
           };
 
           res.send({ token }).status(200);
-
+          ProfileInitialSetupToken.update();
           const mapEntryResult = await setMapLocation(locationData);
           if (mapEntryResult.type === 'Error') {
             console.log(mapEntryResult.message);
@@ -345,13 +369,13 @@ const profileInitialSetupController = function (
           users.push(item);
         }
       });
-      const modifiedUsers = users.map((item) => ({
+      const modifiedUsers = users.map(item => ({
         location: item.location,
       }));
 
       const mapUsers = await MapLocation.find({});
       const combined = [...modifiedUsers, ...mapUsers];
-      const countries = combined.map((user) => user.location.country);
+      const countries = combined.map(user => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
       res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
@@ -367,12 +391,139 @@ const profileInitialSetupController = function (
     return hours;
   }
 
+  /**
+   *
+   * @param {*} req HTTP request include requester role information
+   * @param {*} res HTTP response include setup invitation records response's body
+   * @returns a list of setup invitation records which setup is not complete
+   */
+  const getSetupInvitation = (req, res) => {
+    const { role } = req.body.requestor;
+    if (role === 'Admin' || role === 'Owner') {
+      try{
+      ProfileInitialSetupToken
+      .find({ isSetupCompleted: false })
+      .sort({ createdDate: -1 })
+      .exec((err, result) => {
+        // Handle the result
+        if (err) {
+          LOGGER.logException(err);
+          return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+        }
+          return res.status(200).send(result);
+      });
+    } catch (error) {
+      LOGGER.logException(error);
+      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+    }
+    } else {
+      return res.status(403).send('You are not authorized to get setup history.');
+    }
+  };
+
+  /**
+   * @param {*} req HTTP request include requester role information
+   * @param {*} res HTTP response include whether the setup invitation record is successfully cancelled
+   * @returns
+   */
+  const cancelSetupInvitation = (req, res) => {
+    const { role } = req.body.requestor;
+    const { token } = req.body;
+    if (role === 'Admin' || role === 'Owner') {
+      try {
+    ProfileInitialSetupToken
+      .findOneAndUpdate(
+        { token },
+        { isCancelled: true },
+        (err, result) => {
+          if (err) {
+            LOGGER.logException(err);
+            return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+          }
+            return res.status(200).send(result);
+        },
+      );
+    } catch (error) {
+        LOGGER.logException(error);
+        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+      }
+    } else {
+      res.status(403).send('You are not authorized to cancel setup invitation.');
+    }
+  };
+   /**
+   * @param {*} req HTTP request include requester role information
+   * @param {*} res HTTP response include whether the setup invitation record is successfully refreshed
+   * @returns updated result of the setup invitation record.
+   */
+  const refreshSetupInvitation = async (req, res) => {
+    const { role } = req.body.requestor;
+    const { token, baseUrl } = req.body;
+
+    if (role === 'Admin' || role === 'Owner') {
+      try {
+        ProfileInitialSetupToken
+        .findOneAndUpdate(
+          { token },
+          {
+            expiration: moment().tz('America/Los_Angeles').add(3, 'week'),
+            isCancelled: false,
+          },
+        )
+        .then((result) => {
+          const { email } = result;
+          // const email = 'testcorepp@gmail.com';
+          const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+          sendEmailWithAcknowledgment(
+             email,
+            'NEEDED: Complete your One Community profile setup',
+            sendLinkMessage(link),
+          );
+          return res.status(200).send(result);
+        })
+        .catch((err) => {
+          LOGGER.logException(err);
+          res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+        });
+      } catch (error) {
+        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+      }
+    } else {
+      return res.status(403).send('You are not authorized to refresh setup invitation.');
+    }
+  };
+
+  // const expiredSetupInvitation = (req, res) => {
+  //   const { role } = req.body.requestor;
+  //   const { token } = req.body;
+  //   if (role === 'Admin' || role === 'Owner') {
+  //   ProfileInitialSetupToken
+  //     .findOneAndUpdate(
+  //       { token },
+  //       {
+  //         expiration: moment().tz('America/Los_Angeles').subtract(1, 'minutes'),
+  //       },
+  //       (err, result) => {
+  //         if (err) {
+  //           // LOGGER.logException(err);
+  //           return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+  //         }
+  //           return res.status(200).send(result);
+  //       },
+  //     );
+  //   }
+  // };
+
   return {
     getSetupToken,
     setUpNewUser,
     validateSetupToken,
     getTimeZoneAPIKeyByToken,
     getTotalCountryCount,
+    getSetupInvitation,
+    cancelSetupInvitation,
+    refreshSetupInvitation,
+    // expiredSetupInvitation,
   };
 };
 
