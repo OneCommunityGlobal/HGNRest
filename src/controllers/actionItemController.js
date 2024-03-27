@@ -60,31 +60,27 @@ const actionItemController = function (ActionItem) {
   const deleteactionItem = async function (req, res) {
     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
-    const _actionItem = await ActionItem.findById(actionItemId).catch((error) => {
-      res.status(400).send(error);
-    });
+    try {
+      const _actionItem = await ActionItem.findById(actionItemId);
 
-    if (!_actionItem) {
-      res.status(400).send({
-        message: 'No valid records found',
-      });
-      return;
-    }
-
-    const { requestorId, assignedTo } = req.body.requestor;
-
-    notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
-
-    _actionItem
-      .remove()
-      .then(() => {
-        res.status(200).send({
-          message: 'removed',
+      if (!_actionItem) {
+        res.status(400).send({
+          message: 'No valid records found',
         });
-      })
-      .catch((error) => {
-        res.status(400).send(error);
+        return;
+      }
+
+      const { requestorId, assignedTo } = req.body.requestor;
+
+      notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
+
+      await _actionItem.remove();
+      res.status(200).send({
+        message: 'removed',
       });
+    } catch (error) {
+      res.status(400).send(error);
+    }
   };
 
   const editactionItem = async function (req, res) {
