@@ -14,8 +14,6 @@ jest.mock('node-fetch');
 // eslint-disable-next-line import/no-extraneous-dependencies, import/order
 const fetch = require('node-fetch');
 
-// const { Response } = jest.requireActual('node-fetch');
-
 const makeSut = () => {
   const { postUserProfile } = userProfileController(UserProfile);
 
