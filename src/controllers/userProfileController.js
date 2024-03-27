@@ -86,7 +86,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.find(
+    await UserProfile.find(
       {},
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )

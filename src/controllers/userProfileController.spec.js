@@ -308,5 +308,29 @@ describe('userProfileController module', () => {
 
       assertResMock(500, { error: 'User result was invalid' }, response);
     });
+
+    test('Ensure getUserProfiles returns 404 if any error occurs while getting all user profiles', async () => {
+      const errMsg = 'getCache failed';
+
+      cache.mockImplementationOnce(() => ({
+        getCache: jest.fn(() => {
+          throw new Error(errMsg);
+        }),
+      }));
+
+      const { getUserProfiles } = makeSut();
+
+      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+
+      const databaseUsers = null;
+
+      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
+        sort: () => Promise.resolve(databaseUsers),
+      });
+
+      const response = await getUserProfiles(mockReq, mockRes);
+
+      assertResMock(404, new Error(errMsg), response);
+    });
   });
 });
