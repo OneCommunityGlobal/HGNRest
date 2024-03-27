@@ -594,10 +594,12 @@ const userProfileController = function (UserProfile) {
   const getUserById = function (req, res) {
     const userid = req.params.userId;
     if (cache.getCache(`user-${userid}`)) {
-      const getData = JSON.parse(cache.getCache(`user-${userid}`));
-      res.status(200).send(getData);
-      return;
-    }
+      const cachedData = JSON.parse(cache.getCache(`user-${userid}`));
+      if (cachedData.isUpToDate) {
+          res.status(200).send(cachedData);
+          return;
+      }
+  }
 
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
