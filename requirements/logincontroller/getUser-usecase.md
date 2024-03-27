@@ -1,7 +1,7 @@
 Check mark: ✅
 Cross Mark: ❌
 
-# Post User Profile
+# GetUser 
 
 > ## Positive case
 
