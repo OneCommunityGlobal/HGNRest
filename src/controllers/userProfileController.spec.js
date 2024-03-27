@@ -354,5 +354,39 @@ describe('userProfileController module', () => {
 
       assertResMock(200, JSON.parse(data), response);
     });
+
+    test('Ensure getUserProfiles returns 200 if there are users in the database', async () => {
+      cache.mockImplementation(() => ({
+        setCache: jest.fn(() => undefined),
+      }));
+
+      const { getUserProfiles } = makeSut();
+
+      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+
+      const databaseUsers = [
+        {
+          _id: 'asdasd',
+          firstName: 'diego',
+          lastName: 'salas',
+          role: 'volunteer',
+          weeklycommittedHours: 21,
+          email: 'dominic@gmail.com',
+          permissions: ['asdasd'],
+          isActive: true,
+          reactivationDate: '12-02-12',
+          createdDate: '12-02-12',
+          endDate: '12-02-12',
+        },
+      ];
+
+      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
+        sort: () => Promise.resolve(databaseUsers),
+      });
+
+      const response = await getUserProfiles(mockReq, mockRes);
+
+      assertResMock(200, databaseUsers, response);
+    });
   });
 });
