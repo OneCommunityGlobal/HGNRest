@@ -5,6 +5,7 @@ const mongoHelper = require('./db/mongo-helper');
 const createTestPermissions = require('./createTestPermissions');
 const createUser = require('./db/createUser');
 const { assertResMock } = require('./assertions');
+const jwtPayload = require('./auth/jwt');
 
 module.exports = {
   mockReq,
@@ -14,4 +15,5 @@ module.exports = {
   createTestPermissions,
   createUser,
   assertResMock,
+  jwtPayload,
 };
