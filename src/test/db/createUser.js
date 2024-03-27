@@ -46,9 +46,17 @@ const createUser = async () => {
   up.isFirstTimelog = true;
   up.actualEmail = '';
   up.isVisible = true;
-  up._id = '65cf6c3706d8ac105827bb2e';
 
-  await up.save();
+  /* 
+    remove hard coded _id field to allow MongoDB to 
+    automatically create a unique id for us.
+    Now this function is more reusable if we 
+    need to create more than 1 user.
+  */
+
+  const user = await up.save();
+
+  return user;
 };
 
 module.exports = createUser;
