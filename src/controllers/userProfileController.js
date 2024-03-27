@@ -79,8 +79,8 @@ const userProfileController = function (UserProfile) {
   };
 
   const getUserProfiles = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
-      res.status(403).send('You are not authorized to view all users');
+    if (!(await checkPermission(req, 'getUserProfiles'))) {
+      forbidden(res, 'You are not authorized to view all users');
       return;
     }
 

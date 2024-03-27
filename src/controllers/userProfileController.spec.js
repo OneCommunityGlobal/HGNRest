@@ -15,10 +15,11 @@ jest.mock('node-fetch');
 const fetch = require('node-fetch');
 
 const makeSut = () => {
-  const { postUserProfile } = userProfileController(UserProfile);
+  const { postUserProfile, getUserProfiles } = userProfileController(UserProfile);
 
   return {
     postUserProfile,
+    getUserProfiles,
   };
 };
 
@@ -271,6 +272,18 @@ describe('userProfileController module', () => {
         },
         response,
       );
+    });
+  });
+
+  describe('getUserProfiles function', () => {
+    test("Ensure getUserProfiles returns 400 if the user doesn't have getUserProfiles permission", async () => {
+      const { getUserProfiles } = makeSut();
+
+      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(false));
+
+      const response = await getUserProfiles(mockReq, mockRes);
+
+      assertResMock(403, 'You are not authorized to view all users', response);
     });
   });
 });
