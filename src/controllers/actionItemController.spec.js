@@ -9,12 +9,14 @@ const ActionItem = require('../models/actionItem');
 // Sut = Systems Under Test, aka the functions inside the controllers we are testing.
 // this function creates the actionItemController then returns the individual functions inside the controller.
 const makeSut = () => {
-  const { postactionItem, getactionItem, deleteactionItem } = actionItemController(ActionItem);
+  const { postactionItem, getactionItem, deleteactionItem, editactionItem } =
+    actionItemController(ActionItem);
 
   return {
     postactionItem,
     getactionItem,
     deleteactionItem,
+    editactionItem,
   };
 };
 
@@ -221,6 +223,82 @@ describe('Action Item Controller tests', () => {
         .mockReturnValueOnce({ remove: () => Promise.resolve(true) });
 
       const response = await deleteactionItem(mockReq, mockRes);
+
+      assertResMock(200, message, response, mockRes);
+    });
+  });
+
+  describe.only('editactionItem function', () => {
+    test('Returns 400 if any error occurs when finding an ActionItem', async () => {
+      const { editactionItem } = makeSut();
+      const errorMsg = 'Error when finding ActionItem';
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+
+      const response = await editactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
+    test('Returns 400 if no ActionItem is found', async () => {
+      const { editactionItem } = makeSut();
+      const errorMsg = {
+        message: 'No valid records found',
+      };
+
+      jest.spyOn(ActionItem, 'findById').mockImplementationOnce(() => Promise.resolve(null));
+
+      const response = await editactionItem(mockReq, mockRes);
+
+      assertResMock(400, errorMsg, response, mockRes);
+    });
+
+    test('Returns 400 if any error occurs when saving an edited ActionItem', async () => {
+      const { editactionItem } = makeSut();
+      const errorMsg = 'Error when saving ActionItem';
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockReturnValueOnce({ save: () => Promise.reject(new Error(errorMsg)) });
+
+      const response = await editactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
+    test('Returns 400 if notificationedited method throws an error.', async () => {
+      const errorMsg = 'Error occured in notificationedited method';
+
+      notificationhelper.mockImplementationOnce(() => ({
+        notificationedited: jest.fn(() => {
+          throw new Error(errorMsg);
+        }),
+      }));
+
+      const { editactionItem } = makeSut();
+
+      jest
+        .spyOn(ActionItem, 'findById')
+        .mockReturnValueOnce({ remove: () => Promise.resolve(true) });
+
+      const response = await editactionItem(mockReq, mockRes);
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+
+    test('Returns 200 if get actionItem successfully finds and edits the matching ActionItem', async () => {
+      const message = 'Saved';
+
+      const { editactionItem } = makeSut();
+
+      mockReq.body.description = 'Any description';
+      mockReq.body.assignedTo = null;
+
+      jest.spyOn(ActionItem, 'findById').mockReturnValueOnce({ save: () => Promise.resolve(true) });
+
+      const response = await editactionItem(mockReq, mockRes);
 
       assertResMock(200, message, response, mockRes);
     });
