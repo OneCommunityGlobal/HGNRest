@@ -332,5 +332,27 @@ describe('userProfileController module', () => {
 
       assertResMock(404, new Error(errMsg), response);
     });
+
+    test('Ensure getUserProfiles returns 200 if there are no users in the database and the allusers key exists in NodeCache', async () => {
+      const data = '[{"name": "diego"}]';
+
+      cache.mockImplementation(() => ({
+        getCache: jest.fn(() => data),
+      }));
+
+      const { getUserProfiles } = makeSut();
+
+      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+
+      const databaseUsers = null;
+
+      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
+        sort: () => Promise.resolve(databaseUsers),
+      });
+
+      const response = await getUserProfiles(mockReq, mockRes);
+
+      assertResMock(200, JSON.parse(data), response);
+    });
   });
 });
