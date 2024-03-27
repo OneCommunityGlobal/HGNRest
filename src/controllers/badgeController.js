@@ -13,7 +13,8 @@ const badgeController = function (Badge) {
    * @returns {Array<Object>} List containing badge records.
    */
   const getAllBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
+    // Assign badge needs to see all badges
+    if (!(await hasPermission(req.body.requestor, 'seeBadges')) && !(await hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
