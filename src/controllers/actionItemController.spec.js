@@ -228,7 +228,7 @@ describe('Action Item Controller tests', () => {
     });
   });
 
-  describe.only('editactionItem function', () => {
+  describe('editactionItem function', () => {
     test('Returns 400 if any error occurs when finding an ActionItem', async () => {
       const { editactionItem } = makeSut();
       const errorMsg = 'Error when finding ActionItem';
