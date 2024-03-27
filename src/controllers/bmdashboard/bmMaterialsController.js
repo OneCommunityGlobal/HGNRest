@@ -4,33 +4,33 @@ const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
       BuildingMaterial.find()
-        .populate([
-          {
-            path: 'project',
-            select: '_id name',
+      .populate([
+        {
+          path: 'project',
+          select: '_id name',
+        },
+        {
+          path: 'itemType',
+          select: '_id name unit',
+        },
+        {
+          path: 'updateRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
           },
-          {
-            path: 'itemType',
-            select: '_id name unit',
+        },
+        {
+          path: 'purchaseRecord',
+          populate: {
+            path: 'requestedBy',
+            select: '_id firstName lastName',
           },
-          {
-            path: 'updateRecord',
-            populate: {
-              path: 'createdBy',
-              select: '_id firstName lastName',
-            },
-          },
-          {
-            path: 'purchaseRecord',
-            populate: {
-              path: 'requestedBy',
-              select: '_id firstName lastName',
-            },
-          },
-        ])
-        .exec()
-        .then((results) => res.status(200).send(results))
-        .catch((error) => res.status(500).send(error));
+        },
+      ])
+      .exec()
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -72,11 +72,11 @@ const bmMaterialsController = function (BuildingMaterial) {
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
         };
-        BuildingMaterial
-          .create(newDoc)
-          .then(() => res.status(201).send())
-          .catch((error) => res.status(500).send(error));
-        return;
+      BuildingMaterial
+      .create(newDoc)
+      .then(() => res.status(201).send())
+      .catch((error) => res.status(500).send(error));
+      return;
       }
       BuildingMaterial
         .findOneAndUpdate(
@@ -138,7 +138,7 @@ const bmMaterialsController = function (BuildingMaterial) {
   };
 
   const bmPostMaterialUpdateBulk = function (req, res) {
-    const materialUpdates = req.body.upadateMaterials;
+    const materialUpdates = req.body.updateMaterials;
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
     for (let i = 0; i < materialUpdates.length; i++) {
