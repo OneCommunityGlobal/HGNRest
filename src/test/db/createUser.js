@@ -5,8 +5,8 @@ const createUser = async () => {
 
   up.password = 'SuperSecretPassword@';
   up.role = 'Administrator';
-  up.firstName = 'any_first_name';
-  up.lastName = 'any_last_name';
+  up.firstName = 'requestor_first_name';
+  up.lastName = 'requestor_last_name';
   up.jobTitle = ['any_job_title'];
   up.phoneNumber = ['123456789'];
   up.bio = 'any_bio';
@@ -49,6 +49,8 @@ const createUser = async () => {
   up._id = '65cf6c3706d8ac105827bb2e';
 
   await up.save();
+
+  return up;
 };
 
 module.exports = createUser;
