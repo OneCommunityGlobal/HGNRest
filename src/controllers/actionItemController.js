@@ -88,30 +88,31 @@ const actionItemController = function (ActionItem) {
 
     const { requestorId, assignedTo } = req.body.requestor;
 
-    const _actionItem = await ActionItem.findById(actionItemId).catch((error) => {
+    try {
+      const _actionItem = await ActionItem.findById(actionItemId);
+
+      if (!_actionItem) {
+        res.status(400).send({
+          message: 'No valid records found',
+        });
+        return;
+      }
+
+      notificationhelper.notificationedited(
+        requestorId,
+        assignedTo,
+        _actionItem.description,
+        req.body.description,
+      );
+
+      _actionItem.description = req.body.description;
+      _actionItem.assignedTo = req.body.assignedTo;
+
+      await _actionItem.save();
+      res.status(200).send('Saved');
+    } catch (error) {
       res.status(400).send(error);
-    });
-
-    if (!_actionItem) {
-      res.status(400).send({
-        message: 'No valid records found',
-      });
-      return;
     }
-    notificationhelper.notificationedited(
-      requestorId,
-      assignedTo,
-      _actionItem.description,
-      req.body.description,
-    );
-
-    _actionItem.description = req.body.description;
-    _actionItem.assignedTo = req.body.assignedTo;
-
-    _actionItem
-      .save()
-      .then(res.status(200).send('Saved'))
-      .catch((error) => res.status(400).send(error));
   };
 
   return {
