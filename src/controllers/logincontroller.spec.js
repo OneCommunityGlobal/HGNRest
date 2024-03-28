@@ -1,5 +1,6 @@
 const logincontroller = require('./logincontroller');
 const { mockReq, mockRes, assertResMock } = require('../test');
+const userProfile = require('../models/userProfile');
 
 const makeSut = () => {
   const { login, getUser } = logincontroller();
@@ -14,21 +15,40 @@ describe('logincontroller module', () => {
     jest.clearAllMocks();
   });
 
-  describe.only('login', () => {
-    test.only('Ensure login returns error 400 if there is no email or password', async () => {
+  describe('login', () => {
+    test('Ensure login returns error 400 if there is no email or password', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
         ...{
           body: {
-            email: 'hello@gmail.com',
+            email: '',
             password: '',
           },
         },
       };
-      // console.log("REQ MOD ", mockReqModified)
       const res = await login(mockReqModified, mockRes);
       assertResMock(400, { error: 'Invalid request' }, res, mockRes);
+    });
+
+    test('Ensure login returns error 403 if there is no user', async () => {
+      const { login } = makeSut();
+      const mockReqModified = {
+        ...mockReq,
+        ...{
+          body: {
+            email: 'example@test.com',
+            password: 'exampletest',
+          },
+        },
+      };
+      const findOneSpy = jest
+        .spyOn(userProfile, 'findOne')
+        .mockImplementation(() => Promise.resolve(null));
+
+      const res = await login(mockReqModified, mockRes);
+      expect(findOneSpy).toHaveBeenCalledWith({ email: mockReqModified.body.email });
+      assertResMock(403, { message: 'Username not found.' }, res, mockRes);
     });
   });
 
