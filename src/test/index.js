@@ -6,6 +6,7 @@ const createTestPermissions = require('./createTestPermissions');
 const createUser = require('./db/createUser');
 const { assertResMock } = require('./assertions');
 const jwtPayload = require('./auth/jwt');
+const createActionItem = require('./db/createActionItem');
 
 module.exports = {
   mockReq,
@@ -16,4 +17,5 @@ module.exports = {
   createUser,
   assertResMock,
   jwtPayload,
+  createActionItem,
 };
