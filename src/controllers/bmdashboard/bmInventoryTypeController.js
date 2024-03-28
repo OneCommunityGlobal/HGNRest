@@ -34,6 +34,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   }
 
   const fetchToolTypes = async (req, res) => {
+    console.log("37. fetchToolTypes called")
     try {
       ToolType
         .find()
@@ -50,7 +51,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
         .exec()
         .then(result => {
         //make one line later
-          // console.log("fetchToolTypes result: ", result)
+          console.log("fetchToolTypes result: ", result)
           res.status(200).send(result)
         
         })
