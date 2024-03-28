@@ -145,4 +145,39 @@ describe('actionItem routes', () => {
       expect(response.body).toEqual({ message: 'removed' });
     });
   });
+
+  describe('putActionItem', () => {
+    it('Should return 401 if authorization header is not present', async () => {
+      await agent.put(`/api/actionItem/randomid123`).expect(401);
+    });
+
+    it('Should return 404 if the route does not exist', async () => {
+      await agent
+        .put('/api/actionItems/randomid123')
+        .send(reqBody)
+        .set('Authorization', token)
+        .expect(404);
+    });
+    it('Should return 400 if no valid records are found', async () => {
+      const response = await agent
+        .put('/api/actionItem/623a1c1536fcff1c3414c2d1')
+        .send(reqBody)
+        .set('Authorization', token)
+        .expect(400);
+
+      expect(response.body).toEqual({ message: 'No valid records found' });
+    });
+    it('Should return 200 on success', async () => {
+      // first we need to create a new actionItem
+      const actionItem = await createActionItem(assignedUser._id, requestorUser._id);
+
+      const response = await agent
+        .put(`/api/actionItem/${actionItem._id}`)
+        .send(reqBody)
+        .set('Authorization', token)
+        .expect(200);
+      console.log(response.body);
+      expect(response.body).toEqual({ message: 'Saved' });
+    });
+  });
 });

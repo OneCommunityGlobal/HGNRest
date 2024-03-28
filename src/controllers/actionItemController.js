@@ -109,7 +109,7 @@ const actionItemController = function (ActionItem) {
       _actionItem.assignedTo = req.body.assignedTo;
 
       await _actionItem.save();
-      res.status(200).send('Saved');
+      res.status(200).send({ message: 'Saved' });
     } catch (error) {
       res.status(400).send(error);
     }

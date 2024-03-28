@@ -289,7 +289,7 @@ describe('Action Item Controller tests', () => {
     });
 
     test('Returns 200 if get actionItem successfully finds and edits the matching ActionItem', async () => {
-      const message = 'Saved';
+      const message = { message: 'Saved' };
 
       const { editactionItem } = makeSut();
 
