@@ -80,6 +80,14 @@ describe('Action Item Controller tests', () => {
     });
 
     test('Returns 200 if postactionItem is saved correctly.', async () => {
+      const notificationhelperObject = { notificationcreated: () => {} };
+
+      notificationhelper.mockImplementationOnce(() => notificationhelperObject);
+
+      const notificationcreatedSpy = jest
+        .spyOn(notificationhelperObject, 'notificationcreated')
+        .mockImplementationOnce(() => true);
+
       const { postactionItem } = makeSut();
 
       mockReq.body.description = 'Any description';
@@ -94,6 +102,12 @@ describe('Action Item Controller tests', () => {
         .mockImplementationOnce(() => Promise.resolve(newActionItem));
 
       const response = await postactionItem(mockReq, mockRes);
+
+      expect(notificationcreatedSpy).toHaveBeenCalledWith(
+        mockReq.body.requestor.requestorId,
+        mockReq.body.requestor.assignedTo,
+        mockReq.body.description,
+      );
 
       assertResMock(
         200,
