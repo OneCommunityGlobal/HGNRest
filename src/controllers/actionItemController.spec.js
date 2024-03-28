@@ -335,14 +335,35 @@ describe('Action Item Controller tests', () => {
     test('Returns 200 if get actionItem successfully finds and edits the matching ActionItem', async () => {
       const message = { message: 'Saved' };
 
+      const notificationhelperObject = { notificationedited: () => {} };
+
+      notificationhelper.mockImplementationOnce(() => notificationhelperObject);
+
+      const notificationeditedSpy = jest
+        .spyOn(notificationhelperObject, 'notificationedited')
+        .mockImplementationOnce(() => true);
+
       const { editactionItem } = makeSut();
 
       mockReq.body.description = 'Any description';
       mockReq.body.assignedTo = null;
 
-      jest.spyOn(ActionItem, 'findById').mockReturnValueOnce({ save: () => Promise.resolve(true) });
+      const findReturnObject = { save: () => {} };
+
+      const findSpy = jest.spyOn(ActionItem, 'findById').mockReturnValueOnce(findReturnObject);
+
+      jest.spyOn(findReturnObject, 'save').mockImplementationOnce(() => Promise.resolve(message));
 
       const response = await editactionItem(mockReq, mockRes);
+
+      expect(notificationeditedSpy).toHaveBeenCalledWith(
+        mockReq.body.requestor.requestorId,
+        mockReq.body.requestor.assignedTo,
+        undefined,
+        mockReq.body.description,
+      );
+
+      expect(findSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.actionItemId));
 
       assertResMock(200, message, response, mockRes);
     });
