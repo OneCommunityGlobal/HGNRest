@@ -7,7 +7,7 @@ Cross Mark: ❌
 
 1. ✅ Receives a POST request in the **/api/userProfile** route
 2. ✅ Returns 200 if there are no users in the database and the allusers key exists in NodeCache.
-3. ❌ Returns 200 if there are users in the database
+3. ✅ Returns 200 if there are users in the database
 
 > ## Negative case
 
