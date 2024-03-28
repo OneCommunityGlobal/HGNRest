@@ -252,30 +252,30 @@ const userProfileController = function (UserProfile) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
-    up.save()
-      .then(() => {
-        res.status(200).send({
-          _id: up._id,
-        });
+    try {
+      const createdUserProfile = await up.save();
+      res.status(200).send({
+        _id: createdUserProfile._id,
+      });
 
-        // update backend cache
-
-        const userCache = {
-          permissions: up.permissions,
-          isActive: true,
-          weeklycommittedHours: up.weeklycommittedHours,
-          createdDate: up.createdDate.toISOString(),
-          _id: up._id,
-          role: up.role,
-          firstName: up.firstName,
-          lastName: up.lastName,
-          email: up.email,
-        };
-        const allUserCache = JSON.parse(cache.getCache('allusers'));
-        allUserCache.push(userCache);
-        cache.setCache('allusers', JSON.stringify(allUserCache));
-      })
-      .catch((error) => res.status(501).send(error));
+      // update backend cache
+      const userCache = {
+        permissions: up.permissions,
+        isActive: true,
+        weeklycommittedHours: up.weeklycommittedHours,
+        createdDate: up.createdDate.toISOString(),
+        _id: up._id,
+        role: up.role,
+        firstName: up.firstName,
+        lastName: up.lastName,
+        email: up.email,
+      };
+      const allUserCache = JSON.parse(cache.getCache('allusers'));
+      allUserCache.push(userCache);
+      cache.setCache('allusers', JSON.stringify(allUserCache));
+    } catch (error) {
+      res.status(501).send(error);
+    }
   };
 
   const putUserProfile = async function (req, res) {
@@ -392,8 +392,15 @@ const userProfileController = function (UserProfile) {
           'timeEntryEditHistory',
         ];
 
-        if (req.body.role !== record.role && req.body.role === 'Mentor') record.isVisible = false;
-
+        if (req.body.role !== record.role) {
+          switch (req.body.role) {
+            case 'Mentor':
+              record.isVisible = false;
+              break;
+            default:
+              record.isVisible = true;
+          }
+        }
         importantFields.forEach((fieldName) => {
           if (req.body[fieldName] !== undefined) {
             record[fieldName] = req.body[fieldName];
