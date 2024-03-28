@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const actionItemController = require('./actionItemController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
@@ -30,7 +31,7 @@ describe('Action Item Controller tests', () => {
   });
 
   beforeEach(() => {
-    mockReq.params.userid = '5a7e21f00317bc1538def4b7';
+    mockReq.params.userId = '5a7e21f00317bc1538def4b7';
     mockReq.params.actionItemId = '7d7e21f00317bc1538deabc2';
     mockReq.body.requestor = {
       requestorId: '5a7e21f00317bc1538def4b7',
@@ -149,9 +150,13 @@ describe('Action Item Controller tests', () => {
         },
       ];
 
-      jest
-        .spyOn(ActionItem, 'find')
-        .mockReturnValueOnce({ populate: () => Promise.resolve(mockActionItems) });
+      const findReturnObject = { populate: () => {} };
+
+      const findSpy = jest.spyOn(ActionItem, 'find').mockReturnValueOnce(findReturnObject);
+
+      const populateSpy = jest
+        .spyOn(findReturnObject, 'populate')
+        .mockImplementationOnce(() => Promise.resolve(mockActionItems));
 
       const returnValue = [
         {
@@ -163,6 +168,14 @@ describe('Action Item Controller tests', () => {
       ];
 
       const response = await getactionItem(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith(
+        { assignedTo: mockReq.params.userId },
+        '-createdDateTime -__v',
+      );
+
+      expect(populateSpy).toHaveBeenCalledWith('createdBy', 'firstName lastName');
+
       assertResMock(200, returnValue, response, mockRes);
     });
   });
@@ -229,14 +242,31 @@ describe('Action Item Controller tests', () => {
 
     test('Returns 200 if get actionItem successfully finds and removes the matching ActionItem', async () => {
       const message = { message: 'removed' };
+      const notificationhelperObject = { notificationdeleted: () => {} };
+
+      notificationhelper.mockImplementationOnce(() => notificationhelperObject);
+
+      const notificationdeletedSpy = jest
+        .spyOn(notificationhelperObject, 'notificationdeleted')
+        .mockImplementationOnce(() => true);
 
       const { deleteactionItem } = makeSut();
 
-      jest
-        .spyOn(ActionItem, 'findById')
-        .mockReturnValueOnce({ remove: () => Promise.resolve(true) });
+      const findReturnObject = { remove: () => {} };
+
+      const findSpy = jest.spyOn(ActionItem, 'findById').mockReturnValueOnce(findReturnObject);
+
+      jest.spyOn(findReturnObject, 'remove').mockImplementationOnce(() => Promise.resolve(message));
 
       const response = await deleteactionItem(mockReq, mockRes);
+
+      expect(notificationdeletedSpy).toHaveBeenCalledWith(
+        mockReq.body.requestor.requestorId,
+        mockReq.body.requestor.assignedTo,
+        undefined,
+      );
+
+      expect(findSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.actionItemId));
 
       assertResMock(200, message, response, mockRes);
     });
