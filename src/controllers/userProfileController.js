@@ -399,7 +399,7 @@ const userProfileController = function (UserProfile) {
               break;
             default:
               record.isVisible = true;
-          };
+          }
         }
         importantFields.forEach((fieldName) => {
           if (req.body[fieldName] !== undefined) {
