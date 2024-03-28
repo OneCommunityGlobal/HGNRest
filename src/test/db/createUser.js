@@ -46,7 +46,6 @@ const createUser = async () => {
   up.isFirstTimelog = true;
   up.actualEmail = '';
   up.isVisible = true;
-  up._id = '65cf6c3706d8ac105827bb2e';
 
   await up.save();
 

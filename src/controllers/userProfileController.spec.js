@@ -32,13 +32,44 @@ const assertResMock = (statusCode, message, response) => {
   expect(response).toBeUndefined();
 };
 
+const mockHasPermission = (value) =>
+  jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
+
+const makeMockGetCache = (value) => {
+  const getCacheObject = {
+    getCache: () => {},
+  };
+
+  const mockGetCache = jest.spyOn(getCacheObject, 'getCache').mockImplementation(() => value);
+
+  cache.mockImplementation(() => getCacheObject);
+
+  return mockGetCache;
+};
+
+const makeMockSortAndFind = (value = null) => {
+  const databaseUsers = value;
+
+  const sortObject = {
+    sort: () => {},
+  };
+
+  const mockSort = jest
+    .spyOn(sortObject, 'sort')
+    .mockImplementationOnce(() => Promise.resolve(databaseUsers));
+
+  const findSpy = jest.spyOn(UserProfile, 'find').mockReturnValueOnce(sortObject);
+
+  return {
+    databaseUsers,
+    mockSort,
+    findSpy,
+  };
+};
+
 describe('userProfileController module', () => {
   beforeAll(async () => {
     await dbConnect();
-    cache.mockImplementation(() => ({
-      setCache: jest.fn(() => false),
-      getCache: jest.fn(() => false),
-    }));
   });
 
   beforeEach(() => {
@@ -57,24 +88,32 @@ describe('userProfileController module', () => {
     test("Ensure postUserProfile returns 403 if user doesn't have permissions for postUserProfile", async () => {
       const { postUserProfile } = makeSut();
 
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(false));
+      const hasPermissionSpy = mockHasPermission(false);
 
       const response = await postUserProfile(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postUserProfile');
 
       assertResMock(403, 'You are not authorized to create new users', response);
     });
 
-    test("Ensure postUserProfile returns 403 if user doesn't have permissions for addDeleteEditOwners or if the user role is owner", async () => {
+    test("Ensure postUserProfile returns 403 if user doesn't have permissions for addDeleteEditOwners and if the user role is owner", async () => {
       const { postUserProfile } = makeSut();
 
       mockReq.body.role = 'Owner';
 
-      jest
+      const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
         .mockImplementationOnce(() => Promise.resolve(true))
         .mockImplementationOnce(() => Promise.resolve(false));
 
       const response = await postUserProfile(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postUserProfile');
+      expect(hasPermissionSpy).toHaveBeenLastCalledWith(
+        mockReq.body.requestor,
+        'addDeleteEditOwners',
+      );
 
       assertResMock(403, 'You are not authorized to create new owners', response);
     });
@@ -141,6 +180,16 @@ describe('userProfileController module', () => {
 
       const response = await postUserProfile(newMockReq, mockRes);
 
+      expect(fetch).toHaveBeenCalledWith(`https://hgn-rest-beta.azurewebsites.net/api/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: newMockReq.body.actualEmail,
+          password: newMockReq.body.actualPassword,
+        }),
+      });
       assertResMock(
         400,
         {
@@ -158,7 +207,7 @@ describe('userProfileController module', () => {
 
       jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(true));
 
-      jest
+      const findOneSpy = jest
         .spyOn(UserProfile, 'findOne')
         .mockImplementationOnce(() => null)
         .mockImplementationOnce(() => mockUser());
@@ -173,6 +222,11 @@ describe('userProfileController module', () => {
       newMockReq.body.allowsDuplicateName = false;
 
       const response = await postUserProfile(newMockReq, mockRes);
+
+      expect(findOneSpy).toHaveBeenLastCalledWith({
+        firstName: newMockReq.body.firstName,
+        lastName: newMockReq.body.lastName,
+      });
 
       assertResMock(
         400,
@@ -220,6 +274,24 @@ describe('userProfileController module', () => {
     });
 
     test('Ensure postUserProfile returns 200 if the userProfile is saved', async () => {
+      const getCacheObject = {
+        getCache: () => {},
+      };
+
+      const mockGetCache = jest.spyOn(getCacheObject, 'getCache').mockImplementation(() => '[]');
+
+      cache.mockImplementation(() => getCacheObject);
+
+      const setCacheObject = {
+        setCache: () => {},
+      };
+
+      const mockSetCache = jest
+        .spyOn(setCacheObject, 'setCache')
+        .mockImplementation(() => undefined);
+
+      cache.mockImplementation(() => ({ ...setCacheObject, ...getCacheObject }));
+
       const { postUserProfile } = makeSut();
 
       jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(true));
@@ -272,6 +344,22 @@ describe('userProfileController module', () => {
       expect(saved.actualEmail).toBe(newMockReq.body.actualEmail);
       expect(saved.isVisible).toBe(newMockReq.body.isVisible);
 
+      expect(mockGetCache).toHaveBeenCalledWith('allusers');
+
+      const userCache = {
+        permissions: newMockReq.body.permissions,
+        isActive: true,
+        weeklycommittedHours: saved.weeklycommittedHours,
+        createdDate: saved.createdDate.toISOString(),
+        _id: saved._id,
+        role: saved.role,
+        firstName: saved.firstName,
+        lastName: saved.lastName,
+        email: saved.email,
+      };
+
+      expect(mockSetCache).toHaveBeenCalledWith('allusers', JSON.stringify([userCache]));
+
       assertResMock(
         200,
         {
@@ -286,25 +374,37 @@ describe('userProfileController module', () => {
     test("Ensure getUserProfiles returns 400 if the user doesn't have getUserProfiles permission", async () => {
       const { getUserProfiles } = makeSut();
 
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(false));
+      const hasPermissionSpy = mockHasPermission(false);
 
       const response = await getUserProfiles(mockReq, mockRes);
 
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getUserProfiles');
       assertResMock(403, 'You are not authorized to view all users', response);
     });
 
     test("Ensure getUserProfiles returns 500 if there are no users in the database and the allusers key doesn't exist in NodeCache", async () => {
+      const mockGetCache = makeMockGetCache('');
+
       const { getUserProfiles } = makeSut();
 
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+      const hasPermissionSpy = mockHasPermission(true);
 
-      const databaseUsers = null;
-
-      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
-        sort: () => Promise.resolve(databaseUsers),
-      });
+      const { findSpy, mockSort } = makeMockSortAndFind();
 
       const response = await getUserProfiles(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getUserProfiles');
+
+      expect(findSpy).toHaveBeenCalledWith(
+        {},
+        '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      );
+
+      expect(mockSort).toHaveBeenCalledWith({
+        lastName: 1,
+      });
+
+      expect(mockGetCache).toHaveBeenCalledWith('allusers');
 
       assertResMock(500, { error: 'User result was invalid' }, response);
     });
@@ -320,15 +420,22 @@ describe('userProfileController module', () => {
 
       const { getUserProfiles } = makeSut();
 
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+      const hasPermissionSpy = mockHasPermission(true);
 
-      const databaseUsers = null;
-
-      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
-        sort: () => Promise.resolve(databaseUsers),
-      });
+      const { findSpy, mockSort } = makeMockSortAndFind();
 
       const response = await getUserProfiles(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getUserProfiles');
+
+      expect(findSpy).toHaveBeenCalledWith(
+        {},
+        '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      );
+
+      expect(mockSort).toHaveBeenCalledWith({
+        lastName: 1,
+      });
 
       assertResMock(404, new Error(errMsg), response);
     });
@@ -336,33 +443,46 @@ describe('userProfileController module', () => {
     test('Ensure getUserProfiles returns 200 if there are no users in the database and the allusers key exists in NodeCache', async () => {
       const data = '[{"name": "diego"}]';
 
-      cache.mockImplementation(() => ({
-        getCache: jest.fn(() => data),
-      }));
+      const mockGetCache = makeMockGetCache(data);
 
       const { getUserProfiles } = makeSut();
 
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+      const hasPermissionSpy = mockHasPermission(true);
 
-      const databaseUsers = null;
-
-      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
-        sort: () => Promise.resolve(databaseUsers),
-      });
+      const { findSpy, mockSort } = makeMockSortAndFind();
 
       const response = await getUserProfiles(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getUserProfiles');
+
+      expect(findSpy).toHaveBeenCalledWith(
+        {},
+        '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      );
+
+      expect(mockSort).toHaveBeenCalledWith({
+        lastName: 1,
+      });
+
+      expect(mockGetCache).toHaveBeenCalledWith('allusers');
 
       assertResMock(200, JSON.parse(data), response);
     });
 
     test('Ensure getUserProfiles returns 200 if there are users in the database', async () => {
-      cache.mockImplementation(() => ({
-        setCache: jest.fn(() => undefined),
-      }));
+      const setCacheObject = {
+        setCache: () => {},
+      };
+
+      const mockSetCache = jest
+        .spyOn(setCacheObject, 'setCache')
+        .mockImplementation(() => undefined);
+
+      cache.mockImplementation(() => setCacheObject);
 
       const { getUserProfiles } = makeSut();
 
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(true));
+      const hasPermissionSpy = mockHasPermission(true);
 
       const databaseUsers = [
         {
@@ -380,11 +500,22 @@ describe('userProfileController module', () => {
         },
       ];
 
-      jest.spyOn(UserProfile, 'find').mockReturnValueOnce({
-        sort: () => Promise.resolve(databaseUsers),
-      });
+      const { findSpy, mockSort } = makeMockSortAndFind(databaseUsers);
 
       const response = await getUserProfiles(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getUserProfiles');
+
+      expect(findSpy).toHaveBeenCalledWith(
+        {},
+        '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      );
+
+      expect(mockSort).toHaveBeenCalledWith({
+        lastName: 1,
+      });
+
+      expect(mockSetCache).toHaveBeenCalledWith('allusers', JSON.stringify(databaseUsers));
 
       assertResMock(200, databaseUsers, response);
     });
