@@ -15,37 +15,7 @@ const notificationController = function () {
    * @param {Object} res - The response object.
    * @returns {void}
    */
-  const getUserNotifications = function (req, res) {
-    res.status(403).send({ error: 'Unauthorized request' });
-    // const { userId } = req.params;
-    // const { requestor } = req.body;
-    // if (requestor.requestorId !== userId && (requestor.role !== 'Administrator' || requestor.role !== 'Owner')) {
-    //   res.status(403).send({ error: 'Unauthorized request' });
-    //   return;
-    // }
-
-    // if (!userId) {
-    //   res.status(400).send({ error: 'User ID is required' });
-    //   return;
-    // }
-
-    // try {
-    //   const result = notificationService.getNotifications(userId);
-    //   res.status(200).send(result);
-    // } catch (err) {
-    //   LOGGER.logException(err);
-    //   res.status(500).send({ error: 'Internal Error' });
-    // }
-  };
-
-    /**
-   * This function allows the user to get unread notifications for themselves or
-   *  allows the admin/owner user to get unread notifications for a specific user.
-   * @param {Object} req - The request with userID as request param.
-   * @param {Object} res - The response object.
-   * @returns {void}
-   */
-  const getUnreadUserNotifications = function (req, res) {
+  const getUserNotifications = async function (req, res) {
     const { userId } = req.params;
     const { requestor } = req.body;
     if (requestor.requestorId !== userId && (requestor.role !== 'Administrator' || requestor.role !== 'Owner')) {
@@ -59,7 +29,36 @@ const notificationController = function () {
     }
 
     try {
-      const result = notificationService.getUnreadUserNotifications(userId);
+      const result = await notificationService.getNotifications(userId);
+      res.status(200).send(result);
+    } catch (err) {
+      LOGGER.logException(err);
+      res.status(500).send({ error: 'Internal Error' });
+    }
+  };
+
+    /**
+   * This function allows the user to get unread notifications for themselves or
+   *  allows the admin/owner user to get unread notifications for a specific user.
+   * @param {Object} req - The request with userID as request param.
+   * @param {Object} res - The response object.
+   * @returns {void}
+   */
+  const getUnreadUserNotifications = async function (req, res) {
+    const { userId } = req.params;
+    const { requestor } = req.body;
+    if (requestor.requestorId !== userId && (requestor.role !== 'Administrator' || requestor.role !== 'Owner')) {
+      res.status(403).send({ error: 'Unauthorized request' });
+      return;
+    }
+
+    if (!userId) {
+      res.status(400).send({ error: 'User ID is required' });
+      return;
+    }
+
+    try {
+      const result = await notificationService.getUnreadUserNotifications(userId);
       res.status(200).send(result);
     } catch (err) {
       LOGGER.logException(err);
@@ -73,7 +72,7 @@ const notificationController = function () {
    * @param {*} res 
    * @returns 
    */
-  const getSentNotifications = function (req, res) {
+  const getSentNotifications = async function (req, res) {
     const { requestor } = req.body;
     if ((requestor.role !== 'Administrator' || requestor.role !== 'Owner')) {
       res.status(403).send({ error: 'Unauthorized request' });
@@ -81,7 +80,7 @@ const notificationController = function () {
     }
 
     try {
-      const result = notificationService.getSentNotifications(requestor.requestorId);
+      const result = await notificationService.getSentNotifications(requestor.requestorId);
       res.status(200).send(result);
     } catch (err) {
       LOGGER.logException(err);
@@ -125,7 +124,7 @@ const notificationController = function () {
    * @param {*} res 
    * @returns 
    */
-  const deleteUserNotification = function (req, res) {
+  const deleteUserNotification = async function (req, res) {
     const { requestor } = req.body;
 
     if (requestor.role !== 'Administrator' || requestor.role !== 'Owner') {
@@ -134,7 +133,7 @@ const notificationController = function () {
     }
 
     try {
-      const result = notificationService.deleteNotification(req.params.notificationId);
+      const result = await notificationService.deleteNotification(req.params.notificationId);
       res.status(200).send(result);
     } catch (err) {
       LOGGER.logException(err);
@@ -148,7 +147,7 @@ const notificationController = function () {
    * @param {*} res 
    * @returns 
    */
-  const markNotificationAsRead = function (req, res) {
+  const markNotificationAsRead = async function (req, res) {
     const recipientId = req.body.requestor.requestorId;
 
     if (!recipientId) {
@@ -157,7 +156,7 @@ const notificationController = function () {
     }
 
     try {
-      const result = notificationService.markNotificationAsRead(req.params.notificationId, recipientId);
+      const result = await notificationService.markNotificationAsRead(req.params.notificationId, recipientId);
       res.status(200).send(result);
     } catch (err) {
       LOGGER.logException(err);

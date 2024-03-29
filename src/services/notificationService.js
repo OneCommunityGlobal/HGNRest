@@ -2,11 +2,10 @@
  * This module contains functions for creating and fetching notifications. {@link NotificationModel}
  */
 const mongoose = require('mongoose');
-const validator = require('express-validator');
 const NotificationModel = require('../models/notification');
+const { cleanHtml } = require('../utilities/htmlContentSanitizer');
 
 const { startSession } = mongoose;
-
 const isValidObjectId = mongoose.Types.ObjectId.isValid;
 
 /**
@@ -27,7 +26,7 @@ async function createNotification(
   if (!isValidObjectId(senderId)) {
     throw new Error('Invalid sender ID');
   }
-  if (isValidRecipientId) {
+  if (!isValidRecipientId) {
     throw new Error('Invalid recipient ID');
   }
 
@@ -35,9 +34,9 @@ async function createNotification(
   try {
     // Start a transaction and rollback if any error occurs
     session.startTransaction();
-
+    const sanitizedMessage = cleanHtml(message.trim());
     const models = recipientIds.map((recipientId) => ({
-        message: validator.escape(message.trim()), // Snanitize the message
+        message: sanitizedMessage,
         sender: senderId,
         recipient: recipientId,
         isSystemGenerated,

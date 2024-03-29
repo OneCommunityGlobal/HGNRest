@@ -20,7 +20,7 @@ const notificationSchema = new Schema({
   message: { type: String, required: true },
   sender: { type: Schema.Types.ObjectId, ref: 'userProfile', required: true },
   recipient: { type: Schema.Types.ObjectId, ref: 'userProfile', required: true },
-  isSystenGenerated: { type: Boolean, default: false },
+  isSystemGenerated: { type: Boolean, default: true },
   isRead: { type: Boolean, default: false },
   createdTimeStamps: { type: Date, default: Date.now },
 
