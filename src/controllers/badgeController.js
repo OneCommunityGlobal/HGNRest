@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 
@@ -11,7 +11,7 @@ const badgeController = function (Badge) {
    * @returns {Array<Object>} List containing badge records.
    */
   const getAllBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'seeBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -50,7 +50,7 @@ const badgeController = function (Badge) {
    */
 
   const assignBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'assignBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
     }
@@ -135,7 +135,7 @@ const badgeController = function (Badge) {
   };
 
   const postBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'createBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'createBadges'))) {
       res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
@@ -180,7 +180,7 @@ const badgeController = function (Badge) {
   };
 
   const deleteBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteBadges'))) {
       res.status(403).send({ error: 'You are not authorized to delete badges.' });
       return;
     }
@@ -215,7 +215,7 @@ const badgeController = function (Badge) {
   };
 
   const putBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'updateBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'updateBadges'))) {
       res.status(403).send({ error: 'You are not authorized to update badges.' });
       return;
     }
