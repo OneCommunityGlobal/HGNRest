@@ -354,7 +354,7 @@ const userHelper = function () {
         { isActive: true },
         "_id weeklycommittedHours weeklySummaries missedHours",
       );
-      
+
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
@@ -425,12 +425,13 @@ const userHelper = function () {
 
         const userStartDate = moment(person.startDate);
 
-        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0) {
-            if (timeSpent === 0
-              || (userStartDate.isAfter(pdtEndOfLastWeek))
-               || (userStartDate.isAfter(pdtStartOfLastWeek) && userStartDate.isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
+        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0) {
               isNewUser = true;
-         }
+        }
+
+        if ((userStartDate.isAfter(pdtEndOfLastWeek))
+               || (userStartDate.isAfter(pdtStartOfLastWeek) && userStartDate.isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
+            isNewUser = true;
         }
 
         const updateResult = await userProfile.findByIdAndUpdate(
@@ -621,11 +622,11 @@ const userHelper = function () {
             }
 
             emailSender(
-              status.email, // change this to hardcoded email for testing if needed
+              status.email,
               "New Infringement Assigned",
               emailBody,
               null,
-              "onecommunityglobal@gmail.com", // change this to hardcoded email for testing if needed
+              "onecommunityglobal@gmail.com",
               status.email,
               null,
             );
@@ -686,9 +687,10 @@ const userHelper = function () {
       await deleteOldTimeOffRequests();
       // Create notification for users who are new and met the time requirement but weekly summary not submitted
       // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
-      const senderId = await userProfile.findOne({ role: "Owner", isActive: true }, "_id");
-      const notifications = await notificationService.createNotification(senderId, usersRequiringBlueSqNotification, NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE, true);
-
+      if (usersRequiringBlueSqNotification.length > 0) {
+        const senderId = await userProfile.findOne({ role: "Owner", isActive: true }, "_id");
+        await notificationService.createNotification(senderId._id, usersRequiringBlueSqNotification, NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE, true, false);
+      }
     } catch (err) {
       logger.logException(err);
     }
