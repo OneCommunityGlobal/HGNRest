@@ -1,23 +1,23 @@
 // const mongoose = require('mongoose');
 // const UserProfile = require('../models/userProfile');
-// const Badge = require('../models/badge');
-// const helper = require('../utilities/permissions');
+const Badge = require('../models/badge');
+const helper = require('../utilities/permissions');
 // const escapeRegex = require('../utilities/escapeRegex');
-// const badgeController = require('./badgeController');
-// const { mockReq, mockRes, assertResMock } = require('../test');
-//
+const badgeController = require('./badgeController');
+const { mockReq, mockRes, assertResMock } = require('../test');
+
 // mock the cache function before importing so we can manipulate the implementation
 // jest.mock('../utilities/nodeCache');
 // const cache = require('../utilities/nodeCache');
 
-// const makeSut = () => {
-//   const { postBadge } = badgeController(Badge);
+const makeSut = () => {
+  const { postBadge } = badgeController(Badge);
 
-//   return { postBadge };
-// };
+  return { postBadge };
+};
 
-// const mockHasPermission = (value) =>
-//   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
+const mockHasPermission = (value) =>
+  jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
 // const makeMockCache = (method, value) => {
 //   const cacheObject = {
@@ -35,35 +35,31 @@
 // };
 
 describe('badeController module', () => {
-  //   beforeEach(() => {
-  //     mockReq.body.badgeName = 'random badge';
-  //   });
-
-  //   afterEach(() => {
-  //     jest.clearAllMocks();
-  //   });
-
-  test('need one to pass', () => {
-    expect(1 + 2).toEqual(3);
+  beforeEach(() => {
+    mockReq.body.badgeName = 'random badge';
   });
 
-  //   describe('postBadge method', () => {
-  //     test('Returns 403 if the user does not have badge permissions', async () => {
-  //       const { postBadge } = makeSut();
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-  //       const hasPermissionSpy = mockHasPermission(false);
+  describe('postBadge method', () => {
+    test('Returns 403 if the user does not have badge permissions', async () => {
+      const { postBadge } = makeSut();
 
-  //       const response = await postBadge(mockReq, mockRes);
+      const hasPermissionSpy = mockHasPermission(false);
 
-  //       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'createBadges');
-  //       assertResMock(
-  //         403,
-  //         {
-  //           error: 'You are not authorized to create new badges.',
-  //         },
-  //         response,
-  //         mockRes,
-  //       );
-  //     });
-  //   });
+      const response = await postBadge(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'createBadges');
+      assertResMock(
+        403,
+        {
+          error: 'You are not authorized to create new badges.',
+        },
+        response,
+        mockRes,
+      );
+    });
+  });
 });
