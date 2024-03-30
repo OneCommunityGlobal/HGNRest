@@ -1,9 +1,8 @@
 const mongoose = require('mongoose');
 const reporthelper = require('../helpers/reporthelper')();
+const overviewReportHelper = require('../helpers/overviewReportHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
-const TeamProfile = require('../models/team');
-const userhelper = require('../helpers/userHelper')();
 
 const reportsController = function () {
   const getWeeklySummaries = async function (req, res) {
@@ -41,61 +40,18 @@ const reportsController = function () {
       }
 
       // 1. 4+ members team count
-      const fourPlusMembersTeamCount = await TeamProfile.countDocuments({
-        'members.4': { $exists: true },
-      });
-
-      // 2. Total badges awarded count
-      const badgeCountQuery = await UserProfile.aggregate([
-        {
-          $unwind: '$badgeCollection',
-        },
-        {
-          $match: {
-            'badgeCollection.earnedDate': {
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
-        {
-          $count: 'badgeCollection',
-        },
-      ]);
+      const fourPlusMembersTeamCount = await overviewReportHelper.getFourPlusMembersTeamCount();
       
+      // 2. Total badges awarded count
+      const badgeCountQuery = await overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate);
       const badgeAwardedCount = badgeCountQuery.length > 0 ? badgeCountQuery[0].badgeCollection : 0;
 
       // 3. Number of users celebrating their anniversary
-      const anniversaryCountQuery = await UserProfile.aggregate([
-        {
-          $addFields: {
-            createdMonthDay: { $dateToString: { format: "%m-%d", date: "$createdDate" } }
-          }
-        },
-        {
-          $match: {
-            createdMonthDay: {
-              $gte: new Date(startDate).toISOString().substring(5, 10),
-              $lte: new Date(endDate).toISOString().substring(5, 10),
-            },
-          },
-        },
-        {
-          $count: 'anniversaryCount',
-        },
-      ]);
-
+      const anniversaryCountQuery = await overviewReportHelper.getAnniversaryCount(startDate, endDate);
       const anniversaryCount = anniversaryCountQuery.length > 0 ? anniversaryCountQuery[0].anniversaryCount : 0;
 
       // 4. role and count of users
-      const roleQuery = await UserProfile.aggregate([
-        {
-          $group: {
-            _id: '$role',
-            count: { $sum: 1 },
-          },
-        },
-      ]);
+      const roleQuery = await overviewReportHelper.getRoleCount();
 
       const roles = roleQuery.map((role) => {
         return {
@@ -141,26 +97,7 @@ const reportsController = function () {
         return;
       }
 
-      // UserProfile has a field called "infringements", which is an array of objects that has date and description fields.
-      // The date field is a string, and the description field is a string.
-      // count the number of infringements that fall between the startDate and endDate
-      const blueSquareStats = await UserProfile.aggregate([
-        {
-          $unwind: '$infringements',
-        },
-        {
-          $match: {
-            'infringements.date': {
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
-        {
-          $count: 'infringements',
-        },
-      ]);
-      
+      const blueSquareStats = await overviewReportHelper.getBlueSquareStats(startDate, endDate);
       const blueSquareCount = blueSquareStats.length > 0 ? blueSquareStats[0].infringements : 0;
 
       res.status(200).json({"msg": {blueSquareCount}});
