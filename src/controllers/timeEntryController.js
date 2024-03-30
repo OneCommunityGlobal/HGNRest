@@ -589,8 +589,9 @@ const timeEntrycontroller = function (TimeEntry) {
             });
             return;
         }
-             const hasAdminPermission = UserProfile.findById(record.personId).then((user) => user.role == 'Owner' || user.role == 'Administrator' || user.role == 'Manager');
-        if (
+              // Add additional permissions to delete others time entry delete functionality
+             const hasAdminPermission = await UserProfile.findById(record.personId).then((user) => user.role == 'Owner' || user.role == 'Administrator' || user.role == 'Manager');
+       if (
           record.personId.toString()
             === req.body.requestor.requestorId.toString()
           || (await hasPermission(req.body.requestor, 'deleteTimeEntry') && !(hasAdminPermission && req.body.requestor.role == 'Volunteer'))
