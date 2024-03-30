@@ -19,6 +19,7 @@ const ownerMessage = require('../models/ownerMessage');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
+const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const mapLocations = require('../models/mapLocation');
@@ -35,6 +36,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryType');
 const {
   buildingConsumable,
+  buildingReusable,
   buildingMaterial,
   buildingTool,
 } = require('../models/bmdashboard/buildingInventoryItem');
@@ -92,22 +94,21 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(
   ownerMessage,
 );
 
-const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
+const emailRouter = require('../routes/emailRouter')();
+const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
+const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
+  mouseoverText,
+);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest,team,userProfile);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest, team, userProfile);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(
-  buildingMaterial,
-);
-const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(
-  buildingProject,
-);
-const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(
-  buildingNewLesson,
-);
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
+const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
     invTypeBase,
@@ -149,15 +150,18 @@ module.exports = function (app) {
   app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
   app.use('/api', profileInitialSetupRouter);
+  app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
+  app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
