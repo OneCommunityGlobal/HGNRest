@@ -277,8 +277,10 @@ const userProfileController = function (UserProfile) {
         const allUserCache = JSON.parse(cache.getCache('allusers'));
         allUserCache.push(userCache);
         cache.setCache('allusers', JSON.stringify(allUserCache));
-      })
-      .catch((error) => res.status(501).send(error));
+    }
+    catch (error) {
+      res.status(501).send(error);
+    }
   };
 
   const putUserProfile = async function (req, res) {
