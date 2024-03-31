@@ -70,6 +70,29 @@ const reportsController = function () {
       res.status(404).send(error);
     }
   }
+
+  /**
+   * Gets the Volunteer Hours Stats, it groups the users based on the number of hours they have logged
+   * Every ten hours is a group, so 0-9 hours, 10-19 hours, 20-29 hours, and finally 60+ hours
+   * @param {*} req  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
+   * @param {*} res
+   */
+  const getVolunteerHoursStats = async function (req, res) {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).send('Please provide startDate and endDate');
+        return;
+      }
+
+      const volunteerHoursStats = await overviewReportHelper.getVolunteerHoursStats(startDate, endDate);
+      res.status(200).json(volunteerHoursStats);
+    } catch (error) {
+      res.status(404).send(error);
+    }
+  }
+
   /**
    * Gets the Volunteer Role Stats, it contains
    * 1. 4+ members team count
@@ -264,6 +287,7 @@ const reportsController = function () {
 
   return {
     getVolunteerStats,
+    getVolunteerHoursStats,
     getWeeklySummaries,
     getReportRecipients,
     deleteReportsRecepients,

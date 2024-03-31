@@ -146,6 +146,71 @@ const overviewReportHelper = function () {
     };
   }
 
+  /**
+   * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates.
+   * @param {*} startDate
+   * @param {*} endDate
+   */
+  async function getVolunteerHoursStats(startDate, endDate) {
+    const hoursStats = await UserProfile.aggregate([
+      {
+        $lookup: {
+          from: "timeEntries", // The collection to join
+          localField: "_id", // Field from the userProfile collection
+          foreignField: "personId", // Field from the timeEntries collection
+          as: "timeEntries" // The array field that will contain the joined documents
+        }
+      },
+      {
+        $unwind: {
+          path: "$timeEntries",
+          preserveNullAndEmptyArrays: true // Preserve users with no time entries
+        }
+      },
+      {
+        $match: {
+          // Adjust this condition to include all users, filtering timeEntries by date
+          $or: [
+            { "timeEntries.dateOfWork": { $gte: startDate, $lte: endDate } },
+            { "timeEntries": { $exists: false } }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: "$_id",
+          personId: { $first: "$_id" },
+          totalSeconds: { $sum: "$timeEntries.totalSeconds" }, // Sum seconds from timeEntries
+        }
+      },
+      {
+        $project: {
+          totalHours: { $divide: ["$totalSeconds", 3600] }, // Convert seconds to hours
+        }
+      },
+    ]);
+
+    const volunteerHoursStats = {
+      numberOfUsers: hoursStats.length,
+    }
+
+    for (let i = 0; i < 6; i++) {
+      const group = i * 10;
+      volunteerHoursStats[`${group}-${group + 9}`] = 0;
+    }
+
+    // Group users by the number of hours logged
+    hoursStats.forEach(user => {
+      if (user.totalHours >= 60) {
+        volunteerHoursStats['60+'] = volunteerHoursStats['60+'] ? volunteerHoursStats['60+'] + 1 : 1;
+      } else {
+        const group = Math.floor(user.totalHours / 10) * 10;
+        volunteerHoursStats[`${group}-${group + 9}`] += 1;
+      }
+    });
+
+    return volunteerHoursStats;
+  }
 
   return {
     getFourPlusMembersTeamCount,
@@ -155,6 +220,7 @@ const overviewReportHelper = function () {
     getBlueSquareStats,
     getTeamMembersCount,
     getActiveInactiveUsersCount,
+    getVolunteerHoursStats,
   };
 };
 
