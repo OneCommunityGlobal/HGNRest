@@ -23,6 +23,9 @@ const route = function () {
     .route("/reports/overviewsummaries/volunteerstats")
     .get(controller.getVolunteerStats);
 
+  reportsRouter
+    .route("/reports/overviewsummaries/volunteerhoursstats")
+    .get(controller.getVolunteerHoursStats);
 
   reportsRouter
     .route("/reports/overviewsummaries/volunteerrolestats")
