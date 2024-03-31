@@ -25,6 +25,56 @@ const reportsController = function () {
    * 1. 4+ members team count
    * 2. Total badges awarded count
    * 3. Number of users celebrating their anniversary
+   * 4. Number of members in team and not in team, with percentage
+   * 5. Number of active and inactive users
+   * 
+   * @param {*} req  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
+   * @param {*} res 
+   */
+  const getVolunteerStats = async function (req, res) {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).send('Please provide startDate and endDate');
+        return;
+      }
+
+      // 1. 4+ members team count
+      const fourPlusMembersTeamCount = await overviewReportHelper.getFourPlusMembersTeamCount();
+      
+      // 2. Total badges awarded count
+      const badgeCountQuery = await overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate);
+      const badgeAwardedCount = badgeCountQuery.length > 0 ? badgeCountQuery[0].badgeCollection : 0;
+
+      // 3. Number of users celebrating their anniversary
+      const anniversaryCountQuery = await overviewReportHelper.getAnniversaryCount(startDate, endDate);
+      const anniversaryCount = anniversaryCountQuery.length > 0 ? anniversaryCountQuery[0].anniversaryCount : 0;
+
+      // 4. Number of members in team and not in team, with percentage
+      const teamMembersCount = await overviewReportHelper.getTeamMembersCount();
+
+      // 5. Number of active and inactive users
+      const activeInactiveUsersCount = await overviewReportHelper.getActiveInactiveUsersCount();
+      
+      const volunteerStats = {
+        fourPlusMembersTeamCount,
+        badgeAwardedCount,
+        anniversaryCount,
+        teamMembersCount,
+        activeInactiveUsersCount,
+      };
+
+      res.status(200).json(volunteerStats);
+    } catch (error) {
+      res.status(404).send(error);
+    }
+  }
+  /**
+   * Gets the Volunteer Role Stats, it contains
+   * 1. 4+ members team count
+   * 2. Total badges awarded count
+   * 3. Number of users celebrating their anniversary
    * 4. role and count of users
    * 
    * @param {*} req  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
@@ -213,6 +263,7 @@ const reportsController = function () {
   };
 
   return {
+    getVolunteerStats,
     getWeeklySummaries,
     getReportRecipients,
     deleteReportsRecepients,

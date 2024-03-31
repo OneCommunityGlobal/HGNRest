@@ -20,12 +20,17 @@ const route = function () {
     .get(controller.getWeeklySummaries);
 
   reportsRouter
-    .route("/reports/overviewsummaries/bluestats")
-    .get(controller.getBlueSquareStats);
+    .route("/reports/overviewsummaries/volunteerstats")
+    .get(controller.getVolunteerStats);
+
 
   reportsRouter
-  .route("/reports/overviewsummaries/volunteerrolestats")
-  .get(controller.getVolunteerRoleStats);
+    .route("/reports/overviewsummaries/volunteerrolestats")
+    .get(controller.getVolunteerRoleStats);
+    
+  reportsRouter
+    .route("/reports/overviewsummaries/bluestats")
+    .get(controller.getBlueSquareStats);
 
   return reportsRouter;
 };
