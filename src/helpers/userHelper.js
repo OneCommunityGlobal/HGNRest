@@ -357,7 +357,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true, email: 'ivytest@gmail.com' },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
@@ -596,7 +596,7 @@ const userHelper = function () {
             'New Infringement Assigned',
             emailBody,
             null,
-            'onecommunityglobal@gmail.com',
+            'xiaoyuchen007@gmail.com',
             status.email,
             null,
           );
