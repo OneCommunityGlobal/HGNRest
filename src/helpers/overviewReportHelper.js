@@ -1,6 +1,7 @@
 /* eslint-disable quotes */
-const TeamProfile = require('../models/team');
+const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
+const timeEntries = require('../models/timeentry');
 
 const overviewReportHelper = function () {
   /**
@@ -9,7 +10,7 @@ const overviewReportHelper = function () {
    */
   async function getFourPlusMembersTeamCount () {
     // check if members array has 4 or more members
-    return TeamProfile.countDocuments({ 'members.4': { $exists: true } });
+    return Team.countDocuments({ 'members.4': { $exists: true } });
   }
 
 
@@ -80,6 +81,12 @@ const overviewReportHelper = function () {
     ]);
   }
 
+  /**
+   * Get the number of Blue Square infringements between the two input dates.
+   * @param {*} startDate 
+   * @param {*} endDate 
+   * @returns 
+   */
   async function getBlueSquareStats (startDate, endDate) {
     return UserProfile.aggregate([
       {
@@ -99,12 +106,55 @@ const overviewReportHelper = function () {
     ]);
   }
 
+  /**
+   *  Get the number of members in team and not in team, with percentage
+   */
+  async function getTeamMembersCount() {
+    const totalUsers = await UserProfile.countDocuments();
+    const usersInTeam = await UserProfile.aggregate([
+      {
+        $match: {
+          teams: { $exists: true, $ne: [] },
+        },
+      },
+      {
+        $count: 'usersInTeam',
+      },
+    ]);
+    const usersNotInTeam = totalUsers - usersInTeam[0].usersInTeam;
+    const usersInTeamPercentage = ((usersInTeam[0].usersInTeam / totalUsers) * 100).toFixed(2);
+    const usersNotInTeamPercentage = ((usersNotInTeam / totalUsers) * 100).toFixed(2);
+
+    return {
+      usersInTeam: usersInTeam[0].usersInTeam,
+      usersNotInTeam,
+      usersInTeamPercentage,
+      usersNotInTeamPercentage,
+    };
+  }
+
+  /**
+   * Get the number of active and inactive users.
+   */
+  async function getActiveInactiveUsersCount() {
+    const activeUsers = await UserProfile.countDocuments({ isActive: true });
+    const inactiveUsers = await UserProfile.countDocuments({ isActive: false });
+
+    return {
+      activeUsers,
+      inactiveUsers,
+    };
+  }
+
+
   return {
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
     getAnniversaryCount,
     getRoleCount,
     getBlueSquareStats,
+    getTeamMembersCount,
+    getActiveInactiveUsersCount,
   };
 };
 
