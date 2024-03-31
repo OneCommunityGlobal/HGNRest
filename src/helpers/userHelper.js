@@ -94,6 +94,7 @@ const userHelper = function () {
     timeRemaining,
     coreTeamExtraHour,
     requestForTimeOffEmailBody,
+    administrativeContent,
   ) {
     let finalParagraph = '';
 
@@ -114,7 +115,16 @@ const userHelper = function () {
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${finalParagraph}
-        <p>Thank you, One Community</p>`;
+        <p>Thank you, One Community</p>
+        <!-- Adding multiple non-breaking spaces -->
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <hr style="border-top: 1px dashed #000;"/>      
+        <p><b>ADMINISTRATIVE DETAILS:</b></p>
+        <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Role:</b> ${administrativeContent.roleAdministrative}</p> <!-- Corrected roleAdminstrative to roleAdministrative -->
+        <p><b>Title:</b> ${administrativeContent.userTitle}</p>
+        <p><b>Previous Blue Square Reasons: </b></p>
+        ${administrativeContent.historyInfringements}`;
 
     return text;
   };
@@ -439,6 +449,9 @@ const userHelper = function () {
             },
             { new: true },
           );
+          historyInfringements = oldInfringements.map((item, index) => {
+            return `<p><${index+1}> Date: ${item.date}, Description: ${item.description}</p>`;
+          }).join('');
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
@@ -468,7 +481,7 @@ const userHelper = function () {
           requestForTimeOffEndingDate = moment(requestForTimeOff.endingDate).format(
             'dddd YYYY-MM-DD',
           );
-          requestForTimeOffreason = requestForTimeOff.reason;
+          requestForTimeOffreason = `<b>${requestForTimeOff.reason}</b>`;
           requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> ${requestForTimeOffreason}`;
         }
 
@@ -548,6 +561,12 @@ const userHelper = function () {
           );
 
           let emailBody = '';
+          let administrativeContent = {          
+            startDate: moment(person.createdDate).utc().format("YYYY-MM-DD"),
+            roleAdminstrative:person.role,
+            userTitle: person.firstName + " " + person.lastName,
+            historyInfringements,
+          }
           if (person.role === 'Core Team' && timeRemaining > 0) {
             emailBody = getInfringementEmailBody(
               status.firstName,
@@ -557,6 +576,7 @@ const userHelper = function () {
               timeRemaining,
               coreTeamExtraHour,
               requestForTimeOffEmailBody,
+              administrativeContent,
             );
           } else {
             emailBody = getInfringementEmailBody(
@@ -567,6 +587,7 @@ const userHelper = function () {
               undefined,
               null,
               requestForTimeOffEmailBody,
+              administrativeContent,
             );
           }
 
