@@ -22,16 +22,43 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   }
 
   const fetchToolTypes = async (req, res) => {
+    console.log("37. fetchToolTypes called")
     try {
       ToolType
         .find()
+        .populate([  
+          {
+            path: 'available',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name'
+            }
+          },
+          {
+            path: 'using',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name'
+            }
+          }
+        ])
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then(result => {
+        //make one line later
+          console.log("fetchToolTypes result: ", result)
+          res.status(200).send(result)
+        
+        })
+        .catch(error => {
+          console.log("53. fetchToolTypes error: ", error)
+          res.status(500).send(error)});
     } catch (err) {
       res.json(err);
     }
   };
+
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
