@@ -28,6 +28,8 @@ const userProfileJobs = () => {
 
   console.log('userProfileJobs');
 
+  console.log('userProfileJobs started');
+
   allUserProfileJobs.start();
 };
 module.exports = userProfileJobs;
