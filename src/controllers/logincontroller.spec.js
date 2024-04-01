@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');
 const logincontroller = require('./logincontroller');
 const { mockReq, mockRes, assertResMock, mockUser } = require('../test');
 const userProfile = require('../models/userProfile');
@@ -51,7 +52,7 @@ describe('logincontroller module', () => {
       assertResMock(403, { message: 'Username not found.' }, res, mockRes);
     });
 
-    test.only('Ensure login returns error 403 if the user exists but is not active', async () => {
+    test('Ensure login returns error 403 if the user exists but is not active', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
@@ -85,6 +86,62 @@ describe('logincontroller module', () => {
         mockRes,
       );
     });
+
+    test('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
+      const { login } = makeSut();
+      const mockReqModified = {
+        ...mockReq,
+        ...{
+          body: {
+            email: 'example@test.com',
+            password: 'SuperSecretPassword@',
+          },
+        },
+      };
+
+      const mockUserModified = {
+        ...mockUser,
+        ...{
+          isActive: true,
+          resetPwd: '',
+        },
+      };
+
+      const findOneSpy = jest
+        .spyOn(userProfile, 'findOne')
+        .mockImplementation(() => Promise.resolve(mockUserModified));
+
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
+
+      const res = await login(mockReqModified, mockRes);
+      expect(findOneSpy).toHaveBeenCalledWith({ email: mockReqModified.body.email });
+
+      assertResMock(
+        403,
+        {
+          message: 'Invalid password.',
+        },
+        res,
+        mockRes,
+      );
+    });
+
+    // test('Ensure login returns the error if the try block fails', async()=>{
+    //   const { login } = makeSut();
+    //   const err = 'Database query error';
+    //   const mockReqModified = {
+    //     ...mockReq,
+    //     ...{
+    //       body: {
+    //         email: 'example@test.com',
+    //         password: 'exampletest',
+    //       },
+    //     },
+    //   };
+
+    //   const res = await login(mockReqModified, mockRes);
+    //   assertResMock(403, { message: 'Database query error' }, res, mockRes);
+    // });
   });
 
   describe('getUser', () => {
