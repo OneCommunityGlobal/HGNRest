@@ -106,7 +106,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getProjectMembers = async function (req, res) {
@@ -373,7 +373,7 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex(users => users._id === userid);
+        userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
@@ -517,7 +517,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     });
   };
 
@@ -583,7 +583,7 @@ const userProfileController = function (UserProfile) {
 
     cache.removeCache(`user-${userId}`);
     const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex(users => users._id === userId);
+    const userIdx = allUserData.findIndex((users) => users._id === userId);
     allUserData.splice(userIdx, 1);
     cache.setCache('allusers', JSON.stringify(allUserData));
 
@@ -644,7 +644,7 @@ const userProfileController = function (UserProfile) {
           res.status(200).send(results);
         });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -657,7 +657,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -695,9 +695,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -764,11 +764,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
+              .catch((error) => res.status(500).send(error));
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -800,7 +800,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -817,7 +817,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -966,7 +966,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   function escapeRegExp(string) {
@@ -998,47 +998,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));      
-  };
-
-  /**
-   * Authorizes user to be able to add Weekly Report Recipients
-   *
-   */
-  const authorizeUser = async (req, res) => {
-    try {
-      let authorizedUser;
-      if (req.body.currentUser === authorizedUserJae) {
-        authorizedUser = authorizedUserJae;
-      } else if (req.body.currentUser === authorizedUserSara) {
-        authorizedUser = authorizedUserSara;
-      }
-      await UserProfile.findOne({
-        email: {
-          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
-          $options: 'i',
-        },
-      }).then(async (user) => {
-        await bcrypt
-          .compare(req.body.currentPassword, user.password)
-          .then((passwordMatch) => {
-            if (!passwordMatch) {
-              return res.status(400).send({
-                error: 'Incorrect current password',
-              });
-            }
-            return res.status(200).send({
-              message: 'Correct Password, Password matches!',
-              password: req.body.currentPassword,
-            });
-          })
-          .catch((error) => {
-            res.status(500).send(error);
-          });
-      });
-    } catch (err) {
-      res.status(500).send(err);
-    }
+      .catch((error) => res.status(500).send(error));
   };
 
   /**
