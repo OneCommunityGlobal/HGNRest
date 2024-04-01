@@ -254,7 +254,8 @@ const timeEntrycontroller = function (TimeEntry) {
         && timeEntry.totalSeconds !== newTotalSeconds
         && timeEntry.isTangible
         && isForAuthUser
-        && !(await hasPermission(req.body.requestor, 'editTimeEntry'))
+        && (await hasPermission(req.body.requestor, 'editTimeEntry'))
+        && (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator')
       ) {
         const requestor = await UserProfile.findById(
           req.body.requestor.requestorId,

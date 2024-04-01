@@ -58,6 +58,10 @@ const userProfileSchema = new Schema({
     ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
+  emailSubscriptions: {
+    type: Boolean,
+    default: false,
+  },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -233,6 +237,7 @@ const userProfileSchema = new Schema({
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
+  permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre('save', function (next) {
