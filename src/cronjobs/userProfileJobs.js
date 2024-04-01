@@ -26,6 +26,8 @@ const userProfileJobs = () => {
     'America/Los_Angeles',
   );
 
+  console.log('userProfileJobs');
+
   allUserProfileJobs.start();
 };
 module.exports = userProfileJobs;
