@@ -172,8 +172,8 @@ describe('badeController module', () => {
     });
 
     // test('Clears cache if all is successful and there is a badge cache', async () => {
-    //   const getCacheMock = makeMockCache('getCache', '');
-    //   const removeCacheMock = makeMockCache('removeCache', '');
+    //   const getCacheMock = makeMockCache('getCache', true);
+    //   const removeCacheMock = makeMockCache('removeCache', null);
     //   const { postBadge } = makeSut();
     //   const hasPermissionSpy = mockHasPermission(true);
 
