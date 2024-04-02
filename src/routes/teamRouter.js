@@ -9,6 +9,10 @@ const router = function (team) {
     .get(controller.getAllTeams)
     .post(controller.postTeam);
 
+
+  teamRouter.route('/teamCode')
+    .get(controller.getAllTeamCode);
+    
   teamRouter.route('/team/:teamId')
     .get(controller.getTeamById)
     .put(controller.putTeam)

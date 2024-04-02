@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
+const logger = require('../startup/logger');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -10,6 +11,21 @@ const teamcontroller = function (Team) {
       .then((results) => res.status(200).send(results))
       .catch((error) => res.status(404).send(error));
   };
+
+  /** 
+   * Leaner version of the teamcontroller.getAllTeams
+   * Remove redundant data: members, isActive, createdDatetime, modifiedDatetime.
+   */
+  const getAllTeamCode = function (req, res) {
+    Team.find({isActive: true}, { teamCode: 1, _id: 1, teamName: 1 }).then((results) => {
+      res.status(200).send(results);
+    }
+    ).catch((error) => {
+      // logger.logException(`Fetch team code failed: ${error}`);
+      res.status(500).send("Fetch team code failed.");
+    });
+
+  }
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
@@ -184,6 +200,7 @@ const teamcontroller = function (Team) {
 
   return {
     getAllTeams,
+    getAllTeamCode,
     getTeamById,
     postTeam,
     deleteTeam,
