@@ -40,16 +40,15 @@ const bmConsumableController = function (BuildingConsumable) {
 
   const bmPostConsumableUpdateRecord = function (req, res) {
     const {
-     quantityUsed, quantityWasted, QtyUsedLogUnit, QtyWastedLogUnit, stockAvailable, consumable,
+     quantityUsed, quantityWasted, qtyUsedLogUnit, qtyWastedLogUnit, stockAvailable, consumable,
     } = req.body;
-
     let unitsUsed = quantityUsed;
     let unitsWasted = quantityWasted;
 
-    if (quantityUsed >= 0 && QtyUsedLogUnit === 'percent') {
+    if (quantityUsed >= 0 && qtyUsedLogUnit === 'percent') {
       unitsUsed = (stockAvailable / 100) * quantityUsed;
     }
-    if (quantityWasted >= 0 && QtyWastedLogUnit === 'percent') {
+    if (quantityWasted >= 0 && qtyWastedLogUnit === 'percent') {
       unitsWasted = (stockAvailable / 100) * quantityWasted;
     }
     if (unitsUsed > stockAvailable || unitsWasted > stockAvailable || (unitsUsed + unitsWasted) > stockAvailable) {
