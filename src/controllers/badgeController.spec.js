@@ -29,9 +29,9 @@ const makeMockCache = (method, value) => {
 
   const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
 
-  cache.mockImplementation(() => cacheObject);
+  cache.mockImplementationOnce(() => cacheObject);
 
-  return mockCache;
+  return { mockCache, cacheObject };
 };
 
 describe('badeController module', () => {
@@ -138,7 +138,7 @@ describe('badeController module', () => {
     });
 
     test('Returns 201 if a badge is succesfully created and no badges in cache.', async () => {
-      const getCacheMock = makeMockCache('getCache', '');
+      const { mockCache: getCacheMock } = makeMockCache('getCache', '');
       const { postBadge } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
 
@@ -171,40 +171,42 @@ describe('badeController module', () => {
       assertResMock(201, newBadge, response, mockRes);
     });
 
-    // test('Clears cache if all is successful and there is a badge cache', async () => {
-    //   const getCacheMock = makeMockCache('getCache', true);
-    //   const removeCacheMock = makeMockCache('removeCache', null);
-    //   const { postBadge } = makeSut();
-    //   const hasPermissionSpy = mockHasPermission(true);
+    test('Clears cache if all is successful and there is a badge cache', async () => {
+      const { mockCache: getCacheMock, cacheObject } = makeMockCache('getCache', '[{_id: 1}]');
+      const removeCacheMock = jest
+        .spyOn(cacheObject, 'removeCache')
+        .mockImplementationOnce(() => null);
+      const { postBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
 
-    //   const findSpy = jest.spyOn(Badge, 'find').mockImplementationOnce(() => Promise.resolve([]));
+      const findSpy = jest.spyOn(Badge, 'find').mockImplementationOnce(() => Promise.resolve([]));
 
-    //   const newBadge = {
-    //     badgeName: mockReq.body.badgeName,
-    //     category: mockReq.body.category,
-    //     multiple: mockReq.body.multiple,
-    //     totalHrs: mockReq.body.totalHrs,
-    //     weeks: mockReq.body.weeks,
-    //     months: mockReq.body.months,
-    //     people: mockReq.body.people,
-    //     project: mockReq.body.project,
-    //     imageUrl: mockReq.body.imageUrl,
-    //     ranking: mockReq.body.ranking,
-    //     description: mockReq.body.description,
-    //     showReport: mockReq.body.showReport,
-    //   };
+      const newBadge = {
+        badgeName: mockReq.body.badgeName,
+        category: mockReq.body.category,
+        multiple: mockReq.body.multiple,
+        totalHrs: mockReq.body.totalHrs,
+        weeks: mockReq.body.weeks,
+        months: mockReq.body.months,
+        people: mockReq.body.people,
+        project: mockReq.body.project,
+        imageUrl: mockReq.body.imageUrl,
+        ranking: mockReq.body.ranking,
+        description: mockReq.body.description,
+        showReport: mockReq.body.showReport,
+      };
 
-    //   jest.spyOn(Badge.prototype, 'save').mockImplementationOnce(() => Promise.resolve(newBadge));
+      jest.spyOn(Badge.prototype, 'save').mockImplementationOnce(() => Promise.resolve(newBadge));
 
-    //   const response = await postBadge(mockReq, mockRes);
+      const response = await postBadge(mockReq, mockRes);
 
-    //   expect(getCacheMock).toHaveBeenCalledWith('allBadges');
-    //   expect(removeCacheMock).toHaveBeenCalledWith('allBadges');
-    //   expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'createBadges');
-    //   expect(findSpy).toHaveBeenCalledWith({
-    //     badgeName: { $regex: escapeRegex(mockReq.body.badgeName), $options: 'i' },
-    //   });
-    //   assertResMock(201, newBadge, response, mockRes);
-    // });
+      expect(getCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(removeCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'createBadges');
+      expect(findSpy).toHaveBeenCalledWith({
+        badgeName: { $regex: escapeRegex(mockReq.body.badgeName), $options: 'i' },
+      });
+      assertResMock(201, newBadge, response, mockRes);
+    });
   });
 });
