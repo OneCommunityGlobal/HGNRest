@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const cache = require('../utilities/nodeCache')();
+const cacheClosure = require('../utilities/nodeCache');
 
 const badgeController = function (Badge) {
   /**
@@ -10,6 +10,8 @@ const badgeController = function (Badge) {
    * @param {Object} req - Request object.
    * @returns {Array<Object>} List containing badge records.
    */
+  const cache = cacheClosure();
+
   const getAllBadges = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'seeBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');

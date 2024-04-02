@@ -7,8 +7,8 @@ const badgeController = require('./badgeController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 // mock the cache function before importing so we can manipulate the implementation
-// jest.mock('../utilities/nodeCache');
-// const cache = require('../utilities/nodeCache');
+jest.mock('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
   const { postBadge } = badgeController(Badge);
@@ -19,20 +19,20 @@ const makeSut = () => {
 const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
-// const makeMockCache = (method, value) => {
-//   const cacheObject = {
-//     getCache: () => {},
-//     removeCache: () => {},
-//     hasCache: () => {},
-//     setCache: () => {},
-//   };
+const makeMockCache = (method, value) => {
+  const cacheObject = {
+    getCache: jest.fn(),
+    removeCache: jest.fn(),
+    hasCache: jest.fn(),
+    setCache: jest.fn(),
+  };
 
-//   const mockCache = jest.spyOn(cacheObject, method).mockImplementation(() => value);
+  const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
 
-//   cache.mockImplementation(() => cacheObject);
+  cache.mockImplementation(() => cacheObject);
 
-//   return mockCache;
-// };
+  return mockCache;
+};
 
 describe('badeController module', () => {
   beforeEach(() => {
@@ -137,7 +137,8 @@ describe('badeController module', () => {
       assertResMock(500, new Error(errorMsg), response, mockRes);
     });
 
-    test('Returns 201 if a badge is succesfully created.', async () => {
+    test('Returns 201 if a badge is succesfully created and no badges in cache.', async () => {
+      const getCacheMock = makeMockCache('getCache', '');
       const { postBadge } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
 
@@ -162,11 +163,48 @@ describe('badeController module', () => {
 
       const response = await postBadge(mockReq, mockRes);
 
+      expect(getCacheMock).toHaveBeenCalledWith('allBadges');
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'createBadges');
       expect(findSpy).toHaveBeenCalledWith({
         badgeName: { $regex: escapeRegex(mockReq.body.badgeName), $options: 'i' },
       });
       assertResMock(201, newBadge, response, mockRes);
     });
+
+    // test('Clears cache if all is successful and there is a badge cache', async () => {
+    //   const getCacheMock = makeMockCache('getCache', '');
+    //   const removeCacheMock = makeMockCache('removeCache', '');
+    //   const { postBadge } = makeSut();
+    //   const hasPermissionSpy = mockHasPermission(true);
+
+    //   const findSpy = jest.spyOn(Badge, 'find').mockImplementationOnce(() => Promise.resolve([]));
+
+    //   const newBadge = {
+    //     badgeName: mockReq.body.badgeName,
+    //     category: mockReq.body.category,
+    //     multiple: mockReq.body.multiple,
+    //     totalHrs: mockReq.body.totalHrs,
+    //     weeks: mockReq.body.weeks,
+    //     months: mockReq.body.months,
+    //     people: mockReq.body.people,
+    //     project: mockReq.body.project,
+    //     imageUrl: mockReq.body.imageUrl,
+    //     ranking: mockReq.body.ranking,
+    //     description: mockReq.body.description,
+    //     showReport: mockReq.body.showReport,
+    //   };
+
+    //   jest.spyOn(Badge.prototype, 'save').mockImplementationOnce(() => Promise.resolve(newBadge));
+
+    //   const response = await postBadge(mockReq, mockRes);
+
+    //   expect(getCacheMock).toHaveBeenCalledWith('allBadges');
+    //   expect(removeCacheMock).toHaveBeenCalledWith('allBadges');
+    //   expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'createBadges');
+    //   expect(findSpy).toHaveBeenCalledWith({
+    //     badgeName: { $regex: escapeRegex(mockReq.body.badgeName), $options: 'i' },
+    //   });
+    //   assertResMock(201, newBadge, response, mockRes);
+    // });
   });
 });
