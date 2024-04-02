@@ -27,17 +27,17 @@ const adminsNotificationEmail = (
 ) => {
   const message = action === 'delete'
       ? `<p>Hello,</p>
-  <p>${firstName} ${lastName} had initially requested time off from ${moment(
+  <p>${firstName} ${lastName} had initially requested time off from <b>${moment(
           startDate,
-        ).format('YYYY-MM-DD')} to ${moment(endDate).format('YYYY-MM-DD')}.</p>
+        ).format('MM-DD-YYYY')}</b> to <b>${moment(endDate).format('MM-DD-YYYY')}</b>.</p>
   <p>We wanted to update you that this time-off request has been canceled.</p>
   <p>If any schedule adjustments or plans were made, please take note to revert them accordingly.</p>
   <p>Thank you for your understanding,</p>
   <p>One Community</p>`
       : `<p>Hello,</p>
-    <p>${firstName} ${lastName} has requested the following week off: ${moment(
+    <p>${firstName} ${lastName} has requested the following week off: <b>${moment(
           startDate,
-        ).format('YYYY-MM-DD')} to ${moment(endDate).format('YYYY-MM-DD')}</p>
+        ).format('MM-DD-YYYY')}</b> to <b>${moment(endDate).format('MM-DD-YYYY')}</b>.</p>
     <p>If you need to, please make a note of this in your schedule and make any necessary plans for their action item(s).<br>
      As an additional reminder, their name in the Leaderboard and Tasks list will also reflect their absence for the time they are off.</p>
      <p>Thank you,</p>
