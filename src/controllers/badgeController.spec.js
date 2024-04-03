@@ -11,10 +11,12 @@ jest.mock('../utilities/nodeCache');
 const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
-  const { postBadge } = badgeController(Badge);
+  const { postBadge, getAllBadges } = badgeController(Badge);
 
-  return { postBadge };
+  return { postBadge, getAllBadges };
 };
+
+const flushPromises = () => new Promise(setImmediate);
 
 const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
@@ -208,5 +210,58 @@ describe('badeController module', () => {
       });
       assertResMock(201, newBadge, response, mockRes);
     });
+  });
+
+  describe.only('getAllBadges method', () => {
+    // const findObject = { populate: () => {} };
+    // const populateObject = { sort: () => {} };
+    test('Returns 403 if the user is not authorized', async () => {
+      const { getAllBadges } = makeSut();
+
+      const mockPermission = mockHasPermission(false);
+      getAllBadges(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.send).toHaveBeenCalledWith('You are not authorized to view all badge data.');
+      expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
+    });
+
+    // test('Returns 500 if an error occurs when querying DB', async () => {
+    //   const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
+    //   const { getAllBadges } = makeSut();
+    //   const mockPermission = mockHasPermission(true);
+    //   const errorMsg = 'Error when finding badges';
+
+    //   const findMock = jest
+    //     .spyOn(Badge, 'find')
+    //     .mockImplementationOnce(() => Promise.resolve(findObject));
+    //   const populateMock = jest
+    //     .spyOn(findObject, 'populate')
+    //     .mockImplementationOnce(() => Promise.resolve(populateObject));
+    //   const sortMock = jest
+    //     .spyOn(populateObject, 'sort')
+    //     .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+
+    //   getAllBadges(mockReq, mockRes);
+    //   await flushPromises();
+
+    //   expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+    //   expect(mockRes.status).toHaveBeenCalledWith(500);
+    //   expect(mockRes.send).toHaveBeenCalledWith(new Error(errorMsg));
+    //   expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
+    //   expect(findMock).toHaveBeenCalledWith(
+    //     {},
+    //     'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+    //   );
+    //   expect(populateMock).toHaveBeenCalledWith({
+    //     path: 'project',
+    //     select: '_id projectName',
+    //   });
+    //   expect(sortMock).toHaveBeenCalledWith({
+    //     ranking: 1,
+    //     badgeName: 1,
+    //   });
+    // });
   });
 });
