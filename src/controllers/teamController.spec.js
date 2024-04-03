@@ -30,6 +30,8 @@ describe('teamController', () => {
     sort: () => {},
   };
 
+  const error = new Error('any error');
+
   describe('getAllTeams', () => {
     test('should return all teams sorted by name', async () => {
       const team1 = {
@@ -54,7 +56,7 @@ describe('teamController', () => {
     test('should return 404 if an error occurs', async () => {
       const { getAllTeams } = makeSut();
 
-      const mockSort = jest.spyOn(sortObject, 'sort').mockRejectedValueOnce(new Error('any error'));
+      const mockSort = jest.spyOn(sortObject, 'sort').mockRejectedValueOnce(error);
       const findSpy = jest.spyOn(Team, 'find').mockReturnValue(sortObject);
       getAllTeams(mockReq, mockRes);
       await flushPromises();
@@ -62,36 +64,33 @@ describe('teamController', () => {
       expect(findSpy).toHaveBeenCalledWith({});
       expect(mockSort).toHaveBeenCalledWith({ teamName: 1 });
       expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.send).toHaveBeenCalledWith(new Error('any error'));
+      expect(mockRes.send).toHaveBeenCalledWith(error);
     });
   });
 
   describe('getTeamById', () => {
     test('should return a team by ID', async () => {
       const { getTeamById } = makeSut();
-
       const teamId = '5a8e21f00317bc';
-      const findByIdSpy = jest
-        .spyOn(Team, 'findById')
-        .mockResolvedValue({ teamId: '5a8e21f00317bc' });
+      const findByIdSpy = jest.spyOn(Team, 'findById').mockResolvedValue({ teamId });
       getTeamById(mockReq, mockRes);
       await flushPromises();
 
       expect(findByIdSpy).toHaveBeenCalledWith(teamId);
       expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.send).toHaveBeenCalledWith({ teamId: '5a8e21f00317bc' });
+      expect(mockRes.send).toHaveBeenCalledWith({ teamId });
     });
 
     test('should return 404 if the team is not found', async () => {
       const { getTeamById } = makeSut();
       const req = { params: { teamId: 'nonExistentTeamId' } };
-      const findByIdSpy = jest.spyOn(Team, 'findById').mockRejectedValue(new Error('any error'));
+      const findByIdSpy = jest.spyOn(Team, 'findById').mockRejectedValue(error);
       getTeamById(req, mockRes);
       await flushPromises();
 
       expect(findByIdSpy).toHaveBeenCalledWith(req.params.teamId);
       expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.send).toHaveBeenCalledWith(new Error('any error'));
+      expect(mockRes.send).toHaveBeenCalledWith(error);
     });
   });
 
