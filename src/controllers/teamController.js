@@ -18,7 +18,7 @@ const teamcontroller = function (Team) {
       .catch((error) => res.status(404).send(error));
   };
   const postTeam = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'postTeam')) {
+    if (!(await hasPermission(req.body.requestor, 'postTeam'))) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -34,23 +34,14 @@ const teamcontroller = function (Team) {
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    // Check if a team with the same name already exists
-    Team.findOne({ teamName: team.teamName })
-      .then((existingTeam) => {
-        if (existingTeam) {
-          // If a team with the same name exists, return an error
-          res.status(400).send({ error: 'A team with this name already exists' });
-        } else {
-          // If no team with the same name exists, save the new team
-          team.save()
-            .then((results) => res.send(results).status(200))
-            .catch((error) => res.send(error).status(404));
-        }
-      })
-      .catch((error) => res.send(error).status(404));
+    team
+      .save()
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
+
   const deleteTeam = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
+    if (!(await hasPermission(req.body.requestor, 'deleteTeam'))) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
       return;
     }
@@ -60,11 +51,15 @@ const teamcontroller = function (Team) {
         res.status(400).send({ error: 'No valid records found' });
         return;
       }
-      const removeteamfromprofile = userProfile.updateMany({}, { $pull: { teams: record._id } }).exec();
+      const removeteamfromprofile = userProfile
+        .updateMany({}, { $pull: { teams: record._id } })
+        .exec();
       const deleteteam = record.remove();
 
       Promise.all([removeteamfromprofile, deleteteam])
-        .then(res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }))
+        .then(
+          res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
+        )
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -73,7 +68,7 @@ const teamcontroller = function (Team) {
     });
   };
   const putTeam = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'putTeam')) {
+    if (!(await hasPermission(req.body.requestor, 'putTeam'))) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -86,8 +81,9 @@ const teamcontroller = function (Team) {
         return;
       }
 
-      const canEditTeamCode = req.body.requestor.role === 'Owner'
-        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+      const canEditTeamCode =
+        req.body.requestor.role === 'Owner' ||
+        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if (!canEditTeamCode) {
         res.status(403).send('You are not authorized to edit team code.');
@@ -110,7 +106,7 @@ const teamcontroller = function (Team) {
   const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!await hasPermission(req.body.requestor, 'assignTeamToUsers')) {
+    if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
@@ -137,12 +133,27 @@ const teamcontroller = function (Team) {
       if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
       if (operation === 'Assign') {
-        await Team.findOneAndUpdate({ _id: teamId }, { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } }, { new: true });
-        const newMember = await userProfile.findOneAndUpdate({ _id: userId }, { $addToSet: { teams: teamId } }, { new: true });
+        await Team.findOneAndUpdate(
+          { _id: teamId },
+          { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
+          { new: true },
+        );
+        const newMember = await userProfile.findOneAndUpdate(
+          { _id: userId },
+          { $addToSet: { teams: teamId } },
+          { new: true },
+        );
         res.status(200).send({ newMember });
       } else {
-        await Team.findOneAndUpdate({ _id: teamId }, { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } });
-        await userProfile.findOneAndUpdate({ _id: userId }, { $pull: { teams: teamId } }, { new: true });
+        await Team.findOneAndUpdate(
+          { _id: teamId },
+          { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
+        );
+        await userProfile.findOneAndUpdate(
+          { _id: userId },
+          { $pull: { teams: teamId } },
+          { new: true },
+        );
         res.status(200).send({ result: 'Delete Success' });
       }
     } catch (error) {
