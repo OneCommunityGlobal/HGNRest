@@ -11,7 +11,7 @@ const bmToolController = (BuildingTool) => {
           },
           {
             path: 'itemType',
-            select: '_id name description unit imageUrl category',
+            select: '_id name description unit imageUrl category available using',
           },
           {
             path: 'updateRecord',
