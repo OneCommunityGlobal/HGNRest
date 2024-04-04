@@ -10,7 +10,7 @@ Cross Mark: ❌
 1. ✅ **Returns 404 - an error occurs during team retrieval.**
    
 > ### Positive Cases
-1. ✅ **Returns 200 - all teams are returned and sorted by name.**
+1. ✅ **Returns 200 - should return all teams sorted by name.**
 
 
 ## GetTeamById
@@ -19,7 +19,7 @@ Cross Mark: ❌
 1. ✅ **Returns 404 - the specified team ID does not exist.**
    
 > ### Positive Cases
-1. ✅ **Returns 200 - a team is successfully returned by its ID.**
+1. ✅ **Returns 200 - a team is successfully when the .. returned by its ID.**
 
 
 ## PostTeam

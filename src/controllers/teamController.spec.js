@@ -41,7 +41,8 @@ describe('teamController', () => {
         teamName: 'Team B',
       };
 
-      const mockSort = jest.spyOn(sortObject, 'sort').mockResolvedValue([team1, team2]);
+      const mockSortResovledValue = [team1, team2];
+      const mockSort = jest.spyOn(sortObject, 'sort').mockResolvedValue(mockSortResovledValue);
       const findSpy = jest.spyOn(Team, 'find').mockReturnValue(sortObject);
       const { getAllTeams } = makeSut();
       getAllTeams(mockReq, mockRes);
@@ -50,7 +51,7 @@ describe('teamController', () => {
       expect(findSpy).toHaveBeenCalledWith({});
       expect(mockSort).toHaveBeenCalledWith({ teamName: 1 });
       expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.send).toHaveBeenCalledWith([team1, team2]);
+      expect(mockRes.send).toHaveBeenCalledWith(mockSortResovledValue);
     });
 
     test('should return 404 if an error occurs', async () => {
@@ -126,17 +127,16 @@ describe('teamController', () => {
     test('should successfully create a team', async () => {
       const { postTeam } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
+      const mockSaveResolvedValue = { teamName: 'Unique Team', isActive: true };
       jest.spyOn(Team, 'exists').mockResolvedValue(false);
-      const mockSave = jest
-        .spyOn(Team.prototype, 'save')
-        .mockResolvedValue({ teamName: 'Unique Team', isActive: true });
+      const mockSave = jest.spyOn(Team.prototype, 'save').mockResolvedValue(mockSaveResolvedValue);
 
       await postTeam(mockReq, mockRes);
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postTeam');
       expect(Team.exists).toHaveBeenCalledWith({ teamName: mockReq.body.teamName });
       expect(mockSave).toHaveBeenCalled();
-      expect(mockRes.send).toHaveBeenCalledWith({ teamName: 'Unique Team', isActive: true });
+      expect(mockRes.send).toHaveBeenCalledWith(mockSaveResolvedValue);
       expect(mockRes.status).toHaveBeenCalledWith(200);
     });
   });
