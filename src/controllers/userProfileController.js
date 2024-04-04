@@ -11,6 +11,7 @@ const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+const Team = require('../models/team');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 
@@ -414,7 +415,15 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.teams !== undefined) {
-          record.teams = Array.from(new Set(req.body.teams));
+          const setOfTeams = new Set(req.body.teams);
+          const newTeams = Array.from(setOfTeams).filter((team) => !record.teams.includes(team));
+          // add user to new team's member collection 
+          await Promise.all(newTeams.map(async (teamId) => {
+            const team = await Team.findById(teamId);
+            team.members.push({ userId: record._id, addDateTime: Date.now() });
+            await team.save();
+          }));
+          record.teams = Array.from(setOfTeams);
         }
 
         if (req.body.projects !== undefined) {
