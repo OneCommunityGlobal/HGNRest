@@ -212,7 +212,7 @@ describe('badeController module', () => {
     });
   });
 
-  describe.only('getAllBadges method', () => {
+  describe('getAllBadges method', () => {
     const findObject = { populate: () => {} };
     const populateObject = { sort: () => {} };
     test('Returns 403 if the user is not authorized', async () => {
@@ -223,7 +223,9 @@ describe('badeController module', () => {
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.send).toHaveBeenCalledWith('You are not authorized to view all badge data.');
+      expect(mockRes.send).toHaveBeenCalledWith({
+        error: 'You are not authorized to view all badge data.',
+      });
       expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
     });
 
