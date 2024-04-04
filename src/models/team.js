@@ -27,4 +27,7 @@ const team = new Schema({
   },
 });
 
+// Define index on members.userId field
+team.index({ 'members.userId': 1 });
+
 module.exports = mongoose.model('team', team, 'teams');

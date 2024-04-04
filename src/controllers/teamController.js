@@ -198,6 +198,65 @@ const teamcontroller = function (Team) {
       .catch((error) => res.status(500).send(error));
   };
 
+  /**
+   * Return all users who team up with the user
+   * @param {*} req 
+   * @param {*} res 
+   * @returns 
+   */
+  const findTeammatesForUser = async function (req, res) {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({ error: 'Invalid request' });
+      return;
+    }
+    try {
+      const user = await userProfile.findById(userId);
+      if (!user) {
+        res.status(404).send({ error: 'User not found' });
+        return;
+      }
+      let teamMembers = [];
+      if (user.role === 'Owner' || user.role === 'Administrator' || user.role === 'Core Team') {
+        teamMembers = await userProfile.find(
+          { isActive: true },
+          {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+          },
+        );
+
+      } else {
+        // get team and its members
+        
+        const teams = await Team.find({ members: { $elemMatch: { userId } }});
+        const teamMemberUserId = teams.flatMap(team => team.members.map(member => member.userId));
+        const uniqueUserIds = [...new Set(teamMemberUserId)];
+
+        teamMembers = await userProfile.find(
+          { _id: { $in: uniqueUserIds } },
+          {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+          },
+        );
+      }
+      // process team members 
+      const result = teamMembers.map((member) => {
+        return {
+          personId: member._id,
+          name: `${member.firstName} ${member.lastName}`
+        };
+      });
+
+      res.status(200).send(result);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   return {
     getAllTeams,
     getAllTeamCode,
@@ -207,6 +266,7 @@ const teamcontroller = function (Team) {
     putTeam,
     assignTeamToUsers,
     getTeamMembership,
+    findTeammatesForUser,
   };
 };
 
