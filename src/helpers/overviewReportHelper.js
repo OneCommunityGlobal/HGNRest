@@ -1,3 +1,4 @@
+/* eslint-disable no-plusplus */
 /* eslint-disable quotes */
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
@@ -194,7 +195,8 @@ const overviewReportHelper = function () {
     };
 
     // we cannot start the loop at 0 or else the parameters inside the volunteerHourStats will be off by a multiple of 10
-    for (let i = 1; i < 7; i + 1) {
+    // or if we want to account for those that did not meet minimum, we can increase the range from 6 to 7
+    for (let i = 0; i < 7; i++) {
       const group = i * 10;
       volunteerHoursStats[`${group}-${group + 9}`] = 0;
     }
