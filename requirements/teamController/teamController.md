@@ -1,36 +1,36 @@
 
-# Team Controller
+Check mark: ✅
+Cross Mark: ❌
 
-The Team Controller manages team - related operations, including creating, retrieving, updating, and deleting team information.The cases are categorized into positive, negative, and edge cases for clarity and test prioritization.
+# Team Controller Test Documentation
 
-## Functionalities
+## GetAllTeams
 
-### GetAllTeams
+> ### Negative Cases
+1. ✅ **Returns 404 - an error occurs during team retrieval.**
+   
+> ### Positive Cases
+1. ✅ **Returns 200 - all teams are returned and sorted by name.**
 
-#### Negative Cases
-    - ❌ Returns a status of 404 with an error message if there's an error during retrieval.
 
-#### Positive Cases
-    - ✅ Returns a status of 200 with team data on success.
+## GetTeamById
 
-### GetTeamById
+> ### Negative Cases
+1. ✅ **Returns 404 - the specified team ID does not exist.**
+   
+> ### Positive Cases
+1. ✅ **Returns 200 - a team is successfully returned by its ID.**
 
-#### Negative Cases
-    - ❌ Returns a status of 404 with an error message if the team does not exist or an error occurs.
 
-#### Positive Cases
-    - ✅ Retrieves a specific team by its ID.
-- ✅ Returns a status of 200 with team data if the team exists.
+## PostTeam
 
-### PostTeam
+> ### Negative Cases
+1. ✅ **Returns 403 - the requestor lacks `postTeam` permission.**
+2. ✅ **Returns 403 - a team with the same name already exists.**
+   
+> ### Positive Cases
+1. ✅ **Returns 200 - a new team is successfully created.**
 
-#### Negative Cases
-    - ❌ Returns a status of 403 if the requestor does not have the necessary permission.
-- ❌ Returns a status of 403 with an error message if a team with the same name already exists.
-- ❌ Returns a status of 404 with an error message if there's an error during the save operation.
 
-#### Positive Cases
-    - ✅ Creates a new team if the requestor has `postTeam` permission and the team name does not already exist.
-- ✅ Returns a status of 200 with the created team data on success.
 
 
