@@ -1764,6 +1764,61 @@ const userHelper = function () {
     }
   };
 
+  const getAllSummariesByUserId = async (userId) => {
+    try {
+      // const user = await userProfile.findById(userId).populate("weeklySummaries");
+      const query = await userProfile.findOne({ _id: userId }, "_id weeklySummaries");
+      return query
+    } catch (error) {
+      logger.logException(error);
+      throw new Error(error);
+    }
+  }
+
+  const getTeammatesForUser = async (userId) => {
+    const user = await userProfile.findById(userId);
+      if (!user) {
+        res.status(404).send({ error: 'User not found' });
+        return;
+      }
+      let teamMembers = [];
+      if (user.role === 'Owner' || user.role === 'Administrator' || user.role === 'Core Team') {
+        // get all active users
+        teamMembers = await userProfile.find(
+          { isActive: true },
+          {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+          },
+        );
+
+      } else {
+        // get team and its members
+        const teams = await Team.find({ members: { $elemMatch: { userId } }});
+        const teamMemberUserId = teams.flatMap(team => team.members.map(member => member.userId));
+        const uniqueUserIds = [...new Set(teamMemberUserId)];
+
+        teamMembers = await userProfile.find(
+          { _id: { $in: uniqueUserIds } },
+          {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+          },
+        );
+      }
+      // process team members 
+      const result = teamMembers.map((member) => {
+        return {
+          personId: member._id,
+          name: `${member.firstName} ${member.lastName}`
+        };
+      });
+
+      return result;
+    }
+
   return {
     changeBadgeCount,
     getUserName,
@@ -1781,6 +1836,8 @@ const userHelper = function () {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
+    getAllSummariesByUserId,
+    getTeammatesForUser,
   };
 };
 

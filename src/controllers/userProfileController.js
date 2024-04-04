@@ -415,15 +415,25 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.teams !== undefined) {
-          const setOfTeams = new Set(req.body.teams);
-          const newTeams = Array.from(setOfTeams).filter((team) => !record.teams.includes(team));
-          // add user to new team's member collection 
-          await Promise.all(newTeams.map(async (teamId) => {
-            const team = await Team.findById(teamId);
-            team.members.push({ userId: record._id, addDateTime: Date.now() });
-            await team.save();
-          }));
-          record.teams = Array.from(setOfTeams);
+            const setOfTeams = new Set(req.body.teams);
+            const newTeams = Array.from(setOfTeams).filter((team) => !record.teams.includes(team));
+            const removedTeams = record.teams.filter((team) => !setOfTeams.has(team));
+            
+            // Add user to new teams' member collection 
+            await Promise.all(newTeams.map(async (teamId) => {
+              const team = await Team.findById(teamId);
+              team.members.push({ userId: record._id, addDateTime: Date.now() });
+              await team.save();
+            }));
+            
+            // Remove user from removed teams' member collection
+            await Promise.all(removedTeams.map(async (teamId) => {
+              const team = await Team.findById(teamId);
+              team.members = team.members.filter(member => member.userId !== record._id);
+              await team.save();
+            }));
+            
+            record.teams = Array.from(setOfTeams);
         }
 
         if (req.body.projects !== undefined) {
@@ -1050,6 +1060,38 @@ const userProfileController = function (UserProfile) {
     }
   };
 
+  const checkGetSummaryPermission = (role) => {
+    return role === 'Owner' || role === 'Administrator' || role === 'Core Team' || role === 'Manager' || role === 'Mentor';
+  }
+
+  const getUserSummaries = async (req, res) => {
+    const { role, requestorId } = req.body.requestor;
+    const { userId } = req.params;
+
+    if(requestorId !== userId && (checkGetSummaryPermission(role) === false)) {
+      const query = userHelper.getTeammatesForUser(requestorId);
+      const isTeammate = query.some(teammate => teammate._id.toString() === userId);
+
+      if(!isTeammate) {
+        res.status(403).send('You are not authorized to view this user\'s summaries');
+        return;
+      }
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({
+        error: 'Bad Request',
+      });
+      return;
+    }
+    try {
+      const result = await UserProfile.findOne({ _id: userId }, "_id weeklySummaries");
+      res.status(200).send(result);
+    } catch (error) {
+      console.log(error);
+      res.status(500).send(error);
+    }
+  }
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1070,6 +1112,7 @@ const userProfileController = function (UserProfile) {
     getUserBySingleName,
     getUserByFullName,
     authorizeUser,
+    getUserSummaries,
   };
 };
 
