@@ -213,8 +213,8 @@ describe('badeController module', () => {
   });
 
   describe.only('getAllBadges method', () => {
-    // const findObject = { populate: () => {} };
-    // const populateObject = { sort: () => {} };
+    const findObject = { populate: () => {} };
+    const populateObject = { sort: () => {} };
     test('Returns 403 if the user is not authorized', async () => {
       const { getAllBadges } = makeSut();
 
@@ -227,41 +227,92 @@ describe('badeController module', () => {
       expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
     });
 
-    // test('Returns 500 if an error occurs when querying DB', async () => {
-    //   const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
-    //   const { getAllBadges } = makeSut();
-    //   const mockPermission = mockHasPermission(true);
-    //   const errorMsg = 'Error when finding badges';
+    test('Returns 500 if an error occurs when querying DB', async () => {
+      const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
+      const { getAllBadges } = makeSut();
+      const mockPermission = mockHasPermission(true);
+      const errorMsg = 'Error when finding badges';
 
-    //   const findMock = jest
-    //     .spyOn(Badge, 'find')
-    //     .mockImplementationOnce(() => Promise.resolve(findObject));
-    //   const populateMock = jest
-    //     .spyOn(findObject, 'populate')
-    //     .mockImplementationOnce(() => Promise.resolve(populateObject));
-    //   const sortMock = jest
-    //     .spyOn(populateObject, 'sort')
-    //     .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+      const findMock = jest.spyOn(Badge, 'find').mockImplementationOnce(() => findObject);
+      const populateMock = jest
+        .spyOn(findObject, 'populate')
+        .mockImplementationOnce(() => populateObject);
+      const sortMock = jest
+        .spyOn(populateObject, 'sort')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
 
-    //   getAllBadges(mockReq, mockRes);
-    //   await flushPromises();
+      getAllBadges(mockReq, mockRes);
+      await flushPromises();
 
-    //   expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
-    //   expect(mockRes.status).toHaveBeenCalledWith(500);
-    //   expect(mockRes.send).toHaveBeenCalledWith(new Error(errorMsg));
-    //   expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
-    //   expect(findMock).toHaveBeenCalledWith(
-    //     {},
-    //     'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
-    //   );
-    //   expect(populateMock).toHaveBeenCalledWith({
-    //     path: 'project',
-    //     select: '_id projectName',
-    //   });
-    //   expect(sortMock).toHaveBeenCalledWith({
-    //     ranking: 1,
-    //     badgeName: 1,
-    //   });
-    // });
+      expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith(new Error(errorMsg));
+      expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
+      expect(findMock).toHaveBeenCalledWith(
+        {},
+        'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+      );
+      expect(populateMock).toHaveBeenCalledWith({
+        path: 'project',
+        select: '_id projectName',
+      });
+      expect(sortMock).toHaveBeenCalledWith({
+        ranking: 1,
+        badgeName: 1,
+      });
+    });
+
+    test('Returns 200 if the badges are in cache', async () => {
+      const badges = [{ badge: 'random badge' }];
+      const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
+      const getCacheMock = jest.spyOn(cacheObject, 'getCache').mockReturnValueOnce(badges);
+
+      const { getAllBadges } = makeSut();
+
+      const mockPermission = mockHasPermission(true);
+
+      const response = await getAllBadges(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, badges, response, mockRes);
+      expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(getCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
+    });
+
+    test('Returns 200 if not in cache, and all the async code succeeds.', async () => {
+      const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
+      const { getAllBadges } = makeSut();
+      const mockPermission = mockHasPermission(true);
+      const badges = [{ badge: 'random badge' }];
+
+      const findMock = jest.spyOn(Badge, 'find').mockImplementationOnce(() => findObject);
+      const populateMock = jest
+        .spyOn(findObject, 'populate')
+        .mockImplementationOnce(() => populateObject);
+      const sortMock = jest
+        .spyOn(populateObject, 'sort')
+        .mockImplementationOnce(() => Promise.resolve(badges));
+
+      getAllBadges(mockReq, mockRes);
+      await flushPromises();
+
+      expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(badges);
+      expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
+      expect(findMock).toHaveBeenCalledWith(
+        {},
+        'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+      );
+      expect(populateMock).toHaveBeenCalledWith({
+        path: 'project',
+        select: '_id projectName',
+      });
+      expect(sortMock).toHaveBeenCalledWith({
+        ranking: 1,
+        badgeName: 1,
+      });
+    });
   });
 });
