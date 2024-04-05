@@ -1,5 +1,5 @@
 {
-  "extends": ["eslint:recommended", "airbnb-base", "prettier"],
+  "extends": ["eslint:recommended", "airbnb-base"],
   "parser": "@babel/eslint-parser",
   "parserOptions": {
     "ecmaVersion": 8,
@@ -16,8 +16,7 @@
     "no-await-in-loop": "warn",
     "template-curly-spacing": "off",
     "indent": "off",
-    "linebreak-style": 0,
-    "no-console": "off"
+    "linebreak-style": 0
   },
   "settings": {
     "import/resolver": {
