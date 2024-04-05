@@ -6,8 +6,8 @@ Cross Mark: ❌
 > ## Positive case
 
 1. ❌ Receives a POST request in the **/api/userProfile** route
-2. ✅ Returns 200 and removes appropriate user from cache if successful and user exists in cache
-3. ✅ Returns 200 and if successful and user does not exist in cache
+2. ✅ Returns 201 and removes appropriate user from cache if successful and user exists in cache
+3. ✅ Returns 201 and if successful and user does not exist in cache
 
 > ## Negative case
 
