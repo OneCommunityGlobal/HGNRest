@@ -1327,11 +1327,9 @@ const userHelper = function () {
       });
     }
   };
-
-  // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    // Handle Increasing the 1 week streak badges
     console.log("entered");
+    // Handle Increasing the 1 week streak badges
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === "X Hours for X Week Streak") {
@@ -1403,7 +1401,10 @@ const userHelper = function () {
               }
             }
             // check if it is possible to earn this streak
-            if (user.savedTangibleHrs.length >= bdge.weeks) {
+            if (
+              user.savedTangibleHrs.length >= bdge.weeks &&
+              bdge.weeks === user.savedTangibleHrs.length
+            ) {
               let awardBadge = true;
               const endOfArr = user.savedTangibleHrs.length - 1;
               for (let i = endOfArr; i >= endOfArr - bdge.weeks + 1; i -= 1) {
@@ -1412,6 +1413,7 @@ const userHelper = function () {
                   return true;
                 }
               }
+
               // if all checks for award badge are green double check that we havent already awarded a higher streak for the same number of hours
               if (awardBadge && bdge.hrs > lastHr) {
                 lastHr = bdge.hrs;
@@ -1439,6 +1441,8 @@ const userHelper = function () {
                     bdge.weeks
                   );
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
+                  console.log("entered2");
+                  increaseBadgeCount(personId, mongoose.Types.ObjectId(badge));
                   increaseBadgeCount(
                     personId,
                     mongoose.Types.ObjectId(badgeOfType._id)
@@ -1459,8 +1463,6 @@ const userHelper = function () {
         });
       });
   };
-
-  // 'Lead a team of X+'
 
   const checkLeadTeamOfXplus = async function (
     personId,
