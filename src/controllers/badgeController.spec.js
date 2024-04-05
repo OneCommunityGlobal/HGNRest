@@ -346,7 +346,7 @@ describe('badeController module', () => {
     });
   });
 
-  describe.only('assignBadges method', () => {
+  describe('assignBadges method', () => {
     test('Returns 403 if the user is not authorized', async () => {
       const { assignBadges } = makeSut();
 
