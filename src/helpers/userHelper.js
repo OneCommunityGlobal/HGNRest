@@ -171,7 +171,6 @@ const userHelper = function () {
           email,
           weeklySummaries,
           mediaUrl,
-          adminLinks,
           weeklySummariesCount,
           weeklycommittedHours,
           weeklySummaryOption,
@@ -189,14 +188,6 @@ const userHelper = function () {
         const mediaUrlLink = mediaUrl
           ? `<a href="${mediaUrl}">${mediaUrl}</a>`
           : "Not provided!";
-
-        const googleDocLinkValue = adminLinks?.length > 0
-        ? adminLinks.find(link => link.Name === 'Google Doc' && link.Link)
-        : null;
-
-        const googleDocLink = googleDocLinkValue
-          ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
-          : null;
 
         let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
         const colorStyle = (() => {
@@ -245,13 +236,6 @@ const userHelper = function () {
             }
 
           </p>
-          <p>
-
-          <b>Google Doc Link:</b> ${
-            googleDocLink || '<span style="color: red;">Not provided!</span>'
-          }
-
-        </p>
           ${
             weeklySummariesCount === 8
               ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
