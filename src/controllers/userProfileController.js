@@ -252,30 +252,30 @@ const userProfileController = function (UserProfile) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
-    try {
-      const createdUserProfile = await up.save();
-      res.status(200).send({
-        _id: createdUserProfile._id,
-      });
+    up.save()
+      .then(() => {
+        res.status(200).send({
+          _id: up._id,
+        });
 
-      // update backend cache
-      const userCache = {
-        permissions: up.permissions,
-        isActive: true,
-        weeklycommittedHours: up.weeklycommittedHours,
-        createdDate: up.createdDate.toISOString(),
-        _id: up._id,
-        role: up.role,
-        firstName: up.firstName,
-        lastName: up.lastName,
-        email: up.email,
-      };
-      const allUserCache = JSON.parse(cache.getCache('allusers'));
-      allUserCache.push(userCache);
-      cache.setCache('allusers', JSON.stringify(allUserCache));
-    } catch (error) {
-      res.status(501).send(error);
-    }
+        // update backend cache
+
+        const userCache = {
+          permissions: up.permissions,
+          isActive: true,
+          weeklycommittedHours: up.weeklycommittedHours,
+          createdDate: up.createdDate.toISOString(),
+          _id: up._id,
+          role: up.role,
+          firstName: up.firstName,
+          lastName: up.lastName,
+          email: up.email,
+        };
+        const allUserCache = JSON.parse(cache.getCache('allusers'));
+        allUserCache.push(userCache);
+        cache.setCache('allusers', JSON.stringify(allUserCache));
+      })
+      .catch((error) => res.status(501).send(error));
   };
 
   const putUserProfile = async function (req, res) {
