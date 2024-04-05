@@ -188,7 +188,7 @@ describe('actionItem routes', () => {
     });
   });
 
-  describe.only('assign badge route', () => {
+  describe('assign badge route', () => {
     it('Should return 403 if the user does not have permission', async () => {
       const response = await agent
         .put(`/api/badge/assign/${adminUser._id}`)
