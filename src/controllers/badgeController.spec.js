@@ -395,5 +395,27 @@ describe('badeController module', () => {
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
     });
+
+    test('Returns 500 if an error occurs when saving edited user profile', async () => {
+      const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
+
+      const { assignBadges } = makeSut();
+
+      const hasPermissionSpy = mockHasPermission(true);
+      const errMsg = 'Error when saving';
+      const findObj = { save: () => {} };
+      const findByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(findObj);
+      jest.spyOn(findObj, 'save').mockRejectedValueOnce(new Error(errMsg));
+
+      const response = await assignBadges(mockReq, mockRes);
+
+      assertResMock(500, `Internal Error: Badge Collection. ${errMsg}`, response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
+      expect(hasCacheMock).toHaveBeenCalledWith(
+        `user-${mongoose.Types.ObjectId(mockReq.params.userId)}`,
+      );
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
+    });
   });
 });
