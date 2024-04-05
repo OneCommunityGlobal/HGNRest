@@ -417,5 +417,30 @@ describe('badeController module', () => {
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
     });
+
+    test('Returns 200 and removes appropriate user from cache if successful and user exists in cache', async () => {
+      const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
+      const removeCacheMock = jest.spyOn(cacheObject, 'removeCache').mockReturnValueOnce(null);
+
+      const { assignBadges } = makeSut();
+
+      const hasPermissionSpy = mockHasPermission(true);
+      const findObj = { save: () => {} };
+      const findByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(findObj);
+      jest.spyOn(findObj, 'save').mockResolvedValueOnce({ _id: 'randomId' });
+
+      const response = await assignBadges(mockReq, mockRes);
+
+      assertResMock(201, `randomId`, response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
+      expect(hasCacheMock).toHaveBeenCalledWith(
+        `user-${mongoose.Types.ObjectId(mockReq.params.userId)}`,
+      );
+      expect(removeCacheMock).toHaveBeenCalledWith(
+        `user-${mongoose.Types.ObjectId(mockReq.params.userId)}`,
+      );
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
+    });
   });
 });
