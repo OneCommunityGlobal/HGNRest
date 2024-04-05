@@ -14,7 +14,9 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 
-const { authorizedUserSara, authorizedUserJae } = process.env;
+// const { authorizedUserSara, authorizedUserJae } = process.env;
+const authorizedUserSara = `sucheta.prtester@test.com`;
+const authorizedUserJae = `sucheta_mu@test.com`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -1015,7 +1017,7 @@ const userProfileController = function (UserProfile) {
       }
       await UserProfile.findOne({
         email: {
-          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
+          $regex: escapeRegex(authorizedUser), // The Authorized user's email
           $options: 'i',
         },
       }).then(async (user) => {
