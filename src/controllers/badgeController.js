@@ -49,6 +49,11 @@ const badgeController = function (Badge) {
    * - Refactored data validation for duplicate badge id.
    * - Added data validation for badge count should greater than 0.
    * - Added logic to combine duplicate badges into one with updated properties.
+   *
+   * Updated Date: 04/05/2024
+   * Updated By: Abi
+   * Function added:
+   * - Refactored method to utilize async await syntax to make the code more testable.
    */
 
   const assignBadges = async function (req, res) {
@@ -59,8 +64,9 @@ const badgeController = function (Badge) {
 
     const userToBeAssigned = mongoose.Types.ObjectId(req.params.userId);
 
-    UserProfile.findById(userToBeAssigned, (error, record) => {
-      if (error || record === null) {
+    try {
+      const record = await UserProfile.findById(userToBeAssigned);
+      if (record === null) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
@@ -125,15 +131,11 @@ const badgeController = function (Badge) {
         cache.removeCache(`user-${userToBeAssigned}`);
       }
 
-      record
-        .save()
-        .then((results) => {
-          res.status(201).send(results._id);
-        })
-        .catch((err) => {
-          res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
-        });
-    });
+      const results = await record.save();
+      res.status(201).send(results._id);
+    } catch (err) {
+      res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
+    }
   };
 
   const postBadge = async function (req, res) {
