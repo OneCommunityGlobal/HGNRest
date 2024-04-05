@@ -58,7 +58,7 @@ const badgeController = function (Badge) {
 
   const assignBadges = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
-      res.status(403).send('You are not authorized to assign badges.');
+      res.status(403).send({ error: 'You are not authorized to assign badges.' });
       return;
     }
 
@@ -67,7 +67,7 @@ const badgeController = function (Badge) {
     try {
       const record = await UserProfile.findById(userToBeAssigned);
       if (record === null) {
-        res.status(400).send('Can not find the user to be assigned.');
+        res.status(400).send({ error: 'Can not find the user to be assigned.' });
         return;
       }
 
