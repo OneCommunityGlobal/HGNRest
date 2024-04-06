@@ -212,6 +212,65 @@ const overviewReportHelper = function () {
     return volunteerHoursStats;
   }
 
+  /** 
+   * 1. Total hours logged in tasks
+   * 2. Total hours logged in projects
+   * 3. Number of member with tasks assigned
+   * 4. Number of member without tasks assigned
+   * @param {*} startDate
+   * @param {*} endDate
+   */
+  async function getTaskAndProjectStats(startDate, endDate) {
+    // 1. Total hours logged in tasks
+    const taskHours = await timeEntries.aggregate([
+      {
+        $match: {
+          dateOfWork: { $gte: startDate, $lte: endDate },
+          taskId: { $exists: true }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalSeconds: { $sum: "$totalSeconds" }
+        }
+      },
+      {
+        $project: {
+          totalHours: { $divide: ["$totalSeconds", 3600] }
+        }
+      }
+    ]);
+
+    // 2. Total hours logged in projects
+    const projectHours = await timeEntries.aggregate([
+      {
+        $match: {
+          dateOfWork: { $gte: startDate, $lte: endDate },
+          projectId: { $exists: true }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalSeconds: { $sum: "$totalSeconds" }
+        }
+      },
+      {
+        $project: {
+          totalHours: { $divide: ["$totalSeconds", 3600] }
+        }
+      }
+    ]);
+
+    const taskAndProjectStats = {
+      taskHours: taskHours[0].totalHours.toFixed(2),
+      projectHours: projectHours[0].totalHours.toFixed(2),
+    };
+
+    return taskAndProjectStats;
+  }
+
   return {
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
@@ -221,6 +280,7 @@ const overviewReportHelper = function () {
     getTeamMembersCount,
     getActiveInactiveUsersCount,
     getVolunteerHoursStats,
+    getTaskAndProjectStats,
   };
 };
 

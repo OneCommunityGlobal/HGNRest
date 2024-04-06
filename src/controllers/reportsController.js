@@ -147,12 +147,29 @@ const reportsController = function () {
   }
 
   /**
-   * Gets the Task and Project Stats
+   * Gets the Task and Project Stats, it contains
+   * 1. Total hours logged in tasks
+   * 2. Total hours logged in projects
+   * 3. Number of member with tasks assigned
+   * 4. Number of member without tasks assigned
    * @param {*} req:  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
    * @param {*} res
    * 
   */
   const getTaskAndProjectStats = async function (req, res) {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).send('Please provide startDate and endDate');
+        return;
+      }
+
+      const taskAndProjectStats = await overviewReportHelper.getTaskAndProjectStats(startDate, endDate);
+      res.status(200).json(taskAndProjectStats);
+    } catch (error) {
+      res.status(404).send(error);
+    }
   }
 
   /**
@@ -288,6 +305,7 @@ const reportsController = function () {
   return {
     getVolunteerStats,
     getVolunteerHoursStats,
+    getTaskAndProjectStats,
     getWeeklySummaries,
     getReportRecipients,
     deleteReportsRecepients,
