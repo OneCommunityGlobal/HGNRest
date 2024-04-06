@@ -28,6 +28,10 @@ const route = function () {
     .get(controller.getVolunteerHoursStats);
 
   reportsRouter
+    .route("/reports/overviewsummaries/taskandprojectstats")
+    .get(controller.getTaskAndProjectStats);
+
+  reportsRouter
     .route("/reports/overviewsummaries/volunteerrolestats")
     .get(controller.getVolunteerRoleStats);
     
