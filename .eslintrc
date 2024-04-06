@@ -3,7 +3,7 @@
   "parser": "@babel/eslint-parser",
   "parserOptions": {
     "ecmaVersion": 8,
-    "sourceType": "module",
+    "sourceType": "module"
   },
   "env": { "es6": true, "node": true, "commonjs": true },
   "rules": {
@@ -17,19 +17,19 @@
     "template-curly-spacing": "off",
     "indent": "off",
     "linebreak-style": 0,
-    "no-console": "off",
+    "no-console": "off"
   },
   "settings": {
     "import/resolver": {
-      "babel-module": {},
-    },
+      "babel-module": {}
+    }
   },
   "overrides": [
     {
       "files": ["**/*.test.js", "**/*.spec.js", "src/test/*.js"],
       "env": {
-        "jest": true,
-      },
-    },
-  ],
+        "jest": true
+      }
+    }
+  ]
 }
