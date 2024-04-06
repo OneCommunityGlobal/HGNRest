@@ -1,6 +1,6 @@
 # HGNRest
 
-'npm install' to install the dependencies. 'npm start' to run the application
+`npm install` to install the dependencies. `npm start` to run the application
 
 To get started, make sure you have:
 
