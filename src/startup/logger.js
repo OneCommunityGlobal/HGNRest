@@ -6,9 +6,6 @@ exports.init = function () {
 
 exports.logInfo = function (message) {
   Sentry.captureMessage(message);
-  if (process.env.NODE_ENV === 'development') {
-    console.log(message);
-  }
 };
 
 exports.logException = function (error) {
