@@ -215,7 +215,6 @@ const dashboardhelper = function () {
           },
         );
       } else {
-        console.log('canSeeUsersInLeaderboard')
         // 'Core Team', 'Owner' //All users
         teamMembers = await userProfile.find(
           { isActive: true },
