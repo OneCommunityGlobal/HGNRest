@@ -1,11 +1,19 @@
 /* eslint-disable quotes */
-require('dotenv').load();
+require("dotenv").load();
 
-const { app, logger } = require('./app');
-const websockets = require('./websockets').default;
+const express = require("express");
+const websockets = require("./websockets").default;
 
-require('./startup/db')();
-require('./cronjobs/userProfileJobs')();
+const app = express();
+const logger = require("./startup/logger");
+
+logger.init();
+require("./startup/cors")(app);
+require("./startup/db")();
+require("./startup/bodyParser")(app);
+require("./startup/middleware")(app);
+require("./cronjobs/userProfileJobs")();
+require("./startup/routes")(app);
 
 const port = process.env.PORT || 4500;
 
