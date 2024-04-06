@@ -11,7 +11,7 @@ Cross Mark: ❌
 
 > ## Negative case
 
-1. ✅ Returns error 404 if the informations key doesn't exist in NodeCache
+1. ❌ Returns error 404 if the informations key doesn't exist in NodeCache
 2. ❌ Returns 404 if any error occurs while getting informations 
 
 > ## Edge case
