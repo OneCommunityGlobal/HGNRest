@@ -18,5 +18,5 @@
       }
     ]
   ],
-  "ignore": ["**/*.test.js", "**/*.spec.js"]
+  "ignore": ["**/*.test.js", "**/*.spec.js", "src/test/**"]
 }
