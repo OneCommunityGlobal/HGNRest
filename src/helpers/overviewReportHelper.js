@@ -1,7 +1,8 @@
 /* eslint-disable quotes */
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
-const timeEntries = require('../models/timeentry');
+const TimeEntries = require('../models/timeentry');
+const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
@@ -217,12 +218,13 @@ const overviewReportHelper = function () {
    * 2. Total hours logged in projects
    * 3. Number of member with tasks assigned
    * 4. Number of member without tasks assigned
+   * 5. Number of tasks with due date within the date range
    * @param {*} startDate
    * @param {*} endDate
    */
   async function getTaskAndProjectStats(startDate, endDate) {
     // 1. Total hours logged in tasks
-    const taskHours = await timeEntries.aggregate([
+    const taskHours = await TimeEntries.aggregate([
       {
         $match: {
           dateOfWork: { $gte: startDate, $lte: endDate },
@@ -243,7 +245,7 @@ const overviewReportHelper = function () {
     ]);
 
     // 2. Total hours logged in projects
-    const projectHours = await timeEntries.aggregate([
+    const projectHours = await TimeEntries.aggregate([
       {
         $match: {
           dateOfWork: { $gte: startDate, $lte: endDate },
@@ -263,9 +265,21 @@ const overviewReportHelper = function () {
       }
     ]);
 
+    // 3. Number of member with tasks assigned
+    const membersWithTasks = await Task.distinct('resources.userID', { 'resources.userID': { $exists: true }, completedTask: { $ne: true } });
+
+    // 4. Number of member without tasks assigned
+    const membersWithoutTasks = await UserProfile.countDocuments({ _id: { $nin: membersWithTasks } });
+
+    // 5. Number of tasks with due date within the date range
+    const tasksDueWithinDate = await Task.countDocuments({ dueDatetime: { $gte: startDate, $lte: endDate } });
+
     const taskAndProjectStats = {
       taskHours: taskHours[0].totalHours.toFixed(2),
       projectHours: projectHours[0].totalHours.toFixed(2),
+      membersWithTasks: membersWithTasks.length,
+      membersWithoutTasks,
+      tasksDueThisWeek: tasksDueWithinDate,
     };
 
     return taskAndProjectStats;
