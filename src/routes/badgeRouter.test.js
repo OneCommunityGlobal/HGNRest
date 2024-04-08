@@ -7,6 +7,7 @@ const {
   createRole,
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
+const Badge = require('../models/badge');
 
 const agent = request.agent(app);
 
@@ -44,7 +45,7 @@ describe('actionItem routes', () => {
     };
 
     // create 2 roles. One with permission and one without
-    await createRole('Administrator', ['createBadges']);
+    await createRole('Administrator', ['createBadges', 'seeBadges', 'assignBadges']);
     await createRole('Volunteer', []);
   });
 
@@ -60,10 +61,18 @@ describe('actionItem routes', () => {
   describe('badgeRoutes', () => {
     it('should return 401 if authorization header is not present', async () => {
       await agent.post('/api/badge').send(reqBody).expect(401);
+      await agent.get('/api/badge').send(reqBody).expect(401);
+      await agent.put(`/api/badge/assign/randomId`).send(reqBody).expect(401);
     });
 
     it('Should return 404 if the route does not exist', async () => {
       await agent.post('/api/badges').send(reqBody).set('Authorization', adminToken).expect(404);
+      await agent.get('/api/badges').send(reqBody).set('Authorization', adminToken).expect(404);
+      await agent
+        .put(`/api/badges/assign/randomId`)
+        .set('Authorization', adminToken)
+        .send(reqBody)
+        .expect(404);
     });
   });
 
@@ -116,6 +125,125 @@ describe('actionItem routes', () => {
       expect(response.body).toEqual({
         error: `Another badge with name ${reqBody.badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.`,
       });
+    });
+  });
+
+  describe('getAllBadges route', () => {
+    it('Should return 403 if user does not have permissions', async () => {
+      const response = await agent
+        .get('/api/badge')
+        .send(reqBody)
+        .set('Authorization', volunteerToken)
+        .expect(403);
+
+      expect(response.text).toEqual('You are not authorized to view all badge data.');
+    });
+
+    it('Should return 200 and all badges if user has permission and all succeeds', async () => {
+      // create new badges
+      const _badge = new Badge();
+
+      _badge.badgeName = reqBody.badgeName;
+      _badge.category = reqBody.category;
+      _badge.multiple = reqBody.multiple;
+      _badge.totalHrs = reqBody.totalHrs;
+      _badge.weeks = reqBody.weeks;
+      _badge.months = reqBody.months;
+      _badge.people = reqBody.people;
+      _badge.project = reqBody.project;
+      _badge.imageUrl = reqBody.imageUrl;
+      _badge.ranking = reqBody.ranking;
+      _badge.description = reqBody.description;
+      _badge.showReport = reqBody.showReport;
+      _badge.type = reqBody.type;
+
+      await _badge.save();
+
+      const response = await agent
+        .get('/api/badge')
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      // console.log(response.body)
+
+      expect(response.body).toEqual([
+        {
+          _id: expect.anything(),
+          badgeName: reqBody.badgeName,
+          category: reqBody.category,
+          multiple: reqBody.multiple,
+          totalHrs: reqBody.totalHrs,
+          weeks: reqBody.weeks,
+          months: reqBody.months,
+          people: reqBody.people,
+          project: null,
+          imageUrl: reqBody.imageUrl,
+          ranking: reqBody.ranking,
+          description: reqBody.description,
+          showReport: reqBody.showReport,
+          type: reqBody.type,
+        },
+      ]);
+    });
+  });
+
+  describe('assign badge route', () => {
+    it('Should return 403 if the user does not have permission', async () => {
+      const response = await agent
+        .put(`/api/badge/assign/${adminUser._id}`)
+        .send(reqBody)
+        .set('Authorization', volunteerToken)
+        .expect(403);
+
+      expect(response.text).toEqual('You are not authorized to assign badges.');
+    });
+
+    it('Should return 400 if no user was found', async () => {
+      const response = await agent
+        .put(`/api/badge/assign/601acda376045c7879d13a74`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(400);
+
+      expect(response.text).toEqual('Can not find the user to be assigned.');
+    });
+
+    it('Should return 201 if the user was successfully updated', async () => {
+      reqBody.badgeCollection = [
+        {
+          badge: '609c930f7d8f8086e72c501a', // Example ObjectId for badge
+          count: 5,
+          earnedDate: ['2023-01-01', '2023-02-15'],
+          lastModified: new Date('2023-02-15'),
+          hasBadgeDeletionImpact: true,
+          featured: false,
+        },
+        {
+          badge: '609c930f7d8f8086e72c501b', // Example ObjectId for badge
+          count: 10,
+          earnedDate: ['2023-03-20'],
+          lastModified: new Date('2023-03-20'),
+          hasBadgeDeletionImpact: false,
+          featured: true,
+        },
+        {
+          badge: '609c930f7d8f8086e72c501c', // Example ObjectId for badge
+          count: 3,
+          earnedDate: [],
+          lastModified: new Date('2023-04-05'),
+          hasBadgeDeletionImpact: true,
+          featured: false,
+        },
+      ];
+
+      const response = await agent
+        .put(`/api/badge/assign/${volunteerUser._id}`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(201);
+
+      expect(response.text).toBe(JSON.stringify(volunteerUser._id));
     });
   });
 });
