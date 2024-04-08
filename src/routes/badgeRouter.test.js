@@ -136,7 +136,7 @@ describe('actionItem routes', () => {
         .set('Authorization', volunteerToken)
         .expect(403);
 
-      expect(response.body).toEqual({ error: 'You are not authorized to view all badge data.' });
+      expect(response.text).toEqual('You are not authorized to view all badge data.');
     });
 
     it('Should return 200 and all badges if user has permission and all succeeds', async () => {
@@ -196,7 +196,7 @@ describe('actionItem routes', () => {
         .set('Authorization', volunteerToken)
         .expect(403);
 
-      expect(response.body).toEqual({ error: 'You are not authorized to assign badges.' });
+      expect(response.text).toEqual('You are not authorized to assign badges.');
     });
 
     it('Should return 400 if no user was found', async () => {
@@ -206,7 +206,7 @@ describe('actionItem routes', () => {
         .set('Authorization', adminToken)
         .expect(400);
 
-      expect(response.body).toEqual({ error: 'Can not find the user to be assigned.' });
+      expect(response.text).toEqual('Can not find the user to be assigned.');
     });
 
     it('Should return 201 if the user was successfully updated', async () => {
