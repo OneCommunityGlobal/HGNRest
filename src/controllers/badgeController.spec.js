@@ -251,9 +251,7 @@ describe('badeController module', () => {
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.send).toHaveBeenCalledWith({
-        error: 'You are not authorized to view all badge data.',
-      });
+      expect(mockRes.send).toHaveBeenCalledWith('You are not authorized to view all badge data.');
       expect(mockPermission).toHaveBeenCalledWith(mockReq.body.requestor, 'seeBadges');
     });
 
@@ -355,14 +353,7 @@ describe('badeController module', () => {
       const response = await assignBadges(mockReq, mockRes);
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
-      assertResMock(
-        403,
-        {
-          error: 'You are not authorized to assign badges.',
-        },
-        response,
-        mockRes,
-      );
+      assertResMock(403, 'You are not authorized to assign badges.', response, mockRes);
     });
 
     test('Returns 500 if an error occurs in `findById`', async () => {
@@ -391,7 +382,7 @@ describe('badeController module', () => {
 
       const response = await assignBadges(mockReq, mockRes);
 
-      assertResMock(400, { error: 'Can not find the user to be assigned.' }, response, mockRes);
+      assertResMock(400, 'Can not find the user to be assigned.', response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
     });
