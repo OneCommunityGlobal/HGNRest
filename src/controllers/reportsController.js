@@ -1,3 +1,4 @@
+/* eslint-disable consistent-return */
 const mongoose = require('mongoose');
 const reporthelper = require('../helpers/reporthelper')();
 const overviewReportHelper = require('../helpers/overviewReportHelper')();
@@ -27,9 +28,9 @@ const reportsController = function () {
    * 3. Number of users celebrating their anniversary
    * 4. Number of members in team and not in team, with percentage
    * 5. Number of active and inactive users
-   * 
+   *
    * @param {*} req  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
-   * @param {*} res 
+   * @param {*} res
    */
   const getVolunteerStats = async function (req, res) {
     try {
@@ -42,21 +43,28 @@ const reportsController = function () {
 
       // 1. 4+ members team count
       const fourPlusMembersTeamCount = await overviewReportHelper.getFourPlusMembersTeamCount();
-      
+
       // 2. Total badges awarded count
-      const badgeCountQuery = await overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate);
+      const badgeCountQuery = await overviewReportHelper.getTotalBadgesAwardedCount(
+        startDate,
+        endDate,
+      );
       const badgeAwardedCount = badgeCountQuery.length > 0 ? badgeCountQuery[0].badgeCollection : 0;
 
       // 3. Number of users celebrating their anniversary
-      const anniversaryCountQuery = await overviewReportHelper.getAnniversaryCount(startDate, endDate);
-      const anniversaryCount = anniversaryCountQuery.length > 0 ? anniversaryCountQuery[0].anniversaryCount : 0;
+      const anniversaryCountQuery = await overviewReportHelper.getAnniversaryCount(
+        startDate,
+        endDate,
+      );
+      const anniversaryCount =
+        anniversaryCountQuery.length > 0 ? anniversaryCountQuery[0].anniversaryCount : 0;
 
       // 4. Number of members in team and not in team, with percentage
       const teamMembersCount = await overviewReportHelper.getTeamMembersCount();
 
       // 5. Number of active and inactive users
       const activeInactiveUsersCount = await overviewReportHelper.getActiveInactiveUsersCount();
-      
+
       const volunteerStats = {
         fourPlusMembersTeamCount,
         badgeAwardedCount,
@@ -69,29 +77,37 @@ const reportsController = function () {
     } catch (error) {
       res.status(404).send(error);
     }
-  }
+  };
 
   /**
    * Gets the Volunteer Hours Stats, it groups the users based on the number of hours they have logged
    * Every ten hours is a group, so 0-9 hours, 10-19 hours, 20-29 hours, and finally 60+ hours
+   * It also groups users based off the percentage of their weeklycommittedHours worked for the current and previous week.
    * @param {*} req  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
    * @param {*} res
    */
   const getVolunteerHoursStats = async function (req, res) {
     try {
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, lastWeekStartDate, lastWeekEndDate } = req.query;
 
       if (!startDate || !endDate) {
         res.status(400).send('Please provide startDate and endDate');
         return;
       }
 
-      const volunteerHoursStats = await overviewReportHelper.getVolunteerHoursStats(startDate, endDate);
+      const volunteerHoursStats = await overviewReportHelper.getVolunteerHoursStats(
+        startDate,
+        endDate,
+        lastWeekStartDate,
+        lastWeekEndDate,
+      );
+      console.log(volunteerHoursStats);
       res.status(200).json(volunteerHoursStats);
     } catch (error) {
+      console.log(error);
       res.status(404).send(error);
     }
-  }
+  };
 
   /**
    * Gets the Volunteer Role Stats, it contains
@@ -99,9 +115,9 @@ const reportsController = function () {
    * 2. Total badges awarded count
    * 3. Number of users celebrating their anniversary
    * 4. role and count of users
-   * 
+   *
    * @param {*} req  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
-   * @param {*} res 
+   * @param {*} res
    */
   const getVolunteerRoleStats = async function (req, res) {
     try {
@@ -114,24 +130,29 @@ const reportsController = function () {
 
       // 1. 4+ members team count
       const fourPlusMembersTeamCount = await overviewReportHelper.getFourPlusMembersTeamCount();
-      
+
       // 2. Total badges awarded count
-      const badgeCountQuery = await overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate);
+      const badgeCountQuery = await overviewReportHelper.getTotalBadgesAwardedCount(
+        startDate,
+        endDate,
+      );
       const badgeAwardedCount = badgeCountQuery.length > 0 ? badgeCountQuery[0].badgeCollection : 0;
 
       // 3. Number of users celebrating their anniversary
-      const anniversaryCountQuery = await overviewReportHelper.getAnniversaryCount(startDate, endDate);
-      const anniversaryCount = anniversaryCountQuery.length > 0 ? anniversaryCountQuery[0].anniversaryCount : 0;
+      const anniversaryCountQuery = await overviewReportHelper.getAnniversaryCount(
+        startDate,
+        endDate,
+      );
+      const anniversaryCount =
+        anniversaryCountQuery.length > 0 ? anniversaryCountQuery[0].anniversaryCount : 0;
 
       // 4. role and count of users
       const roleQuery = await overviewReportHelper.getRoleCount();
 
-      const roles = roleQuery.map((role) => {
-        return {
-          role: role._id,
-          count: role.count,
-        };
-      });
+      const roles = roleQuery.map((role) => ({
+        role: role._id,
+        count: role.count,
+      }));
 
       const volunteerRoleStats = {
         fourPlusMembersTeamCount,
@@ -144,7 +165,7 @@ const reportsController = function () {
     } catch (error) {
       res.status(404).send(error);
     }
-  }
+  };
 
   /**
    * Gets the Task and Project Stats, it contains
@@ -154,8 +175,8 @@ const reportsController = function () {
    * 4. Number of member without tasks assigned
    * @param {*} req:  params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
    * @param {*} res
-   * 
-  */
+   *
+   */
   const getTaskAndProjectStats = async function (req, res) {
     try {
       const { startDate, endDate } = req.query;
@@ -165,17 +186,20 @@ const reportsController = function () {
         return;
       }
 
-      const taskAndProjectStats = await overviewReportHelper.getTaskAndProjectStats(startDate, endDate);
+      const taskAndProjectStats = await overviewReportHelper.getTaskAndProjectStats(
+        startDate,
+        endDate,
+      );
       res.status(200).json(taskAndProjectStats);
     } catch (error) {
       res.status(404).send(error);
     }
-  }
+  };
 
   /**
    * Gets the Blue Square Stats, it filters the data based on the startDate and endDate
    * @param {*} req: params: startDate, endDate (e.g. 2024-01-14, 2024-01-21)
-   * @param {*} res 
+   * @param {*} res
    * @todo: Currently, infrigements do not contain a type field, so we are unable to group by type and count the number of infringements.
    */
   const getBlueSquareStats = async function (req, res) {
@@ -190,11 +214,11 @@ const reportsController = function () {
       const blueSquareStats = await overviewReportHelper.getBlueSquareStats(startDate, endDate);
       const blueSquareCount = blueSquareStats.length > 0 ? blueSquareStats[0].infringements : 0;
 
-      res.status(200).json({"msg": {blueSquareCount}});
+      res.status(200).json({ msg: { blueSquareCount } });
     } catch (error) {
       res.status(404).send(error);
     }
-  }
+  };
 
   /**
    * Gets the Recipients added by the owner to receive the Weekly Summary Reports
@@ -264,6 +288,7 @@ const reportsController = function () {
     }
   };
 
+  // eslint-disable-next-line consistent-return
   const saveReportsRecepients = (req, res) => {
     const { userid } = req.params;
     const id = userid;
@@ -289,9 +314,7 @@ const reportsController = function () {
             res.status(404).send('No valid records found');
             return;
           }
-          res
-            .status(200)
-            .send({ message: 'updated user record with getWeeklyReport true' });
+          res.status(200).send({ message: 'updated user record with getWeeklyReport true' });
         })
         .catch((err) => {
           console.log('error in catch block last:', err);
