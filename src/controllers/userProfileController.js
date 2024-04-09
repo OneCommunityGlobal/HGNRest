@@ -15,7 +15,7 @@ const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidato
 const cacheClosure = require('../utilities/nodeCache');
 
 // const { authorizedUserSara, authorizedUserJae } = process.env;
-const authorizedUserSara = `sucheta.prtester@test.com`; // To test this code please include your email here
+const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
