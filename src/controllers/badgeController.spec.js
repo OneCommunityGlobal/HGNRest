@@ -13,9 +13,9 @@ jest.mock('../utilities/nodeCache');
 const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
-  const { postBadge, getAllBadges, assignBadges } = badgeController(Badge);
+  const { postBadge, getAllBadges, assignBadges, deleteBadge } = badgeController(Badge);
 
-  return { postBadge, getAllBadges, assignBadges };
+  return { postBadge, getAllBadges, assignBadges, deleteBadge };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -40,6 +40,7 @@ const makeMockCache = (method, value) => {
 
 describe('badeController module', () => {
   beforeEach(() => {
+    mockReq.params.badgeId = '601acda376045c7879d13a75';
     mockReq.body.badgeName = 'random badge';
     mockReq.body.category = 'Food';
     mockReq.body.type = 'No Infringement Streak';
@@ -452,6 +453,64 @@ describe('badeController module', () => {
         `user-${mongoose.Types.ObjectId(mockReq.params.userId)}`,
       );
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
+    });
+  });
+
+  describe.only('deleteBadge method', () => {
+    test('Returns 403 if the user does not have permission to delete badges', async () => {
+      const { deleteBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(false);
+
+      const response = await deleteBadge(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(403, { error: 'You are not authorized to delete badges.' }, response, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteBadges');
+    });
+
+    test('Returns 400 if an no badge is found', async () => {
+      const { deleteBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const findByIdSpy = jest
+        .spyOn(Badge, 'findById')
+        .mockImplementationOnce((_, callback) => callback(null, null));
+
+      const response = await deleteBadge(mockReq, mockRes);
+
+      assertResMock(400, { error: 'No valid records found' }, response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.badgeId, expect.anything());
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteBadges');
+    });
+
+    test('Returns 500 if the removeBadgeFromProfile fails.', async () => {
+      const { deleteBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const findByIdSpy = jest
+        .spyOn(Badge, 'findById')
+        .mockImplementationOnce((_, callback) =>
+          callback(null, { _id: mockReq.params.badgeId, remove: () => Promise.resolve() }),
+        );
+
+      const errMsg = 'Update many failed';
+      const updateManyObj = { exec: () => {} };
+      const updateManySpy = jest
+        .spyOn(UserProfile, 'updateMany')
+        .mockImplementationOnce(() => updateManyObj);
+
+      jest.spyOn(updateManyObj, 'exec').mockRejectedValueOnce(new Error(errMsg));
+
+      const response = await deleteBadge(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(500, new Error(errMsg), response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.badgeId, expect.anything());
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteBadges');
+      expect(updateManySpy).toHaveBeenCalledWith(
+        {},
+        { $pull: { badgeCollection: { badge: mockReq.params.badgeId } } },
+      );
     });
   });
 });
