@@ -13,6 +13,9 @@ const router = function (title) {
     .get(controller.getTitleById)
     .put(controller.deleteTitleById);
 
+  titleRouter.route('/title/deleteAll')
+    .get(controller.deleteAllTitles);
+
   return titleRouter;
 };
 
