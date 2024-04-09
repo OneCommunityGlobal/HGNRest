@@ -43,6 +43,10 @@ const titlecontroller = function (Title) {
 
 
       // Validate team code by checking if it exists in the database
+      if (!title.teamCode){
+        return res.status(400).send({ message: 'Please provide a team code.' });
+      }
+
       const teamCodeExists = await checkTeamCodeExists(title.teamCode);
       if (!teamCodeExists) {
         return res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
