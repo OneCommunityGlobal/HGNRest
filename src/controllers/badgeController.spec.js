@@ -512,5 +512,36 @@ describe('badeController module', () => {
         { $pull: { badgeCollection: { badge: mockReq.params.badgeId } } },
       );
     });
+
+    test('Returns 500 if the remove method fails.', async () => {
+      const { deleteBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const errMsg = 'Remove failed';
+      const findByIdSpy = jest.spyOn(Badge, 'findById').mockImplementationOnce((_, callback) =>
+        callback(null, {
+          _id: mockReq.params.badgeId,
+          remove: () => Promise.reject(new Error(errMsg)),
+        }),
+      );
+
+      const updateManyObj = { exec: () => {} };
+      const updateManySpy = jest
+        .spyOn(UserProfile, 'updateMany')
+        .mockImplementationOnce(() => updateManyObj);
+
+      jest.spyOn(updateManyObj, 'exec').mockResolvedValueOnce(true);
+
+      const response = await deleteBadge(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(500, new Error(errMsg), response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.badgeId, expect.anything());
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteBadges');
+      expect(updateManySpy).toHaveBeenCalledWith(
+        {},
+        { $pull: { badgeCollection: { badge: mockReq.params.badgeId } } },
+      );
+    });
   });
 });
