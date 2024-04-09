@@ -1084,7 +1084,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
     try {
-      const result = await userProfile.findOne({ _id: userId }, "_id weeklySummaries");
+      const result = await UserProfile.findOne({ _id: userId }, "_id weeklySummaries");
       res.status(200).send(result);
     } catch (error) {
       console.log(error);
