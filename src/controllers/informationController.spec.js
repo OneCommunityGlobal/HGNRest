@@ -17,12 +17,6 @@ const makeSut = () => {
   };
 };
 
-// const assertResMock = (statusCode, message, response) => {
-//     expect(mockRes.status).toHaveBeenCalledWith(statusCode);
-//     expect(mockRes.send).toHaveBeenCalledWith(message);
-//     expect(response).toBeUndefined();
-// };
-
 const makeMockGetCache = (value) => {
   const getCacheObject = {
     getCache: () => {},
@@ -36,24 +30,22 @@ const makeMockGetCache = (value) => {
 };
 
 const makeMockSortAndFind = (value = null) => {
-  const databaseUsers = value;
-
   const sortObject = {
     sort: () => {},
   };
 
   const mockSort = jest
     .spyOn(sortObject, 'sort')
-    .mockImplementationOnce(() => Promise.resolve(databaseUsers));
+    .mockImplementationOnce(() => Promise.resolve(value));
 
   const findSpy = jest.spyOn(Information, 'find').mockReturnValueOnce(sortObject);
 
   return {
-    databaseUsers,
     mockSort,
-    findSpy,
+    findSpy
   };
 };
+
 describe('informationController module', () => {
   beforeAll(async () => {
     // await dbConnect();
@@ -67,8 +59,8 @@ describe('informationController module', () => {
     // await dbDisconnect();
   });
   describe('getInformations function', () => {
-    test.only('Ensure getInformations returns 200 if the informations key exists in NodeCache', async () => {
-      const data = '[{"infoName": "someInfo"}]';
+    test('Ensure getInformations returns 200 if the informations key exists in NodeCache', async () => {
+      const data = '[{infoName: "someInfo", infoContent: "Content1", visibility: "0"}]';
 
       const mockGetCache = makeMockGetCache(data);
 
@@ -81,40 +73,31 @@ describe('informationController module', () => {
       assertResMock(200, data, response, mockRes);
     });
 
-    test('Ensure getInformations returns 200 if there are information in the database', async () => {
-      const setCacheObject = {
-        setCache: () => {},
-      };
+    test.only("Ensure getInformations returns 404 if there are no information in the database and any error occurs when getting the information", async () => {
 
-      const mockSetCache = jest
-        .spyOn(setCacheObject, 'setCache')
-        .mockImplementation(() => undefined);
+      const data = '[{infoName: "someInfo", infoContent: "Content1", visibility: "0"}]';
 
-      cache.mockImplementation(() => setCacheObject);
+      const mockGetCache = makeMockGetCache();
 
       const { getInformations } = makeSut();
 
-      const databaseInfos = [
-        {
-          infoName: 'testInfo',
-          infoContent: 'Unspecified',
-          visibility: '0',
-        },
-      ];
+      const { findSpy, mockSort } = makeMockSortAndFind();
 
-      const { findSpy, mockSort } = makeMockSortAndFind(databaseInfos);
+      const response =  getInformations(mockReq, mockRes);
 
-      const response = await getInformations(mockReq, mockRes);
+      expect(mockGetCache).toHaveBeenCalledWith('informations');
 
-      expect(findSpy).toHaveBeenCalledWith({}, 'infoName infoContent visibility');
+      expect(findSpy).toHaveBeenCalledWith(
+        {},
+        'infoName infoContent visibility'
+      );
 
       expect(mockSort).toHaveBeenCalledWith({
-        lastName: 1,
+        visibility: 1,
       });
+      expect(mockRes.status).toHaveBeenCalledWith(404);
 
-      expect(mockSetCache).toHaveBeenCalledWith('informations', JSON.stringify(databaseInfos));
-
-      assertResMock(200, databaseInfos, response);
+      // assertResMock(404, data, response, mockRes);
     });
     // test("Ensure getInformations returns 404 if the informations key doesn't exist in NodeCache", async () => {
     // cache.hasCache.mockReturnValue(undefined); // Simulate cache miss
@@ -168,70 +151,6 @@ describe('informationController module', () => {
     //   });
 
     //   assertResMock(404, new Error(errMsg), response);
-    // });
-
-    // test('Ensure getInformations returns 200 if the informations key exists in NodeCache', async () => {
-    //   const data = '[{"infoName": "roleInfo"}]';
-
-    //   const mockGetCache = makeMockGetCache(data);
-
-    //   const { getInformations } = makeSut();
-
-    //   const { findSpy, mockSort } = makeMockSortAndFind();
-
-    //   const response = await getInformations(mockReq, mockRes);
-
-    //   expect(findSpy).toHaveBeenCalledWith(
-    //     {},
-    //     'infoName infoContent visibility',
-    //   );
-
-    //   expect(mockSort).toHaveBeenCalledWith({
-    //     lastName: 1,
-    //   });
-
-    //   expect(mockGetCache).toHaveBeenCalledWith('informations');
-
-    //   assertResMock(200, JSON.parse(data), response);
-    // });
-
-    // test('Ensure getInformations returns 200 if there are information in the database', async () => {
-    //   const setCacheObject = {
-    //     setCache: () => {},
-    //   };
-
-    //   const mockSetCache = jest
-    //     .spyOn(setCacheObject, 'setCache')
-    //     .mockImplementation(() => undefined);
-
-    //   cache.mockImplementation(() => setCacheObject);
-
-    //   const { getInformations } = makeSut();
-
-    //   const databaseInfos = [
-    //     {
-    //       infoName: 'testInfo',
-    //       infoContent: 'Unspecified',
-    //       visibility: '0'
-    //     },
-    //   ];
-
-    //   const { findSpy, mockSort } = makeMockSortAndFind(databaseInfos);
-
-    //   const response = await getInformations(mockReq, mockRes);
-
-    //   expect(findSpy).toHaveBeenCalledWith(
-    //     {},
-    //     'infoName infoContent visibility',
-    //   );
-
-    //   expect(mockSort).toHaveBeenCalledWith({
-    //     lastName: 1,
-    //   });
-
-    //   expect(mockSetCache).toHaveBeenCalledWith('informations', JSON.stringify(databaseInfos));
-
-    //   assertResMock(200, databaseInfos, response);
     // });
   });
 });

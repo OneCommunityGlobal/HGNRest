@@ -11,16 +11,19 @@ const informationController = function (Information) {
     if (cache.getCache('informations')) {
       res.status(200).send(cache.getCache('informations'));
       return;
-    }
-
+      }
     Information.find({}, 'infoName infoContent visibility')
+      .sort({visibility:1})
       .then((results) => {
-        // cache results
+        if (results.length === 0) {
+            res.status(500).send({ error: 'No any informations found' });
+            return;
+        }
         cache.setCache('informations', results);
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
-  };
+  }
 
   const addInformation = function (req, res) {
     Information.find({ infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' } })
