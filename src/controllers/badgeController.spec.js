@@ -583,5 +583,47 @@ describe('badeController module', () => {
       );
       expect(getCacheMock).toHaveBeenCalledWith('allBadges');
     });
+
+    test('Clears cache if cache exists.', async () => {
+      const { mockCache: getCacheMock, cacheObject } = makeMockCache('getCache', true);
+      const removeCacheSpy = jest.spyOn(cacheObject, 'removeCache').mockReturnValueOnce(null);
+      const { deleteBadge } = makeSut();
+
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const findByIdSpy = jest.spyOn(Badge, 'findById').mockImplementationOnce((_, callback) =>
+        callback(null, {
+          _id: mockReq.params.badgeId,
+          remove: () => Promise.resolve(true),
+        }),
+      );
+
+      const updateManyObj = { exec: () => {} };
+      const updateManySpy = jest
+        .spyOn(UserProfile, 'updateMany')
+        .mockImplementationOnce(() => updateManyObj);
+
+      jest.spyOn(updateManyObj, 'exec').mockResolvedValueOnce(true);
+
+      const response = await deleteBadge(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(
+        200,
+        {
+          message: 'Badge successfully deleted and user profiles updated',
+        },
+        response,
+        mockRes,
+      );
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.badgeId, expect.anything());
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteBadges');
+      expect(updateManySpy).toHaveBeenCalledWith(
+        {},
+        { $pull: { badgeCollection: { badge: mockReq.params.badgeId } } },
+      );
+      expect(getCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(removeCacheSpy).toHaveBeenCalledWith('allBadges');
+    });
   });
 });
