@@ -1441,7 +1441,6 @@ const userHelper = function () {
                     bdge.weeks
                   );
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
-                  console.log("entered2");
                   increaseBadgeCount(personId, mongoose.Types.ObjectId(badge));
                   increaseBadgeCount(
                     personId,
