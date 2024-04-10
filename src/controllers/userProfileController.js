@@ -584,6 +584,14 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+
+    if (userId === req.body.requestor) {
+      res.status(403).send({
+        error: 'You cannot delete your own account',
+      });
+      return;
+    }
+
     const user = await UserProfile.findById(userId);
 
     if (!user) {
