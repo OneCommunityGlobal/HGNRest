@@ -56,7 +56,7 @@ const makeMockSortAndFind = (value = null) => {
 
   const mockSort = jest
     .spyOn(sortObject, 'sort')
-    .mockImplementationOnce(() => Promise.resolve(databaseUsers));
+    .mockImplementationOnce(() => Promise.reject(databaseUsers));
 
   const findSpy = jest.spyOn(UserProfile, 'find').mockReturnValueOnce(sortObject);
 

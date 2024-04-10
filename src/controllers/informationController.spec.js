@@ -16,6 +16,8 @@ const makeSut = () => {
     getInformations,
   };
 };
+// Define flushPromises function
+const flushPromises = () => new Promise(resolve => setImmediate(resolve));
 
 const makeMockGetCache = (value) => {
   const getCacheObject = {
@@ -36,7 +38,7 @@ const makeMockSortAndFind = (value = null) => {
 
   const mockSort = jest
     .spyOn(sortObject, 'sort')
-    .mockImplementationOnce(() => Promise.resolve(value));
+    .mockImplementationOnce(() => Promise.reject(value));
 
   const findSpy = jest.spyOn(Information, 'find').mockReturnValueOnce(sortObject);
 
@@ -73,9 +75,7 @@ describe('informationController module', () => {
       assertResMock(200, data, response, mockRes);
     });
 
-    test.only("Ensure getInformations returns 404 if there are no information in the database and any error occurs when getting the information", async () => {
-
-      const data = '[{infoName: "someInfo", infoContent: "Content1", visibility: "0"}]';
+    test("Ensure getInformations returns 404 if there are no information in the database and any error occurs when getting the information", async () => {
 
       const mockGetCache = makeMockGetCache();
 
@@ -83,7 +83,9 @@ describe('informationController module', () => {
 
       const { findSpy, mockSort } = makeMockSortAndFind();
 
-      const response =  getInformations(mockReq, mockRes);
+      getInformations(mockReq, mockRes);
+
+      await flushPromises();
 
       expect(mockGetCache).toHaveBeenCalledWith('informations');
 
@@ -96,61 +98,6 @@ describe('informationController module', () => {
         visibility: 1,
       });
       expect(mockRes.status).toHaveBeenCalledWith(404);
-
-      // assertResMock(404, data, response, mockRes);
     });
-    // test("Ensure getInformations returns 404 if the informations key doesn't exist in NodeCache", async () => {
-    // cache.hasCache.mockReturnValue(undefined); // Simulate cache miss
-
-    // Information.find.mockImplementation(() => {
-    //   throw new Error('Database error'); // Simulate database query failure
-    // });
-    // const mockGetCache = makeMockGetCache('');
-
-    // const { getInformations } = makeSut();
-
-    // const { findSpy, mockSort } = makeMockSortAndFind();
-
-    // const response = await getInformations(mockReq, mockRes);
-
-    // expect(findSpy).toHaveBeenCalledWith(
-    //   {},
-    //   'infoName infoContent visibility',
-    // );
-
-    // expect(mockSort).toHaveBeenCalledWith({
-    //   lastName: 1,
-    // });
-
-    // expect(mockGetCache).toHaveBeenCalledWith('informations');
-    // assertResMock(404, { error: 'Database error' }, response);
-    // });
-
-    // test('Ensure getInformations returns 404 if any error occurs while getting informations', async () => {
-    //   const errMsg = 'getCache failed';
-
-    //   cache.mockImplementationOnce(() => ({
-    //     getCache: jest.fn(() => {
-    //       throw new Error(errMsg);
-    //     }),
-    //   }));
-
-    //   const { getInformations } = makeSut();
-
-    //   const { findSpy, mockSort } = makeMockSortAndFind();
-
-    //   const response = await getInformations(mockReq, mockRes);
-
-    //   expect(findSpy).toHaveBeenCalledWith(
-    //     {},
-    //     'infoName infoContent visibility',
-    //   );
-
-    //   expect(mockSort).toHaveBeenCalledWith({
-    //     lastName: 1,
-    //   });
-
-    //   assertResMock(404, new Error(errMsg), response);
-    // });
   });
 });
