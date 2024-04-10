@@ -101,7 +101,6 @@ const reportsController = function () {
         lastWeekStartDate,
         lastWeekEndDate,
       );
-      console.log(volunteerHoursStats);
       res.status(200).json(volunteerHoursStats);
     } catch (error) {
       console.log(error);
