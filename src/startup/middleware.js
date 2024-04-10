@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
-const config = require('../config');
 const morgan = require('morgan')
+const config = require('../config');
 
 module.exports = function (app) {
   app.use(morgan('tiny'))

@@ -12,9 +12,11 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cache = require('../utilities/nodeCache')();
+const cacheClosure = require('../utilities/nodeCache');
 
-const { authorizedUserSara, authorizedUserJae } = process.env;
+// const { authorizedUserSara, authorizedUserJae } = process.env;
+const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
+const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -70,6 +72,8 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
+  const cache = cacheClosure();
+
   const forbidden = function (res, message) {
     res.status(403).send(message);
   };
@@ -79,12 +83,12 @@ const userProfileController = function (UserProfile) {
   };
 
   const getUserProfiles = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
-      res.status(403).send('You are not authorized to view all users');
+    if (!(await checkPermission(req, 'getUserProfiles'))) {
+      forbidden(res, 'You are not authorized to view all users');
       return;
     }
 
-    UserProfile.find(
+    await UserProfile.find(
       {},
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
@@ -399,7 +403,7 @@ const userProfileController = function (UserProfile) {
               break;
             default:
               record.isVisible = true;
-          };
+          }
         }
         importantFields.forEach((fieldName) => {
           if (req.body[fieldName] !== undefined) {
@@ -580,15 +584,20 @@ const userProfileController = function (UserProfile) {
     }
 
     cache.removeCache(`user-${userId}`);
-    const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex((users) => users._id === userId);
-    allUserData.splice(userIdx, 1);
-    cache.setCache('allusers', JSON.stringify(allUserData));
+    if (cache.getCache('allusers')) {
+      const allUserData = JSON.parse(cache.getCache('allusers'));
+      const userIdx = allUserData.findIndex((users) => users._id === userId);
+      allUserData.splice(userIdx, 1);
+      cache.setCache('allusers', JSON.stringify(allUserData));
+    }
 
     await UserProfile.deleteOne({
       _id: userId,
+    }).then(() => {
+      res.status(200).send({ message: 'Executed Successfully' });
+    }).catch((err) => {
+      res.status(500).send(err);
     });
-    res.status(200).send({ message: 'Executed Successfully' });
   };
 
   const getUserById = function (req, res) {
@@ -677,11 +686,9 @@ const userProfileController = function (UserProfile) {
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
-      // eslint-disable-next-line consistent-return
       return res.status(400).send({ error: 'Missing property or value' });
     }
 
-    // eslint-disable-next-line consistent-return
     return UserProfile.findById(userId)
       .then((user) => {
         user.set({
@@ -716,15 +723,8 @@ const userProfileController = function (UserProfile) {
     // Check if the requestor has the permission to update passwords.
     const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
-    // If the requestor is updating their own password, allow them to proceed.
-    if (userId === requestor.requestorId) {
-      console.log('Requestor is updating their own password');
-    }
-    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
-    else if (!hasUpdatePasswordPermission) {
-      console.log(
-        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission",
-      );
+    // if they're updating someone else's password, they need the 'updatePassword' permission.
+    if (!hasUpdatePasswordPermission) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -916,7 +916,6 @@ const userProfileController = function (UserProfile) {
         res.status(500).send(error);
       });
   };
-
   const getAllUsersWithFacebookLink = function (req, res) {
     try {
       UserProfile.find({ 'personalLinks.Name': 'Facebook' }).then((results) => {
@@ -1013,7 +1012,7 @@ const userProfileController = function (UserProfile) {
       }
       await UserProfile.findOne({
         email: {
-          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
+          $regex: escapeRegex(authorizedUser), // The Authorized user's email
           $options: 'i',
         },
       }).then(async (user) => {
