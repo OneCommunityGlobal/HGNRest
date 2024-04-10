@@ -37,8 +37,7 @@ const materialType = invTypeBase.discriminator('material_type', new mongoose.Sch
 
 const consumableType = invTypeBase.discriminator('consumable_type', new mongoose.Schema({
   category: { type: String, enum: ['Consumable'] },
-  unit: { type: String, required: true },
-  size: { type: String, required: false },
+  size: { type: String, required: true },
 }));
 
 //---------------------------

@@ -4,7 +4,6 @@ const morgan = require('morgan')
 const config = require('../config');
 
 module.exports = function (app) {
-  app.use(morgan('tiny'))
   app.all('*', (req, res, next) => {
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');

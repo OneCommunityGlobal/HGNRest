@@ -18,5 +18,4 @@
       }
     ]
   ]
-  // "ignore": ["**/*.test.js", "**/*.spec.js", "src/test/**"]
 }
