@@ -135,53 +135,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       }
     }
 
-
-    async function addConsumableType(req, res) {
-      const {
-        name,
-        description,
-        unit,
-        size,
-        requestor: { requestorId },
-      } = req.body;
-
-      try {
-        ConsType
-        .find({ name })
-          .then((result) => {
-            if (result.length) {
-              res.status(409).send('Oops!! Consumable already exists!');
-            } else {
-              const newDoc = {
-                category: 'Consumable',
-                name,
-                description,
-                unit,
-                size,
-                createdBy: requestorId,
-              };
-              ConsType
-              .create(newDoc)
-              .then((results) => {
-                  res.status(201).send(results);
-                })
-              .catch((error) => {
-                if (error._message.includes('validation failed')) {
-                  res.status(400).send(error.errors.unit.message);
-                } else {
-                  res.status(500).send(error);
-                }
-              });
-            }
-          })
-          .catch((error) => {
-            res.status(500).send(error);
-});
-        } catch (error) {
-          res.status(500).send(error);
-        }
-      }
-
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;
     let SelectedType = InvType;
@@ -293,7 +246,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchSingleInventoryType,
     updateNameAndUnit,
     addMaterialType,
-    addConsumableType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
   };
