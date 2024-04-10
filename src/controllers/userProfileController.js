@@ -1004,7 +1004,6 @@ const userProfileController = function (UserProfile) {
       res.status(500).send(error);
     }
   };
-
   const getAllUsersWithFacebookLink = function (req, res) {
     try {
       UserProfile.find({ 'personalLinks.Name': 'Facebook' }).then((results) => {
