@@ -312,7 +312,7 @@ describe('actionItem routes', () => {
       });
     });
 
-    it.only('Should remove all instasnces of the badge from user profiles', async () => {
+    it('Should remove all instasnces of the badge from user profiles', async () => {
       const _badge = new Badge();
 
       _badge.badgeName = reqBody.badgeName;

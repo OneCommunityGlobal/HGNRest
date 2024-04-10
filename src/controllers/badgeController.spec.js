@@ -456,7 +456,7 @@ describe('badeController module', () => {
     });
   });
 
-  describe.only('deleteBadge method', () => {
+  describe('deleteBadge method', () => {
     test('Returns 403 if the user does not have permission to delete badges', async () => {
       const { deleteBadge } = makeSut();
       const hasPermissionSpy = mockHasPermission(false);
