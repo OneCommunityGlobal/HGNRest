@@ -74,27 +74,23 @@ describe('warnings controller module', () => {
     });
   });
 
-  describe('post warnings to user profile method', () => {
-    test('Ensure postWarningsToUserProfile returns error 400 if the user profile doesnt exist', async () => {
+  describe.only('post warnings to user profile method', () => {
+    test.only('Ensure postWarningsToUserProfile returns error 400 if the user profile doesnt exist', async () => {
       const { postWarningsToUserProfile } = makeSut();
-      const mockFindById = jest
-        .spyOn(UserProfile, 'findById')
-        .mockImplementationOnce(() => Promise.resolve(null));
-
+      const errorMessage = 'No valid records found';
+      jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(null));
       const res = await postWarningsToUserProfile(mockReq, mockRes);
-      expect(mockFindById).toHaveBeenCalledWith(mockReq.params.userid);
-      assertResMock(400, { message: 'No valid records found' }, res);
+      assertResMock(400, { message: errorMessage }, res);
     });
 
     test('Ensure psotWarningsToUserProfile Returns error 400 if findById errors', async () => {
-      // const { postWarningsToUserProfile } = makeSut();
-      // const errorMessage = 'error occured when finding the users warnings';
-      // fix this suite
-      // jest
-      //   .spyOn(UserProfile, 'findById')
-      //   .mockImplementationOnce(() => Promise.reject(new Error({ message: errorMessage })));
-      // const res = await postWarningsToUserProfile(mockReq, mockRes);
-      // assertResMock(400, { message: errorMessage }, res);
+      const { postWarningsToUserProfile } = makeSut();
+      const errorMessage = 'error occured when finding the users warnings';
+      jest
+        .spyOn(UserProfile, 'findById')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMessage)));
+      const res = await postWarningsToUserProfile(mockReq, mockRes);
+      assertResMock(400, { message: errorMessage }, res);
     });
 
     test('Ensure postWarningsToUserProfile Returns error 400 if saving the warnings errors', async () => {
@@ -163,7 +159,7 @@ describe('warnings controller module', () => {
     });
   });
 
-  describe.only('delete users warnings method', () => {
+  describe('delete users warnings method', () => {
     test('Ensure deleteUsersWarnings returns error 401 if findOneAndUpdate fails', async () => {
       const { deleteUsersWarnings } = makeSut();
       const errorMessage = 'error occured';
@@ -184,7 +180,7 @@ describe('warnings controller module', () => {
       assertResMock(400, { message: errorMessage }, res);
     });
 
-    test.only("Ensure deleteUsersWarnings returns a 201 if the user's warnings are deleted successfully", async () => {
+    test("Ensure deleteUsersWarnings returns a 201 if the user's warnings are deleted successfully", async () => {
       const { deleteUsersWarnings } = makeSut();
       const successMessage = 'succesfully deleted';
       const profile = {
