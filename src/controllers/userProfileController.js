@@ -12,14 +12,13 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cacheClosure = require('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache')();
 
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
-const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
@@ -73,23 +72,13 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
-  const cache = cacheClosure();
-
-  const forbidden = function (res, message) {
-    res.status(403).send(message);
-  };
-
-  const checkPermission = async function (req, permission) {
-    return helper.hasPermission(req.body.requestor, permission);
-  };
-
   const getUserProfiles = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
+    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
+      res.status(403).send('You are not authorized to view all users');
       return;
     }
 
-    await UserProfile.find(
+    UserProfile.find(
       {},
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
@@ -135,13 +124,16 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await checkPermission(req, 'postUserProfile'))) {
-      forbidden(res, 'You are not authorized to create new users');
+    if (!(await hasPermission(req.body.requestor, 'postUserProfile'))) {
+      res.status(403).send('You are not authorized to create new users');
       return;
     }
 
-    if (req.body.role === 'Owner' && !(await checkPermission(req, 'addDeleteEditOwners'))) {
-      forbidden(res, 'You are not authorized to create new owners');
+    if (
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+    ) {
+      res.status(403).send('You are not authorized to create new owners');
       return;
     }
 
@@ -294,7 +286,7 @@ const userProfileController = function (UserProfile) {
           emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
         }
       });
-      
+
       // update backend cache if it exists
       if (cache.getCache('allusers')) {
         const userCache = {
