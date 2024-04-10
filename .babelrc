@@ -17,6 +17,6 @@
         "root": "./src"
       }
     ]
-  ]
-  // "ignore": ["**/*.test.js", "**/*.spec.js", "src/test/**"]
+  ],
+  "ignore": ["**/*.test.js", "**/*.spec.js", "src/test/**"]
 }
