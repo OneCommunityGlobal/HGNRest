@@ -8,6 +8,7 @@ const {
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
 const Badge = require('../models/badge');
+const UserProfile = require('../models/userProfile');
 
 const agent = request.agent(app);
 
@@ -309,6 +310,53 @@ describe('actionItem routes', () => {
       expect(response.body).toEqual({
         message: 'Badge successfully deleted and user profiles updated',
       });
+    });
+
+    it.only('Should remove all instasnces of the badge from user profiles', async () => {
+      const _badge = new Badge();
+
+      _badge.badgeName = reqBody.badgeName;
+      _badge.category = reqBody.category;
+      _badge.multiple = reqBody.multiple;
+      _badge.totalHrs = reqBody.totalHrs;
+      _badge.weeks = reqBody.weeks;
+      _badge.months = reqBody.months;
+      _badge.people = reqBody.people;
+      _badge.project = reqBody.project;
+      _badge.imageUrl = reqBody.imageUrl;
+      _badge.ranking = reqBody.ranking;
+      _badge.description = reqBody.description;
+      _badge.showReport = reqBody.showReport;
+      _badge.type = reqBody.type;
+
+      const badge = await _badge.save();
+      const date = new Date();
+      adminUser.badgeCollection = [
+        {
+          badge: badge._id,
+          count: 1,
+          earnedDate: [date],
+          lastModified: date,
+          hasBadgeDeletionImpact: false,
+          featured: false,
+        },
+      ];
+
+      await adminUser.save();
+
+      expect(adminUser.badgeCollection.length).toBe(1);
+
+      const response = await agent
+        .delete(`/api/badge/${badge._id}`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        message: 'Badge successfully deleted and user profiles updated',
+      });
+      const newAdminProfile = await UserProfile.findById(adminUser._id);
+      expect(newAdminProfile.badgeCollection.length).toBe(0);
     });
   });
 });
