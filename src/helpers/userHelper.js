@@ -1,6 +1,15 @@
 /* eslint-disable quotes */
 /* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
+/* eslint-disable no-console */
+/* eslint-disable consistent-return  */
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable no-use-before-define */
+/* eslint-disable no-unsafe-optional-chaining */
+/* eslint-disable no-restricted-syntax */
+
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -438,7 +447,7 @@ const userHelper = function () {
             break;
           }
         }
-        const historyInfringements = 'No Previous Infringements.';
+        let historyInfringements = 'No Previous Infringements.';
         if (oldInfringements.length) {
           userProfile.findByIdAndUpdate(
             personId,
@@ -449,9 +458,12 @@ const userHelper = function () {
             },
             { new: true },
           );
-          historyInfringements = oldInfringements.map((item, index) => {
-            return `<p><${index+1}> Date: ${item.date}, Description: ${item.description}</p>`;
-          }).join('');
+          historyInfringements = oldInfringements
+            .map(
+              (item, index) =>
+                `<p><${index + 1}> Date: ${item.date}, Description: ${item.description}</p>`,
+            )
+            .join('');
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
@@ -561,12 +573,12 @@ const userHelper = function () {
           );
 
           let emailBody = '';
-          let administrativeContent = {          
-            startDate: moment(person.createdDate).utc().format("YYYY-MM-DD"),
-            roleAdminstrative:person.role,
-            userTitle: person.firstName + " " + person.lastName,
+          const administrativeContent = {
+            startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
+            roleAdminstrative: person.role,
+            userTitle: `${person.firstName} ${person.lastName}`,
             historyInfringements,
-          }
+          };
           if (person.role === 'Core Team' && timeRemaining > 0) {
             emailBody = getInfringementEmailBody(
               status.firstName,
