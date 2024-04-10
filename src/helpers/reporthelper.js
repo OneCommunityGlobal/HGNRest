@@ -122,13 +122,13 @@ const reporthelper = function () {
             },
           },
           teamCode: {
-            $ifNull: ['$teamCode', ''],
+            $ifNull: ["$teamCode", ""],
           },
           timeOffFrom: {
-            $ifNull: ['$timeOffFrom', null],
+            $ifNull: ["$timeOffFrom", null],
           },
           timeOffTill: {
-            $ifNull: ['$timeOffTill', null],
+            $ifNull: ["$timeOffTill", null],
           },
           role: 1,
           weeklySummaries: {
