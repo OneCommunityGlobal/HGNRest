@@ -174,7 +174,7 @@ describe('warnings controller module', () => {
       assertResMock(401, { message: errorMessage }, res);
     });
 
-    test.only('Ensure deleteUsersWarnings returns error 400 if the user profile doesnt exist', async () => {
+    test('Ensure deleteUsersWarnings returns error 400 if the user profile doesnt exist', async () => {
       const { deleteUsersWarnings } = makeSut();
       const errorMessage = 'no valid records';
       jest
@@ -182,6 +182,40 @@ describe('warnings controller module', () => {
         .mockImplementationOnce(() => Promise.resolve(null));
       const res = await deleteUsersWarnings(mockReq, mockRes);
       assertResMock(400, { message: errorMessage }, res);
+    });
+
+    test.only("Ensure deleteUsersWarnings returns a 201 if the user's warnings are deleted successfully", async () => {
+      const { deleteUsersWarnings } = makeSut();
+      const successMessage = 'succesfully deleted';
+      const profile = {
+        warnings: [
+          {
+            title: 'Better Descriptions',
+            warnings: [],
+          },
+          {
+            title: 'Log Time to Tasks',
+            warnings: [],
+          },
+          {
+            title: 'Log Time as You Go',
+            warnings: [],
+          },
+          {
+            title: 'Log Time to Action Items',
+            warnings: [],
+          },
+          {
+            title: 'Intangible Time Log w/o Reason',
+            warnings: [],
+          },
+        ],
+      };
+      jest
+        .spyOn(UserProfile, 'findOneAndUpdate')
+        .mockImplementationOnce(() => Promise.resolve(profile));
+      const res = await deleteUsersWarnings(mockReq, mockRes);
+      assertResMock(201, { message: successMessage, warnings: profile.warnings }, res);
     });
   });
 });

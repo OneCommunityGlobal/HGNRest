@@ -1,7 +1,7 @@
 Check mark: ✅
 Cross Mark: ❌
 
-# Get Warnings By User Id
+# Post Warnings By User Id
 
 > ## Positive case
 
