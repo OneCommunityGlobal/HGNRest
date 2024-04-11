@@ -638,5 +638,41 @@ describe('badeController module', () => {
       assertResMock(403, { error: 'You are not authorized to update badges.' }, response, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'updateBadges');
     });
+
+    test('Returns 400 if an error occurs in findById', async () => {
+      const { putBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const findByIdAndUpdateSpy = jest
+        .spyOn(Badge, 'findByIdAndUpdate')
+        .mockImplementationOnce((_, __, cb) => cb(true, true));
+
+      const response = await putBadge(mockReq, mockRes);
+      await flushPromises();
+
+      const data = {
+        badgeName: mockReq.body.name || mockReq.body.badgeName,
+        description: mockReq.body.description,
+        type: mockReq.body.type,
+        multiple: mockReq.body.multiple,
+        totalHrs: mockReq.body.totalHrs,
+        people: mockReq.body.people,
+        category: mockReq.body.category,
+        months: mockReq.body.months,
+        weeks: mockReq.body.weeks,
+        project: mockReq.body.project,
+        imageUrl: mockReq.body.imageUrl || mockReq.body.imageURL,
+        ranking: mockReq.body.ranking,
+        showReport: mockReq.body.showReport,
+      };
+
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(
+        mockReq.params.badgeId,
+        data,
+        expect.anything(),
+      );
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'updateBadges');
+      assertResMock(400, { error: 'No valid records found' }, response, mockRes);
+    });
   });
 });
