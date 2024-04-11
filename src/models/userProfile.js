@@ -215,6 +215,7 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
+  badgeCount: { type: Number, default: 0 },
   teamCode: {
     type: String,
     default: '',

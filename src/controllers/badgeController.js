@@ -70,6 +70,7 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
+      record.badgeCount += 1;
 
       const badgeGroups = req.body.badgeCollection.reduce((grouped, item) => {
         const { badge } = item;
@@ -112,6 +113,7 @@ const badgeController = function (Badge) {
             );
           }
         }
+
 
         return grouped;
       }, {});
@@ -262,12 +264,64 @@ const badgeController = function (Badge) {
     });
   };
 
+  const getBadgeCount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      // Check for errors or if user profile doesn't exist
+      if (error || record === null) {
+        res.sendStatus(404).send('Can not find the user to be assigned.');
+        return;
+      }
+      // Return badge count from user profile
+      res.status(200).send({ count: record.badgeCount });
+    });
+  };
+
+  const putBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 1;
+
+      record
+        .save()
+        .then(results => res.status(201).send(results._id))
+        .catch((err) => {
+          res.status(500).send(err);
+        });
+    });
+  };
+
+  const resetBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 0;
+
+      record.save();
+      res.status(201).send({ count: record.badgeCount });
+
+    });
+  }
+
   return {
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
     putBadge,
+    getBadgeCount,
+    putBadgecount,
+    resetBadgecount
   };
 };
 
