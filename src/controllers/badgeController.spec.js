@@ -13,9 +13,9 @@ jest.mock('../utilities/nodeCache');
 const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
-  const { postBadge, getAllBadges, assignBadges, deleteBadge } = badgeController(Badge);
+  const { postBadge, getAllBadges, assignBadges, deleteBadge, putBadge } = badgeController(Badge);
 
-  return { postBadge, getAllBadges, assignBadges, deleteBadge };
+  return { postBadge, getAllBadges, assignBadges, deleteBadge, putBadge };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -624,6 +624,19 @@ describe('badeController module', () => {
       );
       expect(getCacheMock).toHaveBeenCalledWith('allBadges');
       expect(removeCacheSpy).toHaveBeenCalledWith('allBadges');
+    });
+  });
+
+  describe.only('putBadge method', () => {
+    test('Returns 403 if the user is not authorized', async () => {
+      const { putBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(false);
+
+      const response = await putBadge(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(403, { error: 'You are not authorized to update badges.' }, response, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'updateBadges');
     });
   });
 });
