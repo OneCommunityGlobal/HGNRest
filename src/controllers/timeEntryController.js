@@ -306,7 +306,7 @@ const timeEntrycontroller = function (TimeEntry) {
             historyInfringements = requestor.infringements
               .map(
                 (item, index) =>
-                  `<p><${index + 1}> Date: ${item.date}, Description: ${item.description}</p>`,
+                  `<p>${index + 1} Date.: ${item.date}, Description: ${item.description}</p>`,
               )
               .join('');
 
