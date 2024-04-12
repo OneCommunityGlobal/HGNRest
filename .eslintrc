@@ -17,8 +17,7 @@
     "template-curly-spacing": "off",
     "indent": "off",
     "linebreak-style": 0,
-    "no-console": "off",
-    "consistent-return": "off",
+    "no-console": "off"
   },
   "settings": {
     "import/resolver": {
