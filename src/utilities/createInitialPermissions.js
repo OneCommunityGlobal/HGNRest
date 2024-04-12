@@ -46,6 +46,7 @@ const permissionsRoles = [
       'putUserProfile',
       'putUserProfileImportantInfo',
       'changeUserStatus',
+      'changeUserRehireableStatus',
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
@@ -216,6 +217,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'changeUserRehireableStatus',
     ],
   },
 ];
