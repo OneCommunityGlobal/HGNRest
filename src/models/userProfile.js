@@ -258,5 +258,5 @@ userProfileSchema.pre("save", function (next) {
 module.exports = mongoose.model(
   "userProfile",
   userProfileSchema,
-  "userProfiles"
+  "userProfiles",
 );
