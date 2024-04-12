@@ -361,7 +361,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true, email: 'ivytest@gmail.com' },
+        { isActive: true },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
@@ -456,7 +456,7 @@ const userHelper = function () {
           historyInfringements = oldInfringements
             .map(
               (item, index) =>
-                `<p><${index + 1}> Date: ${item.date}, Description: ${item.description}</p>`,
+                `<p>${index + 1}. Date: ${item.date}, Description: ${item.description}</p>`,
             )
             .join('');
         }
@@ -603,7 +603,7 @@ const userHelper = function () {
             'New Infringement Assigned',
             emailBody,
             null,
-            'xiaoyuchen007@gmail.com',
+            'onecommunityglobal@gmail.com',
             status.email,
             null,
           );
