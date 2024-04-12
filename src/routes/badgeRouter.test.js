@@ -71,6 +71,7 @@ describe('actionItem routes', () => {
       await agent.get('/api/badge').send(reqBody).expect(401);
       await agent.put(`/api/badge/assign/randomId`).send(reqBody).expect(401);
       await agent.delete('/api/badge/randomid').send(reqBody).expect(401);
+      await agent.put('/api/badge/randomid').send(reqBody).expect(401);
     });
 
     it('Should return 404 if the route does not exist', async () => {
@@ -83,6 +84,11 @@ describe('actionItem routes', () => {
         .expect(404);
       await agent
         .delete(`/api/badges/randomId`)
+        .set('Authorization', adminToken)
+        .send(reqBody)
+        .expect(404);
+      await agent
+        .put(`/api/badges/randomId`)
         .set('Authorization', adminToken)
         .send(reqBody)
         .expect(404);
@@ -357,6 +363,57 @@ describe('actionItem routes', () => {
       });
       const newAdminProfile = await UserProfile.findById(adminUser._id);
       expect(newAdminProfile.badgeCollection.length).toBe(0);
+    });
+  });
+
+  describe('update badge route', () => {
+    it('Should return 403 if the user does not have permission', async () => {
+      const response = await agent
+        .put(`/api/badge/${adminUser._id}`)
+        .send(reqBody)
+        .set('Authorization', volunteerToken)
+        .expect(403);
+
+      expect(response.body).toEqual({ error: 'You are not authorized to update badges.' });
+    });
+
+    it('Should return 400 if no badge is found', async () => {
+      const response = await agent
+        .put(`/api/badge/${adminUser._id}`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(400);
+
+      expect(response.body).toEqual({ error: 'No valid records found' });
+    });
+
+    it('Should return 200 if all is successful', async () => {
+      // create badge to be modified
+      const _badge = new Badge();
+
+      _badge.badgeName = reqBody.badgeName;
+      _badge.category = reqBody.category;
+      _badge.multiple = reqBody.multiple;
+      _badge.totalHrs = reqBody.totalHrs;
+      _badge.weeks = reqBody.weeks;
+      _badge.months = reqBody.months;
+      _badge.people = reqBody.people;
+      _badge.project = reqBody.project;
+      _badge.imageUrl = reqBody.imageUrl;
+      _badge.ranking = reqBody.ranking;
+      _badge.description = reqBody.description;
+      _badge.showReport = reqBody.showReport;
+      _badge.type = reqBody.type;
+
+      const badge = await _badge.save();
+
+      const response = await agent
+        .put(`/api/badge/${badge._id}`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toEqual({ message: 'Badge successfully updated' });
     });
   });
 });
