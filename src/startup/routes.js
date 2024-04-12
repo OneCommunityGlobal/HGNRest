@@ -36,8 +36,10 @@ const {
 } = require('../models/bmdashboard/buildingInventoryType');
 const {
   buildingConsumable,
+  buildingReusable,
   buildingMaterial,
   buildingTool,
+  buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
 // const buildingTool = require('../models/bmdashboard/buildingTool');
 const timeOffRequest = require('../models/timeOffRequest');
@@ -45,17 +47,13 @@ const timeOffRequest = require('../models/timeOffRequest');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
-const dashboardRouter = require('../routes/dashboardRouter')(
-  weeklySummaryAIPrompt,
-);
+const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
 const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
-const notificationRouter = require('../routes/notificationRouter')(
-  notification,
-);
+const notificationRouter = require('../routes/notificationRouter')(notification);
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
@@ -63,70 +61,58 @@ const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
-const popupBackupRouter = require('../routes/popupEditorBackupRouter')(
-  popupBackup,
-);
-const taskNotificationRouter = require('../routes/taskNotificationRouter')(
-  taskNotification,
-);
-const inventoryRouter = require('../routes/inventoryRouter')(
-  inventoryItem,
-  inventoryItemType,
-);
+const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
+const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
+const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
-    profileInitialSetuptoken,
-    userProfile,
-    project,
-    mapLocations,
-  );
-const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(permissionChangeLog);
+  profileInitialSetuptoken,
+  userProfile,
+  project,
+  mapLocations,
+);
+const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
+  permissionChangeLog,
+);
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
-const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(
-  taskEditSuggestion,
-);
+const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 const roleRouter = require('../routes/roleRouter')(role);
 const rolePresetRouter = require('../routes/rolePresetRouter')(rolePreset);
-const ownerMessageRouter = require('../routes/ownerMessageRouter')(
-  ownerMessage,
-);
+const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 
+const emailRouter = require('../routes/emailRouter')();
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
-const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(
-  mouseoverText,
-);
+const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest);
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
+  timeOffRequest,
+  team,
+  userProfile,
+);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(
-  buildingMaterial,
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
+const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
+const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
+  buildingConsumable,
 );
-const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(
-  buildingProject,
-);
-const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(
-  buildingNewLesson,
-);
-const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
-    invTypeBase,
-    materialType,
-    consumableType,
-    reusableType,
-    toolType,
-    equipmentType,
-  );
-const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(
-  buildingTool,
+  invTypeBase,
+  materialType,
+  consumableType,
+  reusableType,
+  toolType,
+  equipmentType,
 );
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(
-  buildingIssue,
-);
+const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
+const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -157,16 +143,19 @@ module.exports = function (app) {
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
+  app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
+  app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api', timeOffRequestRouter);
   app.use('api', bmIssueRouter);

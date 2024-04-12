@@ -41,8 +41,11 @@ const userProfileSchema = new Schema({
     index: true,
   },
   lastName: {
- type: String, required: true, minlength: 2, index: true,
-},
+    type: String,
+    required: true,
+    minlength: 2,
+    index: true,
+  },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -55,6 +58,10 @@ const userProfileSchema = new Schema({
     ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
+  emailSubscriptions: {
+    type: Boolean,
+    default: false,
+  },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -204,7 +211,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
@@ -229,6 +236,8 @@ const userProfileSchema = new Schema({
   actualEmail: { type: String },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
+  getWeeklyReport: { type: Boolean },
+  permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre('save', function (next) {
