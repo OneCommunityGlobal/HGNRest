@@ -627,7 +627,7 @@ describe('badeController module', () => {
     });
   });
 
-  describe.only('putBadge method', () => {
+  describe('putBadge method', () => {
     test('Returns 403 if the user is not authorized', async () => {
       const { putBadge } = makeSut();
       const hasPermissionSpy = mockHasPermission(false);
