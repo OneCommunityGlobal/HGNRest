@@ -12,12 +12,13 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cacheClosure = require('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache')();
 
-const { authorizedUserSara, authorizedUserJae } = process.env;
+// const { authorizedUserSara, authorizedUserJae } = process.env;
+const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
+const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
-const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
@@ -71,23 +72,13 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
-  const cache = cacheClosure();
-
-  const forbidden = function (res, message) {
-    res.status(403).send(message);
-  };
-
-  const checkPermission = async function (req, permission) {
-    return helper.hasPermission(req.body.requestor, permission);
-  };
-
   const getUserProfiles = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
+    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
+      res.status(403).send('You are not authorized to view all users');
       return;
     }
 
-    await UserProfile.find(
+    UserProfile.find(
       {},
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
     )
@@ -133,13 +124,16 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await checkPermission(req, 'postUserProfile'))) {
-      forbidden(res, 'You are not authorized to create new users');
+    if (!(await hasPermission(req.body.requestor, 'postUserProfile'))) {
+      res.status(403).send('You are not authorized to create new users');
       return;
     }
 
-    if (req.body.role === 'Owner' && !(await checkPermission(req, 'addDeleteEditOwners'))) {
-      forbidden(res, 'You are not authorized to create new owners');
+    if (
+      req.body.role === 'Owner'
+      && !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
+    ) {
+      res.status(403).send('You are not authorized to create new owners');
       return;
     }
 
@@ -292,7 +286,7 @@ const userProfileController = function (UserProfile) {
           emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
         }
       });
-      
+
       // update backend cache if it exists
       if (cache.getCache('allusers')) {
         const userCache = {
@@ -590,6 +584,14 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+
+    if (userId === req.body.requestor) {
+      res.status(403).send({
+        error: 'You cannot delete your own account',
+      });
+      return;
+    }
+
     const user = await UserProfile.findById(userId);
 
     if (!user) {
@@ -939,9 +941,58 @@ const userProfileController = function (UserProfile) {
       });
   };
 
+
+  const changeUserRehireableStatus = async function (req, res) {
+    const { userId } = req.params;
+    const { isRehireable } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).send({ error: 'Bad Request' });
+    }
+    if (!(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))) {
+        return res.status(403).send('You are not authorized to change rehireable status');
+    }
+
+    // Invalidate the cache for this user
+    cache.removeCache(`user-${userId}`);
+
+    UserProfile.findByIdAndUpdate(
+        userId,
+        { $set: { isRehireable } },
+        { new: true },
+        (error, updatedUser) => {
+            if (error) {
+                return res.status(500).send(error);
+            }
+            // Check if there's a cache for all users and update it accordingly
+            const isUserInCache = cache.hasCache('allusers');
+            if (isUserInCache) {
+                const allUserData = JSON.parse(cache.getCache('allusers'));
+                const userIdx = allUserData.findIndex((users) => users._id === userId);
+                const userData = allUserData[userIdx];
+                userData.isRehireable = isRehireable;
+                allUserData.splice(userIdx, 1, userData);
+                cache.setCache('allusers', JSON.stringify(allUserData));
+            }
+
+            // Optionally, re-fetch the user to verify the updated data
+            UserProfile.findById(userId, (err, verifiedUser) => {
+                if (err) {
+                    return res.status(500).send('Error fetching updated user data.');
+                }
+                res.status(200).send({
+                    message: 'Rehireable status updated and verified successfully',
+                    isRehireable: verifiedUser.isRehireable,
+                });
+            });
+        },
+    );
+};
+
   const resetPassword = async function (req, res) {
     try {
       ValidatePassword(req);
+
 
       const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
 
@@ -1107,7 +1158,7 @@ const userProfileController = function (UserProfile) {
       }
       await UserProfile.findOne({
         email: {
-          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
+          $regex: escapeRegex(authorizedUser), // The Authorized user's email
           $options: 'i',
         },
       }).then(async (user) => {
@@ -1152,6 +1203,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    changeUserRehireableStatus,
     authorizeUser,
   };
 };
