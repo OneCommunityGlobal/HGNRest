@@ -1771,29 +1771,32 @@ const userHelper = function () {
       const imgElements = $('img');
       const userProfiles = await userProfile.find({
         // comment out the line below for testing
-        // firstName: 'your name here',
+        firstName: 'Marcus',
         isActive: true
       });
 
       for (let profile of userProfiles) {
         const { firstName, lastName, profilePic, isActive, email } = profile;
-        if (profilePic) {
-          if (profilePic.includes('onecommunityglobal.org')) {
-            let startIndex = profilePic.indexOf('onecommunityglobal.org/');
-            // Extract from 'onecommunityglobal.org/' to the end of the string
-            let profilePicName = profilePic.substring(startIndex);
-            for (let i = 0; i < imgElements.length; i++) {
-              const imgElement = imgElements[i];
-              const imgSrc = $(imgElement).attr('src'); // Use 'src' instead of 'nitro-lazy-src'
-                if (imgSrc && imgSrc.includes(profilePicName)) {
-                  profile.profilePic = imgSrc;
-                  break;
-                }
-            }
-          }
+        // if (profilePic) {
+        //   if (profilePic.includes('onecommunityglobal.org')) {
+        //     let startIndex = profilePic.indexOf('onecommunityglobal.org/');
+        //     // Extract from 'onecommunityglobal.org/' to the end of the string
+        //     let profilePicName = profilePic.substring(startIndex);
+        //     for (let i = 0; i < imgElements.length; i++) {
+        //       const imgElement = imgElements[i];
+        //       const imgSrc = $(imgElement).attr('src'); // Use 'src' instead of 'nitro-lazy-src'
+        //         if (imgSrc && imgSrc.includes(profilePicName)) {
+        //           profile.profilePic = imgSrc;
+        //           break;
+        //         }
+        //     }
+        //   }
+        //   continue;
+        // }
+        if (profilePic || !isActive) {
           continue;
         }
-        const pictureList = [];
+        let pictureList = [];
         for (let i = 0; i < imgElements.length; i++) {
           const imgElement = imgElements[i];
           const imgAlt = $(imgElement).attr('alt');
@@ -1809,7 +1812,9 @@ const userHelper = function () {
             imgAlt.toLowerCase().includes(firstName.toLowerCase()) &&
             imgAlt.toLowerCase().includes(lastName.toLowerCase())
           ) {
+            pictureList = []
             pictureList.push(imgSrc);
+            break;
             // console.log(imgSrc)
           } else if (
             imgAlt &&
