@@ -301,21 +301,6 @@ const timeEntrycontroller = function (TimeEntry) {
               date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
               description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
             };
-            let historyInfringements = '';
-
-            historyInfringements = requestor.infringements
-              .map(
-                (item, index) =>
-                  `<p>${index + 1} Date.: ${item.date}, Description: ${item.description}</p>`,
-              )
-              .join('');
-
-            const administrativeContent = {
-              startDate: moment(requestor.createdDate).utc().format('YYYY-MM-DD'),
-              roleAdminstrative: requestor.role,
-              userTitle: `${requestor.firstName} ${requestor.lastName}`,
-              historyInfringements,
-            };
 
             emailSender(
               requestor.email,
@@ -325,7 +310,6 @@ const timeEntrycontroller = function (TimeEntry) {
                 requestor.lastName,
                 emailInfringement,
                 requestor.infringements.length,
-                administrativeContent,
               ),
             );
           }
