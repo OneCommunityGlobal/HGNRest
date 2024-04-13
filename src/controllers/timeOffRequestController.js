@@ -82,13 +82,20 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         _id: { $in: uniqueUserIdsArray },
       });
 
-      const rolesToInclude = ['Manager', 'Mentor', 'Administrator', 'Owner'];
+      const ownerAcc = await UserProfile.find({
+        role: 'Owner',
+      }).select('email').exec();
+
+      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
       const userEmails = userProfiles.map((userProfile) => {
         if (rolesToInclude.includes(userProfile.role)) {
           return userProfile.email;
         }
         return null;
-      });
+      }).filter(email => email !== null);
+
+      ownerAcc.forEach(user => userEmails.push(user.email));
+
 
       if (Array.isArray(userEmails) && userEmails.length > 0) {
         userEmails.forEach((email) => {
