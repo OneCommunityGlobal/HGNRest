@@ -1771,7 +1771,7 @@ const userHelper = function () {
       const imgElements = $('img');
       const userProfiles = await userProfile.find({
         // comment out the line below for testing
-        firstName: 'Marcus',
+        // firstName: 'Your Name Here',
         isActive: true
       });
 
