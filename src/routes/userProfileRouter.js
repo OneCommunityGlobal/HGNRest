@@ -54,6 +54,10 @@ const routes = function (userProfile) {
     .get(controller.getUserByName);
 
   userProfileRouter
+    .route('/userProfile/:userId/rehireable')
+    .patch(controller.changeUserRehireableStatus);
+
+  userProfileRouter
     .route('/userProfile/singleName/:singleName')
     .get(controller.getUserBySingleName);
 
@@ -94,6 +98,10 @@ const routes = function (userProfile) {
   userProfileRouter
     .route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
+
+  userProfileRouter
+    .route('/userProfile/authorizeUser/weeeklySummaries')
+    .post(controller.authorizeUser);
 
   return userProfileRouter;
 };
