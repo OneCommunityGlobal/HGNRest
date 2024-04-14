@@ -94,6 +94,7 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  storedPics: [{ type: String }],
   infringements: [
     {
       date: { type: String, required: true },
