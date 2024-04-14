@@ -980,7 +980,7 @@ const userHelper = function () {
           (item) => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
-          throw new Error("Badge not found");
+          throw new Error(`Failed to update badge for ${personId}. Badge not found ${badgeId.toString()}`);
         }
         // If the count is the same, do nothing
         if (recordToUpdate.count === count) {
