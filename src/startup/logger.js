@@ -66,15 +66,6 @@ exports.logException = function (error, transactionName = null, extraData = null
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.error(error);
-    Sentry.captureException(error, (scope) => {
-      if (transactionName !== null) {
-        scope.setTransactionName(transactionName);
-      }
-      if (extraData !== null) {
-        scope.setExtra('extraData', extraData);
-      }
-      return scope;
-    });
   } else {
     Sentry.captureException(error, (scope) => {
       if (transactionName !== null) {
