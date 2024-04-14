@@ -4,26 +4,25 @@ const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
 
-class CustomizedError extends Error {
-  constructor(message, cause) {
-    super(message);
-    this.cause = cause;
-  }
-}
-
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        Logger.error(error);
+        res.status(404).send(error);
+      });
   };
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        Logger.error(error, null, `teamController.getTeamById - teamId: ${teamId}`);
+        res.status(404).send(error);
+      });
   };
   const postTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'postTeam')) {
@@ -52,10 +51,16 @@ const teamcontroller = function (Team) {
           // If no team with the same name exists, save the new team
           team.save()
             .then((results) => res.send(results).status(200))
-            .catch((error) => res.send(error).status(404));
+            .catch((error) => {
+              Logger.error(error, null, 'teamController.postTeam - save team failed - teamName: ', req.body.teamName);
+              res.send(error).status(404);
+            });
         }
       })
-      .catch((error) => res.send(error).status(404));
+      .catch((error) => {
+        Logger.error(error);
+        res.send(error).status(404);
+      });
   };
   const deleteTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
@@ -74,9 +79,11 @@ const teamcontroller = function (Team) {
       Promise.all([removeteamfromprofile, deleteteam])
         .then(res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }))
         .catch((errors) => {
+          Logger.error(error, null, `teamController.deleteTeam - error deleting team - teamId: ${teamId}`);
           res.status(400).send(errors);
         });
     }).catch((error) => {
+      Logger.error(error);
       res.status(400).send(error);
     });
   };
@@ -111,7 +118,10 @@ const teamcontroller = function (Team) {
       record
         .save()
         .then((results) => res.status(200).send(results._id))
-        .catch((errors) => res.status(400).send(errors));
+        .catch((errors) => {
+          Logger.error(errors, null, req.body);
+          res.status(400).send(errors);
+        });
     });
   };
 
@@ -154,6 +164,7 @@ const teamcontroller = function (Team) {
         res.status(200).send({ result: 'Delete Success' });
       }
     } catch (error) {
+      Logger.error(error, null, req.body);
       res.status(500).send({ error });
     }
   };
@@ -187,7 +198,10 @@ const teamcontroller = function (Team) {
       },
     ])
       .then((result) => res.status(200).send(result))
-      .catch((error) => res.status(500).send(error));
+      .catch((error) => {
+        Logger.error(error, null, req.body);
+        res.status(500).send(error);
+      });
   };
 
   return {
