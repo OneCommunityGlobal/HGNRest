@@ -114,11 +114,17 @@ const userHelper = function () {
       finalParagraph = `Please complete ALL owed time this week (${timeRemaining + coreTeamExtraHour
         } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-
+    //bold description for 'not submitting a weekly summary' and logged hrs 
+    let boldedDescription = '';
+    if (infringement.description) {
+      boldedDescription = infringement.description.replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
+      boldedDescription = boldedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>')
+    }
+    //add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        <p><b>Description:</b> ${requestForTimeOffEmailBody || infringement.description}</p>
+        <p><b>Description:</b> ${requestForTimeOffEmailBody || boldedDescription}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -361,8 +367,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true},
+        '_id email weeklycommittedHours weeklySummaries missedHours',
       );
 
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -442,6 +448,7 @@ const userHelper = function () {
             break;
           }
         }
+        //use histroy Infringements to align the highlight requirements
         let historyInfringements = 'No Previous Infringements.';
         if (oldInfringements.length) {
           userProfile.findByIdAndUpdate(
@@ -454,10 +461,18 @@ const userHelper = function () {
             { new: true },
           );
           historyInfringements = oldInfringements
-            .map(
-              (item, index) =>
-                `<p>${index + 1}. Date: ${item.date}, Description: ${item.description}</p>`,
-            )
+          .map((item, index) => {
+            let enhancedDescription = item.description;
+            //highlight previous assigned reason manually
+            if (!item.description.includes('System auto-assigned infringement')) {
+              enhancedDescription = `<b>${item.description}</b>`;
+            } else {
+              //highlight not submitting a weekly summary and logged hrs
+              enhancedDescription = item.description.replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
+              enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+            }
+            return `<p>${index + 1}. Date: <b>${item.date}</b>, Description: ${enhancedDescription}</p>`;
+            })
             .join('');
         }
         // No extra hours is needed if blue squares isn't over 5.
@@ -488,8 +503,8 @@ const userHelper = function () {
           requestForTimeOffEndingDate = moment(requestForTimeOff.endingDate).format(
             'dddd YYYY-MM-DD',
           );
-          requestForTimeOffreason = `<b>${requestForTimeOff.reason}</b>`;
-          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> ${requestForTimeOffreason}`;
+          requestForTimeOffreason = requestForTimeOff.reason;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> <b>${requestForTimeOffreason}</b>`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -539,7 +554,7 @@ const userHelper = function () {
             } else {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                 2,
-              )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+              )} hours against a committed effort of s${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
                 'dddd YYYY-MM-DD',
               )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
             }
@@ -574,6 +589,7 @@ const userHelper = function () {
             userTitle: `${person.firstName} ${person.lastName}`,
             historyInfringements,
           };
+
           if (person.role === 'Core Team' && timeRemaining > 0) {
             emailBody = getInfringementEmailBody(
               status.firstName,
@@ -597,7 +613,6 @@ const userHelper = function () {
               administrativeContent,
             );
           }
-
           emailSender(
             status.email,
             'New Infringement Assigned',
@@ -872,11 +887,11 @@ const userHelper = function () {
     newInfringements.forEach((element) => {
       emailSender(
         emailAddress,
-        'New Infringement Assigned',
+        'New Infringement Assigned notify',
         getInfringementEmailBody(firstName, lastName, element, totalInfringements),
 
         null,
-        'onecommunityglobal@gmail.com',
+        'xiaoyuchen007@gmail.com',
         emailAddress,
       );
     });
