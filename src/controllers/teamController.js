@@ -2,6 +2,14 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
+const Logger = require('../startup/logger');
+
+class CustomizedError extends Error {
+  constructor(message, cause) {
+    super(message);
+    this.cause = cause;
+  }
+}
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
