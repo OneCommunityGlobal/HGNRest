@@ -471,10 +471,18 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: { $in: ['default', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
-      }).sort('-lastModifiedDateTime');
+      })
+      .populate('projectName taskName')
+      .sort('-lastModifiedDateTime');
 
       const results = await Promise.all(timeEntries.map(async (timeEntry) => {
-        timeEntry = { ...timeEntry.toObject() };
+        timeEntry = {
+          ...timeEntry.toObject(),
+          projectName: timeEntry.projectName ? timeEntry.projectName.projectName : null,
+          projectCategory: timeEntry.projectName ? timeEntry.projectName.category : null,
+          taskName: timeEntry.taskName ? timeEntry.taskName.taskName : null,
+          taskClassification: timeEntry.taskName ? timeEntry.taskName.classification : null,
+         };
         const { projectId, taskId } = timeEntry;
         if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
         const hours = Math.floor(timeEntry.totalSeconds / 3600);

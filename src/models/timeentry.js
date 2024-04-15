@@ -17,4 +17,19 @@ const TimeEntry = new Schema({
   lastModifiedDateTime: { type: Date, default: Date.now },
 });
 
+// Inlcude project name and task name by calling populate() method
+TimeEntry.virtual('projectName', {
+  ref: 'project',
+  localField: 'projectId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+TimeEntry.virtual('taskName', {
+  ref: 'task',
+  localField: 'taskId',
+  foreignField: '_id',
+  justOne: true,
+});
+
 module.exports = mongoose.model('timeEntry', TimeEntry, 'timeEntries');
