@@ -17,7 +17,7 @@ npm-debug.log*
 testem.log
 /.gitignore
 /.env
-
+.DS_Store
 
 #IDE specific
 
