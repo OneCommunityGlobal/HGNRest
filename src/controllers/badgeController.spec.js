@@ -18,6 +18,7 @@ const makeSut = () => {
   return { postBadge, getAllBadges, assignBadges, deleteBadge, putBadge };
 };
 
+// Allows us to test functions using promise chaining.
 const flushPromises = () => new Promise(setImmediate);
 
 const mockHasPermission = (value) =>
