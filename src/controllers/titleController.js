@@ -25,10 +25,21 @@ const titlecontroller = function (Title) {
       title.mediaFolder = req.body.mediaFolder;
       title.teamAssiged = req.body.teamAssiged;
 
-      
       // valid title name
       if (!title.titleName.trim()) {
         res.status(400).send({ message: 'Title cannot be empty.' });
+        return;
+      }
+
+      //  if media is empty
+      if (!title.mediaFolder.trim()) {
+        res.status(400).send({ message: 'Media folder cannot be empty.' });
+        return;
+      }
+
+      //  if project is empty
+      if (!title.projectAssigned._id) {
+        res.status(400).send({ message: 'Project cannot be empty.' });
         return;
       }
 
@@ -41,9 +52,8 @@ const titlecontroller = function (Title) {
       }
       title.shortName = shortname;
 
-
       // Validate team code by checking if it exists in the database
-      if (!title.teamCode){
+      if (!title.teamCode) {
         return res.status(400).send({ message: 'Please provide a team code.' });
       }
 
@@ -58,8 +68,6 @@ const titlecontroller = function (Title) {
         return res.status(400).send({ message: 'Project does not exist.' });
       }
 
-
-      
       title
         .save()
         .then((results) => res.status(200).send(results))
