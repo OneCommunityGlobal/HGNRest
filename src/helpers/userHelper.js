@@ -1236,6 +1236,57 @@ const userHelper = function () {
         }
       });
   };
+  // logic for getting new max personal record
+  const TangibleMaxHrsForAllWeeks = async (personId) => {
+    const userId = mongoose.Types.ObjectId(personId);
+    let weeksTangibleHours = [];
+    const currentDate = moment().tz('America/Los_Angeles');
+    const startOfYear = moment().startOf('year');
+    const numWeeks = Math.ceil((currentDate.diff(startOfYear, 'days') / 7));
+  
+    // iterate through weeks to get hours of each week
+    for (let week = 1; week <= numWeeks; week++) {
+      const pdtstart = startOfYear.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
+      const pdtend = startOfYear.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
+  
+      try {
+        const results = await dashboardHelper.laborthisweek(
+          personId,
+          pdtstart,
+          pdtend,
+        );
+  
+        const { timeSpent_hrs: timeSpent } = results[0];
+  
+        weeksTangibleHours.push(timeSpent);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  
+    // get max hours of all weeks
+    let maxHours = weeksTangibleHours[0];
+    let maxWeek = 0;
+    for (let i = 1; i < weeksTangibleHours.length; i++) {
+      if (weeksTangibleHours[i] > maxHours) {
+        maxHours = weeksTangibleHours[i];
+        maxWeek = i + 1;
+      }
+    }
+  
+    console.log(`Week with maximum hours is: ${maxWeek} with ${maxHours} hours.`);
+    console.log('Hours: ', weeksTangibleHours);
+  
+    return maxHours;
+  };
+
+  const UpdatePersonalMax = async (personId, user) => {
+    const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
+    user.personalBestMaxHrs = MaxHrs;
+    console.log('user.totaltangiblehrs: ', user.totalTangibleHrs);
+    console.log('updated personalbestmaxhrs: ', user.personalBestMaxHrs);
+    await user.save();
+  }
 
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
@@ -1637,6 +1688,8 @@ const userHelper = function () {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
+
+        await UpdatePersonalMax(personId, user);
 
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
