@@ -9,16 +9,18 @@ exports.init = function () {
     environment: process.env.NODE_ENV ? process.env.NODE_ENV : 'local',
     beforeSend(event) {
       // Modify or drop the event here
-      if (event.modules) {
-        // Don't send a list of modules with the event
-        delete event.modules;
-      }
-      if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'production' || process.env.NODE_ENV !== 'development') {
+      if (!process.env.NODE_ENV || !(process.env.NODE_ENV !== 'production' || process.env.NODE_ENV !== 'development')) {
         if (event.exception) {
           console.log('Error event: ', `Request - ${JSON.stringify(event.request)} `);
         }
         return null;
       }
+
+      if (event.modules) {
+        // Don't send a list of modules with the event
+        delete event.modules;
+      }
+
       return event;
     },
     // release: process.env.releaseVersion, // Replace with application version
