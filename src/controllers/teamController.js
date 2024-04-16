@@ -10,20 +10,22 @@ const teamcontroller = function (Team) {
       .sort({ teamName: 1 })
       .then((results) => res.status(200).send(results))
       .catch((error) => {
-        Logger.error(error);
+        Logger.logException(error);
         res.status(404).send(error);
       });
   };
+
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
       .then((results) => res.status(200).send(results))
       .catch((error) => {
-        Logger.error(error, null, `teamController.getTeamById - teamId: ${teamId}`);
+        Logger.logException(error, null, `teamId: ${teamId}`);
         res.status(404).send(error);
       });
   };
+
   const postTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'postTeam')) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
@@ -52,16 +54,17 @@ const teamcontroller = function (Team) {
           team.save()
             .then((results) => res.send(results).status(200))
             .catch((error) => {
-              Logger.error(error, null, 'teamController.postTeam - save team failed - teamName: ', req.body.teamName);
+              Logger.logException(error, null, `teamName: ${req.body.teamName}`);
               res.send(error).status(404);
             });
         }
       })
       .catch((error) => {
-        Logger.error(error);
+        Logger.logException(error, null, `teamName: ${req.body.teamName}`);
         res.send(error).status(404);
       });
   };
+
   const deleteTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
@@ -79,14 +82,15 @@ const teamcontroller = function (Team) {
       Promise.all([removeteamfromprofile, deleteteam])
         .then(res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }))
         .catch((errors) => {
-          Logger.error(error, null, `teamController.deleteTeam - error deleting team - teamId: ${teamId}`);
+          Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send(errors);
         });
     }).catch((error) => {
-      Logger.error(error);
+      Logger.logException(error, null, `teamId: ${teamId}`);
       res.status(400).send(error);
     });
   };
+
   const putTeam = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'putTeam')) {
       res.status(403).send('You are not authorized to make changes in the teams.');
@@ -119,7 +123,7 @@ const teamcontroller = function (Team) {
         .save()
         .then((results) => res.status(200).send(results._id))
         .catch((errors) => {
-          Logger.error(errors, null, req.body);
+          Logger.logException(errors, null, `TeamId: ${teamId} Request:${req.body}`);
           res.status(400).send(errors);
         });
     });
@@ -164,7 +168,7 @@ const teamcontroller = function (Team) {
         res.status(200).send({ result: 'Delete Success' });
       }
     } catch (error) {
-      Logger.error(error, null, req.body);
+      Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
       res.status(500).send({ error });
     }
   };
@@ -199,7 +203,7 @@ const teamcontroller = function (Team) {
     ])
       .then((result) => res.status(200).send(result))
       .catch((error) => {
-        Logger.error(error, null, req.body);
+        Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
         res.status(500).send(error);
       });
   };
