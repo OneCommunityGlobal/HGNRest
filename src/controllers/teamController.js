@@ -6,14 +6,13 @@ const Logger = require('../startup/logger');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
-    // Team.find({})
-    //   .sort({ teamName: 1 })
-    //   .then((results) => res.status(200).send(results))
-    //   .catch((error) => {
-    //     Logger.logException(error);
-    //     res.status(404).send(error);
-    //   });
-    Logger.logException(new Error('Test Error'), null, 'extra data (e.g. text, json, object, etc.)');
+    Team.find({})
+      .sort({ teamName: 1 })
+      .then((results) => res.status(200).send(results))
+      .catch((error) => {
+        Logger.logException(error);
+        res.status(404).send(error);
+      });
   };
 
   const getTeamById = function (req, res) {
