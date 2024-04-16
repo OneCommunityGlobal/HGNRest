@@ -37,11 +37,6 @@ const titlecontroller = function (Title) {
         return;
       }
 
-      //  if project is empty
-      if (!title.projectAssigned._id) {
-        res.status(400).send({ message: 'Project cannot be empty.' });
-        return;
-      }
 
       const shortnames = title.titleName.split(' ');
       let shortname;
@@ -54,18 +49,27 @@ const titlecontroller = function (Title) {
 
       // Validate team code by checking if it exists in the database
       if (!title.teamCode) {
-        return res.status(400).send({ message: 'Please provide a team code.' });
+        res.status(400).send({ message: 'Please provide a team code.' });
+        return
       }
 
       const teamCodeExists = await checkTeamCodeExists(title.teamCode);
       if (!teamCodeExists) {
-        return res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
+        res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
+        return 
       }
 
       // validate if project exist
       const projectExist = await checkProjectExists(title.projectAssigned._id);
       if (!projectExist) {
-        return res.status(400).send({ message: 'Project does not exist.' });
+        res.status(400).send({ message: 'Project is empty or not exist.'});
+        return 
+      }
+
+      // validate if team exist
+      if(title.teamAssiged && title.teamAssiged._id === "N/A"){
+        res.status(400).send({ message: 'Team not exists.' });
+        return;
       }
 
       title
