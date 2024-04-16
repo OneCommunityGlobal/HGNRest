@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const Sentry = require('@sentry/node');
 const { extraErrorDataIntegration } = require('@sentry/integrations');
 
@@ -24,7 +25,7 @@ exports.init = function () {
     integrations: [
       // Default Integrations
       // Sentry.httpIntegration({
-      //   tracing: true, // defaults to false
+      //   tracing: true, // defaults to false.
       // }),
       // Sentry.localVariablesIntegration({
       //   captureAllExceptions: true,
@@ -66,7 +67,7 @@ exports.logInfo = function (message) {
  *
  * @param {Error} error error object to be logged to Sentry
  * @param {String} transactionName name assigned to a transaction
- * @param {*} extraData any extra data to be logged to Sentry
+ * @param {*} extraData any extra data to be logged to Sentry (e.g. request body, params, message, etc.)
  */
 exports.logException = function (error, transactionName = null, extraData = null) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
