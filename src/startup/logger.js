@@ -14,7 +14,7 @@ exports.init = function () {
       }
       if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'production' || process.env.NODE_ENV !== 'development') {
         if (event.exception) {
-          console.log('Error event not sent to Sentry: ', `Request - ${JSON.stringify(event.request)} `);
+          console.log('Error event: ', `Request - ${JSON.stringify(event.request)} `);
         }
         return null;
       }
@@ -72,6 +72,7 @@ exports.logException = function (error, transactionName = null, extraData = null
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.error(error);
+    console.info(`Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`);
   } else {
     Sentry.captureException(error, (scope) => {
       if (transactionName !== null) {
