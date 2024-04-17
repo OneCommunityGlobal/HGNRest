@@ -15,6 +15,7 @@ const makeSut = () => {
 };
 
 const assertResMock = (statusCode, message, response) => {
+  console.log('message', message);
   expect(mockRes.status).toHaveBeenCalledWith(statusCode);
   expect(mockRes.send).toHaveBeenCalledWith(message);
   expect(response).toBeUndefined();
@@ -75,7 +76,7 @@ describe('warnings controller module', () => {
   });
 
   describe.only('post warnings to user profile method', () => {
-    test.only('Ensure postWarningsToUserProfile returns error 400 if the user profile doesnt exist', async () => {
+    test('Ensure postWarningsToUserProfile returns error 400 if the user profile doesnt exist', async () => {
       const { postWarningsToUserProfile } = makeSut();
       const errorMessage = 'No valid records found';
       jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(null));
@@ -115,47 +116,56 @@ describe('warnings controller module', () => {
       const res = await postWarningsToUserProfile(mockReq, mockRes);
       assertResMock(400, { message: errorMessage }, res);
     });
-    test('Ensure postWarningsToUserProfile Returns a 201 if the warnings are saved successfully', async () => {
+    test.only('Ensure postWarningsToUserProfile Returns a 201 if the warnings are saved successfully', async () => {
       const { postWarningsToUserProfile } = makeSut();
       const successMessage = 'success';
-      // const newWarning = {
-      //   date: new Date().toISOString(),
-      //   description: 'Intangible Time Log w/o Reason',
-      //   color: 'red',
-      //   userId: '5a7e21f00317bc1538def4b7',
-      //   iconId: mockReq.body.iconId,
-      // };
+
+      mockReq.body.iconId = '39452633-40ff-4fba-a648-d24b2a48af03';
+      mockReq.body.userId = '5a7e21f00317bc1538def4b7';
+      mockReq.body.color = 'red';
+      mockReq.body.date = new Date().toISOString();
+      mockReq.body.description = 'Intangible Time Log w/o Reason';
+
+      const newWarning = {
+        date: new Date().toISOString(),
+        description: 'Intangible Time Log w/o Reason',
+        color: 'red',
+        userId: '5a7e21f00317bc1538def4b7',
+        iconId: '39452633-40ff-4fba-a648-d24b2a48af03',
+      };
 
       const profile = {
-        warnings: [
-          {
-            title: 'Better Descriptions',
-            warnings: [],
-          },
-          {
-            title: 'Log Time to Tasks',
-            warnings: [],
-          },
-          {
-            title: 'Log Time as You Go',
-            warnings: [],
-          },
-          {
-            title: 'Log Time to Action Items',
-            warnings: [],
-          },
-          {
-            title: 'Intangible Time Log w/o Reason',
-            warnings: [],
-          },
-        ],
+        warnings: [],
         save: () => {},
+        filterWarnings: () => {},
       };
 
       jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(profile));
-      jest.spyOn(profile, 'save').mockImplementationOnce(() => Promise.resolve());
+      jest.spyOn(profile, 'save').mockImplementationOnce(() => Promise.resolve(true));
+
+      // profile.warnings = [
+      //   { title: 'Better Descriptions', warnings: [] },
+      //   { title: 'Log Time to Tasks', warnings: [] },
+      //   { title: 'Log Time as You Go', warnings: [] },
+      //   { title: 'Log Time to Action Items', warnings: [] },
+      //   { title: 'Intangible Time Log w/o Reason', warnings: [newWarning] },
+      // ];
+
       const res = await postWarningsToUserProfile(mockReq, mockRes);
-      assertResMock(201, { message: successMessage, warnings: profile.warnings }, res);
+      assertResMock(
+        201,
+        {
+          message: successMessage,
+          warnings: [
+            { title: 'Better Descriptions', warnings: [] },
+            { title: 'Log Time to Tasks', warnings: [] },
+            { title: 'Log Time as You Go', warnings: [] },
+            { title: 'Log Time to Action Items', warnings: [] },
+            { title: 'Intangible Time Log w/o Reason', warnings: [newWarning] },
+          ],
+        },
+        res,
+      );
     });
   });
 
