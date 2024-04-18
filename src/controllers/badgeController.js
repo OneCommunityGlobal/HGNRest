@@ -43,7 +43,6 @@ const badgeController = function (Badge) {
       .catch((error) => res.status(500).send(error));
   };
   const testCheckXHours = async function (req, res) {
-    console.log("entered");
     await userHelper.awardNewBadges();
     res.status(200).send("Badges tested");
   };
