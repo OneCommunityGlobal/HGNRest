@@ -48,7 +48,7 @@ const wbsController = function (WBS) {
 
   const deleteWBS = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'deleteWbs'))) {
-      res.status(403).send({ error: 'You are  not authorized to delete projects.' });
+      res.status(403).send({ error: 'You are not authorized to delete projects.' });
       return;
     }
     const { id } = req.params;
@@ -65,9 +65,10 @@ const wbsController = function (WBS) {
         .catch((errors) => {
           res.status(400).send(errors);
         });
-    }).catch((errors) => {
-      res.status(400).send(errors);
     });
+    // .catch((errors) => {
+    //   res.status(400).send(errors);
+    // });
   };
 
   const getWBS = function (req, res) {
