@@ -7,9 +7,9 @@ const helper = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
-  const { getAllWBS, postWBS } = wbsController(WBS);
+  const { getAllWBS, postWBS, deleteWBS } = wbsController(WBS);
 
-  return { getAllWBS, postWBS };
+  return { getAllWBS, postWBS, deleteWBS };
 };
 
 const flushPromises = async () => new Promise(setImmediate);
@@ -22,6 +22,7 @@ describe('Wbs Controller', () => {
     mockReq.params.projectId = '6237f9af9820a0134ca79c5d';
     mockReq.body.wbsName = 'New WBS';
     mockReq.body.isActive = true;
+    mockReq.params.id = '6237f9af9820a0134ca79c5c';
   });
 
   afterEach(() => {
@@ -129,6 +130,76 @@ describe('Wbs Controller', () => {
 
       assertResMock(201, { _id: '123random' }, response, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postWbs');
+    });
+  });
+
+  describe('deleteWBS method', () => {
+    test('Returns 403 if the user does not have permission', async () => {
+      const { deleteWBS } = makeSut();
+      const hasPermissionSpy = mockHasPermission(false);
+
+      const response = await deleteWBS(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(
+        403,
+        { error: 'You are not authorized to delete projects.' },
+        response,
+        mockRes,
+      );
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteWbs');
+    });
+
+    test('Returns 400 if and error occurs when querying DB', async () => {
+      const { deleteWBS } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const findByIdSpy = jest
+        .spyOn(WBS, 'findById')
+        .mockImplementationOnce((_, cb) => cb(true, null));
+
+      const response = await deleteWBS(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, { error: 'No valid records found' }, response, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteWbs');
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id, expect.anything());
+    });
+
+    test('returns 400 if an error occurs when removing the WBS', async () => {
+      const { deleteWBS } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const record = { _id: 'randomId', remove: () => {} };
+      const err = 'Remove failed';
+
+      const findByIdSpy = jest
+        .spyOn(WBS, 'findById')
+        .mockImplementationOnce((_, cb) => cb(false, record));
+      jest.spyOn(record, 'remove').mockRejectedValueOnce(new Error(err));
+
+      const response = await deleteWBS(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, new Error(err), response, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteWbs');
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id, expect.anything());
+    });
+
+    test('Returns 201 if all is successful', async () => {
+      const { deleteWBS } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const record = { _id: 'randomId', remove: () => {} };
+
+      const findByIdSpy = jest
+        .spyOn(WBS, 'findById')
+        .mockImplementationOnce((_, cb) => cb(false, record));
+      jest.spyOn(record, 'remove').mockResolvedValueOnce(true);
+
+      const response = await deleteWBS(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, { message: ' WBS successfully deleted' }, response, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteWbs');
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id, expect.anything());
     });
   });
 });
