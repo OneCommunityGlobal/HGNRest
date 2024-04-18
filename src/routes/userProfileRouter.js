@@ -95,6 +95,10 @@ const routes = function (userProfile) {
     .route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
 
+  userProfileRouter
+    .route('/userProfile/authorizeUser/weeeklySummaries')
+    .post(controller.authorizeUser);
+
   return userProfileRouter;
 };
 
