@@ -1645,7 +1645,7 @@ const userHelper = function () {
   const awardNewBadges = async () => {
     try {
       const users = await userProfile
-        .find({ email: "renanluiztest@gmail.com" })
+        .find({ isActive: true })
         .populate("badgeCollection.badge");
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
