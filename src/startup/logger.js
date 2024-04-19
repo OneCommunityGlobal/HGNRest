@@ -55,9 +55,7 @@ exports.init = function () {
     // debug: true,
   });
 
-  Sentry.configureScope((scope) => {
-    scope.setTag('application_name', 'hgn-backend');
-  });
+  Sentry.setTag('app_name', 'hgn-backend');
 };
 
 exports.logInfo = function (message) {
