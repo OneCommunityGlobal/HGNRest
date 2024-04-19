@@ -54,6 +54,10 @@ exports.init = function () {
     // tracesSampleRate: 1.0, // 1.0 means 100% of transactions will be sent to Sentry
     // debug: true,
   });
+
+  Sentry.configureScope((scope) => {
+    scope.setTag('application_name', 'hgn-backend');
+  });
 };
 
 exports.logInfo = function (message) {
