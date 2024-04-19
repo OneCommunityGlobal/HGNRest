@@ -1,15 +1,15 @@
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 // const Project = require('../models/project');
-// const Task = require('../models/task');
+const Task = require('../models/task');
 const WBS = require('../models/wbs');
 const wbsController = require('./wbsController');
 const helper = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
-  const { getAllWBS, postWBS, deleteWBS, getWBS } = wbsController(WBS);
+  const { getAllWBS, postWBS, deleteWBS, getWBS, getWBSByUserId } = wbsController(WBS);
 
-  return { getAllWBS, postWBS, deleteWBS, getWBS };
+  return { getAllWBS, postWBS, deleteWBS, getWBS, getWBSByUserId };
 };
 
 const flushPromises = async () => new Promise(setImmediate);
@@ -226,6 +226,54 @@ describe('Wbs Controller', () => {
 
       assertResMock(200, wbs, response, mockRes);
       expect(findSpy).toHaveBeenCalledWith();
+    });
+  });
+
+  describe('getWBSByUserId method', () => {
+    test('Returns 404 if an error occurs in the aggregation query', async () => {
+      const { getWBSByUserId } = makeSut();
+
+      const aggregateObj = { match: () => {} };
+      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockReturnValueOnce(aggregateObj);
+
+      const matchObj = { project: () => {} };
+      const matchSpy = jest.spyOn(aggregateObj, 'match').mockReturnValueOnce(matchObj);
+
+      const projectObj = { group: () => {} };
+      const projectSpy = jest.spyOn(matchObj, 'project').mockReturnValueOnce(projectObj);
+
+      const groupObj = { lookup: () => {} };
+      const groupSpy = jest.spyOn(projectObj, 'group').mockReturnValueOnce(groupObj);
+
+      const lookupObj = { unwind: () => {} };
+      const lookupSpy = jest.spyOn(groupObj, 'lookup').mockReturnValueOnce(lookupObj);
+
+      const unwindObj = { replaceRoot: () => {} };
+      const unwindSpy = jest.spyOn(lookupObj, 'unwind').mockReturnValueOnce(unwindObj);
+
+      const err = 'Error';
+      const replaceRootSpy = jest
+        .spyOn(unwindObj, 'replaceRoot')
+        .mockRejectedValueOnce(new Error(err));
+
+      const response = await getWBSByUserId(mockReq, mockRes);
+
+      assertResMock(404, new Error(err), response, mockRes);
+
+      expect(aggregateSpy).toHaveBeenCalledWith();
+      expect(matchSpy).toHaveBeenCalledWith({
+        'resources.userID': mongoose.Types.ObjectId(mockReq.params.userId),
+      });
+      expect(projectSpy).toHaveBeenCalledWith('wbsId -_id');
+      expect(groupSpy).toHaveBeenCalledWith({ _id: '$wbsId' });
+      expect(lookupSpy).toHaveBeenCalledWith({
+        from: 'wbs',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'wbs',
+      });
+      expect(unwindSpy).toHaveBeenCalledWith('wbs');
+      expect(replaceRootSpy).toHaveBeenCalledWith('wbs');
     });
   });
 });
