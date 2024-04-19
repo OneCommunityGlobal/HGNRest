@@ -28,6 +28,9 @@ const route = function () {
   Dashboardrouter.route('/dashboard/leaderboard/org/data')
     .get(controller.orgData);
 
+  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId/:trophyFollowedUp')
+    .post(controller.postTrophyIcon);
+
   Dashboardrouter.route('/dashboard/suggestionoption/:userId')
     .get(controller.getSuggestionOption);
 

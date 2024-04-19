@@ -214,6 +214,7 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   teamCode: {
     type: String,

@@ -1,3 +1,6 @@
+import userProfile from 'models/userProfile';
+import actionItem from 'models/actionItem';
+
 /* eslint-disable quotes */
 const path = require("path");
 const fs = require("fs/promises");
@@ -136,6 +139,24 @@ const dashboardcontroller = function () {
       .catch((error) => res.status(400).send(error));
   };
 
+  const postTrophyIcon = function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    userProfile.findById(userId, (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+      record.trophyFollowedUp = req.params.trophyFollowedUp;
+
+      record.save()
+        .then((results) => {
+          res.status(200).send(results);
+        })
+        .catch((error) => res.status(404).send(error));
+    });
+  };
+
   const orgData = function (req, res) {
     const fullOrgData = dashboardhelper.getOrgData();
 
@@ -243,7 +264,7 @@ const dashboardcontroller = function () {
     }
     </b>:
     <br>
-    <br> 
+    <br>
     <b> &#9913; Suggestion Category:</b>
     <p>${args[0]}</p>
     <b> &#9913; Suggestion:</b>
@@ -345,6 +366,7 @@ const dashboardcontroller = function () {
     sendMakeSuggestion,
     updateCopiedPrompt,
     getPromptCopiedDate,
+    postTrophyIcon,
   };
 };
 
