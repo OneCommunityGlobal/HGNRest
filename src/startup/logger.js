@@ -55,6 +55,7 @@ exports.init = function () {
     // debug: true,
   });
 
+  // Custom tags
   Sentry.setTag('app_name', 'hgn-backend');
 };
 
@@ -70,8 +71,8 @@ exports.logInfo = function (message) {
 /**
  *
  * @param {Error} error error object to be logged to Sentry
- * @param {String} transactionName name assigned to a transaction
- * @param {*} extraData any extra data to be logged to Sentry (e.g. request body, params, message, etc.)
+ * @param {String} transactionName (Optional) name assigned to a transaction. Seachable in Sentry (e.g. error in Function/Service/Operation/Job name)
+ * @param {*} extraData (Optional) extra data to be logged to Sentry (e.g. request body, params, message, etc.)
  */
 exports.logException = function (error, transactionName = null, extraData = null) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
