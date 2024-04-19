@@ -7,9 +7,9 @@ const helper = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
-  const { getAllWBS, postWBS, deleteWBS } = wbsController(WBS);
+  const { getAllWBS, postWBS, deleteWBS, getWBS } = wbsController(WBS);
 
-  return { getAllWBS, postWBS, deleteWBS };
+  return { getAllWBS, postWBS, deleteWBS, getWBS };
 };
 
 const flushPromises = async () => new Promise(setImmediate);
@@ -200,6 +200,32 @@ describe('Wbs Controller', () => {
       assertResMock(200, { message: ' WBS successfully deleted' }, response, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteWbs');
       expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id, expect.anything());
+    });
+  });
+
+  describe('getWBS method', () => {
+    test('Returns 500 if any errors occur when finding all WBS', async () => {
+      const { getWBS } = makeSut();
+      const err = 'Error when finding';
+      const findSpy = jest.spyOn(WBS, 'find').mockRejectedValueOnce(new Error(err));
+
+      const response = getWBS(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(500, { error: new Error(err) }, response, mockRes);
+      expect(findSpy).toHaveBeenCalledWith();
+    });
+
+    test('Returns 200 if all is successful', async () => {
+      const { getWBS } = makeSut();
+      const wbs = [{ _id: 'randomId' }];
+      const findSpy = jest.spyOn(WBS, 'find').mockResolvedValueOnce(wbs);
+
+      const response = getWBS(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, wbs, response, mockRes);
+      expect(findSpy).toHaveBeenCalledWith();
     });
   });
 });
