@@ -275,5 +275,49 @@ describe('Wbs Controller', () => {
       expect(unwindSpy).toHaveBeenCalledWith('wbs');
       expect(replaceRootSpy).toHaveBeenCalledWith('wbs');
     });
+
+    test('Returns 200 if all is successful', async () => {
+      const { getWBSByUserId } = makeSut();
+
+      const aggregateObj = { match: () => {} };
+      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockReturnValueOnce(aggregateObj);
+
+      const matchObj = { project: () => {} };
+      const matchSpy = jest.spyOn(aggregateObj, 'match').mockReturnValueOnce(matchObj);
+
+      const projectObj = { group: () => {} };
+      const projectSpy = jest.spyOn(matchObj, 'project').mockReturnValueOnce(projectObj);
+
+      const groupObj = { lookup: () => {} };
+      const groupSpy = jest.spyOn(projectObj, 'group').mockReturnValueOnce(groupObj);
+
+      const lookupObj = { unwind: () => {} };
+      const lookupSpy = jest.spyOn(groupObj, 'lookup').mockReturnValueOnce(lookupObj);
+
+      const unwindObj = { replaceRoot: () => {} };
+      const unwindSpy = jest.spyOn(lookupObj, 'unwind').mockReturnValueOnce(unwindObj);
+
+      const result = [{ _id: 'randomid' }];
+      const replaceRootSpy = jest.spyOn(unwindObj, 'replaceRoot').mockResolvedValueOnce(result);
+
+      const response = await getWBSByUserId(mockReq, mockRes);
+
+      assertResMock(200, result, response, mockRes);
+
+      expect(aggregateSpy).toHaveBeenCalledWith();
+      expect(matchSpy).toHaveBeenCalledWith({
+        'resources.userID': mongoose.Types.ObjectId(mockReq.params.userId),
+      });
+      expect(projectSpy).toHaveBeenCalledWith('wbsId -_id');
+      expect(groupSpy).toHaveBeenCalledWith({ _id: '$wbsId' });
+      expect(lookupSpy).toHaveBeenCalledWith({
+        from: 'wbs',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'wbs',
+      });
+      expect(unwindSpy).toHaveBeenCalledWith('wbs');
+      expect(replaceRootSpy).toHaveBeenCalledWith('wbs');
+    });
   });
 });
