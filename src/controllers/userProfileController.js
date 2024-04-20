@@ -13,6 +13,7 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cache = require('../utilities/nodeCache')();
+const followUp = require('../models/followUp');
 
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
@@ -631,13 +632,16 @@ const userProfileController = function (UserProfile) {
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
 
-    await UserProfile.deleteOne({
-      _id: userId,
-    }).then(() => {
+    try{
+
+      await UserProfile.deleteOne({_id: userId})
+      // delete followUp for deleted user
+      await followUp.findOneAndDelete({ userId })  
       res.status(200).send({ message: 'Executed Successfully' });
-    }).catch((err) => {
+      
+    }catch (err){
       res.status(500).send(err);
-    });
+    }
   };
 
   const getUserById = function (req, res) {
