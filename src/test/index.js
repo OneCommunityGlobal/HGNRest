@@ -10,14 +10,14 @@ const createActionItem = require('./db/createActionItem');
 const createRole = require('./db/createRole');
 
 module.exports = {
-    mockReq,
-    mockRes,
-    mockUser,
-    mongoHelper,
-    createTestPermissions,
-    createUser,
-    assertResMock,
-    jwtPayload,
-    createActionItem,
-    createRole,
+  mockReq,
+  mockRes,
+  mockUser,
+  mongoHelper,
+  createTestPermissions,
+  createUser,
+  assertResMock,
+  jwtPayload,
+  createActionItem,
+  createRole,
 };
