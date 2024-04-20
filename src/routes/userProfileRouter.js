@@ -1,5 +1,4 @@
-// eslint-disable-next-line import/no-import-module-exports
-import { body } from 'express-validator';
+const { body } = require('express-validator');
 
 const express = require('express');
 
