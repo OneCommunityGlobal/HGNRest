@@ -14,8 +14,8 @@ Cross Mark: ❌
 1. ✅ Returns error 400 if there is no email or password
 2. ✅ Returns error 403 if there is no user
 3. ✅ Returns error 403 if the user exists but is not active
-4. ❌ Returns error 403 if the password is not a match and if the user already exists
+4. ✅ Returns error 403 if the password is not a match and if the user already exists - in progress
 
 ## Edge case
 
-1. ❌ Returns the error if the try block fails 
+1. ✅ Returns the error if the try block fails - in progress
