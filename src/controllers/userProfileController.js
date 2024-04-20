@@ -13,6 +13,7 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
+const followUp = require('../models/followUp');
 
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
@@ -584,6 +585,14 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+
+    if (userId === req.body.requestor) {
+      res.status(403).send({
+        error: 'You cannot delete your own account',
+      });
+      return;
+    }
+
     const user = await UserProfile.findById(userId);
 
     if (!user) {
@@ -631,13 +640,16 @@ const userProfileController = function (UserProfile) {
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
 
-    await UserProfile.deleteOne({
-      _id: userId,
-    }).then(() => {
+    try {
+
+      await UserProfile.deleteOne({ _id: userId })
+      // delete followUp for deleted user
+      await followUp.findOneAndDelete({ userId })
       res.status(200).send({ message: 'Executed Successfully' });
-    }).catch((err) => {
+
+    } catch (err) {
       res.status(500).send(err);
-    });
+    }
   };
 
   const getUserById = function (req, res) {
@@ -933,9 +945,58 @@ const userProfileController = function (UserProfile) {
       });
   };
 
+
+  const changeUserRehireableStatus = async function (req, res) {
+    const { userId } = req.params;
+    const { isRehireable } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({ error: 'Bad Request' });
+    }
+    if (!(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))) {
+      return res.status(403).send('You are not authorized to change rehireable status');
+    }
+
+    // Invalidate the cache for this user
+    cache.removeCache(`user-${userId}`);
+
+    UserProfile.findByIdAndUpdate(
+      userId,
+      { $set: { isRehireable } },
+      { new: true },
+      (error, updatedUser) => {
+        if (error) {
+          return res.status(500).send(error);
+        }
+        // Check if there's a cache for all users and update it accordingly
+        const isUserInCache = cache.hasCache('allusers');
+        if (isUserInCache) {
+          const allUserData = JSON.parse(cache.getCache('allusers'));
+          const userIdx = allUserData.findIndex((users) => users._id === userId);
+          const userData = allUserData[userIdx];
+          userData.isRehireable = isRehireable;
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+
+        // Optionally, re-fetch the user to verify the updated data
+        UserProfile.findById(userId, (err, verifiedUser) => {
+          if (err) {
+            return res.status(500).send('Error fetching updated user data.');
+          }
+          res.status(200).send({
+            message: 'Rehireable status updated and verified successfully',
+            isRehireable: verifiedUser.isRehireable,
+          });
+        });
+      },
+    );
+  };
+
   const resetPassword = async function (req, res) {
     try {
       ValidatePassword(req);
+
 
       const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
 
@@ -1146,6 +1207,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    changeUserRehireableStatus,
     authorizeUser,
   };
 };
