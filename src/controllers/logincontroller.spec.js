@@ -11,7 +11,7 @@ const makeSut = () => {
   };
 };
 
-describe('logincontroller module', () => {
+describe.only('logincontroller module', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -87,7 +87,7 @@ describe('logincontroller module', () => {
       );
     });
 
-    test('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
+    test.only('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
@@ -99,17 +99,9 @@ describe('logincontroller module', () => {
         },
       };
 
-      const mockUserModified = {
-        ...mockUser,
-        ...{
-          isActive: true,
-          resetPwd: '',
-        },
-      };
-
       const findOneSpy = jest
         .spyOn(userProfile, 'findOne')
-        .mockImplementation(() => Promise.resolve(mockUserModified));
+        .mockImplementation(() => Promise.resolve(mockUser));
 
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
 
@@ -126,22 +118,41 @@ describe('logincontroller module', () => {
       );
     });
 
-    // test('Ensure login returns the error if the try block fails', async()=>{
-    //   const { login } = makeSut();
-    //   const err = 'Database query error';
-    //   const mockReqModified = {
-    //     ...mockReq,
-    //     ...{
-    //       body: {
-    //         email: 'example@test.com',
-    //         password: 'exampletest',
-    //       },
-    //     },
-    //   };
+    test.only('Ensure login returns the error if the try block fails', async () => {
+      const { login } = makeSut();
+      const error = new Error('Try block failed');
+      const mockReqModified = {
+        ...mockReq,
+        ...{
+          body: {
+            email: 'example@test.com',
+            password: 'exampletest',
+          },
+        },
+      };
 
-    //   const res = await login(mockReqModified, mockRes);
-    //   assertResMock(403, { message: 'Database query error' }, res, mockRes);
-    // });
+      jest.spyOn(userProfile, 'findOne').mockImplementation(() => Promise.reject(error));
+
+      await login(mockReqModified, mockRes);
+      expect(mockRes.json).toHaveBeenCalledWith(error);
+    });
+
+    test('Ensure login returns 200, if the user is a new user and there is a password match', async () => {
+      const { login } = makeSut();
+      const mockReqModified = {
+        ...mockReq,
+        ...{
+          body: {
+            email: 'example@test.com',
+            password: 'SuperSecretPassword@',
+          },
+        },
+      };
+      jest.spyOn(userProfile, 'findOne').mockImplementation(() => Promise.resolve(null));
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+      const res = await login(mockReqModified, mockRes);
+      assertResMock(200, { new: true, userId: 'someUserId' }, res, mockRes);
+    });
   });
 
   describe('getUser', () => {
