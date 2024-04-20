@@ -46,6 +46,7 @@ const permissionsRoles = [
       'putUserProfile',
       'putUserProfileImportantInfo',
       'changeUserStatus',
+      'changeUserRehireableStatus',
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
@@ -224,6 +225,8 @@ const permissionsRoles = [
       'seeQSC',
       'addNewTitle',
       'assignTitle',
+      'changeUserRehireableStatus',
+
     ],
   },
 ];
