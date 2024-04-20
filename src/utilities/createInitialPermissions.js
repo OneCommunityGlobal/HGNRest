@@ -50,6 +50,7 @@ const permissionsRoles = [
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'toggleInvisibility',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -218,6 +219,7 @@ const permissionsRoles = [
       'editTeamCode',
       'totalValidWeeklySummaries',
       'changeUserRehireableStatus',
+      'toggleInvisibility',
     ],
   },
 ];
@@ -248,8 +250,10 @@ const createInitialPermissions = async () => {
         role.permissions = permissions;
         role.save();
 
-      // If role exists in db and does not have every permission, add the missing permissions
-      } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
+        // If role exists in db and does not have every permission, add the missing permissions
+      } else if (
+        !permissions.every((perm) => roleDataBase.permissions.includes(perm))
+      ) {
         const roleId = roleDataBase._id;
 
         promises.push(
@@ -267,7 +271,9 @@ const createInitialPermissions = async () => {
 
     // Update Default presets
 
-    const presetDataBase = allPresets.find((preset) => preset.roleName === roleName && preset.presetName === 'default');
+    const presetDataBase = allPresets.find(
+      (preset) => preset.roleName === roleName && preset.presetName === 'default',
+    );
 
     // If role does not exist in db, create it
     if (!presetDataBase) {
@@ -277,8 +283,11 @@ const createInitialPermissions = async () => {
       defaultPreset.permissions = permissions;
       defaultPreset.save();
 
-    // If role exists in db and is not updated, update default
-    } else if (!presetDataBase.permissions.every((perm) => permissions.includes(perm)) || !permissions.every((perm) => presetDataBase.permissions.includes(perm))) {
+      // If role exists in db and is not updated, update default
+    } else if (
+      !presetDataBase.permissions.every((perm) => permissions.includes(perm))
+      || !permissions.every((perm) => presetDataBase.permissions.includes(perm))
+    ) {
       const presetId = presetDataBase._id;
 
       promises.push(

@@ -189,7 +189,7 @@ const userHelper = function () {
           : "Not provided!";
 
         const googleDocLinkValue = adminLinks?.length > 0
-          ? adminLinks.find(link => link.Name === 'Google Doc' && link.Link)
+          ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
           : null;
 
         const googleDocLink = googleDocLinkValue

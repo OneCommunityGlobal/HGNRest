@@ -30,10 +30,10 @@ const bmConsumableController = function (BuildingConsumable) {
           },
         ])
         .exec()
-        .then(result => {
+        .then((result) => {
           res.status(200).send(result);
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -45,7 +45,7 @@ const bmConsumableController = function (BuildingConsumable) {
       consumableId,
       quantity,
       priority,
-      brand : brandPref,
+      brand: brandPref,
       requestor: { requestorId },
     } = req.body;
     const newPurchaseRecord = {
@@ -65,7 +65,7 @@ const bmConsumableController = function (BuildingConsumable) {
         BuildingConsumable
           .create(newDoc)
           .then(() => res.status(201).send())
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
         return;
       }
       BuildingConsumable
@@ -75,7 +75,7 @@ const bmConsumableController = function (BuildingConsumable) {
         )
         .exec()
         .then(() => res.status(201).send())
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
       } catch (error) {
       res.status(500).send(error);
     }
