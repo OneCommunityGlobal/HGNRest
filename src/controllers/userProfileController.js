@@ -632,17 +632,16 @@ const userProfileController = function (UserProfile) {
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
 
-    await UserProfile.deleteOne({
-      _id: userId,
-    }).then(() => {
-  
-    // delete followUp for deleted user
-    await followUp.findOneAndDelete({ userId })  
+    try{
 
-    res.status(200).send({ message: 'Executed Successfully' });
-    }).catch((err) => {
+      await UserProfile.deleteOne({_id: userId})
+      // delete followUp for deleted user
+      await followUp.findOneAndDelete({ userId })  
+      res.status(200).send({ message: 'Executed Successfully' });
+      
+    }catch (err){
       res.status(500).send(err);
-    });
+    }
   };
 
   const getUserById = function (req, res) {
