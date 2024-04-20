@@ -67,7 +67,7 @@ const closure = () => {
       if (typeof acknowledgingReceipt === 'function') {
         acknowledgingReceipt(error, null);
       }
-      logger.logException(error);
+      logger.logException(error, `Error sending email: from ${CLIENT_EMAIL} to ${recipient}`, `Extra Data: cc ${cc} bcc ${bcc} subject ${subject}`);
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
