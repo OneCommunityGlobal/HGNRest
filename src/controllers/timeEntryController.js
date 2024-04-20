@@ -69,7 +69,6 @@ const notifyEditByEmail = async (
   originalDateOfWork = null,
   finalDateOfWork = null,
 ) => {
-  console.log(requstorId);
   try {
     const requestor =
       requstorId === userprofile._id.toString()
@@ -257,7 +256,7 @@ const updateUserprofileCategoryHrs = async (
  * @param {*} userprofile The userprofile object
  * @returns {Void}
  */
-const updateUserprofileTangibleIntangibleHrs = async (
+const updateUserprofileTangibleIntangibleHrs = (
   tangibleSecondsChanged,
   intangibleSecondsChanged,
   userprofile,
@@ -731,7 +730,6 @@ const timeEntrycontroller = function (TimeEntry) {
       // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
       removeOutdatedUserprofileCache(userprofile._id.toString());
 
-      console.log(userprofile.totalTangibleHrs);
       pendingEmailCollection.forEach((emailHandler) => emailHandler());
       await session.commitTransaction();
       return res.status(200).send(timeEntry);
@@ -766,7 +764,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const { personId, totalSeconds, dateOfWork, projectId, taskId, isTangible } = timeEntry;
 
-      const isForAuthUser = personId === req.body.requestor.requestorId;
+      const isForAuthUser = personId.toString() === req.body.requestor.requestorId;
       const isSameDayTimeEntry =
         moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === dateOfWork;
       const isSameDayAuthUserDelete = isForAuthUser && isSameDayTimeEntry;
@@ -777,7 +775,6 @@ const timeEntrycontroller = function (TimeEntry) {
       );
       const canDelete =
         isSameDayAuthUserDelete || isRequestorAdminLikeRole || hasDeleteTimeEntryPermission;
-
       if (!canDelete) {
         res.status(403).send({ error: 'Unauthorized request' });
         return;
