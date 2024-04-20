@@ -368,7 +368,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true},
-        '_id email weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -465,13 +465,13 @@ const userHelper = function () {
             let enhancedDescription = item.description;
             //highlight previous assigned reason manually
             if (!item.description.includes('System auto-assigned infringement')) {
-              enhancedDescription = `<b>${item.description}</b>`;
+              enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
             } else {
               //highlight not submitting a weekly summary and logged hrs
-              enhancedDescription = item.description.replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
-              enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+              enhancedDescription = item.description.replace(/(not submitting a weekly summary)/gi, '<b><span style="color: blue;">$1</span></b>');
+              enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b><span style="color: blue;"$1 hours</span></b>');
             }
-            return `<p>${index + 1}. Date: <b>${item.date}</b>, Description: ${enhancedDescription}</p>`;
+            return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
             })
             .join('');
         }
