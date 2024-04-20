@@ -259,12 +259,16 @@ const userProfileController = function (UserProfile) {
     up.isVisible = !['Mentor'].includes(req.body.role);
 
     try {
-
-      const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+        .select('firstName lastName email role')
+        .exec();
 
       await up.save().then(() => {
         // if connected to dev db just check for Owner roles, else it's main branch so also check admin too
-        const condition = process.env.dbName === 'hgnData_dev' ? (up.role === 'Owner') : (up.role === 'Owner' || up.role === 'Administrator');
+        const condition =
+          process.env.dbName === 'hgnData_dev'
+            ? up.role === 'Owner'
+            : up.role === 'Owner' || up.role === 'Administrator';
         if (condition) {
           const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}New ${up.role} Role Created`;
 
@@ -317,7 +321,6 @@ const userProfileController = function (UserProfile) {
       res.status(200).send({
         _id: up._id,
       });
-
     } catch (error) {
       res.status(501).send(error);
     }
@@ -641,12 +644,10 @@ const userProfileController = function (UserProfile) {
     }
 
     try {
-
-      await UserProfile.deleteOne({ _id: userId })
+      await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
-      await followUp.findOneAndDelete({ userId })
+      await followUp.findOneAndDelete({ userId });
       res.status(200).send({ message: 'Executed Successfully' });
-
     } catch (err) {
       res.status(500).send(err);
     }
@@ -945,7 +946,6 @@ const userProfileController = function (UserProfile) {
       });
   };
 
-
   const changeUserRehireableStatus = async function (req, res) {
     const { userId } = req.params;
     const { isRehireable } = req.body;
@@ -964,6 +964,7 @@ const userProfileController = function (UserProfile) {
       userId,
       { $set: { isRehireable } },
       { new: true },
+      // eslint-disable-next-line no-unused-vars
       (error, updatedUser) => {
         if (error) {
           return res.status(500).send(error);
@@ -997,27 +998,30 @@ const userProfileController = function (UserProfile) {
     try {
       ValidatePassword(req);
 
-
-      const requestor = await UserProfile.findById(req.body.requestor.requestorId).select('firstName lastName email role').exec();
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+        .select('firstName lastName email role')
+        .exec();
 
       if (!requestor) {
         res.status(404).send({ error: 'Requestor not found' });
         return;
       }
 
-      const user = await UserProfile.findById(req.params.userId).select('firstName lastName email role').exec();
+      const user = await UserProfile.findById(req.params.userId)
+        .select('firstName lastName email role')
+        .exec();
 
       if (!user) {
         res.status(404).send({ error: 'User not found' });
         return;
       }
 
-      if (!await hasPermission(requestor, 'putUserProfileImportantInfo')) {
+      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
         res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
-      if (user.role === 'Owner' && !await hasPermission(requestor, 'addDeleteEditOwners')) {
+      if (user.role === 'Owner' && !(await hasPermission(requestor, 'addDeleteEditOwners'))) {
         res.status(403).send('You are not authorized to reset this user password');
         return;
       }
@@ -1026,7 +1030,10 @@ const userProfileController = function (UserProfile) {
 
       await user.save();
 
-      const condition = process.env.dbName === 'hgnData_dev' ? (user.role === 'Owner') : (user.role === 'Owner' || user.role === 'Administrator');
+      const condition =
+        process.env.dbName === 'hgnData_dev'
+          ? user.role === 'Owner'
+          : user.role === 'Owner' || user.role === 'Administrator';
       if (condition) {
         const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}${user.role} Password Reset Notification`;
         const emailBody = `<p>Hi Admin! </p>

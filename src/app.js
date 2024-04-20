@@ -1,5 +1,5 @@
 const express = require('express');
-const Sentry = require("@sentry/node");
+const Sentry = require('@sentry/node');
 
 const app = express();
 const logger = require('./startup/logger');
