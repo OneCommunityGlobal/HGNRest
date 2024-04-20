@@ -135,7 +135,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       }
     }
 
-
     async function addConsumableType(req, res) {
       const {
         name,
@@ -212,8 +211,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       ConsType
         .find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -252,7 +251,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               });
           }
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }

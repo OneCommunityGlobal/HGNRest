@@ -4,8 +4,7 @@ const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
 
 const userNotificationEmail = (name, action = '') => {
-  const message =
-    action === 'delete'
+  const message = action === 'delete'
       ? `<p>Hello,</p>
     <p>We wanted to inform you that your scheduled time-off request has been deleted.</p>
     <p>No further action is needed on your part regarding this request.</p>
@@ -20,8 +19,7 @@ const userNotificationEmail = (name, action = '') => {
 };
 
 const adminsNotificationEmail = (firstName, lastName, startDate, endDate, action = '') => {
-  const message =
-    action === 'delete'
+  const message = action === 'delete'
       ? `<p>Hello,</p>
   <p>${firstName} ${lastName} had initially requested time off from <b>${moment(startDate).format(
     'MM-DD-YYYY',
@@ -92,10 +90,9 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
           return userProfile.email;
         }
         return null;
-      }).filter(email => email !== null);
+      }).filter((email) => email !== null);
 
-      ownerAcc.forEach(user => userEmails.push(user.email));
-
+      ownerAcc.forEach((user) => userEmails.push(user.email));
 
       if (Array.isArray(userEmails) && userEmails.length > 0) {
         userEmails.forEach((email) => {
@@ -119,14 +116,16 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const setOwnRequested = req.body.requestor.requestorId === req.body.requestFor;
 
       if (
-        !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
-        !hasRolePermission &&
-        !setOwnRequested
+        !(await hasPermission(req.body.requestor, 'manageTimeOffRequests'))
+        && !hasRolePermission
+        && !setOwnRequested
       ) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;
       }
-      const { duration, startingDate, reason, requestFor } = req.body;
+      const {
+ duration, startingDate, reason, requestFor,
+} = req.body;
       if (!duration || !startingDate || !reason || !requestFor) {
         res.status(400).send('bad request');
         return;
@@ -208,8 +207,8 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
     try {
       const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       if (
-        !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
-        !hasRolePermission
+        !(await hasPermission(req.body.requestor, 'manageTimeOffRequests'))
+        && !hasRolePermission
       ) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;
@@ -255,9 +254,9 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const deleteOwnRequest = document?.requestFor.toString() === req.body.requestor.requestorId;
 
       if (
-        !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
-        !hasRolePermission &&
-        !deleteOwnRequest
+        !(await hasPermission(req.body.requestor, 'manageTimeOffRequests'))
+        && !hasRolePermission
+        && !deleteOwnRequest
       ) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;

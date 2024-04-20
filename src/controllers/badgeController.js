@@ -104,12 +104,10 @@ const badgeController = function (Badge) {
             const combinedEarnedDate = [...grouped[badge].earnedDate, ...item.earnedDate];
             const timestampArray = combinedEarnedDate.map((date) => new Date(date).getTime());
             timestampArray.sort((a, b) => a - b);
-            grouped[badge].earnedDate = timestampArray.map((timestamp) =>
-              new Date(timestamp)
+            grouped[badge].earnedDate = timestampArray.map((timestamp) => new Date(timestamp)
                 .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
                 .replace(/ /g, '-')
-                .replace(',', ''),
-            );
+                .replace(',', ''));
           }
         }
 
