@@ -147,6 +147,9 @@ const updateTaskLoggedHours = async (
   session,
   pendingEmailCollection = null,
 ) => {
+  // if both fromTaskId and toTaskId are null, then there is no need to update task hoursLogged
+  if (!fromTaskId && !toTaskId) return;
+
   const hoursToBeRemoved = secondsToBeRemoved ? Number((secondsToBeRemoved / 3600).toFixed(2)) : 0;
   const hoursToBeAdded = secondsToBeAdded ? Number((secondsToBeAdded / 3600).toFixed(2)) : 0;
   if (fromTaskId && toTaskId && fromTaskId !== toTaskId) {
@@ -613,7 +616,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
         // change from tangible to intangible
         if (initialIsTangible) {
-          // subtract initial logged hours from old task
+          // subtract initial logged hours from old task (if not null)
           updateTaskLoggedHours(
             initialTaskId,
             initialTotalSeconds,
