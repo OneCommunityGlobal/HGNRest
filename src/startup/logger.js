@@ -59,6 +59,9 @@ exports.init = function () {
   Sentry.setTag('app_name', 'hgn-backend');
 };
 
+/**
+ * @param {String} message message to be logged to Sentry
+ */
 exports.logInfo = function (message) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
