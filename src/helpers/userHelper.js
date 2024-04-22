@@ -468,6 +468,9 @@ const userHelper = function () {
               enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
             } else {
               //highlight not submitting a weekly summary and logged hrs
+              let sentences = item.description.split('.');
+              sentences[0] = `<b><span style="color: blue;">${sentences[0]}.</span></b>`
+              enhancedDescription = sentences.join('.');
               enhancedDescription = item.description.replace(/(not submitting a weekly summary)/gi, '<b><span style="color: blue;">$1</span></b>');
               enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b><span style="color: blue;"$1 hours</span></b>');
             }
