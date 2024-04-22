@@ -10,5 +10,5 @@ Cross Mark: ❌
 
 ## Negative case
 
-1. ❌ Returns error 400 if the userId is not valid.
-2. ❌ Returns error 400 if there is an error in finding the user.
+1. ✅ Returns error 400 if the userId is not valid.
+2. ✅ Returns error 400 if there is an error in finding the user.
