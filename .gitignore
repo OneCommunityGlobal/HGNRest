@@ -22,3 +22,6 @@ testem.log
 #IDE specific
 
 /.vscode
+
+# OS specific
+.DS_Store
