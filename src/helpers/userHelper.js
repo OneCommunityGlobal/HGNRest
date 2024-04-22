@@ -367,8 +367,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true},
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true, email: 'ivyvol2@gmail.com'},
+        '_id email weeklycommittedHours weeklySummaries missedHours',
       );
 
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -469,10 +469,10 @@ const userHelper = function () {
             } else {
               //highlight not submitting a weekly summary and logged hrs
               let sentences = item.description.split('.');
-              sentences[0] = `<b><span style="color: blue;">${sentences[0]}.</span></b>`
+              sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`
               enhancedDescription = sentences.join('.');
-              enhancedDescription = item.description.replace(/(not submitting a weekly summary)/gi, '<b><span style="color: blue;">$1</span></b>');
-              enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b><span style="color: blue;"$1 hours</span></b>');
+              enhancedDescription = enhancedDescription.replace(/(not submitting a weekly summary)/gi, '<b><span style="color: blue;">$1</span></b>');
+              enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b><span style="color: blue;">$1 hours</span></b>');
             }
             return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
             })
