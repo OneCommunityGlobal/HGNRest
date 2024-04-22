@@ -38,5 +38,22 @@ describe('Notification controller tests', () => {
       await flushPromises();
       assertResMock(400, new Error('error'), response, mockRes);
     });
+
+    test('Ensures getUserNotifications returns 200 with notifications for userId if it is valid and is found', async () => {
+      const { getUserNotifications } = makeSut();
+      const notifications = [];
+      const findNotificationMock = jest
+        .spyOn(Notification, 'find')
+        .mockImplementationOnce(() => Promise.resolve(notifications));
+      const response = getUserNotifications(mockReq, mockRes);
+      await flushPromises();
+      expect(findNotificationMock).toHaveBeenCalledWith(
+        {
+          recipient: '65cf6c3706d8ac105827bb2e',
+        },
+        '_id message eventType',
+      );
+      assertResMock(200, notifications, response, mockRes);
+    });
   });
 });
