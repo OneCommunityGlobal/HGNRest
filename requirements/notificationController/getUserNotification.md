@@ -6,7 +6,7 @@ Cross Mark: ❌
 
 ## Positive case
 
-1. ❌ Returns status 200 with notification data when a valid userId is provided and is found.
+1. ✅ Returns status 200 with notification data when a valid userId is provided and is found.
 
 ## Negative case
 
