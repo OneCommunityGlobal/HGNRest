@@ -13,7 +13,7 @@ To clone the code, navigate to the source directory where you want to maintain t
 
 Step2: Run npm install. Best way is to open the code in the editor and open integrated teminal. Run npm install.
 
-Step3: If running on MacOS or Linux, run `npm run prepare`. This will install husky and allow integration with git hooks.
+Step3: If running on MacOS or Linux, run `npm run prepare-macos-linux`. This will install husky and allow integration with git hooks. Windows users don't need and should not run this command.
 
 Step4: Start the app: To start the app, you need to set up several process.env variables. These variables are:  
 user=<user>  
