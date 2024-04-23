@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
+const logger = require('../startup/logger');
 
 // returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
@@ -121,31 +122,33 @@ const profileInitialSetupController = function (
       const existingEmail = await userProfile.findOne({
         email,
       });
+      
       if (existingEmail) {
-        res.status(400).send('email already in use');
-      } else {
-        await ProfileInitialSetupToken.findOneAndDelete({ email });
+        return res.status(400).send('email already in use');
+      } 
 
-        const newToken = new ProfileInitialSetupToken({
-          token,
-          email,
-          weeklyCommittedHours,
-          expiration: expiration.toDate(),
-        });
+      await ProfileInitialSetupToken.findOneAndDelete({ email });
 
-        const savedToken = await newToken.save();
-        const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
+      const newToken = new ProfileInitialSetupToken({
+        token,
+        email,
+        weeklyCommittedHours,
+        expiration: expiration.toDate(),
+      });
 
-        const acknowledgment = await sendEmailWithAcknowledgment(
-          email,
-          'NEEDED: Complete your One Community profile setup',
-          sendLinkMessage(link),
-        );
+      const savedToken = await newToken.save();
+      const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
 
-        res.status(200).send(acknowledgment);
-      }
+      const acknowledgment = await sendEmailWithAcknowledgment(
+        email,
+        'NEEDED: Complete your One Community profile setup',
+        sendLinkMessage(link),
+      );
+
+        return res.status(200).send(acknowledgment);
+      
     } catch (error) {
-      res.status(400).send(`Error: ${error}`);
+      return res.status(400).send(`Error: ${error}`);
     }
   };
 
@@ -162,17 +165,15 @@ const profileInitialSetupController = function (
 
       if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
-
         if (expirationMoment.isAfter(currentMoment)) {
-          res.status(200).send(foundToken);
-        } else {
-          res.status(400).send('Invalid token');
-        }
-      } else {
-        res.status(404).send('Token not found');
+          return res.status(200).send(foundToken);
+        } 
+        return res.status(400).send('Invalid token');
       }
+      return res.status(404).send('Token not found');
     } catch (error) {
-      res.status(500).send(`Error finding token: ${error}`);
+      logger.logException(error, 'Error in validateSetupToken', token);
+      return res.status(500).send(`Error finding token: ${error}`);
     }
   };
 
@@ -194,8 +195,9 @@ const profileInitialSetupController = function (
         email: foundToken.email,
       });
       if (existingEmail) {
-        res.status(400).send('email already in use');
-      } else if (foundToken) {
+        return res.status(400).send('email already in use');
+      } 
+      if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
 
         if (expirationMoment.isAfter(currentMoment)) {
@@ -297,13 +299,14 @@ const profileInitialSetupController = function (
           allUserCache.push(NewUserCache);
           cache.setCache('allusers', JSON.stringify(allUserCache));
         } else {
-          res.status(400).send('Token is expired');
+          return res.status(400).send('Token is expired');
         }
       } else {
-        res.status(400).send('Invalid token');
+        return res.status(400).send('Invalid token');
       }
     } catch (error) {
-      res.status(500).send(`Error: ${error}`);
+      logger.logException(error, 'Error in setUpNewUser', token);
+      return res.status(500).send(`Error: ${error}`);
     }
   };
 
@@ -319,10 +322,9 @@ const profileInitialSetupController = function (
     const foundToken = await ProfileInitialSetupToken.findOne({ token });
 
     if (foundToken) {
-      res.status(200).send({ userAPIKey: premiumKey });
-    } else {
-      res.status(403).send('Unauthorized Request');
-    }
+      return res.status(200).send({ userAPIKey: premiumKey });
+    } 
+    return res.status(403).send('Unauthorized Request');
   };
 
   const getTotalCountryCount = async (req, res) => {
@@ -353,9 +355,10 @@ const profileInitialSetupController = function (
       const combined = [...modifiedUsers, ...mapUsers];
       const countries = combined.map((user) => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
-      res.status(200).send({ CountryCount: totalUniqueCountries });
+      return res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
-      res.status(500).send(`Error: ${error}`);
+      logger.logException(error, 'Error in getTotalCountryCount');
+      return res.status(500).send(`Error: ${error}`);
     }
   };
 

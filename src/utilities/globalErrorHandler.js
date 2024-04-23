@@ -4,7 +4,7 @@ const { CustomError } = require('./customError');
 const Logger = require('../startup/logger');
 
 /**
- * Custom error handler middleware for global errors. Make it the last middleware since it returns a response and do not call next().
+ * Custom error handler middleware for global unhandled errors. Make it the last middleware since it returns a response and do not call next().
 */
 function globalErrorHandler(err, req, res, next) {
   /**
@@ -13,8 +13,8 @@ function globalErrorHandler(err, req, res, next) {
    *    if move to microservices artechtecture or with replicated services
    * 2. Developer will use the eventId (Searchable) to trace the error in the Sentry.io
    */
-  const eventId = uuidv4();
-  const tracking = `An internal error has occurred. If the issue persists, please contact the administrator and provide the trakcing ID: ${eventId}`;
+  const trackingId = uuidv4();
+  const errorMessage = `An internal error has occurred. If the issue persists, please contact the administrator and provide the trakcing ID: ${trackingId}`;
   let transactionName = '';
   const requestData = req.body && req.method ? JSON.stringify(req.body) : null;
 
@@ -25,7 +25,7 @@ function globalErrorHandler(err, req, res, next) {
     transactionName = transactionName.concat(' ', req.originalUrl);
   }
 
-  transactionName = transactionName.concat(' ', 'Tracking ID: ', eventId);
+  // transactionName = transactionName.concat(' ', 'Tracking ID: ', eventId);
 
   // Log the error to Sentry if not in local environment
   if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production') {
@@ -33,20 +33,21 @@ function globalErrorHandler(err, req, res, next) {
       err,
       transactionName,
       requestData,
+      trackingId
     );
   } else {
-    console.log(`An error occurred. Event ID: ${eventId} \nRequest Data: ${requestData}`);
+    console.log(`An error occurred. Event ID: ${trackingId} \nRequest Data: ${requestData}`);
     console.error(err);
   }
 
   // If the error is an instance of CustomError, return the error message and status code
   if (err instanceof CustomError) {
-    return res.status(err.statusCode).json({ error: err.message, tracking });
+    return res.status(err.statusCode).json({ error: err.message, errorMessage });
   }
 
-  // else return generic error message and status code 500
+  // else return generic error message with tracking id and status code 500
   return res.status(500).json({
-    tracking,
+    errorMessage,
   });
 }
 

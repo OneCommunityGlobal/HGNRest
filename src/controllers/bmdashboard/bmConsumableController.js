@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const bmConsumableController = function (BuildingConsumable) {
   const fetchBMConsumables = async (req, res) => {
     try {
-      BuildingConsumable
-        .find()
+      BuildingConsumable.find()
         .populate([
           {
             path: 'project',
@@ -30,10 +29,10 @@ const bmConsumableController = function (BuildingConsumable) {
           },
         ])
         .exec()
-        .then(result => {
+        .then((result) => {
           res.status(200).send(result);
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -45,7 +44,7 @@ const bmConsumableController = function (BuildingConsumable) {
       consumableId,
       quantity,
       priority,
-      brand : brandPref,
+      brand: brandPref,
       requestor: { requestorId },
     } = req.body;
     const newPurchaseRecord = {
@@ -54,7 +53,7 @@ const bmConsumableController = function (BuildingConsumable) {
       brandPref,
       requestedBy: requestorId,
     };
-     try {
+    try {
       const doc = await BuildingConsumable.findOne({ project: projectId, itemType: consumableId });
       if (!doc) {
         const newDoc = {
@@ -62,21 +61,19 @@ const bmConsumableController = function (BuildingConsumable) {
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
         };
-        BuildingConsumable
-          .create(newDoc)
+        BuildingConsumable.create(newDoc)
           .then(() => res.status(201).send())
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
         return;
       }
-      BuildingConsumable
-        .findOneAndUpdate(
-          { _id: mongoose.Types.ObjectId(doc._id) },
-          { $push: { purchaseRecord: newPurchaseRecord } },
-        )
+      BuildingConsumable.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(doc._id) },
+        { $push: { purchaseRecord: newPurchaseRecord } },
+      )
         .exec()
         .then(() => res.status(201).send())
-        .catch(error => res.status(500).send(error));
-      } catch (error) {
+        .catch((error) => res.status(500).send(error));
+    } catch (error) {
       res.status(500).send(error);
     }
   };

@@ -21,11 +21,7 @@ const closure = () => {
     },
   });
 
-  const OAuth2Client = new google.auth.OAuth2(
-    CLIENT_ID,
-    CLIENT_SECRET,
-    REDIRECT_URI,
-  );
+  const OAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
   OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
@@ -34,15 +30,7 @@ const closure = () => {
 
     if (!nextItem) return;
 
-    const {
-      recipient,
-      subject,
-      message,
-      cc,
-      bcc,
-      replyTo,
-      acknowledgingReceipt,
-    } = nextItem;
+    const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt } = nextItem;
 
     try {
       // Generate the accessToken on the fly
