@@ -19,7 +19,7 @@ exports.init = function () {
         return null;
       }
 
-      if (event.lastmodules) {
+      if (event.modules) {
         // Don't send a list of modules with the event
         delete event.modules;
       }
