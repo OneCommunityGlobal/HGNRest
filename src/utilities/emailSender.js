@@ -58,11 +58,11 @@ const closure = () => {
       }
       // Prevent logging email in production
       // Why?
-      // Could create a security risk
-      // Could create heavy loads on the server if the email is sent to many people
-      // Contain not much useful info:
+      // 1. Could create a security risk
+      // 2. Could create heavy loads on the server if emails are sent to many people
+      // 3. Contain limited useful info:
       //   result format : {"accepted":["emailAddr"],"rejected":[],"envelopeTime":209,"messageTime":566,"messageSize":317,"response":"250 2.0.0 OK  17***69 p11-2***322qvd.85 - gsmtp","envelope":{"from":"emailAddr", "to":"emailAddr"}}
-      if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
+      if (process.env.NODE_ENV === 'local') {
         logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
       }
     } catch (error) {
@@ -71,8 +71,8 @@ const closure = () => {
       }
       logger.logException(
         error,
-        `Error sending email: from ${CLIENT_EMAIL} to ${recipient}`,
-        `Extra Data: cc ${cc} bcc ${bcc} subject ${subject}`,
+        `Error sending email: from ${CLIENT_EMAIL} to ${recipient} subject ${subject}`,
+        `Extra Data: cc ${cc} bcc ${bcc}`,
       );
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);

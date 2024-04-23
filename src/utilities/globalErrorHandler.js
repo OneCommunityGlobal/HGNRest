@@ -15,6 +15,7 @@ function globalErrorHandler(err, req, res, next) {
    */
   const trackingId = uuidv4();
   const errorMessage = `An internal error has occurred. If the issue persists, please contact the administrator and provide the trakcing ID: ${trackingId}`;
+  
   let transactionName = '';
   const requestData = req.body && req.method ? JSON.stringify(req.body) : null;
 
@@ -26,7 +27,9 @@ function globalErrorHandler(err, req, res, next) {
   }
 
   // transactionName = transactionName.concat(' ', 'Tracking ID: ', eventId);
-
+  if(!err){
+    transactionName = 'Critical: err parameter is missing. This is probably due to an improper error handling in the code.';
+  }
   // Log the error to Sentry if not in local environment
   if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production') {
     Logger.logException(
@@ -36,7 +39,7 @@ function globalErrorHandler(err, req, res, next) {
       trackingId
     );
   } else {
-    console.log(`An error occurred. Event ID: ${trackingId} \nRequest Data: ${requestData}`);
+    console.log(`An error occurred. Transaction: ${transactionName} \nRequest Data: ${requestData}`);
     console.error(err);
   }
 
