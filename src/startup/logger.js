@@ -62,6 +62,8 @@ exports.init = function () {
 };
 
 /**
+ * Send message to sentry if in production or development environment. Otherwise, log to console.
+ * Please use JSON.stringify() to convert Object to String first.
  * @param {String} message message to be logged to Sentry
  */
 exports.logInfo = function (message) {
@@ -74,11 +76,12 @@ exports.logInfo = function (message) {
 };
 
 /**
- *
+ * Send log message to Sentry if in production or development environment. Otherwise, log to console.
+ * 
  * @param {Error} error error object to be logged to Sentry
  * @param {String} transactionName (Optional) name assigned to a transaction. Seachable in Sentry (e.g. error in Function/Service/Operation/Job name)
  * @param {*} extraData (Optional) extra data to be logged to Sentry (e.g. request body, params, message, etc.)
- * @param {String} trackingId (Optional) unique id to track the error in Sentry. Search by tag 'tacking_id:some_value'
+ * @param {String} trackingId (Optional) unique id to track the error in Sentry. Search by tag 'tacking_id'
  */
 exports.logException = function (error, transactionName = null, extraData = null, trackingId = null) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
@@ -95,7 +98,9 @@ exports.logException = function (error, transactionName = null, extraData = null
       if (extraData !== null) {
         scope.setExtra('extraData', extraData);
       }
-      scope.setTag('tracking_id', trackingId);
+      if(trackingId !== null){
+        scope.setTag('tracking_id', trackingId);
+      }
       return scope;
     });
   }
