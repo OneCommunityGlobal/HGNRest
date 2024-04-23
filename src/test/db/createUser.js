@@ -48,11 +48,11 @@ const createUser = async () => {
   up.isVisible = true;
 
   /* 
-    remove hard coded _id field to allow MongoDB to 
-    automatically create a unique id for us.
-    Now this function is more reusable if we 
-    need to create more than 1 user.
-  */
+      remove hard coded _id field to allow MongoDB to 
+      automatically create a unique id for us.
+      Now this function is more reusable if we 
+      need to create more than 1 user.
+    */
 
   const user = await up.save();
 
