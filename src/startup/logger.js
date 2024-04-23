@@ -9,7 +9,10 @@ exports.init = function () {
     environment: process.env.NODE_ENV ? process.env.NODE_ENV : 'local',
     beforeSend(event) {
       // Modify or drop the event here
-      if (!process.env.NODE_ENV || !(process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development')) {
+      if (
+        !process.env.NODE_ENV ||
+        !(process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development')
+      ) {
         if (event.exception) {
           console.log('Error event: ', `Request - ${JSON.stringify(event.request)} `);
         }
@@ -47,7 +50,6 @@ exports.init = function () {
       extraErrorDataIntegration({
         depth: 3,
       }),
-
     ],
     // Utilize the following options for debugging. Comment out by default.
     // enableTracing: true,
@@ -76,12 +78,15 @@ exports.logInfo = function (message) {
  * @param {Error} error error object to be logged to Sentry
  * @param {String} transactionName (Optional) name assigned to a transaction. Seachable in Sentry (e.g. error in Function/Service/Operation/Job name)
  * @param {*} extraData (Optional) extra data to be logged to Sentry (e.g. request body, params, message, etc.)
+ * @param {String} trackingId (Optional) unique id to track the error in Sentry. Search by tag 'tacking_id:some_value'
  */
-exports.logException = function (error, transactionName = null, extraData = null) {
+exports.logException = function (error, transactionName = null, extraData = null, trackingId = null) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.error(error);
-    console.info(`Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`);
+    console.info(
+      `Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`,
+    );
   } else {
     Sentry.captureException(error, (scope) => {
       if (transactionName !== null) {
@@ -90,6 +95,7 @@ exports.logException = function (error, transactionName = null, extraData = null
       if (extraData !== null) {
         scope.setExtra('extraData', extraData);
       }
+      scope.setTag('tracking_id', trackingId);
       return scope;
     });
   }
