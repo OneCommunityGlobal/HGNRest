@@ -143,14 +143,6 @@ describe('warnings controller module', () => {
       jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(profile));
       jest.spyOn(profile, 'save').mockImplementationOnce(() => Promise.resolve(true));
 
-      // profile.warnings = [
-      //   { title: 'Better Descriptions', warnings: [] },
-      //   { title: 'Log Time to Tasks', warnings: [] },
-      //   { title: 'Log Time as You Go', warnings: [] },
-      //   { title: 'Log Time to Action Items', warnings: [] },
-      //   { title: 'Intangible Time Log w/o Reason', warnings: [newWarning] },
-      // ];
-
       const res = await postWarningsToUserProfile(mockReq, mockRes);
       assertResMock(
         201,
