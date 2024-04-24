@@ -45,7 +45,6 @@ const {
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
-
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -89,8 +88,12 @@ const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest, team, userProfile);
-const followUpRouter = require('../routes/followUpRouter')(followUp)
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
+  timeOffRequest,
+  team,
+  userProfile,
+);
+const followUpRouter = require('../routes/followUpRouter')(followUp);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
