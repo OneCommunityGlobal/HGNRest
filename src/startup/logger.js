@@ -9,7 +9,10 @@ exports.init = function () {
     environment: process.env.NODE_ENV ? process.env.NODE_ENV : 'local',
     beforeSend(event) {
       // Modify or drop the event here
-      if (!process.env.NODE_ENV || !(process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development')) {
+      if (
+        !process.env.NODE_ENV ||
+        !(process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development')
+      ) {
         if (event.exception) {
           console.log('Error event: ', `Request - ${JSON.stringify(event.request)} `);
         }
@@ -47,7 +50,6 @@ exports.init = function () {
       extraErrorDataIntegration({
         depth: 3,
       }),
-
     ],
     // Utilize the following options for debugging. Comment out by default.
     // enableTracing: true,
@@ -78,7 +80,9 @@ exports.logException = function (error, transactionName = null, extraData = null
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.error(error);
-    console.info(`Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`);
+    console.info(
+      `Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`,
+    );
   } else {
     Sentry.captureException(error, (scope) => {
       if (transactionName !== null) {
