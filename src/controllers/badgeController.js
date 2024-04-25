@@ -13,7 +13,7 @@ const badgeController = function (Badge) {
   const cache = cacheClosure();
 
   const getAllBadges = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'seeBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'seeBadges')) && !(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
