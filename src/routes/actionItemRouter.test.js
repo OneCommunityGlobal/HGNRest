@@ -87,10 +87,10 @@ describe('actionItem routes', () => {
       expect(response.body).toEqual([]);
 
       /* 
-        now we add actionItems for assignedUser
-        we use a helper function to create the actionItem instead of 
-        the post route to make the route tests independent from each other.
-      */
+              now we add actionItems for assignedUser
+              we use a helper function to create the actionItem instead of 
+              the post route to make the route tests independent from each other.
+            */
       const newActionItem = await createActionItem(assignedUser._id, requestorUser._id);
 
       response = await agent
