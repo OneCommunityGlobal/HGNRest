@@ -63,6 +63,11 @@ describe('actionItem routes', () => {
         .expect(404);
       await agent.get('/api/wibs').set('Authorization', token).send(reqBody).expect(404);
     });
-    // describe('getAllWBS routes', () => {});
+
+    // describe('getAllWBS routes', () => {
+    //   it("Should return 200 and an array of wbs' on success", async () => {
+
+    //   });
+    // });
   });
 });
