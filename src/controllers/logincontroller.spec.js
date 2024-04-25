@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const bcrypt = require('bcryptjs');
 const logincontroller = require('./logincontroller');
 const { mockReq, mockRes, assertResMock, mockUser } = require('../test');
@@ -136,39 +138,35 @@ describe.only('logincontroller module', () => {
       expect(mockRes.json).toHaveBeenCalledWith(error);
     });
 
-    // Failing Test 1
-    // test.only('Ensure login returns 200, if the user is a new user and there is a password match', async () => {
-    //   const { login } = makeSut();
-    //   const mockReqModified = {
-    //     ...mockReq,
-    //     ...{
-    //       body: {
-    //         email: 'example@example.com',
-    //         password: 'newUserPassword',
-    //       },
-    //     },
-    //   };
+    test.only('Ensure login returns 200, if the user is a new user and there is a password match', async () => {
+      const { login } = makeSut();
+      const mockReqModified = {
+        ...mockReq,
+        ...{
+          body: {
+            email: 'example@example.com',
+            password: '123Welcome!',
+          },
+        },
+      };
 
-    //   const mockUserModified = {
-    //     ...mockUser,
-    //     ...{
-    //       _id: 'user123',
-    //       email: 'example@example.com',
-    //       password: 'hashedPassword',
-    //       resetPwd: 'newUserPassword',
-    //       isActive: true,
-    //     },
-    //   };
+      const mockUserModified = {
+        _id: 'user123',
+        email: 'example@example.com',
+        password: 'hashedPassword',
+        resetPwd: 'newUserPassword',
+        isActive: true,
+      };
 
-    //   const findOneSpy = jest
-    //     .spyOn(userProfile, 'findOne')
-    //     .mockImplementation(() => Promise.resolve(mockUserModified));
+      jest
+        .spyOn(userProfile, 'findOne')
+        .mockImplementation(() => Promise.resolve(mockUserModified));
 
-    //   jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
 
-    //   const res = await login(mockReqModified, mockRes);
-    //   assertResMock(200, { new: true, userId: 'user123' }, res, mockRes);
-    // });
+      const res = await login(mockReqModified, mockRes);
+      assertResMock(200, { new: true, userId: 'user123' }, res, mockRes);
+    });
 
     // Failing Test 2
     // test('Ensure login returns 200, if the user already exists and the password is a match', async()=>{
