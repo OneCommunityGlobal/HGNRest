@@ -11,8 +11,8 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer((value) => value.trim()),
-      body('lastName').customSanitizer((value) => value.trim()),
+      body('firstName').customSanitizer(value => value.trim()),
+      body('lastName').customSanitizer(value => value.trim()),
       controller.postUserProfile,
     );
 

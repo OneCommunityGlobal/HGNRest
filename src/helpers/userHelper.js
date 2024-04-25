@@ -323,7 +323,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch((error) => logger.logException(error));
+      .catch(error => logger.logException(error));
   };
 
   /**
@@ -939,7 +939,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          (item) => item.badge._id.toString() === badgeId.toString(),
+          item => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error(
@@ -1146,7 +1146,7 @@ const userHelper = function () {
 
           if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
             const theBadge = badgesOfType.find(
-              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
+              badgeItem => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
