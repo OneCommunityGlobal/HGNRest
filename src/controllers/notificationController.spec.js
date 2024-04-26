@@ -75,10 +75,20 @@ describe('Notification controller tests', () => {
   });
 
   describe('deleteUserNotification', () => {
-    test('Ensure deleteUserNotification returns 400 if notification ID is not valid', () => {
+    test('Ensures deleteUserNotification returns 400 if notification ID is not valid', () => {
       const { deleteUserNotification } = makeSut();
       mockReq.params.notificationId = 'badnotificationId';
       const response = deleteUserNotification(mockReq, mockRes);
+      assertResMock(400, { error: 'Bad request' }, response, mockRes);
+    });
+
+    test('Ensures deleteUserNotification returns 400 if any error occurs when finding a notification', async () => {
+      const { deleteUserNotification } = makeSut();
+      jest
+        .spyOn(Notification, 'findById')
+        .mockImplementationOnce(() => Promise.reject(new Error('error')));
+      const response = deleteUserNotification(mockReq, mockRes);
+      await flushPromises();
       assertResMock(400, { error: 'Bad request' }, response, mockRes);
     });
   });
