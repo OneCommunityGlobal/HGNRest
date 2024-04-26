@@ -17,6 +17,7 @@ const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require("../services/notificationService");
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require("../constants/message");
+const timeUtils = require('../utilities/timeUtils');
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
