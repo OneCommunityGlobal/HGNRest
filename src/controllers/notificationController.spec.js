@@ -3,10 +3,11 @@ const Notification = require('../models/notification');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
-  const { getUserNotifications } = notificationController(Notification);
+  const { getUserNotifications, createUserNotification } = notificationController(Notification);
 
   return {
     getUserNotifications,
+    createUserNotification,
   };
 };
 
@@ -54,6 +55,20 @@ describe('Notification controller tests', () => {
         '_id message eventType',
       );
       assertResMock(200, notifications, response, mockRes);
+    });
+  });
+
+  describe('createUserNotification', () => {
+    test('Ensures createUserNofication calls on save notification', async () => {
+      const { createUserNotification } = makeSut();
+      const mockNotification = {
+        save: jest.fn().mockImplementationOnce(() => Promise.resolve(true)),
+      };
+
+      createUserNotification(mockNotification);
+      await flushPromises();
+
+      expect(mockNotification.save).toHaveBeenCalledWith();
     });
   });
 });
