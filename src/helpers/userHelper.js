@@ -1140,7 +1140,7 @@ const userHelper = function () {
                 || Math.abs(
                   moment().diff(
                     moment(
-                      user.infringements[user.infringements?.length - 1].date,
+                      user.infringements[user.infringements?.length?? 0 - 1].date,
                     ),
                     "months",
                     true,
@@ -1171,7 +1171,7 @@ const userHelper = function () {
                 || Math.abs(
                   moment().diff(
                     moment(
-                      user.oldInfringements[user.oldInfringements?.length - 1]
+                      user.oldInfringements[user.oldInfringements?.length?? 0 - 1]
                         .date,
                     ),
                     "months",
@@ -1246,7 +1246,7 @@ const userHelper = function () {
     const numWeeks = Math.ceil((currentDate.diff(startOfYear, 'days') / 7));
   
     // iterate through weeks to get hours of each week
-    for (let week = 1; week <= numWeeks; week++) {
+    for (let week = 1; week <= numWeeks; week += 1) {
       const pdtstart = startOfYear.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
       const pdtend = startOfYear.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
   
@@ -1267,16 +1267,16 @@ const userHelper = function () {
   
     // get max hours of all weeks
     let maxHours = weeksTangibleHours[0];
-    let maxWeek = 0;
-    for (let i = 1; i < weeksTangibleHours.length; i++) {
+    // let maxWeek = 0;
+    for (let i = 1; i < weeksTangibleHours.length; i += 1) {
       if (weeksTangibleHours[i] > maxHours) {
         maxHours = weeksTangibleHours[i];
-        maxWeek = i + 1;
+        // maxWeek = i + 1;
       }
     }
   
-    console.log(`Week with maximum hours is: ${maxWeek} with ${maxHours} hours.`);
-    console.log('Hours: ', weeksTangibleHours);
+    // console.log(`Week with maximum hours is: ${maxWeek} with ${maxHours} hours.`);
+    // console.log('Hours: ', weeksTangibleHours);
   
     return maxHours;
   };
@@ -1284,8 +1284,8 @@ const userHelper = function () {
   const UpdatePersonalMax = async (personId, user) => {
     const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
     user.personalBestMaxHrs = MaxHrs;
-    console.log('user.totaltangiblehrs: ', user.totalTangibleHrs);
-    console.log('updated personalbestmaxhrs: ', user.personalBestMaxHrs);
+    // console.log('user.totaltangiblehrs: ', user.totalTangibleHrs);
+    // console.log('updated personalbestmaxhrs: ', user.personalBestMaxHrs);
     await user.save();
   }
 
@@ -1302,36 +1302,29 @@ const userHelper = function () {
           duplicateBadges.push(badgeCollection[i]);
         }
       }
-      for (const b of duplicateBadges) {
+      duplicateBadges.forEach(async (b) => {
         await removeDupBadge(personId, b._id);
-      }
+      });
     }
     await badge.findOne({ type: "Personal Max" }).then((results) => {
-      console.log('finding badge for last week hrs', user.lastWeekTangibleHrs, 'and max : ', user.personalBestMaxHrs);
-      const currentBadgeDate = moment.tz(badgeOfType.earnedDate[0], "MMM-DD-YY").tz("America/Los_Angeles").format("MMM-DD-YY");
+      // console.log('finding badge for last week hrs', user.lastWeekTangibleHrs, 'and max : ', user.personalBestMaxHrs);
       const currentDate = moment(moment().format("MM-DD-YYYY"), "MM-DD-YYYY").tz("America/Los_Angeles").format("MMM-DD-YY");// current date
+      
       console.log('currentdate',currentDate);
-      console.log('currentbadgedate',currentBadgeDate);
       if(badgeOfType.earnedDate.includes(currentDate)){
-        console.log('date exists', badgeOfType.earnedDate.includes(currentDate));
-        console.log('skip it');
-        console.log('skip it');
-        console.log('skip it');
-        console.log('skip it');
-        console.log('skip it');
+        // console.log('date exists', badgeOfType.earnedDate.includes(currentDate));
         console.log('skip it');
       } else {
         console.log('doesnt exist');
         console.log('date', badgeOfType.earnedDate.includes(currentDate));
       }
       
-      // modified condition, if lastweek is greater than or equal to personal max then increase the badge count if badge exists      
+      // modified condition, if lastweek is greater than or equal to personal max then increase the badge count if badge exists   
       if (
         user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= user.personalBestMaxHrs && currentBadgeDate!== moment().format("MMM-DD-YYYY") &&
+        user.lastWeekTangibleHrs >= user.personalBestMaxHrs  &&
         !badgeOfType.earnedDate.includes(currentDate)
       ) {
-        // console.log("Condition passed:", user.lastWeekTangibleHrs, user.personalBestMaxHrs, !user.earnedDateBadge.some(ed => ed.badge._id.toString() === badgeOfType.badge._id.toString() && ed.earnedDate.includes(moment().format('MM-DD'))));
         console.log("Condition passed, updating badge count...");
         console.log('this is badgeoftype: ',badgeOfType);
         if (badgeOfType) {
@@ -1718,17 +1711,15 @@ const userHelper = function () {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
-        console.log('run check');
-        //await UpdatePersonalMax(personId, user);
-        //await logNewMaxHours(personId, user, badgeCollection);    
-
+        await UpdatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
-        //await checkMostHrsWeek(personId, user, badgeCollection);
-        //await checkMinHoursMultiple(personId, user, badgeCollection);
-        //await checkTotalHrsInCat(personId, user, badgeCollection);
-        //await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        //await checkXHrsForXWeeks(personId, user, badgeCollection);
-        //await checkNoInfringementStreak(personId, user, badgeCollection);
+        
+        await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkXHrsForXWeeks(personId, user, badgeCollection);
+        await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
