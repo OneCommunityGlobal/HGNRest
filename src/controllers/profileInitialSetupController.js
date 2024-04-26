@@ -124,7 +124,8 @@ const profileInitialSetupController = function (
   - Generates a link using the token and emails it to the recipient.
    */
   const getSetupToken = async (req, res) => {
-    let { email, baseUrl, weeklyCommittedHours } = req.body;
+    let { email } = req.body;
+    const { baseUrl, weeklyCommittedHours } = req.body; 
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().tz('America/Los_Angeles').add(3, 'week');
@@ -207,7 +208,7 @@ const profileInitialSetupController = function (
  - Sends the JWT as a response.
 */
   const setUpNewUser = async (req, res) => {
-    const { token } = req.body;
+    let { token } = req.body;
     const currentMoment = moment.tz('America/Los_Angeles');
     try {
       const foundToken = await ProfileInitialSetupToken.findOne({ token });
@@ -349,6 +350,14 @@ const profileInitialSetupController = function (
     }
   };
 
+  function calculateTotalHours(hoursByCategory) {
+    let hours = 0;
+    Object.keys(hoursByCategory).forEach((x) => {
+      hours += hoursByCategory[x];
+    });
+    return hours;
+  }
+
   const getTotalCountryCount = async (req, res) => {
     try {
       const users = [];
@@ -383,13 +392,7 @@ const profileInitialSetupController = function (
     }
   };
 
-  function calculateTotalHours(hoursByCategory) {
-    let hours = 0;
-    Object.keys(hoursByCategory).forEach((x) => {
-      hours += hoursByCategory[x];
-    });
-    return hours;
-  }
+
 
   /**
    *
@@ -399,7 +402,7 @@ const profileInitialSetupController = function (
    */
   const getSetupInvitation = (req, res) => {
     const { role } = req.body.requestor;
-    if (role === 'Admin' || role === 'Owner') {
+    if (role === 'Administrator' || role === 'Owner') {
       try{
       ProfileInitialSetupToken
       .find({ isSetupCompleted: false })
@@ -429,7 +432,7 @@ const profileInitialSetupController = function (
   const cancelSetupInvitation = (req, res) => {
     const { role } = req.body.requestor;
     const { token } = req.body;
-    if (role === 'Admin' || role === 'Owner') {
+    if (role === 'Administrator' || role === 'Owner') {
       try {
     ProfileInitialSetupToken
       .findOneAndUpdate(
@@ -460,7 +463,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
     const { token, baseUrl } = req.body;
 
-    if (role === 'Admin' || role === 'Owner') {
+    if (role === 'Administrator' || role === 'Owner') {
       try {
         ProfileInitialSetupToken
         .findOneAndUpdate(
@@ -496,7 +499,7 @@ const profileInitialSetupController = function (
   // const expiredSetupInvitation = (req, res) => {
   //   const { role } = req.body.requestor;
   //   const { token } = req.body;
-  //   if (role === 'Admin' || role === 'Owner') {
+  //   if (role === 'Administrator' || role === 'Owner') {
   //   ProfileInitialSetupToken
   //     .findOneAndUpdate(
   //       { token },
