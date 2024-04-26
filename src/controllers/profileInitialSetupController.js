@@ -395,7 +395,7 @@ const profileInitialSetupController = function (
 
 
   /**
-   *
+   * Returns a list of setup token in not completed status
    * @param {*} req HTTP request include requester role information
    * @param {*} res HTTP response include setup invitation records response's body
    * @returns a list of setup invitation records which setup is not complete
@@ -425,6 +425,7 @@ const profileInitialSetupController = function (
   };
 
   /**
+   * Cancel the setup token 
    * @param {*} req HTTP request include requester role information
    * @param {*} res HTTP response include whether the setup invitation record is successfully cancelled
    * @returns
@@ -455,6 +456,7 @@ const profileInitialSetupController = function (
     }
   };
    /**
+    * Update the expired setup token to active status. After refreshing, the expiration date will be extended by 3 weeks.
    * @param {*} req HTTP request include requester role information
    * @param {*} res HTTP response include whether the setup invitation record is successfully refreshed
    * @returns updated result of the setup invitation record.
@@ -526,7 +528,6 @@ const profileInitialSetupController = function (
     getSetupInvitation,
     cancelSetupInvitation,
     refreshSetupInvitation,
-    // expiredSetupInvitation,
   };
 };
 
