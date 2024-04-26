@@ -2,17 +2,19 @@ const mongoose = require('mongoose');
 // const userProfile = require('../models/userProfile');
 // const hasPermission = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const cache = require('../utilities/nodeCache')();
+const cacheClosure = require('../utilities/nodeCache');
 
 const informationController = function (Information) {
+  const cache = cacheClosure();
   const getInformations = function (req, res) {
     // return all informations if cache is available
-    if (cache.hasCache('informations')) {
+    if (cache.getCache('informations')) {
       res.status(200).send(cache.getCache('informations'));
       return;
     }
 
     Information.find({}, 'infoName infoContent visibility')
+      .sort({visibility:1})
       .then((results) => {
         // cache results
         cache.setCache('informations', results);
