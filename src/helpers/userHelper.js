@@ -325,7 +325,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch((error) => logger.logException(error));
+      .catch(error => logger.logException(error));
   };
 
   /**
@@ -993,7 +993,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          (item) => item.badge._id.toString() === badgeId.toString(),
+          item => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error(
@@ -1200,7 +1200,7 @@ const userHelper = function () {
 
           if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
             const theBadge = badgesOfType.find(
-              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
+              badgeItem => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
@@ -1277,9 +1277,8 @@ const userHelper = function () {
     }
   };
 
-  // 'X Hours for X Week Streak',
-  const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    // Handle Increasing the 1 week streak badges
+  // 'X Hours in one week',
+  const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
@@ -1309,6 +1308,13 @@ const userHelper = function () {
           return true;
         });
       });
+  }
+
+  // 'X Hours for X Week Streak',
+  const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
+    // Handle Increasing the 1 week streak badges
+    await checkXHrsInOneWeek(personId, user, badgeCollection);
+
     // Check each Streak Greater than One to check if it works
     await badge
       .aggregate([
