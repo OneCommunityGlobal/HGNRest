@@ -23,7 +23,7 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
-  isRehireable: { type: Boolean, default: false },
+  isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
   role: {
     type: String,
@@ -53,9 +53,7 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [
-      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
-    ],
+    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
@@ -73,9 +71,7 @@ const userProfileSchema = new Schema({
   createdDate: { type: Date, required: true, default: nextDay },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [
-    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
-  ],
+  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
@@ -246,16 +242,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then((result) => bcrypt.hash(user.password, result))
+    .then(result => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch((error) => next(error));
+    .catch(error => next(error));
 });
 
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
