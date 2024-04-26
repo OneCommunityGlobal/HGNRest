@@ -3,11 +3,13 @@ const Notification = require('../models/notification');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
-  const { getUserNotifications, createUserNotification } = notificationController(Notification);
+  const { getUserNotifications, createUserNotification, deleteUserNotification } =
+    notificationController(Notification);
 
   return {
     getUserNotifications,
     createUserNotification,
+    deleteUserNotification,
   };
 };
 
@@ -69,6 +71,15 @@ describe('Notification controller tests', () => {
       await flushPromises();
 
       expect(mockNotification.save).toHaveBeenCalledWith();
+    });
+  });
+
+  describe('deleteUserNotification', () => {
+    test('Ensure deleteUserNotification returns 400 if notification ID is not valid', () => {
+      const { deleteUserNotification } = makeSut();
+      mockReq.params.notificationId = 'badnotificationId';
+      const response = deleteUserNotification(mockReq, mockRes);
+      assertResMock(400, { error: 'Bad request' }, response, mockRes);
     });
   });
 });
