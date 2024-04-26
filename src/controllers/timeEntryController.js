@@ -10,6 +10,7 @@ const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
 
+
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
@@ -389,8 +390,14 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
 };
 
 
+
 /**
- * Check if this is the first time entry for the given user id
+ * Controller for timeEntry
+ */
+const timeEntrycontroller = function (TimeEntry) {
+
+  /**
+ * Helper func: Check if this is the first time entry for the given user id
  * 
  * @param {Mongoose.ObjectId} personId 
  * @returns 
@@ -411,10 +418,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
   return true;
 };
 
-/**
- * Controller for timeEntry
- */
-const timeEntrycontroller = function (TimeEntry) {
   /**
    * Post a time entry
    */
