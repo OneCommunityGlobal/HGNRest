@@ -10,9 +10,12 @@ const isValidObjectId = mongoose.Types.ObjectId.isValid;
 
 /**
  * This function creates new notification for the given recipients.
- * @param {Object} notificationData Required fields: sender: ObjectId, recipients: List of ObjectId, message: String.
- * Optional fields: isSystemGenerated: Boolean, isRead: Boolean
- * @returns {NotificationModel} The persisted notification document object.
+ * @param {mongoose.Types.ObjectId} senderId A valid user ID.
+ * @param {Arrays} recipientIds List of user id
+ * @param {String} message The notification message: plain text or HTML.
+ * @param {Boolean} isSystemGenerated (Optional) Whether the notification is system generated. Default is false.
+ * @param {Boolean} isRead (Optional) Whether the notification has been read. Default is false.
+ * @returns {mongoose.Model} The persisted notification document object.
  */
 async function createNotification(
   senderId,
@@ -60,8 +63,8 @@ async function createNotification(
 
 /**
  * This function returns a list of notification to user.
- * @param {Mongoose.Types.ObjectId} userId The user ID
- * @returns {} A list of notifications document objects
+ * @param {mongoose.Types.ObjectId} userId The user ID
+ * @returns {Arrays<mongoose.Model>} A list of notifications document objects
  */
 async function getNotifications(userId) {
   if (!isValidObjectId(userId)) {
@@ -78,8 +81,8 @@ async function getNotifications(userId) {
 
 /**
  * This function returns a list of unread notifications to user.
- * @param {Mongoose.Types.ObjectId} userId The user ID
- * @returns {} A list of unread notifications document objects
+ * @param {mongoose.Types.ObjectId} userId The user ID
+ * @returns {Arrays<mongoose.Model>} A list of unread notifications document objects
  */
 async function getUnreadUserNotifications(userId) {
   if (!isValidObjectId(userId)) {
@@ -96,8 +99,8 @@ async function getUnreadUserNotifications(userId) {
 
 /**
  * This function returns a list of notifications sent by the admin/owner user.
- * @param {*} senderId The sender ID
- * @returns a list of notification document objects
+ * @param {mongoose.Types.ObjectId} senderId The sender ID
+ * @returns {Arrays<mongoose.Model>} a list of notification document objects
  */
 async function getSentNotifications(senderId) {
   if (!isValidObjectId(senderId)) {
@@ -114,7 +117,7 @@ async function getSentNotifications(senderId) {
 
 /**
  * This function marks a notification as read. The recipient should match with the requestor ID.
- * @param {Mongoose.Types.ObjectId} notificationId The notification ID
+ * @param {mongoose.Types.ObjectId} notificationId The notification ID
  * @returns {NotificationModel} The updated notification document object
  */
 async function markNotificationAsRead(notificationId, recipientId) {
