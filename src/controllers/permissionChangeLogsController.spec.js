@@ -1,0 +1,65 @@
+const permissionChangeLogController = require('./permissionChangeLogsController');
+const permissionChangeLog = require('../models/permissionChangeLog');
+const UserProfile = require('../models/userProfile');
+const { mockRes, mockReq } = require('../test');
+
+const makeSut = () => {
+  const { getPermissionChangeLogs } = permissionChangeLogController(UserProfile);
+
+  return {
+    getPermissionChangeLogs,
+  };
+};
+
+const assertResMock = (statusCode, message, response) => {
+  expect(mockRes.status).toHaveBeenCalledWith(statusCode);
+  expect(mockRes.send).toHaveBeenCalledWith(message);
+  expect(response).toBeUndefined();
+};
+
+describe('permissionChangeLogsController', () => {
+  describe('getPermissionChangeLogs', () => {
+    test.only('Ensure getPermissionChangeLogs Returns 403 if the user profile could not be found', async () => {
+      const { getPermissionChangeLogs } = makeSut();
+
+      mockReq.body.role = 'Admin';
+      const errorMessage = `User (${mockReq.params.userId}) not found.`;
+
+      // jest.spyOn(UserProfile, 'findOne').mockResolvedValue({
+      //   exec: jest.fn().mockResolvedValueOnce(null),
+      // });
+      jest.spyOn(UserProfile, 'findOne').mockResolvedValue(Promise.resolve(null));
+
+      const response = await getPermissionChangeLogs(mockReq, mockRes);
+
+      assertResMock(403, errorMessage, response);
+    });
+
+    test('Ensure getPermissionChangeLogs Returns 204 if the user profile role is not Owner', async () => {
+      const { getPermissionChangeLogs } = makeSut();
+
+      mockReq.body.role = 'Admin';
+
+      jest.spyOn(UserProfile, 'findOne').mockResolvedValue(Promise.resolve([]));
+      const response = await getPermissionChangeLogs(mockReq, mockRes);
+
+      assertResMock(204, [], response);
+    });
+  });
+
+  test('Ensure getPermissionChangeLogs Returns 200 if the user profile role is Owner', async () => {
+    const { getPermissionChangeLogs } = makeSut();
+
+    const permissionChangeLogs = [{ id: 1, name: 'test' }];
+    mockReq.body.role = 'Owner';
+
+    jest.spyOn(UserProfile, 'findOne').mockResolvedValue(Promise.resolve({ role: 'Owner' }));
+
+    jest
+      .spyOn(permissionChangeLog, 'find')
+      .mockResolvedValue(Promise.resolve(permissionChangeLogs));
+
+    const response = await getPermissionChangeLogs(mockReq, mockRes);
+    assertResMock(200, permissionChangeLogs, response);
+  });
+});
