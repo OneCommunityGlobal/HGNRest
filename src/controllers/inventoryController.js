@@ -35,8 +35,8 @@ const inventoryController = function (Item, ItemType) {
       .sort({
         wasted: 1,
       })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const postInvInProjectWBS = async function (req, res) {
@@ -80,8 +80,8 @@ const inventoryController = function (Item, ItemType) {
         const inventoryItem = new Item(data);
 
         return inventoryItem.save()
-          .then((results) => res.status(201).send(results))
-          .catch((errors) => res.status(500).send(errors));
+          .then(results => res.status(201).send(results))
+          .catch(errors => res.status(500).send(errors));
       }
       return Item.findOneAndUpdate(
 {
@@ -103,7 +103,7 @@ const inventoryController = function (Item, ItemType) {
 )
         .then((results) => {
           Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
-            .then((result) => res.status(201).send(result));
+            .then(result => res.status(201).send(result));
         });
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned');
@@ -137,8 +137,8 @@ const inventoryController = function (Item, ItemType) {
       .sort({
         wasted: 1,
       })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const postInvInProject = async function (req, res) {
@@ -171,8 +171,8 @@ const inventoryController = function (Item, ItemType) {
         const inventoryItem = new Item(data);
 
         return inventoryItem.save()
-          .then((results) => res.status(201).send(results))
-          .catch((errors) => res.status(500).send(errors));
+          .then(results => res.status(201).send(results))
+          .catch(errors => res.status(500).send(errors));
       }
       // if item does exist we will update it
       return Item.findOneAndUpdate(
@@ -191,8 +191,8 @@ const inventoryController = function (Item, ItemType) {
         .then((results) => {
           // new call to update the costPer using the new quantities and cost
           Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
-            .then((result) => res.status(201).send(result))
-            .catch((errors) => res.status(500).send(errors));
+            .then(result => res.status(201).send(result))
+            .catch(errors => res.status(500).send(errors));
         });
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
@@ -256,9 +256,9 @@ const inventoryController = function (Item, ItemType) {
                   },
                 }, { new: true }).then((results) => {
                   Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
-                    .then((result) => res.status(201).send(result))
-                    .catch((errors) => res.status(500).send(errors));
-                }).catch((errors) => res.status(500).send(errors));
+                    .then(result => res.status(201).send(result))
+                    .catch(errors => res.status(500).send(errors));
+                }).catch(errors => res.status(500).send(errors));
               }
               const data = {
                 quantity: req.body.quantity,
@@ -276,12 +276,12 @@ const inventoryController = function (Item, ItemType) {
               const inventoryItem = new Item(data);
 
               return inventoryItem.save()
-                .then((results) => res.status(201).send({ from: prevResults, to: results }))
-                .catch((errors) => res.status(500).send(errors));
+                .then(results => res.status(201).send({ from: prevResults, to: results }))
+                .catch(errors => res.status(500).send(errors));
             })
-            .catch((errors) => res.status(500).send(errors));
+            .catch(errors => res.status(500).send(errors));
         })
-        .catch((errors) => res.status(500).send(errors));
+        .catch(errors => res.status(500).send(errors));
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned');
   };
@@ -345,9 +345,9 @@ const inventoryController = function (Item, ItemType) {
                   },
                 }, { new: true }).then((results) => {
                   Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
-                    .then((result) => res.status(201).send(result))
-                    .catch((errors) => res.status(500).send(errors));
-                }).catch((errors) => res.status(500).send(errors));
+                    .then(result => res.status(201).send(result))
+                    .catch(errors => res.status(500).send(errors));
+                }).catch(errors => res.status(500).send(errors));
               }
               const data = {
                 quantity: req.body.quantity,
@@ -365,12 +365,12 @@ const inventoryController = function (Item, ItemType) {
               const inventoryItem = new Item(data);
 
               return inventoryItem.save()
-                .then((results) => res.status(201).send({ from: prevResults, to: results }))
-                .catch((errors) => res.status(500).send(errors));
+                .then(results => res.status(201).send({ from: prevResults, to: results }))
+                .catch(errors => res.status(500).send(errors));
             })
-            .catch((errors) => res.status(500).send(errors));
+            .catch(errors => res.status(500).send(errors));
         })
-        .catch((errors) => res.status(500).send(errors));
+        .catch(errors => res.status(500).send(errors));
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned');
   };
@@ -426,9 +426,9 @@ const inventoryController = function (Item, ItemType) {
                   },
                 }, { new: true }).then((results) => {
                   Item.findByIdAndUpdate(results._id, { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 }, { new: true })
-                    .then((result) => res.status(201).send(result))
-                    .catch((errors) => res.status(500).send(errors));
-                }).catch((errors) => res.status(500).send(errors));
+                    .then(result => res.status(201).send(result))
+                    .catch(errors => res.status(500).send(errors));
+                }).catch(errors => res.status(500).send(errors));
               }
               const data = {
                 quantity: req.body.quantity,
@@ -446,12 +446,12 @@ const inventoryController = function (Item, ItemType) {
               const inventoryItem = new Item(data);
 
               return inventoryItem.save()
-                .then((results) => res.status(201).send({ from: prevResults, to: results }))
-                .catch((errors) => res.status(500).send(errors));
+                .then(results => res.status(201).send({ from: prevResults, to: results }))
+                .catch(errors => res.status(500).send(errors));
             })
-            .catch((errors) => res.status(500).send(errors));
+            .catch(errors => res.status(500).send(errors));
         })
-        .catch((errors) => res.status(500).send(errors));
+        .catch(errors => res.status(500).send(errors));
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned');
   };
@@ -464,8 +464,8 @@ const inventoryController = function (Item, ItemType) {
     // Look up an inventory item by id and send back the info as jsong
     // send result just sending something now to have it work and not break anything
     return Item.findById({ _id: req.params.invId })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const putInvById = async function (req, res) {
@@ -503,8 +503,8 @@ const inventoryController = function (Item, ItemType) {
     // send result just sending something now to have it work and not break anything
     // Use model ItemType and return the find by Id
     return ItemType.findById({ _id: req.params.typeId })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const putInvType = async function (req, res) {
@@ -536,8 +536,8 @@ const inventoryController = function (Item, ItemType) {
     }
     // send result just sending something now to have it work and not break anything
     return ItemType.find({})
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const postInvType = async function (req, res) {
@@ -563,8 +563,8 @@ const inventoryController = function (Item, ItemType) {
         itemType.link = req.body.link;
 
         itemType.save()
-          .then((results) => res.status(201).send(results))
-          .catch((errors) => res.status(500).send(errors));
+          .then(results => res.status(201).send(results))
+          .catch(errors => res.status(500).send(errors));
       });
     // send result just sending something now to have it work and not break anything
     // create an inventory type req.body.name, req.body.description, req.body.imageUrl, req.body.quantifier
