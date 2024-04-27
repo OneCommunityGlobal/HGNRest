@@ -121,5 +121,19 @@ describe('Notification controller tests', () => {
       expect(mockNotification.remove).toHaveBeenCalled();
       assertResMock(200, { message: 'Deleted notification' }, response, mockRes);
     });
+    test('Ensures deleteUserNotification returns 400 on failure to remove notification', async () => {
+      const { deleteUserNotification } = makeSut();
+      const errorMsg = 'Error occurred  when removing notification';
+      const mockNotification = {
+        recipient: '65cf6c3706d8ac105827bb2e',
+        remove: jest.fn().mockRejectedValue(errorMsg),
+      };
+      jest
+        .spyOn(Notification, 'findById')
+        .mockImplementationOnce(() => Promise.resolve(mockNotification));
+      const response = deleteUserNotification(mockReq, mockRes);
+      await flushPromises();
+      assertResMock(400, errorMsg, response, mockRes);
+    });
   });
 });
