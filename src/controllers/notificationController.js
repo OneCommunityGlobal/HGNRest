@@ -10,8 +10,12 @@ const notificationController = function (Notification) {
     }
 
     Notification.find({ recipient: userid }, '_id message eventType')
-      .then((results) => { res.status(200).send(results); })
-      .catch((errors) => { res.status(400).send(errors); });
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((errors) => {
+        res.status(400).send(errors);
+      });
   };
 
   const createUserNotification = function (notification) {
@@ -20,21 +24,27 @@ const notificationController = function (Notification) {
 
   const deleteUserNotification = function (req, res) {
     if (!mongoose.Types.ObjectId.isValid(req.params.notificationId)) {
-      res.status(400).send({ error: 'Bad request' }); return;
+      res.status(400).send({ error: 'Bad request' });
+      return;
     }
 
     Notification.findById(req.params.notificationId)
       .then((result) => {
         // verify is requestor same as assignee
         if (req.body.requestor.requestorId !== result.recipient) {
-          res.status(403).send({ error: 'Unauthroized request' });
+          res.status(403).send({ error: 'Unauthorized request' });
           return;
         }
-        result.remove()
+        result
+          .remove()
           .then(res.status(200).send({ message: 'Deleted notification' }))
-          .catch((error) => { res.status(400).send(error); });
+          .catch((error) => {
+            res.status(400).send(error);
+          });
       })
-      .catch((error) => { res.status(400).send(error); });
+      .catch((error) => {
+        res.status(400).send(error);
+      });
   };
 
   return {

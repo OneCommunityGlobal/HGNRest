@@ -94,5 +94,18 @@ describe('Notification controller tests', () => {
       await flushPromises();
       assertResMock(400, errorMsg, response, mockRes);
     });
+    test('Ensures deleteUserNotification returns 403 if recipient ID does match requestor ID', async () => {
+      const { deleteUserNotification } = makeSut();
+      mockReq.body.requestor.requestorId = '65cf6c3706d8ac105827bb2e';
+      const mockNotification = {
+        recipient: 'wrongrecipientId',
+      };
+      jest
+        .spyOn(Notification, 'findById')
+        .mockImplementationOnce(() => Promise.resolve(mockNotification));
+      const response = deleteUserNotification(mockReq, mockRes);
+      await flushPromises();
+      assertResMock(403, { error: 'Unauthorized request' }, response, mockRes);
+    });
   });
 });
