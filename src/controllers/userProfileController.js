@@ -92,7 +92,7 @@ const userProfileController = function (UserProfile) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -110,7 +110,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getProjectMembers = async function (req, res) {
@@ -244,6 +244,7 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = req.body.createdDate;
+    up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
@@ -307,6 +308,7 @@ const userProfileController = function (UserProfile) {
           isActive: true,
           weeklycommittedHours: up.weeklycommittedHours,
           createdDate: up.createdDate.toISOString(),
+          startDate: up.startDate.toISOString(),
           _id: up._id,
           role: up.role,
           firstName: up.firstName,
@@ -327,6 +329,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = async function (req, res) {
+
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
@@ -419,7 +422,7 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
@@ -496,8 +499,11 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory.push(newEntry);
         }
 
-        if (req.body.createdDate !== undefined && record.createdDate !== req.body.createdDate) {
-          record.createdDate = moment(req.body.createdDate).toDate();
+        if (
+          req.body.startDate !== undefined
+          && record.startDate !== req.body.startDate
+        ) {
+          record.startDate = moment(req.body.startDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -507,7 +513,7 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
-          record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
+          record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
         if (
@@ -533,7 +539,7 @@ const userProfileController = function (UserProfile) {
           userData.weeklycommittedHours = record.weeklycommittedHours;
           userData.email = record.email;
           userData.isActive = record.isActive;
-          userData.createdDate = record.createdDate.toISOString();
+          userData.startDate = record.startDate.toISOString();
         }
       }
       if (
@@ -563,7 +569,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch((error) => res.status(400).send(error));
+        .catch(error => res.status(400).send(error));
     });
   };
 
@@ -704,7 +710,7 @@ const userProfileController = function (UserProfile) {
           res.status(200).send(results);
         });
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -717,7 +723,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -753,9 +759,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -815,11 +821,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -851,7 +857,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -868,7 +874,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -1120,7 +1126,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   function escapeRegExp(string) {
@@ -1152,7 +1158,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   /**
