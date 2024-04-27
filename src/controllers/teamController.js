@@ -2,21 +2,30 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
+const Logger = require('../startup/logger');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        Logger.logException(error);
+        res.status(404).send(error);
+      });
   };
+
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        Logger.logException(error, null, `teamId: ${teamId}`);
+        res.status(404).send(error);
+      });
   };
+
   const postTeam = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'postTeam'))) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
@@ -34,10 +43,27 @@ const teamcontroller = function (Team) {
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    team
-      .save()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+    // Check if a team with the same name already exists
+    Team.findOne({ teamName: team.teamName })
+      .then((existingTeam) => {
+        if (existingTeam) {
+          // If a team with the same name exists, return an error
+          res.status(400).send({ error: 'A team with this name already exists' });
+        } else {
+          // If no team with the same name exists, save the new team
+          team
+            .save()
+            .then((results) => res.send(results).status(200))
+            .catch((error) => {
+              Logger.logException(error, null, `teamName: ${req.body.teamName}`);
+              res.send(error).status(404);
+            });
+        }
+      })
+      .catch((error) => {
+        Logger.logException(error, null, `teamName: ${req.body.teamName}`);
+        res.send(error).status(404);
+      });
   };
 
   const deleteTeam = async function (req, res) {
@@ -61,12 +87,15 @@ const teamcontroller = function (Team) {
           res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
         )
         .catch((errors) => {
+          Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send(errors);
         });
     }).catch((error) => {
+      Logger.logException(error, null, `teamId: ${teamId}`);
       res.status(400).send(error);
     });
   };
+
   const putTeam = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'putTeam'))) {
       res.status(403).send('You are not authorized to make changes in the teams.');
@@ -99,7 +128,10 @@ const teamcontroller = function (Team) {
       record
         .save()
         .then((results) => res.status(200).send(results._id))
-        .catch((errors) => res.status(400).send(errors));
+        .catch((errors) => {
+          Logger.logException(errors, null, `TeamId: ${teamId} Request:${req.body}`);
+          res.status(400).send(errors);
+        });
     });
   };
 
@@ -157,6 +189,7 @@ const teamcontroller = function (Team) {
         res.status(200).send({ result: 'Delete Success' });
       }
     } catch (error) {
+      Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
       res.status(500).send({ error });
     }
   };
@@ -190,7 +223,10 @@ const teamcontroller = function (Team) {
       },
     ])
       .then((result) => res.status(200).send(result))
-      .catch((error) => res.status(500).send(error));
+      .catch((error) => {
+        Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
+        res.status(500).send(error);
+      });
   };
 
   return {
