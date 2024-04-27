@@ -29,8 +29,8 @@ const rolePresetsController = function (Preset) {
     preset.presetName = req.body.presetName;
     preset.permissions = req.body.permissions;
     preset.save()
-      .then((result) => res.status(201).send({ newPreset: result, message: 'New preset created' }))
-      .catch((error) => res.status(400).send({ error }));
+      .then(result => res.status(201).send({ newPreset: result, message: 'New preset created' }))
+      .catch(error => res.status(400).send({ error }));
   };
 
   const updatePresetById = async function (req, res) {
@@ -46,10 +46,10 @@ const rolePresetsController = function (Preset) {
         record.presetName = req.body.presetName;
         record.permissions = req.body.permissions;
         record.save()
-        .then((results) => res.status(200).send(results))
-        .catch((errors) => res.status(400).send(errors));
+        .then(results => res.status(200).send(results))
+        .catch(errors => res.status(400).send(errors));
       })
-      .catch((error) => res.status(400).send({ error }));
+      .catch(error => res.status(400).send({ error }));
   };
 
   const deletePresetById = async function (req, res) {
@@ -63,9 +63,9 @@ const rolePresetsController = function (Preset) {
       .then((result) => {
         result.remove()
           .then(res.status(200).send({ message: 'Deleted preset' }))
-          .catch((error) => res.status(400).send({ error }));
+          .catch(error => res.status(400).send({ error }));
       })
-      .catch((error) => res.status(400).send({ error }));
+      .catch(error => res.status(400).send({ error }));
   };
 
   return {
