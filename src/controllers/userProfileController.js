@@ -103,18 +103,29 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(404).send(error));
   };
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   * @returns
+   */
   const getProjectsByPerson = async function (req, res) {
+    // Must find user by first and last name and verify the user ID, once that should be able to extract
     try {
-      const id = req.params.userId; // The volunteer's id to find their related tasks - Sucheta
+      const { firstName } = req.body;
+      const { lastName } = req.body;
 
-      const userProfile = await UserProfile.find(id);
+      const userProfile = await UserProfile.find({
+        firstName,
+        lastName,
+      });
 
       if (!userProfile) {
         return res.status(400).send('UserProfile not found');
       }
 
       const projects = userProfile.projects.filter(
-        (project) => project.isActive === true
+        (project) => project.isActive === true,
       );
       console.log('These are the active projects', projects);
       return res.status(200).send('Active projects', projects);
