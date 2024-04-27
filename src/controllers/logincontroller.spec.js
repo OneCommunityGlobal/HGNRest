@@ -89,7 +89,7 @@ describe.only('logincontroller module', () => {
       );
     });
 
-    test('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
+    test.only('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
@@ -138,7 +138,7 @@ describe.only('logincontroller module', () => {
       expect(mockRes.json).toHaveBeenCalledWith(error);
     });
 
-    test.only('Ensure login returns 200, if the user is a new user and there is a password match', async () => {
+    test('Ensure login returns 200, if the user is a new user and there is a password match', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
@@ -169,36 +169,36 @@ describe.only('logincontroller module', () => {
     });
 
     // Failing Test 2
-    // test('Ensure login returns 200, if the user already exists and the password is a match', async()=>{
-    //   const { login } = makeSut();
-    //   const mockReqModified = {
-    //     ...mockReq,
-    //     body: {
-    //       email: 'existing@example.com',
-    //       password: 'existingUserPassword',
-    //     },
-    //   };
-    //   const mockUserModified = {
-    //     ...mockUser,
-    //     ...{
-    //       _id: 'existingUser123',
-    //       email: 'existing@example.com',
-    //       password: 'hashedPassword', // Assume this is the hashed password for 'existingUserPassword'
-    //       resetPwd: '',
-    //       isActive: true,
-    //     }
-    //   };
+    test.only('Ensure login returns 200, if the user already exists and the password is a match', async () => {
+      const { login } = makeSut();
+      const mockReqModified = {
+        ...mockReq,
+        body: {
+          email: 'existing@example.com',
+          password: 'existingUserPassword',
+        },
+      };
+      const mockUserModified = {
+        _id: 'user123',
+        email: 'existing@example.com',
+        password: 'hashedPassword',
+        resetPwd: 'newUserPassword',
+        isActive: true,
+        role: 'Volunteer',
+        permissions: ['read', 'write'],
+      };
 
-    //   const findOneSpy = jest
-    //     .spyOn(userProfile, 'findOne')
-    //     .mockImplementation(() => Promise.resolve(mockUserModified));
+      const findOneSpy = jest
+        .spyOn(userProfile, 'findOne')
+        .mockImplementation(() => Promise.resolve(mockUserModified));
 
-    //   jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
-    //   //expect(findOneSpy).toHaveBeenCalledWith({ email: mockReqModified.body.email });
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
 
-    //   const res = await login(mockReqModified, mockRes);
-    //   assertResMock(200, { token: expect.any(String) }, res, mockRes);
-    // });
+      const res = await login(mockReqModified, mockRes);
+      expect(findOneSpy).toHaveBeenCalledWith({ email: mockReqModified.body.email });
+
+      assertResMock(200, { token: expect.any(String) }, res, mockRes);
+    });
   });
 
   describe('getUser', () => {
