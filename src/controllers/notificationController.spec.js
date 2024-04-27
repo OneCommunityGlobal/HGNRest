@@ -107,5 +107,19 @@ describe('Notification controller tests', () => {
       await flushPromises();
       assertResMock(403, { error: 'Unauthorized request' }, response, mockRes);
     });
+    test('Ensures deleteUserNotification returns 200 if notification removal is successful', async () => {
+      const { deleteUserNotification } = makeSut();
+      const mockNotification = {
+        recipient: '65cf6c3706d8ac105827bb2e',
+        remove: jest.fn().mockResolvedValue({}),
+      };
+      jest
+        .spyOn(Notification, 'findById')
+        .mockImplementationOnce(() => Promise.resolve(mockNotification));
+      const response = deleteUserNotification(mockReq, mockRes);
+      await flushPromises();
+      expect(mockNotification.remove).toHaveBeenCalled();
+      assertResMock(200, { message: 'Deleted notification' }, response, mockRes);
+    });
   });
 });
