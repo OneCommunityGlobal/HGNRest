@@ -6,8 +6,8 @@ Cross Mark: ❌
 > ## Positive case
 
 1. ❌ Receives a POST request in the **/api/userProfile** route
-2. ❌ Returns 200, if the user is a new user and there is a password match
-3. ❌ Returns 200, if the user already exists and the password is a match
+2. ✅  Returns 200, if the user is a new user and there is a password match
+3. ✅  Returns 200, if the user already exists and the password is a match
 
 ## Negative case
 

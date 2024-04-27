@@ -13,12 +13,12 @@ const makeSut = () => {
   };
 };
 
-describe.only('logincontroller module', () => {
+describe('logincontroller module', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe.only('login', () => {
+  describe('login', () => {
     test('Ensure login returns error 400 if there is no email or password', async () => {
       const { login } = makeSut();
       const mockReqModified = {
@@ -89,7 +89,7 @@ describe.only('logincontroller module', () => {
       );
     });
 
-    test.only('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
+    test('Ensure login returns error 403 if the password is not a match and if the user already exists', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
@@ -168,8 +168,7 @@ describe.only('logincontroller module', () => {
       assertResMock(200, { new: true, userId: 'user123' }, res, mockRes);
     });
 
-    // Failing Test 2
-    test.only('Ensure login returns 200, if the user already exists and the password is a match', async () => {
+    test('Ensure login returns 200, if the user already exists and the password is a match', async () => {
       const { login } = makeSut();
       const mockReqModified = {
         ...mockReq,
