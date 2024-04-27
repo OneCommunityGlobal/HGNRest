@@ -50,6 +50,7 @@ const permissionsRoles = [
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'manageAdminLinks',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -218,6 +219,7 @@ const permissionsRoles = [
       'editTeamCode',
       'totalValidWeeklySummaries',
       'changeUserRehireableStatus',
+      'manageAdminLinks',
     ],
   },
 ];

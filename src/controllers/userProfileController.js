@@ -334,7 +334,9 @@ const userProfileController = function (UserProfile) {
         req.body.requestor.requestorId === userid)
     );
 
-    if (!isRequestorAuthorized) {
+    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+
+    if (!isRequestorAuthorized && !canManageAdminLinks) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -422,12 +424,16 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
+      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+        record.adminLinks = req.body.adminLinks;
+      }
+
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
           'role',
           'isRehireable',
           'isActive',
-          'adminLinks',
           'isActive',
           'weeklySummaries',
           'weeklySummariesCount',
