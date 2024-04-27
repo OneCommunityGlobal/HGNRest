@@ -19,7 +19,14 @@ const userNotificationEmail = (name, action = '') => {
   return message;
 };
 
-const adminsNotificationEmail = (firstName, lastName, startDate, endDate, action = '') => {
+const adminsNotificationEmail = (
+  firstName,
+  lastName,
+  startDate,
+  endDate,
+  action = '',
+  reason = null,
+) => {
   const message =
     action === 'delete'
       ? `<p>Hello,</p>
@@ -34,6 +41,7 @@ const adminsNotificationEmail = (firstName, lastName, startDate, endDate, action
     <p>${firstName} ${lastName} has requested the following week off: <b>${moment(startDate).format(
       'MM-DD-YYYY',
     )}</b> to <b>${moment(endDate).format('MM-DD-YYYY')}</b>.</p>
+    <p>Due to: <b>${reason}</b></p>
     <p>If you need to, please make a note of this in your schedule and make any necessary plans for their action item(s).<br>
      As an additional reminder, their name in the Leaderboard and Tasks list will also reflect their absence for the time they are off.</p>
      <p>Thank you,</p>
@@ -60,7 +68,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
     }
   };
 
-  const notifyAdmins = async (startDate, endDate, userId, action = '') => {
+  const notifyAdmins = async (startDate, endDate, userId, action = '', reason = null) => {
     try {
       const user = await UserProfile.findById(userId, 'firstName lastName');
       const { firstName, lastName } = user;
@@ -84,25 +92,29 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
 
       const ownerAcc = await UserProfile.find({
         role: 'Owner',
-      }).select('email').exec();
+      })
+        .select('email')
+        .exec();
 
       const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
-      const userEmails = userProfiles.map((userProfile) => {
-        if (rolesToInclude.includes(userProfile.role)) {
-          return userProfile.email;
-        }
-        return null;
-      }).filter(email => email !== null);
+      const userEmails = userProfiles
+        .map((userProfile) => {
+          if (rolesToInclude.includes(userProfile.role)) {
+            return userProfile.email;
+          }
+          return null;
+        })
+        .filter((email) => email !== null);
 
-      ownerAcc.forEach(user => userEmails.push(user.email));
-
+      // eslint-disable-next-line no-shadow
+      ownerAcc.forEach((user) => userEmails.push(user.email));
 
       if (Array.isArray(userEmails) && userEmails.length > 0) {
         userEmails.forEach((email) => {
           emailSender(
             email,
             `Blue Square Reason for ${firstName} ${lastName} has been set`,
-            adminsNotificationEmail(firstName, lastName, startDate, endDate, action),
+            adminsNotificationEmail(firstName, lastName, startDate, endDate, action, reason),
             null,
             null,
             null,
@@ -148,7 +160,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       res.status(201).send(savedRequest);
       if (savedRequest && setOwnRequested) {
         await notifyUser(requestFor);
-        await notifyAdmins(startingDate, endDate, requestFor);
+        await notifyAdmins(startingDate, endDate, requestFor, '', savedRequest.reason);
       }
     } catch (error) {
       res.status(500).send('Error saving the request.');

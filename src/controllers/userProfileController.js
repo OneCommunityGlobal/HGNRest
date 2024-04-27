@@ -12,16 +12,23 @@ const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
-const cache = require('../utilities/nodeCache')();
+const cacheClosure = require('../utilities/nodeCache');
+const followUp = require('../models/followUp');
 
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = 'sucheta_mu@test.com'; // To test this code please include your email here
 const authorizedUserJae = 'jae@onecommunityglobal.org';
 
+<<<<<<< HEAD
 const {
   hasPermission,
   canRequestorUpdateUser,
 } = require('../utilities/permissions');
+=======
+const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
+
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
@@ -75,15 +82,28 @@ async function ValidatePassword(req, res) {
 }
 
 const userProfileController = function (UserProfile) {
+  const cache = cacheClosure();
+
+  const forbidden = function (res, message) {
+    res.status(403).send(message);
+  };
+
+  const checkPermission = async function (req, permission) {
+    return helper.hasPermission(req.body.requestor, permission);
+  };
   const getUserProfiles = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getUserProfiles'))) {
-      res.status(403).send('You are not authorized to view all users');
+    if (!(await checkPermission(req, 'getUserProfiles'))) {
+      forbidden(res, 'You are not authorized to view all users');
       return;
     }
 
-    UserProfile.find(
+    await UserProfile.find(
       {},
+<<<<<<< HEAD
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate'
+=======
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
     )
       .sort({
         lastName: 1,
@@ -101,7 +121,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
   /**
    *
@@ -158,16 +178,21 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postUserProfile'))) {
-      res.status(403).send('You are not authorized to create new users');
+    if (!(await checkPermission(req, 'postUserProfile'))) {
+      forbidden(res, 'You are not authorized to create new users');
       return;
     }
 
+<<<<<<< HEAD
     if (
       req.body.role === 'Owner' &&
       !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
     ) {
       res.status(403).send('You are not authorized to create new owners');
+=======
+    if (req.body.role === 'Owner' && !(await checkPermission(req, 'addDeleteEditOwners'))) {
+      forbidden(res, 'You are not authorized to create new owners');
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
       return;
     }
 
@@ -272,6 +297,7 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = req.body.createdDate;
+    up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
@@ -287,9 +313,13 @@ const userProfileController = function (UserProfile) {
     up.isVisible = !['Mentor'].includes(req.body.role);
 
     try {
+<<<<<<< HEAD
       const requestor = await UserProfile.findById(
         req.body.requestor.requestorId
       )
+=======
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         .select('firstName lastName email role')
         .exec();
 
@@ -345,6 +375,7 @@ const userProfileController = function (UserProfile) {
           isActive: true,
           weeklycommittedHours: up.weeklycommittedHours,
           createdDate: up.createdDate.toISOString(),
+          startDate: up.startDate.toISOString(),
           _id: up._id,
           role: up.role,
           firstName: up.firstName,
@@ -365,6 +396,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = async function (req, res) {
+
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
@@ -461,7 +493,7 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userIdx = allUserData.findIndex(users => users._id === userid);
         userData = allUserData[userIdx];
       }
       if (
@@ -544,10 +576,17 @@ const userProfileController = function (UserProfile) {
         }
 
         if (
+<<<<<<< HEAD
           req.body.createdDate !== undefined &&
           record.createdDate !== req.body.createdDate
         ) {
           record.createdDate = moment(req.body.createdDate).toDate();
+=======
+          req.body.startDate !== undefined
+          && record.startDate !== req.body.startDate
+        ) {
+          record.startDate = moment(req.body.startDate).toDate();
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -557,8 +596,12 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
+<<<<<<< HEAD
           record.weeklycommittedHoursHistory[0].dateChanged =
             record.createdDate;
+=======
+          record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         }
 
         if (
@@ -584,7 +627,7 @@ const userProfileController = function (UserProfile) {
           userData.weeklycommittedHours = record.weeklycommittedHours;
           userData.email = record.email;
           userData.isActive = record.isActive;
-          userData.createdDate = record.createdDate.toISOString();
+          userData.startDate = record.startDate.toISOString();
         }
       }
       if (
@@ -614,7 +657,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch((error) => res.status(400).send(error));
+        .catch(error => res.status(400).send(error));
     });
   };
 
@@ -696,6 +739,7 @@ const userProfileController = function (UserProfile) {
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
 
+<<<<<<< HEAD
     await UserProfile.deleteOne({
       _id: userId,
     })
@@ -705,6 +749,16 @@ const userProfileController = function (UserProfile) {
       .catch((err) => {
         res.status(500).send(err);
       });
+=======
+    try {
+      await UserProfile.deleteOne({ _id: userId });
+      // delete followUp for deleted user
+      await followUp.findOneAndDelete({ userId });
+      res.status(200).send({ message: 'Executed Successfully' });
+    } catch (err) {
+      res.status(500).send(err);
+    }
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
   };
 
   const getUserById = function (req, res) {
@@ -764,7 +818,7 @@ const userProfileController = function (UserProfile) {
             res.status(200).send(results);
           });
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -777,7 +831,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -815,9 +869,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -884,11 +938,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
           })
-          .catch((error) => res.status(500).send(error));
+          .catch(error => res.status(500).send(error));
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -927,7 +981,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -944,7 +998,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -1031,12 +1085,17 @@ const userProfileController = function (UserProfile) {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).send({ error: 'Bad Request' });
     }
+<<<<<<< HEAD
     if (
       !(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))
     ) {
       return res
         .status(403)
         .send('You are not authorized to change rehireable status');
+=======
+    if (!(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))) {
+      return res.status(403).send('You are not authorized to change rehireable status');
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
     }
 
     // Invalidate the cache for this user
@@ -1046,6 +1105,10 @@ const userProfileController = function (UserProfile) {
       userId,
       { $set: { isRehireable } },
       { new: true },
+<<<<<<< HEAD
+=======
+      // eslint-disable-next-line no-unused-vars
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
       (error, updatedUser) => {
         if (error) {
           return res.status(500).send(error);
@@ -1054,9 +1117,13 @@ const userProfileController = function (UserProfile) {
         const isUserInCache = cache.hasCache('allusers');
         if (isUserInCache) {
           const allUserData = JSON.parse(cache.getCache('allusers'));
+<<<<<<< HEAD
           const userIdx = allUserData.findIndex(
             (users) => users._id === userId
           );
+=======
+          const userIdx = allUserData.findIndex((users) => users._id === userId);
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
           const userData = allUserData[userIdx];
           userData.isRehireable = isRehireable;
           allUserData.splice(userIdx, 1, userData);
@@ -1073,7 +1140,11 @@ const userProfileController = function (UserProfile) {
             isRehireable: verifiedUser.isRehireable,
           });
         });
+<<<<<<< HEAD
       }
+=======
+      },
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
     );
   };
 
@@ -1081,9 +1152,13 @@ const userProfileController = function (UserProfile) {
     try {
       ValidatePassword(req);
 
+<<<<<<< HEAD
       const requestor = await UserProfile.findById(
         req.body.requestor.requestorId
       )
+=======
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         .select('firstName lastName email role')
         .exec();
 
@@ -1102,6 +1177,7 @@ const userProfileController = function (UserProfile) {
       }
 
       if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
+<<<<<<< HEAD
         res
           .status(403)
           .send('You are not authorized to reset this users password');
@@ -1115,6 +1191,14 @@ const userProfileController = function (UserProfile) {
         res
           .status(403)
           .send('You are not authorized to reset this user password');
+=======
+        res.status(403).send('You are not authorized to reset this users password');
+        return;
+      }
+
+      if (user.role === 'Owner' && !(await hasPermission(requestor, 'addDeleteEditOwners'))) {
+        res.status(403).send('You are not authorized to reset this user password');
+>>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         return;
       }
 
@@ -1223,7 +1307,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   function escapeRegExp(string) {
@@ -1262,7 +1346,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   /**
