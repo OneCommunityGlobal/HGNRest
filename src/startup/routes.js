@@ -169,5 +169,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api', timeOffRequestRouter);
-  app.use('api', bmIssueRouter);
+  app.use('/api/bm', bmIssueRouter);
 };
