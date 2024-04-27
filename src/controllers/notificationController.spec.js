@@ -18,6 +18,7 @@ const flushPromises = () => new Promise(setImmediate);
 describe('Notification controller tests', () => {
   beforeEach(() => {
     mockReq.params.userId = '65cf6c3706d8ac105827bb2e';
+    mockReq.params.notificationId = '507f191e810c19729de860ea';
   });
 
   afterEach(() => {
@@ -61,7 +62,7 @@ describe('Notification controller tests', () => {
   });
 
   describe('createUserNotification', () => {
-    test('Ensures createUserNofication calls on save notification', async () => {
+    test('Ensures createUserNotification calls on save notification', async () => {
       const { createUserNotification } = makeSut();
       const mockNotification = {
         save: jest.fn().mockImplementationOnce(() => Promise.resolve(true)),
@@ -84,12 +85,14 @@ describe('Notification controller tests', () => {
 
     test('Ensures deleteUserNotification returns 400 if any error occurs when finding a notification', async () => {
       const { deleteUserNotification } = makeSut();
-      jest
-        .spyOn(Notification, 'findById')
-        .mockImplementationOnce(() => Promise.reject(new Error('error')));
+
+      const errorMsg = 'Error occurred when finding notification';
+
+      jest.spyOn(Notification, 'findById').mockImplementationOnce(() => Promise.reject(errorMsg));
+
       const response = deleteUserNotification(mockReq, mockRes);
       await flushPromises();
-      assertResMock(400, { error: 'Bad request' }, response, mockRes);
+      assertResMock(400, errorMsg, response, mockRes);
     });
   });
 });
