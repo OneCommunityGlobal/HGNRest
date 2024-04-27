@@ -431,6 +431,13 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       result.status(400).send({ error: 'Bad request' });
     };
 
+    const isPostingForSelf = req.body.personId === req.requestor.requestorId;
+    const canPostTimeEntriesForOthers = await hasPermission(req.requestor, 'postTimeEntry');
+    if (!isPostingForSelf && !canPostTimeEntriesForOthers) {
+      result.status(403).send({ error: 'You do not have permission to post time entries for others' });
+      return;
+    }
+
     switch (req.body.entryType) {
       case 'person':
         if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) returnErr(res);
@@ -569,13 +576,42 @@ const checkIsUserFirstTimeEntry = async (personId) => {
     const isSameDayTimeEntry =
       moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
     const isSameDayAuthUserEdit = isForAuthUser && isSameDayTimeEntry;
-    const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
-    const hasEditTimeEntryPermission = await hasPermission(req.body.requestor, 'editTimeEntry');
 
-    const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
+    const isTimeModified = newTotalSeconds !== timeEntry.totalSeconds;
+    const isDescriptionModified = newNotes !== timeEntry.notes;
+    const isDateModified = newDateOfWork !== timeEntry.dateOfWork;
+    const isTangibleModified = newIsTangible !== timeEntry.isTangible;
 
-    if (!canEdit) {
-      const error = 'Unauthorized request';
+    const isUsingAPermission = isTimeModified || (isDescriptionModified && !isSameDayAuthUserEdit) || isDateModified || isTangibleModified;
+
+    // Time
+    if (isTimeModified && !await hasPermission(req.body.requestor, 'editTimeEntryTime')){
+      const error = `You do not have permission to edit the time entry time`;
+      return res.status(403).send({ error });
+    }
+
+    // Description
+    if (!isSameDayAuthUserEdit
+      && isDescriptionModified
+      && !await hasPermission(req.body.requestor, 'editTimeEntryDescription')
+      ){
+      const error = `You do not have permission to edit the time entry description`;
+      return res.status(403).send({ error });
+    }
+
+    // Date
+    if (isDateModified
+      && !await hasPermission(req.body.requestor, 'editTimeEntryDate')
+      ){
+      const error = `You do not have permission to edit the time entry date`;
+      return res.status(403).send({ error });
+    }
+
+    // Tangible Time
+    if (isTangibleModified
+      && !await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')
+      ){
+      const error = `You do not have permission to edit the time entry isTangible`;
       return res.status(403).send({ error });
     }
 
@@ -732,8 +768,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
           );
           // Update edit history
           if (
-            !isRequestorAdminLikeRole &&
-            !hasEditTimeEntryPermission &&
+            !isUsingAPermission &&
             isSameDayAuthUserEdit &&
             isGeneralEntry
           ) {
@@ -799,19 +834,18 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       const isSameDayTimeEntry =
         moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === dateOfWork;
       const isSameDayAuthUserDelete = isForAuthUser && isSameDayTimeEntry;
-      const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       const hasDeleteTimeEntryPermission = await hasPermission(
         req.body.requestor,
         'deleteTimeEntry',
       );
       const canDelete =
-        isSameDayAuthUserDelete || isRequestorAdminLikeRole || hasDeleteTimeEntryPermission;
+        isSameDayAuthUserDelete || hasDeleteTimeEntryPermission;
       if (!canDelete) {
         res.status(403).send({ error: 'Unauthorized request' });
         return;
       }
 
-      const userprofile = await UserProfile.findById(personId);
+    const userprofile = await UserProfile.findById(personId);
 
       // Revert this tangible timeEntry of related task's hoursLogged
       if (isTangible) {
