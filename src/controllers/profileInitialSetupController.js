@@ -183,9 +183,7 @@ const profileInitialSetupController = function (
           res.status(400).send(TOKEN_CANCEL_MESSAGE);
         } else if (expirationMoment.isBefore(currentMoment)) {
           res.status(400).send(TOKEN_EXPIRED_MESSAGE);
-        } else {
-          res.status(400).send(TOKEN_INVALID_MESSAGE);
-        } 
+        }
         res.status(200).send(foundToken);
       } else {
         res.status(404).send(TOKEN_NOT_FOUND_MESSAGE);
