@@ -24,8 +24,8 @@ const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
-const notificationService = require("../services/notificationService");
-const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require("../constants/message");
+const notificationService = require('../services/notificationService');
+const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 
 const userHelper = function () {
@@ -117,13 +117,16 @@ const userHelper = function () {
         timeRemaining + coreTeamExtraHour
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-    //bold description for 'not submitting a weekly summary' and logged hrs 
+    // bold description for 'not submitting a weekly summary' and logged hrs
     let boldedDescription = '';
     if (infringement.description) {
-      boldedDescription = infringement.description.replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
-      boldedDescription = boldedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>')
+      boldedDescription = infringement.description.replace(
+        /(not submitting a weekly summary)/gi,
+        '<b>$1</b>',
+      );
+      boldedDescription = boldedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
     }
-    //add administrative content
+    // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
@@ -351,7 +354,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch(error => logger.logException(error));
+      .catch((error) => logger.logException(error));
   };
 
   /**
@@ -399,7 +402,7 @@ const userHelper = function () {
           // save updated records in batch (mongoose updateMany) and do asyc email sending
         2. Wrap the operation in one transaction to ensure the atomicity of the operation.
       */
-     for (let i = 0; i < users.length; i += 1) {
+      for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
         const person = await userProfile.findById(user._id);
@@ -434,7 +437,7 @@ const userHelper = function () {
 
         const timeRemaining = weeklycommittedHours - timeSpent;
 
-         /** Check if the user is new user to prevent blue square assignment
+        /** Check if the user is new user to prevent blue square assignment
          * Condition:
          *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
          *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
@@ -448,12 +451,16 @@ const userHelper = function () {
         let isNewUser = false;
         const userStartDate = moment(person.startDate);
         if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0) {
-              isNewUser = true;
+          isNewUser = true;
         }
 
-        if ((userStartDate.isAfter(pdtEndOfLastWeek))
-               || (userStartDate.isAfter(pdtStartOfLastWeek) && userStartDate.isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
-            isNewUser = true;
+        if (
+          userStartDate.isAfter(pdtEndOfLastWeek) ||
+          (userStartDate.isAfter(pdtStartOfLastWeek) &&
+            userStartDate.isBefore(pdtEndOfLastWeek) &&
+            timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+        ) {
+          isNewUser = true;
         }
 
         const updateResult = await userProfile.findByIdAndUpdate(
@@ -495,7 +502,7 @@ const userHelper = function () {
             break;
           }
         }
-        //use histroy Infringements to align the highlight requirements
+        // use histroy Infringements to align the highlight requirements
         let historyInfringements = 'No Previous Infringements.';
         if (oldInfringements.length) {
           userProfile.findByIdAndUpdate(
@@ -508,20 +515,26 @@ const userHelper = function () {
             { new: true },
           );
           historyInfringements = oldInfringements
-          .map((item, index) => {
-            let enhancedDescription = item.description;
-            //highlight previous assigned reason manually
-            if (!item.description.includes('System auto-assigned infringement')) {
-              enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-            } else {
-              //highlight not submitting a weekly summary and logged hrs
-              let sentences = item.description.split('.');
-              sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`
-              enhancedDescription = sentences.join('.');
-              enhancedDescription = enhancedDescription.replace(/(not submitting a weekly summary)/gi, '<b><span style="color: blue;">$1</span></b>');
-              enhancedDescription = enhancedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b><span style="color: blue;">$1 hours</span></b>');
-            }
-            return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+            .map((item, index) => {
+              let enhancedDescription = item.description;
+              // highlight previous assigned reason manually
+              if (!item.description.includes('System auto-assigned infringement')) {
+                enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
+              } else {
+                // highlight not submitting a weekly summary and logged hrs
+                const sentences = item.description.split('.');
+                sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
+                enhancedDescription = sentences.join('.');
+                enhancedDescription = enhancedDescription.replace(
+                  /(not submitting a weekly summary)/gi,
+                  '<b><span style="color: blue;">$1</span></b>',
+                );
+                enhancedDescription = enhancedDescription.replace(
+                  /(\d+\.\d{2})\s*hours/i,
+                  '<b><span style="color: blue;">$1 hours</span></b>',
+                );
+              }
+              return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
             })
             .join('');
         }
@@ -625,6 +638,13 @@ const userHelper = function () {
           // Only assign blue square and send email if the user IS NOT a new user
           // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
           // All other new users will not receive a blue square or notification
+          let emailBody = '';
+          const administrativeContent = {
+            startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
+            roleAdminstrative: person.role,
+            userTitle: `${person.firstName} ${person.lastName}`,
+            historyInfringements,
+          };
           if (!isNewUser) {
             const status = await userProfile.findByIdAndUpdate(
               personId,
@@ -635,15 +655,7 @@ const userHelper = function () {
               },
               { new: true },
             );
-
-            let emailBody = "";
-            const administrativeContent = {
-            startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
-            roleAdminstrative: person.role,
-            userTitle: `${person.firstName} ${person.lastName}`,
-            historyInfringements,
-            };
-            if (person.role === "Core Team" && timeRemaining > 0) {
+            if (person.role === 'Core Team' && timeRemaining > 0) {
               emailBody = getInfringementEmailBody(
                 status.firstName,
                 status.lastName,
@@ -669,10 +681,10 @@ const userHelper = function () {
 
             emailSender(
               status.email,
-              "New Infringement Assigned",
+              'New Infringement Assigned',
               emailBody,
               null,
-              "onecommunityglobal@gmail.com",
+              'onecommunityglobal@gmail.com',
               status.email,
               null,
             );
@@ -735,8 +747,14 @@ const userHelper = function () {
       // Create notification for users who are new and met the time requirement but weekly summary not submitted
       // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
       if (usersRequiringBlueSqNotification.length > 0) {
-        const senderId = await userProfile.findOne({ role: "Owner", isActive: true }, "_id");
-        await notificationService.createNotification(senderId._id, usersRequiringBlueSqNotification, NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE, true, false);
+        const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
+        await notificationService.createNotification(
+          senderId._id,
+          usersRequiringBlueSqNotification,
+          NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE,
+          true,
+          false,
+        );
       }
     } catch (err) {
       logger.logException(err);
@@ -1045,7 +1063,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          item => item.badge._id.toString() === badgeId.toString(),
+          (item) => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error(
@@ -1252,7 +1270,7 @@ const userHelper = function () {
 
           if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
             const theBadge = badgesOfType.find(
-              badgeItem => badgeItem._id.toString() === elem._id.toString(),
+              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
@@ -1360,7 +1378,7 @@ const userHelper = function () {
           return true;
         });
       });
-  }
+  };
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
