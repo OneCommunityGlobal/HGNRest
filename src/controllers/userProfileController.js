@@ -19,16 +19,9 @@ const followUp = require('../models/followUp');
 const authorizedUserSara = 'sucheta_mu@test.com'; // To test this code please include your email here
 const authorizedUserJae = 'jae@onecommunityglobal.org';
 
-<<<<<<< HEAD
-const {
-  hasPermission,
-  canRequestorUpdateUser,
-} = require('../utilities/permissions');
-=======
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
 
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
@@ -99,11 +92,7 @@ const userProfileController = function (UserProfile) {
 
     await UserProfile.find(
       {},
-<<<<<<< HEAD
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate'
-=======
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
     )
       .sort({
         lastName: 1,
@@ -121,7 +110,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
   /**
    *
@@ -144,9 +133,7 @@ const userProfileController = function (UserProfile) {
         return res.status(400).send('UserProfile not found');
       }
 
-      const projects = userProfile.projects.filter(
-        (project) => project.isActive === true,
-      );
+      const projects = userProfile.projects.filter((project) => project.isActive === true);
       console.log('These are the active projects', projects);
       return res.status(200).send('Active projects', projects);
     } catch (error) {
@@ -173,7 +160,7 @@ const userProfileController = function (UserProfile) {
           return;
         }
         res.json(profiles);
-      }
+      },
     );
   };
 
@@ -183,16 +170,8 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-<<<<<<< HEAD
-    if (
-      req.body.role === 'Owner' &&
-      !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
-    ) {
-      res.status(403).send('You are not authorized to create new owners');
-=======
     if (req.body.role === 'Owner' && !(await checkPermission(req, 'addDeleteEditOwners'))) {
       forbidden(res, 'You are not authorized to create new owners');
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
       return;
     }
 
@@ -205,8 +184,7 @@ const userProfileController = function (UserProfile) {
 
     if (userByEmail) {
       res.status(400).send({
-        error:
-          'That email address is already in use. Please choose another email address.',
+        error: 'That email address is already in use. Please choose another email address.',
         type: 'email',
       });
       return;
@@ -254,8 +232,7 @@ const userProfileController = function (UserProfile) {
 
       if (userByPhoneNumber) {
         res.status(400).send({
-          error:
-            'That phone number is already in use. Please choose another number.',
+          error: 'That phone number is already in use. Please choose another number.',
           type: 'phoneNumber',
         });
         return;
@@ -269,8 +246,7 @@ const userProfileController = function (UserProfile) {
 
     if (userDuplicateName && !req.body.allowsDuplicateName) {
       res.status(400).send({
-        error:
-          'That name is already in use. Please confirm if you want to use this name.',
+        error: 'That name is already in use. Please confirm if you want to use this name.',
         type: 'name',
       });
       return;
@@ -313,13 +289,7 @@ const userProfileController = function (UserProfile) {
     up.isVisible = !['Mentor'].includes(req.body.role);
 
     try {
-<<<<<<< HEAD
-      const requestor = await UserProfile.findById(
-        req.body.requestor.requestorId
-      )
-=======
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         .select('firstName lastName email role')
         .exec();
 
@@ -358,13 +328,7 @@ const userProfileController = function (UserProfile) {
           <p>Sincerely,</p>
           <p>The HGN A.I. (and One Community)</p>`;
 
-          emailSender(
-            'onecommunityglobal@gmail.com',
-            subject,
-            emailBody,
-            null,
-            null
-          );
+          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
         }
       });
 
@@ -396,7 +360,6 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = async function (req, res) {
-
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
@@ -437,18 +400,14 @@ const userProfileController = function (UserProfile) {
       const canEditTeamCode =
         req.body.requestor.role === 'Owner' ||
         req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes(
-          'editTeamCode'
-        );
+        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');
         return;
       }
 
-      const originalinfringements = record.infringements
-        ? record.infringements
-        : [];
+      const originalinfringements = record.infringements ? record.infringements : [];
 
       const commonFields = [
         'jobTitle',
@@ -493,12 +452,10 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex(users => users._id === userid);
+        userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
-      if (
-        await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')
-      ) {
+      if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
           'role',
           'isRehireable',
@@ -532,8 +489,7 @@ const userProfileController = function (UserProfile) {
         });
 
         if (req.body.missedHours !== undefined) {
-          record.missedHours =
-            req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
+          record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
         }
 
         if (req.body.teams !== undefined) {
@@ -557,9 +513,7 @@ const userProfileController = function (UserProfile) {
 
           // If their last update was made today, remove that
           const lasti = record.weeklycommittedHoursHistory.length - 1;
-          const lastChangeDate = moment(
-            record.weeklycommittedHoursHistory[lasti].dateChanged
-          );
+          const lastChangeDate = moment(record.weeklycommittedHoursHistory[lasti].dateChanged);
           const now = moment();
 
           if (lastChangeDate.isSame(now, 'day')) {
@@ -575,18 +529,8 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory.push(newEntry);
         }
 
-        if (
-<<<<<<< HEAD
-          req.body.createdDate !== undefined &&
-          record.createdDate !== req.body.createdDate
-        ) {
-          record.createdDate = moment(req.body.createdDate).toDate();
-=======
-          req.body.startDate !== undefined
-          && record.startDate !== req.body.startDate
-        ) {
+        if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
           record.startDate = moment(req.body.startDate).toDate();
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -596,12 +540,7 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
-<<<<<<< HEAD
-          record.weeklycommittedHoursHistory[0].dateChanged =
-            record.createdDate;
-=======
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         }
 
         if (
@@ -645,7 +584,7 @@ const userProfileController = function (UserProfile) {
             results.infringements,
             results.firstName,
             results.lastName,
-            results.email
+            results.email,
           );
           res.status(200).json({
             _id: record._id,
@@ -657,7 +596,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     });
   };
 
@@ -705,13 +644,11 @@ const userProfileController = function (UserProfile) {
           firstName: process.env.TIME_ARCHIVE_FIRST_NAME,
           lastName: process.env.TIME_ARCHIVE_LAST_NAME,
         },
-        '_id'
+        '_id',
       );
 
       if (!timeArchiveUser) {
-        logger.logException(
-          'Time Archive user was not found. Please check the database'
-        );
+        logger.logException('Time Archive user was not found. Please check the database');
         res.status(500).send({
           error:
             'Time Archive User not found. Please contact your developement team on why that happened',
@@ -727,7 +664,7 @@ const userProfileController = function (UserProfile) {
           $set: {
             personId: mongoose.Types.ObjectId(timeArchiveUser._id),
           },
-        }
+        },
       );
     }
 
@@ -739,17 +676,6 @@ const userProfileController = function (UserProfile) {
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
 
-<<<<<<< HEAD
-    await UserProfile.deleteOne({
-      _id: userId,
-    })
-      .then(() => {
-        res.status(200).send({ message: 'Executed Successfully' });
-      })
-      .catch((err) => {
-        res.status(500).send(err);
-      });
-=======
     try {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
@@ -758,7 +684,6 @@ const userProfileController = function (UserProfile) {
     } catch (err) {
       res.status(500).send(err);
     }
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
   };
 
   const getUserById = function (req, res) {
@@ -769,10 +694,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
 
-    UserProfile.findById(
-      userid,
-      '-password -refreshTokens -lastModifiedDate -__v'
-    )
+    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
           path: 'teams',
@@ -797,8 +719,7 @@ const userProfileController = function (UserProfile) {
           populate: {
             path: 'badge',
             model: Badge,
-            select:
-              '_id badgeName type imageUrl description ranking showReport',
+            select: '_id badgeName type imageUrl description ranking showReport',
           },
         },
       ])
@@ -808,30 +729,28 @@ const userProfileController = function (UserProfile) {
           res.status(400).send({ error: 'This is not a valid user' });
           return;
         }
-        userHelper
-          .getTangibleHoursReportedThisWeekByUserId(userid)
-          .then((hours) => {
-            results.set('tangibleHoursReportedThisWeek', hours, {
-              strict: false,
-            });
-            cache.setCache(`user-${userid}`, JSON.stringify(results));
-            res.status(200).send(results);
+        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
+          results.set('tangibleHoursReportedThisWeek', hours, {
+            strict: false,
           });
+          cache.setCache(`user-${userid}`, JSON.stringify(results));
+          res.status(200).send(results);
+        });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
     const { name } = req.params;
     UserProfile.find(
       { firstName: name.split(' ')[0], lastName: name.split(' ')[1] },
-      '_id, profilePic, badgeCollection'
+      '_id, profilePic, badgeCollection',
     )
 
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -842,9 +761,7 @@ const userProfileController = function (UserProfile) {
       const canEditTeamCode =
         req.body.requestor.role === 'Owner' ||
         req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes(
-          'editTeamCode'
-        );
+        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if (!canEditTeamCode) {
         res.status(403).send('You are not authorized to edit team code.');
@@ -869,9 +786,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -884,20 +801,13 @@ const userProfileController = function (UserProfile) {
     }
 
     // Verify correct params in body
-    if (
-      !req.body.currentpassword ||
-      !req.body.newpassword ||
-      !req.body.confirmnewpassword
-    ) {
+    if (!req.body.currentpassword || !req.body.newpassword || !req.body.confirmnewpassword) {
       return res.status(400).send({
         error: 'One of more required fields are missing',
       });
     }
     // Check if the requestor has the permission to update passwords.
-    const hasUpdatePasswordPermission = await hasPermission(
-      requestor,
-      'updatePassword'
-    );
+    const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
     // if they're updating someone else's password, they need the 'updatePassword' permission.
     if (!hasUpdatePasswordPermission) {
@@ -938,11 +848,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
+              .catch((error) => res.status(500).send(error));
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -955,14 +865,7 @@ const userProfileController = function (UserProfile) {
 
     const userid = mongoose.Types.ObjectId(req.params.userId);
 
-    let validroles = [
-      'Volunteer',
-      'Manager',
-      'Administrator',
-      'Core Team',
-      'Owner',
-      'Mentor',
-    ];
+    let validroles = ['Volunteer', 'Manager', 'Administrator', 'Core Team', 'Owner', 'Mentor'];
 
     if (await hasPermission(req.body.requestor, 'getReporteesLimitRoles')) {
       validroles = ['Volunteer', 'Manager'];
@@ -981,7 +884,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -998,7 +901,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -1054,9 +957,7 @@ const userProfileController = function (UserProfile) {
             const isUserInCache = cache.hasCache('allusers');
             if (isUserInCache) {
               const allUserData = JSON.parse(cache.getCache('allusers'));
-              const userIdx = allUserData.findIndex(
-                (users) => users._id === userId
-              );
+              const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
                 userData.endDate = user.endDate.toISOString();
@@ -1085,17 +986,8 @@ const userProfileController = function (UserProfile) {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).send({ error: 'Bad Request' });
     }
-<<<<<<< HEAD
-    if (
-      !(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))
-    ) {
-      return res
-        .status(403)
-        .send('You are not authorized to change rehireable status');
-=======
     if (!(await hasPermission(req.body.requestor, 'changeUserRehireableStatus'))) {
       return res.status(403).send('You are not authorized to change rehireable status');
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
     }
 
     // Invalidate the cache for this user
@@ -1105,10 +997,7 @@ const userProfileController = function (UserProfile) {
       userId,
       { $set: { isRehireable } },
       { new: true },
-<<<<<<< HEAD
-=======
       // eslint-disable-next-line no-unused-vars
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
       (error, updatedUser) => {
         if (error) {
           return res.status(500).send(error);
@@ -1117,13 +1006,7 @@ const userProfileController = function (UserProfile) {
         const isUserInCache = cache.hasCache('allusers');
         if (isUserInCache) {
           const allUserData = JSON.parse(cache.getCache('allusers'));
-<<<<<<< HEAD
-          const userIdx = allUserData.findIndex(
-            (users) => users._id === userId
-          );
-=======
           const userIdx = allUserData.findIndex((users) => users._id === userId);
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
           const userData = allUserData[userIdx];
           userData.isRehireable = isRehireable;
           allUserData.splice(userIdx, 1, userData);
@@ -1140,11 +1023,7 @@ const userProfileController = function (UserProfile) {
             isRehireable: verifiedUser.isRehireable,
           });
         });
-<<<<<<< HEAD
-      }
-=======
       },
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
     );
   };
 
@@ -1152,13 +1031,7 @@ const userProfileController = function (UserProfile) {
     try {
       ValidatePassword(req);
 
-<<<<<<< HEAD
-      const requestor = await UserProfile.findById(
-        req.body.requestor.requestorId
-      )
-=======
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         .select('firstName lastName email role')
         .exec();
 
@@ -1177,28 +1050,12 @@ const userProfileController = function (UserProfile) {
       }
 
       if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
-<<<<<<< HEAD
-        res
-          .status(403)
-          .send('You are not authorized to reset this users password');
-        return;
-      }
-
-      if (
-        user.role === 'Owner' &&
-        !(await hasPermission(requestor, 'addDeleteEditOwners'))
-      ) {
-        res
-          .status(403)
-          .send('You are not authorized to reset this user password');
-=======
         res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
       if (user.role === 'Owner' && !(await hasPermission(requestor, 'addDeleteEditOwners'))) {
         res.status(403).send('You are not authorized to reset this user password');
->>>>>>> 3eabd49a80b0883bb90b426385a6449f3193a268
         return;
       }
 
@@ -1240,13 +1097,7 @@ const userProfileController = function (UserProfile) {
         <p>The HGN A.I. (and One Community)</p>
         `;
 
-        emailSender(
-          'onecommunityglobal@gmail.com',
-          subject,
-          emailBody,
-          null,
-          null
-        );
+        emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
       }
 
       res.status(200).send({
@@ -1294,10 +1145,7 @@ const userProfileController = function (UserProfile) {
 
     // Searches for first or last name
     UserProfile.find({
-      $or: [
-        { firstName: { $regex: pattern } },
-        { lastName: { $regex: pattern } },
-      ],
+      $or: [{ firstName: { $regex: pattern } }, { lastName: { $regex: pattern } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1307,7 +1155,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   function escapeRegExp(string) {
@@ -1318,25 +1166,18 @@ const userProfileController = function (UserProfile) {
   // eslint-disable-next-line consistent-return
   const getUserByFullName = (req, res) => {
     // Creates an array containing the first and last name and filters out whitespace
-    const fullName = req.params.fullName
-      .split(' ')
-      .filter((name) => name !== '');
+    const fullName = req.params.fullName.split(' ').filter((name) => name !== '');
     // Creates a partial match regex for both first and last name
     const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
     const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
 
     // Verfies both the first and last name are present
     if (fullName.length < 2) {
-      return res
-        .status(400)
-        .send({ error: 'Both first name and last name are required.' });
+      return res.status(400).send({ error: 'Both first name and last name are required.' });
     }
 
     UserProfile.find({
-      $and: [
-        { firstName: { $regex: firstNameRegex } },
-        { lastName: { $regex: lastNameRegex } },
-      ],
+      $and: [{ firstName: { $regex: firstNameRegex } }, { lastName: { $regex: lastNameRegex } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1346,7 +1187,7 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   /**
