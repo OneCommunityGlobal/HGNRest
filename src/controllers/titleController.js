@@ -37,8 +37,7 @@ const titlecontroller = function (Title) {
         return;
       }
 
-
-      const shortnames = title.titleName.split(' ');
+      const shortnames = title.titleName.trim().split(' ');
       let shortname;
       if (shortnames.length > 1) {
           shortname = (shortnames[0][0] + shortnames[1][0]).toUpperCase();
@@ -50,24 +49,24 @@ const titlecontroller = function (Title) {
       // Validate team code by checking if it exists in the database
       if (!title.teamCode) {
         res.status(400).send({ message: 'Please provide a team code.' });
-        return
+        return;
       }
 
       const teamCodeExists = await checkTeamCodeExists(title.teamCode);
       if (!teamCodeExists) {
         res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
-        return 
+        return;
       }
 
       // validate if project exist
       const projectExist = await checkProjectExists(title.projectAssigned._id);
       if (!projectExist) {
-        res.status(400).send({ message: 'Project is empty or not exist.'});
-        return 
+        res.status(400).send({ message: 'Project is empty or not exist.' });
+        return;
       }
 
       // validate if team exist
-      if(title.teamAssiged && title.teamAssiged._id === "N/A"){
+      if (title.teamAssiged && title.teamAssiged._id === 'N/A') {
         res.status(400).send({ message: 'Team not exists.' });
         return;
       }
