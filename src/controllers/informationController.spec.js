@@ -120,7 +120,7 @@ describe('informationController module', () => {
     //   });
   });
   describe('getInformations function', () => {
-    test('Ensure getInformations returns 404 if any error when no informations key and catching the any information', async () => {
+    test('Ensure getInformations returns 500 if any error when no informations key and catching the any information', async () => {
       const data = '';
       const getCacheObject = {
         getCache: () => {},
@@ -144,8 +144,39 @@ describe('informationController module', () => {
         mockRes,
       );
     });
+    // test('Ensure getInformations returns 200 when no informations key and has any information', async () => {
+    //   const data = [{infoName: "testInfo", infoContent: "some", visibility: "0"}];
+    //   const getCacheObject = {
+    //     getCache: () => {},
+    //   };
+    //   const findObject = {
+    //     find: () => {},
+    //   }
+    //   jest.spyOn(getCacheObject, 'getCache').mockImplementationOnce(() => '[]');
+    //   cache.mockReturnValueOnce(() => getCacheObject);
 
-    //   // test("Ensure getInformations returns 404 if there are no information in the database and any error occurs when getting the information", async () => {
+    //   const findSpy = jest
+    //     .spyOn(Information , 'find')
+    //     .mockImplementationOnce(() => Promise.resolve(...data));
+
+    //   const { getInformations } = makeSut();
+    //   const newMockReq = {
+    //         body: {
+    //             ...mockReq.body,
+    //             ...data,
+    //         }
+    //       }
+    //   const response = getInformations(newMockReq, mockRes);
+    //   await flushPromises();
+    //   // expect(findSpy).toHaveBeenCalledWith({}, 'infoName infoContent visibility');
+    //   expect(mockRes.status).toHaveBeenCalledWith(200);
+    //   // assertResMock(
+    //   //   500,
+    //   //   { error: 'Error when finding informations and any information' },
+    //   //   response,
+    //   //   mockRes,
+    //   // );
+    // });
 
     //   //   const mockGetCache = makeMockGetCache();
 
