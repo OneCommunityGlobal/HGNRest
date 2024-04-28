@@ -24,6 +24,9 @@ const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
+const notificationService = require("../services/notificationService");
+const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require("../constants/message");
+const timeUtils = require('../utilities/timeUtils');
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -378,10 +381,25 @@ const userHelper = function () {
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
 
+      const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
       // There's no need to put Promise.all here
-      for (let i = 0; i < users.length; i += 1) {
+
+      /*
+      Note from Shengwei (3/11/24) Potential enhancement:
+        1. I think we could remove the for loop to update find user profile by batch to reduce db roundtrips.
+        Otherwise, each record checking and update require at least 1 db roundtrip. Then, we could use for loop to do email sending.
+
+        Do something like:
+        do while (batch != lastBatch)
+          const lsOfResult = await userProfile.find({ _id: { $in: arrayOfIds } }
+          for item in lsOfResult:
+            // do the update and checking
+          // save updated records in batch (mongoose updateMany) and do asyc email sending
+        2. Wrap the operation in one transaction to ensure the atomicity of the operation.
+      */
+     for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
         const person = await userProfile.findById(user._id);
@@ -415,6 +433,28 @@ const userHelper = function () {
         let description;
 
         const timeRemaining = weeklycommittedHours - timeSpent;
+
+         /** Check if the user is new user to prevent blue square assignment
+         * Condition:
+         *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *  3. No hour logged
+         *
+         * Notes:
+         *  1. Start date is automatically updated upon frist time-log.
+         *  2. User meet above condition but meet minimum hours without submitting weekly summary
+         *     should get a blue square as reminder.
+         *  */
+        let isNewUser = false;
+        const userStartDate = moment(person.startDate);
+        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0) {
+              isNewUser = true;
+        }
+
+        if ((userStartDate.isAfter(pdtEndOfLastWeek))
+               || (userStartDate.isAfter(pdtStartOfLastWeek) && userStartDate.isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
+            isNewUser = true;
+        }
 
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
@@ -582,57 +622,63 @@ const userHelper = function () {
               ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
               : null,
           };
-
-          const status = await userProfile.findByIdAndUpdate(
-            personId,
-            {
-              $push: {
-                infringements: infringement,
+          // Only assign blue square and send email if the user IS NOT a new user
+          // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
+          // All other new users will not receive a blue square or notification
+          if (!isNewUser) {
+            const status = await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $push: {
+                  infringements: infringement,
+                },
               },
-            },
-            { new: true },
-          );
+              { new: true },
+            );
 
-          let emailBody = '';
-          const administrativeContent = {
+            let emailBody = "";
+            const administrativeContent = {
             startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
             roleAdminstrative: person.role,
             userTitle: `${person.firstName} ${person.lastName}`,
             historyInfringements,
-          };
+            };
+            if (person.role === "Core Team" && timeRemaining > 0) {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                timeRemaining,
+                coreTeamExtraHour,
+                requestForTimeOffEmailBody,
+                administrativeContent,
+              );
+            } else {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                undefined,
+                null,
+                requestForTimeOffEmailBody,
+                administrativeContent,
+              );
+            }
 
-          if (person.role === 'Core Team' && timeRemaining > 0) {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              timeRemaining,
-              coreTeamExtraHour,
-              requestForTimeOffEmailBody,
-              administrativeContent,
-            );
-          } else {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              undefined,
+            emailSender(
+              status.email,
+              "New Infringement Assigned",
+              emailBody,
               null,
-              requestForTimeOffEmailBody,
-              administrativeContent,
+              "onecommunityglobal@gmail.com",
+              status.email,
+              null,
             );
+          } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
+            usersRequiringBlueSqNotification.push(personId);
           }
-          emailSender(
-            status.email,
-            'New Infringement Assigned',
-            emailBody,
-            null,
-            'onecommunityglobal@gmail.com',
-            status.email,
-            null,
-          );
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,
@@ -680,9 +726,18 @@ const userHelper = function () {
             }
           }
         }
+        if (cache.hasCache(`user-${personId}`)) {
+          cache.removeCache(`user-${personId}`);
+        }
       }
       // eslint-disable-next-line no-use-before-define
       await deleteOldTimeOffRequests();
+      // Create notification for users who are new and met the time requirement but weekly summary not submitted
+      // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
+      if (usersRequiringBlueSqNotification.length > 0) {
+        const senderId = await userProfile.findOne({ role: "Owner", isActive: true }, "_id");
+        await notificationService.createNotification(senderId._id, usersRequiringBlueSqNotification, NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE, true, false);
+      }
     } catch (err) {
       logger.logException(err);
     }
