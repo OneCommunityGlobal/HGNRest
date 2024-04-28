@@ -380,8 +380,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true, email: 'ivyadmin2@gmail.com' },
+        '_id email weeklycommittedHours weeklySummaries missedHours',
       );
 
       const usersRequiringBlueSqNotification = [];
@@ -639,12 +639,6 @@ const userHelper = function () {
           // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
           // All other new users will not receive a blue square or notification
           let emailBody = '';
-          const administrativeContent = {
-            startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
-            roleAdminstrative: person.role,
-            userTitle: `${person.firstName} ${person.lastName}`,
-            historyInfringements,
-          };
           if (!isNewUser) {
             const status = await userProfile.findByIdAndUpdate(
               personId,
@@ -655,6 +649,12 @@ const userHelper = function () {
               },
               { new: true },
             );
+            const administrativeContent = {
+              startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
+              roleAdminstrative: person.role,
+              userTitle: `${person.firstName} ${person.lastName}`,
+              historyInfringements,
+            };
             if (person.role === 'Core Team' && timeRemaining > 0) {
               emailBody = getInfringementEmailBody(
                 status.firstName,
@@ -957,13 +957,52 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (original, current, firstName, lastName, emailAddress) {
+  const notifyInfringements = function (
+    original,
+    current,
+    firstName,
+    lastName,
+    emailAddress,
+    role,
+    startDate,
+  ) {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
-
+    let historyInfringements = 'No Previous Infringements.';
+    if (original.length) {
+      historyInfringements = original
+        .map((item, index) => {
+          let enhancedDescription = item.description;
+          // highlight previous assigned reason manually
+          if (!item.description.includes('System auto-assigned infringement')) {
+            enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
+          } else {
+            // highlight not submitting a weekly summary and logged hrs
+            const sentences = item.description.split('.');
+            sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
+            enhancedDescription = sentences.join('.');
+            enhancedDescription = enhancedDescription.replace(
+              /(not submitting a weekly summary)/gi,
+              '<b><span style="color: blue;">$1</span></b>',
+            );
+            enhancedDescription = enhancedDescription.replace(
+              /(\d+\.\d{2})\s*hours/i,
+              '<b><span style="color: blue;">$1 hours</span></b>',
+            );
+          }
+          return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+        })
+        .join('');
+    }
+    const administrativeContent = {
+      startDate: moment(startDate).utc().format('YYYY-MM-DD'),
+      roleAdminstrative: role,
+      userTitle: `${firstName} ${lastName}`,
+      historyInfringements,
+    };
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
     );
@@ -971,8 +1010,13 @@ const userHelper = function () {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
-        getInfringementEmailBody(firstName, lastName, element, totalInfringements),
-
+        getInfringementEmailBody(
+          firstName,
+          lastName,
+          element,
+          totalInfringements,
+          administrativeContent,
+        ),
         null,
         'onecommunityglobal@gmail.com',
         emailAddress,
