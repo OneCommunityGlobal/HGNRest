@@ -26,6 +26,10 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/api/add-non-hgn-email-subscription' || req.originalUrl === '/api/confirm-non-hgn-email-subscription' || req.originalUrl === '/api/remove-non-hgn-email-subscription' && req.method === 'POST') {
+      next();
+      return;
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
