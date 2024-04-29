@@ -1376,6 +1376,7 @@ const userHelper = function () {
               user.savedTangibleHrs.length >= bdge.weeks &&
               bdge.weeks === user.savedTangibleHrs.length
             ) {
+              bdge.weeks = 200;
               let awardBadge = true;
               const endOfArr = user.savedTangibleHrs.length - 1;
               for (let i = endOfArr; i >= endOfArr - bdge.weeks + 1; i -= 1) {
