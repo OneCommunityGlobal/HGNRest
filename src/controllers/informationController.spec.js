@@ -14,11 +14,14 @@ const cache = require('../utilities/nodeCache');
 // jest.mock('node-fetch');
 
 const makeSut = () => {
-  const { addInformation, getInformations } = informationController(Information);
+  const { addInformation, getInformations, updateInformation, deleteInformation } =
+    informationController(Information);
 
   return {
     addInformation,
     getInformations,
+    updateInformation,
+    deleteInformation,
   };
 };
 // Define flushPromises function
@@ -172,5 +175,31 @@ describe('informationController module', () => {
     //   //   });
     //   //   expect(mockRes.status).toHaveBeenCalledWith(404);
     //   // });
+  });
+  describe('deleteInformation function', () => {
+    test('Ensure deleteInformation returns 400 if any error when finding and delete information', async () => {
+      const errorMsg = 'Error when finding and deleting information by Id';
+      const { deleteInformation } = makeSut();
+      jest
+        .spyOn(Information, 'findOneAndDelete')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+      const response = deleteInformation(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
+  });
+  describe('updateInformation function', () => {
+    test('Ensure updateInformation returns 400 if any error when finding and update information', async () => {
+      const errorMsg = 'Error when finding and updating information by Id';
+      const { updateInformation } = makeSut();
+      jest
+        .spyOn(Information, 'findOneAndUpdate')
+        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+      const response = updateInformation(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, new Error(errorMsg), response, mockRes);
+    });
   });
 });
