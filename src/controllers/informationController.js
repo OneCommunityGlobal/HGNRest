@@ -66,7 +66,9 @@ const informationController = function (Information) {
         }
         res.status(200).send(deletedInformation);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch((error) =>
+        res.status(400).send(new Error('Error when finding and deleting information by Id')),
+      );
   };
 
   // Update existing information by id
@@ -80,7 +82,9 @@ const informationController = function (Information) {
         }
         res.status(200).send(updatedInformation);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch((error) =>
+        res.status(400).send(new Error('Error when finding and updating information by Id')),
+      );
   };
 
   return {
