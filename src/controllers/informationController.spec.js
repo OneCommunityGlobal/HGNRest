@@ -25,50 +25,22 @@ const makeSut = () => {
 // const flushPromises = () => new Promise(resolve => setImmediate(resolve));
 const flushPromises = () => new Promise(setImmediate);
 
-const makeMockGetCache = (value) => {
-  const getCacheObject = {
-    // getCache: jest.fn(),
-    getCache: () => {},
-  };
+// const makeMockSortAndFind = (value = null) => {
+//   const sortObject = {
+//     sort: () => {},
+//   };
 
-  const mockGetCache = jest.spyOn(getCacheObject, 'getCache').mockImplementationOnce(() => value);
+//   const mockSort = jest
+//     .spyOn(sortObject, 'sort')
+//     .mockImplementationOnce(() => Promise.reject(value));
 
-  cache.mockReturnValueOnce(() => getCacheObject);
+//   const findSpy = jest.spyOn(Information, 'find').mockReturnValueOnce(sortObject);
 
-  return mockGetCache;
-};
-
-const makeMockCache = (method, value) => {
-  const cacheObject = {
-    getCache: jest.fn(),
-    removeCache: jest.fn(),
-    hasCache: jest.fn(),
-    setCache: jest.fn(),
-  };
-
-  const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
-
-  cache.mockImplementationOnce(() => cacheObject);
-
-  return { mockCache, cacheObject };
-};
-
-const makeMockSortAndFind = (value = null) => {
-  const sortObject = {
-    sort: () => {},
-  };
-
-  const mockSort = jest
-    .spyOn(sortObject, 'sort')
-    .mockImplementationOnce(() => Promise.reject(value));
-
-  const findSpy = jest.spyOn(Information, 'find').mockReturnValueOnce(sortObject);
-
-  return {
-    mockSort,
-    findSpy,
-  };
-};
+//   return {
+//     mockSort,
+//     findSpy,
+//   };
+// };
 
 describe('informationController module', () => {
   beforeAll(async () => {
