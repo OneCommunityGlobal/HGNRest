@@ -19,14 +19,12 @@ const informationController = function (Information) {
         res.status(200).send(results);
       })
       /* eslint-disable no-unused-vars */
-      .catch((error) =>
-        res.status(500).send({ error: 'Error when finding informations and any information' }),
-      );
+      .catch((error) => res.status(500).send(new Error('Error when finding infoName')));
   };
 
   const addInformation = function (req, res) {
     try {
-      Information.find({
+      Information.findOne({
         infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' },
       }).then((result) => {
         if (result.length > 0) {
@@ -52,7 +50,7 @@ const informationController = function (Information) {
           .catch((error) => res.status(400).send(error));
       });
     } catch (error) {
-      res.status(500).send({ error: 'Error when finding infoName' });
+      res.status(500).send(new Error('Error when finding infoName for regex'));
     }
   };
 
