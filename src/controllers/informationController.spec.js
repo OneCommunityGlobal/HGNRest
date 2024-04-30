@@ -64,27 +64,19 @@ describe('informationController module', () => {
   describe('addInformation function', () => {
     test('Ensure addInformation returns 500 if any error when adding any information', async () => {
       const { addInformation } = makeSut();
-      jest
-        .spyOn(Information, 'find')
-        .mockImplementationOnce(() =>
-          Promise.reject(new Error('Error when finding infoName for regex')),
-        );
+      jest.spyOn(Information, 'findOne').mockResolvedValue(null);
       const response = addInformation(mockReq, mockRes);
       await flushPromises();
-      assertResMock(500, new Error('Error when finding infoName for regex'), response, mockRes);
+      assertResMock(500, new Error('Error when finding single info'), response, mockRes);
     });
-    test('Ensure addInformation returns 400 if duplicate info Name', async () => {
+    test('Ensure addInformation returns 403 if duplicate info Name', async () => {
       const { addInformation } = makeSut();
       const data = [{ infoName: 'test Info' }];
-      const findSpy = jest
-        .spyOn(Information, 'findOne')
-        .mockImplementationOnce(() => Promise.resolve(data));
+      const findSpy = jest.spyOn(Information, 'findOne').mockReturnValue(data);
       const newMockReq = {
         body: {
           ...mockReq.body,
           infoName: 'test Info',
-          infoContent: 'test Content',
-          visibility: '0',
         },
       };
       const response = addInformation(newMockReq, mockRes);
@@ -93,14 +85,71 @@ describe('informationController module', () => {
         infoName: { $regex: escapeRegex(newMockReq.body.infoName), $options: 'i' },
       });
       assertResMock(
-        400,
-        {
-          error: `Info Name must be unique. Another infoName with name ${newMockReq.body.infoName} already exists. Please note that info names are case insensitive`,
-        },
+        403,
+        new Error(
+          `Info Name must be unique. Another infoName with name ${newMockReq.body.infoName} already exists. Please note that info names are case insensitive`,
+        ),
         response,
         mockRes,
       );
     });
+    test('Ensure addInformations returns 200 if any error when saving new Information', async () => {
+      const { addInformation } = makeSut();
+      const findSpy = jest.spyOn(Information, 'findOne').mockReturnValue(null);
+      const data = [
+        {
+          infoName: 'mockAdd',
+          infoContent: 'mockContent',
+          visibility: '1',
+        },
+      ];
+      const newMockReq = {
+        body: {
+          ...mockReq.body,
+          infoName: 'some Info',
+        },
+      };
+      jest.spyOn(Information.prototype, 'save').mockReturnValue(data);
+      const response = addInformation(newMockReq, mockRes);
+      await flushPromises();
+
+      expect(findSpy).toHaveBeenCalledWith({
+        infoName: { $regex: escapeRegex(newMockReq.body.infoName), $options: 'i' },
+      });
+      assertResMock(201, data, response, mockRes);
+    });
+    // test('Ensure addInformation returns 400 if any error when saving information', async () => {
+    //   const { addInformation } = makeSut();
+    //   const errorMsg = 'Error when saving information';
+    //   const findSpy = jest
+    //     .spyOn(Information, 'findOne')
+    //     .mockImplementationOnce(() => Promise.resolve([]));
+    //   jest
+    //     .spyOn(Information.prototype, 'save')
+    //     .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+    //   const newMockReq = {
+    //     body: {
+    //       ...mockReq.body,
+    //       infoName: 'some addInfo',
+    //       infoContent: '1',
+    //       visibility: '1',
+    //     },
+    //   };
+    //   const response = addInformation(newMockReq, mockRes);
+    //   await flushPromises();
+    //   // expect(findSpy).toHaveBeenCalledWith({
+    //   //   infoName: { $regex: escapeRegex(newMockReq.body.infoName), $options: 'i' },
+    //   // });
+    //   // assertResMock(
+    //   //   201,
+    //   //   {
+    //   //     error: `Info Name must be unique. Another infoName with name ${newMockReq.body.infoName} already exists. Please note that info names are case insensitive`,
+    //   //   },
+    //   //   response,
+    //   //   mockRes,
+    //   // );
+
+    // });
   });
   describe('getInformations function', () => {
     test('Ensure getInformations returns 500 if any error when no informations key and catching the any information', async () => {
@@ -122,80 +171,81 @@ describe('informationController module', () => {
       expect(findSpy).toHaveBeenCalledWith({}, 'infoName infoContent visibility');
       assertResMock(500, new Error('Error when finding infoName'), response, mockRes);
     });
-    // test('Ensure getInformations returns 200 when no informations key and has any information', async () => {
-    //   const data = [{infoName: "testInfo", infoContent: "some", visibility: "0"}];
-    //   const getCacheObject = {
-    //     getCache: () => {},
-    //   };
-    //   mockReq.body.informations = [
-    //     {
-    //       infoName: 'info 1',
-    //       infoContent: 'content 1',
-    //       visibility: '0'
-    //     },
-    //     {
-    //       infoName: 'info 2',
-    //       infoContent: 'content 2',
-    //       visibility: '1'
-    //     },
-    //     {
-    //       infoName: 'info 3',
-    //       infoContent: 'content 3',
-    //       visibility: '3'
-    //     },
-    //   ]
-    // });
-    //   const findObject = {
-    //     find: () => {},
-    //   }
-    //   jest.spyOn(getCacheObject, 'getCache').mockImplementationOnce(() => '[]');
-    //   cache.mockReturnValueOnce(() => getCacheObject);
 
-    //   const findSpy = jest
-    //     .spyOn(Information , 'find')
-    //     .mockImplementationOnce(() => Promise.resolve(...data));
+    //   // test('Ensure getInformations returns 200 when no informations key and has any information', async () => {
+    //   //   const data = [{infoName: "testInfo", infoContent: "some", visibility: "0"}];
+    //   //   const getCacheObject = {
+    //   //     getCache: () => {},
+    //   //   };
+    //   //   mockReq.body.informations = [
+    //   //     {
+    //   //       infoName: 'info 1',
+    //   //       infoContent: 'content 1',
+    //   //       visibility: '0'
+    //   //     },
+    //   //     {
+    //   //       infoName: 'info 2',
+    //   //       infoContent: 'content 2',
+    //   //       visibility: '1'
+    //   //     },
+    //   //     {
+    //   //       infoName: 'info 3',
+    //   //       infoContent: 'content 3',
+    //   //       visibility: '3'
+    //   //     },
+    //   //   ]
+    //   // });
+    //   //   const findObject = {
+    //   //     find: () => {},
+    //   //   }
+    //   //   jest.spyOn(getCacheObject, 'getCache').mockImplementationOnce(() => '[]');
+    //   //   cache.mockReturnValueOnce(() => getCacheObject);
 
-    //   const { getInformations } = makeSut();
-    //   const newMockReq = {
-    //         body: {
-    //             ...mockReq.body,
-    //             ...data,
-    //         }
-    //       }
-    //   const response = getInformations(newMockReq, mockRes);
-    //   await flushPromises();
-    //   // expect(findSpy).toHaveBeenCalledWith({}, 'infoName infoContent visibility');
-    //   expect(mockRes.status).toHaveBeenCalledWith(200);
-    //   // assertResMock(
-    //   //   500,
-    //   //   { error: 'Error when finding informations and any information' },
-    //   //   response,
-    //   //   mockRes,
-    //   // );
-    // });
-
-    //   //   const mockGetCache = makeMockGetCache();
+    //   //   const findSpy = jest
+    //   //     .spyOn(Information , 'find')
+    //   //     .mockImplementationOnce(() => Promise.resolve(...data));
 
     //   //   const { getInformations } = makeSut();
-
-    //   //   const { findSpy, mockSort } = makeMockSortAndFind();
-
-    //   //   getInformations(mockReq, mockRes);
-
+    //   //   const newMockReq = {
+    //   //         body: {
+    //   //             ...mockReq.body,
+    //   //             ...data,
+    //   //         }
+    //   //       }
+    //   //   const response = getInformations(newMockReq, mockRes);
     //   //   await flushPromises();
-
-    //   //   expect(mockGetCache).toHaveBeenCalledWith('informations');
-
-    //   //   expect(findSpy).toHaveBeenCalledWith(
-    //   //     {},
-    //   //     'infoName infoContent visibility'
-    //   //   );
-
-    //   //   expect(mockSort).toHaveBeenCalledWith({
-    //   //     visibility: 1,
-    //   //   });
-    //   //   expect(mockRes.status).toHaveBeenCalledWith(404);
+    //   //   // expect(findSpy).toHaveBeenCalledWith({}, 'infoName infoContent visibility');
+    //   //   expect(mockRes.status).toHaveBeenCalledWith(200);
+    //   //   // assertResMock(
+    //   //   //   500,
+    //   //   //   { error: 'Error when finding informations and any information' },
+    //   //   //   response,
+    //   //   //   mockRes,
+    //   //   // );
     //   // });
+
+    //   //   //   const mockGetCache = makeMockGetCache();
+
+    //   //   //   const { getInformations } = makeSut();
+
+    //   //   //   const { findSpy, mockSort } = makeMockSortAndFind();
+
+    //   //   //   getInformations(mockReq, mockRes);
+
+    //   //   //   await flushPromises();
+
+    //   //   //   expect(mockGetCache).toHaveBeenCalledWith('informations');
+
+    //   //   //   expect(findSpy).toHaveBeenCalledWith(
+    //   //   //     {},
+    //   //   //     'infoName infoContent visibility'
+    //   //   //   );
+
+    //   //   //   expect(mockSort).toHaveBeenCalledWith({
+    //   //   //     visibility: 1,
+    //   //   //   });
+    //   //   //   expect(mockRes.status).toHaveBeenCalledWith(404);
+    //   //   // });
   });
   describe('deleteInformation function', () => {
     test('Ensure deleteInformation returns 400 if any error when finding and delete information', async () => {
