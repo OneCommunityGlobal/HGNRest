@@ -13,5 +13,6 @@ Cross Mark: ❌
 
 1. ✅ Returns error 404 if the API does not exist
 2. ❌ Returns 403 if the user profile could not be found
+3. ❌ Returns 400 if any error occurs
 
 > ## Edge case

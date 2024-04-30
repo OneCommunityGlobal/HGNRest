@@ -32,6 +32,18 @@ describe('permissionChangeLogsController', () => {
 
       assertResMock(403, errorMessage, response);
     });
+    test('Ensure getPermissionChangeLogs Returns 400 if any error occurs', async () => {
+      const { getPermissionChangeLogs } = makeSut();
+      mockReq.body.role = 'Admin';
+
+      const errorMessage = 'error message';
+
+      jest.spyOn(UserProfile, 'findOne').mockReturnValueOnce({
+        exec: jest.fn().mockRejectedValueOnce(new Error(errorMessage)),
+      });
+      const response = await getPermissionChangeLogs(mockReq, mockRes);
+      assertResMock(400, errorMessage, response);
+    });
 
     test('Ensure getPermissionChangeLogs Returns 204 if the user profile role is not Owner', async () => {
       const { getPermissionChangeLogs } = makeSut();
