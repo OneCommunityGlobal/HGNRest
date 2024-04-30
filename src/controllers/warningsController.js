@@ -1,5 +1,3 @@
-/* eslint-disable */
-
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 
