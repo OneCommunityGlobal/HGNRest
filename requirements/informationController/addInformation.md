@@ -4,11 +4,12 @@ Cross Mark: ❌
 # Add Information
 
 > ## Positive case
-1. ❌ Returns 201 if adding new information successfully.
+1. ✅ Returns 201 if adding new information successfully.
 
 > ## Negative case
 1. ✅ Returns error 500 if if there are no information in the database and any error occurs when finding the infoName.
-2. ✅ Returns error 400 if if there are duplicate infoName in the database.
-2. ❌ Returns error 400 if if there are issues when saving new informations.
+2. ✅ Returns error 403 if if there are duplicate infoName in the database.
+3. ❌ Returns error 400 if if there are issues when saving new informations.
+4. ❌ Returns error 500 if if there are erros when saving the new information.
 
 > ## Edge case

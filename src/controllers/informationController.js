@@ -9,7 +9,8 @@ const informationController = function (Information) {
   const getInformations = function (req, res) {
     // return all informations if cache is available
     if (cache.getCache('informations')) {
-      res.status(200).send(cache.getCache('informations'));
+      const results = cache.getCache('informations');
+      res.status(200).send(results);
       return;
     }
     Information.find({}, 'infoName infoContent visibility')
@@ -24,33 +25,34 @@ const informationController = function (Information) {
 
   const addInformation = function (req, res) {
     try {
-      Information.findOne({
+      const result = Information.findOne({
         infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' },
-      }).then((result) => {
-        if (result.length > 0) {
-          res.status(400).send({
-            error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
-          });
-          return;
-        }
-        const _info = new Information();
-        _info.infoName = req.body.infoName;
-        _info.infoContent = req.body.infoContent || 'Unspecified';
-        _info.visibility = req.body.visibility || '0';
-        _info
-          .save()
-          .then((newInformation) => {
-            // remove cache if cache is available
-            if (cache.getCache('informations')) {
-              cache.removeCache('informations');
-              return;
-            }
-            res.status(201).send(newInformation);
-          })
-          .catch((error) => res.status(400).send(error));
       });
+      if (result) {
+        res
+          .status(403)
+          .send(
+            new Error(
+              `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
+            ),
+          );
+        return;
+      }
+      const _info = new Information();
+      _info.infoName = req.body.infoName;
+      _info.infoContent = req.body.infoContent || 'Unspecified';
+      _info.visibility = req.body.visibility || '0';
+      try {
+        const newInfo = _info.save();
+        if (cache.getCache('informations')) {
+          cache.removeCache('informations');
+        }
+        res.status(201).send(newInfo);
+      } catch (error) {
+        res.status(500).send(new Error('Error when saving information'));
+      }
     } catch (error) {
-      res.status(500).send(new Error('Error when finding infoName for regex'));
+      res.status(500).send(new Error('Error when finding single info'));
     }
   };
 
