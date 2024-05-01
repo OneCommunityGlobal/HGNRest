@@ -11,11 +11,10 @@ const { writeFile } = fs;
 function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
   async function fetchMaterialTypes(req, res) {
     try {
-      MatType
-        .find()
+      MatType.find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
@@ -23,8 +22,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   async function fetchReusableTypes(req, res) {
     try {
-      ReusType
-        .find()
+      ReusType.find()
         .exec()
         .then((result) => res.status(200).send(result))
         .catch((error) => res.status(500).send(error));
@@ -42,21 +40,28 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
           {
             path: 'available',
             select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name'
+            }
           },
           {
             path: 'using',
             select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name'
+            }
           }
         ])
         .exec()
         .then(result => {
         //make one line later
-          console.log("fetchToolTypes result: ", result)
+          console.log("52. fetchToolTypes result: ", result)
           res.status(200).send(result)
-        
         })
         .catch(error => {
-          console.log("53. fetchToolTypes error: ", error)
+          console.log("57. fetchToolTypes error: ", error)
           res.status(500).send(error)});
     } catch (err) {
       res.json(err);
@@ -93,8 +98,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     } = req.body;
     const unit = req.body.unit || req.body.customUnit;
     try {
-      MatType
-        .find({ name })
+      MatType.find({ name })
         .then((result) => {
           if (result.length) {
             res.status(409).send('Oops!! Material already exists!');
@@ -106,9 +110,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               unit,
               createdBy: requestorId,
             };
-            MatType
-            .create(newDoc)
-            .then((results) => {
+            MatType.create(newDoc)
+              .then((results) => {
                 res.status(201).send(results);
                 if (req.body.customUnit) {
                   try {
@@ -124,7 +127,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
                       const updatedContent = data.trim().replace(/\s*]$/, '');
 
                       // Add a comma and newline if the file is not empty
-                      const separator = (updatedContent !== '') ? ',\n' : '';
+                      const separator = updatedContent !== '' ? ',\n' : '';
                       const updatedFileContent = `${updatedContent}${separator}${newItemString}\n]`;
 
                       writeFile(filepath, updatedFileContent, 'utf8', (error) => {
@@ -138,20 +141,64 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
                   }
                 }
               })
-            .catch((error) => {
-              if (error._message.includes('validation failed')) {
-                res.status(400).send(error);
-              } else {
-                res.status(500).send(error);
-              }
-            });
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
           }
         })
-        .catch(error => res.status(500).send(error));
-      } catch (error) {
+        .catch((error) => res.status(500).send(error));
+    } catch (error) {
       res.status(500).send(error);
-      }
     }
+  }
+
+  async function addConsumableType(req, res) {
+    const {
+      name,
+      description,
+      unit,
+      size,
+      requestor: { requestorId },
+    } = req.body;
+
+    try {
+      ConsType.find({ name })
+        .then((result) => {
+          if (result.length) {
+            res.status(409).send('Oops!! Consumable already exists!');
+          } else {
+            const newDoc = {
+              category: 'Consumable',
+              name,
+              description,
+              unit,
+              size,
+              createdBy: requestorId,
+            };
+            ConsType.create(newDoc)
+              .then((results) => {
+                res.status(201).send(results);
+              })
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error.errors.unit.message);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
+          }
+        })
+        .catch((error) => {
+          res.status(500).send(error);
+        });
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  }
 
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;
@@ -168,15 +215,25 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       SelectedType = EquipType;
     }
     try {
-      SelectedType
-        .find()
+      SelectedType.find()
         .exec()
-        .then(result => res.status(200).send(result))
-        .catch(error => res.status(500).send(error));
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
   }
+
+  const fetchConsumableTypes = async (req, res) => {
+    try {
+      ConsType.find()
+        .exec()
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
 
   async function addEquipmentType(req, res) {
     const {
@@ -186,8 +243,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       requestor: { requestorId },
     } = req.body;
     try {
-      EquipType
-        .find({ name })
+      EquipType.find({ name })
         .then((result) => {
           if (result.length) {
             res.status(409).send();
@@ -199,71 +255,71 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               fuelType,
               createdBy: requestorId,
             };
-            EquipType
-            .create(newDoc)
-            .then(() => res.status(201).send())
-            .catch((error) => {
-              if (error._message.includes('validation failed')) {
-                res.status(400).send(error);
-              } else {
-                res.status(500).send(error);
-              }
-            });
+            EquipType.create(newDoc)
+              .then(() => res.status(201).send())
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
           }
         })
-        .catch(error => res.status(500).send(error));
-      } catch (error) {
+        .catch((error) => res.status(500).send(error));
+    } catch (error) {
       res.status(500).send(error);
-      }
     }
-    const fetchSingleInventoryType = async (req, res) => {
+  }
+  const fetchSingleInventoryType = async (req, res) => {
+    const { invtypeId } = req.params;
+    try {
+      const result = await InvType.findById(invtypeId).exec();
+      res.status(200).send(result);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const updateNameAndUnit = async (req, res) => {
+    try {
       const { invtypeId } = req.params;
-      try {
-        const result = await InvType.findById(invtypeId).exec();
-        res.status(200).send(result);
-      } catch (error) {
-        res.status(500).send(error);
+      const { name, unit } = req.body;
+
+      const updateData = {};
+
+      if (name) {
+        updateData.name = name;
       }
-    };
 
-    const updateNameAndUnit = async (req, res) => {
-      try {
-        const { invtypeId } = req.params;
-        const { name, unit } = req.body;
-
-        const updateData = {};
-
-        if (name) {
-          updateData.name = name;
-        }
-
-        if (unit) {
-          updateData.unit = unit;
-        }
-
-        const updatedInvType = await InvType.findByIdAndUpdate(
-          invtypeId,
-          updateData,
-          { new: true, runValidators: true },
-        );
-
-        if (!updatedInvType) {
-          return res.status(404).json({ error: 'invType Material not found check Id' });
-        }
-
-        res.status(200).json(updatedInvType);
-      } catch (error) {
-        res.status(500).send(error);
+      if (unit) {
+        updateData.unit = unit;
       }
-    };
+
+      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updatedInvType) {
+        return res.status(404).json({ error: 'invType Material not found check Id' });
+      }
+
+      res.status(200).json(updatedInvType);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
   return {
     fetchMaterialTypes,
+    fetchConsumableTypes,
     fetchReusableTypes,
     fetchToolTypes,
     addEquipmentType,
     fetchSingleInventoryType,
     updateNameAndUnit,
     addMaterialType,
+    addConsumableType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
   };
