@@ -17,7 +17,8 @@ describe('actionItem routes', () => {
   let volunteerUser;
   let adminToken;
   let volunteerToken;
-  const reqBody = {
+  let project;
+  let reqBody = {
     ...mockReq.body,
   };
 
@@ -32,10 +33,25 @@ describe('actionItem routes', () => {
     // create 2 roles. One with permission and one without
     await createRole('Administrator', ['postWbs', 'deleteWbs']);
     await createRole('Volunteer', []);
+
+    // create a project so we can create new wbs tasks
+    const _project = new Project();
+    _project.projectName = 'Test project';
+    _project.isActive = true;
+    _project.createdDatetime = new Date('2024-05-01');
+    _project.modifiedDatetime = new Date('2024-05-01');
+    _project.category = 'Food';
+
+    project = await _project.save();
   });
 
   beforeEach(async () => {
     await dbClearCollections('actionItems');
+    reqBody = {
+      ...reqBody,
+      wbsName: 'Sample WBS',
+      isActive: true,
+    };
   });
 
   afterAll(async () => {
@@ -83,17 +99,7 @@ describe('actionItem routes', () => {
     });
 
     describe('getAllWBS routes', () => {
-      it.only("Should return 200 and an array of wbs' on success", async () => {
-        // create a project and give it some wbs tasks.
-        const _project = new Project();
-        _project.projectName = 'Test project';
-        _project.isActive = true;
-        _project.createdDatetime = new Date('2024-05-01');
-        _project.modifiedDatetime = new Date('2024-05-01');
-        _project.category = 'Food';
-
-        const project = await _project.save();
-
+      it("Should return 200 and an array of wbs' on success", async () => {
         // now we create a wbs for the project
         const _wbs = new WBS();
 
@@ -114,12 +120,53 @@ describe('actionItem routes', () => {
         // Compare with the expected value
         expect(response.body).toEqual([
           {
-            _id: expect.anything(),
+            _id: wbs._id.toString(),
             modifiedDatetime: expect.anything(),
             wbsName: wbs.wbsName,
             isActive: wbs.isActive,
           },
         ]);
+      });
+    });
+
+    describe('postWBS route', () => {
+      it('Should return 403 if user does not have permission', async () => {
+        await agent
+          .post(`/api/wbs/randomId`)
+          .set('Authorization', volunteerToken)
+          .send(reqBody)
+          .expect(403);
+      });
+
+      it('Should return 400 if wbsName or isActive is missing from req body.', async () => {
+        reqBody.wbsName = null;
+        reqBody.isActive = null;
+
+        const res = await agent
+          .post(`/api/wbs/randomId`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(400);
+
+        expect(res.body).toEqual({ error: 'WBS Name and active status are mandatory fields' });
+      });
+
+      it('Should create a new wbs and return 201 if all is successful', async () => {
+        const res = await agent
+          .post(`/api/wbs/${project._id}`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(201);
+
+        expect(res.body).toEqual({
+          __v: expect.anything(),
+          _id: expect.anything(),
+          projectId: project._id.toString(),
+          wbsName: reqBody.wbsName,
+          isActive: reqBody.isActive,
+          createdDatetime: expect.anything(),
+          modifiedDatetime: expect.anything(),
+        });
       });
     });
   });
