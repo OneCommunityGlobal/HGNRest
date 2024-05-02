@@ -1,51 +1,51 @@
 const mongoose = require('mongoose');
 
 const bmToolController = (BuildingTool, ToolType) => {
-  const fetchAllTools = async (req, res) => {
-    try {
-      BuildingTool.find()
-      .populate([
-        {
-          path: 'project',
-          select: '_id name',
-        },
-        {
-          path: 'itemType',
-          select: '_id name description unit imageUrl category available using',
-        },
-        {
-          path: 'updateRecord',
-          populate: {
-            path: 'createdBy',
-            select: '_id firstName lastName',
-          },
-        },
-        {
-          path: 'purchaseRecord',
-          populate: {
-            path: 'requestedBy',
-            select: '_id firstName lastName',
-          },
-        },
-        {
-          path: 'logRecord',
-          populate: [{
-              path: 'createdBy',
-              select: '_id firstName lastName',
-          },
-          {
-              path: 'responsibleUser',
-              select: '_id firstName lastName',
-      }],
-      },
-      ])
-      .exec()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
-  }
-  };
+  // const fetchAllTools = async (req, res) => {
+  //   try {
+  //     BuildingTool.find()
+  //     .populate([
+  //       {
+  //         path: 'project',
+  //         select: '_id name',
+  //       },
+  //       {
+  //         path: 'itemType',
+  //         select: '_id name description unit imageUrl category available using',
+  //       },
+  //       {
+  //         path: 'updateRecord',
+  //         populate: {
+  //           path: 'createdBy',
+  //           select: '_id firstName lastName',
+  //         },
+  //       },
+  //       {
+  //         path: 'purchaseRecord',
+  //         populate: {
+  //           path: 'requestedBy',
+  //           select: '_id firstName lastName',
+  //         },
+  //       },
+  //       {
+  //         path: 'logRecord',
+  //         populate: [{
+  //             path: 'createdBy',
+  //             select: '_id firstName lastName',
+  //         },
+  //         {
+  //             path: 'responsibleUser',
+  //             select: '_id firstName lastName',
+  //     }],
+  //     },
+  //     ])
+  //     .exec()
+  //     .then(results => res.status(200).send(results))
+  //     .catch(error => res.status(500).send(error));
+  //   } catch (err) {
+  //     res.json(err);
+  // }
+  // };
   
     const fetchSingleTool = async (req, res) => {
         const { toolId } = req.params;
@@ -232,7 +232,7 @@ const bmToolController = (BuildingTool, ToolType) => {
       }
 
       return {
-        fetchAllTools,
+        // fetchAllTools,
         fetchSingleTool,
         bmPurchaseTools,
         bmLogTools
