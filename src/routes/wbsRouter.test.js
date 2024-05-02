@@ -1,31 +1,37 @@
 const request = require('supertest');
 const { jwtPayload } = require('../test');
 const { app } = require('../app');
+const Project = require('../models/project');
+const WBS = require('../models/wbs');
 const {
   mockReq,
   createUser,
+  createRole,
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
 
 const agent = request.agent(app);
 
 describe('actionItem routes', () => {
-  let user;
-  let token;
+  let adminUser;
+  let volunteerUser;
+  let adminToken;
+  let volunteerToken;
   const reqBody = {
     ...mockReq.body,
   };
 
   beforeAll(async () => {
     await dbConnect();
-    user = await createUser();
-    token = jwtPayload(user);
-    // reqBody = {
-    //   ...reqBody,
-    //   requestor: { requestorId: requestorUser._id, assignedTo: assignedUser._id },
-    //   description: 'Any description',
-    //   assignedTo: assignedUser._id,
-    // };
+    adminUser = await createUser();
+    volunteerUser = await createUser();
+    volunteerUser.role = 'Volunteer';
+    adminToken = jwtPayload(adminUser);
+    volunteerToken = jwtPayload(volunteerUser);
+
+    // create 2 roles. One with permission and one without
+    await createRole('Administrator', ['postWbs', 'deleteWbs']);
+    await createRole('Volunteer', []);
   });
 
   beforeEach(async () => {
@@ -48,26 +54,73 @@ describe('actionItem routes', () => {
     });
 
     it('should return 404 if the route does not exist', async () => {
-      await agent.get('/api/wibs/randomId').set('Authorization', token).send(reqBody).expect(404);
-      await agent.post('/api/wibs/randomId').set('Authorization', token).send(reqBody).expect(404);
+      await agent
+        .get('/api/wibs/randomId')
+        .set('Authorization', volunteerToken)
+        .send(reqBody)
+        .expect(404);
+      await agent
+        .post('/api/wibs/randomId')
+        .set('Authorization', volunteerToken)
+        .send(reqBody)
+        .expect(404);
       await agent
         .delete('/api/wibs/randomId')
-        .set('Authorization', token)
+        .set('Authorization', volunteerToken)
         .send(reqBody)
         .expect(404);
-      await agent.get('/api/wibsId/randomId').set('Authorization', token).send(reqBody).expect(404);
+      await agent
+        .get('/api/wibsId/randomId')
+        .set('Authorization', volunteerToken)
+        .send(reqBody)
+        .expect(404);
       await agent
         .get('/api/wibs/user/randomId')
-        .set('Authorization', token)
+        .set('Authorization', volunteerToken)
         .send(reqBody)
         .expect(404);
-      await agent.get('/api/wibs').set('Authorization', token).send(reqBody).expect(404);
+      await agent.get('/api/wibs').set('Authorization', volunteerToken).send(reqBody).expect(404);
     });
 
-    // describe('getAllWBS routes', () => {
-    //   it("Should return 200 and an array of wbs' on success", async () => {
+    describe('getAllWBS routes', () => {
+      it.only("Should return 200 and an array of wbs' on success", async () => {
+        // create a project and give it some wbs tasks.
+        const _project = new Project();
+        _project.projectName = 'Test project';
+        _project.isActive = true;
+        _project.createdDatetime = new Date('2024-05-01');
+        _project.modifiedDatetime = new Date('2024-05-01');
+        _project.category = 'Food';
 
-    //   });
-    // });
+        const project = await _project.save();
+
+        // now we create a wbs for the project
+        const _wbs = new WBS();
+
+        _wbs.wbsName = 'Sample WBS';
+        _wbs.projectId = project._id;
+        _wbs.isActive = true;
+        _wbs.createdDatetime = new Date('2024-05-01');
+        _wbs.modifiedDatetime = new Date('2024-05-01');
+
+        const wbs = await _wbs.save();
+
+        const response = await agent
+          .get(`/api/wbs/${project._id}`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(200);
+
+        // Compare with the expected value
+        expect(response.body).toEqual([
+          {
+            _id: expect.anything(),
+            modifiedDatetime: expect.anything(),
+            wbsName: wbs.wbsName,
+            isActive: wbs.isActive,
+          },
+        ]);
+      });
+    });
   });
 });
