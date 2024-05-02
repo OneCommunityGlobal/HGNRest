@@ -3,6 +3,7 @@ const { jwtPayload } = require('../test');
 const { app } = require('../app');
 const Project = require('../models/project');
 const WBS = require('../models/wbs');
+const Task = require('../models/task');
 const {
   mockReq,
   createUser,
@@ -46,7 +47,7 @@ describe('actionItem routes', () => {
   });
 
   beforeEach(async () => {
-    await dbClearCollections('actionItems');
+    await dbClearCollections('wbs');
     reqBody = {
       ...reqBody,
       wbsName: 'Sample WBS',
@@ -238,6 +239,114 @@ describe('actionItem routes', () => {
           createdDatetime: expect.anything(),
           modifiedDatetime: expect.anything(),
         });
+      });
+    });
+
+    describe('getWBS route', () => {
+      it('Should return 200 and return all wbs', async () => {
+        const _wbs = new WBS();
+
+        _wbs.wbsName = 'Sample WBS';
+        _wbs.projectId = project._id;
+        _wbs.isActive = true;
+        _wbs.createdDatetime = new Date('2024-05-01');
+        _wbs.modifiedDatetime = new Date('2024-05-01');
+
+        const wbs = await _wbs.save();
+
+        const res = await agent
+          .get(`/api/wbs`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(200);
+
+        expect(res.body).toEqual([
+          {
+            __v: expect.anything(),
+            _id: wbs._id.toString(),
+            wbsName: wbs.wbsName,
+            projectId: project._id.toString(),
+            isActive: wbs.isActive,
+            createdDatetime: expect.anything(),
+            modifiedDatetime: expect.anything(),
+          },
+        ]);
+      });
+    });
+
+    describe('Get wbs by user id route', () => {
+      it('Should return 200 and give the wbs related to user', async () => {
+        // create a wbs
+        const _wbs = new WBS();
+
+        _wbs.wbsName = 'Sample WBS';
+        _wbs.projectId = project._id;
+        _wbs.isActive = true;
+        _wbs.createdDatetime = new Date('2024-05-01');
+        _wbs.modifiedDatetime = new Date('2024-05-01');
+
+        const wbs = await _wbs.save();
+
+        // create a new task and link it to a user and wbs
+        const _task = new Task();
+
+        // Assign values to the task properties
+        _task.taskName = 'Sample Task';
+        _task.wbsId = wbs._id;
+        _task.num = '123';
+        _task.level = 1;
+        // Add resources
+        _task.resources.push({
+          name: 'John Doe',
+          userID: adminUser._id,
+          profilePic: 'https://example.com/profilepic.jpg',
+          completedTask: false,
+          reviewStatus: 'Unsubmitted',
+        });
+        // Set other properties
+        _task.isAssigned = true;
+        _task.status = 'Not Started';
+        _task.hoursBest = 0.0;
+        _task.hoursWorst = 0.0;
+        _task.hoursMost = 0.0;
+        _task.hoursLogged = 0.0;
+        _task.estimatedHours = 10.0;
+        _task.startedDatetime = new Date('2024-05-01');
+        _task.dueDatetime = new Date('2024-06-01');
+        _task.links = ['https://example.com/link1', 'https://example.com/link2'];
+        _task.relatedWorkLinks = ['https://example.com/related1', 'https://example.com/related2'];
+        _task.category = 'Sample Category';
+        _task.position = 1;
+        _task.isActive = true;
+        _task.hasChild = false;
+        _task.childrenQty = 0;
+        _task.createdDatetime = new Date();
+        _task.modifiedDatetime = new Date();
+        _task.whyInfo = 'Sample why info';
+        _task.intentInfo = 'Sample intent info';
+        _task.endstateInfo = 'Sample endstate info';
+        _task.classification = 'Sample classification';
+
+        // Save the task to the database
+        const task = await _task.save();
+
+        const res = await agent
+          .get(`/api/wbs/user/${adminUser._id}`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(200);
+
+        expect(res.body).toEqual([
+          {
+            __v: expect.anything(),
+            _id: wbs._id.toString(),
+            createdDatetime: expect.anything(),
+            modifiedDatetime: expect.anything(),
+            isActive: task.isActive,
+            projectId: wbs.projectId.toString(),
+            wbsName: wbs.wbsName,
+          },
+        ]);
       });
     });
   });
