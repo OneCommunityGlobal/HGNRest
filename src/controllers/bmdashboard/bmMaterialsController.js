@@ -86,7 +86,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       )
         .exec()
         .then(() => res.status(201).send())
-        .catch((error) => res.status(500).send(error));
+        .catch(error => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }

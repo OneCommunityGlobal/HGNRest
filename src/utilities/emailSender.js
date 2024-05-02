@@ -21,11 +21,7 @@ const closure = () => {
     },
   });
 
-  const OAuth2Client = new google.auth.OAuth2(
-    CLIENT_ID,
-    CLIENT_SECRET,
-    REDIRECT_URI,
-  );
+  const OAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
   OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
@@ -34,9 +30,7 @@ const closure = () => {
 
     if (!nextItem) return;
 
-    const {
- recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt,
-} = nextItem;
+    const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt } = nextItem;
 
     try {
       // Generate the accessToken on the fly
@@ -67,7 +61,11 @@ const closure = () => {
       if (typeof acknowledgingReceipt === 'function') {
         acknowledgingReceipt(error, null);
       }
-      logger.logException(error);
+      logger.logException(
+        error,
+        `Error sending email: from ${CLIENT_EMAIL} to ${recipient}`,
+        `Extra Data: cc ${cc} bcc ${bcc} subject ${subject}`,
+      );
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
