@@ -169,5 +169,76 @@ describe('actionItem routes', () => {
         });
       });
     });
+
+    describe('deleteWBS route', () => {
+      it('Should return 403 if user does not have permission', async () => {
+        await agent
+          .delete(`/api/wbs/randomId`)
+          .set('Authorization', volunteerToken)
+          .send(reqBody)
+          .expect(403);
+      });
+
+      it('Should return 400 if no record was found', async () => {
+        const res = await agent
+          .delete(`/api/wbs/randomId`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(400);
+
+        expect(res.body).toEqual({ error: 'No valid records found' });
+      });
+
+      it('Should return 200 and delete the wbs on success', async () => {
+        // first lets create the wbs to delete.
+        const _wbs = new WBS();
+
+        _wbs.wbsName = 'Sample WBS';
+        _wbs.projectId = project._id;
+        _wbs.isActive = true;
+        _wbs.createdDatetime = new Date('2024-05-01');
+        _wbs.modifiedDatetime = new Date('2024-05-01');
+
+        const wbs = await _wbs.save();
+
+        const res = await agent
+          .delete(`/api/wbs/${wbs._id}`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(200);
+
+        expect(res.body).toEqual({ message: ' WBS successfully deleted' });
+      });
+    });
+
+    describe('GetByID route', () => {
+      it('Should return 200 on success', async () => {
+        const _wbs = new WBS();
+
+        _wbs.wbsName = 'Sample WBS';
+        _wbs.projectId = project._id;
+        _wbs.isActive = true;
+        _wbs.createdDatetime = new Date('2024-05-01');
+        _wbs.modifiedDatetime = new Date('2024-05-01');
+
+        const wbs = await _wbs.save();
+
+        const res = await agent
+          .get(`/api/wbsId/${wbs._id}`)
+          .set('Authorization', adminToken)
+          .send(reqBody)
+          .expect(200);
+
+        expect(res.body).toEqual({
+          __v: expect.anything(),
+          _id: wbs._id.toString(),
+          wbsName: wbs.wbsName,
+          projectId: project._id.toString(),
+          isActive: wbs.isActive,
+          createdDatetime: expect.anything(),
+          modifiedDatetime: expect.anything(),
+        });
+      });
+    });
   });
 });
