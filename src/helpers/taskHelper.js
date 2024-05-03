@@ -30,7 +30,6 @@ const taskHelper = function () {
       if (userById === null) return null;
       const userRole = userById.role;
 
-
       const pdtstart = moment()
         .tz("America/Los_Angeles")
         .startOf("week")
@@ -42,7 +41,6 @@ const taskHelper = function () {
 
       let teamMemberIds = [userid];
       let teamMembers = [];
-
 
       const isRequestorOwnerLike = [
         "Administrator",
@@ -145,7 +143,6 @@ const taskHelper = function () {
           };
         }
         if (timeEntry.isTangible) {
-
           timeEntryByPerson[personIdStr].tangibleSeconds +=
             timeEntry.totalSeconds;
         }
@@ -170,7 +167,6 @@ const taskHelper = function () {
         const taskNdUserID = `${taskIdStr},${userIdStr}`;
 
         if (taskNotificationByTaskNdUser[taskNdUserID]) {
-
           taskNotificationByTaskNdUser[taskNdUserID].push(
             teamMemberTaskNotification
           );
@@ -514,7 +510,6 @@ const taskHelper = function () {
     // ]);
   };
   const getTasksForSingleUser = function (userId) {
-
     const pdtstart = moment()
       .tz("America/Los_Angeles")
       .startOf("week")
