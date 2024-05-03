@@ -4,13 +4,18 @@ const notificationService = require('../services/notificationService');
 const { mockReq, mockRes } = require('../test');
 
 const makeSut = () => {
-  const { getUserNotifications, getUnreadUserNotifications, getSentNotifications } =
-    notificationController(Notification);
+  const {
+    getUserNotifications,
+    getUnreadUserNotifications,
+    getSentNotifications,
+    createUserNotification,
+  } = notificationController(Notification);
 
   return {
     getUserNotifications,
     getUnreadUserNotifications,
     getSentNotifications,
+    createUserNotification,
   };
 };
 
@@ -171,6 +176,35 @@ describe('Notification controller Unit Tests', () => {
       await getSentNotifications(mockReq, mockRes);
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith({ error: 'Internal Error' });
+    });
+  });
+  describe('createUserNotification', () => {
+    test('Ensures createUserNotifications returns 403 when requestor role is not Admin or Owner', async () => {
+      const { createUserNotification } = makeSut();
+      mockReq.body.requestor = {
+        role: 'randomRole',
+      };
+      mockReq.requestor = {
+        requestorId: '65cf6c3706d8ac105827bb2e',
+      };
+      await createUserNotification(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Unauthorized request' });
+    });
+    test('Ensures createUserNotifications returns 400 if message or recipient is missing', async () => {
+      const { createUserNotification } = makeSut();
+      mockReq.body = {
+        requestor: {
+          role: 'Administrator',
+        },
+        message: '',
+        recipient: '',
+      };
+      await createUserNotification(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Message and recipient are required' });
     });
   });
 });
