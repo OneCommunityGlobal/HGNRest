@@ -18,16 +18,15 @@ const notificationController = function () {
   const getUserNotifications = async function (req, res) {
     const { userId } = req.params;
     const { requestor } = req.body;
+    if (!userId) {
+      res.status(400).send({ error: 'User ID is required' });
+      return;
+    }
     if (
       requestor.requestorId !== userId &&
       (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
     ) {
       res.status(403).send({ error: 'Unauthorized request' });
-      return;
-    }
-
-    if (!userId) {
-      res.status(400).send({ error: 'User ID is required' });
       return;
     }
 
