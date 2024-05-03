@@ -133,7 +133,7 @@ describe('Notification controller Unit Tests', () => {
     });
   });
   describe('getSentNotifications', () => {
-    test('Ensures getSentNotifications returns error 403 if requestor role is not Administrator or Owner', async () => {
+    test('Ensures getSentNotifications returns error 403 if requestor role is neither Administrator or Owner', async () => {
       const { getSentNotifications } = makeSut();
       mockReq.body = { requestor: { role: 'randomRole' } };
       await getSentNotifications(mockReq, mockRes);
