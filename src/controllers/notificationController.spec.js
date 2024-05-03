@@ -59,5 +59,20 @@ describe('Notification controller tests', () => {
       expect(mockRes.send).toHaveBeenCalledWith(mockNotifications);
       expect(mockService).toHaveBeenCalledWith(mockReq.params.userId);
     });
+    test('Ensures getUserNotifications returns error 500 if there is an internal error while fetching notifications.', async () => {
+      const { getUserNotifications } = makeSut();
+      mockReq.body.requestor = {
+        requestorId: '65cf6c3706d8ac105827bb2e',
+        role: 'Administrator',
+      };
+      notificationService.getNotifications = jest
+        .fn()
+        .mockRejectedValue(new Error('Internal Error'));
+
+      await getUserNotifications(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Internal Error' });
+    });
   });
 });

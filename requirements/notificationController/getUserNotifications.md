@@ -8,4 +8,4 @@
 
 1. ✅ Returns error 403 if userId does not match requestorId.
 2. ✅ Returns error 400 if the userId is missing from the request.
-3. ❌ Returns error 500 if there is an internal error while fetching notifications.
+3. ✅ Returns error 500 if there is an internal error while fetching notifications.
