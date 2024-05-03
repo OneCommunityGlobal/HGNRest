@@ -102,7 +102,7 @@ const notificationController = function () {
     const { message, recipient } = req.body;
     const sender = req.requestor.requestorId;
 
-    if (req.body.requestor.role !== 'Administrator' || req.body.requestor.role !== 'Owner') {
+    if (req.body.requestor.role !== 'Administrator' && req.body.requestor.role !== 'Owner') {
       res.status(403).send({ error: 'Unauthorized request' });
       return;
     }
