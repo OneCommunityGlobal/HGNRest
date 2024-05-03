@@ -4,14 +4,15 @@ const notificationService = require('../services/notificationService');
 const { mockReq, mockRes } = require('../test');
 
 const makeSut = () => {
-  const { getUserNotifications } = notificationController(Notification);
+  const { getUserNotifications, getUnreadUserNotifications } = notificationController(Notification);
 
   return {
     getUserNotifications,
+    getUnreadUserNotifications,
   };
 };
 
-describe('Notification controller tests', () => {
+describe('Notification controller Unit Tests', () => {
   beforeEach(() => {
     mockReq.params.userId = '65cf6c3706d8ac105827bb2e';
   });
@@ -20,7 +21,7 @@ describe('Notification controller tests', () => {
     jest.clearAllMocks();
   });
 
-  describe('Notification Controller Unit Tests', () => {
+  describe('getUserNotifications', () => {
     test('Ensures getUserNotifications returns error 400 if userId is not provided', async () => {
       const { getUserNotifications } = makeSut();
       mockReq.params.userId = '';
@@ -71,6 +72,60 @@ describe('Notification controller tests', () => {
 
       await getUserNotifications(mockReq, mockRes);
 
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Internal Error' });
+    });
+  });
+
+  describe('getUnreadUserNotifications', () => {
+    test('Ensures getUnreadUserNotifications returns error 400 if userId is not provided', async () => {
+      const { getUnreadUserNotifications } = makeSut();
+      mockReq.params.userId = '';
+      await getUnreadUserNotifications(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'User ID is required' });
+    });
+    test('Ensures getUnreadUserNotifications returns error 403 if userId does not match requestorId', async () => {
+      const { getUnreadUserNotifications } = makeSut();
+      mockReq.body = { requestor: { requestorId: 'differentUserId', role: 'Administrator' } };
+      await getUnreadUserNotifications(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Unauthorized request' });
+    });
+    test('Ensures getUnreadUserNotifications returns 200 and notifications data when notifications are fetched successfully', async () => {
+      const { getUnreadUserNotifications } = makeSut();
+      const mockNotifications = [
+        { id: '123', message: 'Notification Test 1' },
+        { id: '123', message: 'Notification Test 2' },
+        { id: '123', message: 'Notification Test 3' },
+      ];
+      mockReq.body.requestor = {
+        requestorId: '65cf6c3706d8ac105827bb2e',
+        role: 'Administrator',
+      };
+
+      const mockService = jest.fn().mockResolvedValue(mockNotifications);
+
+      notificationService.getUnreadUserNotifications = mockService;
+
+      await getUnreadUserNotifications(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(mockNotifications);
+      expect(mockService).toHaveBeenCalledWith(mockReq.params.userId);
+    });
+    test('Ensures getUnreadUserNotifications returns error 500 if there is an internal error while fetching notifications.', async () => {
+      const { getUnreadUserNotifications } = makeSut();
+      mockReq.body.requestor = {
+        requestorId: '65cf6c3706d8ac105827bb2e',
+        role: 'Administrator',
+      };
+      notificationService.getUnreadUserNotifications = jest
+        .fn()
+        .mockRejectedValue(new Error('Internal Server Error'));
+      await getUnreadUserNotifications(mockReq, mockRes);
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith({ error: 'Internal Error' });
     });
