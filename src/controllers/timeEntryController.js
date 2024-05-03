@@ -574,6 +574,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
 
     const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
 
+
     if (!canEdit) {
       const error = 'Unauthorized request';
       return res.status(403).send({ error });
@@ -623,7 +624,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       const tangibilityChanged = initialIsTangible !== newIsTangible;
       const timeChanged = initialTotalSeconds !== newTotalSeconds;
       const dateOfWorkChanged = initialDateOfWork !== newDateOfWork;
-
       timeEntry.notes = newNotes;
       timeEntry.totalSeconds = newTotalSeconds;
       timeEntry.isTangible = newIsTangible;
@@ -641,7 +641,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         // tangiblity change usually only happens by itself via tangibility checkbox,
         // and it can't be changed by user directly (except for owner-like roles)
         // but here the other changes are also considered here for completeness
-
         // change from tangible to intangible
         if (initialIsTangible) {
           // subtract initial logged hours from old task (if not null)
@@ -792,7 +791,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         res.status(400).send({ message: 'No valid record found' });
         return;
       }
-
       const { personId, totalSeconds, dateOfWork, projectId, taskId, isTangible } = timeEntry;
 
       const isForAuthUser = personId.toString() === req.body.requestor.requestorId;
