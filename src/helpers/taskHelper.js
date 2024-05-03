@@ -184,8 +184,8 @@ const taskHelper = function () {
       const teamMemberTasksData = [];
       teamMembers.forEach((teamMember) => {
         const timeEntry = timeEntryByPerson[teamMember._id.toString()];
-        const tangible = timeEntry.tangibleSeconds || 0;
-        const total = timeEntry.totalSeconds || 0;
+        const tangible = timeEntry?.tangibleSeconds || 0;
+        const total = timeEntry?.totalSeconds || 0;
         const obj = {
           personId: teamMember._id,
           role: teamMember.role,
