@@ -112,35 +112,6 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(404).send(error));
   };
-  /**
-   *
-   * @param {*} req
-   * @param {*} res
-   * @returns
-   */
-  const getProjectsByPerson = async function (req, res) {
-    // Must find user by first and last name and verify the user ID, once that should be able to extract
-    try {
-      const { firstName } = req.body;
-      const { lastName } = req.body;
-
-      const userProfile = await UserProfile.find({
-        firstName,
-        lastName,
-      });
-
-      if (!userProfile) {
-        return res.status(400).send('UserProfile not found');
-      }
-
-      const projects = userProfile.projects.filter((project) => project.isActive === true);
-      console.log('These are the active projects', projects);
-      return res.status(200).send('Active projects', projects);
-    } catch (error) {
-      console.log('There was an error', error);
-      return res.status(500).send('Error', error);
-    }
-  };
 
   const getProjectMembers = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'getProjectMembers'))) {
@@ -1227,6 +1198,31 @@ const userProfileController = function (UserProfile) {
       });
     } catch (err) {
       res.status(500).send(err);
+    }
+  };
+
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   * @returns
+   */
+  const getProjectsByPerson = async function (req, res) {
+    // Must find user by first and last name and verify the user ID, once that should be able to extract
+    try {
+      const { firstName, lastName } = req.params;
+      // Finding profile by name and then looking up projects
+      const userProfile = await UserProfile.find({
+        firstName: { $regex: new RegExp(`^${escapeRegExp(firstName)}`, 'i') },
+        lastName: { $regex: new RegExp(`^${escapeRegExp(lastName)}`, 'i') },
+      });
+
+      if (userProfile.length === 0) {
+        return res.status(400).send({ message: 'UserProfile not found' });
+      }
+      return res.status(200).send({ message: 'Found projects', projects: userProfile[0].projects });
+    } catch (error) {
+      return res.status(500).send({ massage: 'Encountered an error', data: error });
     }
   };
 

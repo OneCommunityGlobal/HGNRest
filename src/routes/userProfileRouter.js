@@ -11,8 +11,8 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer(value => value.trim()),
-      body('lastName').customSanitizer(value => value.trim()),
+      body('firstName').customSanitizer((value) => value.trim()),
+      body('lastName').customSanitizer((value) => value.trim()),
       controller.postUserProfile,
     );
 
@@ -89,7 +89,7 @@ const routes = function (userProfile) {
 
   // This route to get all projects associated with a particular user
   userProfileRouter
-    .route('/userProfile/projects')
+    .route('/userProfile/:firstName/:lastName/getprojects')
     .get(controller.getProjectsByPerson);
 
   return userProfileRouter;
