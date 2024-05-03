@@ -21,9 +21,11 @@ const taskHelper = function () {
           isVisible: 1,
           weeklycommittedHours: 1,
           weeklySummaries: 1,
+          weeklySummaryOption: 1,
           timeOffFrom: 1,
           timeOffTill: 1,
           teamCode: 1,
+          teams: 1,
           adminLinks: 1,
         },
       );
@@ -49,9 +51,11 @@ const taskHelper = function () {
               firstName: 1,
               lastName: 1,
               weeklycommittedHours: 1,
+              weeklySummaryOption: 1,
               timeOffFrom: 1,
               timeOffTill: 1,
               teamCode: 1,
+              teams: 1,
               adminLinks: 1,
             },
           );
@@ -76,9 +80,11 @@ const taskHelper = function () {
               firstName: 1,
               lastName: 1,
               weeklycommittedHours: 1,
+              weeklySummaryOption: 1,
               timeOffFrom: 1,
               timeOffTill: 1,
               teamCode: 1,
+              teams: 1,
               adminLinks: 1,
             },
           );
@@ -103,9 +109,11 @@ const taskHelper = function () {
               firstName: 1,
               lastName: 1,
               weeklycommittedHours: 1,
+              weeklySummaryOption: 1,
               timeOffFrom: 1,
               timeOffTill: 1,
               teamCode: 1,
+              teams: 1,
               adminLinks: 1,
             },
           );
@@ -184,19 +192,21 @@ const taskHelper = function () {
       const teamMemberTasksData = [];
       teamMembers.forEach((teamMember) => {
         const timeEntry = timeEntryByPerson[teamMember._id.toString()];
-        const tangible = timeEntry.tangibleSeconds || 0;
-        const total = timeEntry.totalSeconds || 0;
+        const tangible = timeEntry?.tangibleSeconds || 0;
+        const total = timeEntry?.totalSeconds || 0;
         const obj = {
           personId: teamMember._id,
           role: teamMember.role,
           name: `${teamMember.firstName} ${teamMember.lastName}`,
           weeklycommittedHours: teamMember.weeklycommittedHours,
+          weeklySummaryOption: teamMember.weeklySummaryOption || null,
           totaltangibletime_hrs: tangible / 3600,
           totaltime_hrs: total / 3600,
           tasks: taskByPerson[teamMember._id.toString()] || [],
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
           teamCode: teamMember.teamCode || null,
+          teams: teamMember.teams || null,
           adminLinks: teamMember.adminLinks || null,
         };
         teamMemberTasksData.push(obj);
@@ -521,9 +531,6 @@ const taskHelper = function () {
           timeOffTill: {
             $ifNull: ['$timeOffTill', null],
           },
-          teamCode: {
-            $ifNull: ['$teamCode', ''],
-          },
         },
       },
       {
@@ -541,7 +548,6 @@ const taskHelper = function () {
           weeklycommittedHours: 1,
           timeOffFrom: 1,
           timeOffTill: 1,
-          teamCode: 1,
           role: 1,
           timeEntryData: {
             $filter: {
@@ -577,7 +583,6 @@ const taskHelper = function () {
           weeklycommittedHours: 1,
           timeOffFrom: 1,
           timeOffTill: 1,
-          teamCode: 1,
           role: 1,
           totalSeconds: {
             $cond: [
@@ -619,7 +624,6 @@ const taskHelper = function () {
             weeklycommittedHours: '$weeklycommittedHours',
             timeOffFrom: '$timeOffFrom',
             timeOffTill: '$timeOffTill',
-            teamCode: '$teamCode',
             name: '$name',
             role: '$role',
           },
@@ -639,7 +643,6 @@ const taskHelper = function () {
           weeklycommittedHours: '$_id.weeklycommittedHours',
           timeOffFrom: '$_id.timeOffFrom',
           timeOffTill: '$_id.timeOffTill',
-          teamCode: '$_id.teamCode',
           role: '$_id.role',
           totaltime_hrs: {
             $divide: ['$totalSeconds', 3600],
