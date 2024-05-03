@@ -74,7 +74,7 @@ const teamcontroller = function (Team) {
           res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
         )
         .catch((errors) => {
-          // Logger.logException(error, null, `teamId: ${teamId}`);
+          Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send(errors);
         });
     })
