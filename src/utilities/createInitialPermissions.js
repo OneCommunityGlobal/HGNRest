@@ -75,6 +75,7 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'seeUsersInDashboard',
       'editTeamCode',
     ],
   },
@@ -105,6 +106,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'seeUsersInDashboard',
     ],
   },
   {
@@ -225,6 +227,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'seeUsersInDashboard',
       'changeUserRehireableStatus',
     ],
   },
