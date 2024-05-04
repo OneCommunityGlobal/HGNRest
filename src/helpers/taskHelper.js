@@ -1,10 +1,11 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
-const timeentry = require("../models/timeentry");
-const team = require("../models/team");
-const Task = require("../models/task");
-const TaskNotification = require("../models/taskNotification");
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const timeentry = require('../models/timeentry');
+const team = require('../models/team');
+const Task = require('../models/task');
+const TaskNotification = require('../models/taskNotification');
+const { hasPermission } = require('../utilities/permissions');
 
 const taskHelper = function () {
   const getTasksForTeams = async function (userId, requestor) {
@@ -42,14 +43,9 @@ const taskHelper = function () {
       let teamMemberIds = [userid];
       let teamMembers = [];
 
-      const isRequestorOwnerLike = [
-        "Administrator",
-        "Owner",
-        "Core Team",
-      ].includes(requestorRole);
-      const isUserOwnerLike = ["Administrator", "Owner", "Core Team"].includes(
-        userRole
-      );
+      const isRequestorOwnerLike = await hasPermission(requestor, 'seeUsersInDashboard');
+      const userAsRequestor = {'role': userRole, requestorId: userId };
+      const isUserOwnerLike = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
