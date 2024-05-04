@@ -44,21 +44,28 @@ const taskHelper = function () {
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
-          teamMembers = await userProfile.find(
-            { isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              weeklycommittedHours: 1,
-              weeklySummaryOption: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-              teamCode: 1,
-              teams: 1,
-              adminLinks: 1,
-            },
-          );
+          teamMembers = await userProfile
+            .find(
+              { isActive: true },
+              {
+                role: 1,
+                firstName: 1,
+                lastName: 1,
+                weeklycommittedHours: 1,
+                weeklySummaryOption: 1,
+                timeOffFrom: 1,
+                timeOffTill: 1,
+                teamCode: 1,
+                teams: 1,
+                adminLinks: 1,
+              },
+            )
+            .populate([
+              {
+                path: 'teams',
+                select: 'teamName',
+              },
+            ]);
           break;
         }
         case isRequestorOwnerLike && !isUserOwnerLike: {
@@ -73,21 +80,28 @@ const taskHelper = function () {
             });
           });
 
-          teamMembers = await userProfile.find(
-            { _id: { $in: teamMemberIds }, isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              weeklycommittedHours: 1,
-              weeklySummaryOption: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-              teamCode: 1,
-              teams: 1,
-              adminLinks: 1,
-            },
-          );
+          teamMembers = await userProfile
+            .find(
+              { _id: { $in: teamMemberIds }, isActive: true },
+              {
+                role: 1,
+                firstName: 1,
+                lastName: 1,
+                weeklycommittedHours: 1,
+                weeklySummaryOption: 1,
+                timeOffFrom: 1,
+                timeOffTill: 1,
+                teamCode: 1,
+                teams: 1,
+                adminLinks: 1,
+              },
+            )
+            .populate([
+              {
+                path: 'teams',
+                select: 'teamName',
+              },
+            ]);
           break;
         }
         default: {
@@ -102,21 +116,28 @@ const taskHelper = function () {
             });
           });
 
-          teamMembers = await userProfile.find(
-            { _id: { $in: teamMemberIds }, isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              weeklycommittedHours: 1,
-              weeklySummaryOption: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-              teamCode: 1,
-              teams: 1,
-              adminLinks: 1,
-            },
-          );
+          teamMembers = await userProfile
+            .find(
+              { _id: { $in: teamMemberIds }, isActive: true },
+              {
+                role: 1,
+                firstName: 1,
+                lastName: 1,
+                weeklycommittedHours: 1,
+                weeklySummaryOption: 1,
+                timeOffFrom: 1,
+                timeOffTill: 1,
+                teamCode: 1,
+                teams: 1,
+                adminLinks: 1,
+              },
+            )
+            .populate([
+              {
+                path: 'teams',
+                select: 'teamName',
+              },
+            ]);
         }
       }
 
