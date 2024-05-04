@@ -130,7 +130,7 @@ const notificationController = function () {
   const deleteUserNotification = async function (req, res) {
     const { requestor } = req.body;
 
-    if (requestor.role !== 'Administrator' || requestor.role !== 'Owner') {
+    if (requestor.role !== 'Administrator' && requestor.role !== 'Owner') {
       res.status(403).send({ error: 'Unauthorized request' });
       return;
     }
