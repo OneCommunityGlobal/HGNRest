@@ -1,9 +1,11 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
-const timeentry = require("../models/timeentry");
-const myTeam = require("./helperModels/myTeam");
-const team = require("../models/team");
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const timeentry = require('../models/timeentry');
+const myTeam = require('./helperModels/myTeam');
+const team = require('../models/team');
+const { hasPermission } = require('../utilities/permissions');
+
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
@@ -185,12 +187,9 @@ const dashboardhelper = function () {
 
       let teamMemberIds = [userid];
       let teamMembers = [];
-
-      if (
-        userRole !== "Administrator" &&
-        userRole !== "Owner" &&
-        userRole !== "Core Team"
-      ) {
+      const userAsRequestor = {'role': userRole, requestorId: userId };
+      const canSeeUsersInDashboard = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
+      if (!canSeeUsersInDashboard) {
         // Manager , Mentor , Volunteer ... , Show only team members
         const teamsResult = await team.find(
           { "members.userId": { $in: [userid] } },
