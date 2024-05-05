@@ -1237,25 +1237,18 @@ const userHelper = function () {
         }
       });
   };
-  function arraysAreEqual(arr1, arr2) {
-    if (arr1.length !== arr2.length) return false;
-    for (let i = 0; i < arr1.length; i += 1) {
-      if (arr1[i] !== arr2[i]) return false;
-    }
-    return true;
-  }
 
   const getAllWeeksData = async (personId, user) => {
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
     const currentDate = moment().tz('America/Los_Angeles');
-    const startOfYear = moment.tz(user.createdAt, 'America/Los_Angeles').startOf('year');
-    const numWeeks = Math.ceil((currentDate.diff(startOfYear, 'days') / 7));
+    const startDate = moment(user.createdDate).tz('America/Los_Angeles');
+    const numWeeks = Math.ceil((currentDate.diff(startDate, 'days') / 7));
 
     // iterate through weeks to get hours of each week
     for (let week = 1; week <= numWeeks; week += 1) {
-      const pdtstart = startOfYear.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
-      const pdtend = startOfYear.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
+      const pdtstart = startDate.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
+      const pdtend = startDate.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
       try {
         const results = await dashboardHelper.laborthisweek(
           userId,
@@ -1269,44 +1262,11 @@ const userHelper = function () {
       }
     }
     return weeksData;
-  }
+  };
 
-  // updates db with current savedtangiblehrs if it hasnt done so.
-  const updatedb = async (personId, user) => {
-    const weeksData = await getAllWeeksData(personId, user);
-    
-    console.log('user.savedTandgibleHrs ', user.savedTangibleHrs);
-    console.log('dataforallweeks', weeksData);
-
-    if (!arraysAreEqual(user.savedTangibleHrs, weeksData)) {
-      console.log('notequal');
-
-      const currentSavedTangibleHrs = (await userProfile.findById(personId)).savedTangibleHrs;
-
-      const maxLength = Math.max(currentSavedTangibleHrs.length, weeksData.length);
-      const mergedSavedTangibleHrs = new Array(maxLength);
-      
-      // Merge the current savedTangibleHrs array with the weeksData array
-      for (let i = 0; i < maxLength; i += 1) {
-        mergedSavedTangibleHrs[i] = currentSavedTangibleHrs[i] !== undefined ? currentSavedTangibleHrs[i] : weeksData[i];
-      }
-      console.log('merge ', mergedSavedTangibleHrs);
-
-      await userProfile.findByIdAndUpdate(personId, {
-        $set: {
-          savedTangibleHrs: mergedSavedTangibleHrs,
-        },
-      },
-      { new: true });
-      console.log('not equal, new savedtangible: ', (await userProfile.findById(personId)).savedTangibleHrs);       
-    } else {
-      console.log('equal');
-    }
-
-  }
   // logic for getting new max personal record
   const TangibleMaxHrsForAllWeeks = async (personId, user) => {    
-    const weeksTangibleHours = await getAllWeeksData(personId, user);
+    const weeksTangibleHours =  await getAllWeeksData(personId, user);
     // get max hours of all weeks
     let maxHours = weeksTangibleHours[0];
     for (let i = 1; i < weeksTangibleHours.length; i += 1) {
@@ -1314,19 +1274,16 @@ const userHelper = function () {
         maxHours = weeksTangibleHours[i];
       }
     }
-    console.log('array of weeks hrs: ', weeksTangibleHours);
+    // console.log('array of weeks hrs: ', weeksTangibleHours);
     return maxHours;
   };
 
   const UpdatePersonalMax = async (personId, user) => {
     const MaxHrs = await TangibleMaxHrsForAllWeeks(personId, user);
+    console.log('max hours: ',MaxHrs);
     user.personalBestMaxHrs = MaxHrs;
-    // console.log('savedtangiblehrs:   ', user.savedTangibleHrs );
-    // user.savedTangibleHrs = [...new Set(user.savedTangibleHrs)]; // remove duplicates
-    // console.log('savedtangiblehrs:   ', user.savedTangibleHrs );
     await user.save();
-  }
-
+  };
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
@@ -1346,7 +1303,7 @@ const userHelper = function () {
     }
     await badge.findOne({ type: "Personal Max" }).then((results) => {
       const currentDate = moment(moment().format("MM-DD-YYYY"), "MM-DD-YYYY").tz("America/Los_Angeles").format("MMM-DD-YY");// current date
-      // modified condition, if lastweek is greater than or equal to personal max then increase the badge count if badge exists   
+      // modified condition, if lastweek is greater than or equal to personal max then increase the badge count if badge exists       
       if (
         user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= user.personalBestMaxHrs  &&
@@ -1359,6 +1316,7 @@ const userHelper = function () {
             );
             // Update the earnedDate array with the new date
             badgeOfType.earnedDate.unshift(moment().format("MMM-DD-YYYY"));
+            console.log('earnedDates: ',badgeOfType.earnedDate);
         } else {
           addBadge(
             personId,
@@ -1367,7 +1325,7 @@ const userHelper = function () {
           );
         }
 
-      }
+      } 
     });
   };
 
@@ -1725,24 +1683,21 @@ const userHelper = function () {
   const awardNewBadges = async () => {
     try {
       const users = await userProfile
-      .find({ email: 'skaush21@gmail.com' })
-      .populate("badgeCollection.badge");
-     // const users = await userProfile
-     //   .find({ isActive: true })
-     //   .populate("badgeCollection.badge");
+        .find({ isActive: true })
+        .populate("badgeCollection.badge");
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
-        await updatedb(personId, user);
-        // await UpdatePersonalMax(personId, user);
-        // await checkPersonalMax(personId, user, badgeCollection);
-        // await checkMostHrsWeek(personId, user, badgeCollection);
-        // await checkMinHoursMultiple(personId, user, badgeCollection);
-        // await checkTotalHrsInCat(personId, user, badgeCollection);
-        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        // await checkXHrsForXWeeks(personId, user, badgeCollection);
-        // await checkNoInfringementStreak(personId, user, badgeCollection);
+      
+        await UpdatePersonalMax(personId, user);
+        await checkPersonalMax(personId, user, badgeCollection)
+        await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkXHrsForXWeeks(personId, user, badgeCollection);
+        await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
