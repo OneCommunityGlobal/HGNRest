@@ -1,23 +1,14 @@
 const Team = require('../models/team');
 const teamController = require('./teamController');
 const { mockReq, mockRes, assertResMock } = require('../test');
-const helper = require('../utilities/permissions');
 
 const makeSut = () => {
-  const { getAllTeams, getTeamById, postTeam } = teamController(Team);
+  const { getAllTeams, getTeamById } = teamController(Team);
   return {
     getAllTeams,
     getTeamById,
-    postTeam,
   };
 };
-
-jest.mock('../utilities/permissions', () => ({
-  hasPermission: jest.fn(),
-}));
-
-const mockHasPermission = (value) =>
-  jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
 const flushPromises = () => new Promise(setImmediate);
 
