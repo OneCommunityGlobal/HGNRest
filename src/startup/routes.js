@@ -3,7 +3,7 @@ const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
-const actionItem = require('../models/actionItem');
+// const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
@@ -47,7 +47,6 @@ const {
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
-
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -56,8 +55,8 @@ const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
-const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
-const notificationRouter = require('../routes/notificationRouter')(notification);
+// const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
+const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
@@ -91,8 +90,12 @@ const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
-const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(timeOffRequest, team, userProfile);
-const followUpRouter = require('../routes/followUpRouter')(followUp)
+const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
+  timeOffRequest,
+  team,
+  userProfile,
+);
+const followUpRouter = require('../routes/followUpRouter')(followUp);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -127,7 +130,7 @@ module.exports = function (app) {
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
-  app.use('/api', actionItemRouter);
+  // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);

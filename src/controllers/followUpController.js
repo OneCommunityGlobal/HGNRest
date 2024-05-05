@@ -29,22 +29,22 @@ const followUpController = function (followUp) {
 
   const setFollowUp = async function (req, res) {
     try {
-      const userId = req.params.userId;
-      const taskId = req.params.taskId;
+      const { userId } = req.params;
+      const { taskId } = req.params;
 
       const updateData = req.body;
 
-      if (typeof updateData.followUpCheck !== 'boolean'
-        || (!updateData.followUpPercentageDeadline
-        && updateData.followUpPercentageDeadline !== 0)) {
+      if (
+        typeof updateData.followUpCheck !== 'boolean' ||
+        (!updateData.followUpPercentageDeadline && updateData.followUpPercentageDeadline !== 0)
+      ) {
         res.status(400).send('bad request');
         return;
       }
-      const updatedFollowUp = await followUp.findOneAndUpdate(
-        { userId, taskId },
-        updateData,
-        { new: true, upsert: true },
-        );
+      const updatedFollowUp = await followUp.findOneAndUpdate({ userId, taskId }, updateData, {
+        new: true,
+        upsert: true,
+      });
 
       res.status(200).send(updatedFollowUp);
     } catch (error) {
