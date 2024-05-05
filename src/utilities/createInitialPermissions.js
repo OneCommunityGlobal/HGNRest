@@ -39,9 +39,9 @@ const permissionsRoles = [
       // Time Entries
       'editTimeEntry',
       'deleteTimeEntry',
-      // 'postTimeEntry',?
+      'postTimeEntry',
       // User Profile
-      'putRole',
+      'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
@@ -50,6 +50,8 @@ const permissionsRoles = [
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -73,19 +75,26 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      
       // Title
       'seeQSC',
       'addNewTitle',
       'assignTitle',
+
+      'seeUsersInDashboard',
+      'editTeamCode',
+
     ],
   },
   {
     roleName: 'Volunteer',
-    permissions: ['getReporteesLimitRoles', 'suggestTask'],
+    permissions: ['suggestTask'],
   },
   {
     roleName: 'Core Team',
     permissions: [
+      'getReports',
+      'getWeeklySummaries',
       'getUserProfiles',
       'getProjectMembers',
       'getAllInvInProjectWBS',
@@ -102,20 +111,19 @@ const permissionsRoles = [
       'getAllInvType',
       'postInvType',
       'getWeeklySummaries',
-      'getReports',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'seeUsersInDashboard',
     ],
   },
   {
     roleName: 'Manager',
     permissions: [
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'infringementAuthorizer',
       'getReporteesLimitRoles',
+      'postTask',
       'updateTask',
+      'suggestTask',
+      'putReviewStatus',
       'putTeam',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -137,11 +145,9 @@ const permissionsRoles = [
   {
     roleName: 'Mentor',
     permissions: [
+      'updateTask',
       'suggestTask',
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'infringementAuthorizer',
+      'putReviewStatus',
       'getReporteesLimitRoles',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -168,6 +174,9 @@ const permissionsRoles = [
       'putRole',
       'addDeleteEditOwners',
       'putUserProfilePermissions',
+      'highlightEligibleBios',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
       'changeUserStatus',
       'seeBadges',
       'assignBadges',
@@ -186,12 +195,16 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'resolveTask',
+      'suggestTask',
+      'putReviewStatus',
       'postTeam',
       'deleteTeam',
       'putTeam',
       'assignTeamToUsers',
       'editTimeEntry',
       'deleteTimeEntry',
+      'postTimeEntry',
       'updatePassword',
       'getUserProfiles',
       'getProjectMembers',
@@ -221,10 +234,14 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+
       // Title
       'seeQSC',
       'addNewTitle',
       'assignTitle',
+
+      'seeUsersInDashboard',
+
       'changeUserRehireableStatus',
 
     ],
@@ -257,7 +274,7 @@ const createInitialPermissions = async () => {
         role.permissions = permissions;
         role.save();
 
-      // If role exists in db and does not have every permission, add the missing permissions
+        // If role exists in db and does not have every permission, add the missing permissions
       } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
@@ -275,19 +292,25 @@ const createInitialPermissions = async () => {
     }
 
     // Update Default presets
+    const defaultName = 'hard-coded default'
 
-    const presetDataBase = allPresets.find((preset) => preset.roleName === roleName && preset.presetName === 'default');
+    const presetDataBase = allPresets.find(
+      (preset) => preset.roleName === roleName && preset.presetName === defaultName,
+    );
 
     // If role does not exist in db, create it
     if (!presetDataBase) {
       const defaultPreset = new RolePreset();
       defaultPreset.roleName = roleName;
-      defaultPreset.presetName = 'default';
+      defaultPreset.presetName = defaultName;
       defaultPreset.permissions = permissions;
       defaultPreset.save();
 
-    // If role exists in db and is not updated, update default
-    } else if (!presetDataBase.permissions.every((perm) => permissions.includes(perm)) || !permissions.every((perm) => presetDataBase.permissions.includes(perm))) {
+      // If role exists in db and is not updated, update default
+    } else if (
+      !presetDataBase.permissions.every((perm) => permissions.includes(perm)) ||
+      !permissions.every((perm) => presetDataBase.permissions.includes(perm))
+    ) {
       const presetId = presetDataBase._id;
 
       promises.push(
