@@ -5,7 +5,7 @@ Cross Mark: ❌
 
 > ## Negative Cases
 
-1. ❌ Returns error status 404 if Owner Message cant be found
+1. ✅ Returns error status 404 if Owner Message cant be found
 
 
 > ## Positive Cases
