@@ -120,11 +120,15 @@ const userHelper = function () {
     // bold description for 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
     if (!requestForTimeOffEmailBody && infringement.description) {
-      emailDescription = infringement.description.replace(
-        /(not submitting a weekly summary)/gi,
-        '<b>$1</b>',
-      );
-      emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+      if (infringement.description.includes('not submitting a weekly summary')) {
+        emailDescription = infringement.description.replace(
+          /(not submitting a weekly summary)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+      } else {
+        emailDescription = `<b>${infringement.description}<b> ;`;
+      }
     }
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
