@@ -516,11 +516,6 @@ const userHelper = function () {
           historyInfringements = oldInfringements
             .map((item, index) => {
               let enhancedDescription;
-              // highlight previous assigned reason manually
-              // if (item.description &&
-              //   item.description.includes('You had scheduled time off')){
-              //     enhancedDescription = item.description
-              // } else
               if (
                 item.description &&
                 !item.description.includes('System auto-assigned infringement')
