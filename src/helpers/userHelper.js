@@ -119,19 +119,19 @@ const userHelper = function () {
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
     // bold description for 'not submitting a weekly summary' and logged hrs
-    let boldedDescription = '';
-    if (infringement.description) {
-      boldedDescription = infringement.description.replace(
+    let emailDescription = requestForTimeOffEmailBody;
+    if (!requestForTimeOffEmailBody && infringement.description) {
+      emailDescription = infringement.description.replace(
         /(not submitting a weekly summary)/gi,
         '<b>$1</b>',
       );
-      boldedDescription = boldedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+      emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
     }
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        <p><b>Description:</b> ${requestForTimeOffEmailBody || boldedDescription}</p>
+        <p><b>Description:</b> ${emailDescription}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -526,16 +526,15 @@ const userHelper = function () {
           );
           historyInfringements = oldInfringements
             .map((item, index) => {
-              let enhancedDescription = item.description;
-              // highlight previous assigned reason manually
+              let enhancedDescription;
               if (
                 item.description &&
                 !item.description.includes('System auto-assigned infringement')
               ) {
                 enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-              } else {
+              } else if (item.description) {
                 // highlight not submitting a weekly summary and logged hrs
-                const sentences = item.description.split('.');
+                const sentences = item.description.split(/\.(?!\d)/);
                 sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
                 enhancedDescription = sentences.join('.');
                 enhancedDescription = enhancedDescription.replace(
@@ -583,7 +582,7 @@ const userHelper = function () {
             'dddd YYYY-MM-DD',
           );
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> <b>${requestForTimeOffreason}</b>`;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -997,7 +996,7 @@ const userHelper = function () {
             enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
           } else {
             // highlight not submitting a weekly summary and logged hrs
-            const sentences = item.description.split('.');
+            const sentences = item.description.split(/\.(?!\d)/);
             sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
             enhancedDescription = sentences.join('.');
             enhancedDescription = enhancedDescription.replace(
