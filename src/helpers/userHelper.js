@@ -521,7 +521,7 @@ const userHelper = function () {
                 !item.description.includes('System auto-assigned infringement')
               ) {
                 enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-              } else {
+              } else if (item.description) {
                 // highlight not submitting a weekly summary and logged hrs
                 const sentences = item.description.split(/\.(?!\d)/);
                 sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
@@ -982,7 +982,7 @@ const userHelper = function () {
             enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
           } else {
             // highlight not submitting a weekly summary and logged hrs
-            const sentences = item.description.split('.');
+            const sentences = item.description.split(/\.(?!\d)/);
             sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
             enhancedDescription = sentences.join('.');
             enhancedDescription = enhancedDescription.replace(
