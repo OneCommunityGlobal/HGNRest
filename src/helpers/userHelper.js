@@ -142,7 +142,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>      
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
-        <p><b>Role:</b> ${administrativeContent.roleAdministrative}</p> <!-- Corrected roleAdminstrative to roleAdministrative -->
+        <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle}</p>
         <p><b>Previous Blue Square Reasons: </b></p>
         ${administrativeContent.historyInfringements}`;
@@ -388,10 +388,9 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true, email: 'ivyadmin2@gmail.com' },
-        '_id email weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true },
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
-
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
@@ -529,7 +528,10 @@ const userHelper = function () {
             .map((item, index) => {
               let enhancedDescription = item.description;
               // highlight previous assigned reason manually
-              if (!item.description.includes('System auto-assigned infringement')) {
+              if (
+                item.description &&
+                !item.description.includes('System auto-assigned infringement')
+              ) {
                 enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
               } else {
                 // highlight not submitting a weekly summary and logged hrs
@@ -664,7 +666,7 @@ const userHelper = function () {
             );
             const administrativeContent = {
               startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
-              roleAdminstrative: person.role,
+              role: person.role,
               userTitle: `${person.firstName} ${person.lastName}`,
               historyInfringements,
             };
@@ -991,7 +993,7 @@ const userHelper = function () {
         .map((item, index) => {
           let enhancedDescription = item.description;
           // highlight previous assigned reason manually
-          if (!item.description.includes('System auto-assigned infringement')) {
+          if (item.description && !item.description.includes('System auto-assigned infringement')) {
             enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
           } else {
             // highlight not submitting a weekly summary and logged hrs
@@ -1013,7 +1015,7 @@ const userHelper = function () {
     }
     const administrativeContent = {
       startDate: moment(startDate).utc().format('YYYY-MM-DD'),
-      roleAdminstrative: role,
+      role,
       userTitle: `${firstName} ${lastName}`,
       historyInfringements,
     };
