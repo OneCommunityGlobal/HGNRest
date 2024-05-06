@@ -976,7 +976,7 @@ const userHelper = function () {
         .map((item, index) => {
           let enhancedDescription = item.description;
           // highlight previous assigned reason manually
-          if (!item.description.includes('System auto-assigned infringement')) {
+          if (item.description && !item.description.includes('System auto-assigned infringement')) {
             enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
           } else {
             // highlight not submitting a weekly summary and logged hrs
