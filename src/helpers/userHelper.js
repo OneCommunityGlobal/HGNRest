@@ -127,7 +127,7 @@ const userHelper = function () {
         );
         emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
       } else {
-        emailDescription = `<b>${infringement.description}<b> ;`;
+        emailDescription = `<b>${infringement.description}<b>`;
       }
     }
     // add administrative content
