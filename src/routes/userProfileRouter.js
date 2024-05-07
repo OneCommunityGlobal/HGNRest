@@ -35,7 +35,8 @@ const routes = function (userProfile) {
         if (!value) throw new ValidationError('Last Name is required');
         return value.trim();
       }),
-      body('personalLinks').customSanitizer((value) => value.map((link) => {
+      body('personalLinks').customSanitizer((value) =>
+        value.map((link) => {
           if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
             return {
               ...link,
@@ -44,8 +45,10 @@ const routes = function (userProfile) {
             };
           }
           throw new ValidationError('personalLinks not valid');
-        })),
-      body('adminLinks').customSanitizer((value) => value.map((link) => {
+        }),
+      ),
+      body('adminLinks').customSanitizer((value) =>
+        value.map((link) => {
           if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
             return {
               ...link,
@@ -54,7 +57,8 @@ const routes = function (userProfile) {
             };
           }
           throw new ValidationError('adminLinks not valid');
-        })),
+        }),
+      ),
       controller.putUserProfile,
     )
     .delete(controller.deleteUserProfile)
