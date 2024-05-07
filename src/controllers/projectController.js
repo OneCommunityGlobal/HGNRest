@@ -6,6 +6,7 @@ const userProfile = require("../models/userProfile");
 const userProject = require("../helpers/helperModels/userProjects");
 const { hasPermission } = require("../utilities/permissions");
 const escapeRegex = require("../utilities/escapeRegex");
+const cache = require("../utilities/nodeCache")();
 
 const projectController = function (Project) {
   const getAllProjects = function (req, res) {
@@ -50,7 +51,7 @@ const projectController = function (Project) {
               res.status(200).send({
                 message:
                   "Project successfully deleted and user profiles updated.",
-              }),
+              })
             )
             .catch((errors) => {
               res.status(400).send(errors);
@@ -159,10 +160,10 @@ const projectController = function (Project) {
     }
 
     if (
-      !req.params.projectId
-      || !mongoose.Types.ObjectId.isValid(req.params.projectId)
-      || !req.body.users
-      || req.body.users.length === 0
+      !req.params.projectId ||
+      !mongoose.Types.ObjectId.isValid(req.params.projectId) ||
+      !req.body.users ||
+      req.body.users.length === 0
     ) {
       res.status(400).send({ error: "Invalid request" });
       return;
@@ -182,6 +183,9 @@ const projectController = function (Project) {
 
         users.forEach((element) => {
           const { userId, operation } = element;
+          if (cache.hasCache(`user-${userId}`)) {
+            cache.removeCache(`user-${userId}`);
+          }
           if (operation === "Assign") {
             assignlist.push(userId);
           } else {
@@ -192,13 +196,13 @@ const projectController = function (Project) {
         const assignPromise = userProfile
           .updateMany(
             { _id: { $in: assignlist } },
-            { $addToSet: { projects: project._id } },
+            { $addToSet: { projects: project._id } }
           )
           .exec();
         const unassignPromise = userProfile
           .updateMany(
             { _id: { $in: unassignlist } },
-            { $pull: { projects: project._id } },
+            { $pull: { projects: project._id } }
           )
           .exec();
 
@@ -224,7 +228,7 @@ const projectController = function (Project) {
     userProfile
       .find(
         { projects: projectId },
-        "_id firstName lastName isActive profilePic",
+        "_id firstName lastName isActive profilePic"
       )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
