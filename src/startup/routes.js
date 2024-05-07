@@ -3,7 +3,7 @@ const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
-const actionItem = require('../models/actionItem');
+// const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
@@ -43,6 +43,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryItem');
 // const buildingTool = require('../models/bmdashboard/buildingTool');
 const timeOffRequest = require('../models/timeOffRequest');
+const followUp = require('../models/followUp');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -52,8 +53,8 @@ const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
-const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
-const notificationRouter = require('../routes/notificationRouter')(notification);
+// const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
+const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
@@ -92,6 +93,7 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   team,
   userProfile,
 );
+const followUpRouter = require('../routes/followUpRouter')(followUp);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -123,7 +125,7 @@ module.exports = function (app) {
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
-  app.use('/api', actionItemRouter);
+  // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
@@ -147,6 +149,8 @@ module.exports = function (app) {
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
+  app.use('/api', timeOffRequestRouter);
+  app.use('/api', followUpRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -157,6 +161,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
-  app.use('/api', timeOffRequestRouter);
   app.use('api', bmIssueRouter);
 };

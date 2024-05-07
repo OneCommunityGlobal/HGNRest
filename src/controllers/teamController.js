@@ -2,39 +2,46 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
-const logger = require('../startup/logger');
+const Logger = require('../startup/logger');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.find({})
       .sort({ teamName: 1 })
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        Logger.logException(error);
+        res.status(404).send(error);
+      });
   };
 
-  /** 
+  /**
    * Leaner version of the teamcontroller.getAllTeams
    * Remove redundant data: members, isActive, createdDatetime, modifiedDatetime.
    */
   const getAllTeamCode = function (req, res) {
-    Team.find({isActive: true}, { teamCode: 1, _id: 1, teamName: 1 }).then((results) => {
-      res.status(200).send(results);
-    }
-    ).catch((error) => {
-      // logger.logException(`Fetch team code failed: ${error}`);
-      res.status(500).send("Fetch team code failed.");
-    });
-
-  }
+    Team.find({ isActive: true }, { teamCode: 1, _id: 1, teamName: 1 })
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((error) => {
+        // logger.logException(`Fetch team code failed: ${error}`);
+        res.status(500).send('Fetch team code failed.');
+      });
+  };
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
     Team.findById(teamId)
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        Logger.logException(error, null, `teamId: ${teamId}`);
+        res.status(404).send(error);
+      });
   };
+
   const postTeam = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'postTeam')) {
+    if (!(await hasPermission(req.body.requestor, 'postTeam'))) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -58,15 +65,23 @@ const teamcontroller = function (Team) {
           res.status(400).send({ error: 'A team with this name already exists' });
         } else {
           // If no team with the same name exists, save the new team
-          team.save()
+          team
+            .save()
             .then((results) => res.send(results).status(200))
-            .catch((error) => res.send(error).status(404));
+            .catch((error) => {
+              Logger.logException(error, null, `teamName: ${req.body.teamName}`);
+              res.send(error).status(404);
+            });
         }
       })
-      .catch((error) => res.send(error).status(404));
+      .catch((error) => {
+        Logger.logException(error, null, `teamName: ${req.body.teamName}`);
+        res.send(error).status(404);
+      });
   };
+
   const deleteTeam = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'deleteTeam')) {
+    if (!(await hasPermission(req.body.requestor, 'deleteTeam'))) {
       res.status(403).send({ error: 'You are not authorized to delete teams.' });
       return;
     }
@@ -76,20 +91,27 @@ const teamcontroller = function (Team) {
         res.status(400).send({ error: 'No valid records found' });
         return;
       }
-      const removeteamfromprofile = userProfile.updateMany({}, { $pull: { teams: record._id } }).exec();
+      const removeteamfromprofile = userProfile
+        .updateMany({}, { $pull: { teams: record._id } })
+        .exec();
       const deleteteam = record.remove();
 
       Promise.all([removeteamfromprofile, deleteteam])
-        .then(res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }))
+        .then(
+          res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
+        )
         .catch((errors) => {
+          Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send(errors);
         });
     }).catch((error) => {
+      Logger.logException(error, null, `teamId: ${teamId}`);
       res.status(400).send(error);
     });
   };
+
   const putTeam = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'putTeam')) {
+    if (!(await hasPermission(req.body.requestor, 'putTeam'))) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -102,8 +124,9 @@ const teamcontroller = function (Team) {
         return;
       }
 
-      const canEditTeamCode = req.body.requestor.role === 'Owner'
-        || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+      const canEditTeamCode =
+        req.body.requestor.role === 'Owner' ||
+        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
       if (!canEditTeamCode) {
         res.status(403).send('You are not authorized to edit team code.');
@@ -119,14 +142,17 @@ const teamcontroller = function (Team) {
       record
         .save()
         .then((results) => res.status(200).send(results._id))
-        .catch((errors) => res.status(400).send(errors));
+        .catch((errors) => {
+          Logger.logException(errors, null, `TeamId: ${teamId} Request:${req.body}`);
+          res.status(400).send(errors);
+        });
     });
   };
 
   const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!await hasPermission(req.body.requestor, 'assignTeamToUsers')) {
+    if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
       res.status(403).send({ error: 'You are not authorized to perform this operation' });
       return;
     }
@@ -153,15 +179,31 @@ const teamcontroller = function (Team) {
       if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
       if (operation === 'Assign') {
-        await Team.findOneAndUpdate({ _id: teamId }, { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } }, { new: true });
-        const newMember = await userProfile.findOneAndUpdate({ _id: userId }, { $addToSet: { teams: teamId } }, { new: true });
+        await Team.findOneAndUpdate(
+          { _id: teamId },
+          { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
+          { new: true },
+        );
+        const newMember = await userProfile.findOneAndUpdate(
+          { _id: userId },
+          { $addToSet: { teams: teamId } },
+          { new: true },
+        );
         res.status(200).send({ newMember });
       } else {
-        await Team.findOneAndUpdate({ _id: teamId }, { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } });
-        await userProfile.findOneAndUpdate({ _id: userId }, { $pull: { teams: teamId } }, { new: true });
+        await Team.findOneAndUpdate(
+          { _id: teamId },
+          { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
+        );
+        await userProfile.findOneAndUpdate(
+          { _id: userId },
+          { $pull: { teams: teamId } },
+          { new: true },
+        );
         res.status(200).send({ result: 'Delete Success' });
       }
     } catch (error) {
+      Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
       res.status(500).send({ error });
     }
   };
@@ -195,14 +237,17 @@ const teamcontroller = function (Team) {
       },
     ])
       .then((result) => res.status(200).send(result))
-      .catch((error) => res.status(500).send(error));
+      .catch((error) => {
+        Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
+        res.status(500).send(error);
+      });
   };
 
   /**
    * Return all users who team up with the user
-   * @param {*} req 
-   * @param {*} res 
-   * @returns 
+   * @param {*} req
+   * @param {*} res
+   * @returns
    */
   const findTeammatesForUser = async function (req, res) {
     const { userId } = req.params;
@@ -226,12 +271,13 @@ const teamcontroller = function (Team) {
             lastName: 1,
           },
         );
-
       } else {
         // get team and its members
-        
-        const teams = await Team.find({ members: { $elemMatch: { userId } }});
-        const teamMemberUserId = teams.flatMap(team => team.members.map(member => member.userId));
+
+        const teams = await Team.find({ members: { $elemMatch: { userId } } });
+        const teamMemberUserId = teams.flatMap((team) =>
+          team.members.map((member) => member.userId),
+        );
         const uniqueUserIds = [...new Set(teamMemberUserId)];
 
         teamMembers = await userProfile.find(
@@ -243,13 +289,11 @@ const teamcontroller = function (Team) {
           },
         );
       }
-      // process team members 
-      const result = teamMembers.map((member) => {
-        return {
-          personId: member._id,
-          name: `${member.firstName} ${member.lastName}`
-        };
-      });
+      // process team members
+      const result = teamMembers.map((member) => ({
+        personId: member._id,
+        name: `${member.firstName} ${member.lastName}`,
+      }));
 
       res.status(200).send(result);
     } catch (error) {
