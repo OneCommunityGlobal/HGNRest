@@ -99,6 +99,8 @@ const followUpRouter = require('../routes/followUpRouter')(followUp);
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
+const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
+const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
@@ -112,8 +114,6 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
-const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
-const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 
 module.exports = function (app) {

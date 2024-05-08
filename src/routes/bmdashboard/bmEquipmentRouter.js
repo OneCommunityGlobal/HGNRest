@@ -2,9 +2,7 @@ const express = require('express');
 
 const routes = function (BuildingEquipment) {
   const equipmentRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/bmEquipmentController')(
-    BuildingEquipment,
-  );
+  const controller = require('../../controllers/bmdashboard/bmEquipmentController')(BuildingEquipment);
 
   equipmentRouter.route('/equipment/:equipmentId').get(controller.fetchSingleEquipment);
 
