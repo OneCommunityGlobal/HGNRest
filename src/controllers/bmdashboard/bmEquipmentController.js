@@ -54,7 +54,6 @@ const bmEquipmentController = (BuildingEquipment) => {
      };
 
     const bmPurchaseEquipments = async function (req, res) {
-      console.log("Inside bmPurchaseEquipments")
         const {
           projectId,
           equipmentId,
@@ -83,7 +82,6 @@ const bmEquipmentController = (BuildingEquipment) => {
               // isTracked: isTracking,
               purchaseRecord: [newPurchaseRecord],
             };
-            console.log(newDoc);
             BuildingEquipment
               .create(newDoc)
               .then(() => res.status(201).send())
