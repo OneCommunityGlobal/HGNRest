@@ -119,19 +119,23 @@ const userHelper = function () {
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
     // bold description for 'not submitting a weekly summary' and logged hrs
-    let boldedDescription = '';
-    if (infringement.description) {
-      boldedDescription = infringement.description.replace(
-        /(not submitting a weekly summary)/gi,
-        '<b>$1</b>',
-      );
-      boldedDescription = boldedDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+    let emailDescription = requestForTimeOffEmailBody;
+    if (!requestForTimeOffEmailBody && infringement.description) {
+      if (infringement.description.includes('not submitting a weekly summary')) {
+        emailDescription = infringement.description.replace(
+          /(not submitting a weekly summary)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+      } else {
+        emailDescription = `<b>${infringement.description}<b>`;
+      }
     }
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        <p><b>Description:</b> ${requestForTimeOffEmailBody || boldedDescription}</p>
+        <p><b>Description:</b> ${emailDescription}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
@@ -142,7 +146,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>      
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
-        <p><b>Role:</b> ${administrativeContent.roleAdministrative}</p> <!-- Corrected roleAdminstrative to roleAdministrative -->
+        <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle}</p>
         <p><b>Previous Blue Square Reasons: </b></p>
         ${administrativeContent.historyInfringements}`;
@@ -388,10 +392,9 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true, email: 'ivyadmin2@gmail.com' },
-        '_id email weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true },
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
-
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
@@ -527,13 +530,15 @@ const userHelper = function () {
           );
           historyInfringements = oldInfringements
             .map((item, index) => {
-              let enhancedDescription = item.description;
-              // highlight previous assigned reason manually
-              if (!item.description.includes('System auto-assigned infringement')) {
+              let enhancedDescription;
+              if (
+                item.description &&
+                !item.description.includes('System auto-assigned infringement')
+              ) {
                 enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-              } else {
+              } else if (item.description) {
                 // highlight not submitting a weekly summary and logged hrs
-                const sentences = item.description.split('.');
+                const sentences = item.description.split(/\.(?!\d)/);
                 sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
                 enhancedDescription = sentences.join('.');
                 enhancedDescription = enhancedDescription.replace(
@@ -581,7 +586,7 @@ const userHelper = function () {
             'dddd YYYY-MM-DD',
           );
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> <b>${requestForTimeOffreason}</b>`;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -664,7 +669,7 @@ const userHelper = function () {
             );
             const administrativeContent = {
               startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
-              roleAdminstrative: person.role,
+              role: person.role,
               userTitle: `${person.firstName} ${person.lastName}`,
               historyInfringements,
             };
@@ -991,11 +996,11 @@ const userHelper = function () {
         .map((item, index) => {
           let enhancedDescription = item.description;
           // highlight previous assigned reason manually
-          if (!item.description.includes('System auto-assigned infringement')) {
+          if (item.description && !item.description.includes('System auto-assigned infringement')) {
             enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
           } else {
             // highlight not submitting a weekly summary and logged hrs
-            const sentences = item.description.split('.');
+            const sentences = item.description.split(/\.(?!\d)/);
             sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
             enhancedDescription = sentences.join('.');
             enhancedDescription = enhancedDescription.replace(
@@ -1013,7 +1018,7 @@ const userHelper = function () {
     }
     const administrativeContent = {
       startDate: moment(startDate).utc().format('YYYY-MM-DD'),
-      roleAdminstrative: role,
+      role,
       userTitle: `${firstName} ${lastName}`,
       historyInfringements,
     };
@@ -1029,6 +1034,9 @@ const userHelper = function () {
           lastName,
           element,
           totalInfringements,
+          undefined,
+          undefined,
+          undefined,
           administrativeContent,
         ),
         null,
