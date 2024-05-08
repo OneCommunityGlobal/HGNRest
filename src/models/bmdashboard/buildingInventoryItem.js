@@ -138,8 +138,11 @@ const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schem
 // ex: tractors, excavators, bulldozers
 
 const buildingEquipment = largeItemBase.discriminator('equipment_item', new mongoose.Schema({
-  isTracked: { type: Boolean, required: true }, // has asset tracker
-  assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
+  // isTracked: { type: Boolean, required: true }, // has asset tracker
+  // // assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
+  // assetTracker: { type: String, 
+  //                 required() { return this.prop },
+  //               }
 }));
 
 module.exports = {
