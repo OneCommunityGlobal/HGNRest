@@ -422,6 +422,16 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+      if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
+        const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
+
+        summaryFields.forEach((fieldName) => {
+          if (req.body[fieldName] !== undefined) {
+            record[fieldName] = req.body[fieldName];
+          }
+        });
+      }
+
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
           'role',
@@ -433,8 +443,8 @@ const userProfileController = function (UserProfile) {
           'weeklySummariesCount',
           'mediaUrl',
           'collaborationPreference',
-          'weeklySummaryNotReq',
-          'weeklySummaryOption',
+          // 'weeklySummaryNotReq',
+          // 'weeklySummaryOption',
           'categoryTangibleHrs',
           'totalTangibleHrs',
           'timeEntryEditHistory',
