@@ -14,6 +14,9 @@ const makeSut = () => {
 const flushPromises = () => new Promise(setImmediate);
 
 describe('ownerMessageController Unit Tests', () => {
+    afterEach(()=> {
+        jest.clearAllMocks();
+    })
   describe('getOwnerMessage', () => {
     test('Ensures getOwnerMessage returns status 404 if owner message cant be found', async () => {
       const { getOwnerMessage } = makeSut();
@@ -23,5 +26,17 @@ describe('ownerMessageController Unit Tests', () => {
       await flushPromises();
       assertResMock(404, new Error(errorMsg), response, mockRes);
     });
+    test('Ensures getOwnerMessage returns status 200 OK with new owner message if none exists and saves it', async () => {
+        const { getOwnerMessage } = makeSut();
+        jest.spyOn(ownerMessage, 'find').mockResolvedValueOnce([]);
+        const expectedMessage = {
+
+          };
+        const mockSave = jest.fn().mockResolvedValue(expectedMessage);
+        jest.spyOn(ownerMessage.prototype, 'save').mockImplementation(mockSave);
+        const response =  await getOwnerMessage(mockReq, mockRes);
+        await flushPromises();
+        assertResMock(200, mockSave, response, mockRes);
+    })
   });
 });
