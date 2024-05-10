@@ -93,4 +93,39 @@ describe('ownerMessageController Unit Tests', () => {
       expect(mockRes.send).toHaveBeenCalledWith(errorMsg);
     });
   });
+  describe('deleteOwnerMessage', () => {
+    test('Ensures deleteOwnerMessage returns status 403 if requestor is not an owner', async () => {
+      const { deleteOwnerMessage } = makeSut();
+      mockReq.body.requestor.role = 'notOwner';
+      const response = await deleteOwnerMessage(mockReq, mockRes);
+      await flushPromises();
+      assertResMock(403, 'You are not authorized to delete messages!', response, mockRes);
+    });
+    test('Ensures deleteOwnerMessage returns status 200 and deletes the owner message correctly', async () => {
+      const existingMessage = {
+        message: 'Existing message',
+        standardMessage: 'Standard message',
+        save: mockSave,
+      };
+      const { deleteOwnerMessage } = makeSut();
+      mockFind.mockResolvedValue([existingMessage]);
+      mockReq.body.requestor.role = '';
+      await deleteOwnerMessage(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        _serverMessage: 'Delete successfully!',
+        ownerMessage: existingMessage,
+      });
+      expect(mockSave).toHaveBeenCalled();
+    });
+    test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
+      const { deleteOwnerMessage } = makeSut();
+      const errorMsg = 'Error occurred during delete';
+      mockFind.mockRejectedValue(errorMsg);
+      mockReq.body.requestor.role = 'Owner';
+      await deleteOwnerMessage(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith(errorMsg);
+    });
+  });
 });
