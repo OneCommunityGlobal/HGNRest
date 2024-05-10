@@ -5,7 +5,6 @@ const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
-const { hasPermission } = require('../utilities/permissions');
 const LOGGER = require('../startup/logger');
 
 
@@ -14,7 +13,7 @@ const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
 const TOKEN_INVALID_MESSAGE = 'INVALID';
 const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
 const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
-
+const { startSession } = mongoose;
 
 // returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
@@ -22,7 +21,30 @@ function sendLinkMessage(Link) {
     <p>Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
     To work as a member of our volunteer team, you need to complete the following profile setup:</p>   
     <p><a href="${Link}">Click to Complete Profile</a></p>
+    <b> Please complete the profile setup within 21 days of this invite. </b>
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
+    <p>Thank you and welcome!</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`;
+  return message;
+}
+
+function sendRefreshedLinkMessage(Link) {
+  const message = `<p>Hello,</p>
+    <p>You setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
+    To work as a member of our volunteer team, you need to complete the following profile setup by:</p>   
+    <p><a href="${Link}">Click to Complete Profile</a>  </p>
+    <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
+    <p>Thank you and welcome!</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`;
+  return message;
+}
+
+function sendCancelLinkMessage() {
+  const message = `<p>Hello,</p>
+    <p>Your setup link has been deactivated by the administrator. </p>
+    <p>If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
     <p>One Community</p>`;
@@ -86,8 +108,8 @@ function informManagerMessage(user) {
   return message;
 }
 
-
-const sendEmailWithAcknowledgment = (email, subject, message) => new Promise((resolve, reject) => {
+const sendEmailWithAcknowledgment = (email, subject, message) =>
+  new Promise((resolve, reject) => {
     emailSender(email, subject, message, null, null, null, (error, result) => {
       if (result) resolve(result);
       if (error) reject(result);
@@ -98,7 +120,7 @@ const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
   Project,
-  MapLocation,
+  MapLocation
 ) {
   const { JWT_SECRET } = config;
 
@@ -110,64 +132,77 @@ const profileInitialSetupController = function (
       return response;
     } catch (err) {
       return {
-        type: 'Error',
-        message: err.message || 'An error occurred while saving the location',
+        type: "Error",
+        message: err.message || "An error occurred while saving the location",
       };
     }
   };
 
-  /*
-  Function to handle token generation and email process:
-  - Generates a new token and saves it to the database.
-  - If the email already has a token, the old one is deleted.
-  - Sets the token expiration to three weeks.
+  /**
+   * Function to handle token generation and email process:
+    - Generates a new token and saves it to the database.
+    - If the email already has a token, the old one is deleted.
+    - Sets the token expiration to three weeks.
   - Generates a link using the token and emails it to the recipient.
+   * @param {*} req payload include: email, baseUrl, weeklyCommittedHours
+   * @param {*} res 
    */
   const getSetupToken = async (req, res) => {
     let { email } = req.body;
-    const { baseUrl, weeklyCommittedHours } = req.body; 
+    const { baseUrl, weeklyCommittedHours } = req.body;
     email = email.toLowerCase();
     const token = uuidv4();
-    const expiration = moment().tz('America/Los_Angeles').add(3, 'week');
+    const expiration = moment().add(3, 'week');
+    // Wrap multiple db operations in a transaction
+    const session = await startSession();
+    
     try {
       const existingEmail = await userProfile.findOne({
         email,
       });
       if (existingEmail) {
-        res.status(400).send('email already in use');
-      } else {
-        await ProfileInitialSetupToken.findOneAndDelete({ email });
-
-        const newToken = new ProfileInitialSetupToken({
-          token,
-          email,
-          weeklyCommittedHours,
-          expiration: expiration.toDate(),
-          isSetupCompleted: false,
-          isCancelled: false,
-          createdDate: Date.now(),
-        });
-
-        const savedToken = await newToken.save();
-        const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
-        const acknowledgment = await sendEmailWithAcknowledgment(
-          email,
-          'NEEDED: Complete your One Community profile setup',
-          sendLinkMessage(link),
-        );
-
-        res.status(200).send(acknowledgment);
+        return res.status(400).send('email already in use');
       }
+      session.startTransaction();
+      await ProfileInitialSetupToken.findOneAndDelete({ email });
+
+      const newToken = new ProfileInitialSetupToken({
+        token,
+        email,
+        weeklyCommittedHours,
+        expiration: expiration.toDate(),
+        isSetupCompleted: false,
+        isCancelled: false,
+        createdDate: Date.now(),
+      });
+
+      const savedToken = await newToken.save();
+      const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
+      await session.commitTransaction();
+
+      const acknowledgment = await sendEmailWithAcknowledgment(
+        email,
+        'NEEDED: Complete your One Community profile setup',
+        sendLinkMessage(link),
+      );
+
+      return res.status(200).send(acknowledgment);
     } catch (error) {
-      res.status(400).send(`Error: ${error}`);
+      await session.abortTransaction();
+      LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
+      return res.status(400).send(`Error: ${error}`);
+    } finally {
+      session.endSession();
     }
   };
 
-  /*
-  Function to validate a token:
-  - Checks if the token exists in the database.
-  - Verifies that the token's expiration date has not passed yet.
-    */
+  /**
+   * Function to validate a token:
+    - Checks if the token exists in the database.
+    - Verifies that the token's expiration date has not passed yet.
+   * @param {*} req 
+   * @param {*} res 
+   */
   const validateSetupToken = async (req, res) => {
     const { token } = req.body;
     const currentMoment = moment.now();
@@ -176,35 +211,40 @@ const profileInitialSetupController = function (
 
       if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
-
+        // Check if the token is already used
         if (foundToken.isSetupCompleted) {
-          res.status(400).send(TOKEN_HAS_SETUP_MESSAGE);
-        } else if (foundToken.isCancelled) {
-          res.status(400).send(TOKEN_CANCEL_MESSAGE);
-        } else if (expirationMoment.isBefore(currentMoment)) {
-          res.status(400).send(TOKEN_EXPIRED_MESSAGE);
+          return res.status(400).send(TOKEN_HAS_SETUP_MESSAGE);
         }
-        res.status(200).send(foundToken);
-      } else {
-        res.status(404).send(TOKEN_NOT_FOUND_MESSAGE);
+        // Check if the token is cancelled
+        if (foundToken.isCancelled) {
+          return res.status(400).send(TOKEN_CANCEL_MESSAGE);
+        }
+        // Check if the token is expired
+        if (expirationMoment.isBefore(currentMoment)) {
+          return res.status(400).send(TOKEN_EXPIRED_MESSAGE);
+        }
+        return res.status(200).send(foundToken);
       }
+      // Token not found
+      return res.status(404).send(TOKEN_NOT_FOUND_MESSAGE);
     } catch (error) {
+      LOGGER.logException(error, 'validateSetupToken', JSON.stringify(req.body), null);
       res.status(500).send(`Error finding token: ${error}`);
     }
   };
 
   /*
- Function for creating and authenticating a new user:
- - Validates the token used to submit the form.
- - Creates a new user using the information received through req.body.
- - Sends an email to the manager to inform them of the new user creation.
- - Deletes the token used for user creation from the database.
- - Generates a JWT token using the newly created user information.
- - Sends the JWT as a response.
+  Function for creating and authenticating a new user:
+  - Validates the token used to submit the form.
+  - Creates a new user using the information received through req.body.
+  - Sends an email to the manager to inform them of the new user creation.
+  - Deletes the token used for user creation from the database.
+  - Generates a JWT token using the newly created user information.
+  - Sends the JWT as a response.
 */
   const setUpNewUser = async (req, res) => {
     const { token } = req.body;
-    const currentMoment = moment.now();
+    const currentMoment = moment.now(); // use UTC for comparison
     try {
       const foundToken = await ProfileInitialSetupToken.findOne({ token });
 
@@ -224,117 +264,113 @@ const profileInitialSetupController = function (
 
       const expirationMoment = moment(foundToken.expiration);
       if (foundToken.isSetupCompleted) {
-        res.status(400).send('User has been setup already.');
-      } else if (foundToken.isCancelled) {
-        res.status(400).send('Token is invalided by admin.');
-      } else if (expirationMoment.isBefore(currentMoment)) {
-        res.status(400).send('Token has expired.');
+        return res.status(400).send('User has been setup already.');
+      }
+      if (foundToken.isCancelled) {
+        return res.status(400).send('Token is invalided by admin.');
+      }
+      if (expirationMoment.isBefore(currentMoment)) {
+        return res.status(400).send('Token has expired.');
       }
 
+      const defaultProject = await Project.findOne({
+        projectName: 'Orientation and Initial Setup',
+      });
 
-        
-        const defaultProject = await Project.findOne({
-          projectName: 'Orientation and Initial Setup',
-        });
+      const newUser = new userProfile();
+      newUser.password = req.body.password;
+      newUser.role = 'Volunteer';
+      newUser.firstName = req.body.firstName;
+      newUser.lastName = req.body.lastName;
+      newUser.jobTitle = req.body.jobTitle;
+      newUser.phoneNumber = req.body.phoneNumber;
+      newUser.bio = '';
+      newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
+      newUser.weeklycommittedHoursHistory = [
+        {
+          hours: newUser.weeklycommittedHours,
+          dateChanged: Date.now(),
+        },
+      ];
+      newUser.personalLinks = [];
+      newUser.adminLinks = [];
+      newUser.teams = Array.from(new Set([]));
+      newUser.projects = Array.from(new Set([defaultProject]));
+      newUser.createdDate = Date.now();
+      newUser.email = req.body.email;
+      newUser.weeklySummaries = [{ summary: '' }];
+      newUser.weeklySummariesCount = 0;
+      newUser.weeklySummaryOption = 'Required';
+      newUser.mediaUrl = '';
+      newUser.collaborationPreference = req.body.collaborationPreference;
+      newUser.timeZone = req.body.timeZone || 'America/Los_Angeles';
+      newUser.location = req.body.location;
+      newUser.profilePic = req.body.profilePicture;
+      newUser.permissions = {
+        frontPermissions: [],
+        backPermissions: [],
+      };
+      newUser.bioPosted = 'default';
+      newUser.privacySettings.email = req.body.privacySettings.email;
+      newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber;
+      newUser.teamCode = '';
+      newUser.isFirstTimelog = true;
 
-        const newUser = new userProfile();
-        newUser.password = req.body.password;
-        newUser.role = 'Volunteer';
-        newUser.firstName = req.body.firstName;
-        newUser.lastName = req.body.lastName;
-        newUser.jobTitle = req.body.jobTitle;
-        newUser.phoneNumber = req.body.phoneNumber;
-        newUser.bio = '';
-        newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
-        newUser.weeklycommittedHoursHistory = [
-          {
-            hours: newUser.weeklycommittedHours,
-            dateChanged: Date.now(),
-          },
-        ];
-        newUser.personalLinks = [];
-        newUser.adminLinks = [];
-        newUser.teams = Array.from(new Set([]));
-        newUser.projects = Array.from(new Set([defaultProject]));
-        newUser.createdDate = Date.now();
-        newUser.email = req.body.email;
-        newUser.weeklySummaries = [{ summary: '' }];
-        newUser.weeklySummariesCount = 0;
-        newUser.weeklySummaryOption = 'Required';
-        newUser.mediaUrl = '';
-        newUser.collaborationPreference = req.body.collaborationPreference;
-        newUser.timeZone = req.body.timeZone || 'America/Los_Angeles';
-        newUser.location = req.body.location;
-        newUser.profilePic = req.body.profilePicture;
-        newUser.permissions = {
-          frontPermissions: [],
-          backPermissions: [],
-        };
-        newUser.bioPosted = 'default';
-        newUser.privacySettings.email = req.body.privacySettings.email;
-        newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber;
-        newUser.teamCode = '';
-        newUser.isFirstTimelog = true;
+      const savedUser = await newUser.save();
 
-        const savedUser = await newUser.save();
+      emailSender(
+        process.env.MANAGER_EMAIL || 'jae@onecommunityglobal.org', // "jae@onecommunityglobal.org"
+        `NEW USER REGISTERED: ${savedUser.firstName} ${savedUser.lastName}`,
+        informManagerMessage(savedUser),
+        null,
+        null,
+      );
 
-        emailSender(
-          process.env.MANAGER_EMAIL || 'jae@onecommunityglobal.org', // "jae@onecommunityglobal.org"
-          `NEW USER REGISTERED: ${savedUser.firstName} ${savedUser.lastName}`,
-          informManagerMessage(savedUser),
-          null,
-          null,
-        );
+      const jwtPayload = {
+        userid: savedUser._id,
+        role: savedUser.role,
+        permissions: savedUser.permissions,
+        expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+      };
 
-        const jwtPayload = {
-          userid: savedUser._id,
-          role: savedUser.role,
-          permissions: savedUser.permissions,
-          expiryTimestamp: moment().add(
-            config.TOKEN.Lifetime,
-            config.TOKEN.Units,
-          ),
-        };
+      const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
 
-        const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
+      const locationData = {
+        title: '',
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        jobTitle: req.body.jobTitle,
+        location: req.body.homeCountry,
+        isActive: true,
+      };
 
-        const locationData = {
-          title: '',
-          firstName: req.body.firstName,
-          lastName: req.body.lastName,
-          jobTitle: req.body.jobTitle,
-          location: req.body.homeCountry,
-          isActive: true,
-        };
+      res.status(200).send({ token: jwtToken });
+      await ProfileInitialSetupToken.findOneAndUpdate(
+        { _id: foundToken._id },
+        { isSetupCompleted: true },
+        { new: true },
+      );
 
-        res.send({ token: jwtToken }).status(200);
-        await ProfileInitialSetupToken.findOneAndUpdate(
-          { _id: foundToken._id }, 
-          { isSetupCompleted: true }, 
-          { new: true } 
-        );
+      const mapEntryResult = await setMapLocation(locationData);
+      if (mapEntryResult.type === 'Error') {
+        console.log(mapEntryResult.message);
+      }
 
-        const mapEntryResult = await setMapLocation(locationData);
-        if (mapEntryResult.type === 'Error') {
-          console.log(mapEntryResult.message);
-        }
+      const NewUserCache = {
+        permissions: savedUser.permissions,
+        isActive: true,
+        weeklycommittedHours: savedUser.weeklycommittedHours,
+        createdDate: savedUser.createdDate.toISOString(),
+        _id: savedUser._id,
+        role: savedUser.role,
+        firstName: savedUser.firstName,
+        lastName: savedUser.lastName,
+        email: savedUser.email,
+      };
 
-        const NewUserCache = {
-          permissions: savedUser.permissions,
-          isActive: true,
-          weeklycommittedHours: savedUser.weeklycommittedHours,
-          createdDate: savedUser.createdDate.toISOString(),
-          _id: savedUser._id,
-          role: savedUser.role,
-          firstName: savedUser.firstName,
-          lastName: savedUser.lastName,
-          email: savedUser.email,
-        };
-
-        const allUserCache = JSON.parse(cache.getCache('allusers'));
-        allUserCache.push(NewUserCache);
-        cache.setCache('allusers', JSON.stringify(allUserCache));
-       
+      const allUserCache = JSON.parse(cache.getCache('allusers'));
+      allUserCache.push(NewUserCache);
+      cache.setCache('allusers', JSON.stringify(allUserCache));
     } catch (error) {
       LOGGER.logException(error);
       res.status(500).send(`Error: ${error}`);
@@ -355,7 +391,7 @@ const profileInitialSetupController = function (
     if (foundToken) {
       res.status(200).send({ userAPIKey: premiumKey });
     } else {
-      res.status(403).send('Unauthorized Request');
+      res.status(403).send("Unauthorized Request");
     }
   };
 
@@ -372,17 +408,17 @@ const profileInitialSetupController = function (
       const users = [];
       const results = await userProfile.find(
         {},
-        'location totalTangibleHrs hoursByCategory',
+        "location totalTangibleHrs hoursByCategory"
       );
 
       results.forEach((item) => {
         if (
-          (item.location?.coords.lat
-            && item.location?.coords.lng
-            && item.totalTangibleHrs >= 10)
-          || (item.location?.coords.lat
-            && item.location?.coords.lng
-            && calculateTotalHours(item.hoursByCategory) >= 10)
+          (item.location?.coords.lat &&
+            item.location?.coords.lng &&
+            item.totalTangibleHrs >= 10) ||
+          (item.location?.coords.lat &&
+            item.location?.coords.lng &&
+            calculateTotalHours(item.hoursByCategory) >= 10)
         ) {
           users.push(item);
         }
@@ -453,7 +489,12 @@ const profileInitialSetupController = function (
             LOGGER.logException(err);
             return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
           }
-            return res.status(200).send(result);
+          sendEmailWithAcknowledgment(
+            result.email,
+            'One Community: Your Profile Setup Link Has Been Deactivated',
+            sendCancelLinkMessage(),
+          );
+          return res.status(200).send(result);
         },
       );
     } catch (error) {
@@ -480,18 +521,17 @@ const profileInitialSetupController = function (
         .findOneAndUpdate(
           { token },
           {
-            expiration: moment().tz('America/Los_Angeles').add(3, 'week'),
+            expiration: moment().add(3, 'week'),
             isCancelled: false,
           },
         )
         .then((result) => {
           const { email } = result;
-          // const email = 'testcorepp@gmail.com';
           const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
           sendEmailWithAcknowledgment(
              email,
-            'NEEDED: Complete your One Community profile setup',
-            sendLinkMessage(link),
+            'Invitation Link Refreshed: Complete Your One Community Profile Setup',
+            sendRefreshedLinkMessage(link),
           );
           return res.status(200).send(result);
         })
