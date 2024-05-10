@@ -1,6 +1,15 @@
 /* eslint-disable quotes */
 /* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
+/* eslint-disable no-console */
+/* eslint-disable consistent-return  */
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable no-use-before-define */
+/* eslint-disable no-unsafe-optional-chaining */
+/* eslint-disable no-restricted-syntax */
+
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -15,6 +24,9 @@ const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
+const notificationService = require('../services/notificationService');
+const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
+const timeUtils = require('../utilities/timeUtils');
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -47,7 +59,7 @@ const userHelper = function () {
         errors: 'Invalid image',
       };
     }
-    if (profilePic.startsWith('http') || profilePic.startsWith('https')) {
+    if (profilePic.startsWith("http") || profilePic.startsWith("https")) {
       return {
         result: true,
         errors: 'Valid image',
@@ -93,27 +105,51 @@ const userHelper = function () {
     timeRemaining,
     coreTeamExtraHour,
     requestForTimeOffEmailBody,
+    administrativeContent,
   ) {
     let finalParagraph = '';
 
     if (timeRemaining === undefined) {
       finalParagraph =
+
         '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
     } else {
       finalParagraph = `Please complete ALL owed time this week (${
         timeRemaining + coreTeamExtraHour
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-
+    // bold description for 'not submitting a weekly summary' and logged hrs
+    let emailDescription = requestForTimeOffEmailBody;
+    if (!requestForTimeOffEmailBody && infringement.description) {
+      if (infringement.description.includes('not submitting a weekly summary')) {
+        emailDescription = infringement.description.replace(
+          /(not submitting a weekly summary)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+      } else {
+        emailDescription = `<b>${infringement.description}<b>`;
+      }
+    }
+    // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        <p><b>Description:</b> ${requestForTimeOffEmailBody || infringement.description}</p>
+        <p><b>Description:</b> ${emailDescription}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${finalParagraph}
-        <p>Thank you, One Community</p>`;
+        <p>Thank you, One Community</p>
+        <!-- Adding multiple non-breaking spaces -->
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <hr style="border-top: 1px dashed #000;"/>      
+        <p><b>ADMINISTRATIVE DETAILS:</b></p>
+        <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Role:</b> ${administrativeContent.role}</p>
+        <p><b>Title:</b> ${administrativeContent.userTitle}</p>
+        <p><b>Previous Blue Square Reasons: </b></p>
+        ${administrativeContent.historyInfringements}`;
 
     return text;
   };
@@ -159,6 +195,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
+
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
       );
 
@@ -189,6 +226,7 @@ const userHelper = function () {
 
         const googleDocLinkValue =
           adminLinks?.length > 0
+
             ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
             : null;
 
@@ -217,6 +255,7 @@ const userHelper = function () {
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate)
+
                   .tz('America/Los_Angeles')
                   .format('YYYY-MMM-DD')}</b>):
               </div>
@@ -225,6 +264,7 @@ const userHelper = function () {
               </div>
             `;
           } else if (
+
             weeklySummaryOption === 'Not Required' ||
             (!weeklySummaryOption && result.weeklySummaryNotReq)
           ) {
@@ -237,6 +277,7 @@ const userHelper = function () {
         <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
           <p>
+
 
             <b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}
 
@@ -252,11 +293,13 @@ const userHelper = function () {
             weeklySummariesCount === 8
               ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
               : `<p><b>Total Valid Weekly Summaries</b>: ${
+
                   weeklySummariesCount || 'No valid submissions yet!'
                 }</p>`
           }
           ${
             hoursLogged >= weeklycommittedHours
+
               ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
               : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
                   2,
@@ -323,7 +366,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch(error => logger.logException(error));
+      .catch((error) => logger.logException(error));
   };
 
   /**
@@ -352,10 +395,24 @@ const userHelper = function () {
         { isActive: true },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
-
+      const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
       // There's no need to put Promise.all here
+
+      /*
+      Note from Shengwei (3/11/24) Potential enhancement:
+        1. I think we could remove the for loop to update find user profile by batch to reduce db roundtrips.
+        Otherwise, each record checking and update require at least 1 db roundtrip. Then, we could use for loop to do email sending.
+
+        Do something like:
+        do while (batch != lastBatch)
+          const lsOfResult = await userProfile.find({ _id: { $in: arrayOfIds } }
+          for item in lsOfResult:
+            // do the update and checking
+          // save updated records in batch (mongoose updateMany) and do asyc email sending
+        2. Wrap the operation in one transaction to ensure the atomicity of the operation.
+      */
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
@@ -364,6 +421,7 @@ const userHelper = function () {
         const personId = mongoose.Types.ObjectId(user._id);
 
         let hasWeeklySummary = false;
+
 
         if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
           const { summary } = user.weeklySummaries[0];
@@ -383,13 +441,40 @@ const userHelper = function () {
 
         const { timeSpent_hrs: timeSpent } = results[0];
 
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+        const weeklycommittedHours =
+          user.weeklycommittedHours + (user.missedHours ?? 0);
 
         const timeNotMet = timeSpent < weeklycommittedHours;
 
         let description;
 
         const timeRemaining = weeklycommittedHours - timeSpent;
+
+        /** Check if the user is new user to prevent blue square assignment
+         * Condition:
+         *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
+         *  3. No hour logged
+         *
+         * Notes:
+         *  1. Start date is automatically updated upon frist time-log.
+         *  2. User meet above condition but meet minimum hours without submitting weekly summary
+         *     should get a blue square as reminder.
+         *  */
+        let isNewUser = false;
+        const userStartDate = moment(person.startDate);
+        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0) {
+          isNewUser = true;
+        }
+
+        if (
+          userStartDate.isAfter(pdtEndOfLastWeek) ||
+          (userStartDate.isAfter(pdtStartOfLastWeek) &&
+            userStartDate.isBefore(pdtEndOfLastWeek) &&
+            timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+        ) {
+          isNewUser = true;
+        }
 
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
@@ -411,6 +496,7 @@ const userHelper = function () {
         );
 
         if (
+
           updateResult?.weeklySummaryOption === 'Not Required' ||
           updateResult?.weeklySummaryNotReq
         ) {
@@ -430,7 +516,8 @@ const userHelper = function () {
             break;
           }
         }
-
+        // use histroy Infringements to align the highlight requirements
+        let historyInfringements = 'No Previous Infringements.';
         if (oldInfringements.length) {
           userProfile.findByIdAndUpdate(
             personId,
@@ -441,13 +528,40 @@ const userHelper = function () {
             },
             { new: true },
           );
+          historyInfringements = oldInfringements
+            .map((item, index) => {
+              let enhancedDescription;
+              if (
+                item.description &&
+                !item.description.includes('System auto-assigned infringement')
+              ) {
+                enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
+              } else if (item.description) {
+                // highlight not submitting a weekly summary and logged hrs
+                const sentences = item.description.split(/\.(?!\d)/);
+                sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
+                enhancedDescription = sentences.join('.');
+                enhancedDescription = enhancedDescription.replace(
+                  /(not submitting a weekly summary)/gi,
+                  '<b><span style="color: blue;">$1</span></b>',
+                );
+                enhancedDescription = enhancedDescription.replace(
+                  /(\d+\.\d{2})\s*hours/i,
+                  '<b><span style="color: blue;">$1 hours</span></b>',
+                );
+              }
+              return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+            })
+            .join('');
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
         const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
 
-        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, "second");
+        const utcEndMoment = moment(pdtEndOfLastWeek)
+          .subtract(1, "day")
+          .subtract(1, "second");
 
         const requestsForTimeOff = await timeOffRequest.find({
           requestFor: personId,
@@ -472,7 +586,7 @@ const userHelper = function () {
             'dddd YYYY-MM-DD',
           );
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> ${requestForTimeOffreason}`;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -539,49 +653,62 @@ const userHelper = function () {
               ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
               : null,
           };
-
-          const status = await userProfile.findByIdAndUpdate(
-            personId,
-            {
-              $push: {
-                infringements: infringement,
-              },
-            },
-            { new: true },
-          );
-
+          // Only assign blue square and send email if the user IS NOT a new user
+          // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
+          // All other new users will not receive a blue square or notification
           let emailBody = '';
-          if (person.role === 'Core Team' && timeRemaining > 0) {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              timeRemaining,
-              coreTeamExtraHour,
-              requestForTimeOffEmailBody,
+          if (!isNewUser) {
+            const status = await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $push: {
+                  infringements: infringement,
+                },
+              },
+              { new: true },
             );
-          } else {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              undefined,
-              null,
-              requestForTimeOffEmailBody,
-            );
-          }
+            const administrativeContent = {
+              startDate: moment(person.createdDate).utc().format('YYYY-MM-DD'),
+              role: person.role,
+              userTitle: `${person.firstName} ${person.lastName}`,
+              historyInfringements,
+            };
+            if (person.role === 'Core Team' && timeRemaining > 0) {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                timeRemaining,
+                coreTeamExtraHour,
+                requestForTimeOffEmailBody,
+                administrativeContent,
+              );
+            } else {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                undefined,
+                null,
+                requestForTimeOffEmailBody,
+                administrativeContent,
+              );
+            }
 
-          emailSender(
-            status.email,
-            'New Infringement Assigned',
-            emailBody,
-            null,
-            'onecommunityglobal@gmail.com',
-            status.email,
-            null,
-          );
+            emailSender(
+              status.email,
+              'New Infringement Assigned',
+              emailBody,
+              null,
+              'onecommunityglobal@gmail.com',
+              status.email,
+              null,
+            );
+          } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
+            usersRequiringBlueSqNotification.push(personId);
+          }
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,
@@ -629,9 +756,24 @@ const userHelper = function () {
             }
           }
         }
+        if (cache.hasCache(`user-${personId}`)) {
+          cache.removeCache(`user-${personId}`);
+        }
       }
       // eslint-disable-next-line no-use-before-define
       await deleteOldTimeOffRequests();
+      // Create notification for users who are new and met the time requirement but weekly summary not submitted
+      // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
+      if (usersRequiringBlueSqNotification.length > 0) {
+        const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
+        await notificationService.createNotification(
+          senderId._id,
+          usersRequiringBlueSqNotification,
+          NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE,
+          true,
+          false,
+        );
+      }
     } catch (err) {
       logger.logException(err);
     }
@@ -810,6 +952,7 @@ const userHelper = function () {
           const id = user._id;
           const person = await userProfile.findById(id);
 
+
           const endDate = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().format()}.`);
 
@@ -833,13 +976,52 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (original, current, firstName, lastName, emailAddress) {
+  const notifyInfringements = function (
+    original,
+    current,
+    firstName,
+    lastName,
+    emailAddress,
+    role,
+    startDate,
+  ) {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
-
+    let historyInfringements = 'No Previous Infringements.';
+    if (original.length) {
+      historyInfringements = original
+        .map((item, index) => {
+          let enhancedDescription = item.description;
+          // highlight previous assigned reason manually
+          if (item.description && !item.description.includes('System auto-assigned infringement')) {
+            enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
+          } else {
+            // highlight not submitting a weekly summary and logged hrs
+            const sentences = item.description.split(/\.(?!\d)/);
+            sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
+            enhancedDescription = sentences.join('.');
+            enhancedDescription = enhancedDescription.replace(
+              /(not submitting a weekly summary)/gi,
+              '<b><span style="color: blue;">$1</span></b>',
+            );
+            enhancedDescription = enhancedDescription.replace(
+              /(\d+\.\d{2})\s*hours/i,
+              '<b><span style="color: blue;">$1 hours</span></b>',
+            );
+          }
+          return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+        })
+        .join('');
+    }
+    const administrativeContent = {
+      startDate: moment(startDate).utc().format('YYYY-MM-DD'),
+      role,
+      userTitle: `${firstName} ${lastName}`,
+      historyInfringements,
+    };
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
     );
@@ -847,8 +1029,16 @@ const userHelper = function () {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
-        getInfringementEmailBody(firstName, lastName, element, totalInfringements),
-
+        getInfringementEmailBody(
+          firstName,
+          lastName,
+          element,
+          totalInfringements,
+          undefined,
+          undefined,
+          undefined,
+          administrativeContent,
+        ),
         null,
         'onecommunityglobal@gmail.com',
         emailAddress,
@@ -939,7 +1129,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          item => item.badge._id.toString() === badgeId.toString(),
+          (item) => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error(
@@ -1017,6 +1207,7 @@ const userHelper = function () {
           streak.badges.every((bdge) => {
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
+
                 badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
                 badgeCollection[i].badge?.weeks === bdge.weeks &&
                 bdge.hrs === hrs &&
@@ -1041,6 +1232,7 @@ const userHelper = function () {
   const checkNoInfringementStreak = async function (personId, user, badgeCollection) {
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
+
       if (badgeCollection[i].badge?.type === 'No Infringement Streak') {
         if (badgeOfType && badgeOfType.months <= badgeCollection[i].badge.months) {
           removeDupBadge(personId, badgeOfType._id);
@@ -1064,6 +1256,7 @@ const userHelper = function () {
           // Cannot account for time paused yet
 
           if (elem.months <= 12) {
+
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (
                 user.infringements.length === 0 ||
@@ -1093,6 +1286,7 @@ const userHelper = function () {
               }
             }
           } else if (user?.infringements?.length === 0) {
+
             if (moment().diff(moment(user.createdDate), 'months', true) >= elem.months) {
               if (
                 user.oldInfringements.length === 0 ||
@@ -1144,11 +1338,13 @@ const userHelper = function () {
           // this needs to be a for loop so that the returns break before assigning badges for lower multiples
           const elem = results[i]; // making variable elem accessible for below code
 
+
           if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
             const theBadge = badgesOfType.find(
-              badgeItem => badgeItem._id.toString() === elem._id.toString(),
+              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
+
               ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
               : addBadge(personId, mongoose.Types.ObjectId(elem._id));
           }
@@ -1196,6 +1392,7 @@ const userHelper = function () {
   // 'Most Hrs in Week'
 
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
+
     if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
       const badgeOfType = badgeCollection
         .filter((object) => object.badge.type === 'Most Hrs in Week')
@@ -1254,7 +1451,7 @@ const userHelper = function () {
           return true;
         });
       });
-  }
+  };
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
@@ -1282,6 +1479,7 @@ const userHelper = function () {
             let badgeOfType;
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
+
                 badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
                 badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
@@ -1364,6 +1562,7 @@ const userHelper = function () {
     });
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
+
       if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
         if (badgeOfType && badgeOfType.people <= badgeCollection[i].badge.people) {
           removeDupBadge(personId, badgeOfType._id);
@@ -1429,6 +1628,7 @@ const userHelper = function () {
       let badgeOfType;
       for (let i = 0; i < badgeCollection.length; i += 1) {
         if (
+
           badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
           badgeCollection[i].badge?.category === category
         ) {
@@ -1562,6 +1762,7 @@ const userHelper = function () {
           const id = user._id;
           const person = await userProfile.findById(id);
 
+
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
 
@@ -1598,7 +1799,9 @@ const userHelper = function () {
   const deleteOldTimeOffRequests = async () => {
     const endOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
-    const utcEndMoment = moment(endOfLastWeek).subtract(1, 'day').add(1, 'second');
+    const utcEndMoment = moment(endOfLastWeek)
+      .subtract(1, "day")
+      .add(1, "second");
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
     } catch (error) {
