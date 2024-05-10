@@ -21,7 +21,7 @@ function sendLinkMessage(Link) {
     <p>Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
     To work as a member of our volunteer team, you need to complete the following profile setup:</p>   
     <p><a href="${Link}">Click to Complete Profile</a></p>
-    <b> Please complete the profile setup within 21 days of this invite. </b>
+    <p><b>Please complete the profile setup within 21 days of this invite. </b></p>
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
@@ -34,6 +34,7 @@ function sendRefreshedLinkMessage(Link) {
     <p>You setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
     To work as a member of our volunteer team, you need to complete the following profile setup by:</p>   
     <p><a href="${Link}">Click to Complete Profile</a>  </p>
+    <p><b>Please complete the profile setup within 21 days of this invite. </b></p>
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
