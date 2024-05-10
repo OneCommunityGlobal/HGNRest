@@ -10,4 +10,4 @@ Cross Mark: ❌
 
 > ## Positive Cases
 
-1. ✅ Returns status 201 and updates the owner message correctly with new message
+1. ❌ Returns status 201 and updates the owner message correctly with new message
