@@ -538,8 +538,12 @@ const userProfileController = function (UserProfile) {
       }
       if (
         req.body.infringements !== undefined &&
-        (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
+        ((await hasPermission(req.body.requestor, 'infringementAuthorizer')) ||
+          (await hasPermission(req.body.requestor, 'addInfringements')) ||
+          (await hasPermission(req.body.requestor, 'deleteInfringements')) ||
+          (await hasPermission(req.body.requestor, 'editInfringements')))
       ) {
+        console.log('in here');
         record.infringements = req.body.infringements;
       }
 
