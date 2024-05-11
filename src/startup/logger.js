@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const Sentry = require('@sentry/node');
 const { extraErrorDataIntegration } = require('@sentry/integrations');
+const { v4: uuidv4 } = require('uuid');
 
 // Read more about intergration plugins here: https://docs.sentry.io/platforms/node/configuration/integrations/pluggable-integrations/
 exports.init = function () {
@@ -77,13 +78,18 @@ exports.logInfo = function (message) {
 
 /**
  * Send log message to Sentry if in production or development environment. Otherwise, log to console.
- * 
+ *
  * @param {Error} error error object to be logged to Sentry
  * @param {String} transactionName (Optional) name assigned to a transaction. Seachable in Sentry (e.g. error in Function/Service/Operation/Job name)
  * @param {*} extraData (Optional) extra data to be logged to Sentry (e.g. request body, params, message, etc.)
  * @param {String} trackingId (Optional) unique id to track the error in Sentry. Search by tag 'tacking_id'
  */
-exports.logException = function (error, transactionName = null, extraData = null, trackingId = null) {
+exports.logException = function (
+  error,
+  transactionName = null,
+  extraData = null,
+  trackingId = null,
+) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.error(error);
@@ -91,6 +97,9 @@ exports.logException = function (error, transactionName = null, extraData = null
       `Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`,
     );
   } else {
+    if (trackingId == null) {
+      trackingId = uuidv4();
+    }
     Sentry.captureException(error, (scope) => {
       if (transactionName !== null) {
         scope.setTransactionName(transactionName);
@@ -98,10 +107,9 @@ exports.logException = function (error, transactionName = null, extraData = null
       if (extraData !== null) {
         scope.setExtra('extraData', extraData);
       }
-      if(trackingId !== null){
-        scope.setTag('tracking_id', trackingId);
-      }
+      scope.setTag('tracking_id', trackingId);
       return scope;
     });
   }
+  return trackingId;
 };
