@@ -3,7 +3,7 @@ const Sentry = require('@sentry/node');
 
 const app = express();
 const logger = require('./startup/logger');
-const globalErrorHandler = require('./utilities/globalErrorHandler').default;
+const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler').default;
 
 logger.init();
 

@@ -1,7 +1,7 @@
 const { body } = require('express-validator');
 
 const express = require('express');
-const { ValidationError } = require('../utilities/customError');
+const { ValidationError } = require('../utilities/errorHandling/customError');
 
 const routes = function (userProfile) {
   const controller = require('../controllers/userProfileController')(userProfile);
