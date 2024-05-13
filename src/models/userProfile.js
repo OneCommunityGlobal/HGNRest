@@ -6,8 +6,10 @@ const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
-const nextDay = new Date();
-nextDay.setDate(nextDay.getDate() + 1);
+// Update createdDate to be the current date from the next day
+// const nextDay = new Date();
+// nextDay.setDate(nextDay.getDate() + 1);
+const today = new Date();
 
 const userProfileSchema = new Schema({
   password: {
@@ -23,7 +25,7 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
-  isRehireable: { type: Boolean, default: false },
+  isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
   role: {
     type: String,
@@ -41,8 +43,11 @@ const userProfileSchema = new Schema({
     index: true,
   },
   lastName: {
- type: String, required: true, minlength: 2, index: true,
-},
+    type: String,
+    required: true,
+    minlength: 2,
+    index: true,
+  },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -55,6 +60,10 @@ const userProfileSchema = new Schema({
     ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
+  emailSubscriptions: {
+    type: Boolean,
+    default: false,
+  },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
     {
@@ -63,12 +72,12 @@ const userProfileSchema = new Schema({
     },
   ],
   missedHours: { type: Number, default: 0 },
-  createdDate: { type: Date, required: true, default: nextDay },
+  createdDate: { type: Date, required: true, default: today },
+  // eslint-disable-next-line object-shorthand
+  startDate: { type: Date, required: true, default: function () { return this.createdDate; } },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [
-    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
-  ],
+  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
@@ -229,6 +238,8 @@ const userProfileSchema = new Schema({
   actualEmail: { type: String },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
+  getWeeklyReport: { type: Boolean },
+  permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -237,12 +248,12 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then((result) => bcrypt.hash(user.password, result))
+    .then(result => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch((error) => next(error));
+    .catch(error => next(error));
 });
 
 module.exports = mongoose.model(

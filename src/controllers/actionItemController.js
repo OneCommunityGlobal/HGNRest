@@ -1,122 +1,128 @@
-const mongoose = require('mongoose');
-const notificationhelper = require('../helpers/notificationhelper')();
+/**
+ * Unused legacy code. Commented out to avoid confusion. Will delete in the next cycle.
+ * Commented by:  Shengwei Peng
+ * Date: 2024-03-22
+ */
 
-const actionItemController = function (ActionItem) {
-  const getactionItem = function (req, res) {
-    const userid = req.params.userId;
-    ActionItem.find({
-      assignedTo: userid,
-    }, ('-createdDateTime -__v'))
-      .populate('createdBy', 'firstName lastName')
-      .then((results) => {
-        const actionitems = [];
+// const mongoose = require('mongoose');
+// const notificationhelper = require('../helpers/notificationhelper')();
 
-        results.forEach((element) => {
-          const actionitem = {};
+// const actionItemController = function (ActionItem) {
+//   const getactionItem = function (req, res) {
+//     const userid = req.params.userId;
+//     ActionItem.find({
+//       assignedTo: userid,
+//     }, ('-createdDateTime -__v'))
+//       .populate('createdBy', 'firstName lastName')
+//       .then((results) => {
+//         const actionitems = [];
 
-          actionitem._id = element._id;
-          actionitem.description = element.description;
-          actionitem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
-          actionitem.assignedTo = element.assignedTo;
+//         results.forEach((element) => {
+//           const actionitem = {};
 
-          actionitems.push(actionitem);
-        });
+//           actionitem._id = element._id;
+//           actionitem.description = element.description;
+//           actionitem.createdBy = `${element.createdBy.firstName} ${element.createdBy.lastName}`;
+//           actionitem.assignedTo = element.assignedTo;
 
-        res.status(200).send(actionitems);
-      })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
-  };
-  const postactionItem = function (req, res) {
-    const { requestorId, assignedTo } = req.body.requestor;
-    const _actionItem = new ActionItem();
+//           actionitems.push(actionitem);
+//         });
 
-    _actionItem.description = req.body.description;
-    _actionItem.assignedTo = req.body.assignedTo;
-    _actionItem.createdBy = req.body.requestor.requestorId;
+//         res.status(200).send(actionitems);
+//       })
+//       .catch((error) => {
+//         res.status(400).send(error);
+//       });
+//   };
+//   const postactionItem = function (req, res) {
+//     const { requestorId, assignedTo } = req.body.requestor;
+//     const _actionItem = new ActionItem();
 
-    _actionItem.save()
-      .then((result) => {
-        notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
+//     _actionItem.description = req.body.description;
+//     _actionItem.assignedTo = req.body.assignedTo;
+//     _actionItem.createdBy = req.body.requestor.requestorId;
 
-        const actionitem = {};
+//     _actionItem.save()
+//       .then((result) => {
+//         notificationhelper.notificationcreated(requestorId, assignedTo, _actionItem.description);
 
-        actionitem.createdBy = 'You';
-        actionitem.description = _actionItem.description;
-        actionitem._id = result._id;
-        actionitem.assignedTo = _actionItem.assignedTo;
+//         const actionitem = {};
 
-        res.status(200).send(actionitem);
-      })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
-  };
+//         actionitem.createdBy = 'You';
+//         actionitem.description = _actionItem.description;
+//         actionitem._id = result._id;
+//         actionitem.assignedTo = _actionItem.assignedTo;
 
-  const deleteactionItem = async function (req, res) {
-    const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
+//         res.status(200).send(actionitem);
+//       })
+//       .catch((error) => {
+//         res.status(400).send(error);
+//       });
+//   };
 
-    const _actionItem = await ActionItem.findById(actionItemId)
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+//   const deleteactionItem = async function (req, res) {
+//     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
-    if (!_actionItem) {
-      res.status(400).send({
-        message: 'No valid records found',
-      });
-      return;
-    }
+//     const _actionItem = await ActionItem.findById(actionItemId)
+//       .catch((error) => {
+//         res.status(400).send(error);
+//       });
 
-    const { requestorId, assignedTo } = req.body.requestor;
+//     if (!_actionItem) {
+//       res.status(400).send({
+//         message: 'No valid records found',
+//       });
+//       return;
+//     }
 
-    notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
+//     const { requestorId, assignedTo } = req.body.requestor;
 
-    _actionItem.remove()
-      .then(() => {
-        res.status(200).send({
-          message: 'removed',
-        });
-      })
-      .catch((error) => {
-        res.status(400).send(error);
-      });
-  };
+//     notificationhelper.notificationdeleted(requestorId, assignedTo, _actionItem.description);
 
-  const editactionItem = async function (req, res) {
-    const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
+//     _actionItem.remove()
+//       .then(() => {
+//         res.status(200).send({
+//           message: 'removed',
+//         });
+//       })
+//       .catch((error) => {
+//         res.status(400).send(error);
+//       });
+//   };
 
-    const { requestorId, assignedTo } = req.body.requestor;
+//   const editactionItem = async function (req, res) {
+//     const actionItemId = mongoose.Types.ObjectId(req.params.actionItemId);
 
-    const _actionItem = await ActionItem.findById(actionItemId)
-      .catch((error) => {
-        res.status(400).send(error);
-      });
+//     const { requestorId, assignedTo } = req.body.requestor;
 
-    if (!_actionItem) {
-      res.status(400).send({
-        message: 'No valid records found',
-      });
-      return;
-    }
-    notificationhelper.notificationedited(requestorId, assignedTo, _actionItem.description, req.body.description);
+//     const _actionItem = await ActionItem.findById(actionItemId)
+//       .catch((error) => {
+//         res.status(400).send(error);
+//       });
 
-    _actionItem.description = req.body.description;
-    _actionItem.assignedTo = req.body.assignedTo;
+//     if (!_actionItem) {
+//       res.status(400).send({
+//         message: 'No valid records found',
+//       });
+//       return;
+//     }
+//     notificationhelper.notificationedited(requestorId, assignedTo, _actionItem.description, req.body.description);
 
-    _actionItem.save()
-      .then(res.status(200).send('Saved'))
-      .catch((error) => res.status(400).send(error));
-  };
+//     _actionItem.description = req.body.description;
+//     _actionItem.assignedTo = req.body.assignedTo;
 
-  return {
-    getactionItem,
-    postactionItem,
-    deleteactionItem,
-    editactionItem,
+//     _actionItem.save()
+//       .then(res.status(200).send('Saved'))
+//       .catch((error) => res.status(400).send(error));
+//   };
 
-  };
-};
+//   return {
+//     getactionItem,
+//     postactionItem,
+//     deleteactionItem,
+//     editactionItem,
 
-module.exports = actionItemController;
+//   };
+// };
+
+// module.exports = actionItemController;
