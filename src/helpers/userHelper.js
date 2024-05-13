@@ -1786,11 +1786,16 @@ const userHelper = function () {
     }
   };
 
-  /* Function for deleting expired tokens used in new user setup from database  */
+
+  // Update by Shengwei/Peter PR767:
+  /** 
+   *  Delete all tokens used in new user setup from database that in cancelled, expired, or used status.
+   *  Data retention: 90 days
+  */
   const deleteExpiredTokens = async () => {
-    const currentDate = new Date();
+    const ninetyDaysAgo = moment().subtract(90, 'days').toDate();
     try {
-      await token.deleteMany({ expiration: { $lt: currentDate } });
+      await token.deleteMany({ isCancelled: true, expiration: { $lt: ninetyDaysAgo } });
     } catch (error) {
       logger.logException(error);
     }
