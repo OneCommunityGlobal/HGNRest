@@ -24,10 +24,6 @@ const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
 describe('inventoryController', () => {
-  // afterEach(() => {
-  //   jest.clearAllMocks();
-  // });
-
   describe('getAllInvInProjectWBS', () => {
     test('Ensure getAllInvInProjectWBS Returns error 403 if the user is not authorized to view the inventory data (missing getAllInvInProjectWBS Permission ).', async () => {
       const { getAllInvInProjectWBS } = makeSut();
@@ -84,7 +80,7 @@ describe('inventoryController', () => {
 
       assertResMock(404, new Error('an error occured'), response, mockRes);
     });
-    test.only('Ensure getAllInvInProjectWBS Returns status 200 if results are found sorted and popluated', async () => {
+    test('Ensure getAllInvInProjectWBS Returns status 200 if results are found sorted and popluated', async () => {
       const { getAllInvInProjectWBS } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
 
