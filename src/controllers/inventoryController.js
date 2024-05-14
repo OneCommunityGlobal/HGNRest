@@ -42,7 +42,7 @@ const inventoryController = function (Item, ItemType) {
   };
 
   const postInvInProjectWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.body.projectId and req.body.wbsId req.body.quantity,
@@ -94,6 +94,7 @@ const inventoryController = function (Item, ItemType) {
         };
         const inventoryItem = new Item(data);
 
+        console.log('inventory item', inventoryItem);
         return inventoryItem
           .save()
           .then((results) => res.status(201).send(results))

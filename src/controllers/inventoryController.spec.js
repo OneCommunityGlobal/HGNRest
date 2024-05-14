@@ -1,6 +1,7 @@
 /* eslint-disable */
 const { mockRes, mockReq, assertResMock } = require('../test');
 const helper = require('../utilities/permissions');
+const projects = require('../models/project');
 const wbs = require('../models/wbs');
 const { hasPermission } = require('../utilities/permissions');
 const inventoryController = require('./inventoryController');
@@ -9,10 +10,11 @@ const inventoryItemType = require('../models/inventoryItemType');
 const mongoose = require('mongoose');
 
 const makeSut = () => {
-  const { getAllInvInProjectWBS } = inventoryController(inventoryItem, null);
+  const { getAllInvInProjectWBS, postInvInProjectWBS } = inventoryController(inventoryItem, null);
 
   return {
     getAllInvInProjectWBS,
+    postInvInProjectWBS,
   };
 };
 
@@ -120,4 +122,139 @@ describe('inventoryController', () => {
       assertResMock(200, findObject.inventory, response, mockRes);
     });
   });
+
+  describe('postInvInProjectWBS', () => {
+    test("Ensure postInvInProjectWBS Returns error 403 if the user doesn't have the postInvInProjectWBS permission", async () => {
+      const { postInvInProjectWBS } = makeSut();
+      const hasPermissionSpy = mockHasPermission(false);
+      const response = await postInvInProjectWBS(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postInvInProjectWBS');
+      assertResMock(403, 'You are not authorized to view inventory data.', response, mockRes);
+    });
+    test('Ensure postInvInProjectWBS Returns error 400 if valid project, but quantity and id are necessary as well as valid wbs if sent in and not Unassigned', async () => {
+      const { postInvInProjectWBS } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const findObject = {
+        populate: () => {},
+        inventory: [{ project: 'someName', wbs: null }],
+      };
+      mockReq.body.quantity = 1;
+      mockReq.body.typeId = '';
+
+      const projectExists = {
+        select: () => {},
+        lean: () => {},
+      };
+
+      const wbsExists = {
+        select: () => {},
+        lean: () => {},
+      };
+
+      const findSpyProjects = jest.spyOn(projects, 'findOne').mockImplementationOnce(() => {
+        return projectExists;
+      });
+      jest.spyOn(projectExists, 'select').mockImplementationOnce(() => {
+        return projectExists;
+      });
+
+      jest.spyOn(projectExists, 'lean').mockImplementationOnce(() => {
+        return Promise.resolve(findObject.inventory);
+      });
+
+      // works move onto wbs findone
+      const findSpyWbs = jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => {
+        return wbsExists;
+      });
+      jest.spyOn(wbsExists, 'select').mockImplementationOnce(() => {
+        return wbsExists;
+      });
+
+      jest.spyOn(wbsExists, 'lean').mockImplementationOnce(() => {
+        return Promise.resolve(findObject.inventory);
+      });
+
+      const findSpy = jest.spyOn(inventoryItem, 'find').mockImplementationOnce(() => {
+        return Promise.reject(
+          new Error(
+            'Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned',
+          ),
+        );
+      });
+
+      const response = await postInvInProjectWBS(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postInvInProjectWBS');
+      assertResMock(
+        400,
+        'Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned',
+        response,
+        mockRes,
+      );
+    });
+    // test('Ensure postInvInProjectWBS Returns error 500 if saving an inventoryItem occurs', async () => {
+    // const { postInvInProjectWBS } = makeSut();
+    // const hasPermissionSpy = mockHasPermission(true);
+    // const findObject = {
+    //   populate: () => {},
+    //   inventory: [{ project: 'someName', wbs: null }],
+    // };
+    // mockReq.body.quantity = 1;
+    // mockReq.body.typeId = '6515fcc71dd1dbff0999e156';
+    // mockReq.body.wbsId = '6515fcc71dd1dbff0999e156';
+    // mockReq.body.projectId = '6515fcc71dd1dbff0999e156';
+    // mockReq.body.cost = 400;
+    // mockReq.body.poNum = '1234';
+    // const projectExists = {
+    //   select: () => {},
+    //   lean: () => {},
+    // };
+    // const wbsExists = {
+    //   select: () => {},
+    //   lean: () => {},
+    // };
+    // const inventoryExists = {
+    //   select: () => {},
+    //   lean: () => {},
+    //   save: () => {},
+    // };
+    // const findSpyProjects = jest.spyOn(projects, 'findOne').mockImplementationOnce(() => {
+    //   return projectExists;
+    // });
+    // jest.spyOn(projectExists, 'select').mockImplementationOnce(() => {
+    //   return projectExists;
+    // });
+    // jest.spyOn(projectExists, 'lean').mockImplementationOnce(() => {
+    //   return Promise.resolve(findObject.inventory);
+    // });
+    // // works move onto wbs findone
+    // const findSpyWbs = jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => {
+    //   return wbsExists;
+    // });
+    // jest.spyOn(wbsExists, 'select').mockImplementationOnce(() => {
+    //   return wbsExists;
+    // });
+    // jest.spyOn(wbsExists, 'lean').mockImplementationOnce(() => {
+    //   return Promise.resolve(findObject.inventory);
+    // });
+    // const findSpy = jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => {
+    //   return inventoryExists;
+    // });
+    // jest.spyOn(inventoryExists, 'select').mockImplementationOnce(() => {
+    //   return inventoryExists;
+    // });
+    // jest.spyOn(inventoryExists, 'lean').mockImplementationOnce(() => {
+    //   return null;
+    // });
+    // jest.spyOn(inventoryExists, 'save').mockImplementationOnce(() => {
+    //   return Promise.reject(new Error('an error occured'));
+    // });
+    // const response = await postInvInProjectWBS(mockReq, mockRes);
+    // expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postInvInProjectWBS');
+    // assertResMock(500, new Error('an error occured'), response, mockRes);
+    // });
+  });
 });
+
+// mockReq.body.typeId ='6515fcc71dd1dbff0999e156'
