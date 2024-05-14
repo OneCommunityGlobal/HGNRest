@@ -148,7 +148,7 @@ const bmToolController = (BuildingTool, ToolType) => {
       };
 
       const bmLogTools = async function (req, res) {
-        // console.log("*******************************************")
+        console.log("*******************************************")
         const requestor = req.body.requestor.requestorId;
         const {typesArray, action, date} = req.body
         console.log("requestor: ",requestor, ", action: ",action, ", date: ", date);
