@@ -1352,6 +1352,53 @@ const userHelper = function () {
       });
   };
 
+  const getAllWeeksData = async (personId, user) => {
+    const userId = mongoose.Types.ObjectId(personId);
+    const weeksData = [];
+    const currentDate = moment().tz('America/Los_Angeles');
+    const startDate = moment(user.createdDate).tz('America/Los_Angeles');
+    const numWeeks = Math.ceil((currentDate.diff(startDate, 'days') / 7));
+
+    // iterate through weeks to get hours of each week
+    for (let week = 1; week <= numWeeks; week += 1) {
+      const pdtstart = startDate.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
+      const pdtend = startDate.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
+      try {
+        const results = await dashboardHelper.laborthisweek(
+          userId,
+          pdtstart,
+          pdtend,
+        );
+        const { timeSpent_hrs: timeSpent } = results[0];
+        weeksData.push(timeSpent);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    return weeksData;
+  };
+
+  // logic for getting new max personal record
+  const TangibleMaxHrsForAllWeeks = async (personId, user) => {    
+    const weeksTangibleHours =  await getAllWeeksData(personId, user);
+    // get max hours of all weeks
+    let maxHours = weeksTangibleHours[0];
+    for (let i = 1; i < weeksTangibleHours.length; i += 1) {
+      if (weeksTangibleHours[i] > maxHours) {
+        maxHours = weeksTangibleHours[i];
+      }
+    }
+    // console.log('array of weeks hrs: ', weeksTangibleHours);
+    return maxHours;
+  };
+
+  const UpdatePersonalMax = async (personId, user) => {
+    const MaxHrs = await TangibleMaxHrsForAllWeeks(personId, user);
+    console.log('max hours: ',MaxHrs);
+    user.personalBestMaxHrs = MaxHrs;
+    await user.save();
+  };
+
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
     let badgeOfType;
@@ -1371,17 +1418,23 @@ const userHelper = function () {
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
+      const currentDate = moment(moment().format("MM-DD-YYYY"), "MM-DD-YYYY").tz("America/Los_Angeles").format("MMM-DD-YY");
       if (
         user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+        user.lastWeekTangibleHrs >= user.personalBestMaxHrs  &&
+        // user.lastWeekTangibleHrs >= 1 &&
+        // user.lastWeekTangibleHrs === user.personalBestMaxHrs &&
+        !badgeOfType.earnedDate.includes(currentDate)
+
       ) {
         if (badgeOfType) {
-          changeBadgeCount(
+          increaseBadgeCount(
             personId,
-            mongoose.Types.ObjectId(badgeOfType._id),
-            user.personalBestMaxHrs,
+            mongoose.Types.ObjectId(badgeOfType.badge._id),
           );
+          // Update the earnedDate array with the new date
+          badgeOfType.earnedDate.unshift(moment().format("MMM-DD-YYYY"));
+          console.log('earnedDates: ',badgeOfType.earnedDate);
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
         }
@@ -1699,7 +1752,8 @@ const userHelper = function () {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
-
+        
+        await UpdatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
