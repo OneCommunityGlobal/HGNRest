@@ -1147,7 +1147,7 @@ const userProfileController = function (UserProfile) {
     const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
     let lastNameRegex = '';
 
-    // This if to will use to erro 500 Cannot read property 'replace' of undefined
+    // This will fix the 500 error bug.
     if (fullName.length > 1) {
       lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i'); // Verfies both the first and last name are present
     }
