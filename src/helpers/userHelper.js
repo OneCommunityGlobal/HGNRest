@@ -36,7 +36,7 @@ const userHelper = function () {
   };
 
   const getTeamMembers = function (user) {
-    const userId = mongoose.Types.ObjectId(user.);
+    const userId = mongoose.Types.ObjectId(user._id);
     // var teamid = userdetails.teamId;
     return myTeam.findById(userId).select({
       'myTeam._id': 0,
