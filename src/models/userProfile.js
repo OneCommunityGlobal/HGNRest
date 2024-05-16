@@ -55,8 +55,9 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-
-    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
+    validate: [
+      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
+    ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
@@ -218,7 +219,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: true },
+  isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
@@ -261,4 +262,8 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
-module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+module.exports = mongoose.model(
+  'userProfile',
+  userProfileSchema,
+  'userProfiles',
+);
