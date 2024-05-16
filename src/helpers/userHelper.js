@@ -177,7 +177,7 @@ const userHelper = function () {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
       await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, _id: 0 })
+        .find({ getWeeklyReport: true }, { email: 1, : 0 })
         // eslint-disable-next-line no-shadow
         .then((results) => {
           mappedResults = results.map((ele) => ele.email);
@@ -385,8 +385,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true},
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true },
+        ' weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -684,13 +684,12 @@ const userHelper = function () {
                 administrativeContent,
               );
             }
-            console.log('sending email');
             emailSender(
               status.email,
               'New Infringement Assigned',
               emailBody,
               null,
-              'xiaoyuchen007@gmail.com',
+              'onecommunityglobal@gmail.com',
               status.email,
               null,
             );
