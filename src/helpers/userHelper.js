@@ -36,7 +36,7 @@ const userHelper = function () {
   };
 
   const getTeamMembers = function (user) {
-    const userId = mongoose.Types.ObjectId(user._id);
+    const userId = mongoose.Types.ObjectId(user.);
     // var teamid = userdetails.teamId;
     return myTeam.findById(userId).select({
       'myTeam._id': 0,
@@ -177,7 +177,7 @@ const userHelper = function () {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
       await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, : 0 })
+        .find({ getWeeklyReport: true }, { email: 1, _id: 0 })
         // eslint-disable-next-line no-shadow
         .then((results) => {
           mappedResults = results.map((ele) => ele.email);
@@ -386,7 +386,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true },
-        ' weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
