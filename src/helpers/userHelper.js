@@ -1027,7 +1027,7 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        'xiaoyuchen007@gmail.com',
+        'onecommunityglobal@gmail.com',
         emailAddress,
       );
     });
