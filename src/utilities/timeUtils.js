@@ -31,6 +31,6 @@ module.exports = {
 // Exporting functions and constants using CommonJS module pattern
 module.exports.formatDateAndTime = formatDateAndTime;
 module.exports.formatDate = formatDate;
-module.exports.formatted_AM_PM_Time = formatted_AM_PM_Time;
+module.exports.formatted_AM_PM_Time = formattedAmPmTime;
 module.exports.formatCreatedDate = formatCreatedDate;
 module.exports.getDayOfWeekStringFromUTC = getDayOfWeekStringFromUTC;

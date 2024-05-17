@@ -40,7 +40,6 @@ const mockHasPermission = (value) =>
 
         const response = await getWeeklySummaries(mockReq, mockRes);
 
-        console.log(mockReq.body.requestor);
         expect(hasPermissionSpy).toHaveBeenCalledWith(
           mockReq.body.requestor,
           'getWeeklySummaries',
