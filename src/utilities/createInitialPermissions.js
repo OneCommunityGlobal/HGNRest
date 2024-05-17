@@ -48,6 +48,7 @@ const permissionsRoles = [
       'changeUserStatus',
       'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
       'infringementAuthorizer',
       'manageTimeOffRequests',
@@ -75,7 +76,7 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
-      
+
       // Title
       'seeQSC',
       'addNewTitle',
@@ -83,7 +84,6 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
-
     ],
   },
   {
@@ -206,6 +206,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
@@ -243,7 +244,6 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
-
     ],
   },
 ];
@@ -292,7 +292,7 @@ const createInitialPermissions = async () => {
     }
 
     // Update Default presets
-    const defaultName = 'hard-coded default'
+    const defaultName = 'hard-coded default';
 
     const presetDataBase = allPresets.find(
       (preset) => preset.roleName === roleName && preset.presetName === defaultName,
