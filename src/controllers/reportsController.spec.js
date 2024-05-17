@@ -1,8 +1,10 @@
 const reportsController = require('./reportsController');
 const UserProfile = require('../models/userProfile');
-
-const { mockReq, mockRes, assertResMock } = require('../test');
-
+const {
+  mockReq,
+  mockRes,
+  assertResMock
+} = require('../test');
 const helper = require('../utilities/permissions');
 
 jest.mock('../helpers/reporthelper');
@@ -20,28 +22,14 @@ const makeSut = () => {
   };
 };
 
-const flushPromises = () => new Promise(setImmediate);
+jest.mock('../utilities/permissions', () => ({
+  hasPermission: jest.fn(),
+}));
 
 const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
   describe('reportsController module', () => {
-
-    beforeAll(() => {
-      
-    });
-  
-    beforeEach(() => {
-      
-    });
-  
-    afterEach(() => {
-      
-    });
-  
-    afterAll(async () => {
-      
-    });
 
     describe('getWeeklySummaries method', () => {
 
@@ -49,21 +37,15 @@ const mockHasPermission = (value) =>
         const { getWeeklySummaries } = makeSut();
         
         const hasPermissionSpy = mockHasPermission(false);
-        console.log(hasPermissionSpy);
-        getWeeklySummaries(mockReq, mockRes);
-        await flushPromises();
-        
+
         const response = await getWeeklySummaries(mockReq, mockRes);
 
-        expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getWeeklySummaries');
-        assertResMock(
-          403,
-          {
-            error: 'You are not authorized to create new badges.',
-          },
-          response,
-          mockRes,
+        console.log(mockReq.body.requestor);
+        expect(hasPermissionSpy).toHaveBeenCalledWith(
+          mockReq.body.requestor,
+          'getWeeklySummaries',
         );
+        assertResMock(403, 'You are not authorized to view all users', response, mockRes);
       });
 
     });

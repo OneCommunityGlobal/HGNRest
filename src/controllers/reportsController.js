@@ -1,12 +1,13 @@
 const mongoose = require('mongoose');
 const reporthelper = require('../helpers/reporthelper')();
+const helper = require('../utilities/permissions');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
 const userhelper = require('../helpers/userHelper')();
 
 const reportsController = function () {
   const getWeeklySummaries = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
