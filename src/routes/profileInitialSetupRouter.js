@@ -29,6 +29,10 @@ const routes = function (
     controller.getTotalCountryCount
   );
 
+  ProfileInitialSetup.route('/getSetupInvitation').get(controller.getSetupInvitation);
+  ProfileInitialSetup.route('/refreshSetupInvitationToken').post(controller.refreshSetupInvitation);
+  ProfileInitialSetup.route('/cancelSetupInvitationToken').post(controller.cancelSetupInvitation);
+
   return ProfileInitialSetup;
 };
 
