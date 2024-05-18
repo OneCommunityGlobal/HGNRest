@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 const userProfile = require("../models/userProfile");
 
 const currentWarningsController = function (currentWarnings) {
+  const checkIfSpecialCharacter = (warning) => {
+    return !/^\b[a-zA-Z]+\b.*$/.test(warning);
+  };
   const getCurrentWarnings = async (req, res) => {
     try {
       const response = await currentWarnings.find({});
@@ -63,6 +66,13 @@ const currentWarningsController = function (currentWarnings) {
       const { editedWarning } = req.body;
 
       const id = editedWarning._id;
+
+      if (checkIfSpecialCharacter(editedWarning.warningTitle)) {
+        return res.status(422).send({
+          error: "warning cannot have special characters as the first letter",
+        });
+      }
+      console.log(" log", checkIfSpecialCharacter(editedWarning.warningTitle));
 
       const response = await currentWarnings.findOneAndUpdate(
         { _id: id },
