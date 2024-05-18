@@ -5,7 +5,7 @@ Cross Mark: ❌
 
 > ## Positive case
 
-1. ❌ Return 200 if get Presets by roleName successfully.
+1. ✅ Return 200 if get Presets by roleName successfully.
 
 > ## Negative case
 
