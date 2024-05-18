@@ -10,8 +10,8 @@ jest.mock('../models/role');
 jest.mock('../models/userProfile');
 
 const makeSut = () => {
-  const { createNewPreset } = rolePresetsController(Preset);
-  return { createNewPreset };
+  const { createNewPreset, getPresetsByRole } = rolePresetsController(Preset);
+  return { createNewPreset, getPresetsByRole };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -34,7 +34,7 @@ describe('rolePresets Controller', () => {
   });
 
   describe('createNewPreset method', () => {
-    test("Ensure createPresetsByRole returns 403 if user doesn't have permissions for putRole", async () => {
+    test("Ensure createNewPresets returns 403 if user doesn't have permissions for putRole", async () => {
       const { createNewPreset } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -46,7 +46,7 @@ describe('rolePresets Controller', () => {
 
       assertResMock(403, 'You are not authorized to make changes to roles.', response, mockRes);
     });
-    test('Ensure createPresetsByRole returns 400 if missing roleName', async () => {
+    test('Ensure createNewPresetsreturns 400 if missing roleName', async () => {
       const { createNewPreset } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -71,7 +71,7 @@ describe('rolePresets Controller', () => {
         mockRes,
       );
     });
-    test('Ensure createPresetsByRole returns 400 if missing presetName', async () => {
+    test('Ensure createNewPresets returns 400 if missing presetName', async () => {
       const { createNewPreset } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -96,7 +96,7 @@ describe('rolePresets Controller', () => {
         mockRes,
       );
     });
-    test('Ensure createPresetsByRole returns 400 if missing permissions', async () => {
+    test('Ensure createNewPresets returns 400 if missing permissions', async () => {
       const { createNewPreset } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -121,7 +121,7 @@ describe('rolePresets Controller', () => {
         mockRes,
       );
     });
-    test('Ensure createPresetsByRole returns 400 if any error when saving new preset', async () => {
+    test('Ensure createNewPresets returns 400 if any error when saving new preset', async () => {
       const { createNewPreset } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -146,7 +146,7 @@ describe('rolePresets Controller', () => {
 
       assertResMock(400, new Error('Error when saving'), response, mockRes);
     });
-    test('Ensure createPresetsByRole returns 201 if saving new preset successfully', async () => {
+    test('Ensure createNewPresets returns 201 if saving new preset successfully', async () => {
       const { createNewPreset } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -181,6 +181,65 @@ describe('rolePresets Controller', () => {
         response,
         mockRes,
       );
+    });
+  });
+  describe('getPresetsByRole method', () => {
+    test("Ensure getPresetsByRole returns 403 if user doesn't have permissions for putRole", async () => {
+      const { getPresetsByRole } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(false));
+
+      const response = await getPresetsByRole(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'putRole');
+
+      assertResMock(403, 'You are not authorized to make changes to roles.', response, mockRes);
+    });
+    test('Ensure getPresetsByRole returns 400 if error in finding roleName', async () => {
+      const { getPresetsByRole } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+      const newMockReq = {
+        ...mockReq,
+        params: {
+          ...mockReq.params,
+          roleName: 'test roleName',
+        },
+      };
+      jest
+        .spyOn(Preset, 'find')
+        .mockImplementationOnce(() => Promise.reject(new Error('Error when finding')));
+      const response = await getPresetsByRole(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'putRole');
+
+      assertResMock(400, new Error('Error when finding'), response, mockRes);
+    });
+    test('Ensure getPresetsByRole returns 200 if finding roleName successfully', async () => {
+      const { getPresetsByRole } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+      const newMockReq = {
+        ...mockReq,
+        params: {
+          ...mockReq.params,
+          roleName: 'test roleName',
+        },
+      };
+      const data = {
+        roleName: 'test roleName',
+        presetName: 'test Presetname2',
+        permissions: ['read', 'add'],
+      };
+      jest.spyOn(Preset, 'find').mockImplementationOnce(() => Promise.resolve(data));
+      const response = await getPresetsByRole(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'putRole');
+
+      assertResMock(200, data, response, mockRes);
     });
   });
 });
