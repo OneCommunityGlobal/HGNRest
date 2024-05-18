@@ -5,4 +5,4 @@ Cross Mark: ❌
 1. ✅ createOrUpdateTaskNotification should create or update task notifications
 
 ## Negative case
-1. ❌ createOrUpdateTaskNotification should handle errors
+1. ❌ createOrUpdateTaskNotification should catch errors when creating or updating task notifications
