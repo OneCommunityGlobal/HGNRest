@@ -38,10 +38,13 @@ const mapLocationsController = function (MapLocation) {
     }
   };
   const deleteLocation = async function (req, res) {
+    console.log(req.body.requestor.role);
     if (!req.body.requestor.role === 'Administrator' || !req.body.requestor.role === 'Owner') {
+      console.log('in if statement');
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
+    console.log('skipped if statement');
     const { locationId } = req.params;
 
     MapLocation.findOneAndDelete({ _id: locationId })

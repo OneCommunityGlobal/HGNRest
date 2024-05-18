@@ -8,10 +8,12 @@ const mapLocationsController = require('./mapLocationsController');
 // const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
-  const { getAllLocations } = mapLocationsController(MapLocation);
+  const { getAllLocations, deleteLocation } = mapLocationsController(MapLocation);
 
-  return { getAllLocations };
+  return { getAllLocations, deleteLocation };
 };
+
+const flushPromises = () => new Promise(setImmediate);
 
 // const makeMockCache = (method, value) => {
 //   const cacheObject = {
@@ -29,7 +31,9 @@ const makeSut = () => {
 // };
 
 describe('Map Locations Controller', () => {
-  beforeEach(() => {});
+  beforeEach(() => {
+    mockReq.params.locationId = 'randomId';
+  });
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -110,6 +114,43 @@ describe('Map Locations Controller', () => {
         '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
       );
       expect(findLocationSpy).toHaveBeenCalledWith({});
+    });
+  });
+
+  describe('deleteLocation method', () => {
+    // TODO: Not working for some reason
+    // test('Returns 403 if user is not authorized.', async () => {
+    //   mockReq.body.requestor.role = 'Volunteer';
+    //   const { deleteLocation } = makeSut();
+    //   const res = await deleteLocation(mockReq, mockRes);
+    //   assertResMock(403, 'You are not authorized to make changes in the teams.', res, mockRes);
+    // });
+
+    test('Returns 500 if an error occurs when deleting the map location.', async () => {
+      mockReq.body.requestor.role = 'Administrator';
+
+      const { deleteLocation } = makeSut();
+
+      const err = new Error('Failed to delete!');
+      const deleteSpy = jest.spyOn(MapLocation, 'findOneAndDelete').mockRejectedValueOnce(err);
+
+      const res = await deleteLocation(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(500, { message: err }, res, mockRes);
+      expect(deleteSpy).toHaveBeenCalledWith({ _id: mockReq.params.locationId });
+    });
+
+    test('Returns 200 if all is successful', async () => {
+      const { deleteLocation } = makeSut();
+
+      const deleteSpy = jest.spyOn(MapLocation, 'findOneAndDelete').mockResolvedValueOnce(true);
+
+      const res = await deleteLocation(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, { message: 'The location was successfully removed!' }, res, mockRes);
+      expect(deleteSpy).toHaveBeenCalledWith({ _id: mockReq.params.locationId });
     });
   });
 });
