@@ -37,7 +37,7 @@ const rolePresetsController = function (Preset) {
     preset
       .save()
       .then((result) => res.status(201).send({ newPreset: result, message: 'New preset created' }))
-      .catch((error) => res.status(400).send({ error }));
+      .catch((error) => res.status(400).send(error));
   };
 
   const updatePresetById = async function (req, res) {
