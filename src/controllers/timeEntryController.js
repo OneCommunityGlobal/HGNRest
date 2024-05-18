@@ -232,24 +232,34 @@ const updateUserprofileCategoryHrs = async (
   secondsToBeAdded,
   userprofile,
 ) => {
+  // console.log("1. hoursByCategory: ", userprofile.hoursByCategory);
   if (fromProjectId) {
+    // console.log("remove part executed");
     const fromProject = await Project.findById(fromProjectId);
     const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
-    if (fromProject.category in userprofile.hoursByCategory) {
+    if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[fromProject.category.toLowerCase()] -= hoursToBeRemoved;
     } else {
       userprofile.hoursByCategory.unassigned -= hoursToBeRemoved;
     }
+    // console.log("2. hoursByCategory: ", userprofile.hoursByCategory)
   }
   if (toProjectId) {
+    // console.log("add part executed");
     const toProject = await Project.findById(toProjectId);
     const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
-    if (toProject.category in userprofile.hoursByCategory) {
+    // console.log("DEBUG toProject.category: ", toProject.category);
+    // console.log("DEBUG category data type: ", typeof(toProject.category));
+    // console.log("DEBUG userprofile.hoursByCategory: ", userprofile.hoursByCategory);
+    // console.log("DEBUG toLowerCase result: ", toProject.category.toLowerCase() in userprofile.hoursByCategory);
+    if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
     } else {
       userprofile.hoursByCategory.unassigned += hoursToBeAdded;
     }
+    // console.log("3. hoursByCategory: ", userprofile.hoursByCategory)
   }
+  // console.log("4. hoursByCategory: ", userprofile.hoursByCategory)
 };
 
 /**
@@ -472,7 +482,7 @@ const timeEntrycontroller = function (TimeEntry) {
       if (timeEntry.isTangible) {
         // update the total tangible hours in the user profile and the hours by category
         updateUserprofileTangibleIntangibleHrs(timeEntry.totalSeconds, 0, userprofile);
-        updateUserprofileCategoryHrs(
+        await updateUserprofileCategoryHrs(
           null,
           null,
           timeEntry.projectId,
@@ -653,16 +663,17 @@ const timeEntrycontroller = function (TimeEntry) {
             userprofile,
           );
 
-          // if project is changed, update userprofile hoursByCategory
-          if (projectChanged) {
-            updateUserprofileCategoryHrs(
-              initialProjectIdObject,
-              initialTotalSeconds,
-              null,
-              null,
-              userprofile,
-            );
-          }
+          // Original Comment: if project is changed, update userprofile hoursByCategory
+          // Updated Comment: whether project is changed or not, the original tangible time needs to be removed from hoursByCategory
+          // if (projectChanged) {
+          await updateUserprofileCategoryHrs(
+            initialProjectIdObject,
+            initialTotalSeconds,
+            null,
+            null,
+            userprofile,
+          );
+          // }
         } else {
           // from intangible to tangible
           updateTaskLoggedHours(
@@ -682,9 +693,15 @@ const timeEntrycontroller = function (TimeEntry) {
             -initialTotalSeconds,
             userprofile,
           );
-          if (projectChanged) {
-            updateUserprofileCategoryHrs(null, null, newProjectId, newTotalSeconds, userprofile);
-          }
+          // if (projectChanged) {
+          await updateUserprofileCategoryHrs(
+            null,
+            null,
+            newProjectId,
+            newTotalSeconds,
+            userprofile,
+          );
+          // }
         }
         // make sure all hours are positive
         validateUserprofileHours(userprofile);
@@ -703,8 +720,8 @@ const timeEntrycontroller = function (TimeEntry) {
           pendingEmailCollection,
         );
         // when project is also changed
-        if (projectChanged) {
-          updateUserprofileCategoryHrs(
+        if (projectChanged || timeChanged) {
+          await updateUserprofileCategoryHrs(
             initialProjectIdObject,
             initialTotalSeconds,
             newProjectId,
@@ -713,6 +730,7 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           validateUserprofileHours(userprofile);
         }
+        console.log('5. hoursByCategory: ', userprofile.hoursByCategory);
         // if time or dateOfWork is changed
         if (timeChanged || dateOfWorkChanged) {
           const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
@@ -749,8 +767,8 @@ const timeEntrycontroller = function (TimeEntry) {
         const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
         updateUserprofileTangibleIntangibleHrs(0, timeDiffInSeconds, userprofile);
       }
-
       await timeEntry.save({ session });
+      // console.log("right before save session for userprofile");
       await userprofile.save({ session });
 
       // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
@@ -810,7 +828,7 @@ const timeEntrycontroller = function (TimeEntry) {
       // Revert this tangible timeEntry of related task's hoursLogged
       if (isTangible) {
         updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
-        updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
+        await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
         // if the time entry is related to a task, update the task hoursLogged
         if (taskId) {
           updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
@@ -819,6 +837,7 @@ const timeEntrycontroller = function (TimeEntry) {
         updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
       }
 
+      // console.log("deleteTimeEntry: right before save session for userprofile");
       await userprofile.save({ session });
       await timeEntry.remove({ session });
 
