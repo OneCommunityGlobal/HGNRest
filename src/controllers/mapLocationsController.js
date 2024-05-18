@@ -52,7 +52,9 @@ const mapLocationsController = function (MapLocation) {
       .catch((error) => res.status(500).send({ message: error || "Couldn't remove the location" }));
   };
   const putUserLocation = async function (req, res) {
+    console.log(req.body.requestor.role);
     if (!req.body.requestor.role === 'Owner') {
+      console.log('in if statement');
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }

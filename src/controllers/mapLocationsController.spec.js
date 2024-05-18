@@ -8,9 +8,9 @@ const mapLocationsController = require('./mapLocationsController');
 // const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
-  const { getAllLocations, deleteLocation } = mapLocationsController(MapLocation);
+  const { getAllLocations, deleteLocation, putUserLocation } = mapLocationsController(MapLocation);
 
-  return { getAllLocations, deleteLocation };
+  return { getAllLocations, deleteLocation, putUserLocation };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -33,6 +33,18 @@ const flushPromises = () => new Promise(setImmediate);
 describe('Map Locations Controller', () => {
   beforeEach(() => {
     mockReq.params.locationId = 'randomId';
+    mockReq.body.firstName = 'Bob';
+    mockReq.body.lastName = 'Bobberson';
+    mockReq.body.jobTitle = 'Software Engineer';
+    mockReq.body.location = {
+      userProvided: 'New York',
+      coords: {
+        lat: 12,
+        lng: 12,
+      },
+      country: 'USA',
+      city: 'New York City',
+    };
   });
 
   afterEach(() => {
@@ -153,4 +165,13 @@ describe('Map Locations Controller', () => {
       expect(deleteSpy).toHaveBeenCalledWith({ _id: mockReq.params.locationId });
     });
   });
+
+  //   describe('putUserLocation method', () => {
+  //     test.only('Returns 403 if user is not authorized.', async () => {
+  //       const { putUserLocation } = makeSut();
+
+  //       const res = await putUserLocation(mockReq, mockRes);
+  //       assertResMock(403, 'You are not authorized to make changes in the teams.', res, mockRes);
+  //     });
+  //   });
 });
