@@ -15,7 +15,7 @@ const makeSut = () => {
     deleteTaskNotification,
     deleteTaskNotificationByUserId,
     markTaskNotificationAsRead,
-  } = taskNotificationController();
+  } = taskNotificationController(TaskNotification);
   return {
     getUnreadTaskNotificationsByUser,
     createOrUpdateTaskNotification,
@@ -31,7 +31,9 @@ describe('taskNotificationController module', () => {
   });
 
   describe('getUnreadTaskNotificationsByUser', () => {
-    test('Ensure getUnreadTaskNotificationsByUser returns unread task notifications for a user', async () => {
+    test.only('Ensure getUnreadTaskNotificationsByUser returns unread task notifications for a user', async () => {
+
+      const {getUnreadTaskNotificationsByUser} = makeSut();
       mockReq.params.userId = '123456';
       const mockTaskNotifications = [
         { _id: '1', recipient: '123456', isRead: false },
@@ -39,15 +41,26 @@ describe('taskNotificationController module', () => {
       ];
 
       jest
-        .spyOn(TaskNotification, 'findOne')
-        .mockImplementation(() => Promise.resolve(mockTaskNotifications));
+      .spyOn(TaskNotification, 'find')
+      .mockImplementation(() => Promise.resolve(mockTaskNotifications));
 
-        const res = await taskNotificationController.getUnreadTaskNotificationsByUser(mockReq, mockRes);
-        assertResMock(200, mockTaskNotifications, res, mockRes);
+      const response = await getUnreadTaskNotificationsByUser(mockReq, mockRes);
+        assertResMock(200, mockTaskNotifications, response, mockRes);
 
     });
 
-    test('Ensure getUnreadTaskNotificationsByUser catches errors when returning unread task notifications', () => {});
+    test('Ensure getUnreadTaskNotificationsByUser catches errors when returning unread task notifications',async  () => {
+      const {getUnreadTaskNotificationsByUser} = makeSut();
+      mockReq.params.userId = '123456';
+      const error = new Error('Something went wrong');
+      const findOneSpy = jest
+      .spyOn(TaskNotification, 'find')
+      .mockImplementation(() => Promise.resolve(false));
+      jest.spyOn(TaskNotification, 'find').mockRejectedValue(error);
+
+      const response = await getUnreadTaskNotificationsByUser(mockReq, mockRes);
+        assertResMock(400, error, response, mockRes);
+    });
   });
 
   describe('createOrUpdateTaskNotification', () => {
@@ -56,8 +69,22 @@ describe('taskNotificationController module', () => {
     test('Ensure getUnreadTaskNotificationsByUser catches errors when creating or updating task notifications', () => {});
   });
 
-  describe('deleteTaskNotification', () => {
-    test('Ensure deleteTaskNotification deletes a task notification', () => {});
+  describe.only('deleteTaskNotification', () => {
+    test.only('Ensure deleteTaskNotification deletes a task notification', async () => {
+      const {deleteTaskNotification} = makeSut();
+      mockReq.params.taskNotificationId = '123456';
+
+      const mockTaskNotification = {
+        remove: jest.fn(() => Promise.resolve())
+      };
+
+      jest.spyOn(TaskNotification, 'findById').mockResolvedValue(mockTaskNotification);
+
+      const response = await deleteTaskNotification(mockReq, mockRes);
+
+      expect(mockTaskNotification.remove).toHaveBeenCalled();
+      assertResMock(200, { message: 'Deleted task notification', result: mockTaskNotification }, response, mockRes);
+    });
 
     test('Ensure deleteTaskNotification catches errors when deleting a task notification', () => {});
   });
