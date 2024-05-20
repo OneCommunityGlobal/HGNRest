@@ -117,14 +117,17 @@ const userHelper = function () {
         timeRemaining + coreTeamExtraHour
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-    // bold description for 'not submitting a weekly summary' and logged hrs
+    // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
     if (!requestForTimeOffEmailBody && infringement.description) {
-      if (infringement.description.includes('not submitting a weekly summary')) {
-        emailDescription = infringement.description.replace(
-          /(not submitting a weekly summary)/gi,
-          '<b>$1</b>',
-        );
+      const sentences = infringement.description.split(/\.(?!\d)/);
+      if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+        sentences[0] = `<b>${sentences[0]}</b>`;
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+      } else if (sentences[0].includes('not submitting a weekly summary')) {
+        sentences[0] = sentences[0].replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
+        emailDescription = sentences.join('.');
         emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
       } else {
         emailDescription = `<b>${infringement.description}<b>`;
@@ -385,8 +388,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true, firstName: 'ivy' },
+        '_id firstName weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
