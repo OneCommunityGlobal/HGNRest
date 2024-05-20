@@ -152,8 +152,8 @@ const bmToolController = (BuildingTool, ToolType) => {
         const requestor = req.body.requestor.requestorId;
         const {typesArray, action, date} = req.body
         console.log("requestor: ",requestor, ", action: ",action, ", date: ", date);
-        if(typesArray.length === 0 && typesArray === undefined){
-          return res.status(500).send({ message: 'Invalid request. No tool types selected'});
+        if(typesArray.length === 0 || typesArray === undefined){
+          return res.status(500).send({ message: 'Invalid request. No tools selected'});
         }
          
         try{
