@@ -57,7 +57,7 @@ const rolePresetsController = function (Preset) {
           .then((results) => res.status(200).send(results))
           .catch((errors) => res.status(400).send(errors));
       })
-      .catch((error) => res.status(400).send({ error }));
+      .catch((error) => res.status(400).send(error));
   };
 
   const deletePresetById = async function (req, res) {
@@ -72,9 +72,9 @@ const rolePresetsController = function (Preset) {
         result
           .remove()
           .then(res.status(200).send({ message: 'Deleted preset' }))
-          .catch((error) => res.status(400).send({ error }));
+          .catch((error) => res.status(400).send(error));
       })
-      .catch((error) => res.status(400).send({ error }));
+      .catch((error) => res.status(400).send(error));
   };
 
   return {
