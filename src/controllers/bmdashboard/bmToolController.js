@@ -1,52 +1,6 @@
 const mongoose = require('mongoose');
 
 const bmToolController = (BuildingTool, ToolType) => {
-  // const fetchAllTools = async (req, res) => {
-  //   try {
-  //     BuildingTool.find()
-  //     .populate([
-  //       {
-  //         path: 'project',
-  //         select: '_id name',
-  //       },
-  //       {
-  //         path: 'itemType',
-  //         select: '_id name description unit imageUrl category available using',
-  //       },
-  //       {
-  //         path: 'updateRecord',
-  //         populate: {
-  //           path: 'createdBy',
-  //           select: '_id firstName lastName',
-  //         },
-  //       },
-  //       {
-  //         path: 'purchaseRecord',
-  //         populate: {
-  //           path: 'requestedBy',
-  //           select: '_id firstName lastName',
-  //         },
-  //       },
-  //       {
-  //         path: 'logRecord',
-  //         populate: [{
-  //             path: 'createdBy',
-  //             select: '_id firstName lastName',
-  //         },
-  //         {
-  //             path: 'responsibleUser',
-  //             select: '_id firstName lastName',
-  //     }],
-  //     },
-  //     ])
-  //     .exec()
-  //     .then(results => res.status(200).send(results))
-  //     .catch(error => res.status(500).send(error));
-  //   } catch (err) {
-  //     res.json(err);
-  // }
-  // };
-  
     const fetchSingleTool = async (req, res) => {
         const { toolId } = req.params;
         try {
@@ -148,64 +102,62 @@ const bmToolController = (BuildingTool, ToolType) => {
       };
 
       const bmLogTools = async function (req, res) {
-        console.log("*******************************************")
         const requestor = req.body.requestor.requestorId;
         const {typesArray, action, date} = req.body
-        console.log("requestor: ",requestor, ", action: ",action, ", date: ", date);
+        const results = [];
+        const errors = [];
+
         if(typesArray.length === 0 || typesArray === undefined){
-          return res.status(500).send({ message: 'Invalid request. No tools selected'});
+          errors.push({ message: 'Invalid request. No tools selected'})
+          return res.status(500).send({errors, results});
         }
-         
-        try{
-          for (const type of typesArray) {
+        
+        for (const type of typesArray) {
+          const toolName = type.toolName; 
+          const toolCodes = type.toolCodes; 
+          const codeMap = {};
+          toolCodes.forEach(obj => {
+            codeMap[obj.value] = obj.label;
+          })
+
+          try{
             const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
-            if (!toolTypeDoc) {
-            //  console.log("Tool type with this id was not found")
-             return res.status(404).send({ message: 'Tool type with this id was not found.'});
+            if(!toolTypeDoc) {
+              errors.push({ message: `Tool type ${toolName} with id ${type.toolType} was not found.`});
+              continue; 
             }
-            // console.log("toolTypeDoc found, name: ", toolTypeDoc.name)
             const availableItems = toolTypeDoc.available;
             const usingItems = toolTypeDoc.using;
-            // console.log("availableItems: ", availableItems, ", usingItems: ", usingItems)
-            
-            type.toolItems.forEach(async toolItem=>{
-              // console.log("looping toolItems. toolItem id: ", toolItem);
-              if(action === "Check Out" && availableItems.length > 0){
-                  // console.log("check out && availableItems > 0")
-                  const foundIndex = availableItems.indexOf(toolItem);
-                  if(foundIndex >= 0){
-                    // console.log("found toolItem in availableItems: ", foundIndex);
-                    availableItems.splice(foundIndex, 1);
-                    usingItems.push(toolItem);
-                  }else{
-                    console.log("Didn't find this id in availableItems array")
-                    return res.status(404).send({ message: `Tool item with id ${toolItem} is not available for ${action}`});
-                  }
-              }else if(action === "Check Out" && availableItems.length < 0){
-                console.log(`168. Can not process request "${action}". ${toolTypeDoc.name} stock exceeded`)
-                return res.status(404).send({ message: `Can not process request "${action}". ${toolTypeDoc.name} stock exceeded`});       
+          
+            for(const toolItem of type.toolItems){
+              const buildingToolDoc = await BuildingTool.findOne({ _id: mongoose.Types.ObjectId(toolItem)});
+              if(!buildingToolDoc){ 
+                errors.push({ message: `${toolName} with id ${toolItem} was not found.`});
+                continue; 
               }
-
+              
+              if(action === "Check Out" && availableItems.length > 0){
+                const foundIndex = availableItems.indexOf(toolItem);
+                if(foundIndex >= 0){
+                  availableItems.splice(foundIndex, 1);
+                  usingItems.push(toolItem);
+                }else{ 
+                  errors.push({ message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`});
+                  continue; 
+                }
+               } 
+              
               if(action === "Check In" && usingItems.length > 0){
                 const foundIndex = usingItems.indexOf(toolItem);
-                  if(foundIndex >= 0){
-                    usingItems.splice(foundIndex, 1);
-                    availableItems.push(toolItem);
-                  }else{
-                    console.log("Didn't find this id in usingItems array")
-                    return res.status(404).send({ message: `Tool item with id ${toolItem} is not available for ${action}`});
-                  }
-              } else if(action === "Check In" && usingItems.length < 0){
-                console.log(`168. Can not process request "${action}". No items of type ${toolTypeDoc.name} are currently checked out`)
-                return res.status(404).send({ message: `Can not process the request "${action}". No items of type ${toolTypeDoc.name} are currently checked out`});
+                if(foundIndex >= 0){
+                  usingItems.splice(foundIndex, 1);
+                  availableItems.push(toolItem);
+                }else{
+                  errors.push({ message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`});
+                  continue; 
+                }
               }
-              // if we are here the function did not return 
-              const buildingToolDoc = await BuildingTool.findOne({ _id: mongoose.Types.ObjectId(toolItem)});
-              if(!buildingToolDoc){
-                console.log("STATUS 404 didnt find item ");
-                return res.status(404).send({message: 'Tool item with this id was not found.'});
-              }
-              // console.log("found item buildingToolDoc, ", buildingToolDoc._id);
+
               const newRecord = {
                 date: date,
                 createdBy: requestor,
@@ -214,25 +166,24 @@ const bmToolController = (BuildingTool, ToolType) => {
               }
 
               buildingToolDoc.logRecord.push(newRecord);
-              console.log("buildingToolDoc.logRecord: ", buildingToolDoc.logRecord)
               buildingToolDoc.save();
-              // console.log("saved buildingToolDoc (tool item)");
-            })
+              results.push({message: `${action} successful for ${toolName} ${codeMap[toolItem]}`})
+            }
 
             await toolTypeDoc.save();
-            console.log("saved toolTypeDoc");
-            console.log("######################## end of outer loop iteration");
-          } //end loop through typesArray 
-          console.log("end loop through typesArray ");
-          res.status(200).send({message: `Log request "${action}" processed successfully!`});
-        }catch(error){
-            console.log("183. error: ", error); //delete later
-            res.status(500).send(error);
+            }catch(error){
+            errors.push({message: `Error for tool type ${type}: ${error.message}` });
+          }
+        }
+
+        if (errors.length > 0) {
+          return res.status(404).send({ errors, results });
+        } else {
+          return res.status(200).send({ errors, results });
         }
       }
 
       return {
-        // fetchAllTools,
         fetchSingleTool,
         bmPurchaseTools,
         bmLogTools
