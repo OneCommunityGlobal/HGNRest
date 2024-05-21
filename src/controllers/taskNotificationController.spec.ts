@@ -152,57 +152,62 @@ describe('taskNotificationController module', () => {
   });
 
   //FAILING
-  // describe.only('deleteTaskNotificationByUserId', () => {
-  //   test.only('Ensure deleteTaskNotificationByUserId deletes a task notification by userId', async () => {
-  //     const {deleteTaskNotificationByUserId} = makeSut();
-  //     mockReq.params.taskId = new mongoose.Types.ObjectId().toString();
-  //     mockReq.params.userId = new mongoose.Types.ObjectId().toString();
+  describe.only('deleteTaskNotificationByUserId', () => {
+    test.only('Ensure deleteTaskNotificationByUserId deletes a task notification by userId', async () => {
+      const { deleteTaskNotificationByUserId } = makeSut();
+      mockReq.params.taskId = new mongoose.Types.ObjectId();
+      mockReq.params.userId = new mongoose.Types.ObjectId();
 
-  //     const execSpy = {
-  //       populate: jest.fn().mockImplementation(()=>execSpy),
-  //       exec: ()=>{},
-  //     };
-  //     const mockTaskNotification = {
-  //       remove: jest.fn(() => Promise.resolve()),
-  //       populate: jest.fn().mockReturnValueOnce(execSpy),
-  //     };
+      const findOnePopulateObj = { populate: () => {} };
+      const findOneSpy = jest
+        .spyOn(TaskNotification, 'findOne')
+        .mockImplementationOnce(() => findOnePopulateObj);
 
-  //     jest.spyOn(TaskNotification, 'findOne').mockReturnValueOnce(mockTaskNotification);
-  //     jest.spyOn(execSpy, 'exec').mockImplementationOnce(
-  //       (_, callback) => callback(
-  //         null, {remove: () => {}}
-  //         )
-  //     )
+      const populateReturnObj = { populate: () => {} };
+      jest.spyOn(findOnePopulateObj, 'populate').mockImplementationOnce(() => populateReturnObj);
 
-  //     const response = await deleteTaskNotificationByUserId(mockReq, mockRes);
-  //     await flushPromises();
-  //     expect(mockTaskNotification.remove).toHaveBeenCalled();
-  //     assertResMock(200, { message: 'Deleted task notification' }, response, mockRes);
+      const secondPopulateObj = { exec: (err, result) => {} };
+      jest.spyOn(populateReturnObj, 'populate').mockImplementationOnce(() => secondPopulateObj);
 
-  //   });
+      const execReturnObj = { remove: () => {} };
+      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce((callback) => {
+        callback(null, execReturnObj);
+      });
 
-  // test('should handle errors during remove', async () => {
+      jest.spyOn(execReturnObj, 'remove').mockImplementationOnce(() => Promise.resolve(true));
 
-  // });
+      const res = await deleteTaskNotificationByUserId(mockReq, mockRes);
+      await flushPromises();
 
-  // test('Ensure deleteTaskNotificationByUserId handles errors during findOne', async () => {
-  //   const { deleteTaskNotificationByUserId } = makeSut();
-  //   mockReq.params.taskId = new mongoose.Types.ObjectId().toString();
-  //   mockReq.params.userId = new mongoose.Types.ObjectId().toString();
+      assertResMock(200, { message: 'Deleted task notification' }, res, mockRes);
+      expect(findOneSpy).toHaveBeenCalledWith({
+        taskId: mockReq.params.taskId,
+        userId: mockReq.params.userId,
+      });
+    });
 
-  //   const error = new Error('Something went wrong');
+    // test('should handle errors during remove', async () => {
 
-  //   jest.spyOn(TaskNotification, 'find').mockRejectedValue(error);
+    // });
 
-  //   const response = await deleteTaskNotificationByUserId(mockReq, mockRes);
+    // test('Ensure deleteTaskNotificationByUserId handles errors during findOne', async () => {
+    //   const { deleteTaskNotificationByUserId } = makeSut();
+    //   mockReq.params.taskId = new mongoose.Types.ObjectId().toString();
+    //   mockReq.params.userId = new mongoose.Types.ObjectId().toString();
 
-  //   assertResMock(400, error, response, mockRes);
-  // });
-  // });
+    //   const error = new Error('Something went wrong');
 
-  // describe('markTaskNotificationAsRead', () => {
-  //   test('Ensure markTaskNotificationAsRead marks a task notification as read', () => {});
+    //   jest.spyOn(TaskNotification, 'find').mockRejectedValue(error);
 
-  //   test('Ensure markTaskNotificationAsRead returns 404 if TaskNotification not found', () => {});
-  // });
+    //   const response = await deleteTaskNotificationByUserId(mockReq, mockRes);
+
+    //   assertResMock(400, error, response, mockRes);
+    // });
+    // });
+
+    // describe('markTaskNotificationAsRead', () => {
+    //   test('Ensure markTaskNotificationAsRead marks a task notification as read', () => {});
+
+    //   test('Ensure markTaskNotificationAsRead returns 404 if TaskNotification not found', () => {});
+  });
 });
