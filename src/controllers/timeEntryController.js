@@ -10,7 +10,6 @@ const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
 
-
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
@@ -389,34 +388,29 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
   Object.assign(timeEntry, { taskId, wbsId, projectId });
 };
 
-
-
 /**
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
-
   /**
- * Helper func: Check if this is the first time entry for the given user id
- * 
- * @param {Mongoose.ObjectId} personId 
- * @returns 
- */
-const checkIsUserFirstTimeEntry = async (personId) => {
-  try {
-    const timeEntry = await TimeEntry.findOne({
-      personId,
-    });
-    if (timeEntry) {
-      return false;
+   * Helper func: Check if this is the first time entry for the given user id
+   *
+   * @param {Mongoose.ObjectId} personId
+   * @returns
+   */
+  const checkIsUserFirstTimeEntry = async (personId) => {
+    try {
+      const timeEntry = await TimeEntry.findOne({
+        personId,
+      });
+      if (timeEntry) {
+        return false;
+      }
+    } catch (error) {
+      throw new Error(`Failed to check user with id ${personId} on time entry`);
     }
-  } catch (error) {
-    throw new Error(
-      `Failed to check user with id ${personId} on time entry`,
-    );
-  }
-  return true;
-};
+    return true;
+  };
 
   /**
    * Post a time entry
@@ -505,7 +499,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       // Replace the isFirstTimelog checking logic from the frontend to the backend
       // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
       const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
-      if(isFirstTimeEntry) {  
+      if (isFirstTimeEntry) {
         userprofile.isFirstTimelog = false;
         userprofile.startDate = now;
       }
@@ -573,7 +567,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
     const hasEditTimeEntryPermission = await hasPermission(req.body.requestor, 'editTimeEntry');
 
     const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
-
 
     if (!canEdit) {
       const error = 'Unauthorized request';
@@ -935,6 +928,40 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       });
   };
 
+  const getTimeEntriesForReports = function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+
+    TimeEntry.find(
+      {
+        personId: { $in: users },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('projectId')
+
+      .then((results) => {
+        const data = [];
+
+        results.forEach((element) => {
+          const record = {};
+          record._id = element._id;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId._id;
+          record.dateOfWork = element.dateOfWork;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          record.projectId = element.projectId ? element.projectId._id : '';
+          record.projectName = element.projectId ? element.projectId.projectName : '';
+          data.push(record);
+        });
+
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        res.status(400).send(error);
+      });
+  };
+
   /**
    * Get time entries for a specified project
    */
@@ -1086,6 +1113,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
     getLostTimeEntriesForUserList,
     getLostTimeEntriesForProjectList,
     getLostTimeEntriesForTeamList,
+    getTimeEntriesForReports,
   };
 };
 
