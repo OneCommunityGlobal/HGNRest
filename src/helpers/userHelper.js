@@ -109,11 +109,11 @@ const userHelper = function () {
     weeklycommittedHours,
   ) {
     let finalParagraph = '';
-    let DescrInfringement = '';
+    let descrInfringement = '';
     if (timeRemaining === undefined) {
       finalParagraph =
         '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
-      DescrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
     } else {
@@ -123,7 +123,7 @@ const userHelper = function () {
       finalParagraph = `Please complete ALL owed time this week (${
         hrThisweek + totalInfringements - 5
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
-      DescrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(
           totalInfringements,
@@ -171,7 +171,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${infringement.date}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
-        ${DescrInfringement}
+        ${descrInfringement}
         ${finalParagraph}
         <p>Thank you, One Community</p>
         <!-- Adding multiple non-breaking spaces -->
@@ -419,8 +419,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true, firstName: 'ivy' },
-        '_id firstName weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true },
+        '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -734,7 +734,7 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
-              'xiaoyuchen007@gmail.com',
+              'onecommunityglobal@gmail.com',
               status.email,
               null,
             );
