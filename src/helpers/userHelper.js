@@ -1351,7 +1351,7 @@ const userHelper = function () {
         }
       });
   };
-
+  
   const getAllWeeksData = async (personId, user) => {
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
@@ -1364,39 +1364,32 @@ const userHelper = function () {
       const pdtstart = startDate.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
       const pdtend = startDate.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
       try {
-        const results = await dashboardHelper.laborthisweek(
-          userId,
-          pdtstart,
-          pdtend,
-        );
+        const results = await dashboardHelper.laborthisweek(userId,pdtstart,pdtend,);
         const { timeSpent_hrs: timeSpent } = results[0];
         weeksData.push(timeSpent);
       } catch (error) {
         console.error(error);
+        throw error;
       }
     }
     return weeksData;
   };
 
-  // logic for getting new max personal record
-  const TangibleMaxHrsForAllWeeks = async (personId, user) => {    
-    const weeksTangibleHours =  await getAllWeeksData(personId, user);
-    // get max hours of all weeks
-    let maxHours = weeksTangibleHours[0];
-    for (let i = 1; i < weeksTangibleHours.length; i += 1) {
-      if (weeksTangibleHours[i] > maxHours) {
-        maxHours = weeksTangibleHours[i];
-      }
-    }
-    // console.log('array of weeks hrs: ', weeksTangibleHours);
-    return maxHours;
+  const getMaxHrs = async (personId, user) => {
+    const weeksdata = await getAllWeeksData(personId, user);
+    // console.log('max hours', Math.max(...weeksdata), 'weeks', weeksdata);
+    return Math.max(...weeksdata);
+
   };
 
   const UpdatePersonalMax = async (personId, user) => {
-    const MaxHrs = await TangibleMaxHrsForAllWeeks(personId, user);
-    console.log('max hours: ',MaxHrs);
-    user.personalBestMaxHrs = MaxHrs;
-    await user.save();
+    try {
+      const MaxHrs = await getMaxHrs(personId, user);
+      user.personalBestMaxHrs = MaxHrs;
+      await user.save();
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   // 'Personal Max',
@@ -1422,8 +1415,6 @@ const userHelper = function () {
       if (
         user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= user.personalBestMaxHrs  &&
-        // user.lastWeekTangibleHrs >= 1 &&
-        // user.lastWeekTangibleHrs === user.personalBestMaxHrs &&
         !badgeOfType.earnedDate.includes(currentDate)
 
       ) {
@@ -1434,7 +1425,7 @@ const userHelper = function () {
           );
           // Update the earnedDate array with the new date
           badgeOfType.earnedDate.unshift(moment().format("MMM-DD-YYYY"));
-          console.log('earnedDates: ',badgeOfType.earnedDate);
+          // console.log('earnedDates: ',badgeOfType.earnedDate);
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
         }
