@@ -419,8 +419,8 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true, firstName: 'ivy' },
+        '_id firstName weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -727,7 +727,6 @@ const userHelper = function () {
                 null,
                 requestForTimeOffEmailBody,
                 administrativeContent,
-                weeklycommittedHours,
               );
             }
             emailSender(
@@ -735,7 +734,7 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
-              'onecommunityglobal@gmail.com',
+              'xiaoyuchen007@gmail.com',
               status.email,
               null,
             );
@@ -1017,7 +1016,6 @@ const userHelper = function () {
     role,
     startDate,
     jobTitle,
-    weeklycommittedHours,
   ) {
     if (!current) return;
     const newOriginal = original.toObject();
@@ -1085,7 +1083,6 @@ const userHelper = function () {
           undefined,
           undefined,
           administrativeContent,
-          weeklycommittedHours,
         ),
         null,
         'onecommunityglobal@gmail.com',
