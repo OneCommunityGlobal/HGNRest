@@ -559,6 +559,7 @@ const userProfileController = function (UserProfile) {
             results.role,
             results.startDate,
             results.jobTitle[0],
+            results.weeklycommittedHours,
           );
           res.status(200).json({
             _id: record._id,
@@ -1159,15 +1160,12 @@ const userProfileController = function (UserProfile) {
   const getUserByFullName = (req, res) => {
     // Sanitize user input and escape special characters
     const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
-  
+
     // Create a regular expression to match the sanitized full name, ignoring case
     const fullNameRegex = new RegExp(sanitizedFullName, 'i');
-    
+
     UserProfile.find({
-      $or: [
-        { firstName: { $regex: fullNameRegex } },
-        { lastName: { $regex: fullNameRegex } },
-      ],
+      $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1179,7 +1177,7 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(500).send(error));
   };
-
+  // eslint-disable-next-line no-redeclare
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
