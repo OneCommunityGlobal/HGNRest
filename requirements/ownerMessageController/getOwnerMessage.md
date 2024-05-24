@@ -10,5 +10,5 @@ Cross Mark: ❌
 
 > ## Positive Cases
 
-1. ❌ Returns status 200 and initializes a new owner message if none exists.
+1. ✅ Returns status 200 and initializes a new owner message if none exists.
 2. ✅ Returns status 200 and returns the existing owner message if one or more exist.

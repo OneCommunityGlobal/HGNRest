@@ -1,10 +1,10 @@
-const ownerMessage = require('../models/ownerMessage');
+const OwnerMessage = require('../models/ownerMessage');
 const ownerMessageController = require('./ownerMessageController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
   const { getOwnerMessage, updateOwnerMessage, deleteOwnerMessage } =
-    ownerMessageController(ownerMessage);
+    ownerMessageController(OwnerMessage);
   return {
     getOwnerMessage,
     updateOwnerMessage,
@@ -21,7 +21,7 @@ describe('ownerMessageController Unit Tests', () => {
   });
 
   beforeEach(() => {
-    mockFind = jest.spyOn(ownerMessage, 'find');
+    mockFind = jest.spyOn(OwnerMessage, 'find');
     mockSave = jest.fn();
   });
   describe('getOwnerMessage', () => {
@@ -33,21 +33,29 @@ describe('ownerMessageController Unit Tests', () => {
       await flushPromises();
       assertResMock(404, errorMsg, response, mockRes);
     });
-    // test('Ensures getOwnerMessage returns status 200 with new owner message if none exist', async () => {
-    //   mockFind.mockResolvedValue({});
-    //   const ownerMessageInstance = {
-    //     set: jest.fn(),
-    //     save: mockSave,
-    //   };
+    test('Ensures getOwnerMessage returns status 200 with new owner message if none exist', async () => {
+      mockFind.mockResolvedValue([]);
+      const ownerMessageInstance = new OwnerMessage();
+      ownerMessageInstance.set = jest.fn();
+      const mockSaveFn = jest.fn().mockResolvedValue(ownerMessageInstance);
 
-    //   jest.spyOn(ownerMessage.prototype, 'save').mockImplementation(() => ownerMessageInstance);
-    //   await makeSut().getOwnerMessage(mockReq, mockRes);
-    //   await flushPromises();
+      jest.spyOn(OwnerMessage.prototype, 'save').mockImplementation(mockSaveFn);
+      await makeSut().getOwnerMessage(mockReq, mockRes);
+      await flushPromises();
 
-    //   expect(mockRes.status).toHaveBeenCalledWith(200);
-    //   expect(mockRes.send).toHaveBeenCalledWith({ ownerMessage: ownerMessageInstance });
-    //   expect(mockSave).toHaveBeenCalled();
-    // });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ownerMessage: expect.objectContaining({
+            _id: expect.anything(),
+            message: '',
+            standardMessage: '',
+          }),
+        }),
+      );
+      expect(mockSaveFn).toHaveBeenCalled();
+    });
+
     test('Ensures getOwnerMessage returns status 200 with the first owner message if it exists', async () => {
       const existingMessage = { message: 'Existing message', standardMessage: 'Standard message' };
       mockFind.mockResolvedValue([existingMessage]);
