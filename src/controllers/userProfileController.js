@@ -564,6 +564,7 @@ const userProfileController = function (UserProfile) {
             results.email,
             results.role,
             results.startDate,
+            results.jobTitle[0],
           );
           res.status(200).json({
             _id: record._id,
@@ -1119,10 +1120,29 @@ const userProfileController = function (UserProfile) {
   };
 
   // Search for user by first name
+  // const getUserBySingleName = (req, res) => {
+  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+
+  //   // Searches for first or last name
+  //   UserProfile.find({
+  //     $or: [
+  //       { firstName: { $regex: pattern } },
+  //       { lastName: { $regex: pattern } },
+  //     ],
+  //   })
+  //     .select('firstName lastName')
+  //     .then((users) => {
+  //       if (users.length === 0) {
+  //         return res.status(404).send({ error: 'Users Not Found' });
+  //       }
+  //       res.status(200).send(users);
+  //     })
+  //     .catch((error) => res.status(500).send(error));
+  // };
+
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
-    // Searches for first or last name
     UserProfile.find({
       $or: [{ firstName: { $regex: pattern } }, { lastName: { $regex: pattern } }],
     })
@@ -1136,7 +1156,6 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(500).send(error));
   };
-
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -1144,19 +1163,14 @@ const userProfileController = function (UserProfile) {
   // Search for user by full name (first and last)
   // eslint-disable-next-line consistent-return
   const getUserByFullName = (req, res) => {
-    // Creates an array containing the first and last name and filters out whitespace
-    const fullName = req.params.fullName.split(' ').filter((name) => name !== '');
-    // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
+    // Sanitize user input and escape special characters
+    const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
 
-    // Verfies both the first and last name are present
-    if (fullName.length < 2) {
-      return res.status(400).send({ error: 'Both first name and last name are required.' });
-    }
+    // Create a regular expression to match the sanitized full name, ignoring case
+    const fullNameRegex = new RegExp(sanitizedFullName, 'i');
 
     UserProfile.find({
-      $and: [{ firstName: { $regex: firstNameRegex } }, { lastName: { $regex: lastNameRegex } }],
+      $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1169,6 +1183,9 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
+  // function escapeRegExp(string) {
+  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // }
   /**
    * Authorizes user to be able to add Weekly Report Recipients
    *
