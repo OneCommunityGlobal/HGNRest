@@ -1,6 +1,61 @@
 const mongoose = require('mongoose');
 
 const bmToolController = (BuildingTool) => {
+    
+    const fetchAllTools = (req, res) => {
+      const populateFields = [
+        {
+          path: 'project',
+          select: '_id name',
+        },
+        {
+          path: 'itemType',
+          select: '_id name description unit imageUrl category available using',
+        },
+        {
+          path: 'updateRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
+          },
+        },
+        {
+          path: 'purchaseRecord',
+          populate: {
+            path: 'requestedBy',
+            select: '_id firstName lastName',
+          },
+        },
+        {
+          path: 'logRecord',
+          populate: [
+            {
+              path: 'createdBy',
+              select: '_id firstName lastName',
+            },
+            {
+              path: 'responsibleUser',
+              select: '_id firstName lastName',
+            },
+          ],
+        },
+      ];
+
+      BuildingTool.find()
+        .populate(populateFields)
+        .exec()
+        .then(results => {
+          res.status(200).send(results);
+        })
+        .catch(error => {
+          const errorMessage = `Error occurred while fetching tools: ${error.message}`;
+          console.error(errorMessage);
+          res.status(500).send({ message: errorMessage });
+        });
+    };
+    
+
+
     const fetchSingleTool = async (req, res) => {
         const { toolId } = req.params;
         try {
@@ -46,8 +101,8 @@ const bmToolController = (BuildingTool) => {
                     },
                 ])
                 .exec()
-                .then((tool) => res.status(200).send(tool))
-                .catch((error) => res.status(500).send(error));
+                .then(tool => res.status(200).send(tool))
+                .catch(error => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -84,7 +139,7 @@ const bmToolController = (BuildingTool) => {
             BuildingTool
               .create(newDoc)
               .then(() => res.status(201).send())
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
               return;
           }
 
@@ -95,13 +150,14 @@ const bmToolController = (BuildingTool) => {
               )
               .exec()
               .then(() => res.status(201).send())
-              .catch((error) => res.status(500).send(error));
+              .catch(error => res.status(500).send(error));
         } catch (error) {
           res.status(500).send(error);
         }
       };
 
       return {
+        fetchAllTools,
         fetchSingleTool,
         bmPurchaseTools,
       };
