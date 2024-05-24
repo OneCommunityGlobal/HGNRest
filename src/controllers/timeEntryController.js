@@ -10,6 +10,7 @@ const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
 
+
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
@@ -388,10 +389,35 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
   Object.assign(timeEntry, { taskId, wbsId, projectId });
 };
 
+
+
 /**
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
+
+  /**
+ * Helper func: Check if this is the first time entry for the given user id
+ * 
+ * @param {Mongoose.ObjectId} personId 
+ * @returns 
+ */
+const checkIsUserFirstTimeEntry = async (personId) => {
+  try {
+    const timeEntry = await TimeEntry.findOne({
+      personId,
+    });
+    if (timeEntry) {
+      return false;
+    }
+  } catch (error) {
+    throw new Error(
+      `Failed to check user with id ${personId} on time entry`,
+    );
+  }
+  return true;
+};
+
   /**
    * Post a time entry
    */
@@ -476,10 +502,12 @@ const timeEntrycontroller = function (TimeEntry) {
         updateUserprofileTangibleIntangibleHrs(0, timeEntry.totalSeconds, userprofile);
       }
 
-      // see if this is the first time the user is logging time
-      if (userprofile.isFirstTimelog) {
+      // Replace the isFirstTimelog checking logic from the frontend to the backend
+      // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
+      const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
+      if(isFirstTimeEntry) {  
         userprofile.isFirstTimelog = false;
-        userprofile.createdDate = new Date(); // transfered from frontend logic, not sure why this is needed
+        userprofile.startDate = now;
       }
 
       await timeEntry.save({ session });
@@ -546,6 +574,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
     const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
 
+
     if (!canEdit) {
       const error = 'Unauthorized request';
       return res.status(403).send({ error });
@@ -595,7 +624,6 @@ const timeEntrycontroller = function (TimeEntry) {
       const tangibilityChanged = initialIsTangible !== newIsTangible;
       const timeChanged = initialTotalSeconds !== newTotalSeconds;
       const dateOfWorkChanged = initialDateOfWork !== newDateOfWork;
-
       timeEntry.notes = newNotes;
       timeEntry.totalSeconds = newTotalSeconds;
       timeEntry.isTangible = newIsTangible;
@@ -613,7 +641,6 @@ const timeEntrycontroller = function (TimeEntry) {
         // tangiblity change usually only happens by itself via tangibility checkbox,
         // and it can't be changed by user directly (except for owner-like roles)
         // but here the other changes are also considered here for completeness
-
         // change from tangible to intangible
         if (initialIsTangible) {
           // subtract initial logged hours from old task (if not null)
@@ -764,7 +791,6 @@ const timeEntrycontroller = function (TimeEntry) {
         res.status(400).send({ message: 'No valid record found' });
         return;
       }
-
       const { personId, totalSeconds, dateOfWork, projectId, taskId, isTangible } = timeEntry;
 
       const isForAuthUser = personId.toString() === req.body.requestor.requestorId;
