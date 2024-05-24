@@ -13,7 +13,7 @@ const badgeController = function (Badge) {
   const cache = cacheClosure();
 
   const getAllBadges = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'seeBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'seeBadges')) && !(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -39,7 +39,7 @@ const badgeController = function (Badge) {
         cache.setCache('allBadges', results);
         res.status(200).send(results);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   /**
@@ -213,9 +213,10 @@ const badgeController = function (Badge) {
         .catch((errors) => {
           res.status(500).send(errors);
         });
-    }).catch((error) => {
-      res.status(500).send(error);
     });
+    // .catch((error) => {
+    //   res.status(500).send(error);
+    // });
   };
 
   const putBadge = async function (req, res) {
