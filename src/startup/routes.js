@@ -106,7 +106,6 @@ const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(bui
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
-const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(buildingConsumable);
 
 const bmEquipmentsRouter = require('../routes/bmdashboard/bmEquipmentsRouter')(buildingEquipment);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
