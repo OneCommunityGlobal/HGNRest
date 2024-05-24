@@ -130,13 +130,12 @@ describe('Map Locations Controller', () => {
   });
 
   describe('deleteLocation method', () => {
-    // TODO: Not working for some reason
-    // test('Returns 403 if user is not authorized.', async () => {
-    //   mockReq.body.requestor.role = 'Volunteer';
-    //   const { deleteLocation } = makeSut();
-    //   const res = await deleteLocation(mockReq, mockRes);
-    //   assertResMock(403, 'You are not authorized to make changes in the teams.', res, mockRes);
-    // });
+    test('Returns 403 if user is not authorized.', async () => {
+      mockReq.body.requestor.role = 'Volunteer';
+      const { deleteLocation } = makeSut();
+      const res = await deleteLocation(mockReq, mockRes);
+      assertResMock(403, 'You are not authorized to make changes in the teams.', res, mockRes);
+    });
 
     test('Returns 500 if an error occurs when deleting the map location.', async () => {
       mockReq.body.requestor.role = 'Administrator';
@@ -166,12 +165,48 @@ describe('Map Locations Controller', () => {
     });
   });
 
-  //   describe('putUserLocation method', () => {
-  //     test.only('Returns 403 if user is not authorized.', async () => {
-  //       const { putUserLocation } = makeSut();
+  describe.only('putUserLocation method', () => {
+    test('Returns 403 if user is not authorized.', async () => {
+      const { putUserLocation } = makeSut();
 
-  //       const res = await putUserLocation(mockReq, mockRes);
-  //       assertResMock(403, 'You are not authorized to make changes in the teams.', res, mockRes);
-  //     });
-  //   });
+      const res = await putUserLocation(mockReq, mockRes);
+      assertResMock(403, 'You are not authorized to make changes in the teams.', res, mockRes);
+    });
+
+    test('Returns 500 if an error occurs when saving the map location.', async () => {
+      const { putUserLocation } = makeSut();
+
+      mockReq.body.requestor.role = 'Owner';
+
+      const err = new Error('Saving failed!');
+
+      jest.spyOn(MapLocation.prototype, 'save').mockImplementationOnce(() => Promise.reject(err));
+
+      const res = await putUserLocation(mockReq, mockRes);
+
+      assertResMock(500, { message: err.message }, res, mockRes);
+    });
+
+    test('Returns 200 if all is successful.', async () => {
+      const { putUserLocation } = makeSut();
+
+      mockReq.body.requestor.role = 'Owner';
+
+      const savedLocationData = {
+        _id: 1,
+        firstName: mockReq.body.firstName,
+        lastName: mockReq.body.lastName,
+        jobTitle: mockReq.body.jobTitle,
+        location: mockReq.body.location,
+      };
+
+      jest
+        .spyOn(MapLocation.prototype, 'save')
+        .mockImplementationOnce(() => Promise.resolve(savedLocationData));
+
+      const res = await putUserLocation(mockReq, mockRes);
+
+      assertResMock(200, savedLocationData, res, mockRes);
+    });
+  });
 });
