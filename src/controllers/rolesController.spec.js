@@ -5,6 +5,7 @@ jest.mock('../utilities/nodeCache');
 
 const rolesController = require('./rolesController');
 const Role = require('../models/role');
+// const UserProfile = require("../models/userProfile");
 const helper = require('../utilities/permissions');
 // const cache = require('../utilities/nodeCache')();
 const { mockReq, mockRes, assertResMock } = require('../test');
@@ -14,6 +15,20 @@ const flushPromises = () => new Promise(setImmediate);
 const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
+// const makeMockCache = (method, value) => {
+//   const cacheObject = {
+//     getCache: jest.fn(),
+//     removeCache: jest.fn(),
+//     hasCache: jest.fn(),
+//     setCache: jest.fn(),
+//   };
+
+//   const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
+
+//   cache.mockImplementationOnce(() => cacheObject);
+
+//   return { mockCache, cacheObject };
+// };
 const makeSut = () => {
   const { getAllRoles, createNewRole, getRoleById, updateRoleById, deleteRoleById } =
     rolesController(Role);
@@ -174,6 +189,16 @@ describe('rolesController module', () => {
       const response = await updateRoleById(mockReq, mockRes);
       await flushPromises();
       assertResMock(400, new Error('Save Error'), response, mockRes);
+    });
+  });
+
+  describe('deleteRoleById function', () => {
+    test('Should return 403 if user lacks permission', async () => {
+      const { deleteRoleById } = makeSut();
+      const hasPermissionSpy = mockHasPermission(false);
+      const response = await deleteRoleById(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteRole');
+      assertResMock(403, 'You are not authorized to delete roles.', response, mockRes);
     });
   });
 });
