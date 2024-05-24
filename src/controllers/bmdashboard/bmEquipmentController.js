@@ -40,11 +40,11 @@ const bmEquipmentController = (BuildingEquipment) => {
         })
         .catch(error => res.status(500).send(error));
             path: 'updateRecord',
-            populate: {
+            populate: [
               path: 'createdBy',
               select: '_id firstName lastName',
             },
-          },
+          ],
           {
             path: 'logRecord',
             populate: [
