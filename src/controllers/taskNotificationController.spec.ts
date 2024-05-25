@@ -44,7 +44,6 @@ describe('taskNotificationController module', () => {
   describe('getUnreadTaskNotificationsByUser', () => {
     const { getUnreadTaskNotificationsByUser } = makeSut();
     test('Ensure getUnreadTaskNotificationsByUser returns unread task notifications for a user', async () => {
-      
       mockReq.params.userId = '123456';
       const mockTaskNotifications = [
         { _id: '1', recipient: '123456', isRead: false },
@@ -130,8 +129,6 @@ describe('taskNotificationController module', () => {
       mockReq.params.userId = new mongoose.Types.ObjectId();
     });
     test('Ensure deleteTaskNotification deletes a task notification', async () => {
-      
-      
       const mockTaskNotification = {
         remove: jest.fn(() => Promise.resolve()),
       };
@@ -147,7 +144,6 @@ describe('taskNotificationController module', () => {
     });
 
     test('Ensure deleteTaskNotification catches errors when deleting a task notification during remove function', async () => {
-      
       const errorDuringRemove = new Error('Error during removal');
       const mockTaskNotification = {
         remove: jest.fn().mockRejectedValueOnce(errorDuringRemove),
@@ -174,6 +170,7 @@ describe('taskNotificationController module', () => {
       mockReq.params.taskId = new mongoose.Types.ObjectId();
       mockReq.params.userId = new mongoose.Types.ObjectId();
     });
+
     test('Ensure deleteTaskNotificationByUserId deletes a task notification by userId', async () => {
       const findOnePopulateObj = { populate: () => {} };
       const findOneSpy = jest
@@ -203,13 +200,52 @@ describe('taskNotificationController module', () => {
       });
     });
 
-    // test('Ensure deleteTaskNotificationByUserId handles errors during exec function', async () => {
+    test('Ensure deleteTaskNotificationByUserId handles errors during exec function', async () => {
+      const findOnePopulateObj = { populate: () => {} };
+      jest.spyOn(TaskNotification, 'findOne').mockImplementationOnce(() => findOnePopulateObj);
 
-    // });
+      const populateReturnObj = { populate: () => {} };
+      jest.spyOn(findOnePopulateObj, 'populate').mockImplementationOnce(() => populateReturnObj);
 
-    // test('Ensure deleteTaskNotificationByUserId handles errors during remove', async () => {
+      const secondPopulateObj = { exec: (err, result) => {} };
+      jest.spyOn(populateReturnObj, 'populate').mockImplementationOnce(() => secondPopulateObj);
 
-    // });
+      const execError = new Error('Exec function error');
+      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce((callback) => {
+        callback(execError, null);
+      });
+
+      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce(() => Promise.reject(execError));
+
+      const res = await deleteTaskNotificationByUserId(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, execError, res, mockRes);
+    });
+
+    test('Ensure deleteTaskNotificationByUserId handles errors during remove', async () => {
+      const findOnePopulateObj = { populate: () => {} };
+      jest.spyOn(TaskNotification, 'findOne').mockImplementationOnce(() => findOnePopulateObj);
+
+      const populateReturnObj = { populate: () => {} };
+      jest.spyOn(findOnePopulateObj, 'populate').mockImplementationOnce(() => populateReturnObj);
+
+      const secondPopulateObj = { exec: (err, result) => {} };
+      jest.spyOn(populateReturnObj, 'populate').mockImplementationOnce(() => secondPopulateObj);
+
+      const execReturnObj = { remove: () => {} };
+      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce((callback) => {
+        callback(null, execReturnObj);
+      });
+
+      const removeError = new Error('Remove function error');
+      jest.spyOn(execReturnObj, 'remove').mockImplementationOnce(() => Promise.reject(removeError));
+
+      const res = await deleteTaskNotificationByUserId(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, removeError, res, mockRes);
+    });
   });
 
   describe('markTaskNotificationAsRead', () => {

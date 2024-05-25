@@ -6,4 +6,4 @@ Cross Mark: ❌
 
 ## Negative case
 1. ✅ markTaskNotificationAsRead returns 404 if TaskNotification not found
-2.  markTaskNotificationAsRead handles error during update
+2. ✅ markTaskNotificationAsRead handles error during update
