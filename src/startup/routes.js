@@ -111,19 +111,9 @@ const bmEquipmentsRouter = require('../routes/bmdashboard/bmEquipmentsRouter')(b
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(invTypeBase, materialType, consumableType, reusableType, toolType, equipmentType);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
-const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
-  invTypeBase,
-  materialType,
-  consumableType,
-  reusableType,
-  toolType,
-  equipmentType,
-);
 
 const titleRouter = require('../routes/titleRouter')(title);
-const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
-const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+
 
 
 module.exports = function (app) {
