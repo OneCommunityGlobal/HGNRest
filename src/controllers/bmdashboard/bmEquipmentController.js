@@ -26,34 +26,23 @@ const bmEquipmentController = (BuildingEquipment) => {
             },
           },
           {
-            path: 'updateRecord',
+            path: 'purchaseRecord',
             populate: {
-              path: 'createdBy',
+              path: 'requestedBy',
               select: '_id firstName lastName',
             },
           },
-          {
-            path: 'logRecord',
-            populate: [
-              {
-                path: 'createdBy',
-                select: '_id firstName lastName',
-              },
-              {
-                path: 'responsibleUser',
-                select: '_id firstName lastName',
-              },
-            ],
-          },
         ])
         .exec()
-        .then((equipment) => res.status(200).send(equipment))
-        .catch((error) => res.status(500).send(error));
+        .then((result) => {
+          res.status(200).send(result);
+          console.log("Record found");
+        })
+        .catch(error => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
   };
-
   const bmPurchaseEquipments = async function (req, res) {
     const {
       projectId,
