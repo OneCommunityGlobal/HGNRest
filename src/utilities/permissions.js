@@ -3,13 +3,7 @@ const UserProfile = require('../models/userProfile');
 const serverCache = require('./nodeCache')();
 const userService = require('../services/userService');
 const Logger = require('../startup/logger');
-
-const PROTECTED_EMAIL_ACCOUNT = [
-  'jae@onecommunityglobal.org',
-  'one.community@me.com',
-  'jsabol@me.com',
-  'devadmin@hgn.net',
-];
+const { PROTECTED_EMAIL_ACCOUNT } = require('./constants');
 
 const hasRolePermission = async (role, action) => Role.findOne({ roleName: role })
   .exec()
@@ -25,7 +19,7 @@ const hasIndividualPermission = async (userId, action) => UserProfile.findById(u
 const hasPermission = async (requestor, action) => await hasRolePermission(requestor.role, action) || hasIndividualPermission(requestor.requestorId, action);
 
 /**
- * Check if requestor can update a specific user.
+ * Check if requestor can update a specific user. 
  * @param {*} requestorId 
  * @param {*} userId 
  * @returns 

@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
-
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
@@ -24,7 +23,10 @@ const helper = require('../utilities/permissions');
 
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
+const objDeepCopy = require('../utilities/objDeepCopy');
 const config = require('../config');
+const Logger = require('../startup/logger');
+const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -331,8 +333,9 @@ const userProfileController = function (UserProfile) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
+    const canEditProtectedAccount = canRequestorUpdateUser(req.body.requestor.requestorId, userid);
     const isRequestorAuthorized = !!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
+      canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
         req.body.requestor.requestorId === userid)
     );
@@ -357,6 +360,12 @@ const userProfileController = function (UserProfile) {
       if (err || !record) {
         res.status(404).send('No valid records found');
         return;
+      }
+
+      // To keep a copy of the original record if we edit the protected account
+      let originalRecord = {};
+      if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
+        originalRecord = objDeepCopy(record);
       }
       // validate userprofile pic
 
@@ -575,6 +584,12 @@ const userProfileController = function (UserProfile) {
             allUserData.splice(userIdx, 1, userData);
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
+          // Log the update of a protected email account
+          if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
+            Logger.logInfo(
+              `Protected email account updated. Requestor: ${req.body.requestor.requestorId}, Target: ${userid}, Original: ${JSON.stringify(originalRecord)}, Updated: ${JSON.stringify(record)}`,
+            );
+          }
         })
         .catch((error) => res.status(400).send(error));
     });
@@ -610,6 +625,23 @@ const userProfileController = function (UserProfile) {
     }
 
     const user = await UserProfile.findById(userId);
+
+    // Check if the user is protected and if the requestor has permission to delete protected accounts
+    if (
+      PROTECTED_EMAIL_ACCOUNT.includes(user.email) &&
+      !canRequestorUpdateUser(req.body.requestor, userId)
+    ) {
+      res.status(403).send({
+        error: 'Only authorized users can delete protected accounts',
+      });
+      //
+      Logger.logException(
+        new Error('Unauthorized attempt to delete a protected account'),
+        `Unauthorized attempt to delete a protected account Target: ${user.email}`,
+        `Requestor: ${req.body.requestor.requestorId}`,
+      );
+      return;
+    }
 
     if (!user) {
       res.status(400).send({
@@ -661,6 +693,11 @@ const userProfileController = function (UserProfile) {
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
       res.status(200).send({ message: 'Executed Successfully' });
+      if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+        Logger.logInfo(
+          `Protected email account deleted. Requestor: ${req.body.requestor.requestorId}, Target: ${JSON.stringify(user)}`,
+        );
+      }
     } catch (err) {
       res.status(500).send(err);
     }
