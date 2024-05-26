@@ -8,8 +8,10 @@ const forgotPwdController = require('./forgotPwdcontroller');
 const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
 
-uuidv4.mockImplementation(() => '');
+uuidv4.mockReturnValue('');
 emailSender.mockImplementation(() => undefined);
+
+const flushPromises = () => new Promise(resolve => setImmediate(resolve));
 
 // Positive
 // ✅ Return 200 if successfully generated temporary User password.
@@ -104,17 +106,17 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
     test('Return 500 if encountered any error while saving temporary password', async () => {
       const { forgotPwd } = makeSut();
 
-      const error = { error: 'Error Saving User Details' }; // Error object to expect
+      const error = new Error('Error Saving User Details');
 
       const mockUser = {
         set: jest.fn(), // Mocking the set method
-        save: jest.fn().mockRejectedValueOnce(new Error(error)), // Mocked below using spyOn
+        save: jest.fn().mockRejectedValueOnce(error), // Mocked below using spyOn
       };
 
       const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockResolvedValueOnce(mockUser);
 
       const response = await forgotPwd(mockReq, mockRes);
-
+      await flushPromises();
       expect(mockUser.set).toHaveBeenCalled();
       expect(mockUser.save).toHaveBeenCalled();
       assertResMock(500, error, response, mockRes);
