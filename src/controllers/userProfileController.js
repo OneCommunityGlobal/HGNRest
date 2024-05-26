@@ -333,7 +333,10 @@ const userProfileController = function (UserProfile) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
-    const canEditProtectedAccount = canRequestorUpdateUser(req.body.requestor.requestorId, userid);
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userid,
+    );
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
@@ -625,12 +628,9 @@ const userProfileController = function (UserProfile) {
     }
 
     const user = await UserProfile.findById(userId);
-
+    const canEditProtectedAccount = await canRequestorUpdateUser(req.body.requestor, userId);
     // Check if the user is protected and if the requestor has permission to delete protected accounts
-    if (
-      PROTECTED_EMAIL_ACCOUNT.includes(user.email) &&
-      !canRequestorUpdateUser(req.body.requestor, userId)
-    ) {
+    if (PROTECTED_EMAIL_ACCOUNT.includes(user.email) && !canEditProtectedAccount) {
       res.status(403).send({
         error: 'Only authorized users can delete protected accounts',
       });
