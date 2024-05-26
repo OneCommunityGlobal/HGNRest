@@ -117,15 +117,31 @@ const userHelper = function () {
         timeRemaining + coreTeamExtraHour
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-    // bold description for 'not submitting a weekly summary' and logged hrs
+    // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
     if (!requestForTimeOffEmailBody && infringement.description) {
-      if (infringement.description.includes('not submitting a weekly summary')) {
-        emailDescription = infringement.description.replace(
-          /(not submitting a weekly summary)/gi,
+      const sentences = infringement.description.split('.');
+      if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+        sentences[0] = sentences[0].replace(
+          /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
           '<b>$1</b>',
         );
-        emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(
+          /logged (\d+(\.\d+)?\s*hours)/i,
+          'logged <b>$1</b>',
+        );
+      } else if (sentences[0].includes('System auto-assigned infringement')) {
+        sentences[0] = sentences[0].replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
+        sentences[0] = sentences[0].replace(
+          /(not meeting weekly volunteer time commitment)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(
+          /logged (\d+(\.\d+)?\s*hours)/i,
+          'logged <b>$1</b>',
+        );
       } else {
         emailDescription = `<b>${infringement.description}<b>`;
       }
@@ -521,26 +537,37 @@ const userHelper = function () {
           historyInfringements = oldInfringements
             .map((item, index) => {
               let enhancedDescription;
-              if (
-                item.description &&
-                !item.description.includes('System auto-assigned infringement')
-              ) {
-                enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-              } else if (item.description) {
-                // highlight not submitting a weekly summary and logged hrs
-                const sentences = item.description.split(/\.(?!\d)/);
-                sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
-                enhancedDescription = sentences.join('.');
-                enhancedDescription = enhancedDescription.replace(
-                  /(not submitting a weekly summary)/gi,
-                  '<b><span style="color: blue;">$1</span></b>',
-                );
-                enhancedDescription = enhancedDescription.replace(
-                  /(\d+\.\d{2})\s*hours/i,
-                  '<b><span style="color: blue;">$1 hours</span></b>',
-                );
+              if (item.description) {
+                const sentences = item.description.split('.');
+                if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+                  sentences[0] = sentences[0].replace(
+                    /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                  enhancedDescription = enhancedDescription.replace(
+                    /logged (\d+(\.\d+)?\s*hours)/i,
+                    'logged <span style="color: blue;"><b>$1</b></span>',
+                  );
+                } else if (sentences[0].includes('System auto-assigned infringement')) {
+                  sentences[0] = sentences[0].replace(
+                    /(not submitting a weekly summary)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  sentences[0] = sentences[0].replace(
+                    /(not meeting weekly volunteer time commitment)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                  enhancedDescription = enhancedDescription.replace(
+                    /logged (\d+(\.\d+)?\s*hours)/i,
+                    'logged <span style="color: blue;"><b>$1</b></span>',
+                  );
+                } else {
+                  enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+                }
               }
-              return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+              return `<p>${index + 1}. Date: <span style="color: blue;"><b>${item.date}</b></span>, Description: ${enhancedDescription}</p>`;
             })
             .join('');
         }
@@ -981,25 +1008,38 @@ const userHelper = function () {
     if (original.length) {
       historyInfringements = original
         .map((item, index) => {
-          let enhancedDescription = item.description;
-          // highlight previous assigned reason manually
-          if (item.description && !item.description.includes('System auto-assigned infringement')) {
-            enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-          } else {
-            // highlight not submitting a weekly summary and logged hrs
-            const sentences = item.description.split(/\.(?!\d)/);
-            sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
-            enhancedDescription = sentences.join('.');
-            enhancedDescription = enhancedDescription.replace(
-              /(not submitting a weekly summary)/gi,
-              '<b><span style="color: blue;">$1</span></b>',
-            );
-            enhancedDescription = enhancedDescription.replace(
-              /(\d+\.\d{2})\s*hours/i,
-              '<b><span style="color: blue;">$1 hours</span></b>',
-            );
+          let enhancedDescription;
+          if (item.description) {
+            const sentences = item.description.split('.');
+            if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else if (sentences[0].includes('System auto-assigned infringement')) {
+              sentences[0] = sentences[0].replace(
+                /(not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else {
+              enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+            }
           }
-          return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${item.date}</b></span>, Description: ${enhancedDescription}</p>`;
         })
         .join('');
     }
