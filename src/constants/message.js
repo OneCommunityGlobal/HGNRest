@@ -1,7 +1,7 @@
-export const URL_TO_BLUE_SQUARE_PAGE = 'https://www.onecommunityglobal.org/hands-off-administration-policy'
+const URL_TO_BLUE_SQUARE_PAGE = 'https://www.onecommunityglobal.org/hands-off-administration-policy';
 
 // Since the notification banner is blue background, added white color for hyperlink style.
-export const NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE = `
+const NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE = `
   <p> Welcome as one of our newest members to the One Community team and family! 
   Heads up we’ve removed a <a href=${URL_TO_BLUE_SQUARE_PAGE}>“blue square”</a> that 
   was issued due to not completing your hours and/or summary this past week. The reason we removed 
@@ -16,3 +16,8 @@ export const NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE = `
 
   <p>With Gratitude,</br>One Community </p>
   `;
+
+module.exports = {
+  URL_TO_BLUE_SQUARE_PAGE,
+  NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE,
+};
