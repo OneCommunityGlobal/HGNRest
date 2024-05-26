@@ -19,22 +19,29 @@ const hasIndividualPermission = async (userId, action) => UserProfile.findById(u
 const hasPermission = async (requestor, action) => await hasRolePermission(requestor.role, action) || hasIndividualPermission(requestor.requestorId, action);
 
 /**
- * Check if requestor can update a specific user. 
+ * Check if requestor can update specific Jae related user. Return false if requestorId is not Jae related user and targetUserId is Jae related user. Otherwise, return true.
  * @param {*} requestorId 
  * @param {*} userId 
  * @returns 
  */
-const canRequestorUpdateUser = (requestorId, targetUserId) => {
+const canRequestorUpdateUser = async (requestorId, targetUserId) => {
   let protectedEmailAccountIds;
   // Persist the list of protected email accounts in the application cache since this list is constant
   if (!serverCache.hasCache('protectedEmailAccountIds')) {
     try {
       // get the user info for the protected email accounts
-      const query = userService.getUserProfilesIdAndEmail(PROTECTED_EMAIL_ACCOUNT);
+      const query = await userService.getUserIdAndEmailByEmails(PROTECTED_EMAIL_ACCOUNT);
+      // Check if all protected email accounts were found
       if (query.length !== PROTECTED_EMAIL_ACCOUNT.length) {
         // find out which email accounts were not found
-        const notFoundEmails = PROTECTED_EMAIL_ACCOUNT.filter((email) => !query.map(({ email }) => email).includes(email));
-        Logger.logException(new Error(`The following protected email accounts were not found in the database: ${notFoundEmails.join(', ')}`));
+        const notFoundEmails = PROTECTED_EMAIL_ACCOUNT.filter(
+          (email) => !query.map(({ email }) => email).includes(email),
+        );
+        Logger.logException(
+          new Error(
+            `The following protected email accounts were not found in the database: ${notFoundEmails.join(', ')}`,
+          ),
+        );
       }
       protectedEmailAccountIds = query.map(({ _id }) => _id);
       serverCache.setCache('protectedEmailAccountIds', protectedEmailAccountIds);
@@ -44,8 +51,11 @@ const canRequestorUpdateUser = (requestorId, targetUserId) => {
   } else {
     protectedEmailAccountIds = serverCache.getCache('protectedEmailAccountIds');
   }
-  
-  return !(protectedEmailAccountIds.includes(targetUserId) && !protectedEmailAccountIds.includes(requestorId));
+
+  return !(
+    protectedEmailAccountIds.includes(targetUserId) &&
+    !protectedEmailAccountIds.includes(requestorId)
+  );
 };
 
 module.exports = { hasPermission, canRequestorUpdateUser };
