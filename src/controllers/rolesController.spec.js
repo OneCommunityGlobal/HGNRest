@@ -1,34 +1,35 @@
+const Role = require('../models/role');
+const UserProfile = require('../models/userProfile');
+const { mockReq, mockRes, assertResMock } = require('../test');
+
 jest.mock('../models/role');
 jest.mock('../models/userProfile');
 jest.mock('../utilities/permissions');
 jest.mock('../utilities/nodeCache');
 
-const rolesController = require('./rolesController');
-const Role = require('../models/role');
-// const UserProfile = require("../models/userProfile");
+const cacheClosure = require('../utilities/nodeCache');
 const helper = require('../utilities/permissions');
-// const cache = require('../utilities/nodeCache')();
-const { mockReq, mockRes, assertResMock } = require('../test');
+const rolesController = require('./rolesController');
 
 const flushPromises = () => new Promise(setImmediate);
 
 const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
 
-// const makeMockCache = (method, value) => {
-//   const cacheObject = {
-//     getCache: jest.fn(),
-//     removeCache: jest.fn(),
-//     hasCache: jest.fn(),
-//     setCache: jest.fn(),
-//   };
+const makeMockCache = (method, value) => {
+  const cacheObject = {
+    getCache: jest.fn(),
+    removeCache: jest.fn(),
+    hasCache: jest.fn(),
+    setCache: jest.fn(),
+  };
 
-//   const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
+  const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
 
-//   cache.mockImplementationOnce(() => cacheObject);
+  cacheClosure.mockImplementationOnce(() => cacheObject);
 
-//   return { mockCache, cacheObject };
-// };
+  return { mockCache, cacheObject };
+};
 const makeSut = () => {
   const { getAllRoles, createNewRole, getRoleById, updateRoleById, deleteRoleById } =
     rolesController(Role);
@@ -195,10 +196,34 @@ describe('rolesController module', () => {
   describe('deleteRoleById function', () => {
     test('Should return 403 if user lacks permission', async () => {
       const { deleteRoleById } = makeSut();
+
       const hasPermissionSpy = mockHasPermission(false);
       const response = await deleteRoleById(mockReq, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteRole');
       assertResMock(403, 'You are not authorized to delete roles.', response, mockRes);
     });
+  });
+
+  test('Should return 200 and the deleted role on success', async () => {
+    mockHasPermission(true);
+
+    const mockRole = { remove: jest.fn().mockResolvedValue(), roleName: 'role' };
+    const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
+    const { deleteRoleById } = makeSut();
+    jest
+      .spyOn(cacheObject, 'getCache')
+      .mockImplementationOnce(() => JSON.stringify([{ role: 'role', _id: '1' }]));
+    jest.spyOn(Role, 'findById').mockResolvedValue(mockRole);
+    jest.spyOn(cacheObject, 'setCache').mockImplementationOnce(() => {});
+    jest.spyOn(cacheObject, 'removeCache').mockImplementationOnce(() => {});
+    jest.spyOn(UserProfile, 'updateMany').mockResolvedValue();
+
+    const response = await deleteRoleById(mockReq, mockRes);
+    expect(mockRole.remove).toHaveBeenCalled();
+    expect(hasCacheMock).toHaveBeenCalledWith('allusers');
+    expect(cacheObject.getCache).toHaveBeenCalledWith('allusers');
+    expect(cacheObject.setCache).toHaveBeenCalled();
+    expect(cacheObject.removeCache).toHaveBeenCalled();
+    assertResMock(200, { message: 'Deleted role' }, response, mockRes);
   });
 });
