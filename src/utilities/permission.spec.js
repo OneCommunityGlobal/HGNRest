@@ -1,7 +1,6 @@
 const { PROTECTED_EMAIL_ACCOUNT } = require('./constants');
 const { canRequestorUpdateUser } = require('./permissions');
 const userService = require('../services/userService');
-const Logger = require('../startup/logger');
 
 // Mock modules
 jest.mock('../startup/logger', () => ({
@@ -17,6 +16,7 @@ jest.mock('./nodeCache', () =>
   })),
 );
 
+// Mock function return
 const mockGetUserIdAndEmailByEmails = (value) =>
   jest
     .spyOn(userService, 'getUserIdAndEmailByEmails')
@@ -27,7 +27,6 @@ describe('canRequestorUpdateUser', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Require serverCache after it has been mocked
     serverCache = require('./nodeCache')();
   });
 
