@@ -1,4 +1,6 @@
 const express = require('express');
+
+require('./fetch-polyfill');
 const Sentry = require('@sentry/node');
 
 const app = express();

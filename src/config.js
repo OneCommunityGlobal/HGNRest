@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const config = {};
 
 config.JWT_SECRET = process.env.JWT_SECRET;
@@ -11,4 +13,5 @@ config.JWT_HEADER = {
   typ: 'JWT',
 };
 
+config.GEMINI_API_KEY = 'AIzaSyBUPF-ZUgbSPyCxaopAN3ik86CeJ2jW0jU';
 module.exports = config;
