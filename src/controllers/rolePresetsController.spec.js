@@ -45,7 +45,14 @@ describe('rolePresets Controller', () => {
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'putRole');
 
-      assertResMock(403, 'You are not authorized to make changes to roles.', response, mockRes);
+      assertResMock(
+        403,
+        {
+          error: 'You are not authorized to make changes to roles.',
+        },
+        response,
+        mockRes,
+      );
     });
     test('Ensure createNewPresetsreturns 400 if missing roleName', async () => {
       const { createNewPreset } = makeSut();
@@ -195,7 +202,14 @@ describe('rolePresets Controller', () => {
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'putRole');
 
-      assertResMock(403, 'You are not authorized to make changes to roles.', response, mockRes);
+      assertResMock(
+        403,
+        {
+          error: 'You are not authorized to make changes to roles.',
+        },
+        response,
+        mockRes,
+      );
     });
     test('Ensure getPresetsByRole returns 400 if error in finding roleName', async () => {
       const { getPresetsByRole } = makeSut();
@@ -254,7 +268,14 @@ describe('rolePresets Controller', () => {
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'putRole');
 
-      assertResMock(403, 'You are not authorized to make changes to roles.', response, mockRes);
+      assertResMock(
+        403,
+        {
+          error: 'You are not authorized to make changes to roles.',
+        },
+        response,
+        mockRes,
+      );
     });
     test('Ensure updatePresetById returns 400 if error in finding by id', async () => {
       const { updatePresetById } = makeSut();
@@ -352,7 +373,14 @@ describe('rolePresets Controller', () => {
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'putRole');
 
-      assertResMock(403, 'You are not authorized to make changes to roles.', response, mockRes);
+      assertResMock(
+        403,
+        {
+          error: 'You are not authorized to make changes to roles.',
+        },
+        response,
+        mockRes,
+      );
     });
     test('Ensure deletePresetById returns 400 if error in finding by id', async () => {
       const { deletePresetById } = makeSut();
