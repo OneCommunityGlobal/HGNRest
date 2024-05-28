@@ -3,7 +3,7 @@ const helper = require('../utilities/permissions');
 const rolePresetsController = function (Preset) {
   const getPresetsByRole = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'putRole'))) {
-      res.status(403).send('You are not authorized to make changes to roles.');
+      res.status(403).send({ error: 'You are not authorized to make changes to roles.' });
       return;
     }
 
@@ -19,7 +19,7 @@ const rolePresetsController = function (Preset) {
 
   const createNewPreset = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'putRole'))) {
-      res.status(403).send('You are not authorized to make changes to roles.');
+      res.status(403).send({ error: 'You are not authorized to make changes to roles.' });
       return;
     }
 
@@ -42,7 +42,7 @@ const rolePresetsController = function (Preset) {
 
   const updatePresetById = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'putRole'))) {
-      res.status(403).send('You are not authorized to make changes to roles.');
+      res.status(403).send({ error: 'You are not authorized to make changes to roles.' });
       return;
     }
 
@@ -62,7 +62,7 @@ const rolePresetsController = function (Preset) {
 
   const deletePresetById = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'putRole'))) {
-      res.status(403).send('You are not authorized to make changes to roles.');
+      res.status(403).send({ error: 'You are not authorized to make changes to roles.' });
       return;
     }
 
