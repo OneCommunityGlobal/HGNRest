@@ -92,6 +92,7 @@ const userProfileController = function (UserProfile) {
 
     await UserProfile.find(
       {},
+
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
@@ -110,7 +111,7 @@ const userProfileController = function (UserProfile) {
         cache.setCache('allusers', JSON.stringify(results));
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getProjectMembers = async function (req, res) {
@@ -329,7 +330,6 @@ const userProfileController = function (UserProfile) {
   };
 
   const putUserProfile = async function (req, res) {
-
     const userid = req.params.userId;
     const isRequestorAuthorized = !!(
       canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
@@ -337,7 +337,9 @@ const userProfileController = function (UserProfile) {
         req.body.requestor.requestorId === userid)
     );
 
-    if (!isRequestorAuthorized) {
+    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+
+    if (!isRequestorAuthorized && !canManageAdminLinks) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -422,15 +424,19 @@ const userProfileController = function (UserProfile) {
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
-        userIdx = allUserData.findIndex(users => users._id === userid);
+        userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
+      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+        record.adminLinks = req.body.adminLinks;
+      }
+
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
           'role',
           'isRehireable',
           'isActive',
-          'adminLinks',
           'isActive',
           'weeklySummaries',
           'weeklySummariesCount',
@@ -499,10 +505,7 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory.push(newEntry);
         }
 
-        if (
-          req.body.startDate !== undefined
-          && record.startDate !== req.body.startDate
-        ) {
+        if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
           record.startDate = moment(req.body.startDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
@@ -513,6 +516,7 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
+
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
@@ -558,6 +562,9 @@ const userProfileController = function (UserProfile) {
             results.firstName,
             results.lastName,
             results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
           );
           res.status(200).json({
             _id: record._id,
@@ -569,7 +576,7 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
         })
-        .catch(error => res.status(400).send(error));
+        .catch((error) => res.status(400).send(error));
     });
   };
 
@@ -661,6 +668,7 @@ const userProfileController = function (UserProfile) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
+
     if (cache.getCache(`user-${userid}`)) {
       const getData = JSON.parse(cache.getCache(`user-${userid}`));
       res.status(200).send(getData);
@@ -710,7 +718,7 @@ const userProfileController = function (UserProfile) {
           res.status(200).send(results);
         });
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const getUserByName = (req, res) => {
@@ -723,7 +731,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const updateOneProperty = function (req, res) {
@@ -759,9 +767,9 @@ const userProfileController = function (UserProfile) {
           .then(() => {
             res.status(200).send({ message: 'updated property' });
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const updatepassword = async function (req, res) {
@@ -821,11 +829,11 @@ const userProfileController = function (UserProfile) {
             return user
               .save()
               .then(() => res.status(200).send({ message: 'updated password' }))
-              .catch(error => res.status(500).send(error));
+              .catch((error) => res.status(500).send(error));
           })
-          .catch(error => res.status(500).send(error));
+          .catch((error) => res.status(500).send(error));
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const getreportees = async function (req, res) {
@@ -857,7 +865,7 @@ const userProfileController = function (UserProfile) {
         });
         res.status(200).send(teammembers);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getTeamMembersofUser = function (req, res) {
@@ -874,7 +882,7 @@ const userProfileController = function (UserProfile) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getUserName = function (req, res) {
@@ -1014,6 +1022,7 @@ const userProfileController = function (UserProfile) {
       }
 
       const user = await UserProfile.findById(req.params.userId)
+
         .select('firstName lastName email role')
         .exec();
 
@@ -1111,10 +1120,29 @@ const userProfileController = function (UserProfile) {
   };
 
   // Search for user by first name
+  // const getUserBySingleName = (req, res) => {
+  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+
+  //   // Searches for first or last name
+  //   UserProfile.find({
+  //     $or: [
+  //       { firstName: { $regex: pattern } },
+  //       { lastName: { $regex: pattern } },
+  //     ],
+  //   })
+  //     .select('firstName lastName')
+  //     .then((users) => {
+  //       if (users.length === 0) {
+  //         return res.status(404).send({ error: 'Users Not Found' });
+  //       }
+  //       res.status(200).send(users);
+  //     })
+  //     .catch((error) => res.status(500).send(error));
+  // };
+
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
-    // Searches for first or last name
     UserProfile.find({
       $or: [{ firstName: { $regex: pattern } }, { lastName: { $regex: pattern } }],
     })
@@ -1126,9 +1154,8 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
-
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -1136,19 +1163,14 @@ const userProfileController = function (UserProfile) {
   // Search for user by full name (first and last)
   // eslint-disable-next-line consistent-return
   const getUserByFullName = (req, res) => {
-    // Creates an array containing the first and last name and filters out whitespace
-    const fullName = req.params.fullName.split(' ').filter((name) => name !== '');
-    // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
+    // Sanitize user input and escape special characters
+    const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
 
-    // Verfies both the first and last name are present
-    if (fullName.length < 2) {
-      return res.status(400).send({ error: 'Both first name and last name are required.' });
-    }
+    // Create a regular expression to match the sanitized full name, ignoring case
+    const fullNameRegex = new RegExp(sanitizedFullName, 'i');
 
     UserProfile.find({
-      $and: [{ firstName: { $regex: firstNameRegex } }, { lastName: { $regex: lastNameRegex } }],
+      $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1158,9 +1180,12 @@ const userProfileController = function (UserProfile) {
         }
         res.status(200).send(users);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
+  // function escapeRegExp(string) {
+  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // }
   /**
    * Authorizes user to be able to add Weekly Report Recipients
    *
