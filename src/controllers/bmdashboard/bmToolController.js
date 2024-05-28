@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const bmToolController = (BuildingTool) => {
+const bmToolController = (BuildingTool, ToolType) => {
     
     const fetchAllTools = (req, res) => {
       const populateFields = [
