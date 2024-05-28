@@ -37,14 +37,14 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
         const notFoundEmails = PROTECTED_EMAIL_ACCOUNT.filter(
           (email) => !query.map(({ email }) => email).includes(email),
         );
-        Logger.logException(
-          new Error(
-            `The following protected email accounts were not found in the database: ${notFoundEmails.join(', ')}`,
-          ),
+        Logger.logInfo(
+          `The following protected email accounts were not found in the database: ${notFoundEmails.join(', ')}`,
         );
       }
       protectedEmailAccountIds = query.map(({ _id }) => _id);
       serverCache.setCache('protectedEmailAccountIds', protectedEmailAccountIds);
+      // Redefine time to live to 1 hour for this specific key
+      serverCache.setKeyTimeToLive('protectedEmailAccountIds', 60 * 60);
     } catch (error) {
       Logger.logException(error, 'Error getting protected email accounts');
     }
