@@ -10,7 +10,7 @@ const inventoryItemType = require('../models/inventoryItemType');
 const mongoose = require('mongoose');
 const moment = require('moment');
 const makeSut = () => {
-  const { getAllInvInProjectWBS, postInvInProjectWBS } = inventoryController(
+  const { getAllInvInProjectWBS, postInvInProjectWBS, getAllInvInProject } = inventoryController(
     inventoryItem,
     inventoryItemType,
     projects,
@@ -19,6 +19,7 @@ const makeSut = () => {
   return {
     getAllInvInProjectWBS,
     postInvInProjectWBS,
+    getAllInvInProject,
   };
 };
 const flushPromises = () => new Promise(setImmediate);
@@ -420,6 +421,109 @@ describe('inventoryController', () => {
       await flushPromises();
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postInvInProjectWBS');
       assertResMock(201, updatedResolvedInventoryItem, response, mockRes);
+    });
+  });
+
+  describe.only('getAllInvInProject', () => {
+    test("Ensure getAllInvInProject Returns error 403 if the user doesn't have the getAllInvInProject permission", async () => {
+      const { getAllInvInProject } = makeSut();
+      const hasPermissionSpy = mockHasPermission(false);
+      const response = await getAllInvInProject(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getAllInvInProject');
+      assertResMock(403, 'You are not authorized to view inventory data.', response, mockRes);
+    });
+
+    test('Ensure getAllInvInProject Returns error 404 if an error occurs when fetching', async () => {
+      const { getAllInvInProject } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const foundItem = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        path: 'project',
+        select: '_id projectName',
+      };
+
+      const findSpy = jest.spyOn(inventoryItem, 'find').mockImplementationOnce(() => {
+        return foundItem;
+      });
+
+      jest.spyOn(foundItem, 'sort').mockImplementationOnce(() => {
+        return Promise.reject(new Error('an error occured'));
+      });
+
+      const response = await getAllInvInProject(mockReq, mockRes);
+
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getAllInvInProject');
+      expect(foundItem.populate).toHaveBeenCalled();
+      expect(foundItem.populate).toHaveBeenCalled();
+      expect(foundItem.populate).toHaveBeenCalled();
+      expect(foundItem.sort).toHaveBeenCalled();
+
+      assertResMock(404, new Error('an error occured'), response, mockRes);
+      expect(findSpy).toHaveBeenCalledWith({
+        project: mongoose.Types.ObjectId(mockReq.params.projectId),
+        $gte: { quantity: 0 },
+      });
+      expect(foundItem.populate).toHaveBeenCalledWith({
+        path: 'project',
+        select: '_id projectName',
+      });
+      expect(foundItem.sort).toHaveBeenCalledWith({
+        wasted: 1,
+      });
+    });
+    test('Ensure getAllInvInProject Returns status 200 if results are found popluated and sorted', async () => {
+      const { getAllInvInProject } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      const foundItem = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        path: 'project',
+        select: '_id projectName',
+      };
+
+      const findSpy = jest.spyOn(inventoryItem, 'find').mockImplementationOnce(() => {
+        return foundItem;
+      });
+
+      jest.spyOn(foundItem, 'populate').mockImplementationOnce(() => {
+        return foundItem;
+      });
+      jest.spyOn(foundItem, 'populate').mockImplementationOnce(() => {
+        return foundItem;
+      });
+      jest.spyOn(foundItem, 'populate').mockImplementationOnce(() => {
+        return foundItem;
+      });
+
+      jest.spyOn(foundItem, 'sort').mockImplementationOnce(() => {
+        return Promise.resolve(foundItem);
+      });
+
+      const response = await getAllInvInProject(mockReq, mockRes);
+
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'getAllInvInProject');
+      expect(foundItem.populate).toHaveBeenCalled();
+      expect(foundItem.populate).toHaveBeenCalled();
+      expect(foundItem.populate).toHaveBeenCalled();
+      expect(foundItem.sort).toHaveBeenCalled();
+
+      assertResMock(200, foundItem, response, mockRes);
+      expect(findSpy).toHaveBeenCalledWith({
+        project: mongoose.Types.ObjectId(mockReq.params.projectId),
+        $gte: { quantity: 0 },
+      });
+      expect(foundItem.populate).toHaveBeenCalledWith({
+        path: 'project',
+        select: '_id projectName',
+      });
+      expect(foundItem.sort).toHaveBeenCalledWith({
+        wasted: 1,
+      });
     });
   });
 });

@@ -137,7 +137,7 @@ const inventoryController = function (Item, ItemType, projects) {
   };
 
   const getAllInvInProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getAllInvInProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'getAllInvInProject'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // same as getAllInvInProjectWBS but just using only the project to find the items of inventory
@@ -566,88 +566,89 @@ const inventoryController = function (Item, ItemType, projects) {
           },
         },
         { new: true },
-      );
-      x.then((prevResults) => {
-        if (!prevResults) {
-          return;
-        }
-        // check if there is a new item that already exists
-        Item.findOne(
-          {
-            project: req.body.projectId,
-            wbs:
-              req.body.wbsId && req.body.wbsId !== 'Unassigned'
-                ? mongoose.Types.ObjectId(req.body.wbsId)
-                : null,
-            wasted: false,
-          },
-          { new: true },
-        )
-          .then((newItem) => {
-            // update the old item cost with the previous results
-            Item.findByIdAndUpdate(prevResults._id, {
-              $decr: { cost: prevResults.costPer * req.body.quantity },
-            });
-            // If the new item exists update it otherwise create one.
-            if (newItem) {
-              return Item.findByIdAndUpdate(
-                newItem._id,
-                {
-                  $inc: {
-                    quantity: req.body.quantity,
-                    cost: prevResults.costPer * req.body.quantity,
-                  },
-                  $push: {
-                    notes: {
-                      quantity: req.body.quantity,
-                      typeOfMovement: 'UnWasted to',
-                      message: `UnWasted ${req.body.quantity} here on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-                    },
-                    poNums: newItem.poNums,
-                  },
-                },
-                { new: true },
-              )
-                .then((results) => {
-                  Item.findByIdAndUpdate(
-                    results._id,
-                    { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
-                    { new: true },
-                  )
-                    .then((result) => res.status(201).send(result))
-                    .catch((errors) => res.status(500).send(errors));
-                })
-                .catch((errors) => res.status(500).send(errors));
-            }
-            const data = {
-              quantity: req.body.quantity,
-              poNums: [req.body.poNum],
-              cost: prevResults.costPer * req.body.quantity,
-              inventoryItemType: prevResults.inventoryItemType || req.body.typeID,
-              wasted: false,
-              project: mongoose.Types.ObjectId(req.body.projectId),
+      )
+        .then((prevResults) => {
+          if (!prevResults) {
+            return;
+          }
+          // check if there is a new item that already exists
+          Item.findOne(
+            {
+              project: req.body.projectId,
               wbs:
                 req.body.wbsId && req.body.wbsId !== 'Unassigned'
                   ? mongoose.Types.ObjectId(req.body.wbsId)
                   : null,
-              notes: [
-                {
-                  quantity: req.body.quantity,
-                  typeOfMovement: 'UnWasted to',
-                  message: `UnWasted ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-                },
-              ],
-              created: Date.now(),
-            };
-            const inventoryItem = new Item(data);
+              wasted: false,
+            },
+            { new: true },
+          )
+            .then((newItem) => {
+              // update the old item cost with the previous results
+              Item.findByIdAndUpdate(prevResults._id, {
+                $decr: { cost: prevResults.costPer * req.body.quantity },
+              });
+              // If the new item exists update it otherwise create one.
+              if (newItem) {
+                return Item.findByIdAndUpdate(
+                  newItem._id,
+                  {
+                    $inc: {
+                      quantity: req.body.quantity,
+                      cost: prevResults.costPer * req.body.quantity,
+                    },
+                    $push: {
+                      notes: {
+                        quantity: req.body.quantity,
+                        typeOfMovement: 'UnWasted to',
+                        message: `UnWasted ${req.body.quantity} here on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
+                      },
+                      poNums: newItem.poNums,
+                    },
+                  },
+                  { new: true },
+                )
+                  .then((results) => {
+                    Item.findByIdAndUpdate(
+                      results._id,
+                      { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
+                      { new: true },
+                    )
+                      .then((result) => res.status(201).send(result))
+                      .catch((errors) => res.status(500).send(errors));
+                  })
+                  .catch((errors) => res.status(500).send(errors));
+              }
+              const data = {
+                quantity: req.body.quantity,
+                poNums: [req.body.poNum],
+                cost: prevResults.costPer * req.body.quantity,
+                inventoryItemType: prevResults.inventoryItemType || req.body.typeID,
+                wasted: false,
+                project: mongoose.Types.ObjectId(req.body.projectId),
+                wbs:
+                  req.body.wbsId && req.body.wbsId !== 'Unassigned'
+                    ? mongoose.Types.ObjectId(req.body.wbsId)
+                    : null,
+                notes: [
+                  {
+                    quantity: req.body.quantity,
+                    typeOfMovement: 'UnWasted to',
+                    message: `UnWasted ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
+                  },
+                ],
+                created: Date.now(),
+              };
+              const inventoryItem = new Item(data);
 
-            return inventoryItem
-              .save()
-              .then((results) => res.status(201).send({ from: prevResults, to: results }))
-              .catch((errors) => res.status(500).send(errors));
-          })
-          .catch((errors) => res.status(500).send(errors));
-      }).catch((errors) => res.status(500).send(errors));
+              return inventoryItem
+                .save()
+                .then((results) => res.status(201).send({ from: prevResults, to: results }))
+                .catch((errors) => res.status(500).send(errors));
+            })
+            .catch((errors) => res.status(500).send(errors));
+        })
+        .catch((errors) => res.status(500).send(errors));
     }
     return res
       .status(400)
