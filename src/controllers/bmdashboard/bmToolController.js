@@ -1,6 +1,61 @@
 const mongoose = require('mongoose');
 
-const bmToolController = (BuildingTool, ToolType) => {
+const bmToolController = (BuildingTool) => {
+    
+    const fetchAllTools = (req, res) => {
+      const populateFields = [
+        {
+          path: 'project',
+          select: '_id name',
+        },
+        {
+          path: 'itemType',
+          select: '_id name description unit imageUrl category available using',
+        },
+        {
+          path: 'updateRecord',
+          populate: {
+            path: 'createdBy',
+            select: '_id firstName lastName',
+          },
+        },
+        {
+          path: 'purchaseRecord',
+          populate: {
+            path: 'requestedBy',
+            select: '_id firstName lastName',
+          },
+        },
+        {
+          path: 'logRecord',
+          populate: [
+            {
+              path: 'createdBy',
+              select: '_id firstName lastName',
+            },
+            {
+              path: 'responsibleUser',
+              select: '_id firstName lastName',
+            },
+          ],
+        },
+      ];
+
+      BuildingTool.find()
+        .populate(populateFields)
+        .exec()
+        .then(results => {
+          res.status(200).send(results);
+        })
+        .catch(error => {
+          const errorMessage = `Error occurred while fetching tools: ${error.message}`;
+          console.error(errorMessage);
+          res.status(500).send({ message: errorMessage });
+        });
+    };
+    
+
+
     const fetchSingleTool = async (req, res) => {
         const { toolId } = req.params;
         try {
@@ -184,6 +239,7 @@ const bmToolController = (BuildingTool, ToolType) => {
       }
 
       return {
+        fetchAllTools,
         fetchSingleTool,
         bmPurchaseTools,
         bmLogTools
