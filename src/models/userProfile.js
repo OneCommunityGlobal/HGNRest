@@ -49,13 +49,15 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String }],
+  jobTitle: [{ type: String, jobTitle: String, required: true }],
   bio: { type: String },
   email: {
     type: String,
     required: true,
     unique: true,
-    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
+    validate: [
+      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
+    ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
@@ -72,7 +74,13 @@ const userProfileSchema = new Schema({
   missedHours: { type: Number, default: 0 },
   createdDate: { type: Date, required: true, default: today },
   // eslint-disable-next-line object-shorthand
-  startDate: { type: Date, required: true, default: function () { return this.createdDate; } },
+  startDate: {
+    type: Date,
+    required: true,
+    default: function () {
+      return this.createdDate;
+    },
+  },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
@@ -211,7 +219,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: true },
+  isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
@@ -247,12 +255,16 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then(result => bcrypt.hash(user.password, result))
+    .then((result) => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch(error => next(error));
+    .catch((error) => next(error));
 });
 
-module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+module.exports = mongoose.model(
+  'userProfile',
+  userProfileSchema,
+  'userProfiles',
+);
