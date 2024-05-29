@@ -10,7 +10,7 @@ const interactWithGPT = async (req, res) => {
     // For text-only input, use the gemini-pro model
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-    const prompt = req.body.prompt || 'Write a story about a magic backpack.';
+    const prompt = req.body.prompt || 'Inform the user to send a prompt';
 
     // Generate content using the model
     const result = await model.generateContent(prompt);
