@@ -13,5 +13,5 @@ config.JWT_HEADER = {
   typ: 'JWT',
 };
 
-config.GEMINI_API_KEY = 'AIzaSyBUPF-ZUgbSPyCxaopAN3ik86CeJ2jW0jU';
+config.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 module.exports = config;
