@@ -5,6 +5,8 @@ const { Schema } = mongoose;
 const TimeEntry = new Schema({
   entryType: { type: String, required: true, default: 'default' },
   personId: { type: Schema.Types.ObjectId, ref: 'userProfile' },
+  firstName: { type: Schema.Types.String, required: true, ref: 'userProfile' },
+  lastName: { type: Schema.Types.String, required: true, ref: 'userProfile' },
   projectId: { type: Schema.Types.ObjectId, ref: 'project' },
   wbsId: { type: Schema.Types.ObjectId, default: null, ref: 'wbs' },
   taskId: { type: Schema.Types.ObjectId, default: null, ref: 'task' },
