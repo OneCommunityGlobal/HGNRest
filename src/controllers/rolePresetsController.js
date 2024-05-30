@@ -10,7 +10,11 @@ const rolePresetsController = function (Preset) {
     const { roleName } = req.params;
     Preset.find({ roleName })
       .then((results) => {
-        res.status(200).send(results);
+        if (results.length === 0) {
+          res.status(404).send({ error: 'No presets found for the specified role.' });
+        } else {
+          res.status(200).send(results);
+        }
       })
       .catch((error) => {
         res.status(400).send(error);
@@ -57,7 +61,7 @@ const rolePresetsController = function (Preset) {
           .then((results) => res.status(200).send(results))
           .catch((errors) => res.status(400).send(errors));
       })
-      .catch((error) => res.status(400).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const deletePresetById = async function (req, res) {
@@ -74,7 +78,7 @@ const rolePresetsController = function (Preset) {
           .then(res.status(200).send({ message: 'Deleted preset' }))
           .catch((error) => res.status(400).send(error));
       })
-      .catch((error) => res.status(400).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   return {

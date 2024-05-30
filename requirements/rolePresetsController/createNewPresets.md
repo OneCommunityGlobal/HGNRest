@@ -4,8 +4,8 @@ Cross Mark: ❌
 # createNewPreset
 
 > ## Positive case
-
-1. ✅ Return 201 if create New Presets successfully.
+1. ✅ Receives a POST request in the **/api/rolePreset** route
+2. ✅ Return 201 if create New Presets successfully.
 
 > ## Negative case
 

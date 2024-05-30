@@ -277,7 +277,7 @@ describe('rolePresets Controller', () => {
         mockRes,
       );
     });
-    test('Ensure updatePresetById returns 400 if error in finding by id', async () => {
+    test('Ensure updatePresetById returns 404 if error in finding by id', async () => {
       const { updatePresetById } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -296,7 +296,7 @@ describe('rolePresets Controller', () => {
       await flushPromises();
       expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'putRole');
 
-      assertResMock(400, new Error('Error when finding by id'), response, mockRes);
+      assertResMock(404, new Error('Error when finding by id'), response, mockRes);
     });
     test('Ensure updatePresetById returns 400 if error in saving results', async () => {
       const { updatePresetById } = makeSut();
@@ -382,7 +382,7 @@ describe('rolePresets Controller', () => {
         mockRes,
       );
     });
-    test('Ensure deletePresetById returns 400 if error in finding by id', async () => {
+    test('Ensure deletePresetById returns 404 if error in finding by id', async () => {
       const { deletePresetById } = makeSut();
       const hasPermissionSpy = jest
         .spyOn(helper, 'hasPermission')
@@ -401,7 +401,7 @@ describe('rolePresets Controller', () => {
       await flushPromises();
       expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'putRole');
 
-      assertResMock(400, new Error('Error when finding by id'), response, mockRes);
+      assertResMock(404, new Error('Error when finding by id'), response, mockRes);
     });
     test('Ensure deletePresetById returns 400 if error in removing', async () => {
       const { deletePresetById } = makeSut();
