@@ -1027,7 +1027,7 @@ const userHelper = function () {
           if (item.description) {
             let sentences = item.description.split('.');
             const dateRegex =
-              /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{1,2})-(\d{1,2})/g;
+              /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
             sentences = sentences.map((sentence) =>
               sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
                 const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
