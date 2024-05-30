@@ -8,8 +8,6 @@ const {
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
 const RolePreset = require('../models/rolePreset');
-// const Role = require('../models/role');
-// const UserProfile = require('../models/userProfile');
 
 const agent = request.agent(app);
 
@@ -52,7 +50,7 @@ describe('rolePreset routes', () => {
   describe('rolePresetRoutes', () => {
     it('should return 401 if authorization header is not present', async () => {
       await agent.post('/api/rolePreset').send(reqBody).expect(401);
-      await agent.get('/api/rolePreset/randomId').send(reqBody).expect(401);
+      await agent.get('/api/rolePreset/randomRoleName').send(reqBody).expect(401);
       await agent.put(`/api/rolePreset/randomId`).send(reqBody).expect(401);
       await agent.delete('/api/rolePreser/randomId').send(reqBody).expect(401);
     });
@@ -81,6 +79,7 @@ describe('rolePreset routes', () => {
         error: 'roleName, presetName, and permissions are mandatory fields.',
       });
     });
+
     it('Should return 400 if missing presetName', async () => {
       reqBody.presetName = null;
       const response = await agent
@@ -93,6 +92,7 @@ describe('rolePreset routes', () => {
         error: 'roleName, presetName, and permissions are mandatory fields.',
       });
     });
+
     it('Should return 400 if missing permissions', async () => {
       reqBody.permissions = null;
       const response = await agent
@@ -105,6 +105,7 @@ describe('rolePreset routes', () => {
         error: 'roleName, presetName, and permissions are mandatory fields.',
       });
     });
+
     it('Should return 201 if the rolePreset is successfully created', async () => {
       const response = await agent
         .post('/api/rolePreset')
@@ -136,12 +137,12 @@ describe('rolePreset routes', () => {
       expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
     });
 
-    it('Should return 404 if no roleName is found', async () => {
-      await agent
-        .post(`/api/rolePreset/${reqBody.roleName}`)
-        .send(reqBody)
+    it('Should return 404 if the route does not exist', async () => {
+      const response = await agent
+        .get('/api/rolePreset/emptyRole')
         .set('Authorization', adminToken)
         .expect(404);
+      expect(response.body).toEqual({ error: 'No presets found for the specified role.' });
     });
 
     it('Should return 200 if getPreset By role successfully', async () => {
@@ -161,7 +162,7 @@ describe('rolePreset routes', () => {
           __v: expect.anything(),
           roleName: rolePreset.roleName,
           presetName: rolePreset.presetName,
-          permissions: expect.arrayContaining(['sample permissions']),
+          permissions: expect.arrayContaining(rolePreset.permissions),
         },
       ]);
     });
@@ -177,24 +178,75 @@ describe('rolePreset routes', () => {
       expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
     });
 
-    // it('Should return 200 if getPreset By role successfully', async () => {
-    //     const _rolePreset = new RolePreset();
-    //     _rolePreset.roleName = 'sample roleName';
-    //     _rolePreset.presetName = 'sample presetName';
-    //     _rolePreset.permissions = ['sample permissions'];
-    //     const rolePreset = await _rolePreset.save();
-    //     const response = await agent
-    //         .get(`/api/rolePreset/${rolePreset.roleName}`)
-    //         .set('Authorization', adminToken)
-    //         .expect(200);
+    it('Should return 404 if the route does not exist', async () => {
+      await agent
+        .put('/api/rolePreset/randomId123')
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(404);
+    });
 
-    //   expect(response.body).toEqual([{
-    //     _id: expect.anything(),
-    //     __v: expect.anything(),
-    //     roleName: rolePreset.roleName,
-    //     presetName: rolePreset.presetName,
-    //     permissions: expect.arrayContaining(["sample permissions"]),
-    //     }]);
-    // });
+    it('Should return 200 if update Preset By Id successfully', async () => {
+      const _rolePreset = new RolePreset();
+      _rolePreset.roleName = reqBody.roleName;
+      _rolePreset.presetName = reqBody.presetName;
+      _rolePreset.permissions = reqBody.permissions;
+      const rolePreset = await _rolePreset.save();
+      const fetchedPreset = await RolePreset.findById(rolePreset._id);
+
+      console.log(fetchedPreset);
+      const response = await agent
+        .put(`/api/rolePreset/${rolePreset._id}`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        _id: expect.anything(),
+        __v: expect.anything(),
+        roleName: reqBody.roleName,
+        presetName: reqBody.presetName,
+        permissions: expect.arrayContaining(reqBody.permissions),
+      });
+    });
+  });
+  describe('delete Preset route', () => {
+    it('Should return 403 if user does not have permissions', async () => {
+      const response = await agent
+        .post('/api/rolePreset')
+        .send(reqBody)
+        .set('Authorization', volunteerToken)
+        .expect(403);
+
+      expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
+    });
+
+    it('Should return 404 if the route does not exist', async () => {
+      await agent
+        .delete('/api/rolePreset/randomId123')
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(404);
+    });
+
+    it('Should return 200 if update Preset By Id successfully', async () => {
+      const _rolePreset = new RolePreset();
+      _rolePreset.roleName = reqBody.roleName;
+      _rolePreset.presetName = reqBody.presetName;
+      _rolePreset.permissions = reqBody.permissions;
+      const rolePreset = await _rolePreset.save();
+      const fetchedPreset = await RolePreset.findById(rolePreset._id);
+
+      console.log(fetchedPreset);
+      const response = await agent
+        .delete(`/api/rolePreset/${rolePreset._id}`)
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        message: 'Deleted preset',
+      });
+    });
   });
 });
