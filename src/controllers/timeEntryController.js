@@ -980,7 +980,7 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       '-createdDateTime -lastModifiedDateTime',
     )
-      .populate('userId')
+      .populate('person', 'firstName lastName')
       .sort({ dateOfWork: -1 })
       .then((results) => {
         res.status(200).send(results);
