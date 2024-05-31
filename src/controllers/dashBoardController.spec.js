@@ -135,7 +135,7 @@ describe('Dashboard Controller tests', () => {
       expect(mockRes.send).toHaveBeenCalledWith({ message: mockUser.copiedAiPrompt });
     });
 
-    test.only('Returns undefined when the user is not found', async () => {
+    test('Returns undefined when the user is not found', async () => {
 
       const { getPromptCopiedDate } = makeSut(); 
 
