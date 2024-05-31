@@ -117,15 +117,31 @@ const userHelper = function () {
         timeRemaining + coreTeamExtraHour
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-    // bold description for 'not submitting a weekly summary' and logged hrs
+    // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
     if (!requestForTimeOffEmailBody && infringement.description) {
-      if (infringement.description.includes('not submitting a weekly summary')) {
-        emailDescription = infringement.description.replace(
-          /(not submitting a weekly summary)/gi,
+      const sentences = infringement.description.split('.');
+      if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+        sentences[0] = sentences[0].replace(
+          /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
           '<b>$1</b>',
         );
-        emailDescription = emailDescription.replace(/(\d+\.\d{2})\s*hours/i, '<b>$1 hours</b>');
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(
+          /logged (\d+(\.\d+)?\s*hours)/i,
+          'logged <b>$1</b>',
+        );
+      } else if (sentences[0].includes('System auto-assigned infringement')) {
+        sentences[0] = sentences[0].replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
+        sentences[0] = sentences[0].replace(
+          /(not meeting weekly volunteer time commitment)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(
+          /logged (\d+(\.\d+)?\s*hours)/i,
+          'logged <b>$1</b>',
+        );
       } else {
         emailDescription = `<b>${infringement.description}<b>`;
       }
@@ -133,7 +149,7 @@ const userHelper = function () {
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${infringement.date}</p>\
+        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
@@ -521,26 +537,52 @@ const userHelper = function () {
           historyInfringements = oldInfringements
             .map((item, index) => {
               let enhancedDescription;
-              if (
-                item.description &&
-                !item.description.includes('System auto-assigned infringement')
-              ) {
-                enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-              } else if (item.description) {
-                // highlight not submitting a weekly summary and logged hrs
-                const sentences = item.description.split(/\.(?!\d)/);
-                sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
-                enhancedDescription = sentences.join('.');
-                enhancedDescription = enhancedDescription.replace(
-                  /(not submitting a weekly summary)/gi,
-                  '<b><span style="color: blue;">$1</span></b>',
+              if (item.description) {
+                let sentences = item.description.split('.');
+                const dateRegex =
+                  /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+                sentences = sentences.map((sentence) =>
+                  sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                    const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                      'M-D-YYYY',
+                    );
+                    const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                      'M-D-YYYY',
+                    );
+                    return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+                  }),
                 );
-                enhancedDescription = enhancedDescription.replace(
-                  /(\d+\.\d{2})\s*hours/i,
-                  '<b><span style="color: blue;">$1 hours</span></b>',
-                );
+                if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+                  sentences[0] = sentences[0].replace(
+                    /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                  enhancedDescription = enhancedDescription.replace(
+                    /logged (\d+(\.\d+)?\s*hours)/i,
+                    'logged <span style="color: blue;"><b>$1</b></span>',
+                  );
+                } else if (sentences[0].includes('System auto-assigned infringement')) {
+                  sentences[0] = sentences[0].replace(
+                    /(not submitting a weekly summary)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  sentences[0] = sentences[0].replace(
+                    /(not meeting weekly volunteer time commitment)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                  enhancedDescription = enhancedDescription.replace(
+                    /logged (\d+(\.\d+)?\s*hours)/i,
+                    'logged <span style="color: blue;"><b>$1</b></span>',
+                  );
+                } else {
+                  enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+                }
               }
-              return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+              return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(
+                item.date,
+              ).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
             })
             .join('');
         }
@@ -568,10 +610,10 @@ const userHelper = function () {
           // eslint-disable-next-line prefer-destructuring
           requestForTimeOff = requestsForTimeOff[0];
           requestForTimeOffStartingDate = moment(requestForTimeOff.startingDate).format(
-            'dddd YYYY-MM-DD',
+            'dddd M-D-YYYY',
           );
           requestForTimeOffEndingDate = moment(requestForTimeOff.endingDate).format(
-            'dddd YYYY-MM-DD',
+            'dddd  M-D-YYYY',
           );
           requestForTimeOffreason = requestForTimeOff.reason;
           requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
@@ -583,9 +625,9 @@ const userHelper = function () {
           } else if (timeNotMet && !hasWeeklySummary) {
             if (person.role === 'Core Team') {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )} and ending ${pdtEndOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
                 person.weeklycommittedHours
               } hours + ${
@@ -601,15 +643,15 @@ const userHelper = function () {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
                 2,
               )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                'dddd M-D-YYYY',
+              )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
             }
           } else if (timeNotMet) {
             if (person.role === 'Core Team') {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )} and ending ${pdtEndOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
                 user.weeklycommittedHours
               } hours + ${
@@ -625,13 +667,13 @@ const userHelper = function () {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                 2,
               )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                'dddd M-D-YYYY',
+              )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
             }
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              'dddd M-D-YYYY',
+            )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
           }
 
           const infringement = {
@@ -656,7 +698,7 @@ const userHelper = function () {
               { new: true },
             );
             const administrativeContent = {
-              startDate: moment(person.startDate).utc().format('YYYY-MM-DD'),
+              startDate: moment(person.startDate).utc().format('M-D-YYYY'),
               role: person.role,
               userTitle: person.jobTitle[0],
               historyInfringements,
@@ -981,30 +1023,58 @@ const userHelper = function () {
     if (original.length) {
       historyInfringements = original
         .map((item, index) => {
-          let enhancedDescription = item.description;
-          // highlight previous assigned reason manually
-          if (item.description && !item.description.includes('System auto-assigned infringement')) {
-            enhancedDescription = `<b><span style="color: blue;">${item.description}</span></b>`;
-          } else {
-            // highlight not submitting a weekly summary and logged hrs
-            const sentences = item.description.split(/\.(?!\d)/);
-            sentences[0] = `<b><span style="color: blue;">${sentences[0]}</span></b>`;
-            enhancedDescription = sentences.join('.');
-            enhancedDescription = enhancedDescription.replace(
-              /(not submitting a weekly summary)/gi,
-              '<b><span style="color: blue;">$1</span></b>',
+          let enhancedDescription;
+          if (item.description) {
+            let sentences = item.description.split('.');
+            const dateRegex =
+              /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+            sentences = sentences.map((sentence) =>
+              sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+              }),
             );
-            enhancedDescription = enhancedDescription.replace(
-              /(\d+\.\d{2})\s*hours/i,
-              '<b><span style="color: blue;">$1 hours</span></b>',
-            );
+            if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else if (sentences[0].includes('System auto-assigned infringement')) {
+              sentences[0] = sentences[0].replace(
+                /(not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else {
+              enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+            }
           }
-          return `<p>${index + 1}. Date: <b><span style="color: blue;">${item.date}</span></b>, Description: ${enhancedDescription}</p>`;
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format(
+            'M-D-YYYY',
+          )}</b></span>, Description: ${enhancedDescription}</p>`;
         })
         .join('');
     }
     const administrativeContent = {
-      startDate: moment(startDate).utc().format('YYYY-MM-DD'),
+      startDate: moment(startDate).utc().format('M-D-YYYY'),
       role,
       userTitle: jobTitle,
       historyInfringements,
