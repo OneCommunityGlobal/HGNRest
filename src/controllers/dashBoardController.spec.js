@@ -112,28 +112,45 @@ describe('Dashboard Controller tests', () => {
 
   });
 
-  // describe('getPromptCopiedDate', () => {
-  //   test('Returns 200 if there is a user and return copied AI prompt',async () => {
-  //     const { getPromptCopiedDate } = makeSut();
+  describe('getPromptCopiedDate', () => {
+    test('Returns 200 if there is a user and return copied AI prompt',async () => {
+      const mockUser = { _id: 'testUserId', copiedAiPrompt: 'Test Prompt'};
 
-  //     jest
-  //       .spyOn(UserProfile, 'findOne')
-  //       .mockImplementationOnce(() =>
-  //         Promise.resolve({})
-  //       );
+      const newReq = {
+        ...mockReq,
+        params: {
+          userId: 'testUserId'
+        }
+      };
 
-  //     const response = getPromptCopiedDate(mockReq, mockRes);
+      const { getPromptCopiedDate } = makeSut();
 
-  //     await flushPromises();
+      jest
+        .spyOn(UserProfile, 'findOne')
+        .mockResolvedValueOnce(mockUser);
 
-  //     assertResMock(
-  //       200,
-  //       {},
-  //       response,
-  //       mockRes,
-  //     );
-  //   })
-  // })
+      await getPromptCopiedDate(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({ message: mockUser.copiedAiPrompt });
+    });
+
+    test.only('Returns undefined when the user is not found', async () => {
+
+      const { getPromptCopiedDate } = makeSut(); 
+
+      jest
+        .spyOn(UserProfile, 'findOne')
+        .mockResolvedValueOnce(null);
+
+      getPromptCopiedDate(mockReq, mockRes);
+
+      await flushPromises();
+
+      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockRes.send).not.toHaveBeenCalled();
+    })
+  })
 
   describe('updateAIPrompt Tests', () => {
     test('Returns error 500 if the error occurs in the AI Prompt function', async () => {
