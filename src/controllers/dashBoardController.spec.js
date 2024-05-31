@@ -129,7 +129,7 @@ describe('Dashboard Controller tests', () => {
         .spyOn(UserProfile, 'findOne')
         .mockResolvedValueOnce(mockUser);
 
-      await getPromptCopiedDate(mockReq, mockRes);
+      await getPromptCopiedDate(newReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith({ message: mockUser.copiedAiPrompt });
