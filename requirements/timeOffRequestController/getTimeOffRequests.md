@@ -5,7 +5,7 @@ Cross Mark: ❌
 
 > ## Positive case
 
-1. ❌ Returns formatted all time-off requests and status code 200 if successful.
+1. ✅ Returns formatted all time-off requests and status code 200 if successful.
 2. 
 
 > ## Negative case
