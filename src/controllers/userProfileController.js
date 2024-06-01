@@ -1197,6 +1197,124 @@ const userProfileController = function (UserProfile) {
     }
   };
 
+  const addInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
+      res.status(403).send('You are not authorized to add blue square');
+      return;
+    }
+    const userid = req.params.userId;
+
+    cache.removeCache(`user-${userid}`);
+
+    if (req.body.blueSquare === undefined) {
+      res.status(400).send('Invalid Data');
+      return;
+    }
+
+    UserProfile.findById(userid, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+      // find userData in cache
+      const isUserInCache = cache.hasCache('allusers');
+      let allUserData;
+      let userData;
+      let userIdx;
+      if (isUserInCache) {
+        allUserData = JSON.parse(cache.getCache('allusers'));
+        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userData = allUserData[userIdx];
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+      record.infringements = originalinfringements.concat(req.body.blueSquare);
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+
+          // update alluser cache if we have cache
+          if (isUserInCache) {
+            allUserData.splice(userIdx, 1, userData);
+            cache.setCache('allusers', JSON.stringify(allUserData));
+          }
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
+  const editInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'editInfringements'))) {
+      res.status(403).send('You are not authorized to edit blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+    const { dateStamp, summary } = req.body;
+
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.map((blueSquare) => {
+        if (blueSquare._id.equals(blueSquareId)) {
+          blueSquare.date = dateStamp ?? blueSquare.date;
+          blueSquare.description = summary ?? blueSquare.description;
+        }
+        return blueSquare;
+      });
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
+  const deleteInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+      res.status(403).send('You are not authorized to delete blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.filter(
+        (infringement) => !infringement._id.equals(blueSquareId),
+      );
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1218,6 +1336,9 @@ const userProfileController = function (UserProfile) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    addInfringements,
+    editInfringements,
+    deleteInfringements,
   };
 };
 
