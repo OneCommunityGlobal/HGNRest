@@ -46,7 +46,9 @@ describe('mouseoverText Controller', () => {
           newMouseoverText: 'new mouseoverText',
         },
       };
-      jest.spyOn(MouseoverText.prototype, 'save').mockResolvedValueOnce({ _id: '123random' });
+      jest
+        .spyOn(MouseoverText.prototype, 'save')
+        .mockResolvedValueOnce({ _id: '123random', mouseoverText: 'new mouseoverText' });
 
       createMouseoverText(newMockReq, mockRes);
       await flushPromises();
@@ -56,7 +58,7 @@ describe('mouseoverText Controller', () => {
         _serverMessage: 'MouseoverText successfully created!',
         mouseoverText: {
           _id: '123random',
-          mouseoverText: newMockReq.newMouseoverText,
+          mouseoverText: newMockReq.body.newMouseoverText,
         },
       });
     });
@@ -80,7 +82,7 @@ describe('mouseoverText Controller', () => {
 
       assertResMock(404, new Error('Error when finding'), response, mockRes);
     });
-    test('Ensure createMouseoverText returns 201 if create new mouseoverText successfully', async () => {
+    test('Ensure getMouseoverText returns 200 if get the mouseoverText successfully', async () => {
       const { getMouseoverText } = makeSut();
       const data = {
         mouseoverText: 'some get mouseoverText',
@@ -108,7 +110,7 @@ describe('mouseoverText Controller', () => {
       const response = updateMouseoverText(mockReq, mockRes);
       await flushPromises();
 
-      assertResMock(500, new Error('MouseoverText not found with the given ID'), response, mockRes);
+      assertResMock(500, { error: 'MouseoverText not found with the given ID' }, response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id, expect.anything());
     });
     test('Ensure updateMouseoverText returns 400 if any error when saving the mouseoverText', async () => {
