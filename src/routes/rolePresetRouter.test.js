@@ -193,8 +193,6 @@ describe('rolePreset routes', () => {
       _rolePreset.permissions = reqBody.permissions;
       const rolePreset = await _rolePreset.save();
       const fetchedPreset = await RolePreset.findById(rolePreset._id);
-
-      console.log(fetchedPreset);
       const response = await agent
         .put(`/api/rolePreset/${rolePreset._id}`)
         .send(reqBody)
