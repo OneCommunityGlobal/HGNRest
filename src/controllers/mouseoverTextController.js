@@ -26,7 +26,7 @@ const mouseoverTextController = function (MouseoverText) {
 
     return MouseoverText.findById(id, (error, mouseoverText) => {
       if (error || mouseoverText === null) {
-        res.status(500).send(new Error('MouseoverText not found with the given ID'));
+        res.status(500).send({ error: 'MouseoverText not found with the given ID' });
         return;
       }
 
