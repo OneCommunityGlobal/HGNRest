@@ -79,10 +79,8 @@ describe('projectController module', () => {
         }),
       }));
 
-      await getAllProjects(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.send).toHaveBeenCalledWith('Database connection error');
+      const response = await getAllProjects(mockReq, mockRes);
+      assertResMock(404, dbError, response, mockRes);
     });
 
     test('Ensure getAllProjects returns 200 and retrieves all projects sorted by modifiedDatetime in descending order', async () => {
@@ -92,16 +90,11 @@ describe('projectController module', () => {
       ];
       const { getAllProjects } = makeSut();
 
-      // jest.spyOn(Project, 'find').mockImplementation(() => ({
-      //     sort: jest.fn().mockResolvedValue(mockProjects)
-      //   }));
-
       const mockSort = jest.fn().mockResolvedValue(mockProjects);
       jest.spyOn(Project, 'find').mockReturnValue({ sort: mockSort });
 
-      await getAllProjects(mockReq, mockRes);
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.send).toHaveBeenCalledWith(mockProjects);
+      const response = await getAllProjects(mockReq, mockRes);
+      assertResMock(200, mockProjects, response, mockRes);
       expect(Project.find().sort).toHaveBeenCalledWith({ modifiedDatetime: -1 });
     });
 
@@ -112,10 +105,9 @@ describe('projectController module', () => {
         sort: jest.fn().mockResolvedValue([]),
       }));
 
-      await getAllProjects(mockReq, mockRes);
+      const response = await getAllProjects(mockReq, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.send).toHaveBeenCalledWith([]);
+      assertResMock(200, [], response, mockRes);
     });
   });
 
@@ -138,7 +130,7 @@ describe('projectController module', () => {
       );
     });
 
-    test('Ensure deleteProject returns 500 if an error occurs in `findById`', async () => {
+    test('Ensure deleteProject returns 400 if an error occurs in `findById`', async () => {
       const { deleteProject } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
@@ -231,7 +223,7 @@ describe('projectController module', () => {
       );
     });
 
-    test('Ensure deleteProject returns 500 if an error occurs in finding timeenrties', async () => {
+    test('Ensure deleteProject returns 400 if an error occurs in finding timeenrties', async () => {
       const { deleteProject } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
@@ -251,7 +243,7 @@ describe('projectController module', () => {
       // const findByIdSpy = jest.spyOn(Project, 'findById').mockReturnValue({
       //   exec: jest.fn().mockResolvedValue({
       //     _id: '60d5f8f9f7c9b9a23e8d1f99',
-      //     remove: jest.fn(), // Ensure this method is mocked if using deleteOne
+      //     remove: jest.fn(),
       //   }),
       // });
 
@@ -259,7 +251,6 @@ describe('projectController module', () => {
         callback(null, fakeRecord);
       });
 
-      // Mock timeentry.find to return an empty array, simulating no associated time entries
       // const findTimeEntriesSpy = jest.spyOn(timeentry, 'find').mockReturnValue({
       //   exec: jest.fn().mockRejectedValueOnce(new Error(errMsg)),
       // });
@@ -271,7 +262,7 @@ describe('projectController module', () => {
       const response = await deleteProject(mockReqModified, mockRes);
       await flushPromises();
 
-      assertResMock(500, new Error(errMsg), response, mockRes);
+      assertResMock(400, new Error(errMsg), response, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(
         mockReqModified.body.requestor,
         'deleteProject',
@@ -340,7 +331,7 @@ describe('projectController module', () => {
       );
     });
 
-    test('Ensure deleteProject returns 500 userProfile updateMany fails', async () => {
+    test('Ensure deleteProject returns 400 userProfile updateMany fails', async () => {
       const { deleteProject } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
@@ -384,7 +375,7 @@ describe('projectController module', () => {
       );
     });
 
-    test('Ensure deleteProject returns 500 if record.remove() fails', async () => {
+    test('Ensure deleteProject returns 400 if record.remove() fails', async () => {
       const { deleteProject } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);

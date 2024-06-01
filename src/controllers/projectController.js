@@ -15,7 +15,7 @@ const projectController = function (Project) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error.message));
+      .catch((error) => res.status(404).send(error));
   };
 
   const deleteProject = async function (req, res) {
@@ -58,51 +58,13 @@ const projectController = function (Project) {
           }
         })
         .catch((errors) => {
-          res.status(500).send(errors);
+          res.status(400).send(errors);
         });
     });
     // .catch((errors) => {
     //   res.status(400).send(errors);
     // });
   };
-
-  // const deleteProject = async function (req, res) {
-  //   try {
-  //     if (!(await helper.hasPermission(req.body.requestor, 'deleteProject'))) {
-  //       return res.status(403).send({ error: 'You are not authorized to delete projects.' });
-  //     }
-
-  //     const { projectId } = req.params;
-
-  //     const record = await Project.findById(projectId).exec();
-
-  //     if (!record) {
-  //       return res.status(400).send({ error: 'No valid records found' });
-  //     }
-
-  //     // find if project has any time entries associated with it
-  //     const timeentries = await timeentry.find({ projectId: record._id }, '_id').exec();
-
-  //     if (timeentries.length > 0) {
-  //       return res.status(400).send({
-  //         error:
-  //           'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
-  //       });
-  //     }
-
-  //     await Promise.all([
-  //       userProfile.updateMany({}, { $pull: { projects: record._id } }).exec(),
-  //       record.remove(),
-  //     ]);
-
-  //     return res.status(200).send({
-  //       message: 'Project successfully deleted and user profiles updated.',
-  //     });
-  //   } catch (errors) {
-  //     console.log('Error in deleteProject:', errors);
-  //     res.status(500).send(`Internal Error: Project. ${errors.message}`);
-  //   }
-  // };
 
   const postProject = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'postProject'))) {
@@ -151,7 +113,7 @@ const projectController = function (Project) {
     }
 
     const { projectId } = req.params;
-    Project.findById(projectId, async (error, record) => {
+    Project.findById(projectId, (error, record) => {
       if (error || record === null) {
         res.status(400).send('No valid records found');
         return;
