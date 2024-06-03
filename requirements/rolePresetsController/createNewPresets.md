@@ -13,6 +13,6 @@ Cross Mark: ❌
 2. ✅ Returns 400 if missing presetName
 3. ✅ Returns 400 if missing roleName
 4. ✅ Returns 400 if missing premissions
-5. ✅ Returns 400 when saving new presets
+5. ✅ Returns error 400 when saving new presets
 
 > ## Edge case
