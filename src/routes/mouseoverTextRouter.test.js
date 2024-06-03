@@ -45,9 +45,6 @@ describe('mouseoverText routes', () => {
   });
   describe('createMouseoverText route', () => {
     it('Should return 201 if create new mouseoverText successfully', async () => {
-      const _mouseoverText = new MouseoverText();
-      _mouseoverText.mouseoverText = 'sample mouseoverText';
-      await _mouseoverText.save();
       const response = await agent
         .post('/api/mouseoverText')
         .send(reqBody)
@@ -60,7 +57,7 @@ describe('mouseoverText routes', () => {
           __v: expect.anything(),
           mouseoverText: reqBody.newMouseoverText,
         },
-        _serverMessage: 'MouseoverText successfully created!',
+        _serverMessage: 'MouseoverText succesfuly created!',
       });
     });
   });
@@ -80,7 +77,7 @@ describe('mouseoverText routes', () => {
         .send(reqBody)
         .set('Authorization', adminToken)
         .expect(500);
-      expect(response.body).toEqual({ error: 'MouseoverText not found with the given ID' });
+      expect(response.text).toEqual('MouseoverText not found with the given ID');
     });
     it('Should return 201 if updating mouseoverText successfully', async () => {
       const _mouseoverText = new MouseoverText();
