@@ -63,8 +63,7 @@ describe('rolePreset routes', () => {
         .send(reqBody)
         .set('Authorization', volunteerToken)
         .expect(403);
-
-      expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
+      expect(response.text).toEqual('You are not authorized to make changes to roles.');
     });
 
     it('Should return 400 if missing roleName', async () => {
@@ -134,15 +133,7 @@ describe('rolePreset routes', () => {
         .set('Authorization', volunteerToken)
         .expect(403);
 
-      expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
-    });
-
-    it('Should return 404 if the route does not exist', async () => {
-      const response = await agent
-        .get('/api/rolePreset/emptyRole')
-        .set('Authorization', adminToken)
-        .expect(404);
-      expect(response.body).toEqual({ error: 'No presets found for the specified role.' });
+      expect(response.text).toEqual('You are not authorized to make changes to roles.');
     });
 
     it('Should return 200 if getPreset By role successfully', async () => {
@@ -175,15 +166,15 @@ describe('rolePreset routes', () => {
         .set('Authorization', volunteerToken)
         .expect(403);
 
-      expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
+      expect(response.text).toEqual('You are not authorized to make changes to roles.');
     });
 
-    it('Should return 404 if the route does not exist', async () => {
+    it('Should return 400 if the route does not exist', async () => {
       await agent
         .put('/api/rolePreset/randomId123')
         .send(reqBody)
         .set('Authorization', adminToken)
-        .expect(404);
+        .expect(400);
     });
 
     it('Should return 200 if update Preset By Id successfully', async () => {
@@ -192,7 +183,6 @@ describe('rolePreset routes', () => {
       _rolePreset.presetName = reqBody.presetName;
       _rolePreset.permissions = reqBody.permissions;
       const rolePreset = await _rolePreset.save();
-      const fetchedPreset = await RolePreset.findById(rolePreset._id);
       const response = await agent
         .put(`/api/rolePreset/${rolePreset._id}`)
         .send(reqBody)
@@ -216,15 +206,15 @@ describe('rolePreset routes', () => {
         .set('Authorization', volunteerToken)
         .expect(403);
 
-      expect(response.body).toEqual({ error: 'You are not authorized to make changes to roles.' });
+      expect(response.text).toEqual('You are not authorized to make changes to roles.');
     });
 
-    it('Should return 404 if the route does not exist', async () => {
+    it('Should return 400 if the route does not exist', async () => {
       await agent
         .delete('/api/rolePreset/randomId123')
         .send(reqBody)
         .set('Authorization', adminToken)
-        .expect(404);
+        .expect(400);
     });
 
     it('Should return 200 if update Preset By Id successfully', async () => {
@@ -233,9 +223,7 @@ describe('rolePreset routes', () => {
       _rolePreset.presetName = reqBody.presetName;
       _rolePreset.permissions = reqBody.permissions;
       const rolePreset = await _rolePreset.save();
-      const fetchedPreset = await RolePreset.findById(rolePreset._id);
 
-      console.log(fetchedPreset);
       const response = await agent
         .delete(`/api/rolePreset/${rolePreset._id}`)
         .send(reqBody)

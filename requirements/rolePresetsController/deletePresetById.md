@@ -9,9 +9,9 @@ Cross Mark: ❌
 
 > ## Negative case
 
-1. ✅ Returns error 404 if the API does not exist
-2. ✅ Returns error 403 if user doesn't have permissions for putRole
-3. ✅ Returns 404 if any error when finding by id
+1. ✅ Returns error 403 if user doesn't have permissions for putRole
+2. ✅ Returns 400 if error in finding by id
+3. ✅ Returns 400 if the route doesn't exist
 4. ✅ Returns 400 if any error when removing results
 
 > ## Edge case
