@@ -74,6 +74,7 @@ const largeItemBaseSchema = mongoose.Schema({
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       type: { type: String, enum: ['Check In', 'Check Out'] },
   }],
+  userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }, //new field
 });
 
 const largeItemBase = mongoose.model('largeItemBase', largeItemBaseSchema, 'buildingInventoryItems');
