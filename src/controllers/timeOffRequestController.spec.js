@@ -1,3 +1,8 @@
+jest.mock('../utilities/permissions', () => ({
+  hasPermission: jest.fn(), // Mock the hasPermission function directly
+}));
+
+const { hasPermission } = require('../utilities/permissions'); // Import the mocked function
 const { mockReq, mockRes, assertResMock } = require('../test');
 const timeOffRequestController = require('./timeOffRequestController');
 const TimeOffRequest = require('../models/timeOffRequest');
@@ -176,6 +181,40 @@ describe('timeOffRequestController.js module', () => {
       assertResMock(500, error, response, mockRes);
       expect(findOneSpy).toHaveBeenCalled();
       expect(findOneSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('deleteTimeOffRequestById function', () => {
+    test('Returns 403 if user is not authorized', async () => {
+      const { deleteTimeOffRequestById } = makeSut();
+
+      // Create a deep copy of mockReq
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.body.requestor.role = 'volunteer';
+      mockReqCopy.body.requestor.permissions.frontPermissions = [];
+      mockReqCopy.body.requestor.permissions.backPermissions = [];
+      mockReqCopy.params.id = '123';
+
+      const error = 'You are not authorized to set time off requests.';
+
+      const mockData = null;
+      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockResolvedValueOnce(mockData);
+
+      hasPermission.mockImplementation(async () => false);
+
+      const response = await deleteTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalled();
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
     });
   });
 });
