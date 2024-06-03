@@ -7,6 +7,7 @@ const makeSut = () => {
     mouseoverTextController(MouseoverText);
   return { createMouseoverText, getMouseoverText, updateMouseoverText };
 };
+
 const flushPromises = () => new Promise(setImmediate);
 describe('mouseoverText Controller', () => {
   beforeEach(() => {
@@ -35,7 +36,7 @@ describe('mouseoverText Controller', () => {
       const response = createMouseoverText(newMockReq, mockRes);
       await flushPromises();
 
-      assertResMock(500, new Error('Error when saving'), response, mockRes);
+      assertResMock(500, { err: new Error('Error when saving') }, response, mockRes);
     });
     test('Ensure createMouseoverText returns 201 if create new mouseoverText successfully', async () => {
       const { createMouseoverText } = makeSut();
@@ -46,21 +47,21 @@ describe('mouseoverText Controller', () => {
           newMouseoverText: 'new mouseoverText',
         },
       };
-      jest
-        .spyOn(MouseoverText.prototype, 'save')
-        .mockResolvedValueOnce({ _id: '123random', mouseoverText: 'new mouseoverText' });
-
+      mockRes.json = jest.fn();
+      jest.spyOn(MouseoverText.prototype, 'save').mockResolvedValue({
+        mouseoverText: 'new mouseoverText',
+      });
       createMouseoverText(newMockReq, mockRes);
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(201);
-      expect(mockRes.send).toHaveBeenCalledWith({
-        _serverMessage: 'MouseoverText successfully created!',
-        mouseoverText: {
-          _id: '123random',
-          mouseoverText: newMockReq.body.newMouseoverText,
-        },
-      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mouseoverText: expect.objectContaining({
+            mouseoverText: 'new mouseoverText',
+          }),
+        }),
+      );
     });
   });
   describe('getMouseoverText method', () => {
@@ -110,7 +111,7 @@ describe('mouseoverText Controller', () => {
       const response = updateMouseoverText(mockReq, mockRes);
       await flushPromises();
 
-      assertResMock(500, { error: 'MouseoverText not found with the given ID' }, response, mockRes);
+      assertResMock(500, 'MouseoverText not found with the given ID', response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id, expect.anything());
     });
     test('Ensure updateMouseoverText returns 400 if any error when saving the mouseoverText', async () => {

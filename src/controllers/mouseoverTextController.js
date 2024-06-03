@@ -4,12 +4,13 @@ const mouseoverTextController = function (MouseoverText) {
     newMouseoverText.mouseoverText = req.body.newMouseoverText;
     newMouseoverText
       .save()
-      .then((result) =>
-        res
-          .status(201)
-          .send({ _serverMessage: 'MouseoverText successfully created!', mouseoverText: result }),
+      .then(() =>
+        res.status(201).json({
+          _serverMessage: 'MouseoverText succesfuly created!',
+          mouseoverText: newMouseoverText,
+        }),
       )
-      .catch((error) => res.status(500).send(error));
+      .catch((err) => res.status(500).send({ err }));
   };
 
   const getMouseoverText = function (req, res) {
@@ -26,7 +27,7 @@ const mouseoverTextController = function (MouseoverText) {
 
     return MouseoverText.findById(id, (error, mouseoverText) => {
       if (error || mouseoverText === null) {
-        res.status(500).send({ error: 'MouseoverText not found with the given ID' });
+        res.status(500).send('MouseoverText not found with the given ID');
         return;
       }
 
