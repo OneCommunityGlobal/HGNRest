@@ -1,10 +1,10 @@
-const moment = require('moment-timezone');
-const mongoose = require('mongoose');
-const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
-const escapeRegex = require('../utilities/escapeRegex');
-const cache = require('../utilities/nodeCache')();
-const logger = require('../startup/logger');
+const moment = require("moment-timezone");
+const mongoose = require("mongoose");
+const UserProfile = require("../models/userProfile");
+const { hasPermission } = require("../utilities/permissions");
+const escapeRegex = require("../utilities/escapeRegex");
+const cache = require("../utilities/nodeCache")();
+const logger = require("../startup/logger");
 
 const badgeController = function (Badge) {
   /**
@@ -13,33 +13,38 @@ const badgeController = function (Badge) {
    * @returns {Array<Object>} List containing badge records.
    */
   const getAllBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
-      res.status(403).send('You are not authorized to view all badge data.');
+    if (
+      !(await hasPermission(req.body.requestor, "seeBadges")) ||
+      !(await hasPermission(req.body.requestor, "createBadges")) ||
+      !(await hasPermission(req.body.requestor, "updateBadges")) ||
+      !(await hasPermission(req.body.requestor, "deleteBadges"))
+    ) {
+      res.status(403).send("You are not authorized to view all badge data.");
       return;
     }
     // Add cache to reduce database query and optimize performance
-    if (cache.hasCache('allBadges')) {
-      res.status(200).send(cache.getCache('allBadges'));
+    if (cache.hasCache("allBadges")) {
+      res.status(200).send(cache.getCache("allBadges"));
       return;
     }
 
     Badge.find(
       {},
-      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+      "badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport"
     )
       .populate({
-        path: 'project',
-        select: '_id projectName',
+        path: "project",
+        select: "_id projectName",
       })
       .sort({
         ranking: 1,
         badgeName: 1,
       })
       .then((results) => {
-        cache.setCache('allBadges', results);
+        cache.setCache("allBadges", results);
         res.status(200).send(results);
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   /**
@@ -52,8 +57,8 @@ const badgeController = function (Badge) {
    */
 
   const assignBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'assignBadges'))) {
-      res.status(403).send('You are not authorized to assign badges.');
+    if (!(await hasPermission(req.body.requestor, "assignBadges"))) {
+      res.status(403).send("You are not authorized to assign badges.");
       return;
     }
 
@@ -61,14 +66,14 @@ const badgeController = function (Badge) {
 
     UserProfile.findById(userToBeAssigned, (error, record) => {
       if (error || record === null) {
-        res.status(400).send('Can not find the user to be assigned.');
+        res.status(400).send("Can not find the user to be assigned.");
         return;
       }
 
       const badgeGroups = req.body.badgeCollection.reduce((grouped, item) => {
         const { badge } = item;
 
-        if (typeof item.count !== 'number') {
+        if (typeof item.count !== "number") {
           item.count = Number(item.count);
           if (Number.isNaN(item.count)) {
             return grouped;
@@ -91,16 +96,29 @@ const badgeController = function (Badge) {
           // If the badge is already in the grouped object, update properties
           grouped[badge].count += item.count;
           grouped[badge].lastModified = Date.now();
-          grouped[badge].featured = grouped[badge].featured || item.featured || false;
+          grouped[badge].featured =
+            grouped[badge].featured || item.featured || false;
 
           // Combine and sort earnedDate arrays
           if (Array.isArray(item.earnedDate)) {
-            const combinedEarnedDate = [...grouped[badge].earnedDate, ...item.earnedDate];
-            const timestampArray = combinedEarnedDate.map(date => new Date(date).getTime());
+            const combinedEarnedDate = [
+              ...grouped[badge].earnedDate,
+              ...item.earnedDate,
+            ];
+            const timestampArray = combinedEarnedDate.map((date) =>
+              new Date(date).getTime()
+            );
             timestampArray.sort((a, b) => a - b);
-            grouped[badge].earnedDate = timestampArray.map(timestamp => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
-              .replace(/ /g, '-')
-              .replace(',', ''));
+            grouped[badge].earnedDate = timestampArray.map((timestamp) =>
+              new Date(timestamp)
+                .toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "2-digit",
+                })
+                .replace(/ /g, "-")
+                .replace(",", "")
+            );
           }
         }
 
@@ -108,13 +126,15 @@ const badgeController = function (Badge) {
       }, {});
 
       // Convert badgeGroups object to array
-      const badgeGroupsArray = Object.entries(badgeGroups).map(([badge, data]) => ({
-        badge,
-        count: data.count,
-        lastModified: data.lastModified,
-        featured: data.featured,
-        earnedDate: data.earnedDate,
-      }));
+      const badgeGroupsArray = Object.entries(badgeGroups).map(
+        ([badge, data]) => ({
+          badge,
+          count: data.count,
+          lastModified: data.lastModified,
+          featured: data.featured,
+          earnedDate: data.earnedDate,
+        })
+      );
 
       record.badgeCollection = badgeGroupsArray;
 
@@ -123,26 +143,28 @@ const badgeController = function (Badge) {
       }
 
       record
-      .save()
-      .then((results) => {
-        res.status(201).send(results._id);
-      })
-      .catch((err) => {
-        res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
-      });
+        .save()
+        .then((results) => {
+          res.status(201).send(results._id);
+        })
+        .catch((err) => {
+          res
+            .status(500)
+            .send(`Internal Error: Badge Collection. ${err.message}`);
+        });
     });
   };
 
   const postBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'createBadges'))) {
+    if (!(await hasPermission(req.body.requestor, "createBadges"))) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to create new badges.' });
+        .send({ error: "You are not authorized to create new badges." });
       return;
     }
 
     Badge.find({
-      badgeName: { $regex: escapeRegex(req.body.badgeName), $options: 'i' },
+      badgeName: { $regex: escapeRegex(req.body.badgeName), $options: "i" },
     }).then((result) => {
       if (result.length > 0) {
         res.status(400).send({
@@ -170,42 +192,42 @@ const badgeController = function (Badge) {
         .save()
         .then((results) => {
           // remove cache after new badge is saved
-          if (cache.getCache('allBadges')) {
-            cache.removeCache('allBadges');
+          if (cache.getCache("allBadges")) {
+            cache.removeCache("allBadges");
           }
           res.status(201).send(results);
         })
-        .catch(errors => res.status(500).send(errors));
+        .catch((errors) => res.status(500).send(errors));
     });
   };
 
   const deleteBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteBadges'))) {
+    if (!(await hasPermission(req.body.requestor, "deleteBadges"))) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to delete badges.' });
+        .send({ error: "You are not authorized to delete badges." });
       return;
     }
     const { badgeId } = req.params;
     Badge.findById(badgeId, (error, record) => {
       if (error || record === null) {
-        res.status(400).send({ error: 'No valid records found' });
+        res.status(400).send({ error: "No valid records found" });
         return;
       }
       const removeBadgeFromProfile = UserProfile.updateMany(
         {},
-        { $pull: { badgeCollection: { badge: record._id } } },
+        { $pull: { badgeCollection: { badge: record._id } } }
       ).exec();
       const deleteRecord = record.remove();
 
       Promise.all([removeBadgeFromProfile, deleteRecord])
         .then(() => {
           // remove cache after new badge is deleted
-          if (cache.getCache('allBadges')) {
-            cache.removeCache('allBadges');
+          if (cache.getCache("allBadges")) {
+            cache.removeCache("allBadges");
           }
           res.status(200).send({
-            message: 'Badge successfully deleted and user profiles updated',
+            message: "Badge successfully deleted and user profiles updated",
           });
         })
         .catch((errors) => {
@@ -217,10 +239,10 @@ const badgeController = function (Badge) {
   };
 
   const putBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'updateBadges'))) {
+    if (!(await hasPermission(req.body.requestor, "updateBadges"))) {
       res
         .status(403)
-        .send({ error: 'You are not authorized to update badges.' });
+        .send({ error: "You are not authorized to update badges." });
       return;
     }
     const { badgeId } = req.params;
@@ -251,14 +273,14 @@ const badgeController = function (Badge) {
 
     Badge.findByIdAndUpdate(badgeId, data, (error, record) => {
       if (error || record === null) {
-        res.status(400).send({ error: 'No valid records found' });
+        res.status(400).send({ error: "No valid records found" });
         return;
       }
       // remove cache after new badge is updated
-      if (cache.getCache('allBadges')) {
-        cache.removeCache('allBadges');
+      if (cache.getCache("allBadges")) {
+        cache.removeCache("allBadges");
       }
-      res.status(200).send({ message: 'Badge successfully updated' });
+      res.status(200).send({ message: "Badge successfully updated" });
     });
   };
 
