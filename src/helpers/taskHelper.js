@@ -118,7 +118,7 @@ const taskHelper = function () {
         }
       }
 
-      teamMemberIds = teamMembers.map(member => member._id);
+      teamMemberIds = teamMembers.map((member) => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
@@ -151,7 +151,7 @@ const taskHelper = function () {
         path: "wbsId",
         select: "projectId",
       });
-      const teamMemberTaskIds = teamMemberTasks.map(task => task._id);
+      const teamMemberTaskIds = teamMemberTasks.map((task) => task._id);
       const teamMemberTaskNotifications = await TaskNotification.find({
         taskId: { $in: teamMemberTaskIds },
       });
@@ -167,9 +167,7 @@ const taskHelper = function () {
             teamMemberTaskNotification
           );
         } else {
-          taskNotificationByTaskNdUser[taskNdUserID] = [
-            teamMemberTaskNotification,
-          ];
+          taskNotificationByTaskNdUser[taskNdUserID] = [teamMemberTaskNotification];
         }
       });
 
@@ -183,8 +181,12 @@ const taskHelper = function () {
         teamMemberTask.resources.forEach((resource) => {
           const resourceIdStr = resource.userID?.toString();
           const taskNdUserID = `${taskIdStr},${resourceIdStr}`;
-          _teamMemberTask.taskNotifications =
-            taskNotificationByTaskNdUser[taskNdUserID] || [];
+          // initialize taskNotifications if not exists
+          if (!_teamMemberTask.taskNotifications) _teamMemberTask.taskNotifications = [];
+          // push all notifications into the list if taskNdUserId key exists
+          if (taskNotificationByTaskNdUser[taskNdUserID])
+            _teamMemberTask.taskNotifications.push(...taskNotificationByTaskNdUser[taskNdUserID]);
+
           if (taskByPerson[resourceIdStr]) {
             taskByPerson[resourceIdStr].push(_teamMemberTask);
           } else {
@@ -195,17 +197,17 @@ const taskHelper = function () {
 
       const teamMemberTasksData = [];
       teamMembers.forEach((teamMember) => {
+        const timeEntry = timeEntryByPerson[teamMember._id.toString()];
+        const tangible = timeEntry?.tangibleSeconds || 0;
+        const total = timeEntry?.totalSeconds || 0;
         const obj = {
           personId: teamMember._id,
           role: teamMember.role,
           name: `${teamMember.firstName} ${teamMember.lastName}`,
           weeklycommittedHours: teamMember.weeklycommittedHours,
-          totaltangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds /
-              3600 || 0,
-          totaltime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600 ||
-            0,
+          totaltangibletime_hrs: tangible / 3600,
+          totaltime_hrs: total / 3600,
+
           tasks: taskByPerson[teamMember._id.toString()] || [],
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
