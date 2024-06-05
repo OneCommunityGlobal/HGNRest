@@ -1,10 +1,11 @@
-const moment = require("moment-timezone");
-const mongoose = require("mongoose");
-const userProfile = require("../models/userProfile");
-const timeentry = require("../models/timeentry");
-const team = require("../models/team");
-const Task = require("../models/task");
-const TaskNotification = require("../models/taskNotification");
+const moment = require('moment-timezone');
+const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const timeentry = require('../models/timeentry');
+const team = require('../models/team');
+const Task = require('../models/task');
+const TaskNotification = require('../models/taskNotification');
+const { hasPermission } = require('../utilities/permissions');
 
 const taskHelper = function () {
   const getTasksForTeams = async function (userId, requestor) {
@@ -24,7 +25,7 @@ const taskHelper = function () {
           timeOffFrom: 1,
           timeOffTill: 1,
           adminLinks: 1,
-        },
+        }
       );
 
       if (userById === null) return null;
@@ -42,14 +43,9 @@ const taskHelper = function () {
       let teamMemberIds = [userid];
       let teamMembers = [];
 
-      const isRequestorOwnerLike = [
-        "Administrator",
-        "Owner",
-        "Core Team",
-      ].includes(requestorRole);
-      const isUserOwnerLike = ["Administrator", "Owner", "Core Team"].includes(
-        userRole,
-      );
+      const isRequestorOwnerLike = await hasPermission(requestor, 'seeUsersInDashboard');
+      const userAsRequestor = {'role': userRole, requestorId: userId };
+      const isUserOwnerLike = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
@@ -63,14 +59,14 @@ const taskHelper = function () {
               timeOffFrom: 1,
               timeOffTill: 1,
               adminLinks: 1,
-            },
+            }
           );
           break;
         }
         case isRequestorOwnerLike && !isUserOwnerLike: {
           const teamsResult = await team.find(
             { "members.userId": { $in: [userid] } },
-            { members: 1 },
+            { members: 1 }
           );
 
           teamsResult.forEach((_myTeam) => {
@@ -90,14 +86,14 @@ const taskHelper = function () {
               timeOffFrom: 1,
               timeOffTill: 1,
               adminLinks: 1,
-            },
+            }
           );
           break;
         }
         default: {
           const sharedTeamsResult = await team.find(
             { "members.userId": { $all: [userid, requestorId] } },
-            { members: 1 },
+            { members: 1 }
           );
 
           sharedTeamsResult.forEach((_myTeam) => {
@@ -117,7 +113,7 @@ const taskHelper = function () {
               timeOffFrom: 1,
               timeOffTill: 1,
               adminLinks: 1,
-            },
+            }
           );
         }
       }
@@ -150,7 +146,7 @@ const taskHelper = function () {
       });
       const teamMemberTasks = await Task.find(
         { "resources.userID": { $in: teamMemberIds } },
-        { "resources.profilePic": 0 },
+        { "resources.profilePic": 0 }
       ).populate({
         path: "wbsId",
         select: "projectId",
@@ -168,12 +164,10 @@ const taskHelper = function () {
 
         if (taskNotificationByTaskNdUser[taskNdUserID]) {
           taskNotificationByTaskNdUser[taskNdUserID].push(
-            teamMemberTaskNotification,
+            teamMemberTaskNotification
           );
         } else {
-          taskNotificationByTaskNdUser[taskNdUserID] = [
-            teamMemberTaskNotification,
-          ];
+          taskNotificationByTaskNdUser[taskNdUserID] = [teamMemberTaskNotification];
         }
       });
 
@@ -188,13 +182,10 @@ const taskHelper = function () {
           const resourceIdStr = resource.userID?.toString();
           const taskNdUserID = `${taskIdStr},${resourceIdStr}`;
           // initialize taskNotifications if not exists
-          if (!_teamMemberTask.taskNotifications)
-            _teamMemberTask.taskNotifications = [];
+          if (!_teamMemberTask.taskNotifications) _teamMemberTask.taskNotifications = [];
           // push all notifications into the list if taskNdUserId key exists
           if (taskNotificationByTaskNdUser[taskNdUserID])
-            _teamMemberTask.taskNotifications.push(
-              ...taskNotificationByTaskNdUser[taskNdUserID],
-            );
+            _teamMemberTask.taskNotifications.push(...taskNotificationByTaskNdUser[taskNdUserID]);
 
           if (taskByPerson[resourceIdStr]) {
             taskByPerson[resourceIdStr].push(_teamMemberTask);
