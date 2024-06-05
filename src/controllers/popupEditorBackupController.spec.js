@@ -4,9 +4,18 @@ const PopupEditorBackups = require('../models/popupEditorBackup');
 const helper = require('../utilities/permissions');
 
 const makeSut = () => {
-  const { createPopupEditorBackup, getAllPopupEditorBackups, getPopupEditorBackupById } =
-    popupEditorBackupController(PopupEditorBackups);
-  return { createPopupEditorBackup, getAllPopupEditorBackups, getPopupEditorBackupById };
+  const {
+    createPopupEditorBackup,
+    getAllPopupEditorBackups,
+    getPopupEditorBackupById,
+    updatePopupEditorBackup,
+  } = popupEditorBackupController(PopupEditorBackups);
+  return {
+    createPopupEditorBackup,
+    getAllPopupEditorBackups,
+    getPopupEditorBackupById,
+    updatePopupEditorBackup,
+  };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -40,6 +49,7 @@ describe('popupEditorBackup Controller', () => {
         .mockImplementationOnce(() => Promise.resolve(true));
 
       const newMockReq = {
+        ...mockReq,
         body: {
           ...mockReq.body,
           popupContent: 'some popupContent',
@@ -65,6 +75,7 @@ describe('popupEditorBackup Controller', () => {
         .mockImplementationOnce(() => Promise.resolve(true));
 
       const newMockReq = {
+        ...mockReq,
         body: {
           ...mockReq.body,
           popupName: 'some popupName',
@@ -90,6 +101,7 @@ describe('popupEditorBackup Controller', () => {
         .mockImplementationOnce(() => Promise.resolve(true));
 
       const newMockReq = {
+        ...mockReq,
         body: {
           ...mockReq.body,
           popupId: 'randomId334',
@@ -124,6 +136,7 @@ describe('popupEditorBackup Controller', () => {
         popupContent: 'test popupContent',
       };
       const newMockReq = {
+        ...mockReq,
         body: {
           ...mockReq.body,
           popupId: 'randomId334',
@@ -206,6 +219,185 @@ describe('popupEditorBackup Controller', () => {
         expect.anything(),
       );
       assertResMock(200, data[0], response, mockRes);
+    });
+  });
+  describe('updatePopupEditorBackup method', () => {
+    test("Ensure updatePopupEditorBackup returns 403 if user doesn't have permissions for createPopup", async () => {
+      const { updatePopupEditorBackup } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(false));
+
+      const response = await updatePopupEditorBackup(mockReq, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'updatePopup');
+
+      assertResMock(
+        403,
+        { error: 'You are not authorized to create new popup' },
+        response,
+        mockRes,
+      );
+    });
+    test('Ensure updatePopupEditorBackup returns 400 if missing popupContent', async () => {
+      const { updatePopupEditorBackup } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+
+      const newMockReq = {
+        ...mockReq,
+        body: {
+          ...mockReq.body,
+          popupId: 'randomId334',
+          popupName: 'some popupName',
+        },
+      };
+
+      const response = await updatePopupEditorBackup(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'updatePopup');
+      assertResMock(400, { error: 'popupContent is mandatory field' }, response, mockRes);
+    });
+    test('Ensure updatePopupEditorBackup returns 500 if error in finding', async () => {
+      const { updatePopupEditorBackup } = makeSut();
+      const newMockReq = {
+        ...mockReq,
+        body: {
+          ...mockReq.body,
+          popupId: 'randomId334',
+          popupName: 'some popupName',
+          popupContent: 'some popupContent',
+        },
+      };
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+      const findByIdSpy = jest
+        .spyOn(PopupEditorBackups, 'find')
+        .mockImplementationOnce((_, cb) => cb(true, null));
+
+      await updatePopupEditorBackup(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'updatePopup');
+      expect(findByIdSpy).toHaveBeenCalledWith(
+        { popupId: { $in: mockReq.params.id } },
+        expect.anything(),
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+    });
+    test('Ensure updatePopupEditorBackup returns 201 if no find and update successfully', async () => {
+      const { updatePopupEditorBackup } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+      const newMockReq = {
+        ...mockReq,
+        body: {
+          ...mockReq.body,
+          popupId: 'randomId334',
+          popupName: 'some popupName',
+          popupContent: 'update popupContent',
+        },
+      };
+      const data = {
+        popupId: 'randomId334',
+        popupName: 'some popupName',
+        popupContent: 'some popupContent',
+      };
+
+      const findByIdSpy = jest
+        .spyOn(PopupEditorBackups, 'find')
+        .mockImplementationOnce((_, cb) => cb(null, []));
+      const saveSpy = jest
+        .spyOn(PopupEditorBackups.prototype, 'save')
+        .mockImplementationOnce(() => Promise.resolve(data));
+      const response = await updatePopupEditorBackup(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'updatePopup');
+      expect(findByIdSpy).toHaveBeenCalledWith(
+        { popupId: { $in: mockReq.params.id } },
+        expect.anything(),
+      );
+      expect(saveSpy).toHaveBeenCalledWith();
+      assertResMock(201, data, response, mockRes);
+    });
+    test('Ensure updatePopupEditorBackup returns 500 if no find and any error in saving', async () => {
+      const { updatePopupEditorBackup } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+      const newMockReq = {
+        ...mockReq,
+        body: {
+          ...mockReq.body,
+          popupId: 'randomId334',
+          popupName: 'some popupName',
+          popupContent: 'some popupContent',
+        },
+      };
+      const findByIdSpy = jest
+        .spyOn(PopupEditorBackups, 'find')
+        .mockImplementationOnce((_, cb) => cb(null, []));
+      const saveSpy = jest
+        .spyOn(PopupEditorBackups.prototype, 'save')
+        .mockImplementationOnce(() => Promise.reject(new Error('Error when saving')));
+      const response = await updatePopupEditorBackup(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'updatePopup');
+      expect(findByIdSpy).toHaveBeenCalledWith(
+        { popupId: { $in: mockReq.params.id } },
+        expect.anything(),
+      );
+      expect(saveSpy).toHaveBeenCalledWith();
+      assertResMock(
+        500,
+        {
+          err: new Error('Error when saving'),
+        },
+        response,
+        mockRes,
+      );
+    });
+    test('Ensure updatePopupEditorBackup returns 201 if find some and update successfully', async () => {
+      const { updatePopupEditorBackup } = makeSut();
+      const hasPermissionSpy = jest
+        .spyOn(helper, 'hasPermission')
+        .mockImplementationOnce(() => Promise.resolve(true));
+      const newMockReq = {
+        ...mockReq,
+        body: {
+          ...mockReq.body,
+          popupId: '6437f9af9820a0134ca79c5e',
+          popupName: 'some popupName',
+          popupContent: 'update popupContent',
+        },
+      };
+      const updateData = {
+        popupId: 'randomId334',
+        popupName: 'some popupName',
+        popupContent: 'update popupContent',
+      };
+      const findData = [
+        {
+          popupId: '6437f9af9820a0134ca79c5e',
+          popupName: 'some popupName',
+          popupContent: 'some popupContent',
+          save: jest.fn().mockImplementationOnce(() => Promise.resolve(updateData)),
+        },
+      ];
+      const findByIdSpy = jest
+        .spyOn(PopupEditorBackups, 'find')
+        .mockImplementationOnce((_, cb) => cb(null, findData));
+      const response = await updatePopupEditorBackup(newMockReq, mockRes);
+      await flushPromises();
+      expect(hasPermissionSpy).toHaveBeenCalledWith(newMockReq.body.requestor, 'updatePopup');
+      expect(findByIdSpy).toHaveBeenCalledWith(
+        { popupId: { $in: mockReq.params.id } },
+        expect.anything(),
+      );
+      expect(findData[0].save).toHaveBeenCalledWith();
+      assertResMock(201, updateData, response, mockRes);
     });
   });
 });
