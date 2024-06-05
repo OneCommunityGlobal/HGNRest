@@ -1377,12 +1377,10 @@ const userHelper = function () {
 
   const getMaxHrs = async (personId, user) => {
     const weeksdata = await getAllWeeksData(personId, user);
-    // console.log('max hours', Math.max(...weeksdata), 'weeks', weeksdata);
     return Math.max(...weeksdata);
-
   };
 
-  const UpdatePersonalMax = async (personId, user) => {
+  const updatePersonalMax = async (personId, user) => {
     try {
       const MaxHrs = await getMaxHrs(personId, user);
       user.personalBestMaxHrs = MaxHrs;
@@ -1425,7 +1423,6 @@ const userHelper = function () {
           );
           // Update the earnedDate array with the new date
           badgeOfType.earnedDate.unshift(moment().format("MMM-DD-YYYY"));
-          // console.log('earnedDates: ',badgeOfType.earnedDate);
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
         }
@@ -1744,7 +1741,7 @@ const userHelper = function () {
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
         
-        await UpdatePersonalMax(personId, user);
+        await updatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
