@@ -7,10 +7,9 @@ const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * 0', // Every Sunday, 1 minute past midnight.
-    // '30 22 * * 0', // hotfix for 10:30pm
 
     async () => {
-      const SUNDAY = 0; // will change back to 0 after fix
+      const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();

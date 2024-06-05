@@ -1,9 +1,9 @@
 {
-  "extends": ["eslint:recommended", "airbnb-base", "prettier"],
+  "extends": ["eslint:recommended", "airbnb-base"],
   "parser": "@babel/eslint-parser",
   "parserOptions": {
     "ecmaVersion": 8,
-    "sourceType": "module",
+    "sourceType": "module"
   },
   "env": { "es6": true, "node": true, "commonjs": true },
   "rules": {
@@ -16,21 +16,11 @@
     "no-await-in-loop": "warn",
     "template-curly-spacing": "off",
     "indent": "off",
-    "linebreak-style": 0,
-    "no-console": "off",
-    "consistent-return": "off",
+    "linebreak-style": 0
   },
   "settings": {
     "import/resolver": {
-      "babel-module": {},
-    },
-  },
-  "overrides": [
-    {
-      "files": ["**/*.test.js", "**/*.spec.js", "src/test/*.js"],
-      "env": {
-        "jest": true,
-      },
-    },
-  ],
+      "babel-module": {}
+    }
+  }
 }

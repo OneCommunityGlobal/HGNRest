@@ -23,5 +23,3 @@ testem.log
 
 /.vscode
 
-# OS specific
-.DS_Store
