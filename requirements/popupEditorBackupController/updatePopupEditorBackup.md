@@ -4,7 +4,7 @@ Cross Mark: ❌
 # updatePopupEditorBackup
 
 > ## Positive case
-1. ❌ Receives a POST request in the **/backup/popupeditors/** route.
+1. ✅ Receives a POST request in the **/backup/popupeditor/:id** route.
 2. ✅ Return 201 if find popup and update popup successfully.
 3. ✅ Return 201 if no find and update popup successfully.
 
