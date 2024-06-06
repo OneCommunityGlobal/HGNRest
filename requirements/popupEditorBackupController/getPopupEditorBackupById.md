@@ -4,7 +4,7 @@ Cross Mark: ❌
 # getPopupEditorBackupById
 
 > ## Positive case
-1. ❌ Receives a GET request in the **/backup/popupeditors/** route.
+1. ✅ Receives a GET request in the **/api/backup/popupeditor/:id** route.
 2. ✅ Return 200 if get get PopupEditor Backup ById successfully.
 
 > ## Negative case
