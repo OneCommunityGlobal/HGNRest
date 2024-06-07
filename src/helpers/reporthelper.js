@@ -122,13 +122,13 @@ const reporthelper = function () {
             },
           },
           teamCode: {
-            $ifNull: ["$teamCode", ""],
+            $ifNull: ['$teamCode', ''],
           },
           timeOffFrom: {
-            $ifNull: ["$timeOffFrom", null],
+            $ifNull: ['$timeOffFrom', null],
           },
           timeOffTill: {
-            $ifNull: ["$timeOffTill", null],
+            $ifNull: ['$timeOffTill', null],
           },
           role: 1,
           weeklySummaries: {
@@ -190,7 +190,7 @@ const reporthelper = function () {
     userProfile
       .find({ getWeeklyReport: true }, { email: 1, _id: 0 })
       .then((results) => {
-        mappedResults = results.map(ele => ele.email);
+        mappedResults = results.map((ele) => ele.email);
         mappedResults.push(
           "onecommunityglobal@gmail.com",
           "onecommunityhospitality@gmail.com",
