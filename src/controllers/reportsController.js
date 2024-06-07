@@ -1,11 +1,38 @@
 /* eslint-disable consistent-return */
 const mongoose = require('mongoose');
-const reporthelper = require('../helpers/reporthelper')();
-const overviewReportHelper = require('../helpers/overviewReportHelper')();
+const reporthelperClosure = require('../helpers/reporthelper');
+const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
 
 const reportsController = function () {
+  const overviewReportHelper = overviewReportHelperClosure();
+  const reporthelper = reporthelperClosure();
+  /**
+   * Aggregates all the data needed for the volunteer stats page
+   * # Active volunteers
+   * # New volunteers
+   * # Deactivated volunteers
+   * # Badges awarded
+   * Location data aggregation
+   * Weekly anniversaries
+   * Blue square stats
+   * In teams stats
+   */
+  const getVolunteerStatsData = async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const isoStartDate = new Date(startDate);
+    const isoEndDate = new Date(endDate);
+
+    try {
+      const data = await overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate);
+      res.status(200).send(data);
+    } catch (err) {
+      console.log(err);
+      res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
   const getWeeklySummaries = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
@@ -334,6 +361,7 @@ const reportsController = function () {
     saveReportsRecepients,
     getVolunteerRoleStats,
     getBlueSquareStats,
+    getVolunteerStatsData,
   };
 };
 
