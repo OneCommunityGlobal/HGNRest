@@ -7,6 +7,51 @@ const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
+   * returns the number of:
+   * 1. Active volunteers
+   * 2. Volunteers that deactivated in the current week
+   * 3. New volunteers in the current week
+   *
+   * @param {string} startDate
+   * @param {string} endDate
+   */
+  const getVolunteerNumberStats = async (startDate, endDate) => {
+    const data = await UserProfile.aggregate([
+      {
+        $facet: {
+          activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
+
+          newVolunteers: [
+            {
+              $match: {
+                createdDate: {
+                  $gte: startDate,
+                  $lte: endDate,
+                },
+              },
+            },
+            { $count: 'newVolunteersCount' },
+          ],
+
+          deactivatedVolunteers: [
+            {
+              $match: {
+                $and: [
+                  { lastModifiedDate: { $gte: startDate } },
+                  { lastModifiedDate: { $lte: endDate } },
+                  { isActive: false },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    return data;
+  };
+
+  /**
    *
    * @returns The number of teams with 4 or more members.
    */
@@ -347,6 +392,7 @@ const overviewReportHelper = function () {
   }
 
   return {
+    getVolunteerNumberStats,
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
     getAnniversaryCount,
