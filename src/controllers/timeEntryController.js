@@ -858,6 +858,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: { $in: ['default', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
+        isActive: { $ne: false },
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
@@ -890,7 +891,7 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      '-createdDateTime',
     )
       .populate('personId')
       .populate('projectId')
@@ -899,7 +900,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
-
         results.forEach((element) => {
           const record = {};
           record._id = element._id;
@@ -917,10 +917,8 @@ const timeEntrycontroller = function (TimeEntry) {
           record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
           record.wbsId = element.wbsId?._id || null;
           record.wbsName = element.wbsId?.wbsName || null;
-
           data.push(record);
         });
-
         res.status(200).send(data);
       })
       .catch((error) => {
@@ -977,6 +975,7 @@ const timeEntrycontroller = function (TimeEntry) {
       {
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
+        isActive: { $ne: false },
       },
       '-createdDateTime -lastModifiedDateTime',
     )
@@ -1001,6 +1000,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'person',
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1040,6 +1040,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'project',
         projectId: { $in: projects },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1077,6 +1078,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'team',
         teamId: { $in: teams },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
