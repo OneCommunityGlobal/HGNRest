@@ -21,6 +21,9 @@ const reportsController = function () {
    */
   const getVolunteerStatsData = async (req, res) => {
     const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).send({ msg: 'Please provide a start and end date' });
+    }
     const isoStartDate = new Date(startDate);
     const isoEndDate = new Date(endDate);
 
