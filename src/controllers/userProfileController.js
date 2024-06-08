@@ -325,6 +325,7 @@ const userProfileController = function (UserProfile) {
         _id: up._id,
       });
     } catch (error) {
+      console.log(error);
       res.status(501).send(error);
     }
   };
@@ -469,11 +470,15 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.teams !== undefined) {
-          record.teams = Array.from(new Set(req.body.teams));
+          if (req.body.teams.length > 0) {
+            record.teams = Array.from(new Set(req.body.teams));
+          }
         }
 
         if (req.body.projects !== undefined) {
-          record.projects = Array.from(new Set(req.body.projects));
+          if (req.body.projects.length > 0) {
+            record.projects = Array.from(new Set(req.body.projects));
+          }
         }
 
         if (req.body.email !== undefined) {
