@@ -41,7 +41,7 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
           `The following protected email accounts were not found in the database: ${notFoundEmails.join(', ')}`,
         );
       }
-      protectedEmailAccountIds = query.map(({ _id }) => _id);
+      protectedEmailAccountIds = query.map(({ _id }) => _id.toString());
       serverCache.setCache('protectedEmailAccountIds', protectedEmailAccountIds);
       // Redefine time to live to 1 hour for this specific key
       serverCache.setKeyTimeToLive('protectedEmailAccountIds', 60 * 60);
