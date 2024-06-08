@@ -202,28 +202,28 @@ describe('rolesController module', () => {
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteRole');
       assertResMock(403, 'You are not authorized to delete roles.', response, mockRes);
     });
-  });
 
-  test('Should return 200 and the deleted role on success', async () => {
-    mockHasPermission(true);
+    test('Should return 200 and the deleted role on success', async () => {
+      mockHasPermission(true);
 
-    const mockRole = { remove: jest.fn().mockResolvedValue(), roleName: 'role' };
-    const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
-    const { deleteRoleById } = makeSut();
-    jest
-      .spyOn(cacheObject, 'getCache')
-      .mockImplementationOnce(() => JSON.stringify([{ role: 'role', _id: '1' }]));
-    jest.spyOn(Role, 'findById').mockResolvedValue(mockRole);
-    jest.spyOn(cacheObject, 'setCache').mockImplementationOnce(() => {});
-    jest.spyOn(cacheObject, 'removeCache').mockImplementationOnce(() => {});
-    jest.spyOn(UserProfile, 'updateMany').mockResolvedValue();
+      const mockRole = { remove: jest.fn().mockResolvedValue(), roleName: 'role' };
+      const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
+      const { deleteRoleById } = makeSut();
+      jest
+        .spyOn(cacheObject, 'getCache')
+        .mockImplementationOnce(() => JSON.stringify([{ role: 'role', _id: '1' }]));
+      jest.spyOn(Role, 'findById').mockResolvedValue(mockRole);
+      jest.spyOn(cacheObject, 'setCache').mockImplementationOnce(() => {});
+      jest.spyOn(cacheObject, 'removeCache').mockImplementationOnce(() => {});
+      jest.spyOn(UserProfile, 'updateMany').mockResolvedValue();
 
-    const response = await deleteRoleById(mockReq, mockRes);
-    expect(mockRole.remove).toHaveBeenCalled();
-    expect(hasCacheMock).toHaveBeenCalledWith('allusers');
-    expect(cacheObject.getCache).toHaveBeenCalledWith('allusers');
-    expect(cacheObject.setCache).toHaveBeenCalled();
-    expect(cacheObject.removeCache).toHaveBeenCalled();
-    assertResMock(200, { message: 'Deleted role' }, response, mockRes);
+      const response = await deleteRoleById(mockReq, mockRes);
+      expect(mockRole.remove).toHaveBeenCalled();
+      expect(hasCacheMock).toHaveBeenCalledWith('allusers');
+      expect(cacheObject.getCache).toHaveBeenCalledWith('allusers');
+      expect(cacheObject.setCache).toHaveBeenCalled();
+      expect(cacheObject.removeCache).toHaveBeenCalled();
+      assertResMock(200, { message: 'Deleted role' }, response, mockRes);
+    });
   });
 });
