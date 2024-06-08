@@ -1,8 +1,6 @@
 Check mark: ✅
 Cross Mark: ❌
 
-# Roles Controller Tests
-
 ## getAllRoles Function
 
 > ### Positive case

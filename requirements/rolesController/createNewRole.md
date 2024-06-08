@@ -1,6 +1,8 @@
 Check mark: ✅
 Cross Mark: ❌
 
+## createNewRole Function
+
 > ### Positive case
 1. ✅ Should return 201 and the new role on success
    - Receives a POST request
