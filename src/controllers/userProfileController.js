@@ -470,15 +470,11 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.teams !== undefined) {
-          if (req.body.teams.length > 0) {
-            record.teams = Array.from(new Set(req.body.teams));
-          }
+          record.teams = Array.from(new Set(req.body.teams));
         }
 
         if (req.body.projects !== undefined) {
-          if (req.body.projects.length > 0) {
-            record.projects = Array.from(new Set(req.body.projects));
-          }
+          record.projects = Array.from(new Set(req.body.projects));
         }
 
         if (req.body.email !== undefined) {
