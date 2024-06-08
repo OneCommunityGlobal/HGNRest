@@ -69,9 +69,6 @@ const wbsController = function (WBS) {
           res.status(400).send(errors);
         });
     });
-    // .catch((errors) => {
-    //   res.status(400).send(errors);
-    // });
   };
 
   const getWBS = function (req, res) {
@@ -89,40 +86,12 @@ const wbsController = function (WBS) {
       .catch((error) => res.status(404).send(error));
   };
 
-  // const getWBSByUserId = async function (req, res) {
-  //   const { userId } = req.params;
-  //   try {
-  //     const result = await Task.aggregate()
-  //       .match({
-  //         resources: {
-  //           $elemMatch: { userID: mongoose.Types.ObjectId(userId), completedTask: false },
-  //         },
-  //         isActive: { $ne: false },
-  //       })
-  //       .project('wbsId -_id')
-  //       .group({ _id: '$wbsId' })
-  //       .lookup({
-  //         from: 'wbs',
-  //         localField: '_id',
-  //         foreignField: '_id',
-  //         as: 'wbs',
-  //       })
-  //       .unwind('wbs')
-  //       .replaceRoot('wbs');
-
-  //     res.status(200).send(result);
-  //   } catch (error) {
-  //     res.status(404).send(error);
-  //   }
-  // };
-
   return {
     postWBS,
     deleteWBS,
     getAllWBS,
     getWBS,
     getWBSById,
-    // getWBSByUserId,
   };
 };
 
