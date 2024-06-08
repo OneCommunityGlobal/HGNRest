@@ -866,6 +866,18 @@ const timeEntrycontroller = function (TimeEntry) {
           timeEntry = { ...timeEntry.toObject() };
           const { projectId, taskId } = timeEntry;
           if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
+          if (timeEntry.taskId) {
+            const task = await Task.findById(timeEntry.taskId);
+            if (task) {
+              timeEntry.taskName = task.taskName;
+            }
+          }
+          if (timeEntry.projectId) {
+            const project = await Project.findById(timeEntry.projectId);
+            if (project) {
+              timeEntry.projectName = project.projectName;
+            }
+          }
           const hours = Math.floor(timeEntry.totalSeconds / 3600);
           const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
           Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
