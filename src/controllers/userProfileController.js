@@ -13,7 +13,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
-
+const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
@@ -74,6 +74,84 @@ async function ValidatePassword(req, res) {
     });
   }
 }
+
+const sendEmailUponProtectedAccountUpdate = (
+  requestorEmail,
+  requestorFullName,
+  targetEmail,
+  originalData,
+  updatedData,
+  action,
+) => {
+  const updatedDate = moment_().format('MMM-DD-YY');
+  const subject = 'One Community: Protected Account Has Been Updated';
+  const emailBody = `<p> Hi Admin! </p>
+          
+          <p><strong>Protected Account ${targetEmail} is updated by ${requestorEmail} </strong></p>
+          
+          <p><strong>Here are the details for the new ${targetEmail} account:</strong></p>
+          <ul>
+            <li><strong>Updated Date:</strong> ${updatedDate}</li>
+            <li><strong>Action:</strong> ${action}</li>
+          </ul>
+
+          <p><strong>Who updated this new account?</strong></p>
+          <ul>
+            <li><strong>Name:</strong> ${requestorFullName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${requestorEmail}">${requestorEmail}</a></li>
+          </ul>
+          ${
+            originalData
+              ? `<pre>
+                  Orginal Data: ${originalData}
+                </pre>`
+              : ''
+          }
+          ${
+            updatedData
+              ? `<pre>
+                  Updated Data: ${updatedData}
+                </pre>`
+              : ''
+          }
+         
+          <p>If you have any questions or notice any issues, please investigate further.</p>
+          
+          <p>Thank you for your attention to this matter.</p>
+          
+          <p>Sincerely,</p>
+          <p>The HGN (and One Community)</p>`;
+  emailSender('testcorepp@gmail.com', subject, emailBody, null, null);
+};
+
+const auditIfProtectedAccountUpdated = async (
+  requestorId,
+  updatedRecordEmail,
+  originalRecord,
+  updatedRecord,
+  actionPerformed,
+) => {
+  if (PROTECTED_EMAIL_ACCOUNT.includes(updatedRecordEmail)) {
+    const requestorProfile = userService.getUserFullNameById(requestorId);
+    const requestorFullName = requestorProfile
+      ? requestorProfile.firstName.concat(' ', requestorProfile.lastName)
+      : 'N/A';
+    logger.logInfo(
+      `Protected email account updated. Target: ${updatedRecordEmail}
+      Requestor: ${requestorProfile ? requestorFullName : requestorId}`,
+    );
+    const originalObjectString = originalRecord ? JSON.stringify(originalRecord) : null;
+    const updatedObjectString = updatedRecord ? JSON.stringify(updatedRecord) : null;
+    sendEmailUponProtectedAccountUpdate(
+      requestorProfile?.email,
+      requestorFullName,
+      updatedRecordEmail,
+      originalObjectString,
+      updatedObjectString,
+      actionPerformed,
+    );
+  }
+};
 
 const userProfileController = function (UserProfile) {
   const cache = cacheClosure();
@@ -337,6 +415,7 @@ const userProfileController = function (UserProfile) {
       req.body.requestor.requestorId,
       userid,
     );
+
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
@@ -588,11 +667,13 @@ const userProfileController = function (UserProfile) {
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
           // Log the update of a protected email account
-          if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-            logger.logInfo(
-              `Protected email account updated. Requestor: ${req.body.requestor.requestorId}, Target: ${userid}, Original: ${JSON.stringify(originalRecord)}, Updated: ${JSON.stringify(record)}`,
-            );
-          }
+          auditIfProtectedAccountUpdated(
+            req.body.requestor.requestorId,
+            originalRecord.email,
+            originalRecord,
+            record,
+            'update',
+          );
         })
         .catch((error) => res.status(400).send(error));
     });
@@ -689,17 +770,19 @@ const userProfileController = function (UserProfile) {
       allUserData.splice(userIdx, 1);
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
-
+    const originalRecord = objDeepCopy(user);
     try {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
       res.status(200).send({ message: 'Executed Successfully' });
-      if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-        logger.logInfo(
-          `Protected email account deleted. Requestor: ${req.body.requestor.requestorId}, Target: ${user.email}`,
-        );
-      }
+      auditIfProtectedAccountUpdated(
+        req.body.requestor.requestorId,
+        originalRecord.email,
+        originalRecord,
+        null,
+        'delete',
+      );
     } catch (err) {
       res.status(500).send(err);
     }
@@ -810,6 +893,7 @@ const userProfileController = function (UserProfile) {
 
     return UserProfile.findById(userId)
       .then((user) => {
+        const originalRecord = objDeepCopy(user);
         user.set({
           [key]: value,
         });
@@ -823,6 +907,13 @@ const userProfileController = function (UserProfile) {
               );
             }
             res.status(200).send({ message: 'updated property' });
+            auditIfProtectedAccountUpdated(
+              req.body.requestor.requestorId,
+              originalRecord.email,
+              originalRecord,
+              user,
+              'update',
+            );
           })
           .catch((error) => res.status(500).send(error));
       })
@@ -905,6 +996,13 @@ const userProfileController = function (UserProfile) {
                   );
                 }
                 res.status(200).send({ message: 'updated password' });
+                auditIfProtectedAccountUpdated(
+                  req.body.requestor.requestorId,
+                  user.email,
+                  null,
+                  null,
+                  'PasswordUpdate',
+                );
               })
               .catch((error) => res.status(500).send(error));
           })
@@ -1036,11 +1134,13 @@ const userProfileController = function (UserProfile) {
               allUserData.splice(userIdx, 1, userData);
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
-            if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-              logger.logInfo(
-                `Protected email account password updated. Requestor: ${req.body.requestor.requestorId}, Target: ${user.email}`,
-              );
-            }
+            auditIfProtectedAccountUpdated(
+              req.body.requestor.requestorId,
+              user.email,
+              null,
+              null,
+              'UserStatusUpdate',
+            );
             res.status(200).send({
               message: 'status updated',
             });
@@ -1065,10 +1165,8 @@ const userProfileController = function (UserProfile) {
       return res.status(400).send({ error: 'Bad Request' });
     }
     if (
-      !(
-        (await hasPermission(req.body.requestor, 'changeUserRehireableStatus')) &&
-        canEditProtectedAccount
-      )
+      !(await hasPermission(req.body.requestor, 'changeUserRehireableStatus')) ||
+      !canEditProtectedAccount
     ) {
       return res.status(403).send('You are not authorized to change rehireable status');
     }
@@ -1101,11 +1199,13 @@ const userProfileController = function (UserProfile) {
           if (err) {
             return res.status(500).send('Error fetching updated user data.');
           }
-          if (PROTECTED_EMAIL_ACCOUNT.includes(verifiedUser.email)) {
-            logger.logInfo(
-              `Protected email account rehireable status updated. Requestor: ${req.body.requestor.requestorId}, Target: ${verifiedUser.email}`,
-            );
-          }
+          auditIfProtectedAccountUpdated(
+            req.body.requestor.requestorId,
+            verifiedUser.email,
+            null,
+            null,
+            'UserRehireableStatusUpdate',
+          );
           res.status(200).send({
             message: 'Rehireable status updated and verified successfully',
             isRehireable: verifiedUser.isRehireable,
@@ -1190,6 +1290,13 @@ const userProfileController = function (UserProfile) {
       res.status(200).send({
         message: 'Password Reset',
       });
+      auditIfProtectedAccountUpdated(
+        req.body.requestor.requestorId,
+        user.email,
+        null,
+        null,
+        'UserResetPassword',
+      );
     } catch (error) {
       res.status(500).send(error);
     }
