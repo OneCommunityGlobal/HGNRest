@@ -180,15 +180,17 @@ describe('taskNotificationController module', () => {
       const populateReturnObj = { populate: () => {} };
       jest.spyOn(findOnePopulateObj, 'populate').mockImplementationOnce(() => populateReturnObj);
 
-      const secondPopulateObj = { exec: (err, result) => {} };
+      const secondPopulateObj = { exec: () => Promise.resolve(null) };
       jest.spyOn(populateReturnObj, 'populate').mockImplementationOnce(() => secondPopulateObj);
 
-      const execReturnObj = { remove: () => {} };
-      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce((callback) => {
-        callback(null, execReturnObj);
-      });
+      const mockTaskNotification = {
+        taskId: '12345',
+        userId: '1',
+        remove: jest.fn().mockResolvedValueOnce(null),
+      };
 
-      jest.spyOn(execReturnObj, 'remove').mockImplementationOnce(() => Promise.resolve(true));
+      jest.spyOn(secondPopulateObj, 'exec').mockResolvedValueOnce(mockTaskNotification);
+      jest.spyOn(mockTaskNotification, 'remove').mockResolvedValueOnce(true);
 
       const res = await deleteTaskNotificationByUserId(mockReq, mockRes);
       await flushPromises();
@@ -200,51 +202,16 @@ describe('taskNotificationController module', () => {
       });
     });
 
-    test('Ensure deleteTaskNotificationByUserId handles errors during exec function', async () => {
-      const findOnePopulateObj = { populate: () => {} };
-      jest.spyOn(TaskNotification, 'findOne').mockImplementationOnce(() => findOnePopulateObj);
-
-      const populateReturnObj = { populate: () => {} };
-      jest.spyOn(findOnePopulateObj, 'populate').mockImplementationOnce(() => populateReturnObj);
-
-      const secondPopulateObj = { exec: (err, result) => {} };
-      jest.spyOn(populateReturnObj, 'populate').mockImplementationOnce(() => secondPopulateObj);
-
-      const execError = new Error('Exec function error');
-      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce((callback) => {
-        callback(execError, null);
+    test('Ensure deleteTaskNotificationByUserId handles errors', async () => {
+      const errorMessage = 'Something went wrong';
+      TaskNotification.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockRejectedValue(errorMessage),
       });
 
-      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce(() => Promise.reject(execError));
-
-      const res = await deleteTaskNotificationByUserId(mockReq, mockRes);
+      const response = await deleteTaskNotificationByUserId(mockReq, mockRes);
       await flushPromises();
-
-      assertResMock(400, execError, res, mockRes);
-    });
-
-    test('Ensure deleteTaskNotificationByUserId handles errors during remove', async () => {
-      const findOnePopulateObj = { populate: () => {} };
-      jest.spyOn(TaskNotification, 'findOne').mockImplementationOnce(() => findOnePopulateObj);
-
-      const populateReturnObj = { populate: () => {} };
-      jest.spyOn(findOnePopulateObj, 'populate').mockImplementationOnce(() => populateReturnObj);
-
-      const secondPopulateObj = { exec: (err, result) => {} };
-      jest.spyOn(populateReturnObj, 'populate').mockImplementationOnce(() => secondPopulateObj);
-
-      const execReturnObj = { remove: () => {} };
-      jest.spyOn(secondPopulateObj, 'exec').mockImplementationOnce((callback) => {
-        callback(null, execReturnObj);
-      });
-
-      const removeError = new Error('Remove function error');
-      jest.spyOn(execReturnObj, 'remove').mockImplementationOnce(() => Promise.reject(removeError));
-
-      const res = await deleteTaskNotificationByUserId(mockReq, mockRes);
-      await flushPromises();
-
-      assertResMock(400, removeError, res, mockRes);
+      assertResMock(400, errorMessage, response, mockRes);
     });
   });
 

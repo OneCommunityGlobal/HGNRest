@@ -5,5 +5,4 @@ Cross Mark: ❌
 1. ✅ deleteTaskNotificationByUserId should delete a task notification by userId
 
 ## Negative case
-1.❌ deleteTaskNotificationByUserId handles errors during exec function
-2.✅ deleteTaskNotificationByUserId handles errors during remove
+1.✅ deleteTaskNotificationByUserId handles errors during remove
