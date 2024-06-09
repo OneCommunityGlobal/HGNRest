@@ -369,4 +369,32 @@ describe('timeOffRequestController.js module', () => {
       expect(findByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('updateTimeOffRequestById function', () => {
+    test('Returns 403 if user is not authorized', async () => {
+      const { updateTimeOffRequestById } = makeSut();
+
+      // Creating a deep copy of mockReq
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.body.requestor.role = 'volunteer';
+      mockReqCopy.body.requestor.permissions.frontPermissions = [];
+      mockReqCopy.body.requestor.permissions.backPermissions = [];
+      mockReqCopy.params.id = '123';
+
+      const error = 'You are not authorized to set time off requests.';
+
+      hasPermission.mockImplementation(async () => false);
+
+      const response = await updateTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+    });
+  });
 });
