@@ -1160,7 +1160,6 @@ const userProfileController = function (UserProfile) {
   const getUserByFullName = (req, res) => {
     // Sanitize user input and escape special characters
     const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
-
     // Create a regular expression to match the sanitized full name, ignoring case
     const fullNameRegex = new RegExp(sanitizedFullName, 'i');
 
@@ -1173,6 +1172,7 @@ const userProfileController = function (UserProfile) {
         if (users.length === 0) {
           return res.status(404).send({ error: 'Users Not Found' });
         }
+
         res.status(200).send(users);
       })
       .catch((error) => res.status(500).send(error));
