@@ -248,5 +248,125 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
     });
+
+    test('Returns 500 if an error occurs at TimeOffRequest.findById()', async () => {
+      const { deleteTimeOffRequestById } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.body.requestor.role = 'Administrator';
+      mockReqCopy.body.requestor.permissions.frontPermissions = [];
+      mockReqCopy.body.requestor.permissions.backPermissions = ['manageTimeOffRequests'];
+      mockReqCopy.params.id = '123';
+
+      const errorMessage = 'Internal Server Error';
+      const error = new Error(errorMessage);
+
+      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockImplementationOnce(() => {
+        throw error;
+      });
+
+      hasPermission.mockImplementation(async () => true);
+
+      const response = await deleteTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(500, error, response, mockRes);
+
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('Returns 500 if an error occurs while TimeOffRequest.findByIdAndDelete()', async () => {
+      const { deleteTimeOffRequestById } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.body.requestor.role = 'Administrator';
+      mockReqCopy.body.requestor.permissions.frontPermissions = [];
+      mockReqCopy.body.requestor.permissions.backPermissions = ['manageTimeOffRequests'];
+      mockReqCopy.params.id = '123';
+
+      const errorMessage = 'Internal Server Error';
+      const error = new Error(errorMessage);
+
+      const mockData = {
+        requestFor: 'sd9028_sdas83ink84haso1',
+        reason: 'Family Gathering.',
+        startingDate: new Date(2024, 5, 1),
+        endingDate: new Date(2024, 5, 13),
+        duration: 2,
+      };
+
+      const findByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockImplementationOnce(() => mockData);
+      const findByIdAndDeleteSpy = jest
+        .spyOn(TimeOffRequest, 'findByIdAndDelete')
+        .mockImplementationOnce(() => {
+          throw error;
+        });
+
+      hasPermission.mockImplementation(async () => error);
+
+      const response = await deleteTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(500, error, response, mockRes);
+
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+
+      expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(findByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('Returns 200 on successfully deleting the TimeOffRequest', async () => {
+      const { deleteTimeOffRequestById } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.body.requestor.role = 'Administrator';
+      mockReqCopy.body.requestor.permissions.frontPermissions = [];
+      mockReqCopy.body.requestor.permissions.backPermissions = ['manageTimeOffRequests'];
+      mockReqCopy.params.id = '123';
+
+      const mockData = {
+        requestFor: 'sd9028_sdas83ink84haso1',
+        reason: 'Family Gathering.',
+        startingDate: new Date(2024, 5, 1),
+        endingDate: new Date(2024, 5, 13),
+        duration: 2,
+      };
+
+      const findByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockImplementationOnce(() => mockData);
+      const findByIdAndDeleteSpy = jest
+        .spyOn(TimeOffRequest, 'findByIdAndDelete')
+        .mockImplementationOnce(() => mockData);
+
+      hasPermission.mockImplementation(async () => true);
+
+      const response = await deleteTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(200, mockData, response, mockRes);
+
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+
+      expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(findByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });
