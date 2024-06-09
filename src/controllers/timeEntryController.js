@@ -245,21 +245,14 @@ const updateUserprofileCategoryHrs = async (
     // console.log("2. hoursByCategory: ", userprofile.hoursByCategory)
   }
   if (toProjectId) {
-    // console.log("add part executed");
     const toProject = await Project.findById(toProjectId);
     const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
-    // console.log("DEBUG toProject.category: ", toProject.category);
-    // console.log("DEBUG category data type: ", typeof(toProject.category));
-    // console.log("DEBUG userprofile.hoursByCategory: ", userprofile.hoursByCategory);
-    // console.log("DEBUG toLowerCase result: ", toProject.category.toLowerCase() in userprofile.hoursByCategory);
     if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
     } else {
       userprofile.hoursByCategory.unassigned += hoursToBeAdded;
     }
-    // console.log("3. hoursByCategory: ", userprofile.hoursByCategory)
   }
-  // console.log("4. hoursByCategory: ", userprofile.hoursByCategory)
 };
 
 /**
@@ -420,6 +413,144 @@ const timeEntrycontroller = function (TimeEntry) {
       throw new Error(`Failed to check user with id ${personId} on time entry`);
     }
     return true;
+  };
+
+  //
+  const backupHoursByCategoryAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const userprofiles = await UserProfile.find({});
+      const backupPromises = userprofiles.map(async (userprofile) => {
+        const { hoursByCategory: oldHoursByCategory, _id: personId } = userprofile;
+        // backup the old hoursByCategory data in a newly created field
+        await UserProfile.findByIdAndUpdate(
+          personId,
+          { backupHoursByCategory: oldHoursByCategory },
+          { strict: false },
+        );
+      });
+
+      await Promise.all(backupPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'backup of hoursByCategory for all users successfully',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
+  };
+
+  const calculationHelper = async (userId) => {
+    const newCalculatedCategoryHrs = {
+      housing: 0,
+      food: 0,
+      education: 0,
+      society: 0,
+      energy: 0,
+      economics: 0,
+      stewardship: 0,
+      unassigned: 0,
+    };
+
+    const timeEntries = await TimeEntry.find({ personId: userId });
+    const updateCategoryPromises = timeEntries.map(async (timeEntry) => {
+      const { projectId } = timeEntry;
+      const project = await Project.findById(projectId);
+      if (project) {
+        const { category } = project;
+        const { totalSeconds } = timeEntry;
+        const totalHours = Number(totalSeconds / 3600);
+        const { isTangible } = timeEntry;
+
+        if (isTangible) {
+          if (category.toLowerCase() in newCalculatedCategoryHrs) {
+            newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+          } else {
+            newCalculatedCategoryHrs.unassigned += totalHours;
+          }
+        }
+      }
+    });
+    await Promise.all(updateCategoryPromises);
+
+    return newCalculatedCategoryHrs;
+  };
+
+  //
+  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    // const newCalculatedCategoryHrs = {
+    //   "housing" : 0,
+    //   "food" : 0,
+    //   "education" : 0,
+    //   "society" : 0,
+    //   "energy" : 0,
+    //   "economics" : 0,
+    //   "stewardship" : 0,
+    //   "unassigned" : 0,
+    // };
+
+    try {
+      const userprofiles = await UserProfile.find({});
+
+      const recalculationPromises = userprofiles.map(async (userprofile) => {
+        const { _id: userId } = userprofile;
+
+        // const timeEntries = await TimeEntry.find({ personId: userId });
+        // const updateCategoryPromises = timeEntries.map(async (timeEntry) => {
+        //   const { projectId } = timeEntry;
+        //   const project = await Project.findById(projectId);
+        //   if (project){
+        //     const { category } = project;
+        //     const { totalSeconds } = timeEntry;
+        //     const totalHours = Number((totalSeconds / 3600).toFixed(2));
+        //     const { isTangible } = timeEntry;
+
+        //     if (isTangible){
+        //       if (category.toLowerCase() in newCalculatedCategoryHrs){
+        //         newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+        //       } else {
+        //         newCalculatedCategoryHrs.unassigned += totalHours;
+        //       }
+        //     }
+        //   }
+        // })
+        // await Promise.all(updateCategoryPromises);
+        const newCalculatedCategoryHrs = await calculationHelper(userId);
+
+        const { hoursByCategory: oldHoursByCategory } = userprofile;
+
+        // store the old hoursByCategory data in a new field backupHoursByCategory
+        await UserProfile.findOneAndUpdate(
+          { _id: userId, backupHoursByCategory: { $exists: false } },
+          { $set: { backupHoursByCategory: oldHoursByCategory } },
+          { strict: false },
+        );
+
+        // update the hoursByCategory field
+        await UserProfile.findByIdAndUpdate(userId, { hoursByCategory: newCalculatedCategoryHrs });
+      });
+
+      await Promise.all(recalculationPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'finished the recalculation for hoursByCategory for all users',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
   };
 
   /**
@@ -1101,6 +1232,8 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForUserList,
     getLostTimeEntriesForProjectList,
     getLostTimeEntriesForTeamList,
+    backupHoursByCategoryAllUsers,
+    recalculateHoursByCategoryAllUsers,
   };
 };
 

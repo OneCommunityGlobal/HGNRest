@@ -29,6 +29,14 @@ const routes = function (TimeEntry) {
     controller.getTimeEntriesForSpecifiedProject,
   );
 
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers').post(
+    controller.recalculateHoursByCategoryAllUsers,
+  );
+
+  TimeEntryRouter.route('/TimeEntry/backupHoursByCategoryAllUsers').post(
+    controller.backupHoursByCategoryAllUsers,
+  );
+
   return TimeEntryRouter;
 };
 
