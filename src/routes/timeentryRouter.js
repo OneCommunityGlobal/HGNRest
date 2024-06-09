@@ -17,6 +17,8 @@ const routes = function (TimeEntry) {
 
   TimeEntryRouter.route('/TimeEntry/users').post(controller.getTimeEntriesForUsersList);
 
+  TimeEntryRouter.route('/TimeEntry/reports').post(controller.getTimeEntriesForReports);
+
   TimeEntryRouter.route('/TimeEntry/lostUsers').post(controller.getLostTimeEntriesForUserList);
 
   TimeEntryRouter.route('/TimeEntry/lostProjects').post(

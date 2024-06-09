@@ -873,6 +873,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: { $in: ['default', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
+        isActive: { $ne: false },
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
@@ -880,6 +881,18 @@ const timeEntrycontroller = function (TimeEntry) {
           timeEntry = { ...timeEntry.toObject() };
           const { projectId, taskId } = timeEntry;
           if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
+          if (timeEntry.taskId) {
+            const task = await Task.findById(timeEntry.taskId);
+            if (task) {
+              timeEntry.taskName = task.taskName;
+            }
+          }
+          if (timeEntry.projectId) {
+            const project = await Project.findById(timeEntry.projectId);
+            if (project) {
+              timeEntry.projectName = project.projectName;
+            }
+          }
           const hours = Math.floor(timeEntry.totalSeconds / 3600);
           const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
           Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
@@ -905,7 +918,7 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      '-createdDateTime',
     )
       .populate('personId')
       .populate('projectId')
@@ -914,7 +927,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
-
         results.forEach((element) => {
           const record = {};
           record._id = element._id;
@@ -932,7 +944,39 @@ const timeEntrycontroller = function (TimeEntry) {
           record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
           record.wbsId = element.wbsId?._id || null;
           record.wbsName = element.wbsId?.wbsName || null;
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        res.status(400).send(error);
+      });
+  };
 
+  const getTimeEntriesForReports = function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+
+    TimeEntry.find(
+      {
+        personId: { $in: users },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('projectId')
+
+      .then((results) => {
+        const data = [];
+
+        results.forEach((element) => {
+          const record = {};
+          record._id = element._id;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId._id;
+          record.dateOfWork = element.dateOfWork;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          record.projectId = element.projectId ? element.projectId._id : '';
+          record.projectName = element.projectId ? element.projectId.projectName : '';
           data.push(record);
         });
 
@@ -958,6 +1002,7 @@ const timeEntrycontroller = function (TimeEntry) {
       {
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
+        isActive: { $ne: false },
       },
       '-createdDateTime -lastModifiedDateTime',
     )
@@ -982,6 +1027,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'person',
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1021,6 +1067,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'project',
         projectId: { $in: projects },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1058,6 +1105,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'team',
         teamId: { $in: teams },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1204,6 +1252,7 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForTeamList,
     backupHoursByCategoryAllUsers,
     recalculateHoursByCategoryAllUsers,
+    getTimeEntriesForReports,
   };
 };
 
