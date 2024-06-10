@@ -404,7 +404,7 @@ describe('timeOffRequestController.js module', () => {
       ${'5 week'} | ${null}                  | ${'Wedding'} | ${'user123'} | ${'bad request'}
       ${'7 week'} | ${new Date('2024-06-8')} | ${null}      | ${'user123'} | ${'bad request'}
     `(
-      `returns 403 when duration is $duration, startingDate is $startingDate, reason is $reason, and requestId is $requestId`,
+      `returns 400 when duration is $duration, startingDate is $startingDate, reason is $reason, and requestId is $requestId`,
       async ({ duration, startingDate, reason, requestId, expectedMessage }) => {
         const { updateTimeOffRequestById } = makeSut();
 
