@@ -396,5 +396,38 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
     });
+
+    test.each`
+      duration    | startingDate             | reason       | requestId    | expectedMessage
+      ${'1 week'} | ${new Date('2024-06-8')} | ${'Sick'}    | ${null}      | ${'bad request'}
+      ${null}     | ${new Date('2024-06-8')} | ${'Injury'}  | ${'user123'} | ${'bad request'}
+      ${'5 week'} | ${null}                  | ${'Wedding'} | ${'user123'} | ${'bad request'}
+      ${'7 week'} | ${new Date('2024-06-8')} | ${null}      | ${'user123'} | ${'bad request'}
+    `(
+      `returns 403 when duration is $duration, startingDate is $startingDate, reason is $reason, and requestId is $requestId`,
+      async ({ duration, startingDate, reason, requestId, expectedMessage }) => {
+        const { updateTimeOffRequestById } = makeSut();
+
+        const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+        mockReqCopy.body.requestor.role = 'Administrator';
+        mockReqCopy.body.requestor.requestorId = 'user123';
+        mockReqCopy.params.id = requestId;
+
+        mockReqCopy.body.duration = duration;
+        mockReqCopy.body.reason = reason;
+        mockReqCopy.body.startingDate = startingDate;
+        mockReqCopy.body.requestId = requestId;
+
+        hasPermission.mockImplementation(async () => true);
+
+        const response = await updateTimeOffRequestById(mockReqCopy, mockRes);
+
+        expect(hasPermission).toHaveBeenCalledWith(
+          mockReqCopy.body.requestor,
+          'manageTimeOffRequests',
+        );
+        assertResMock(400, expectedMessage, response, mockRes);
+      },
+    );
   });
 });
