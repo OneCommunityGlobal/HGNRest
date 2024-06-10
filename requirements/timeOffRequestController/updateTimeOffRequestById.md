@@ -13,7 +13,7 @@ Cross Mark: ❌
     a. User does not have the role of Owner nor of Administrator.
     b. User does not have the 'manageTimeOffRequests' permission.
 
-2. ❌ Returns 400 is request body is contains one of the following parameters incorrect:
+2. ✅ Returns 400 is request body is contains one of the following parameters incorrect:
     a. duration 
     b. reason
     c. startingDate
