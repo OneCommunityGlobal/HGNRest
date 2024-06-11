@@ -5,7 +5,7 @@ Cross Mark: ❌
 
 > ## Positive case
 
-1. ❌ Returns 200 if the timeOffRequest is successfully updated
+1. ✅ Returns 200 if the timeOffRequest is successfully updated
 
 > ## Negative case
 
@@ -19,8 +19,8 @@ Cross Mark: ❌
     c. startingDate
     d. requestId
 
-3. ❌ Returns 404 if no timeOffRequest is found matching the requestId
+3. ✅ Returns 404 if no timeOffRequest is found matching the requestId
 
-4. ❌ Returns 500 if any error occurs
+4. ✅ Returns 500 if any error occurs
 
 > ## Edge case

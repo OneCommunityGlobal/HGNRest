@@ -2,6 +2,7 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(), // Mocking the hasPermission function directly
 }));
 
+const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const timeOffRequestController = require('./timeOffRequestController');
@@ -429,5 +430,193 @@ describe('timeOffRequestController.js module', () => {
         assertResMock(400, expectedMessage, response, mockRes);
       },
     );
+
+    test('Returns 404 if no timeOffRequest is found', async () => {
+      const { updateTimeOffRequestById } = makeSut();
+
+      // Creating a deep copy of mockReq
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.params.id = '123';
+
+      mockReqCopy.body.requestor = {
+        ...mockReqCopy.body.requestor, // Preserving existing properties
+        role: 'Owner',
+        permissions: {
+          frontPermissions: [],
+          backPermissions: [],
+        },
+      };
+
+      const timeOffDuration = 5;
+      const timeOffStartingDate = new Date(2024, 5, 12);
+      const timeOffReason = 'Testing a leave request';
+
+      moment.tz.setDefault('America/Los_Angeles');
+
+      const startDate = moment(timeOffStartingDate);
+      const endDate = startDate.clone().add(Number(timeOffDuration), 'weeks').subtract(1, 'day');
+
+      const mockUpdateData = {
+        reason: timeOffReason,
+        startingDate: startDate.toDate(),
+        endingDate: endDate.toDate(),
+        duration: timeOffDuration,
+      };
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        duration: timeOffDuration,
+        startingDate: timeOffStartingDate,
+        reason: timeOffReason,
+      };
+
+      const error = 'Time off request not found';
+
+      hasPermission.mockImplementation(async () => true);
+      const findByIdAndUpdateSpy = jest
+        .spyOn(TimeOffRequest, 'findByIdAndUpdate')
+        .mockImplementationOnce(() => Promise.resolve(null));
+
+      const response = await updateTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(404, error, response, mockRes);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+
+      expect(findByIdAndUpdateSpy).toHaveBeenCalled();
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
+        new: true,
+      });
+    });
+
+    test('Returns 200 on successful update operation', async () => {
+      const { updateTimeOffRequestById } = makeSut();
+
+      // Creating a deep copy of mockReq
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.params.id = '123';
+
+      mockReqCopy.body.requestor = {
+        ...mockReqCopy.body.requestor,
+        role: 'Owner',
+        permissions: {
+          frontPermissions: [],
+          backPermissions: [],
+        },
+      };
+
+      const timeOffDuration = 5;
+      const timeOffStartingDate = new Date(2024, 5, 12);
+      const timeOffReason = 'Testing a leave request';
+
+      moment.tz.setDefault('America/Los_Angeles');
+      const startDate = moment(timeOffStartingDate);
+      const endDate = startDate.clone().add(Number(timeOffDuration), 'weeks').subtract(1, 'day');
+
+      const mockUpdateData = {
+        reason: timeOffReason,
+        startingDate: startDate.toDate(),
+        endingDate: endDate.toDate(),
+        duration: timeOffDuration,
+      };
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        duration: timeOffDuration,
+        startingDate: timeOffStartingDate,
+        reason: timeOffReason,
+      };
+
+      hasPermission.mockImplementation(async () => true);
+      const findByIdAndUpdateSpy = jest
+        .spyOn(TimeOffRequest, 'findByIdAndUpdate')
+        .mockImplementationOnce(() => Promise.resolve(mockUpdateData));
+
+      const response = await updateTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(200, mockUpdateData, response, mockRes);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+
+      expect(findByIdAndUpdateSpy).toHaveBeenCalled();
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
+        new: true,
+      });
+    });
+
+    test('Returns 500 if error occurs with findByIdAndUpdate ', async () => {
+      const { updateTimeOffRequestById } = makeSut();
+
+      // Creating a deep copy of the `mockReq`
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+      mockReqCopy.params.id = '123';
+
+      mockReqCopy.body.requestor = {
+        ...mockReqCopy.body.requestor,
+        role: 'Owner',
+        permissions: {
+          frontPermissions: [],
+          backPermissions: [],
+        },
+      };
+
+      const timeOffDuration = 5;
+      const timeOffStartingDate = new Date(2024, 5, 12);
+      const timeOffReason = 'Testing a leave request';
+
+      moment.tz.setDefault('America/Los_Angeles');
+      const startDate = moment(timeOffStartingDate);
+      const endDate = startDate.clone().add(Number(timeOffDuration), 'weeks').subtract(1, 'day');
+
+      const mockUpdateData = {
+        reason: timeOffReason,
+        startingDate: startDate.toDate(),
+        endingDate: endDate.toDate(),
+        duration: timeOffDuration,
+      };
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        duration: timeOffDuration,
+        startingDate: timeOffStartingDate,
+        reason: timeOffReason,
+      };
+
+      const error = new Error('Some error occcurred during operation findByIdAndUpdate()');
+
+      hasPermission.mockImplementation(async () => true);
+      const findByIdAndUpdateSpy = jest
+        .spyOn(TimeOffRequest, 'findByIdAndUpdate')
+        .mockRejectedValueOnce(error);
+
+      const response = await updateTimeOffRequestById(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(500, error, response, mockRes);
+
+      expect(hasPermission).toHaveBeenCalledWith(
+        mockReqCopy.body.requestor,
+        'manageTimeOffRequests',
+      );
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+
+      expect(findByIdAndUpdateSpy).toHaveBeenCalled();
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
+        new: true,
+      });
+    });
   });
 });
