@@ -12,7 +12,7 @@ Cross Mark: ❌
 2. ✅ Returns 400 for warning to choose a funture date. 
 3. ✅ Returns 400 for not providing reason. 
 4. ✅ Returns 404 when error in finding user Id. 
-5. ❌ Returns 403 when duplicate reason to the date.
-6. ❌ Returns 400 when any error in saving.
+5. ✅ Returns 403 when duplicate reason to the date.
+6. ✅ Returns 400 when any error in saving.
 
 > ## Edge case
