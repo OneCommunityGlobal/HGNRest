@@ -1,4 +1,5 @@
-export const URL_TO_BLUE_SQUARE_PAGE = 'https://www.onecommunityglobal.org/hands-off-administration-policy'
+export const URL_TO_BLUE_SQUARE_PAGE =
+  'https://www.onecommunityglobal.org/hands-off-administration-policy';
 
 // Since the notification banner is blue background, added white color for hyperlink style.
 export const NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE = `
