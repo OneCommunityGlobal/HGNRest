@@ -7,6 +7,60 @@ const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
+   * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
+   * @param {*} startDate
+   * @param {*} endDate
+   */
+  async function getHoursStats(startDate, endDate) {
+    const hoursStats = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true, // we only want to include active volunteers
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries', // The collection to join
+          localField: '_id', // Field from the userProfile collection
+          foreignField: 'personId', // Field from the timeEntries collection
+          as: 'timeEntries', // The array field that will contain the joined documents
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntries',
+          preserveNullAndEmptyArrays: true, // Preserve users with no time entries
+        },
+      },
+      {
+        $match: {
+          // Adjust this condition to include all users, filtering timeEntries by date
+          $or: [
+            { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
+            { timeEntries: { $exists: false } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          personId: { $first: '$_id' },
+          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+          weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+        },
+      },
+      {
+        $project: {
+          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+          weeklycommittedHours: 1, // make sure we include it in the end result
+        },
+      },
+    ]);
+
+    return hoursStats;
+  }
+
+  /**
    * returns the number of:
    * 1. Active volunteers
    * 2. Volunteers that deactivated in the current week
@@ -190,55 +244,6 @@ const overviewReportHelper = function () {
       activeUsers,
       inactiveUsers,
     };
-  }
-
-  /**
-   * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
-   * @param {*} startDate
-   * @param {*} endDate
-   */
-  async function getHoursStats(startDate, endDate) {
-    const hoursStats = await UserProfile.aggregate([
-      {
-        $lookup: {
-          from: 'timeEntries', // The collection to join
-          localField: '_id', // Field from the userProfile collection
-          foreignField: 'personId', // Field from the timeEntries collection
-          as: 'timeEntries', // The array field that will contain the joined documents
-        },
-      },
-      {
-        $unwind: {
-          path: '$timeEntries',
-          preserveNullAndEmptyArrays: true, // Preserve users with no time entries
-        },
-      },
-      {
-        $match: {
-          // Adjust this condition to include all users, filtering timeEntries by date
-          $or: [
-            { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
-            { timeEntries: { $exists: false } },
-          ],
-        },
-      },
-      {
-        $group: {
-          _id: '$_id',
-          personId: { $first: '$_id' },
-          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
-          weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
-        },
-      },
-      {
-        $project: {
-          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
-          weeklycommittedHours: 1, // make sure we include it in the end result
-        },
-      },
-    ]);
-
-    return hoursStats;
   }
 
   /**
