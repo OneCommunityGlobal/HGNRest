@@ -84,6 +84,8 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+
+      'userManagementFullFunctionality',
     ],
   },
   {
@@ -244,6 +246,7 @@ const permissionsRoles = [
 
       'changeUserRehireableStatus',
       'manageAdminLinks',
+      'userManagementFullFunctionality',
     ],
   },
 ];

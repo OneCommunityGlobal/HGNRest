@@ -137,7 +137,10 @@ const userProfileController = function (UserProfile) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await checkPermission(req, 'postUserProfile'))) {
+    if (
+      !(await checkPermission(req, 'postUserProfile')) &&
+      !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality'))
+    ) {
       forbidden(res, 'You are not authorized to create new users');
       return;
     }
@@ -582,7 +585,10 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
-    if (!(await hasPermission(req.body.requestor, 'deleteUserProfile'))) {
+    if (
+      !(await hasPermission(req.body.requestor, 'deleteUserProfile')) &&
+      !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality'))
+    ) {
       res.status(403).send('You are not authorized to delete users');
       return;
     }
@@ -919,7 +925,10 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    if (!(await hasPermission(req.body.requestor, 'changeUserStatus'))) {
+    if (
+      !(await hasPermission(req.body.requestor, 'changeUserStatus')) &&
+      !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality'))
+    ) {
       res.status(403).send('You are not authorized to change user status');
       return;
     }
@@ -1031,7 +1040,10 @@ const userProfileController = function (UserProfile) {
         return;
       }
 
-      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
+      if (
+        !(await hasPermission(requestor, 'putUserProfileImportantInfo')) &&
+        !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality'))
+      ) {
         res.status(403).send('You are not authorized to reset this users password');
         return;
       }
