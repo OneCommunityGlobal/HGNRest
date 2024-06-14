@@ -35,6 +35,10 @@ const routes = function (TimeEntry) {
     controller.recalculateHoursByCategoryAllUsers,
   );
 
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursOneUser').post(
+    controller.recalculateHoursByCategoryOneUser,
+  );
+
   TimeEntryRouter.route('/TimeEntry/backupHoursByCategoryAllUsers').post(
     controller.backupHoursByCategoryAllUsers,
   );
