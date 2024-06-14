@@ -13,7 +13,7 @@ const currentWarningsController = function (currentWarnings) {
       if (response.length === 0) {
         return res.status(400).send({ message: 'no valid records' });
       }
-      return res.status(201).send({ currentWarningDescriptions: response });
+      return res.status(200).send({ currentWarningDescriptions: response });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
