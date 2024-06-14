@@ -22,6 +22,7 @@ const reportHelper = require('./reporthelper')();
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
+const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
@@ -711,11 +712,27 @@ const userHelper = function () {
                 administrativeContent,
               );
             }
+
+            let emailsBCCs;
+            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
+              .populate('assignedTo')
+              .exec();
+            if (blueSquareBCCs.length > 0) {
+              emailsBCCs = blueSquareBCCs.map((assignment) => {
+                if (assignment.assignedTo.isActive === true) {
+                  return assignment.email
+                }
+              });
+            } else {
+              emailsBCCs = null;
+            }
+            
+
             emailSender(
               status.email,
               'New Infringement Assigned',
               emailBody,
-              null,
+              emailsBCCs,
               'onecommunityglobal@gmail.com',
               status.email,
               null,
