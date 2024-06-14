@@ -323,7 +323,7 @@ const addEditHistory = async (
     (edit) => moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365,
   ).length;
 
-  if (totalRecentEdits >= 3) {
+  if (totalRecentEdits >= 5) {
     userprofile.infringements.push({
       date: moment().tz('America/Los_Angeles'),
       description: `${totalRecentEdits} time entry edits in the last calendar year`,
