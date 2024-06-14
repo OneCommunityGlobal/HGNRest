@@ -1137,13 +1137,18 @@ const timeEntrycontroller = function (TimeEntry) {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-      const userprofiles = await UserProfile.find({});
+      const userprofiles = await UserProfile.find({}, '_id hoursByCategory').lean();
       const backupPromises = userprofiles.map(async (userprofile) => {
         const { hoursByCategory: oldHoursByCategory, _id: personId } = userprofile;
         // backup the old hoursByCategory data in a newly created field
-        await UserProfile.findByIdAndUpdate(
-          personId,
-          { backupHoursByCategory: oldHoursByCategory },
+        // await UserProfile.findByIdAndUpdate(
+        //   personId,
+        //   { backupHoursByCategory: oldHoursByCategory },
+        //   { strict: false },
+        // );
+        await UserProfile.findOneAndUpdate(
+          { _id: personId, backupHoursByCategory: { $exists: false } },
+          { $set: { backupHoursByCategory: oldHoursByCategory } },
           { strict: false },
         );
       });
@@ -1177,20 +1182,16 @@ const timeEntrycontroller = function (TimeEntry) {
 
     const timeEntries = await TimeEntry.find({ personId: userId });
     const updateCategoryPromises = timeEntries.map(async (timeEntry) => {
-      const { projectId } = timeEntry;
+      // const { projectId } = timeEntry;
+      const { projectId, totalSeconds, isTangible } = timeEntry;
+      const totalHours = Number(totalSeconds / 3600);
       const project = await Project.findById(projectId);
-      if (project) {
+      if (project && isTangible) {
         const { category } = project;
-        const { totalSeconds } = timeEntry;
-        const totalHours = Number(totalSeconds / 3600);
-        const { isTangible } = timeEntry;
-
-        if (isTangible) {
-          if (category.toLowerCase() in newCalculatedCategoryHrs) {
-            newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
-          } else {
-            newCalculatedCategoryHrs.unassigned += totalHours;
-          }
+        if (category.toLowerCase() in newCalculatedCategoryHrs) {
+          newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+        } else {
+          newCalculatedCategoryHrs.unassigned += totalHours;
         }
       }
     });
@@ -1199,13 +1200,12 @@ const timeEntrycontroller = function (TimeEntry) {
     return newCalculatedCategoryHrs;
   };
 
-  //
-  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+  const recalculateHoursByCategoryOneUser = async function (req, res) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      const userprofiles = await UserProfile.find({});
+      const userprofiles = await UserProfile.find({ lastName: req.body.lastName }).lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
         const { _id: userId } = userprofile;
@@ -1220,9 +1220,61 @@ const timeEntrycontroller = function (TimeEntry) {
           { $set: { backupHoursByCategory: oldHoursByCategory } },
           { strict: false },
         );
+        // if (!userprofile.backupHoursByCategory){
+        //   userprofile.backupHoursByCategory = oldHoursByCategory;
+        //   await userprofile.save({ session, strict: false });
+        // }
 
         // update the hoursByCategory field
         await UserProfile.findByIdAndUpdate(userId, { hoursByCategory: newCalculatedCategoryHrs });
+        // userprofile.hoursByCategory = newCalculatedCategoryHrs;
+        // await userprofile.save({ session});
+      });
+
+      await Promise.all(recalculationPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'finished the recalculation for hoursByCategory for one user',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
+  };
+
+  // for all
+  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userprofiles = await UserProfile.find({}, '_id').lean();
+
+      const recalculationPromises = userprofiles.map(async (userprofile) => {
+        const { _id: userId } = userprofile;
+
+        const newCalculatedCategoryHrs = await calculationHelper(userId);
+
+        // const { hoursByCategory: oldHoursByCategory } = userprofile;
+
+        // store the old hoursByCategory data in a new field backupHoursByCategory
+        // await UserProfile.findOneAndUpdate(
+        //   { _id: userId, backupHoursByCategory: { $exists: false } },
+        //   { $set: { backupHoursByCategory: oldHoursByCategory } },
+        //   { strict: false },
+        // );
+        // if (!userprofile.backupHoursByCategory){
+        //   userprofile.backupHoursByCategory = oldHoursByCategory;
+        // }
+
+        // update the hoursByCategory field
+        await UserProfile.findByIdAndUpdate(userId, { hoursByCategory: newCalculatedCategoryHrs });
+        // userprofile.hoursByCategory = newCalculatedCategoryHrs;
+        // await userprofile.save({ session, strict: false });
       });
 
       await Promise.all(recalculationPromises);
@@ -1253,6 +1305,7 @@ const timeEntrycontroller = function (TimeEntry) {
     backupHoursByCategoryAllUsers,
     recalculateHoursByCategoryAllUsers,
     getTimeEntriesForReports,
+    recalculateHoursByCategoryOneUser,
   };
 };
 
