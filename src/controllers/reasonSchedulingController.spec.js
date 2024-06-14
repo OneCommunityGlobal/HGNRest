@@ -1,5 +1,11 @@
 const moment = require('moment-timezone');
-const { postReason } = require('./reasonSchedulingController');
+const {
+  postReason,
+  getAllReasons,
+  getSingleReason,
+  patchReason,
+  deleteReason,
+} = require('./reasonSchedulingController');
 const { mockReq, mockRes, mockUser } = require('../test');
 const UserModel = require('../models/userProfile');
 //  assertResMock
@@ -35,6 +41,10 @@ describe('reasonScheduling Controller', () => {
         message: 'some reason',
       },
       currentDate: moment.tz('America/Los_Angeles').startOf('day'),
+    };
+    mockReq.params = {
+      ...mockReq.params,
+      ...mockUser(),
     };
   });
   afterEach(() => {
@@ -88,7 +98,7 @@ describe('reasonScheduling Controller', () => {
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockFindUser).toHaveBeenCalledWith(mockReq.userId);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'User not found',
@@ -107,17 +117,23 @@ describe('reasonScheduling Controller', () => {
       });
       const mockReason = {
         reason: 'Some Reason',
-        userId: mockReq.userId,
+        userId: mockReq.body.userId,
         date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
       };
-
-      jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(mockReason);
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(mockReason);
 
       await postReason(mockReq, mockRes);
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.body.userId,
+      });
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'The reason must be unique to the date',
@@ -143,8 +159,7 @@ describe('reasonScheduling Controller', () => {
           .toISOString(),
         userId: mockReq.body.userId,
       };
-
-      jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
       const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockRejectedValue(newReason);
 
       await postReason(mockReq, mockRes);
@@ -152,6 +167,13 @@ describe('reasonScheduling Controller', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.body.userId,
+      });
       expect(mockSave).toHaveBeenCalledWith();
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -188,8 +210,7 @@ describe('reasonScheduling Controller', () => {
 
       //     <p>Thank you,<br />
       //     One Community</p>`;
-
-      jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
       const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockResolvedValue(newReason);
 
       await postReason(mockReq, mockRes);
@@ -197,8 +218,414 @@ describe('reasonScheduling Controller', () => {
       // emailSender.mockImplementation(() => Promise.resolve(true));
       expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.body.userId,
+      });
       expect(mockSave).toHaveBeenCalledWith();
       // expect(emailSender).toHaveBeenCalledWith();
+    });
+  });
+  describe('getAllReason method', () => {
+    test('Ensure get AllReason returns 404 when error in finding user Id', async () => {
+      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() => null);
+
+      await getAllReasons(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'User not found',
+        }),
+      );
+    });
+    test('Ensure get AllReason returns 400 when any error in fetching the user', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const mockFoundReason = jest.spyOn(ReasonModel, 'find').mockRejectedValueOnce(null);
+      await getAllReasons(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        userId: mockReq.params.userId,
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          errMessage: 'Something went wrong while fetching the user',
+        }),
+      );
+    });
+    test('Ensure get AllReason returns 200 when get schedule reason successfully', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const reasons = {
+        reason: 'Some Reason',
+        userId: mockReq.params.userId,
+        date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
+        isSet: true,
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'find').mockResolvedValue(reasons);
+      await getAllReasons(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        userId: mockReq.params.userId,
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reasons,
+        }),
+      );
+    });
+  });
+  describe('getSingleReason method', () => {
+    test('Ensure getSingleReason return 400 when any error in fetching the user', async () => {
+      await getSingleReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Something went wrong while fetching single reason',
+        }),
+      );
+    });
+    test('Ensure getSingleReason return 404 when any error in find user by Id', async () => {
+      mockReq.query = {
+        queryData: mockDay(0),
+      };
+      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() => null);
+
+      await getSingleReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'User not found',
+          errorCode: 2,
+        }),
+      );
+    });
+    test('Ensure getSingleReason return 200 if not found schedule reason and return empty object successfully.', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+
+      mockReq.query = {
+        queryDate: mockDay(0),
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce();
+
+      await getSingleReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.query.queryDate, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+      });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        reason: '',
+        date: '',
+        userId: '',
+        isSet: false,
+      });
+    });
+    test('Ensure getSingleReason return 200 if found schedule reason and return reason successfully.', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+
+      mockReq.query = {
+        queryDate: mockDay(0),
+      };
+      const singleReason = {
+        reason: 'Some Reason',
+        userId: mockReq.params.userId,
+        date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
+        isSet: true,
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(singleReason);
+
+      await getSingleReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.query.queryDate, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(singleReason);
+    });
+  });
+  describe('patchReason method', () => {
+    test('Ensure patchReason returns 400 for not providing reason', async () => {
+      mockReq.body.reasonData.message = null;
+      await patchReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'You must provide a reason.',
+          errorCode: 6,
+        }),
+      );
+    });
+    test('Ensure patchReason returns 404 when error in finding user Id', async () => {
+      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() => null);
+
+      await patchReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'User not found',
+          errorCode: 2,
+        }),
+      );
+    });
+    test('Ensure patchReason returns 404 when error in finding reason', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce();
+      await patchReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Reason not found',
+          errorCode: 4,
+        }),
+      );
+    });
+    test('Ensure patchReason returns 400 when any error in saving.', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const oldReason = {
+        reason: 'old message',
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+        save: jest.fn().mockRejectedValueOnce(),
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce(oldReason);
+      await patchReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+      });
+      expect(oldReason.save).toHaveBeenCalledWith();
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'something went wrong while patching the reason',
+        }),
+      );
+    });
+    test('Ensure patchReason returns 200 when any error in saving.', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const oldReason = {
+        reason: mockReq.body.reasonData.message,
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+        save: jest.fn().mockResolvedValueOnce(),
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce(oldReason);
+
+      await patchReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+      });
+      expect(oldReason.save).toHaveBeenCalledWith();
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Reason Updated!',
+        }),
+      );
+    });
+  });
+  describe('deleteReason method', () => {
+    test('Ensure deleteReason return 403 when no permission to delete', async () => {
+      const newMockReq = {
+        ...mockReq,
+        body: {
+          ...mockReq.body,
+          ...mockReq.requestor,
+          requestor: {
+            role: 'Volunteer',
+          },
+        },
+      };
+      await deleteReason(newMockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'You must be an Owner or Administrator to schedule a reason for a Blue Square',
+
+          errorCode: 1,
+        }),
+      );
+    });
+    test('Ensure deleteReason return 404 when not finding user by ID', async () => {
+      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() => null);
+      await deleteReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'User not found',
+          errorCode: 2,
+        }),
+      );
+    });
+    test('Ensure deleteReason returns 404 when error in finding reason', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce();
+      await deleteReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Reason not found',
+          errorCode: 4,
+        }),
+      );
+    });
+    test('Ensure deleteReason returns 500 when error in removing reason', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const foundReason = {
+        reason: mockReq.body.reasonData.message,
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+        remove: jest.fn((cb) => cb(true)),
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockReturnValueOnce(foundReason);
+
+      await deleteReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Error while deleting document',
+          errorCode: 5,
+        }),
+      );
+    });
+    test('Ensure deleteReason returns 200 if delete reason successfully.', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      const foundReason = {
+        reason: mockReq.body.reasonData.message,
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.params.userId,
+        remove: jest.fn((cb) => cb(false)),
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockReturnValueOnce(foundReason);
+
+      await deleteReason(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Document deleted',
+        }),
+      );
     });
   });
 });
