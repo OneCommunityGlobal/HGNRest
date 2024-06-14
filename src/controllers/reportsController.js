@@ -28,10 +28,16 @@ const reportsController = function () {
     const isoEndDate = new Date(endDate);
 
     try {
-      // const data = await overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate);
-      // const data = await overviewReportHelper.getHoursStats(isoStartDate, isoEndDate);
-      const data = await overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate);
-      res.status(200).send(data);
+      const [volunteerNumberStats, volunteerHoursStats, totalHoursWorked] = await Promise.all([
+        overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
+      ]);
+      res.status(200).send({
+        volunteerNumberStats,
+        volunteerHoursStats,
+        totalHoursWorked,
+      });
     } catch (err) {
       console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
