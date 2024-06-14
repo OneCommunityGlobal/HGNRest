@@ -379,7 +379,10 @@ const userProfileController = function (UserProfile) {
         return;
       }
 
-      if (!canToggleRequestBio && (record.bioPosted !== req.body.bioPosted || 'default')) {
+      if (
+        !canToggleRequestBio &&
+        (record.bioPosted !== req.body.bioPosted || record.bioPosted !== 'default')
+      ) {
         res.status(403).send('You are not authorized to toggle request bio');
         return;
       }
