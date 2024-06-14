@@ -2,6 +2,7 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(), // Mocking the hasPermission function directly
 }));
 
+const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
@@ -617,6 +618,178 @@ describe('timeOffRequestController.js module', () => {
       expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
         new: true,
       });
+    });
+  });
+
+  describe('setTimeOffRequest function', () => {
+    test('Returns 403 if the user is not authorised', async () => {
+      const { setTimeOffRequest } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        requestor: {
+          role: 'Volunteer',
+          requestorId: 'testUser123',
+        },
+        requestFor: 'testUser456',
+      };
+
+      hasPermission.mockImplementation(async () => Promise.resolve(false));
+
+      const error = 'You are not authorized to set time off requests.';
+
+      const response = await setTimeOffRequest(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+      expect(hasPermission).toBeCalled();
+      expect(hasPermission).toBeCalledTimes(1);
+      expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
+    });
+
+    test('Returns 201 if the time-off request is set successfully.', async () => {
+      const { setTimeOffRequest } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        requestor: {
+          role: 'Administrator',
+          permissions: {
+            frontPermissions: [],
+            backPermissions: [],
+          },
+          requestorId: 'testUser123',
+        },
+        requestFor: 'testUser456',
+        duration: 1,
+        startingDate: new Date(2024, 5, 15),
+        reason: 'Test set time off',
+      };
+
+      const mockedResponseDocument = {
+        requestFor: mockReqCopy.body.requestFor,
+        duration: mockReqCopy.body.duration,
+        startingDate: mockReqCopy.body.startDate,
+        reason: mockReqCopy.body.reason,
+        endingDate: new Date(2024, 5, 21),
+      };
+
+      hasPermission.mockImplementation(async () => Promise.resolve(true));
+      const mongooseObjectIdSpy = jest
+        .spyOn(mongoose.Types, 'ObjectId')
+        .mockImplementationOnce(() => mockReqCopy.body.requestFor);
+      const timeOffRequestSaveSpy = jest
+        .spyOn(TimeOffRequest.prototype, 'save')
+        .mockImplementationOnce(async () => Promise.resolve(mockedResponseDocument));
+
+      const response = await setTimeOffRequest(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(201, mockedResponseDocument, response, mockRes);
+      expect(hasPermission).toBeCalled();
+      expect(hasPermission).toBeCalledTimes(1);
+      expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
+
+      expect(mongooseObjectIdSpy).toBeCalled();
+      expect(mongooseObjectIdSpy).toBeCalledTimes(1);
+      expect(mongooseObjectIdSpy).toBeCalledWith(mockReqCopy.body.requestFor);
+
+      expect(timeOffRequestSaveSpy).toBeCalled();
+      expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
+    });
+
+    test.each`
+      duration    | startingDate              | reason       | requestFor   | expectedMessage
+      ${null}     | ${new Date('2024-06-08')} | ${'Injury'}  | ${'user123'} | ${'bad request'}
+      ${'5 week'} | ${null}                   | ${'Wedding'} | ${'user123'} | ${'bad request'}
+      ${'7 week'} | ${new Date('2024-06-08')} | ${null}      | ${'user123'} | ${'bad request'}
+      ${'1 week'} | ${new Date('2024-06-08')} | ${'Sick'}    | ${null}      | ${'bad request'}
+    `(
+      `Return 400 if request body is missing any one of the following $requestFor, $reason, $duration, or $startingDate`,
+      async ({ duration, startingDate, reason, requestFor, expectedMessage }) => {
+        const { setTimeOffRequest } = makeSut();
+
+        hasPermission.mockImplementationOnce(async () => Promise.resolve(true));
+
+        const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+
+        mockReqCopy.body = {
+          ...mockReqCopy.body,
+          requestor: {
+            role: 'Administrator',
+            permissions: {
+              frontPermissions: [],
+              backPermissions: [],
+            },
+            requestorId: 'testUser123',
+          },
+          requestFor,
+          duration,
+          startingDate,
+          reason,
+        };
+
+        const error = expectedMessage;
+        const response = await setTimeOffRequest(mockReqCopy, mockRes);
+
+        assertResMock(400, error, response, mockRes);
+
+        expect(hasPermission).toBeCalled();
+        expect(hasPermission).toBeCalledTimes(1);
+        expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
+      },
+    );
+
+    test('Returns 500 if error occurs while saving time-off request.', async () => {
+      const { setTimeOffRequest } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        requestor: {
+          role: 'Administrator',
+          permissions: {
+            frontPermissions: [],
+            backPermissions: [],
+          },
+          requestorId: 'testUser123',
+        },
+        requestFor: 'testUser456',
+        duration: 1,
+        startingDate: new Date(2024, 5, 15),
+        reason: 'Test set time off',
+      };
+
+      const error = 'Error saving the request.';
+
+      hasPermission.mockImplementation(async () => Promise.resolve(true));
+      const mongooseObjectIdSpy = jest
+        .spyOn(mongoose.Types, 'ObjectId')
+        .mockImplementationOnce(() => mockReqCopy.body.requestFor);
+      const timeOffRequestSaveSpy = jest
+        .spyOn(TimeOffRequest.prototype, 'save')
+        .mockRejectedValueOnce(error);
+
+      const response = await setTimeOffRequest(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(500, error, response, mockRes);
+
+      expect(hasPermission).toBeCalled();
+      expect(hasPermission).toBeCalledTimes(1);
+      expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
+
+      expect(mongooseObjectIdSpy).toBeCalled();
+      expect(mongooseObjectIdSpy).toBeCalledTimes(1);
+      expect(mongooseObjectIdSpy).toBeCalledWith(mockReqCopy.body.requestFor);
+
+      expect(timeOffRequestSaveSpy).toBeCalled();
+      expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
     });
   });
 });
