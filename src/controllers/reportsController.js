@@ -4,45 +4,6 @@ const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
-// const hoursStats = await UserProfile.aggregate([
-//   {
-//     $lookup: {
-//       from: 'timeEntries', // The collection to join
-//       localField: '_id', // Field from the userProfile collection
-//       foreignField: 'personId', // Field from the timeEntries collection
-//       as: 'timeEntries', // The array field that will contain the joined documents
-//     },
-//   },
-//   {
-//     $unwind: {
-//       path: '$timeEntries',
-//       preserveNullAndEmptyArrays: true, // Preserve users with no time entries
-//     },
-//   },
-//   {
-//     $match: {
-//       // Adjust this condition to include all users, filtering timeEntries by date
-//       $or: [
-//         { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
-//         { timeEntries: { $exists: false } },
-//       ],
-//     },
-//   },
-//   {
-//     $group: {
-//       _id: '$_id',
-//       personId: { $first: '$_id' },
-//       totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
-//       weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
-//     },
-//   },
-//   {
-//     $project: {
-//       totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
-//       weeklycommittedHours: 1, // make sure we include it in the end result
-//     },
-//   },
-// ]);
 
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
@@ -68,7 +29,8 @@ const reportsController = function () {
 
     try {
       // const data = await overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate);
-      const data = await overviewReportHelper.getHoursStats(isoStartDate, isoEndDate);
+      // const data = await overviewReportHelper.getHoursStats(isoStartDate, isoEndDate);
+      const data = await overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate);
       res.status(200).send(data);
     } catch (err) {
       console.log(err);
