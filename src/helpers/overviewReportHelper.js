@@ -14,106 +14,87 @@ const overviewReportHelper = function () {
   async function getHoursStats(startDate, endDate) {
     const hoursStats = await UserProfile.aggregate([
       {
-        $facet: {
-          volunteerHoursStats: [
-            {
-              $match: {
-                isActive: true,
-              },
-            },
-            {
-              $lookup: {
-                from: 'timeEntries', // The collection to join
-                localField: '_id', // Field from the userProfile collection
-                foreignField: 'personId', // Field from the timeEntries collection
-                as: 'timeEntries', // The array field that will contain the joined documents
-              },
-            },
-            {
-              $unwind: {
-                path: '$timeEntries',
-                preserveNullAndEmptyArrays: true, // Preserve users with no time entries
-              },
-            },
-            {
-              $match: {
-                $or: [
-                  { timeEntries: { $exists: false } },
-                  { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
-                ],
-              },
-            },
-            {
-              $group: {
-                _id: '$_id',
-                personId: { $first: '$_id' },
-                totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
-                weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
-              },
-            },
-            {
-              $project: {
-                totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
-                weeklycommittedHours: 1, // make sure we include it in the end result
-              },
-            },
-            {
-              $bucket: {
-                groupBy: '$totalHours',
-                boundaries: [0, 10, 20, 30, 40],
-                default: 40,
-                output: {
-                  count: { $sum: 1 },
-                },
-              },
-            },
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries', // The collection to join
+          localField: '_id', // Field from the userProfile collection
+          foreignField: 'personId', // Field from the timeEntries collection
+          as: 'timeEntries', // The array field that will contain the joined documents
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntries',
+          preserveNullAndEmptyArrays: true, // Preserve users with no time entries
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { timeEntries: { $exists: false } },
+            { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
           ],
-
-          totalHoursWorked: [
-            {
-              $match: {
-                isActive: true,
-              },
-            },
-            {
-              $lookup: {
-                from: 'timeEntries', // The collection to join
-                localField: '_id', // Field from the userProfile collection
-                foreignField: 'personId', // Field from the timeEntries collection
-                as: 'timeEntries', // The array field that will contain the joined documents
-              },
-            },
-            {
-              $unwind: {
-                path: '$timeEntries',
-                preserveNullAndEmptyArrays: false, // Preserve users with no time entries
-              },
-            },
-            {
-              $match: {
-                $or: [
-                  { timeEntries: { $exists: false } },
-                  { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
-                ],
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalSeconds: { $sum: '$timeEntries.totalSeconds' },
-              },
-            },
-            {
-              $project: {
-                totalHours: { $divide: ['$totalSeconds', 3600] },
-              },
-            },
-          ],
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          personId: { $first: '$_id' },
+          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+          weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+        },
+      },
+      {
+        $project: {
+          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+          weeklycommittedHours: 1, // make sure we include it in the end result
+        },
+      },
+      {
+        $bucket: {
+          groupBy: '$totalHours',
+          boundaries: [0, 10, 20, 30, 40],
+          default: 40,
+          output: {
+            count: { $sum: 1 },
+          },
         },
       },
     ]);
 
-    return hoursStats;
+    return hoursStats[0];
+  }
+
+  /**
+   * Aggregates total number of hours worked across all volunteers within the specified date range
+   */
+  async function getTotalHoursWorked(startDate, endDate) {
+    console.log(startDate, endDate);
+    const data = await TimeEntries.aggregate([
+      {
+        $match: {
+          dateOfWork: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSeconds: { $sum: '$totalSeconds' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalHours: { $divide: ['$totalSeconds', 3600] },
+        },
+      },
+    ]);
+
+    return data;
   }
 
   /**
@@ -455,6 +436,7 @@ const overviewReportHelper = function () {
 
   return {
     getVolunteerNumberStats,
+    getTotalHoursWorked,
     getHoursStats,
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
