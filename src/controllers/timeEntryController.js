@@ -1182,14 +1182,25 @@ const timeEntrycontroller = function (TimeEntry) {
 
     const timeEntries = await TimeEntry.find({ personId: userId });
     const updateCategoryPromises = timeEntries.map(async (timeEntry) => {
-      // const { projectId } = timeEntry;
       const { projectId, totalSeconds, isTangible } = timeEntry;
       const totalHours = Number(totalSeconds / 3600);
       const project = await Project.findById(projectId);
-      if (project && isTangible) {
-        const { category } = project;
-        if (category.toLowerCase() in newCalculatedCategoryHrs) {
-          newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+      // if (project && isTangible) {
+      //   const { category } = project;
+      //   if (category.toLowerCase() in newCalculatedCategoryHrs) {
+      //     newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+      //   } else {
+      //     newCalculatedCategoryHrs.unassigned += totalHours;
+      //   }
+      // }
+      if (isTangible) {
+        if (project) {
+          const { category } = project;
+          if (category.toLowerCase() in newCalculatedCategoryHrs) {
+            newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+          } else {
+            newCalculatedCategoryHrs.unassigned += totalHours;
+          }
         } else {
           newCalculatedCategoryHrs.unassigned += totalHours;
         }
