@@ -217,7 +217,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
