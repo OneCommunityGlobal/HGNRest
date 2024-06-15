@@ -5,7 +5,7 @@ const constants = {
     'one.community@me.com',
     'jsabol@me.com',
     'devadmin@hgn.net',
-    // 'ptrpengdev@gmail.com',
+    'ptrpengdev@gmail.com',
   ],
   // Add more constants here
 };

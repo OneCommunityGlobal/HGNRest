@@ -23,7 +23,7 @@ const helper = require('../utilities/permissions');
 
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
-const objDeepCopy = require('../utilities/objDeepCopy');
+const objectUtils = require('../utilities/objectUtils');
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
@@ -79,9 +79,8 @@ const sendEmailUponProtectedAccountUpdate = (
   requestorEmail,
   requestorFullName,
   targetEmail,
-  originalData,
-  updatedData,
   action,
+  logId,
 ) => {
   const updatedDate = moment_().format('MMM-DD-YY');
   const subject = 'One Community: Protected Account Has Been Updated';
@@ -100,22 +99,9 @@ const sendEmailUponProtectedAccountUpdate = (
             <li><strong>Name:</strong> ${requestorFullName}</li>
             <li><strong>Email:</strong> <a href="mailto:${requestorEmail}">${requestorEmail}</a></li>
           </ul>
-          ${
-            originalData
-              ? `<pre>
-                  Orginal Data: ${originalData}
-                </pre>`
-              : ''
-          }
-          ${
-            updatedData
-              ? `<pre>
-                  Updated Data: ${updatedData}
-                </pre>`
-              : ''
-          }
          
-          <p>If you have any questions or notice any issues, please investigate further.</p>
+          <p>If you have any questions or notice any issues,
+          please investigate further by searching log transaction ID ${logId} in the Sentry.</p>
           
           <p>Thank you for your attention to this matter.</p>
           
@@ -129,26 +115,45 @@ const auditIfProtectedAccountUpdated = async (
   updatedRecordEmail,
   originalRecord,
   updatedRecord,
+  updateDiffPaths,
   actionPerformed,
 ) => {
   if (PROTECTED_EMAIL_ACCOUNT.includes(updatedRecordEmail)) {
-    const requestorProfile = userService.getUserFullNameById(requestorId);
+    const requestorProfile = await userService.getUserFullNameAndEmailById(requestorId);
     const requestorFullName = requestorProfile
       ? requestorProfile.firstName.concat(' ', requestorProfile.lastName)
       : 'N/A';
-    logger.logInfo(
+    // remove sensitive data from the original and updated records
+    delete originalRecord.password;
+    delete updatedRecord.password;
+    let extraData = null;
+    const updateObject = updatedRecord.toObject();
+    if (updateDiffPaths) {
+      const originalObjectString = originalRecord
+        ? JSON.stringify(objectUtils.filterFieldsFromObj(originalRecord, updateDiffPaths))
+        : null;
+      const updatedObjectString = updatedRecord
+        ? JSON.stringify(objectUtils.filterFieldsFromObj(updateObject, updateDiffPaths))
+        : null;
+      console.log('originalObjectString', originalObjectString);
+      console.log('updatedObjectString', updatedObjectString);
+      extraData = {
+        originalObjectString,
+        updatedObjectString,
+      };
+    }
+    const logId = logger.logInfo(
       `Protected email account updated. Target: ${updatedRecordEmail}
       Requestor: ${requestorProfile ? requestorFullName : requestorId}`,
+      extraData,
     );
-    const originalObjectString = originalRecord ? JSON.stringify(originalRecord) : null;
-    const updatedObjectString = updatedRecord ? JSON.stringify(updatedRecord) : null;
+
     sendEmailUponProtectedAccountUpdate(
       requestorProfile?.email,
       requestorFullName,
       updatedRecordEmail,
-      originalObjectString,
-      updatedObjectString,
       actionPerformed,
+      logId,
     );
   }
 };
@@ -447,7 +452,8 @@ const userProfileController = function (UserProfile) {
       // To keep a copy of the original record if we edit the protected account
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-        originalRecord = objDeepCopy(record);
+        originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
+        // console.log('originalRecord', originalRecord);
       }
       // validate userprofile pic
 
@@ -643,7 +649,10 @@ const userProfileController = function (UserProfile) {
       ) {
         record.infringements = req.body.infringements;
       }
-
+      let updatedDiff = null;
+      if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
+        updatedDiff = record.modifiedPaths();
+      }
       record
         .save()
         .then((results) => {
@@ -672,6 +681,7 @@ const userProfileController = function (UserProfile) {
             originalRecord.email,
             originalRecord,
             record,
+            updatedDiff,
             'update',
           );
         })
@@ -770,7 +780,7 @@ const userProfileController = function (UserProfile) {
       allUserData.splice(userIdx, 1);
       cache.setCache('allusers', JSON.stringify(allUserData));
     }
-    const originalRecord = objDeepCopy(user);
+    const originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
     try {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
@@ -893,25 +903,27 @@ const userProfileController = function (UserProfile) {
 
     return UserProfile.findById(userId)
       .then((user) => {
-        const originalRecord = objDeepCopy(user);
+        let originalRecord = null;
+        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+          originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+        }
         user.set({
           [key]: value,
         });
-
+        let updatedDiff = null;
+        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+          updatedDiff = user.modifiedPaths();
+        }
         return user
           .save()
           .then(() => {
-            if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-              logger.logInfo(
-                `Protected email account updated. Requestor: ${req.body.requestor.requestorId}, Target: ${user.email}, Updated: ${key}: ${value}`,
-              );
-            }
             res.status(200).send({ message: 'updated property' });
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
               originalRecord.email,
               originalRecord,
               user,
+              updatedDiff,
               'update',
             );
           })
