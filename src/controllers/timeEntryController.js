@@ -323,7 +323,7 @@ const addEditHistory = async (
     (edit) => moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365,
   ).length;
 
-  if (totalRecentEdits >= 3) {
+  if (totalRecentEdits >= 5) {
     userprofile.infringements.push({
       date: moment().tz('America/Los_Angeles'),
       description: `${totalRecentEdits} time entry edits in the last calendar year`,
@@ -921,9 +921,9 @@ const timeEntrycontroller = function (TimeEntry) {
           record.userProfile = element.personId;
           record.dateOfWork = element.dateOfWork;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId._id;
-          record.projectName = element.projectId.projectName;
-          record.projectCategory = element.projectId.category.toLowerCase();
+          record.projectId = element.projectId?._id || null;
+          record.projectName = element.projectId?.projectName || null;
+          record.projectCategory = element.projectId?.category.toLowerCase() || null;
           record.taskId = element.taskId?._id || null;
           record.taskName = element.taskId?.taskName || null;
           record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
@@ -934,6 +934,7 @@ const timeEntrycontroller = function (TimeEntry) {
         res.status(200).send(data);
       })
       .catch((error) => {
+        logger.logException(error);
         res.status(400).send(error);
       });
   };

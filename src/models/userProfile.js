@@ -217,7 +217,7 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
@@ -226,7 +226,7 @@ const userProfileSchema = new Schema({
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^([a-zA-Z0-9]-[a-zA-Z0-9]{3,5}|[a-zA-Z0-9]{5,7})$/;
+        const teamCoderegex = /^([a-zA-Z0-9]-[a-zA-Z0-9]{3,5}|[a-zA-Z0-9]{5,7})|^$/;
         return teamCoderegex.test(v);
       },
       message:
