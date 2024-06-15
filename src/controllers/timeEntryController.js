@@ -1132,7 +1132,10 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  //
+  /**
+   * back up the hoursByCategory value in a newly created field backupHoursByCategory if this user hasn't been backed up before
+   * for testing purpose in the recalculation
+   */
   const backupHoursByCategoryAllUsers = async function (req, res) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -1163,6 +1166,10 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  /**
+   * back up the totalIntangible value in a newly created field backupHoursByCategory if this user hasn't been backed up before
+   * for testing purpose in the recalculation
+   */
   const backupIntangibleHrsAllUsers = async function (req, res) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -1193,6 +1200,9 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  /**
+   * helper function for calculate a user's corrent hoursByCategory from TimeEntry and Projects
+   */
   const tangibleCalculationHelper = async (userId) => {
     const newCalculatedCategoryHrs = {
       housing: 0,
@@ -1229,7 +1239,10 @@ const timeEntrycontroller = function (TimeEntry) {
     return newCalculatedCategoryHrs;
   };
 
-  const inTangibleCalculationHelper = async (userId) => {
+  /**
+   * helper function for calculate a user's corrent totalIntangibleHrs from TimeEntry and Projects
+   */
+  const intangibleCalculationHelper = async (userId) => {
     let newTotalIntangibleHrs = 0;
 
     const timeEntries = await TimeEntry.find({ personId: userId });
@@ -1245,7 +1258,9 @@ const timeEntrycontroller = function (TimeEntry) {
     return newTotalIntangibleHrs;
   };
 
-  // for all
+  /**
+   * recalculate the hoursByCatefory for all users and update the field
+   */
   const recalculateHoursByCategoryAllUsers = async function (req, res) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -1273,6 +1288,9 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  /**
+   * recalculate the totalIntangibleHrs for all users and update the field
+   */
   const recalculateIntangibleHrsAllUsers = async function (req, res) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -1282,7 +1300,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
         const { _id: userId } = userprofile;
-        const newCalculatedIntangibleHrs = await inTangibleCalculationHelper(userId);
+        const newCalculatedIntangibleHrs = await intangibleCalculationHelper(userId);
         await UserProfile.findByIdAndUpdate(userId, {
           totalIntangibleHrs: newCalculatedIntangibleHrs,
         });

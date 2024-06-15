@@ -35,7 +35,7 @@ const routes = function (TimeEntry) {
     controller.recalculateHoursByCategoryAllUsers,
   );
 
-  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/inTangible').post(
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/intangible').post(
     controller.recalculateIntangibleHrsAllUsers,
   );
 
