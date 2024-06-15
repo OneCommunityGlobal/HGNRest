@@ -31,16 +31,20 @@ const routes = function (TimeEntry) {
     controller.getTimeEntriesForSpecifiedProject,
   );
 
-  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers').post(
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/tangible').post(
     controller.recalculateHoursByCategoryAllUsers,
   );
 
-  TimeEntryRouter.route('/TimeEntry/recalculateHoursOneUser').post(
-    controller.recalculateHoursByCategoryOneUser,
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/inTangible').post(
+    controller.recalculateIntangibleHrsAllUsers,
   );
 
-  TimeEntryRouter.route('/TimeEntry/backupHoursByCategoryAllUsers').post(
+  TimeEntryRouter.route('/TimeEntry/backupAllUsers/HoursByCategory').post(
     controller.backupHoursByCategoryAllUsers,
+  );
+
+  TimeEntryRouter.route('/TimeEntry/backupAllUsers/totalIntangibleHrs').post(
+    controller.backupIntangibleHrsAllUsers,
   );
 
   return TimeEntryRouter;
