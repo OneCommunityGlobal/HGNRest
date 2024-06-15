@@ -36,7 +36,6 @@ async function ValidatePassword(req, res) {
     });
     return;
   }
-  console.log('validating password 1');
   // Verify correct params in body
   if (!req.body.newpassword || !req.body.confirmnewpassword) {
     res.status(400).send({
@@ -45,37 +44,24 @@ async function ValidatePassword(req, res) {
     return;
   }
 
-  console.log('validating password 2');
-  console.log(userId !== requestor.requestorId);
-  console.log(requestor.requestor);
   const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
   const canReset = await hasPermission(req.body.requestor, 'resetPassword');
-  console.log('can update ', canUpdate);
-  console.log('can update ', canReset);
+
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, 'updatePassword')) &&
-    !(await hasPermission(req.body.requestor, 'resetPassword'))
-  ) {
+  if (userId !== requestor.requestorId && !canUpdate && !canReset) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
   }
 
-  console.log('validating password 3');
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId === requestor.requestorId || !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
   }
-  console.log('validating password 4');
   // Verify new and confirm new password are correct
   if (req.body.newpassword !== req.body.confirmnewpassword) {
     res.status(400).send({
@@ -102,7 +88,6 @@ const userProfileController = function (UserProfile) {
 
     await UserProfile.find(
       {},
-
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
@@ -347,7 +332,9 @@ const userProfileController = function (UserProfile) {
         req.body.requestor.requestorId === userid)
     );
 
-    if (!isRequestorAuthorized) {
+    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+
+    if (!isRequestorAuthorized && !canManageAdminLinks) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -396,12 +383,10 @@ const userProfileController = function (UserProfile) {
         'profilePic',
         'firstName',
         'lastName',
-        'jobTitle',
         'phoneNumber',
         'bio',
         'personalLinks',
         'location',
-        'profilePic',
         'privacySettings',
         'weeklySummaries',
         'weeklySummariesCount',
@@ -413,7 +398,6 @@ const userProfileController = function (UserProfile) {
         'isFirstTimelog',
         'teamCode',
         'isVisible',
-        'isRehireable',
         'bioPosted',
       ];
 
@@ -435,12 +419,15 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
+      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+        record.adminLinks = req.body.adminLinks;
+      }
+
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
           'role',
           'isRehireable',
-          'isActive',
-          'adminLinks',
           'isActive',
           'weeklySummaries',
           'weeklySummariesCount',
@@ -477,7 +464,7 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.projects !== undefined) {
-          record.projects = Array.from(new Set(req.body.projects));
+          record.projects = req.body.projects.map((project) => project._id);
         }
 
         if (req.body.email !== undefined) {
@@ -568,6 +555,7 @@ const userProfileController = function (UserProfile) {
             results.email,
             results.role,
             results.startDate,
+            results.jobTitle[0],
           );
           res.status(200).json({
             _id: record._id,
@@ -1037,6 +1025,11 @@ const userProfileController = function (UserProfile) {
         return;
       }
 
+      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
+        res.status(403).send('You are not authorized to reset this users password');
+        return;
+      }
+
       if (user.role === 'Owner' && !(await hasPermission(requestor, 'addDeleteEditOwners'))) {
         res.status(403).send('You are not authorized to reset this user password');
         return;
@@ -1121,10 +1114,29 @@ const userProfileController = function (UserProfile) {
   };
 
   // Search for user by first name
+  // const getUserBySingleName = (req, res) => {
+  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+
+  //   // Searches for first or last name
+  //   UserProfile.find({
+  //     $or: [
+  //       { firstName: { $regex: pattern } },
+  //       { lastName: { $regex: pattern } },
+  //     ],
+  //   })
+  //     .select('firstName lastName')
+  //     .then((users) => {
+  //       if (users.length === 0) {
+  //         return res.status(404).send({ error: 'Users Not Found' });
+  //       }
+  //       res.status(200).send(users);
+  //     })
+  //     .catch((error) => res.status(500).send(error));
+  // };
+
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
-    // Searches for first or last name
     UserProfile.find({
       $or: [{ firstName: { $regex: pattern } }, { lastName: { $regex: pattern } }],
     })
@@ -1138,7 +1150,6 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(500).send(error));
   };
-
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -1146,19 +1157,13 @@ const userProfileController = function (UserProfile) {
   // Search for user by full name (first and last)
   // eslint-disable-next-line consistent-return
   const getUserByFullName = (req, res) => {
-    // Creates an array containing the first and last name and filters out whitespace
-    const fullName = req.params.fullName.split(' ').filter((name) => name !== '');
-    // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
-
-    // Verfies both the first and last name are present
-    if (fullName.length < 2) {
-      return res.status(400).send({ error: 'Both first name and last name are required.' });
-    }
+    // Sanitize user input and escape special characters
+    const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
+    // Create a regular expression to match the sanitized full name, ignoring case
+    const fullNameRegex = new RegExp(sanitizedFullName, 'i');
 
     UserProfile.find({
-      $and: [{ firstName: { $regex: firstNameRegex } }, { lastName: { $regex: lastNameRegex } }],
+      $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1166,11 +1171,15 @@ const userProfileController = function (UserProfile) {
         if (users.length === 0) {
           return res.status(404).send({ error: 'Users Not Found' });
         }
+
         res.status(200).send(users);
       })
       .catch((error) => res.status(500).send(error));
   };
 
+  // function escapeRegExp(string) {
+  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // }
   /**
    * Authorizes user to be able to add Weekly Report Recipients
    *

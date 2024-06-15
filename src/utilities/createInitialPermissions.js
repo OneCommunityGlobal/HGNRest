@@ -51,6 +51,7 @@ const permissionsRoles = [
       'resetPassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'manageAdminLinks',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       // WBS
@@ -244,6 +245,7 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
+      'manageAdminLinks',
     ],
   },
 ];
