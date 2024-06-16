@@ -365,6 +365,26 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.status(500).send(error);
     }
   };
+
+  const deleteSingleInvType = async (req, res) => {
+    const { type, invtypeId } = req.params;
+
+    try {
+      // delete invType with given id
+      const deletedResult = await InvType.findByIdAndDelete(invtypeId);
+      if (!deletedResult) {
+        res.status(404).json({ error: 'invTypeId does not exist' });
+        return;
+      }
+
+      // send the updated list
+      const updatedList = await InvType.find({ category: type });
+      res.status(200).json(updatedList);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   return {
     fetchMaterialTypes,
     fetchConsumableTypes,
