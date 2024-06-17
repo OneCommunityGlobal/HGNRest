@@ -33,7 +33,7 @@ const overviewReportHelper = function () {
       },
       {
         $group: {
-          _id: '#project.category',
+          _id: '$project.category',
           aggregatedSeconds: { $sum: '$totalSeconds' },
         },
       },
