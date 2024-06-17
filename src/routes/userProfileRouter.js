@@ -11,15 +11,15 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer(value => value.trim()),
-      body('lastName').customSanitizer(value => value.trim()),
+      body('firstName').customSanitizer((value) => value.trim()),
+      body('lastName').customSanitizer((value) => value.trim()),
       controller.postUserProfile,
     );
 
   userProfileRouter
     .route('/userProfile/:userId')
     .get(controller.getUserById)
-   .put(
+    .put(
       body('firstName').customSanitizer((req) => req.trim()),
       body('lastName').customSanitizer((req) => req.trim()),
       body('personalLinks').customSanitizer((req) =>
