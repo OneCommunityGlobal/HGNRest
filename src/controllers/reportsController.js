@@ -28,15 +28,25 @@ const reportsController = function () {
     const isoEndDate = new Date(endDate);
 
     try {
-      const [volunteerNumberStats, volunteerHoursStats, totalHoursWorked] = await Promise.all([
+      const [
+        volunteerNumberStats,
+        volunteerHoursStats,
+        totalHoursWorked,
+        tasksStats,
+        workDistributionStats,
+      ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
         overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
         overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
+        overviewReportHelper.getTasksStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getWorkDistributionStats(isoStartDate, isoEndDate),
       ]);
       res.status(200).send({
         volunteerNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
+        tasksStats,
+        workDistributionStats,
       });
     } catch (err) {
       console.log(err);
