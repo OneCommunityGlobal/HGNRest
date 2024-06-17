@@ -7,6 +7,73 @@ const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
+   * aggregates the total number of hours worked between the 5 categories
+   * Food, Energy, Housing, Stewardship, Society, Economics and Other
+   */
+  async function getWorkDistributionStats(startDate, endDate) {
+    const distributionStats = TimeEntries.aggregate([
+      {
+        $match: {
+          dateOfWork: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project',
+        },
+      },
+      {
+        $unwind: {
+          path: '$project',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $group: {
+          _id: '#project.category',
+          aggregatedSeconds: { $sum: '$totalSeconds' },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          totalHours: { $divide: ['$aggregatedSeconds', 3600] },
+        },
+      },
+    ]);
+
+    return distributionStats;
+  }
+
+  async function getTasksStats(startDate, endDate) {
+    const taskStats = await Task.aggregate([
+      {
+        $match: {
+          modifiedDatetime: { $gte: startDate, $lte: endDate },
+          status: { $in: ['Complete', 'Active'] },
+        },
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    if (!taskStats.find((x) => x._id === 'Active')) {
+      taskStats.push({ _id: 'Active', count: 0 });
+    }
+    if (!taskStats.find((x) => x._id === 'Complete')) {
+      taskStats.push({ _id: 'Complete', count: 0 });
+    }
+
+    return taskStats;
+  }
+  /**
    * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
    * @param {*} startDate
    * @param {*} endDate
@@ -65,8 +132,12 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-
-    return hoursStats[0];
+    for (let i = 0; i < 5; i++) {
+      if (!hoursStats.find((x) => x._id === i * 10)) {
+        hoursStats.push({ _id: i * 10, count: 0 });
+      }
+    }
+    return hoursStats;
   }
 
   /**
@@ -436,6 +507,8 @@ const overviewReportHelper = function () {
 
   return {
     getVolunteerNumberStats,
+    getTasksStats,
+    getWorkDistributionStats,
     getTotalHoursWorked,
     getHoursStats,
     getFourPlusMembersTeamCount,
