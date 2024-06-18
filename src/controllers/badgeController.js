@@ -13,16 +13,21 @@ const badgeController = function (Badge) {
   const cache = cacheClosure();
 
   const getAllBadges = async function (req, res) {
+    console.log(req.body.requestor);  // Retain logging from development branch for debugging
+
+    // Check if the user has any of the following permissions
     if (
       !(await helper.hasPermission(req.body.requestor, 'seeBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'assignBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'createBadges')) &&
-      !(await helper.hasPermission(req.body.requester, 'updateBadges')) &&
+      !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
+      console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
+    
     // Add cache to reduce database query and optimize performance
     if (cache.hasCache('allBadges')) {
       res.status(200).send(cache.getCache('allBadges'));
