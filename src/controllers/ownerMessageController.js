@@ -46,7 +46,6 @@ const ownerMessageController = function (OwnerMessage) {
 
   const deleteOwnerMessage = async function (req, res) {
     if (
-      req.body.requestor.role !== 'Owner' &&
       !(await helper.hasPermission(req.body.requestor, 'editHeaderMessage'))
     ) {
       res.status(403).send('You are not authorized to delete messages!');
