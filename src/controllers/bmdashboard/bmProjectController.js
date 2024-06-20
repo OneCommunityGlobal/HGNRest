@@ -123,43 +123,7 @@ const bmMProjectController = function (BuildingProject) {
     }
   };
 
-
-  // fetches single project by project id
-  const fetchProjectMembers = async (req, res) => {
-    //! Note: for easier testing this route currently returns the project without an auth check
-    // TODO: uncomment the lines below to check the user's ability to view the current project
-    // const token = req.headers.authorization;
-    // const { userid } = jwt.verify(token, JWT_SECRET);
-    const { projectId } = req.params;
-    try {
-      BuildingProject
-        .findById(projectId)
-        .populate([
-          {
-            path: 'members',
-            select: '_id firstName lastName email',
-          },
-        ])
-        .exec()
-        .then(project => res.status(200).send(project))
-        // TODO: uncomment this block to execute the auth check
-        // authenticate request by comparing userId param with buildingManager id field
-        // Note: _id has type object and must be converted to string
-        // .then((project) => {
-        //   if (userid !== project.buildingManager._id.toString()) {
-        //     return res.status(403).send({
-        //       message: 'You are not authorized to view this record.',
-        //     });
-        //   }
-        //   return res.status(200).send(project);
-        // })
-        .catch(error => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
-    }
-  };
-
-  return { fetchAllProjects, fetchSingleProject, fetchProjectMembers };
+  return { fetchAllProjects, fetchSingleProject };
 };
 
 module.exports = bmMProjectController;

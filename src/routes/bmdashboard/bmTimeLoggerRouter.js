@@ -1,16 +1,13 @@
 const express = require('express');
 
-const routes = function (buildingProject) {
-  const projectRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/bmProjectController')(buildingProject);
+const routes = function () {
+  const timeloggerRouter = express.Router();
+  const controller = require('../../controllers/bmdashboard/bmTimeLoggerController')();
 
-projectRouter.route('/projects')
-  .get(controller.fetchAllProjects);
+  timeloggerRouter.route('/timelogger/:projectId/users')
+  .get(controller.fetchProjectMembers);
 
-projectRouter.route('/project/:projectId')
-  .get(controller.fetchSingleProject);
-
-  return projectRouter;
+  return timeloggerRouter;
 };
 
 module.exports = routes;
