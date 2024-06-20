@@ -34,12 +34,18 @@ const reportsController = function () {
         totalHoursWorked,
         tasksStats,
         workDistributionStats,
+        roleDistributionStats,
+        usersInTeamStats,
+        // blueSquareStats,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
         overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
         overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
         overviewReportHelper.getTasksStats(isoStartDate, isoEndDate),
         overviewReportHelper.getWorkDistributionStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getRoleDistributionStats(),
+        overviewReportHelper.getTeamMembersCount(),
+        // overviewReportHelper.getBlueSquareStats(startDate, endDate),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -47,6 +53,9 @@ const reportsController = function () {
         totalHoursWorked,
         tasksStats,
         workDistributionStats,
+        roleDistributionStats,
+        usersInTeamStats,
+        // blueSquareStats,
       });
     } catch (err) {
       console.log(err);
