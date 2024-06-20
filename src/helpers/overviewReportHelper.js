@@ -7,6 +7,100 @@ const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
+   * Get the number of Blue Square infringements between the two input dates.
+   * @param {*} startDate
+   * @param {*} endDate
+   * @returns
+   */
+  async function getBlueSquareStats(startDate, endDate) {
+    return UserProfile.aggregate([
+      {
+        $unwind: '$infringements',
+      },
+      {
+        $match: {
+          'infringements.date': {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$infringements.description',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+  }
+
+  /**
+   *  Get the number of members in team and not in team, with percentage
+   */
+  async function getTeamMembersCount() {
+    const [data] = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $facet: {
+          totalMembers: [
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                count: 1,
+              },
+            },
+          ],
+
+          inTeam: [
+            {
+              $match: {
+                teams: {
+                  $exists: true,
+                  $ne: [],
+                },
+              },
+            },
+            {
+              $count: 'usersInTeam',
+            },
+          ],
+        },
+      },
+    ]);
+
+    return data;
+  }
+
+  /** aggregates role distribution statistics
+   * counts total number of volunteers that fall within each of the different roles
+   */
+  async function getRoleDistributionStats() {
+    const roleStats = UserProfile.aggregate([
+      {
+        $match: { isActive: true },
+      },
+      {
+        $group: {
+          _id: '$role',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    return roleStats;
+  }
+
+  /**
    * aggregates the total number of hours worked between the 5 categories
    * Food, Energy, Housing, Stewardship, Society, Economics and Other
    */
@@ -178,7 +272,7 @@ const overviewReportHelper = function () {
    * @param {string} endDate
    */
   const getVolunteerNumberStats = async (startDate, endDate) => {
-    const data = await UserProfile.aggregate([
+    const [data] = await UserProfile.aggregate([
       {
         $facet: {
           activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
@@ -288,58 +382,6 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-  }
-
-  /**
-   * Get the number of Blue Square infringements between the two input dates.
-   * @param {*} startDate
-   * @param {*} endDate
-   * @returns
-   */
-  async function getBlueSquareStats(startDate, endDate) {
-    return UserProfile.aggregate([
-      {
-        $unwind: '$infringements',
-      },
-      {
-        $match: {
-          'infringements.date': {
-            $gte: startDate,
-            $lte: endDate,
-          },
-        },
-      },
-      {
-        $count: 'infringements',
-      },
-    ]);
-  }
-
-  /**
-   *  Get the number of members in team and not in team, with percentage
-   */
-  async function getTeamMembersCount() {
-    const totalUsers = await UserProfile.countDocuments();
-    const usersInTeam = await UserProfile.aggregate([
-      {
-        $match: {
-          teams: { $exists: true, $ne: [] },
-        },
-      },
-      {
-        $count: 'usersInTeam',
-      },
-    ]);
-    const usersNotInTeam = totalUsers - usersInTeam[0].usersInTeam;
-    const usersInTeamPercentage = ((usersInTeam[0].usersInTeam / totalUsers) * 100).toFixed(2);
-    const usersNotInTeamPercentage = ((usersNotInTeam / totalUsers) * 100).toFixed(2);
-
-    return {
-      usersInTeam: usersInTeam[0].usersInTeam,
-      usersNotInTeam,
-      usersInTeamPercentage,
-      usersNotInTeamPercentage,
-    };
   }
 
   /**
@@ -506,6 +548,7 @@ const overviewReportHelper = function () {
   }
 
   return {
+    getRoleDistributionStats,
     getVolunteerNumberStats,
     getTasksStats,
     getWorkDistributionStats,
