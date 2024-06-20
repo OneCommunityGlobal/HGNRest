@@ -3,8 +3,16 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 
 const currentWarningsController = function (currentWarnings) {
+  const checkForDuplicates = (currentWarning, warnings) => {
+    const duplicateFound = warnings.some(
+      (warning) => warning.warningTitle.toLowerCase() === currentWarning,
+    );
+
+    return duplicateFound;
+  };
+
   const checkIfSpecialCharacter = (warning) => {
-    return !/^\b[a-zA-Z]+\b.*$/.test(warning);
+    return !/^[a-zA-Z][a-zA-Z0-9]*(?: [a-zA-Z0-9]+)*$/.test(warning);
   };
   const getCurrentWarnings = async (req, res) => {
     try {
@@ -23,30 +31,24 @@ const currentWarningsController = function (currentWarnings) {
     try {
       const { newWarning, activeWarning } = req.body;
 
-      const newWarningLowerCase = newWarning
-        .split(' ')
-        .map((warning) => {
-          if (!/^\b[a-zA-Z]+\b.*$/.test(warning)) {
-            throw new Error('warning cannot have special characters as the first letter');
-          }
-          return warning.toLowerCase();
-        })
-        .join(' ');
-
       const warnings = await currentWarnings.find({});
 
       if (warnings.length === 0) {
         return res.status(400).send({ message: 'no valid records' });
       }
 
-      //check to see if it is deactivated or not
-      //deactaivted warnings should count and duplicates cannot be created
-      const duplicateFound = warnings.some(
-        (warning) => warning.warningTitle.toLowerCase() === newWarningLowerCase,
-      );
-      if (duplicateFound) {
+      const lowerCaseWarning = newWarning.toLowerCase();
+      const testWarning = !/^[a-zA-Z][a-zA-Z0-9]*(?: [a-zA-Z0-9]+)*$/.test(lowerCaseWarning);
+      if (testWarning) {
+        return res.status(422).send({
+          error: 'Warning cannot have special characters as the first letter',
+        });
+      }
+
+      if (checkForDuplicates(lowerCaseWarning, warnings)) {
         return res.status(422).send({ error: 'warning already exists' });
       }
+
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
       newWarningDescription.activeWarning = activeWarning;
@@ -66,15 +68,28 @@ const currentWarningsController = function (currentWarnings) {
 
       const id = editedWarning._id;
 
-      if (checkIfSpecialCharacter(editedWarning.warningTitle)) {
+      const warnings = await currentWarnings.find({});
+
+      if (warnings.length === 0) {
+        return res.status(400).send({ message: 'no valid records' });
+      }
+
+      const lowerCaseWarning = editedWarning.warningTitle.toLowerCase();
+      const testWarning = !/^[a-zA-Z][a-zA-Z0-9]*(?: [a-zA-Z0-9]+)*$/.test(lowerCaseWarning);
+
+      if (testWarning) {
         return res.status(422).send({
-          error: 'warning cannot have special characters as the first letter',
+          error: 'Warning cannot have special characters as the first letter',
         });
+      }
+
+      if (checkForDuplicates(lowerCaseWarning, warnings)) {
+        return res.status(422).send({ error: 'warning already exists try a different name' });
       }
 
       await currentWarnings.findOneAndUpdate(
         { _id: id },
-        [{ $set: { warningTitle: editedWarning.warningTitle.trim() } }],
+        [{ $set: { warningTitle: lowerCaseWarning.trim() } }],
         { new: true },
       );
 
