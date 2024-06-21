@@ -1181,7 +1181,7 @@ const userHelper = function () {
       personId,
       {
         $pull: {
-          badgeCollection: { _id: mongoose.Types.ObjectId(badgeId) },
+          badgeCollection: { badge: mongoose.Types.ObjectId(badgeId) },
         },
       },
       { new: true },

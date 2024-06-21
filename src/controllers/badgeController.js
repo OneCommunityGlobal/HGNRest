@@ -3,6 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
+const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -11,6 +12,11 @@ const badgeController = function (Badge) {
    * @returns {Array<Object>} List containing badge records.
    */
   const cache = cacheClosure();
+
+  // const awardBadgesTest = async function (req, res) {
+  //   await userHelper.awardNewBadges();
+  //   res.status(200).send('Badges awarded');
+  // };
 
   const getAllBadges = async function (req, res) {
     console.log(req.body.requestor);
@@ -266,6 +272,7 @@ const badgeController = function (Badge) {
   };
 
   return {
+    // awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
