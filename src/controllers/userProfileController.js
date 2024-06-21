@@ -1223,11 +1223,9 @@ const userProfileController = function (UserProfile) {
 
   const getProjectsByPerson = async function (req, res) {
     try {
-      const { name } = req.body;
+      const { name } = req.params;
 
       const match = name.trim().match(/^([A-Za-z]*)\s*([A-Za-z]*)$/i);
-
-      console.log(match);
 
       const query =
         match[2].length > 0
@@ -1257,7 +1255,8 @@ const userProfileController = function (UserProfile) {
       if (userProfile) {
         const allProjects = userProfile
           .map((user) => user.projects)
-          .filter((projects) => projects.length > 0);
+          .filter((projects) => projects.length > 0)
+          .flat();
 
         return res.status(200).send({ message: 'Found profile and related projects', allProjects });
       }
