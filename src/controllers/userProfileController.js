@@ -1229,19 +1229,28 @@ const userProfileController = function (UserProfile) {
 
       console.log(match);
 
-      const query = {
-        $or: [
-          { firstName: { $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i') } },
-          {
-            lastName: {
-              $regex: new RegExp(
-                `^${escapeRegExp(match[2].length > 0 ? match[2] : match[1])}`,
-                'i',
-              ),
-            },
-          },
-        ],
-      };
+      const query =
+        match[2].length > 0
+          ? {
+              $and: [
+                { firstName: { $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i') } },
+                {
+                  lastName: {
+                    $regex: new RegExp(`^${escapeRegExp(match[2])}`, 'i'),
+                  },
+                },
+              ],
+            }
+          : {
+              $or: [
+                { firstName: { $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i') } },
+                {
+                  lastName: {
+                    $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i'),
+                  },
+                },
+              ],
+            };
 
       const userProfile = await UserProfile.find(query);
 
