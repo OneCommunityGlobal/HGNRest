@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-
 const RolePermissionPresets = new Schema({
   roleName: { type: String, required: true },
   presetName: { type: String, required: true },

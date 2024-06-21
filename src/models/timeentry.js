@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-
 const TimeEntry = new Schema({
   entryType: { type: String, required: true, default: 'default' },
   personId: { type: Schema.Types.ObjectId, ref: 'userProfile' },
@@ -16,6 +15,7 @@ const TimeEntry = new Schema({
   isTangible: { type: Boolean, default: false },
   createdDateTime: { type: Date },
   lastModifiedDateTime: { type: Date, default: Date.now },
+  isActive: { type: Boolean, default: true },
 });
 
 module.exports = mongoose.model('timeEntry', TimeEntry, 'timeEntries');
