@@ -38,7 +38,7 @@ const currentWarningsController = function (currentWarnings) {
       }
 
       const lowerCaseWarning = newWarning.toLowerCase();
-      const testWarning = !checkIfSpecialCharacter(lowerCaseWarning);
+      const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
       if (testWarning) {
         return res.status(422).send({
           error: 'Warning cannot have special characters as the first letter',
@@ -75,7 +75,7 @@ const currentWarningsController = function (currentWarnings) {
       }
 
       const lowerCaseWarning = editedWarning.warningTitle.toLowerCase();
-      const testWarning = !checkIfSpecialCharacter(lowerCaseWarning);
+      const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
 
       if (testWarning) {
         return res.status(422).send({
