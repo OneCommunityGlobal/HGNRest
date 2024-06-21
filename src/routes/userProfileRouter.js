@@ -87,7 +87,7 @@ const routes = function (userProfile) {
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
 
-  userProfileRouter.route('/userProfile/projects/userProjects').get(controller.getProjectsByPerson);
+  userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   return userProfileRouter;
 };
