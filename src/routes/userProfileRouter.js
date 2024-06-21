@@ -87,6 +87,11 @@ const routes = function (userProfile) {
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
 
+  // This route to get all projects associated with a particular user
+  userProfileRouter
+    .route('/userProfile/:firstName/:lastName/getprojects')
+    .get(controller.getProjectsByPerson);
+
   return userProfileRouter;
 };
 

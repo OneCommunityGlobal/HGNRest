@@ -1221,6 +1221,34 @@ const userProfileController = function (UserProfile) {
     }
   };
 
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   * @returns
+   */
+  const getProjectsByPerson = async function (req, res) {
+    // Must find user by first and last name and verify the user ID, once that should be able to extract
+    try {
+      const { firstName, lastName } = req.params;
+      // Finding profile by name and then looking up projects
+      const userProfile = await UserProfile.find({
+        firstName: { $regex: new RegExp(`^${escapeRegExp(firstName)}`, 'i') },
+        lastName: { $regex: new RegExp(`^${escapeRegExp(lastName)}`, 'i') },
+      });
+      if (userProfile) {
+        const { projects } = userProfile[0];
+        if (projects.length > 0) {
+          return res.status(200).send({ message: 'Found profile and related projects', projects });
+        }
+
+        return res.status(400).send({ message: 'Projects not found' });
+      }
+    } catch (error) {
+      return res.status(500).send({ massage: 'Encountered an error, please try again!' });
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1242,6 +1270,7 @@ const userProfileController = function (UserProfile) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    getProjectsByPerson,
   };
 };
 
