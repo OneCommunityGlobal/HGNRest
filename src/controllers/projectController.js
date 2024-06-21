@@ -263,16 +263,22 @@ const projectController = function (Project) {
       });
   };
 
-  const getprojectMembership = function (req, res) {
+  const getprojectMembership = async function (req, res) {
     const { projectId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       res.status(400).send('Invalid request');
       return;
     }
+    const getId = await hasPermission(req.body.requestor, 'getProjectMembers');
+
     userProfile
-      .find({ projects: projectId }, '_id firstName lastName isActive profilePic')
+      .find(
+        { projects: projectId },
+        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+      )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
+        console.log(results);
         res.status(200).send(results);
       })
       .catch((error) => {
