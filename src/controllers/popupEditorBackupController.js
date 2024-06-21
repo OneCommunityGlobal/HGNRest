@@ -18,7 +18,6 @@ const popupEditorBackupController = function (PopupEditorBackups) {
     }
   };
 
-
   const createPopupEditorBackup = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'createPopup')) {
       res
@@ -33,7 +32,6 @@ const popupEditorBackupController = function (PopupEditorBackups) {
       });
       return;
     }
-
 
     const popup = new PopupEditorBackups();
     popup.popupId = req.body.popupId;
@@ -82,7 +80,6 @@ const popupEditorBackupController = function (PopupEditorBackups) {
     }
   };
 
-
   return {
     createPopupEditorBackup,
     getAllPopupEditorBackups,
@@ -90,6 +87,5 @@ const popupEditorBackupController = function (PopupEditorBackups) {
     getPopupEditorBackupById,
   };
 };
-
 
 module.exports = popupEditorBackupController;

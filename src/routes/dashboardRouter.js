@@ -40,7 +40,6 @@ const route = function () {
   Dashboardrouter.route('/dashboard/makesuggestion/:userId')
     .post(controller.sendMakeSuggestion);
 
-
   return Dashboardrouter;
 };
 

@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const buildingTool = new Schema({
     itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
     project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
-    code: { type: Number}, // add function to create code for on-site tool tracking.Not marked as 'required' as it breaks the tool purchase form functionality.
+    code: { type: Number }, // add function to create code for on-site tool tracking.Not marked as 'required' as it breaks the tool purchase form functionality.
     purchaseStatus: { type: String, enum: ['Rental', 'Purchase'] },
     // add discriminator based on rental or purchase so these fields are required if tool is rented. Not marked as 'required' as it breaks the tool purchase form functionality.
     rentedOnDate: Date,

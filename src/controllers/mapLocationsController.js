@@ -1,13 +1,14 @@
 const UserProfile = require('../models/userProfile');
 const cache = require('../utilities/nodeCache')();
 
-
 const mapLocationsController = function (MapLocation) {
   const getAllLocations = async function (req, res) {
     try {
       const users = [];
-      const results = await UserProfile.find({},
-        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory');
+      const results = await UserProfile.find(
+{},
+        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
+);
 
       results.forEach((item) => {
         if (
