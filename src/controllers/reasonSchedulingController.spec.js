@@ -11,13 +11,16 @@ const UserModel = require('../models/userProfile');
 //  assertResMock
 const ReasonModel = require('../models/reason');
 
-jest.mock('../utilities/emailSender');
-
-// const emailSender = require('../utilities/emailSender');
-
 // Mock the models
 jest.mock('../models/reason');
 jest.mock('../models/userProfile');
+jest.mock('../utilities/emailSender');
+const emailSender = require('../utilities/emailSender');
+
+emailSender.mockImplementation(() => undefined);
+// jest.mock('../utilities/emailSender', () => ({
+//   emailSender: jest.fn().mockResolvedValueOnce(''),
+// }));
 
 const flushPromises = () => new Promise(setImmediate);
 
@@ -199,23 +202,12 @@ describe('reasonScheduling Controller', () => {
           .toISOString(),
         userId: mockReq.body.userId,
       };
-      // const subject = `Blue Square Reason for ${mockFindUser.firstName} ${mockFindUser.lastName} has been set`;
-
-      // const emailBody = `<p> Hi ! </p>
-
-      //     <p>This email is to let you know that ${mockFindUser.firstName} ${mockFindUser.lastName} has set their Blue Square Reason.</p>
-
-      //     <p>Blue Square Reason : ${newReason.reason} </p>
-      //     <p>Scheduled date for the Blue Square Reason: : ${newReason.date}  </p>
-
-      //     <p>Thank you,<br />
-      //     One Community</p>`;
       const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
       const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockResolvedValue(newReason);
-
+      // process.env.sendEmail = true;
       await postReason(mockReq, mockRes);
       await flushPromises();
-      // emailSender.mockImplementation(() => Promise.resolve(true));
+      // expect(emailSender).toHaveBeenCalledTimes(1);
       expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
       expect(mockFoundReason).toHaveBeenCalledWith({
@@ -226,7 +218,8 @@ describe('reasonScheduling Controller', () => {
         userId: mockReq.body.userId,
       });
       expect(mockSave).toHaveBeenCalledWith();
-      // expect(emailSender).toHaveBeenCalledWith();
+
+      // expect(emailSender).toHaveBeenCalledWith(mockFindUser.email, subject, emailBody, null, null);
     });
   });
   describe('getAllReason method', () => {
