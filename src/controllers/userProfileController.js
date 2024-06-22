@@ -423,6 +423,14 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+      if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
+        const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
+        summaryFields.forEach((fieldName) => {
+          if (req.body[fieldName] !== undefined) {
+            record[fieldName] = req.body[fieldName];
+          }
+        });
+      }
 
       if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
@@ -430,6 +438,7 @@ const userProfileController = function (UserProfile) {
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
+          'email',
           'role',
           'isRehireable',
           'isActive',
@@ -437,8 +446,6 @@ const userProfileController = function (UserProfile) {
           'weeklySummariesCount',
           'mediaUrl',
           'collaborationPreference',
-          'weeklySummaryNotReq',
-          'weeklySummaryOption',
           'categoryTangibleHrs',
           'totalTangibleHrs',
           'timeEntryEditHistory',
