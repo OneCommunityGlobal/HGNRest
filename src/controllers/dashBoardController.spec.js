@@ -17,7 +17,10 @@ const makeSut = () => {
     updateAIPrompt, 
     getAIPrompt,
     monthlydata,
-    weeklydata
+    weeklydata,
+    leaderboarddata,
+    orgData,
+    dashboarddata
   } = dashBoardController(AIPrompt);
   return { 
     updateCopiedPrompt,
@@ -25,7 +28,10 @@ const makeSut = () => {
     updateAIPrompt,
     getAIPrompt,
     monthlydata,
-    weeklydata
+    weeklydata,
+    leaderboarddata,
+    orgData,
+    dashboarddata
   };
 };
 
@@ -34,14 +40,14 @@ const flushPromises = async () => new Promise(setImmediate);
 
 describe('Dashboard Controller tests', () => {
   beforeAll(() => {
-    const dashboardHelperObject = 
-      {
-        laborthisweek: jest.fn(() => Promise.resolve([]))
-      };
-    dashboardHelperClosure.mockImplementation(() => dashboardHelperObject);
+    // const dashboardHelperObject = 
+    //   {
+    //     laborthisweek: jest.fn(() => Promise.resolve([]))
+    //   };
+    // dashboardHelperClosure.mockImplementation(() => dashboardHelperObject);
   });
   beforeEach(() => {
-    // mockReq.params.userId = '5a7ccd20fde60f1f1857ba16';
+    dashboardhelper = dashboardHelperClosure();
   });
   afterEach(() => {
     jest.clearAllMocks();
@@ -353,7 +359,7 @@ describe('Dashboard Controller tests', () => {
         mockRes,
       );
     })
-  })
+  });
 
   describe('monthlydata Tests', () => {
 
@@ -405,8 +411,146 @@ describe('Dashboard Controller tests', () => {
       );
     })
 
+  });
+
+  describe('leaderboarddata Tests', () => {
+    test('Returns 200 if there is leaderboard data', async () => {
+      const dashboardHelperObject = {
+        getLeaderboard: jest.fn(() => Promise.resolve({})),
+        getUserLaborData: jest.fn(() => Promise.resolve({}))
+      };
+
+      dashboardHelperClosure.mockImplementationOnce(() => dashboardHelperObject);
+
+      const { leaderboarddata } = makeSut();
+
+      const response = leaderboarddata(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(
+        200,
+        {},
+        response,
+        mockRes,
+      );
+    })
+
+    test('Returns 200 if leaderboard data is empty and returns getUserLaborData', async () => {
+      const dashboardHelperObject = {
+        getLeaderboard: jest.fn(() => Promise.resolve([])),
+        getUserLaborData: jest.fn(() => Promise.resolve([]))
+      };
+
+      dashboardHelperClosure.mockImplementationOnce(() => dashboardHelperObject);
+
+      const { leaderboarddata } = makeSut();
+
+      const response = leaderboarddata(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(
+        200,
+        [],
+        response,
+        mockRes,
+      );
+    })
+
+    test('Returns 400 if there is an error', async () => {
+      const dashboardHelperObject = {
+        getLeaderboard: jest.fn(() => Promise.reject({}))
+      };
+
+      dashboardHelperClosure.mockImplementationOnce(() => dashboardHelperObject);
+
+      const { leaderboarddata } = makeSut();
+
+      const response = leaderboarddata(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(
+        400,
+        {},
+        response,
+        mockRes,
+      );
+    })
   })
   
+  describe('orgData Tests', () => {
+    
+    test('Returns 400 if there is an error in the function', async () => {
 
+      const dashboardHelperObject = {
+        getOrgData: jest.fn(() => Promise.reject(error))
+      };
+
+      dashboardHelperClosure.mockImplementationOnce(() => dashboardHelperObject);
+
+      const { orgData } = makeSut();
+
+      const response = orgData(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(
+        400,
+        error,
+        response,
+        mockRes,
+      );
+    })
+
+    test('Returns 200 if the result is found and returns result', async () => {
+      const mockResult = { id: 1, name: 'Mock Results'};
+
+      const dashboardHelperObject = {
+        getOrgData: jest.fn(() => Promise.resolve([mockResult]))
+      }
+
+      dashboardHelperClosure.mockImplementationOnce(() => dashboardHelperObject);
+
+      const { orgData } = makeSut();
+
+      const response = orgData(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(
+        200,
+        mockResult,
+        response,
+        mockRes,
+      );
+    })
+  });
+
+  describe('dashboarddata Tests', () => {
+    test('Returns 200 if there is no error and return results', async () => {
+
+      const dashboardHelperObject = {
+        personaldetails: jest.fn(() => Promise.resolve({}))
+      }
+
+      dashboardHelperClosure.mockImplementationOnce(() => dashboardHelperObject);
+
+      const { dashboarddata } = makeSut();
+
+      const response = dashboarddata(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(
+        200,
+        {},
+        response,
+        mockRes,
+      )
+    })
+
+  });
   
 });
