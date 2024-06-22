@@ -232,9 +232,7 @@ const updateUserprofileCategoryHrs = async (
   secondsToBeAdded,
   userprofile,
 ) => {
-  // console.log("1. hoursByCategory: ", userprofile.hoursByCategory);
   if (fromProjectId) {
-    // console.log("remove part executed");
     const fromProject = await Project.findById(fromProjectId);
     const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
     if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
@@ -242,7 +240,6 @@ const updateUserprofileCategoryHrs = async (
     } else {
       userprofile.hoursByCategory.unassigned -= hoursToBeRemoved;
     }
-    // console.log("2. hoursByCategory: ", userprofile.hoursByCategory)
   }
   if (toProjectId) {
     const toProject = await Project.findById(toProjectId);
