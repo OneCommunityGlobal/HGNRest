@@ -430,6 +430,7 @@ const userProfileController = function (UserProfile) {
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
+          'email',
           'role',
           'isRehireable',
           'isActive',
