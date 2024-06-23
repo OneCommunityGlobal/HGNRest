@@ -24,6 +24,7 @@ const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
+
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
@@ -107,7 +108,7 @@ const sendEmailUponProtectedAccountUpdate = (
           
           <p>Sincerely,</p>
           <p>The HGN (and One Community)</p>`;
-  emailSender('testcorepp@gmail.com', subject, emailBody, null, null);
+  emailSender(targetEmail, subject, emailBody, null, null);
 };
 
 const auditIfProtectedAccountUpdated = async (
@@ -124,19 +125,16 @@ const auditIfProtectedAccountUpdated = async (
       ? requestorProfile.firstName.concat(' ', requestorProfile.lastName)
       : 'N/A';
     // remove sensitive data from the original and updated records
-    delete originalRecord.password;
-    delete updatedRecord.password;
     let extraData = null;
     const updateObject = updatedRecord.toObject();
     if (updateDiffPaths) {
-      const originalObjectString = originalRecord
-        ? JSON.stringify(objectUtils.filterFieldsFromObj(originalRecord, updateDiffPaths))
-        : null;
-      const updatedObjectString = updatedRecord
-        ? JSON.stringify(objectUtils.filterFieldsFromObj(updateObject, updateDiffPaths))
-        : null;
-      console.log('originalObjectString', originalObjectString);
-      console.log('updatedObjectString', updatedObjectString);
+      const { originalObj, updatedObj } = objectUtils.returnObjectDifference(
+        originalRecord,
+        updateObject,
+        updateDiffPaths,
+      );
+      const originalObjectString = originalRecord ? JSON.stringify(originalObj) : null;
+      const updatedObjectString = updatedRecord ? JSON.stringify(updatedObj) : null;
       extraData = {
         originalObjectString,
         updatedObjectString,
