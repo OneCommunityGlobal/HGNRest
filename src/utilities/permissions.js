@@ -44,7 +44,10 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
   let allowedEmailAccountIds;
   const emailToQuery = getDistinct(PROTECTED_EMAIL_ACCOUNT, ALLOWED_EMAIL_ACCOUNT);
   // Persist the list of protected email accounts in the application cache
-  if (!serverCache.hasCache('protectedEmailAccountIds')) {
+  if (
+    !serverCache.hasCache('protectedEmailAccountIds') ||
+    !serverCache.hasCache('allowedEmailAccountIds')
+  ) {
     try {
       // get the user info by email accounts
       const query = await userService.getUserIdAndEmailByEmails(emailToQuery);

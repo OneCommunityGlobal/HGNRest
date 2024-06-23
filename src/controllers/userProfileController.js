@@ -102,7 +102,7 @@ const sendEmailUponProtectedAccountUpdate = (
           </ul>
          
           <p>If you have any questions or notice any issues,
-          please investigate further by searching log transaction ID ${logId} in the Sentry.</p>
+          please investigate further by searching log <b>transaction ID ${logId} in the Sentry </b>.</p>
           
           <p>Thank you for your attention to this matter.</p>
           
