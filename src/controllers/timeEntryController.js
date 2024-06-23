@@ -644,9 +644,7 @@ const timeEntrycontroller = function (TimeEntry) {
             userprofile,
           );
 
-          // Original Comment: if project is changed, update userprofile hoursByCategory
-          // Updated Comment: whether project is changed or not, the original tangible time needs to be removed from hoursByCategory
-          // if (projectChanged) {
+          // when changing from tangible to intangible, the original time needs to be removed from hoursByCategory
           await updateUserprofileCategoryHrs(
             initialProjectIdObject,
             initialTotalSeconds,
@@ -654,7 +652,6 @@ const timeEntrycontroller = function (TimeEntry) {
             null,
             userprofile,
           );
-          // }
         } else {
           // from intangible to tangible
           updateTaskLoggedHours(
@@ -667,14 +664,10 @@ const timeEntrycontroller = function (TimeEntry) {
             pendingEmailCollection,
           );
           updateUserprofileTangibleIntangibleHrs(
-            // initialTotalSeconds,
-            // -newTotalSeconds,
-            // userprofile,
             newTotalSeconds,
             -initialTotalSeconds,
             userprofile,
           );
-          // if (projectChanged) {
           await updateUserprofileCategoryHrs(
             null,
             null,
@@ -682,7 +675,6 @@ const timeEntrycontroller = function (TimeEntry) {
             newTotalSeconds,
             userprofile,
           );
-          // }
         }
         // make sure all hours are positive
         validateUserprofileHours(userprofile);
@@ -858,10 +850,10 @@ const timeEntrycontroller = function (TimeEntry) {
 
     try {
       const timeEntries = await TimeEntry.find({
-        entryType: { $in: ['default', null] },
+        entryType: { $in: ['default', 'person', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
-        // isActive: { $ne: false },
+        // include the time entries for the archived projects
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
@@ -1190,7 +1182,7 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   /**
-   * helper function for calculate a user's corrent hoursByCategory from TimeEntry and Projects
+   * helper function for calculating a user's hoursByCategory from TimeEntry and Projects
    */
   const tangibleCalculationHelper = async (userId) => {
     const newCalculatedCategoryHrs = {
@@ -1229,7 +1221,7 @@ const timeEntrycontroller = function (TimeEntry) {
   };
 
   /**
-   * helper function for calculate a user's corrent totalIntangibleHrs from TimeEntry and Projects
+   * helper function for calculating a user's totalIntangibleHrs from TimeEntry and Projects
    */
   const intangibleCalculationHelper = async (userId) => {
     let newTotalIntangibleHrs = 0;
