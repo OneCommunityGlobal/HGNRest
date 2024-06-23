@@ -177,7 +177,6 @@ const userProfileController = function (UserProfile) {
 
     await UserProfile.find(
       {},
-
       '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
@@ -485,12 +484,10 @@ const userProfileController = function (UserProfile) {
         'profilePic',
         'firstName',
         'lastName',
-        'jobTitle',
         'phoneNumber',
         'bio',
         'personalLinks',
         'location',
-        'profilePic',
         'privacySettings',
         'weeklySummaries',
         'weeklySummariesCount',
@@ -502,7 +499,6 @@ const userProfileController = function (UserProfile) {
         'isFirstTimelog',
         'teamCode',
         'isVisible',
-        'isRehireable',
         'bioPosted',
       ];
 
@@ -524,6 +520,14 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+      if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
+        const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
+        summaryFields.forEach((fieldName) => {
+          if (req.body[fieldName] !== undefined) {
+            record[fieldName] = req.body[fieldName];
+          }
+        });
+      }
 
       if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
@@ -531,16 +535,14 @@ const userProfileController = function (UserProfile) {
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
+          'email',
           'role',
           'isRehireable',
-          'isActive',
           'isActive',
           'weeklySummaries',
           'weeklySummariesCount',
           'mediaUrl',
           'collaborationPreference',
-          'weeklySummaryNotReq',
-          'weeklySummaryOption',
           'categoryTangibleHrs',
           'totalTangibleHrs',
           'timeEntryEditHistory',
@@ -570,7 +572,7 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.projects !== undefined) {
-          record.projects = Array.from(new Set(req.body.projects));
+          record.projects = req.body.projects.map((project) => project._id);
         }
 
         if (req.body.email !== undefined) {
@@ -1391,7 +1393,6 @@ const userProfileController = function (UserProfile) {
   const getUserByFullName = (req, res) => {
     // Sanitize user input and escape special characters
     const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
-
     // Create a regular expression to match the sanitized full name, ignoring case
     const fullNameRegex = new RegExp(sanitizedFullName, 'i');
 
@@ -1404,6 +1405,7 @@ const userProfileController = function (UserProfile) {
         if (users.length === 0) {
           return res.status(404).send({ error: 'Users Not Found' });
         }
+
         res.status(200).send(users);
       })
       .catch((error) => res.status(500).send(error));
