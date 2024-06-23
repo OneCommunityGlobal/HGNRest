@@ -957,7 +957,8 @@ const userHelper = function () {
         },
       );
 
-      logger.logInfo(results);
+      logger.logInfo(`Job deleting blue squares older than 1 year finished 
+        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
     } catch (err) {
       logger.logException(err);
     }
@@ -1858,13 +1859,19 @@ const userHelper = function () {
         const { endDate } = user;
         endDate.setHours(endDate.getHours() + 7);
         if (moment().isAfter(moment(endDate).add(1, 'days'))) {
-          await userProfile.findByIdAndUpdate(
-            user._id,
-            user.set({
-              isActive: false,
-            }),
-            { new: true },
-          );
+          try {
+            await userProfile.findByIdAndUpdate(
+              user._id,
+              user.set({
+                isActive: false,
+              }),
+              { new: true },
+            );
+          } catch (err) {
+            // Log the error and continue to the next user
+            logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
+            continue;
+          }
           const id = user._id;
           const person = await userProfile.findById(id);
 
@@ -1887,7 +1894,7 @@ const userHelper = function () {
         }
       }
     } catch (err) {
-      logger.logException(err);
+      logger.logException(err, 'Unexpected rrror in deActivateUser');
     }
   };
 
@@ -1901,7 +1908,7 @@ const userHelper = function () {
     try {
       await token.deleteMany({ isCancelled: true, expiration: { $lt: ninetyDaysAgo } });
     } catch (error) {
-      logger.logException(error);
+      logger.logException(error, `Error in deleteExpiredTokens. Date ${currentDate}`);
     }
   };
 
@@ -1912,7 +1919,7 @@ const userHelper = function () {
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
     } catch (error) {
-      console.error('Error deleting expired time off requests:', error);
+      logger.logException(error, `Error deleting expired time-off requests: utcEndMoment ${utcEndMoment}`);
     }
   };
 
