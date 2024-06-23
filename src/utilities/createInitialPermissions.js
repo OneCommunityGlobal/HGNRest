@@ -10,6 +10,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
       'totalValidWeeklySummaries',
+      'requestBio',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -236,6 +237,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'requestBio',
 
       // Title
       'seeQSC',
