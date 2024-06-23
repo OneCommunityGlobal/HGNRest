@@ -61,13 +61,17 @@ exports.init = function () {
   Sentry.setTag('app_name', 'hgn-backend');
 };
 
-exports.logInfo = function (message) {
+exports.logInfo = function (message, extraDataObject = null) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.log(message);
-  } else {
-    Sentry.captureMessage(message, { level: 'info' });
+    return 'LocalEnvriomentHasNoTrackingId';
   }
+  return Sentry.captureMessage(message, (scope) => {
+    scope.setExtras({ extraDataObject });
+    scope.setLevel('info');
+    return scope;
+  });
 };
 
 /**
@@ -83,15 +87,16 @@ exports.logException = function (error, transactionName = null, extraData = null
     console.info(
       `Additional info  \ntransactionName : ${transactionName} \nextraData: ${JSON.stringify(extraData)}`,
     );
-  } else {
-    Sentry.captureException(error, (scope) => {
-      if (transactionName !== null) {
-        scope.setTransactionName(transactionName);
-      }
-      if (extraData !== null) {
-        scope.setExtra('extraData', extraData);
-      }
-      return scope;
-    });
+    return 'LocalEnvriomentHasNoTrackingId';
   }
+  return Sentry.captureException(error, (scope) => {
+    if (transactionName !== null) {
+      scope.setTransactionName(transactionName);
+    }
+    if (extraData !== null) {
+      scope.setExtra('extraData', extraData);
+    }
+    return scope;
+  });
+  
 };
