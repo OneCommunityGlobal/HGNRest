@@ -1,7 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
-const { getInfringementEmailBody } = require('../helpers/userHelper')();
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
 const Task = require('../models/task');
@@ -9,7 +8,6 @@ const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
-
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -324,13 +322,13 @@ const addEditHistory = async (
     (edit) => moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365,
   ).length;
 
-  if (totalRecentEdits >= 3) {
+  if (totalRecentEdits >= 5) {
     userprofile.infringements.push({
       date: moment().tz('America/Los_Angeles'),
       description: `${totalRecentEdits} time entry edits in the last calendar year`,
     });
 
-    const infringementNotificationEmail = `
+    const infringementNotificationToAdminEmailBody = `
     <p>
       ${userprofile.firstName} ${userprofile.lastName} (${userprofile.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
       within the last calendar year.
@@ -340,28 +338,20 @@ const addEditHistory = async (
     </p>
     `;
 
-    const emailInfringement = {
-      date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
-      description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
-    };
+    const infringementNotificationToUserEmailBody = `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`;
 
     pendingEmailCollection.push(
       emailSender.bind(
         null,
         'onecommunityglobal@gmail.com',
         `${userprofile.firstName} ${userprofile.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`,
-        infringementNotificationEmail,
+        infringementNotificationToAdminEmailBody,
       ),
       emailSender.bind(
         null,
         userprofile.email,
         "You've been issued a blue square for editing your time entry",
-        getInfringementEmailBody(
-          userprofile.firstName,
-          userprofile.lastName,
-          emailInfringement,
-          userprofile.infringements.length,
-        ),
+        infringementNotificationToUserEmailBody,
       ),
     );
   }
@@ -389,34 +379,29 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
   Object.assign(timeEntry, { taskId, wbsId, projectId });
 };
 
-
-
 /**
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
-
   /**
- * Helper func: Check if this is the first time entry for the given user id
- * 
- * @param {Mongoose.ObjectId} personId 
- * @returns 
- */
-const checkIsUserFirstTimeEntry = async (personId) => {
-  try {
-    const timeEntry = await TimeEntry.findOne({
-      personId,
-    });
-    if (timeEntry) {
-      return false;
+   * Helper func: Check if this is the first time entry for the given user id
+   *
+   * @param {Mongoose.ObjectId} personId
+   * @returns
+   */
+  const checkIsUserFirstTimeEntry = async (personId) => {
+    try {
+      const timeEntry = await TimeEntry.findOne({
+        personId,
+      });
+      if (timeEntry) {
+        return false;
+      }
+    } catch (error) {
+      throw new Error(`Failed to check user with id ${personId} on time entry`);
     }
-  } catch (error) {
-    throw new Error(
-      `Failed to check user with id ${personId} on time entry`,
-    );
-  }
-  return true;
-};
+    return true;
+  };
 
   /**
    * Post a time entry
@@ -505,7 +490,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       // Replace the isFirstTimelog checking logic from the frontend to the backend
       // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
       const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
-      if(isFirstTimeEntry) {  
+      if (isFirstTimeEntry) {
         userprofile.isFirstTimelog = false;
         userprofile.startDate = now;
       }
@@ -573,7 +558,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
     const hasEditTimeEntryPermission = await hasPermission(req.body.requestor, 'editTimeEntry');
 
     const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
-
 
     if (!canEdit) {
       const error = 'Unauthorized request';
@@ -865,6 +849,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         entryType: { $in: ['default', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
+        isActive: { $ne: false },
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
@@ -872,6 +857,18 @@ const checkIsUserFirstTimeEntry = async (personId) => {
           timeEntry = { ...timeEntry.toObject() };
           const { projectId, taskId } = timeEntry;
           if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
+          if (timeEntry.taskId) {
+            const task = await Task.findById(timeEntry.taskId);
+            if (task) {
+              timeEntry.taskName = task.taskName;
+            }
+          }
+          if (timeEntry.projectId) {
+            const project = await Project.findById(timeEntry.projectId);
+            if (project) {
+              timeEntry.projectName = project.projectName;
+            }
+          }
           const hours = Math.floor(timeEntry.totalSeconds / 3600);
           const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
           Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
@@ -897,7 +894,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      '-createdDateTime',
     )
       .populate('personId')
       .populate('projectId')
@@ -906,7 +903,6 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
-
         results.forEach((element) => {
           const record = {};
           record._id = element._id;
@@ -916,15 +912,48 @@ const checkIsUserFirstTimeEntry = async (personId) => {
           record.userProfile = element.personId;
           record.dateOfWork = element.dateOfWork;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId._id;
-          record.projectName = element.projectId.projectName;
-          record.projectCategory = element.projectId.category.toLowerCase();
+          record.projectId = element.projectId?._id || null;
+          record.projectName = element.projectId?.projectName || null;
+          record.projectCategory = element.projectId?.category.toLowerCase() || null;
           record.taskId = element.taskId?._id || null;
           record.taskName = element.taskId?.taskName || null;
           record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
           record.wbsId = element.wbsId?._id || null;
           record.wbsName = element.wbsId?.wbsName || null;
+          data.push(record);
+        });
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        logger.logException(error);
+        res.status(400).send(error);
+      });
+  };
 
+  const getTimeEntriesForReports = function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+
+    TimeEntry.find(
+      {
+        personId: { $in: users },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      ' -createdDateTime',
+    )
+      .populate('projectId')
+
+      .then((results) => {
+        const data = [];
+
+        results.forEach((element) => {
+          const record = {};
+          record._id = element._id;
+          record.isTangible = element.isTangible;
+          record.personId = element.personId._id;
+          record.dateOfWork = element.dateOfWork;
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+          record.projectId = element.projectId ? element.projectId._id : '';
+          record.projectName = element.projectId ? element.projectId.projectName : '';
           data.push(record);
         });
 
@@ -950,6 +979,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
       {
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
+        isActive: { $ne: false },
       },
       '-createdDateTime -lastModifiedDateTime',
     )
@@ -974,6 +1004,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         entryType: 'person',
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1013,6 +1044,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         entryType: 'project',
         projectId: { $in: projects },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1050,6 +1082,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
         entryType: 'team',
         teamId: { $in: teams },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1086,6 +1119,7 @@ const checkIsUserFirstTimeEntry = async (personId) => {
     getLostTimeEntriesForUserList,
     getLostTimeEntriesForProjectList,
     getLostTimeEntriesForTeamList,
+    getTimeEntriesForReports,
   };
 };
 
