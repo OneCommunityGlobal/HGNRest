@@ -1251,8 +1251,11 @@ const userHelper = function () {
   // remove the last badge you earned on this streak(not including 1)
 
   const removePrevHrBadge = async function (personId, user, badgeCollection, hrs, weeks) {
+    const newUser = await userProfile.findById(user._id).populate('badgeCollection.badge');
+    const newBadgeCollection = newUser.badgeCollection;
+
     // Check each Streak Greater than One to check if it works
-    if (weeks < 3) {
+    if (weeks < 2) {
       return;
     }
     let removed = false;
@@ -1261,7 +1264,7 @@ const userHelper = function () {
         {
           $match: {
             type: 'X Hours for X Week Streak',
-            weeks: { $gt: 1, $lt: weeks },
+            weeks: { $gt: 0, $lt: weeks },
             totalHrs: hrs,
           },
         },
@@ -1278,17 +1281,17 @@ const userHelper = function () {
       .then((results) => {
         results.forEach((streak) => {
           streak.badges.every((bdge) => {
-            for (let i = 0; i < badgeCollection.length; i += 1) {
+            for (let i = 0; i < newBadgeCollection.length; i += 1) {
               if (
-                badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
-                badgeCollection[i].badge?.weeks === bdge.weeks &&
-                bdge.hrs === hrs &&
+                newBadgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
+                newBadgeCollection[i].badge?.weeks === bdge.weeks &&
+                newBadgeCollection[i].badge?.totalHrs === hrs &&
                 !removed
               ) {
                 changeBadgeCount(
                   personId,
-                  badgeCollection[i].badge._id,
-                  badgeCollection[i].count - 1,
+                  newBadgeCollection[i].badge._id,
+                  newBadgeCollection[i].count - 1,
                 );
                 removed = true;
                 return false;
