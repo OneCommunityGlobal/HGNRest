@@ -1251,9 +1251,6 @@ const userHelper = function () {
   // remove the last badge you earned on this streak(not including 1)
 
   const removePrevHrBadge = async function (personId, user, badgeCollection, hrs, weeks) {
-    const newUser = await userProfile.findById(user._id).populate('badgeCollection.badge');
-    const newBadgeCollection = newUser.badgeCollection;
-
     // Check each Streak Greater than One to check if it works
     if (weeks < 2) {
       return;
@@ -1281,17 +1278,17 @@ const userHelper = function () {
       .then((results) => {
         results.forEach((streak) => {
           streak.badges.every((bdge) => {
-            for (let i = 0; i < newBadgeCollection.length; i += 1) {
+            for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
-                newBadgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
-                newBadgeCollection[i].badge?.weeks === bdge.weeks &&
-                newBadgeCollection[i].badge?.totalHrs === hrs &&
+                badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
+                badgeCollection[i].badge?.weeks === bdge.weeks &&
+                badgeCollection[i].badge?.totalHrs === hrs &&
                 !removed
               ) {
                 changeBadgeCount(
                   personId,
-                  newBadgeCollection[i].badge._id,
-                  newBadgeCollection[i].count - 1,
+                  badgeCollection[i].badge._id,
+                  badgeCollection[i].count - 1,
                 );
                 removed = true;
                 return false;
@@ -1567,9 +1564,7 @@ const userHelper = function () {
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    // Handle Increasing the 1 week streak badges
-    await checkXHrsInOneWeek(personId, user, badgeCollection);
-
+    let higherBadge = false;
     // Check each Streak Greater than One to check if it works
     await badge
       .aggregate([
@@ -1654,6 +1649,7 @@ const userHelper = function () {
               }
               // if all checks for award badge are green double check that we havent already awarded a higher streak for the same number of hours
               if (awardBadge && bdge.hrs > lastHr) {
+                higherBadge = true;
                 lastHr = bdge.hrs;
                 if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
                   replaceBadge(
@@ -1730,6 +1726,7 @@ const userHelper = function () {
                     }
                   }
                   if (streak > lowerBound && streak < upperBound) {
+                    higherBadge = false;
                     console.log('You are currently building an existing streak, no badge awarded.');
                   } else {
                     console.log('You are currently building a new streak, new badge awarded');
@@ -1744,6 +1741,9 @@ const userHelper = function () {
           });
         });
       });
+
+    // Handle Increasing the 1 week streak badges
+    if (!higherBadge) await checkXHrsInOneWeek(personId, user, badgeCollection);
   };
 
   // 'Lead a team of X+'
