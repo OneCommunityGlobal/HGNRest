@@ -73,7 +73,7 @@
     "mongoose-validator": "^2.1.0",
     "node-cache": "^5.1.2",
     "node-datetime": "^2.0.3",
-    "nodemailer": "^6.4.16",
+    "nodemailer": "^6.9.13",
     "redis": "^4.2.0",
     "sanitize-html": "^2.13.0",
     "supertest": "^6.3.4",

@@ -6,6 +6,7 @@ const {
   addNonHgnEmailSubscription,
   removeNonHgnEmailSubscription,
   confirmNonHgnEmailSubscription,
+  sendDeactivationEmail,
 } = require('../controllers/emailController');
 
 const routes = function () {
@@ -15,7 +16,8 @@ const routes = function () {
     .post(sendEmail);
   emailRouter.route('/broadcast-emails')
     .post(sendEmailToAll);
-
+    emailRouter.route('/send-deactivation-email')
+    .post(sendDeactivationEmail);
   emailRouter.route('/update-email-subscriptions')
     .post(updateEmailSubscriptions);
   emailRouter.route('/add-non-hgn-email-subscription')

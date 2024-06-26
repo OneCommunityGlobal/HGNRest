@@ -69,6 +69,27 @@ const closure = () => {
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
+  // const emailSender = function (
+  //   recipient,
+  //   subject,
+  //   message,
+  //   cc = null,
+  //   bcc = null,
+  //   replyTo = null,
+  //   acknowledgingReceipt = null,
+  // ) {
+  //   if (process.env.sendEmail) {
+  //     queue.push({
+  //       recipient,
+  //       subject,
+  //       message,
+  //       cc,
+  //       bcc,
+  //       replyTo,
+  //       acknowledgingReceipt,
+  //     });
+  //   }
+  // };
   const emailSender = function (
     recipient,
     subject,
@@ -78,6 +99,7 @@ const closure = () => {
     replyTo = null,
     acknowledgingReceipt = null,
   ) {
+    console.log(`Adding email to queue: ${recipient} - ${subject}`);
     if (process.env.sendEmail) {
       queue.push({
         recipient,
@@ -88,9 +110,10 @@ const closure = () => {
         replyTo,
         acknowledgingReceipt,
       });
+    } else {
+      console.warn('Email sending is disabled by environment variable');
     }
   };
-
   return emailSender;
 };
 

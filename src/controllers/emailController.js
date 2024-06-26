@@ -1,4 +1,5 @@
 // emailController.js
+// eslint-disable-next-line no-unused-vars
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
@@ -50,6 +51,7 @@ const sendEmailToAll = async (req, res) => {
     const emailList = await EmailSubcriptionList.find({ email: { $ne: null } });
     emailList.forEach((emailObject) => {
       const { email } = emailObject;
+    // eslint-disable-next-line no-shadow
     const emailContent = ` <!DOCTYPE html>
       <html>
         <head>
@@ -178,6 +180,114 @@ const removeNonHgnEmailSubscription = async (req, res) => {
   }
 };
 
+// const sendDeactivationEmail = async (firstName, lastName, date) => {
+//   try {
+//     const subject = 'Notification of Team Member Deactivation';
+//     const message = `
+//       <p>Management,</p>
+//       <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${date}. Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part.</p>
+//       <p>With Gratitude,</p>
+//       <p>One Community</p>
+//     `;
+
+//     // const recipients = [
+//     //   'one.community@me.com',
+//     //   'jsabol@me.com'
+//     // ];
+
+
+//     const recipients = [
+      
+//       'rajeith.t@gmail.com'
+//     ];
+//     // Assuming emailSender expects a single recipient or a string of recipients separated by commas
+//     const to = recipients.join(',');
+
+//     emailSender(to, subject, message, null, null, null, (error, result) => {
+//       if (error) {
+//         console.error('Error sending deactivation email:', error);
+//       } else {
+//         console.log('Deactivation email sent successfully:', result);
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error sending deactivation email:', error);
+//   }
+// };
+
+// const sendDeactivationEmail = async (req, res) => {
+//   console.log('inSenDeact')
+//   try {
+//     const { firstName, lastName, date } = req.body;
+//     const subject = 'Notification of Team Member Deactivation';
+//     const message = `
+//       <p>Management,</p>
+//       <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${date}. Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part.</p>
+//       <p>With Gratitude,</p>
+//       <p>One Community</p>
+//     `;
+
+//     const recipients = ['mailto:rajeith.t@gmail.com'];
+//     const to = recipients.join(',');
+
+//     // Using a Promise to handle the callback
+//     await new Promise((resolve, reject) => {
+//       emailSender(to, subject, message, null, null, null, (error, result) => {
+//         if (error) {
+//           console.error('Error sending deactivation email:', error);
+//           reject(error);
+//         } else {
+//           console.log('Deactivation email sent successfully:', result);
+//           resolve(result);
+//         }
+//       });
+//     });
+
+//     return res.status(200).send('Deactivation email sent successfully');
+//   } catch (error) {
+//     console.error('Error sending deactivation email:', error);
+//     return res.status(500).send('Error sending deactivation email');
+//   }
+// };
+
+const sendDeactivationEmail = async (firstName, lastName, date) => {
+  console.log(firstName, lastName, date);
+  console.log('sendDeactivationEmail function called');
+ 
+  try {
+    const subject = 'Notification of Team Member Deactivation';
+    const message = `
+      <p>Management,</p>
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${date}. Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part.</p>
+      <p>With Gratitude,</p>
+      <p>One Community</p>
+    `;
+
+    const recipients = ['rajeith.t@gmail.com']; // Add more emails as needed
+
+    console.log(`Sending deactivation email to: ${recipients.join(', ')}`);
+    
+    emailSender(
+      recipients.join(', '), // Joining recipients into a single string
+      subject,
+      message,
+      null, // cc
+      null, // bcc
+      null, // replyTo
+      (error, result) => {
+        if (error) {
+          console.error('Error sending deactivation email:', error);
+        } else {
+          console.log('Deactivation email sent successfully:', result);
+        }
+      }
+    );
+    // return res.status(200).send('Email sent successfully');
+  } catch (error) {
+    console.error('Error sending deactivation email:', error);
+  }
+};
+
 module.exports = {
   sendEmail,
   sendEmailToAll,
@@ -185,4 +295,5 @@ module.exports = {
   addNonHgnEmailSubscription,
   removeNonHgnEmailSubscription,
   confirmNonHgnEmailSubscription,
+  sendDeactivationEmail,
 };
