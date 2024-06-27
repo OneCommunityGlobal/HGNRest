@@ -1259,7 +1259,7 @@ const userProfileController = function (UserProfile) {
           .flat();
 
         if (allProjects.length === 0) {
-          return res.status(400).send({ message: 'Projects not found', allProjects });
+          return res.status(400).send({ message: 'Projects not found' });
         }
 
         return res.status(200).send({ message: 'Found profile and related projects', allProjects });
