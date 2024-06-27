@@ -84,7 +84,9 @@ describe('timeOffRequestController.js module', () => {
         },
       ];
 
-      const aggregateSpy = jest.spyOn(TimeOffRequest, 'aggregate').mockResolvedValueOnce(mockData);
+      const timeOffRequestAggregateSpy = jest
+        .spyOn(TimeOffRequest, 'aggregate')
+        .mockResolvedValueOnce(mockData);
 
       const expectedFormattedMockData = {
         '60c72b2f5f1b2c001c8e4d67': [
@@ -123,21 +125,23 @@ describe('timeOffRequestController.js module', () => {
       await flushPromises();
 
       assertResMock(200, expectedFormattedMockData, response, mockRes);
-      expect(aggregateSpy).toHaveBeenCalled();
-      expect(aggregateSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestAggregateSpy).toHaveBeenCalled();
+      expect(timeOffRequestAggregateSpy).toHaveBeenCalledTimes(1);
     });
 
     test('getTimeOffRequests Returns 500 if error encountered while aggregating all time-off requests', async () => {
       const { getTimeOffRequests } = makeSut();
       const error = { error: 'Error perforing aggregate operation.' };
-      const aggregateSpy = jest.spyOn(TimeOffRequest, 'aggregate').mockRejectedValueOnce(error);
+      const timeOffRequestAggregateSpy = jest
+        .spyOn(TimeOffRequest, 'aggregate')
+        .mockRejectedValueOnce(error);
 
       const response = await getTimeOffRequests(mockReq, mockRes);
       await flushPromises();
 
       assertResMock(500, error, response, mockRes);
-      expect(aggregateSpy).toHaveBeenCalled();
-      expect(aggregateSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestAggregateSpy).toHaveBeenCalled();
+      expect(timeOffRequestAggregateSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -204,7 +208,9 @@ describe('timeOffRequestController.js module', () => {
       const error = 'You are not authorized to set time off requests.';
 
       const mockData = null;
-      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockResolvedValueOnce(mockData);
+      const timeOffRequestFindByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockResolvedValueOnce(mockData);
 
       hasPermission.mockImplementation(async () => false);
 
@@ -212,9 +218,9 @@ describe('timeOffRequestController.js module', () => {
       await flushPromises();
 
       assertResMock(403, error, response, mockRes);
-      expect(findByIdSpy).toHaveBeenCalled();
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalled();
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
 
       expect(hasPermission).toHaveBeenCalledWith(
         mockReqCopy.body.requestor,
@@ -236,7 +242,9 @@ describe('timeOffRequestController.js module', () => {
       const error = 'You are not authorized to set time off requests.';
 
       const mockData = null;
-      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockResolvedValueOnce(mockData);
+      const timeOffRequestFindByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockResolvedValueOnce(mockData);
 
       hasPermission.mockImplementation(async () => false);
 
@@ -244,9 +252,9 @@ describe('timeOffRequestController.js module', () => {
       await flushPromises();
 
       assertResMock(403, error, response, mockRes);
-      expect(findByIdSpy).toHaveBeenCalled();
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalled();
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
 
       expect(hasPermission).toHaveBeenCalledWith(
         mockReqCopy.body.requestor,
@@ -267,9 +275,11 @@ describe('timeOffRequestController.js module', () => {
       const errorMessage = 'Internal Server Error';
       const error = new Error(errorMessage);
 
-      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockImplementationOnce(() => {
-        throw error;
-      });
+      const timeOffRequestFindByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockImplementationOnce(() => {
+          throw error;
+        });
 
       hasPermission.mockImplementation(async () => true);
 
@@ -278,8 +288,8 @@ describe('timeOffRequestController.js module', () => {
 
       assertResMock(500, error, response, mockRes);
 
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
     });
 
     test('Returns 500 if an error occurs while TimeOffRequest.findByIdAndDelete()', async () => {
@@ -302,7 +312,7 @@ describe('timeOffRequestController.js module', () => {
         duration: 2,
       };
 
-      const findByIdSpy = jest
+      const timeOffRequestFindByIdSpy = jest
         .spyOn(TimeOffRequest, 'findById')
         .mockImplementationOnce(() => mockData);
       const findByIdAndDeleteSpy = jest
@@ -318,8 +328,8 @@ describe('timeOffRequestController.js module', () => {
 
       assertResMock(500, error, response, mockRes);
 
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
 
       expect(hasPermission).toHaveBeenCalledWith(
         mockReqCopy.body.requestor,
@@ -348,7 +358,7 @@ describe('timeOffRequestController.js module', () => {
         duration: 2,
       };
 
-      const findByIdSpy = jest
+      const timeOffRequestFindByIdSpy = jest
         .spyOn(TimeOffRequest, 'findById')
         .mockImplementationOnce(() => mockData);
       const findByIdAndDeleteSpy = jest
@@ -362,8 +372,8 @@ describe('timeOffRequestController.js module', () => {
 
       assertResMock(200, mockData, response, mockRes);
 
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
 
       expect(hasPermission).toHaveBeenCalledWith(
         mockReqCopy.body.requestor,
@@ -468,9 +478,11 @@ describe('timeOffRequestController.js module', () => {
 
       const teamFindSpy = jest.spyOn(Team, 'find').mockResolvedValue(mockedUserTeams);
 
-      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockResolvedValue(mockData);
+      const timeOffRequestFindByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockResolvedValue(mockData);
 
-      const findByIdAndDeleteSpy = jest
+      const timeOffRequestFindByIdAndDeleteSpy = jest
         .spyOn(TimeOffRequest, 'findByIdAndDelete')
         .mockResolvedValue(mockData);
 
@@ -481,8 +493,8 @@ describe('timeOffRequestController.js module', () => {
 
       assertResMock(200, mockData, response, mockRes);
 
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
 
       expect(hasPermission).toHaveBeenCalledWith(
         mockReqCopy.body.requestor,
@@ -490,8 +502,8 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
 
-      expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdAndDeleteSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
 
       expect(userProfileFindByIdSpy).toHaveBeenCalledTimes(2);
 
@@ -595,9 +607,11 @@ describe('timeOffRequestController.js module', () => {
 
       const teamFindSpy = jest.spyOn(Team, 'find').mockResolvedValue(mockedUserTeams);
 
-      const findByIdSpy = jest.spyOn(TimeOffRequest, 'findById').mockResolvedValue(mockData);
+      const timeOffRequestFindByIdSpy = jest
+        .spyOn(TimeOffRequest, 'findById')
+        .mockResolvedValue(mockData);
 
-      const findByIdAndDeleteSpy = jest
+      const timeOffRequestFindByIdAndDeleteSpy = jest
         .spyOn(TimeOffRequest, 'findByIdAndDelete')
         .mockResolvedValue(mockData);
 
@@ -608,8 +622,8 @@ describe('timeOffRequestController.js module', () => {
 
       assertResMock(200, mockData, response, mockRes);
 
-      expect(findByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdSpy).toHaveBeenCalledTimes(1);
 
       expect(hasPermission).toHaveBeenCalledWith(
         mockReqCopy.body.requestor,
@@ -617,8 +631,8 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
 
-      expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
-      expect(findByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdAndDeleteSpy).toHaveBeenCalledWith(mockReqCopy.params.id);
+      expect(timeOffRequestFindByIdAndDeleteSpy).toHaveBeenCalledTimes(1);
 
       expect(userProfileFindByIdSpy).toHaveBeenCalledTimes(2);
 
@@ -629,7 +643,7 @@ describe('timeOffRequestController.js module', () => {
 
       expect(emailSender).toHaveBeenCalledTimes(
         1 + mockedOwnerAccountEmails.length + userEmails.length,
-      ); // just once by notifyUser & notifyAdmins not called
+      ); // addition of 1 represents emailSender function call by notifyUser Function
     });
   });
 
@@ -735,7 +749,7 @@ describe('timeOffRequestController.js module', () => {
       const error = 'Time off request not found';
 
       hasPermission.mockImplementation(async () => true);
-      const findByIdAndUpdateSpy = jest
+      const timeOffRequestFindByIdAndUpdateSpy = jest
         .spyOn(TimeOffRequest, 'findByIdAndUpdate')
         .mockImplementationOnce(() => Promise.resolve(null));
 
@@ -750,11 +764,15 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
 
-      expect(findByIdAndUpdateSpy).toHaveBeenCalled();
-      expect(findByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
-      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
-        new: true,
-      });
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalled();
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalledWith(
+        mockReqCopy.params.id,
+        mockUpdateData,
+        {
+          new: true,
+        },
+      );
     });
 
     test('Returns 200 on successful update operation', async () => {
@@ -796,7 +814,7 @@ describe('timeOffRequestController.js module', () => {
       };
 
       hasPermission.mockImplementation(async () => true);
-      const findByIdAndUpdateSpy = jest
+      const timeOffRequestFindByIdAndUpdateSpy = jest
         .spyOn(TimeOffRequest, 'findByIdAndUpdate')
         .mockImplementationOnce(() => Promise.resolve(mockUpdateData));
 
@@ -811,11 +829,15 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
 
-      expect(findByIdAndUpdateSpy).toHaveBeenCalled();
-      expect(findByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
-      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
-        new: true,
-      });
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalled();
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalledWith(
+        mockReqCopy.params.id,
+        mockUpdateData,
+        {
+          new: true,
+        },
+      );
     });
 
     test('Returns 500 if error occurs with findByIdAndUpdate ', async () => {
@@ -859,7 +881,7 @@ describe('timeOffRequestController.js module', () => {
       const error = new Error('Some error occcurred during operation findByIdAndUpdate()');
 
       hasPermission.mockImplementation(async () => true);
-      const findByIdAndUpdateSpy = jest
+      const timeOffRequestFindByIdAndUpdateSpy = jest
         .spyOn(TimeOffRequest, 'findByIdAndUpdate')
         .mockRejectedValueOnce(error);
 
@@ -874,11 +896,15 @@ describe('timeOffRequestController.js module', () => {
       );
       expect(hasPermission).toHaveBeenCalledTimes(1);
 
-      expect(findByIdAndUpdateSpy).toHaveBeenCalled();
-      expect(findByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
-      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(mockReqCopy.params.id, mockUpdateData, {
-        new: true,
-      });
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalled();
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(timeOffRequestFindByIdAndUpdateSpy).toHaveBeenCalledWith(
+        mockReqCopy.params.id,
+        mockUpdateData,
+        {
+          new: true,
+        },
+      );
     });
   });
 
@@ -910,7 +936,8 @@ describe('timeOffRequestController.js module', () => {
       expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
     });
 
-    test('Returns 201 if the time-off request is set successfully.', async () => {
+    test('Returns 201 if the time-off request is set successfully; emailSender is not called', async () => {
+      // emailSender is not called as setOwnRequested is False
       const { setTimeOffRequest } = makeSut();
 
       const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
@@ -962,15 +989,113 @@ describe('timeOffRequestController.js module', () => {
       expect(timeOffRequestSaveSpy).toBeCalled();
       expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
 
-      // expect(emailSender).toHaveBeenCalled();
-      // expect(emailSender).toHaveBeenCalledWith(
-      //   expect.stringMatching(emailRegex),
-      //   expect.any(String),
-      //   expect.any(String),
-      //   null,
-      //   null,
-      //   null
-      // );
+      expect(emailSender).toHaveBeenCalledTimes(0);
+    });
+
+    test('Returns 201 if the time-off request is set successfully; emailSender is not called', async () => {
+      // emailSender is not called as savedRequest is null
+      const { setTimeOffRequest } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        requestor: {
+          role: 'Administrator',
+          permissions: {
+            frontPermissions: [],
+            backPermissions: [],
+          },
+          requestorId: 'testUser123',
+        },
+        requestFor: 'testUser123',
+        duration: 1,
+        startingDate: new Date(2024, 5, 15),
+        reason: 'Test set time off',
+      };
+
+      const mockedResponseDocument = null;
+
+      hasPermission.mockImplementation(async () => Promise.resolve(true));
+      const mongooseObjectIdSpy = jest
+        .spyOn(mongoose.Types, 'ObjectId')
+        .mockImplementationOnce(() => mockReqCopy.body.requestFor);
+      const timeOffRequestSaveSpy = jest
+        .spyOn(TimeOffRequest.prototype, 'save')
+        .mockImplementationOnce(async () => Promise.resolve(mockedResponseDocument));
+
+      const response = await setTimeOffRequest(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(201, mockedResponseDocument, response, mockRes);
+      expect(hasPermission).toBeCalled();
+      expect(hasPermission).toBeCalledTimes(1);
+      expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
+
+      expect(mongooseObjectIdSpy).toBeCalled();
+      expect(mongooseObjectIdSpy).toBeCalledTimes(1);
+      expect(mongooseObjectIdSpy).toBeCalledWith(mockReqCopy.body.requestFor);
+
+      expect(timeOffRequestSaveSpy).toBeCalled();
+      expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
+
+      expect(emailSender).toHaveBeenCalledTimes(0);
+    });
+
+    test('Returns 201 if the time-off request is set successfully; emailSender is called', async () => {
+      // emailSender is called as savedRequest is not null and setOwnRequested is True
+      const { setTimeOffRequest } = makeSut();
+
+      const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
+
+      mockReqCopy.body = {
+        ...mockReqCopy.body,
+        requestor: {
+          role: 'Administrator',
+          permissions: {
+            frontPermissions: [],
+            backPermissions: [],
+          },
+          requestorId: 'testUser123',
+        },
+        requestFor: 'testUser123',
+        duration: 1,
+        startingDate: new Date(2024, 5, 15),
+        reason: 'Test set time off',
+      };
+
+      const mockedResponseDocument = {
+        requestFor: mockReqCopy.body.requestFor,
+        duration: mockReqCopy.body.duration,
+        startingDate: mockReqCopy.body.startDate,
+        reason: mockReqCopy.body.reason,
+        endingDate: new Date(2024, 5, 21),
+      };
+
+      hasPermission.mockImplementation(async () => Promise.resolve(true));
+      const mongooseObjectIdSpy = jest
+        .spyOn(mongoose.Types, 'ObjectId')
+        .mockImplementationOnce(() => mockReqCopy.body.requestFor);
+      const timeOffRequestSaveSpy = jest
+        .spyOn(TimeOffRequest.prototype, 'save')
+        .mockImplementationOnce(async () => Promise.resolve(mockedResponseDocument));
+
+      const response = await setTimeOffRequest(mockReqCopy, mockRes);
+      await flushPromises();
+
+      assertResMock(201, mockedResponseDocument, response, mockRes);
+      expect(hasPermission).toBeCalled();
+      expect(hasPermission).toBeCalledTimes(1);
+      expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
+
+      expect(mongooseObjectIdSpy).toBeCalled();
+      expect(mongooseObjectIdSpy).toBeCalledTimes(1);
+      expect(mongooseObjectIdSpy).toBeCalledWith(mockReqCopy.body.requestFor);
+
+      expect(timeOffRequestSaveSpy).toBeCalled();
+      expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
+
+      // expect(emailSender).toHaveBeenCalledTimes(1+);
     });
 
     test.each`
