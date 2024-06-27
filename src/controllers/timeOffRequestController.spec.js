@@ -34,6 +34,19 @@ const makeSut = () => {
   };
 };
 
+const getAdminEmailIds = (userProfiles) => {
+  const rolesToInclude = ['Manager', 'Mentor', 'Administrator']; // describes Admin roles
+
+  return userProfiles
+    .map((userProfile) => {
+      if (rolesToInclude.includes(userProfile.role)) {
+        return userProfile.email;
+      }
+      return null;
+    })
+    .filter((email) => email !== null);
+};
+
 describe('timeOffRequestController.js module', () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -387,7 +400,7 @@ describe('timeOffRequestController.js module', () => {
       expect(emailSender).toHaveBeenCalledTimes(0);
     });
 
-    test('Returns 200 on successfully deleting the TimeOffRequest; notifyUser sends email once and notifyAdmins sends no emails', async () => {
+    test('Returns 200 on successfully deleting the TimeOffRequest; notifyUser calls emailSender once and notifyAdmins does not calls emailSender', async () => {
       const { deleteTimeOffRequestById } = makeSut();
 
       const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
@@ -413,9 +426,6 @@ describe('timeOffRequestController.js module', () => {
 
       const mockedOwnerAccountEmails = [
         // No owner accounts hence NotifyAdmins sends 0 emails
-        // {email:'temp1@gmail.com'},
-        // {email:'temp2@gmail.com'},
-        // {email:'temp3@gmail.com'},
       ];
 
       const mockedUserTeams = [
@@ -456,15 +466,7 @@ describe('timeOffRequestController.js module', () => {
         exec: jest.fn().mockResolvedValue(mockedOwnerAccountEmails),
       };
 
-      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
-      const userEmails = mockedUserProfiles
-        .map((userProfile) => {
-          if (rolesToInclude.includes(userProfile.role)) {
-            return userProfile.email;
-          }
-          return null;
-        })
-        .filter((email) => email !== null);
+      const userEmails = getAdminEmailIds(mockedUserProfiles);
 
       const userProfileFindSpy = jest.spyOn(UserProfile, 'find').mockImplementation((query) => {
         if ('role' in query && query.role === 'Owner') {
@@ -517,7 +519,7 @@ describe('timeOffRequestController.js module', () => {
       ); // just once by notifyUser & notifyAdmins not called
     });
 
-    test('Returns 200 on successfully deleting the TimeOffRequest; notifyUser sends email once and notifyAdmins sends 5 emails', async () => {
+    test('Returns 200 on successfully deleting the TimeOffRequest; notifyUser calls emailSender once and notifyAdmins calls emailSender 5 times', async () => {
       const { deleteTimeOffRequestById } = makeSut();
 
       const mockReqCopy = JSON.parse(JSON.stringify(mockReq));
@@ -542,7 +544,7 @@ describe('timeOffRequestController.js module', () => {
       };
 
       const mockedOwnerAccountEmails = [
-        // No owner accounts hence NotifyAdmins sends 0 emails
+        // No owner accounts hence NotifyAdmins sends 2 emails
         { email: 'temp1@gmail.com' },
         { email: 'temp2@gmail.com' },
       ];
@@ -585,15 +587,7 @@ describe('timeOffRequestController.js module', () => {
         exec: jest.fn().mockResolvedValue(mockedOwnerAccountEmails),
       };
 
-      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
-      const userEmails = mockedUserProfiles
-        .map((userProfile) => {
-          if (rolesToInclude.includes(userProfile.role)) {
-            return userProfile.email;
-          }
-          return null;
-        })
-        .filter((email) => email !== null);
+      const userEmails = getAdminEmailIds(mockedUserProfiles);
 
       const userProfileFindSpy = jest.spyOn(UserProfile, 'find').mockImplementation((query) => {
         if ('role' in query && query.role === 'Owner') {
@@ -1064,6 +1058,8 @@ describe('timeOffRequestController.js module', () => {
         reason: 'Test set time off',
       };
 
+      mockReqCopy.params.id = 'mockId';
+
       const mockedResponseDocument = {
         requestFor: mockReqCopy.body.requestFor,
         duration: mockReqCopy.body.duration,
@@ -1071,6 +1067,68 @@ describe('timeOffRequestController.js module', () => {
         reason: mockReqCopy.body.reason,
         endingDate: new Date(2024, 5, 21),
       };
+
+      const mockedOwnerAccountEmails = [
+        // No owner accounts hence NotifyAdmins sends 0 emails
+      ];
+
+      const mockedUserTeams = [
+        {
+          // object represents a team 1
+          members: [
+            // array represents team members
+            { userId: new ObjectId('60c72b2f9b1d8b3a8c8f8b3a') },
+            { userId: new ObjectId('60c72b2f9b1d8b3a8c8f8b3d') },
+            { userId: new ObjectId('60c72b2f9b1d8b3a8c8f8b3e') },
+          ],
+        },
+        {
+          // object represents a team 2
+          members: [
+            // array represents team members
+            { userId: new ObjectId('60c72b2f9b1d8b3a8c8f8b3a') },
+            { userId: new ObjectId('60c72b2f9b1d8b3a8c8f8b3d') },
+            { userId: new ObjectId('60c72b2f9b1d8b3a8c8f8b3e') },
+          ],
+        },
+      ];
+
+      const mockedUserProfiles = [
+        { role: 'Volunteer', email: 'abc_123' },
+        { role: 'Tester', email: 'def_456' },
+        { role: 'Developer', email: 'ghi_789' },
+        { role: 'Volunteer', email: 'jkl_000' },
+        { role: 'Volunteer', email: 'sd9028_sdas83ink84haso1' },
+      ];
+
+      const mockedUserData = {
+        firstName: 'testUserFirstName',
+        lastName: 'testUserLastName',
+        email: 'testUser@testing.com',
+      };
+
+      const userProfileFindByIdSpy = jest
+        .spyOn(UserProfile, 'findById')
+        .mockResolvedValue(mockedUserData);
+
+      const chaining = {
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockedOwnerAccountEmails),
+      };
+
+      const userEmails = getAdminEmailIds(mockedUserProfiles);
+
+      const userProfileFindSpy = jest.spyOn(UserProfile, 'find').mockImplementation((query) => {
+        if ('role' in query && query.role === 'Owner') {
+          return chaining;
+        }
+        if ('_id' in query && '$in' in query._id) {
+          // Mocking the query for _id
+          return Promise.resolve(mockedUserProfiles);
+        }
+      });
+
+      const teamFindSpy = jest.spyOn(Team, 'find').mockResolvedValue(mockedUserTeams);
 
       hasPermission.mockImplementation(async () => Promise.resolve(true));
       const mongooseObjectIdSpy = jest
@@ -1095,7 +1153,18 @@ describe('timeOffRequestController.js module', () => {
       expect(timeOffRequestSaveSpy).toBeCalled();
       expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
 
-      // expect(emailSender).toHaveBeenCalledTimes(1+);
+      expect(userProfileFindByIdSpy).toHaveBeenCalledTimes(2);
+
+      expect(userProfileFindSpy).toHaveBeenCalledTimes(2);
+
+      expect(teamFindSpy).toHaveBeenCalledTimes(1);
+      expect(teamFindSpy).toHaveBeenCalledWith({
+        'members.userId': mockedResponseDocument.requestFor,
+      });
+
+      expect(emailSender).toHaveBeenCalledTimes(
+        1 + mockedOwnerAccountEmails.length + userEmails.length,
+      );
     });
 
     test.each`
