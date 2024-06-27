@@ -6,8 +6,10 @@ const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
-const nextDay = new Date();
-nextDay.setDate(nextDay.getDate() + 1);
+// Update createdDate to be the current date from the next day
+// const nextDay = new Date();
+// nextDay.setDate(nextDay.getDate() + 1);
+const today = new Date();
 
 const userProfileSchema = new Schema({
   password: {
@@ -23,7 +25,7 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
-  isRehireable: { type: Boolean, default: false },
+  isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
   role: {
     type: String,
@@ -47,7 +49,7 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String }],
+  jobTitle: [{ type: String, jobTitle: String, required: true }],
   bio: { type: String },
   email: {
     type: String,
@@ -68,7 +70,15 @@ const userProfileSchema = new Schema({
     },
   ],
   missedHours: { type: Number, default: 0 },
-  createdDate: { type: Date, required: true, default: nextDay },
+  createdDate: { type: Date, required: true, default: today },
+  // eslint-disable-next-line object-shorthand
+  startDate: {
+    type: Date,
+    required: true,
+    default() {
+      return this.createdDate;
+    },
+  },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
@@ -216,10 +226,11 @@ const userProfileSchema = new Schema({
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
+        const teamCoderegex = /^([a-zA-Z0-9]-[a-zA-Z0-9]{3,5}|[a-zA-Z0-9]{5,7})|^$/;
         return teamCoderegex.test(v);
       },
-      message: 'Please enter a code in the format of A-AAA or AAAAA',
+      message:
+        'Please enter a code in the format of A-AAAA or AAAAA, with optional numbers, and a total length between 5 and 7 characters.',
     },
   },
   infoCollections: [

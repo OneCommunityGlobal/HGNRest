@@ -10,4 +10,8 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
+  transformIgnorePatterns: ['^.+\\.js$'],
+  transform: {
+    '^.+\\.js$': 'babel-jest',
+  },
 };

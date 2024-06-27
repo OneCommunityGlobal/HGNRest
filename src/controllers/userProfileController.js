@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
-
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
@@ -13,13 +12,21 @@ const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
-
-const { authorizedUserSara, authorizedUserJae } = process.env;
+const followUp = require('../models/followUp');
+const userService = require('../services/userService');
+// const { authorizedUserSara, authorizedUserJae } = process.env;
+const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
+const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
+
 const escapeRegex = require('../utilities/escapeRegex');
+const emailSender = require('../utilities/emailSender');
+const objectUtils = require('../utilities/objectUtils');
+
 const config = require('../config');
+const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -69,6 +76,86 @@ async function ValidatePassword(req, res) {
   }
 }
 
+const sendEmailUponProtectedAccountUpdate = (
+  requestorEmail,
+  requestorFullName,
+  targetEmail,
+  action,
+  logId,
+) => {
+  const updatedDate = moment_().format('MMM-DD-YY');
+  const subject = 'One Community: Protected Account Has Been Updated';
+  const emailBody = `<p> Hi Admin! </p>
+          
+          <p><strong>Protected Account ${targetEmail} is updated by ${requestorEmail} </strong></p>
+          
+          <p><strong>Here are the details for the new ${targetEmail} account:</strong></p>
+          <ul>
+            <li><strong>Updated Date:</strong> ${updatedDate}</li>
+            <li><strong>Action:</strong> ${action}</li>
+          </ul>
+
+          <p><strong>Who updated this new account?</strong></p>
+          <ul>
+            <li><strong>Name:</strong> ${requestorFullName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${requestorEmail}">${requestorEmail}</a></li>
+          </ul>
+         
+          <p>If you have any questions or notice any issues,
+          please investigate further by searching log <b>transaction ID ${logId} in the Sentry </b>.</p>
+          
+          <p>Thank you for your attention to this matter.</p>
+          
+          <p>Sincerely,</p>
+          <p>The HGN (and One Community)</p>`;
+  emailSender(targetEmail, subject, emailBody, null, null);
+};
+
+const auditIfProtectedAccountUpdated = async (
+  requestorId,
+  updatedRecordEmail,
+  originalRecord,
+  updatedRecord,
+  updateDiffPaths,
+  actionPerformed,
+) => {
+  if (PROTECTED_EMAIL_ACCOUNT.includes(updatedRecordEmail)) {
+    const requestorProfile = await userService.getUserFullNameAndEmailById(requestorId);
+    const requestorFullName = requestorProfile
+      ? requestorProfile.firstName.concat(' ', requestorProfile.lastName)
+      : 'N/A';
+    // remove sensitive data from the original and updated records
+    let extraData = null;
+    const updateObject = updatedRecord.toObject();
+    if (updateDiffPaths) {
+      const { originalObj, updatedObj } = objectUtils.returnObjectDifference(
+        originalRecord,
+        updateObject,
+        updateDiffPaths,
+      );
+      const originalObjectString = originalRecord ? JSON.stringify(originalObj) : null;
+      const updatedObjectString = updatedRecord ? JSON.stringify(updatedObj) : null;
+      extraData = {
+        originalObjectString,
+        updatedObjectString,
+      };
+    }
+    const logId = logger.logInfo(
+      `Protected email account updated. Target: ${updatedRecordEmail}
+      Requestor: ${requestorProfile ? requestorFullName : requestorId}`,
+      extraData,
+    );
+
+    sendEmailUponProtectedAccountUpdate(
+      requestorProfile?.email,
+      requestorFullName,
+      updatedRecordEmail,
+      actionPerformed,
+      logId,
+    );
+  }
+};
+
 const userProfileController = function (UserProfile) {
   const cache = cacheClosure();
 
@@ -88,7 +175,7 @@ const userProfileController = function (UserProfile) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -240,6 +327,7 @@ const userProfileController = function (UserProfile) {
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
     up.createdDate = req.body.createdDate;
+    up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
     up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
@@ -255,26 +343,69 @@ const userProfileController = function (UserProfile) {
     up.isVisible = !['Mentor'].includes(req.body.role);
 
     try {
-      const createdUserProfile = await up.save();
-      res.status(200).send({
-        _id: createdUserProfile._id,
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+        .select('firstName lastName email role')
+        .exec();
+
+      await up.save().then(() => {
+        // if connected to dev db just check for Owner roles, else it's main branch so also check admin too
+        const condition =
+          process.env.dbName === 'hgnData_dev'
+            ? up.role === 'Owner'
+            : up.role === 'Owner' || up.role === 'Administrator';
+        if (condition) {
+          const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}New ${up.role} Role Created`;
+
+          const emailBody = `<p> Hi Admin! </p>
+          
+          <p><strong>New Account Details</strong></p>
+          <p>This email is to inform you that <strong>${up.firstName} ${up.lastName}</strong> has been created as a new ${up.role} account on the Highest Good Network application.</p>
+          
+          <p><strong>Here are the details for the new ${up.role} account:</strong></p>
+          <ul>
+          <li><strong>Name:</strong> ${up.firstName} ${up.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${up.email}">${up.email}</a></li>
+          </ul>
+          
+          <p><strong>Who created this new account?</strong></p>
+          <ul>
+          <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+          <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+          </ul>
+          
+          <p>If you have any questions or notice any issues, please investigate further.</p>
+          
+          <p>Thank you for your attention to this matter.</p>
+          
+          <p>Sincerely,</p>
+          <p>The HGN A.I. (and One Community)</p>`;
+
+          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
+        }
       });
 
-      // update backend cache
-      const userCache = {
-        permissions: up.permissions,
-        isActive: true,
-        weeklycommittedHours: up.weeklycommittedHours,
-        createdDate: up.createdDate.toISOString(),
+      // update backend cache if it exists
+      if (cache.getCache('allusers')) {
+        const userCache = {
+          permissions: up.permissions,
+          isActive: true,
+          weeklycommittedHours: up.weeklycommittedHours,
+          createdDate: up.createdDate.toISOString(),
+          startDate: up.startDate.toISOString(),
+          _id: up._id,
+          role: up.role,
+          firstName: up.firstName,
+          lastName: up.lastName,
+          email: up.email,
+        };
+        const allUserCache = JSON.parse(cache.getCache('allusers'));
+        allUserCache.push(userCache);
+        cache.setCache('allusers', JSON.stringify(allUserCache));
+      }
+
+      res.status(200).send({
         _id: up._id,
-        role: up.role,
-        firstName: up.firstName,
-        lastName: up.lastName,
-        email: up.email,
-      };
-      const allUserCache = JSON.parse(cache.getCache('allusers'));
-      allUserCache.push(userCache);
-      cache.setCache('allusers', JSON.stringify(allUserCache));
+      });
     } catch (error) {
       res.status(501).send(error);
     }
@@ -282,13 +413,20 @@ const userProfileController = function (UserProfile) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userid,
+    );
+
     const isRequestorAuthorized = !!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid) &&
+      canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    if (!isRequestorAuthorized) {
+    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+
+    if (!isRequestorAuthorized && !canManageAdminLinks) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -306,6 +444,13 @@ const userProfileController = function (UserProfile) {
       if (err || !record) {
         res.status(404).send('No valid records found');
         return;
+      }
+
+      // To keep a copy of the original record if we edit the protected account
+      let originalRecord = {};
+      if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
+        originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
+        // console.log('originalRecord', originalRecord);
       }
       // validate userprofile pic
 
@@ -337,12 +482,10 @@ const userProfileController = function (UserProfile) {
         'profilePic',
         'firstName',
         'lastName',
-        'jobTitle',
         'phoneNumber',
         'bio',
         'personalLinks',
         'location',
-        'profilePic',
         'privacySettings',
         'weeklySummaries',
         'weeklySummariesCount',
@@ -354,7 +497,6 @@ const userProfileController = function (UserProfile) {
         'isFirstTimelog',
         'teamCode',
         'isVisible',
-        'isRehireable',
         'bioPosted',
       ];
 
@@ -376,19 +518,29 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+      if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
+        const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
+        summaryFields.forEach((fieldName) => {
+          if (req.body[fieldName] !== undefined) {
+            record[fieldName] = req.body[fieldName];
+          }
+        });
+      }
+
+      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+        record.adminLinks = req.body.adminLinks;
+      }
+
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
+          'email',
           'role',
           'isRehireable',
-          'isActive',
-          'adminLinks',
           'isActive',
           'weeklySummaries',
           'weeklySummariesCount',
           'mediaUrl',
           'collaborationPreference',
-          'weeklySummaryNotReq',
-          'weeklySummaryOption',
           'categoryTangibleHrs',
           'totalTangibleHrs',
           'timeEntryEditHistory',
@@ -418,7 +570,7 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.projects !== undefined) {
-          record.projects = Array.from(new Set(req.body.projects));
+          record.projects = req.body.projects.map((project) => project._id);
         }
 
         if (req.body.email !== undefined) {
@@ -450,8 +602,8 @@ const userProfileController = function (UserProfile) {
           record.weeklycommittedHoursHistory.push(newEntry);
         }
 
-        if (req.body.createdDate !== undefined && record.createdDate !== req.body.createdDate) {
-          record.createdDate = moment(req.body.createdDate).toDate();
+        if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
+          record.startDate = moment(req.body.startDate).toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -461,7 +613,8 @@ const userProfileController = function (UserProfile) {
             record.weeklycommittedHoursHistory.push(newEntry);
           }
           // then also change the first committed history (index 0)
-          record.weeklycommittedHoursHistory[0].dateChanged = record.createdDate;
+
+          record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
         if (
@@ -487,7 +640,7 @@ const userProfileController = function (UserProfile) {
           userData.weeklycommittedHours = record.weeklycommittedHours;
           userData.email = record.email;
           userData.isActive = record.isActive;
-          userData.createdDate = record.createdDate.toISOString();
+          userData.startDate = record.startDate.toISOString();
         }
       }
       if (
@@ -496,7 +649,10 @@ const userProfileController = function (UserProfile) {
       ) {
         record.infringements = req.body.infringements;
       }
-
+      let updatedDiff = null;
+      if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
+        updatedDiff = record.modifiedPaths();
+      }
       record
         .save()
         .then((results) => {
@@ -506,6 +662,9 @@ const userProfileController = function (UserProfile) {
             results.firstName,
             results.lastName,
             results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
           );
           res.status(200).json({
             _id: record._id,
@@ -516,6 +675,15 @@ const userProfileController = function (UserProfile) {
             allUserData.splice(userIdx, 1, userData);
             cache.setCache('allusers', JSON.stringify(allUserData));
           }
+          // Log the update of a protected email account
+          auditIfProtectedAccountUpdated(
+            req.body.requestor.requestorId,
+            originalRecord.email,
+            originalRecord,
+            record,
+            updatedDiff,
+            'update',
+          );
         })
         .catch((error) => res.status(400).send(error));
     });
@@ -523,6 +691,10 @@ const userProfileController = function (UserProfile) {
 
   const deleteUserProfile = async function (req, res) {
     const { option, userId } = req.body;
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
     if (!(await hasPermission(req.body.requestor, 'deleteUserProfile'))) {
       res.status(403).send('You are not authorized to delete users');
       return;
@@ -542,7 +714,27 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
+
+    if (userId === req.body.requestor) {
+      res.status(403).send({
+        error: 'You cannot delete your own account',
+      });
+      return;
+    }
+
     const user = await UserProfile.findById(userId);
+
+    // Check if the user is protected and if the requestor has permission to delete protected accounts
+    if (PROTECTED_EMAIL_ACCOUNT.includes(user.email) && !canEditProtectedAccount) {
+      res.status(403).send({
+        error: 'Only authorized users can delete protected accounts',
+      });
+      //
+      logger.logInfo(
+        `Unauthorized attempt to delete a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${user.email}`,
+      );
+      return;
+    }
 
     if (!user) {
       res.status(400).send({
@@ -582,19 +774,33 @@ const userProfileController = function (UserProfile) {
     }
 
     cache.removeCache(`user-${userId}`);
-    const allUserData = JSON.parse(cache.getCache('allusers'));
-    const userIdx = allUserData.findIndex((users) => users._id === userId);
-    allUserData.splice(userIdx, 1);
-    cache.setCache('allusers', JSON.stringify(allUserData));
-
-    await UserProfile.deleteOne({
-      _id: userId,
-    });
-    res.status(200).send({ message: 'Executed Successfully' });
+    if (cache.getCache('allusers')) {
+      const allUserData = JSON.parse(cache.getCache('allusers'));
+      const userIdx = allUserData.findIndex((users) => users._id === userId);
+      allUserData.splice(userIdx, 1);
+      cache.setCache('allusers', JSON.stringify(allUserData));
+    }
+    const originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+    try {
+      await UserProfile.deleteOne({ _id: userId });
+      // delete followUp for deleted user
+      await followUp.findOneAndDelete({ userId });
+      res.status(200).send({ message: 'Executed Successfully' });
+      auditIfProtectedAccountUpdated(
+        req.body.requestor.requestorId,
+        originalRecord.email,
+        originalRecord,
+        null,
+        'delete',
+      );
+    } catch (err) {
+      res.status(500).send(err);
+    }
   };
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
+
     if (cache.getCache(`user-${userid}`)) {
       const getData = JSON.parse(cache.getCache(`user-${userid}`));
       res.status(200).send(getData);
@@ -660,9 +866,22 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const updateOneProperty = function (req, res) {
+  const updateOneProperty = async function (req, res) {
     const { userId } = req.params;
     const { key, value } = req.body;
+
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (!canEditProtectedAccount) {
+      logger.logInfo(
+        `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+      );
+      res.status(403).send('You are not authorized to update this user');
+      return;
+    }
 
     if (key === 'teamCode') {
       const canEditTeamCode =
@@ -679,21 +898,34 @@ const userProfileController = function (UserProfile) {
     // remove user from cache, it should be loaded next time
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
-      // eslint-disable-next-line consistent-return
       return res.status(400).send({ error: 'Missing property or value' });
     }
 
-    // eslint-disable-next-line consistent-return
     return UserProfile.findById(userId)
       .then((user) => {
+        let originalRecord = null;
+        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+          originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+        }
         user.set({
           [key]: value,
         });
-
+        let updatedDiff = null;
+        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+          updatedDiff = user.modifiedPaths();
+        }
         return user
           .save()
           .then(() => {
             res.status(200).send({ message: 'updated property' });
+            auditIfProtectedAccountUpdated(
+              req.body.requestor.requestorId,
+              originalRecord.email,
+              originalRecord,
+              user,
+              updatedDiff,
+              'update',
+            );
           })
           .catch((error) => res.status(500).send(error));
       })
@@ -716,17 +948,23 @@ const userProfileController = function (UserProfile) {
       });
     }
     // Check if the requestor has the permission to update passwords.
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (!canEditProtectedAccount) {
+      logger.logInfo(
+        `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+      );
+      res.status(403).send('You are not authorized to update this user');
+      return;
+    }
+
     const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
-    // If the requestor is updating their own password, allow them to proceed.
-    if (userId === requestor.requestorId) {
-      console.log('Requestor is updating their own password');
-    }
-    // Else if they're updating someone else's password, they need the 'updatePassword' permission.
-    else if (!hasUpdatePasswordPermission) {
-      console.log(
-        "Requestor is trying to update someone else's password but lacks the 'updatePassword' permission",
-      );
+    // if they're updating someone else's password, they need the 'updatePassword' permission.
+    if (!hasUpdatePasswordPermission) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -763,7 +1001,21 @@ const userProfileController = function (UserProfile) {
             });
             return user
               .save()
-              .then(() => res.status(200).send({ message: 'updated password' }))
+              .then(() => {
+                if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+                  logger.logInfo(
+                    `Protected email account password updated. Requestor: ${req.body.requestor.requestorId}, Target: ${user.email}`,
+                  );
+                }
+                res.status(200).send({ message: 'updated password' });
+                auditIfProtectedAccountUpdated(
+                  req.body.requestor.requestorId,
+                  user.email,
+                  null,
+                  null,
+                  'PasswordUpdate',
+                );
+              })
               .catch((error) => res.status(500).send(error));
           })
           .catch((error) => res.status(500).send(error));
@@ -854,7 +1106,19 @@ const userProfileController = function (UserProfile) {
       });
       return;
     }
-    if (!(await hasPermission(req.body.requestor, 'changeUserStatus'))) {
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (
+      !((await hasPermission(req.body.requestor, 'changeUserStatus')) && canEditProtectedAccount)
+    ) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+        logger.logInfo(
+          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+        );
+      }
       res.status(403).send('You are not authorized to change user status');
       return;
     }
@@ -882,6 +1146,13 @@ const userProfileController = function (UserProfile) {
               allUserData.splice(userIdx, 1, userData);
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
+            auditIfProtectedAccountUpdated(
+              req.body.requestor.requestorId,
+              user.email,
+              null,
+              null,
+              'UserStatusUpdate',
+            );
             res.status(200).send({
               message: 'status updated',
             });
@@ -895,28 +1166,152 @@ const userProfileController = function (UserProfile) {
       });
   };
 
-  const resetPassword = function (req, res) {
-    ValidatePassword(req);
+  const changeUserRehireableStatus = async function (req, res) {
+    const { userId } = req.params;
+    const { isRehireable } = req.body;
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({ error: 'Bad Request' });
+    }
+    if (
+      !(await hasPermission(req.body.requestor, 'changeUserRehireableStatus')) ||
+      !canEditProtectedAccount
+    ) {
+      return res.status(403).send('You are not authorized to change rehireable status');
+    }
 
-    UserProfile.findById(req.params.userId, 'password')
-      .then((user) => {
-        user.set({
-          password: req.body.newpassword,
-        });
-        user
-          .save()
-          .then(() => {
-            res.status(200).send({
-              message: ' password Reset',
-            });
-          })
-          .catch((error) => {
-            res.status(500).send(error);
+    // Invalidate the cache for this user
+    cache.removeCache(`user-${userId}`);
+
+    UserProfile.findByIdAndUpdate(
+      userId,
+      { $set: { isRehireable } },
+      { new: true },
+      // eslint-disable-next-line no-unused-vars
+      (error, updatedUser) => {
+        if (error) {
+          return res.status(500).send(error);
+        }
+        // Check if there's a cache for all users and update it accordingly
+        const isUserInCache = cache.hasCache('allusers');
+        if (isUserInCache) {
+          const allUserData = JSON.parse(cache.getCache('allusers'));
+          const userIdx = allUserData.findIndex((users) => users._id === userId);
+          const userData = allUserData[userIdx];
+          userData.isRehireable = isRehireable;
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+
+        // Optionally, re-fetch the user to verify the updated data
+        UserProfile.findById(userId, (err, verifiedUser) => {
+          if (err) {
+            return res.status(500).send('Error fetching updated user data.');
+          }
+          auditIfProtectedAccountUpdated(
+            req.body.requestor.requestorId,
+            verifiedUser.email,
+            null,
+            null,
+            'UserRehireableStatusUpdate',
+          );
+          res.status(200).send({
+            message: 'Rehireable status updated and verified successfully',
+            isRehireable: verifiedUser.isRehireable,
           });
-      })
-      .catch((error) => {
-        res.status(500).send(error);
+        });
+      },
+    );
+  };
+
+  const resetPassword = async function (req, res) {
+    try {
+      ValidatePassword(req);
+
+      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+        .select('firstName lastName email role')
+        .exec();
+
+      if (!requestor) {
+        res.status(404).send({ error: 'Requestor not found' });
+        return;
+      }
+
+      const user = await UserProfile.findById(req.params.userId)
+
+        .select('firstName lastName email role')
+        .exec();
+
+      if (!user) {
+        res.status(404).send({ error: 'User not found' });
+        return;
+      }
+
+      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
+        res.status(403).send('You are not authorized to reset this users password');
+        return;
+      }
+
+      if (user.role === 'Owner' && !(await hasPermission(requestor, 'addDeleteEditOwners'))) {
+        res.status(403).send('You are not authorized to reset this user password');
+        return;
+      }
+
+      user.password = req.body.newpassword;
+
+      await user.save();
+
+      const condition =
+        process.env.dbName === 'hgnData_dev'
+          ? user.role === 'Owner'
+          : user.role === 'Owner' || user.role === 'Administrator';
+      if (condition) {
+        const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}${user.role} Password Reset Notification`;
+        const emailBody = `<p>Hi Admin! </p>
+
+        <p><strong>Account Details</strong></p>
+        <p>This email is to inform you that a password reset has been executed for an ${user.role} account:</p>
+    
+        <ul>
+            <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
+        </ul>
+        
+        <p><strong>Account that reset the ${user.role}'s password</strong></p>
+        <p>The password reset was made by:</p>
+    
+        <ul>
+            <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
+            <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
+        </ul>
+
+        <p>If you have any questions or need to verify this password reset, please investigate further.</p>
+
+        <p>Thank you for your attention to this matter.</p>
+    
+        <p>Sincerely,</p>
+        <p>The HGN A.I. (and One Community)</p>
+        `;
+
+        emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null);
+      }
+
+      res.status(200).send({
+        message: 'Password Reset',
       });
+      auditIfProtectedAccountUpdated(
+        req.body.requestor.requestorId,
+        user.email,
+        null,
+        null,
+        'UserResetPassword',
+      );
+    } catch (error) {
+      res.status(500).send(error);
+    }
   };
 
   const getAllUsersWithFacebookLink = function (req, res) {
@@ -951,10 +1346,29 @@ const userProfileController = function (UserProfile) {
   };
 
   // Search for user by first name
+  // const getUserBySingleName = (req, res) => {
+  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
+
+  //   // Searches for first or last name
+  //   UserProfile.find({
+  //     $or: [
+  //       { firstName: { $regex: pattern } },
+  //       { lastName: { $regex: pattern } },
+  //     ],
+  //   })
+  //     .select('firstName lastName')
+  //     .then((users) => {
+  //       if (users.length === 0) {
+  //         return res.status(404).send({ error: 'Users Not Found' });
+  //       }
+  //       res.status(200).send(users);
+  //     })
+  //     .catch((error) => res.status(500).send(error));
+  // };
+
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
-    // Searches for first or last name
     UserProfile.find({
       $or: [{ firstName: { $regex: pattern } }, { lastName: { $regex: pattern } }],
     })
@@ -968,7 +1382,6 @@ const userProfileController = function (UserProfile) {
       })
       .catch((error) => res.status(500).send(error));
   };
-
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -976,19 +1389,13 @@ const userProfileController = function (UserProfile) {
   // Search for user by full name (first and last)
   // eslint-disable-next-line consistent-return
   const getUserByFullName = (req, res) => {
-    // Creates an array containing the first and last name and filters out whitespace
-    const fullName = req.params.fullName.split(' ').filter((name) => name !== '');
-    // Creates a partial match regex for both first and last name
-    const firstNameRegex = new RegExp(`^${escapeRegExp(fullName[0])}`, 'i');
-    const lastNameRegex = new RegExp(`^${escapeRegExp(fullName[1])}`, 'i');
-
-    // Verfies both the first and last name are present
-    if (fullName.length < 2) {
-      return res.status(400).send({ error: 'Both first name and last name are required.' });
-    }
+    // Sanitize user input and escape special characters
+    const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
+    // Create a regular expression to match the sanitized full name, ignoring case
+    const fullNameRegex = new RegExp(sanitizedFullName, 'i');
 
     UserProfile.find({
-      $and: [{ firstName: { $regex: firstNameRegex } }, { lastName: { $regex: lastNameRegex } }],
+      $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -996,11 +1403,15 @@ const userProfileController = function (UserProfile) {
         if (users.length === 0) {
           return res.status(404).send({ error: 'Users Not Found' });
         }
+
         res.status(200).send(users);
       })
       .catch((error) => res.status(500).send(error));
   };
 
+  // function escapeRegExp(string) {
+  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // }
   /**
    * Authorizes user to be able to add Weekly Report Recipients
    *
@@ -1015,7 +1426,7 @@ const userProfileController = function (UserProfile) {
       }
       await UserProfile.findOne({
         email: {
-          $regex: escapeRegex(authorizedUser), // The Authorized user's email would now be saved in the .env file
+          $regex: escapeRegex(authorizedUser), // The Authorized user's email
           $options: 'i',
         },
       }).then(async (user) => {
@@ -1060,6 +1471,7 @@ const userProfileController = function (UserProfile) {
     refreshToken,
     getUserBySingleName,
     getUserByFullName,
+    changeUserRehireableStatus,
     authorizeUser,
   };
 };
