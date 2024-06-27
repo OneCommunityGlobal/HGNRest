@@ -13,6 +13,7 @@ const reportHelper = require('./reporthelper')();
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
+const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
 
@@ -539,49 +540,77 @@ const userHelper = function () {
               ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
               : null,
           };
-
-          const status = await userProfile.findByIdAndUpdate(
-            personId,
-            {
-              $push: {
-                infringements: infringement,
-              },
-            },
-            { new: true },
-          );
-
+          // Only assign blue square and send email if the user IS NOT a new user
+          // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
+          // All other new users will not receive a blue square or notification
           let emailBody = '';
-          if (person.role === 'Core Team' && timeRemaining > 0) {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              timeRemaining,
-              coreTeamExtraHour,
-              requestForTimeOffEmailBody,
+          if (!isNewUser) {
+            const status = await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $push: {
+                  infringements: infringement,
+                },
+              },
+              { new: true },
             );
-          } else {
-            emailBody = getInfringementEmailBody(
-              status.firstName,
-              status.lastName,
-              infringement,
-              status.infringements.length,
-              undefined,
-              null,
-              requestForTimeOffEmailBody,
-            );
-          }
+            const administrativeContent = {
+              startDate: moment(person.startDate).utc().format('M-D-YYYY'),
+              role: person.role,
+              userTitle: person.jobTitle[0],
+              historyInfringements,
+            };
+            if (person.role === 'Core Team' && timeRemaining > 0) {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                timeRemaining,
+                coreTeamExtraHour,
+                requestForTimeOffEmailBody,
+                administrativeContent,
+              );
+            } else {
+              emailBody = getInfringementEmailBody(
+                status.firstName,
+                status.lastName,
+                infringement,
+                status.infringements.length,
+                undefined,
+                null,
+                requestForTimeOffEmailBody,
+                administrativeContent,
+              );
+            }
 
-          emailSender(
-            status.email,
-            'New Infringement Assigned',
-            emailBody,
-            null,
-            'onecommunityglobal@gmail.com',
-            status.email,
-            null,
-          );
+            let emailsBCCs;
+            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
+              .populate('assignedTo')
+              .exec();
+            if (blueSquareBCCs.length > 0) {
+              emailsBCCs = blueSquareBCCs.map((assignment) => {
+                if (assignment.assignedTo.isActive === true) {
+                  return assignment.email
+                }
+              });
+            } else {
+              emailsBCCs = null;
+            }
+            
+
+            emailSender(
+              status.email,
+              'New Infringement Assigned',
+              emailBody,
+              emailsBCCs,
+              'onecommunityglobal@gmail.com',
+              status.email,
+              null,
+            );
+          } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
+            usersRequiringBlueSqNotification.push(personId);
+          }
 
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,

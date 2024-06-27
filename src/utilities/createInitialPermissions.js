@@ -50,6 +50,10 @@ const permissionsRoles = [
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'manageAdminLinks',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
+      'updateSummaryRequirements',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -194,6 +198,7 @@ const permissionsRoles = [
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
+      'updateSummaryRequirements',
       'deleteUserProfile',
       'infringementAuthorizer',
       'postWbs',
