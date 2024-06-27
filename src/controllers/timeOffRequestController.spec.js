@@ -930,7 +930,7 @@ describe('timeOffRequestController.js module', () => {
       expect(hasPermission).toBeCalledWith(mockReqCopy.body.requestor, 'manageTimeOffRequests');
     });
 
-    test('Returns 201 if the time-off request is set successfully; emailSender is not called', async () => {
+    test('Returns 201 if the time-off request is set successfully; emailSender is not called as setOwnRequested is False', async () => {
       // emailSender is not called as setOwnRequested is False
       const { setTimeOffRequest } = makeSut();
 
@@ -986,7 +986,7 @@ describe('timeOffRequestController.js module', () => {
       expect(emailSender).toHaveBeenCalledTimes(0);
     });
 
-    test('Returns 201 if the time-off request is set successfully; emailSender is not called', async () => {
+    test('Returns 201 if the time-off request is set successfully; emailSender is not called as savedRequest is null', async () => {
       // emailSender is not called as savedRequest is null
       const { setTimeOffRequest } = makeSut();
 
