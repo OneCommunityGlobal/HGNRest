@@ -122,7 +122,6 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         });
       }
     } catch (err) {
-      console.log('dance');
       console.log(err);
     }
   };
