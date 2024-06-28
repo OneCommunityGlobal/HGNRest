@@ -21,7 +21,7 @@ const bmTimeLoggerController = function () {
             populate: [
               {
                 path: 'user',
-                select: '_id firstName lastName email teams',      
+                select: '_id firstName lastName email role teams',      
               },
             ]
           },
