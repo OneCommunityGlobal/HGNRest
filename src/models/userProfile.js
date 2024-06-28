@@ -6,10 +6,8 @@ const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
-// Update createdDate to be the current date from the next day
-// const nextDay = new Date();
-// nextDay.setDate(nextDay.getDate() + 1);
-const today = new Date();
+const nextDay = new Date();
+nextDay.setDate(nextDay.getDate() + 1);
 
 const userProfileSchema = new Schema({
   password: {
@@ -49,7 +47,7 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String, required: true }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String,

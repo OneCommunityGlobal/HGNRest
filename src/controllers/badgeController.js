@@ -224,10 +224,9 @@ const badgeController = function (Badge) {
         .catch((errors) => {
           res.status(500).send(errors);
         });
+    }).catch((error) => {
+      res.status(500).send(error);
     });
-    // .catch((error) => {
-    //   res.status(500).send(error);
-    // });
   };
 
   const putBadge = async function (req, res) {

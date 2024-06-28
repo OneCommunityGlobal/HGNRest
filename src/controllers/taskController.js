@@ -14,7 +14,6 @@ const taskController = function (Task) {
     let query = {
       wbsId: { $in: [req.params.wbsId] },
       level: { $in: [level] },
-      isActive: { $ne: false },
     };
 
     const { mother } = req.params;
@@ -249,7 +248,6 @@ const taskController = function (Task) {
       $and: [
         { $or: [{ taskId: parentId1 }, { parentId1 }, { parentId1: null }] },
         { wbsId: { $in: [wbsId] } },
-        { isActive: { $ne: false } },
       ],
     }).then((tasks) => {
       tasks = [...new Set(tasks.map((item) => item))];
@@ -825,54 +823,26 @@ const taskController = function (Task) {
   const getTasksByUserId = async (req, res) => {
     const { userId } = req.params;
     try {
-      const tasks = await Task.aggregate()
-        .match({
-          resources: {
-            $elemMatch: {
-              userID: mongoose.Types.ObjectId(userId),
-              completedTask: {
-                $ne: true,
-              },
-            },
-          },
-          isActive: {
-            $ne: false,
-          },
-        })
-        .lookup({
-          from: 'wbs',
-          localField: 'wbsId',
-          foreignField: '_id',
-          as: 'wbs',
-        })
-        .unwind({
-          path: '$wbs',
-          includeArrayIndex: 'string',
-          preserveNullAndEmptyArrays: true,
-        })
-        .addFields({
-          wbsName: '$wbs.wbsName',
-          projectId: '$wbs.projectId',
-        })
-        .lookup({
-          from: 'projects',
-          localField: 'projectId',
-          foreignField: '_id',
-          as: 'project',
-        })
-        .unwind({
-          path: '$project',
-          includeArrayIndex: 'string',
-          preserveNullAndEmptyArrays: true,
-        })
-        .addFields({
-          projectName: '$project.projectName',
-        })
-        .project({
-          wbs: 0,
-          project: 0,
+      Task.find(
+        {
+          'resources.userID': mongoose.Types.ObjectId(userId),
+        },
+        '-resources.profilePic',
+      ).then((results) => {
+        WBS.find({
+          _id: { $in: results.map((item) => item.wbsId) },
+        }).then((WBSs) => {
+          const resultsWithProjectsIds = results.map((item) => {
+            item.set(
+              'projectId',
+              WBSs?.find((wbs) => wbs._id.toString() === item.wbsId.toString())?.projectId,
+              { strict: false },
+            );
+            return item;
+          });
+          res.status(200).send(resultsWithProjectsIds);
         });
-      res.status(200).send(tasks);
+      });
     } catch (error) {
       res.status(400).send(error);
     }

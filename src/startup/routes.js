@@ -3,7 +3,7 @@ const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
-// const actionItem = require('../models/actionItem');
+const actionItem = require('../models/actionItem');
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
@@ -42,10 +42,9 @@ const {
   buildingReusable,
   buildingMaterial,
   buildingTool,
-  buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+// const buildingTool = require('../models/bmdashboard/buildingTool');
 const timeOffRequest = require('../models/timeOffRequest');
-const followUp = require('../models/followUp');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -55,8 +54,8 @@ const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
-// const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
-const notificationRouter = require('../routes/notificationRouter')();
+const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
+const notificationRouter = require('../routes/notificationRouter')(notification);
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
 const forcePwdRouter = require('../routes/forcePwdRouter')(userProfile);
@@ -95,12 +94,13 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   team,
   userProfile,
 );
-const followUpRouter = require('../routes/followUpRouter')(followUp);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
+const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
+// const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
@@ -115,9 +115,6 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   equipmentType,
 );
 
-const titleRouter = require('../routes/titleRouter')(title);
-const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
-const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(blueSquareEmailAssignment,userProfile)
@@ -132,7 +129,7 @@ module.exports = function (app) {
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
-  // app.use('/api', actionItemRouter);
+  app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
@@ -168,7 +165,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolRouter);
-  app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
+  app.use('/api', timeOffRequestRouter);
   app.use('api', bmIssueRouter);
 };

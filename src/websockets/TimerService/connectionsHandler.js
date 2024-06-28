@@ -21,7 +21,7 @@ export function removeConnection(connections, userId, connToRemove) {
   const userConnetions = connections.get(userId);
   if (!userConnetions) return;
 
-  const newConns = userConnetions.filter(conn => conn !== connToRemove);
+  const newConns = userConnetions.filter((conn) => conn !== connToRemove);
   if (newConns.length === 0) connections.delete(userId);
   else connections.set(userId, newConns);
 }
@@ -46,5 +46,5 @@ export function broadcastToSameUser(connections, userId, data) {
 export function hasOtherConn(connections, userId, anotherConn) {
   if (!connections.has(userId)) return false;
   const userConnections = connections.get(userId);
-  return userConnections.some(con => con !== anotherConn && con.readyState === WebSocket.OPEN);
+  return userConnections.some((con) => con !== anotherConn && con.readyState === WebSocket.OPEN);
 }
