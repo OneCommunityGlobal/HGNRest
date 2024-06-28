@@ -3,14 +3,14 @@ const { hasPermission } = require('../utilities/permissions');
 const popupEditorController = function (PopupEditors) {
   const getAllPopupEditors = function (req, res) {
     PopupEditors.find()
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const getPopupEditorById = function (req, res) {
     PopupEditors.findById(req.params.id)
-      .then(results => res.status(200).send(results))
-      .catch(error => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const createPopupEditor = async function (req, res) {
@@ -32,8 +32,8 @@ const popupEditorController = function (PopupEditors) {
     popup.popupContent = req.body.popupContent;
 
     popup.save()
-      .then(results => res.status(201).send(results))
-      .catch(error => res.status(500).send({ error }));
+      .then((results) => res.status(201).send(results))
+      .catch((error) => res.status(500).send({ error }));
   };
 
   const updatePopupEditor = async function (req, res) {
@@ -55,8 +55,8 @@ const popupEditorController = function (PopupEditors) {
 
     PopupEditors.findById(popupId, (error, popup) => {
       popup.popupContent = req.body.popupContent;
-      popup.save().then(results => res.status(201).send(results))
-        .catch(err => res.status(500).send({ err }));
+      popup.save().then((results) => res.status(201).send(results))
+        .catch((err) => res.status(500).send({ err }));
     });
   };
 
