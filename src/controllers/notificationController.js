@@ -172,8 +172,11 @@ const notificationController = function () {
 
   return {
     getUserNotifications,
+    getUnreadUserNotifications,
+    getSentNotifications,
     deleteUserNotification,
     createUserNotification,
+    markNotificationAsRead,
   };
 };
 
