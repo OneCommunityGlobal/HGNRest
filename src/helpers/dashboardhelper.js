@@ -2,26 +2,17 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
-const myTeam = require('./helperModels/myTeam');
 const team = require('../models/team');
+const { hasPermission } = require('../utilities/permissions');
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
-    return userProfile.findById(
-      userId,
-      '_id firstName lastName role profilePic badgeCollection',
-    );
+    return userProfile.findById(userId, '_id firstName lastName role profilePic badgeCollection');
   };
 
   const getOrgData = async function () {
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     /**
      * Previous aggregate pipeline had two issues:
@@ -74,10 +65,7 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: [
-                          '$$timeentry.entryType',
-                          ['person', 'team', 'project'],
-                        ],
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
@@ -168,31 +156,19 @@ const dashboardhelper = function () {
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     try {
-      const userById = await userProfile.findOne(
-        { _id: userid, isActive: true },
-        { role: 1 },
-      );
+      const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 });
 
       if (userById == null) return null;
       const userRole = userById.role;
-      const pdtstart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+      const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
 
-      const pdtend = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+      const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
       let teamMemberIds = [userid];
       let teamMembers = [];
-
-      if (
-        userRole !== 'Administrator'
-        && userRole !== 'Owner'
-        && userRole !== 'Core Team'
-      ) {
+      const userAsRequestor = { role: userRole, requestorId: userId };
+      const canSeeUsersInDashboard = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
+      if (!canSeeUsersInDashboard) {
         // Manager , Mentor , Volunteer ... , Show only team members
         const teamsResult = await team.find(
           { 'members.userId': { $in: [userid] } },
@@ -247,6 +223,7 @@ const dashboardhelper = function () {
           $lte: pdtend,
         },
         personId: { $in: teamMemberIds },
+        isActive: { $ne: false },
       });
 
       const timeEntryByPerson = {};
@@ -262,11 +239,9 @@ const dashboardhelper = function () {
         }
 
         if (timeEntry.isTangible === true) {
-          timeEntryByPerson[personIdStr].tangibleSeconds
-            += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
         } else {
-          timeEntryByPerson[personIdStr].intangibleSeconds
-            += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
         }
 
         timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
@@ -291,12 +266,12 @@ const dashboardhelper = function () {
           totaltime_hrs: (timeEntryByPerson[teamMember._id.toString()]?.totalSeconds ?? 0) / 3600,
 
           percentagespentintangible:
-            timeEntryByPerson[teamMember._id.toString()]
-            && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0
-            && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !== 0
-              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
-                  / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds)
-                * 100
+            timeEntryByPerson[teamMember._id.toString()] &&
+            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0 &&
+            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !== 0
+              ? ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds || 0) /
+                  (timeEntryByPerson[teamMember._id.toString()]?.totalSeconds || 1)) *
+                100
               : 0,
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
@@ -582,15 +557,9 @@ const dashboardhelper = function () {
    */
   const getUserLaborData = async function (userId) {
     try {
-      const pdtStart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+      const pdtStart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
 
-      const pdtEnd = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+      const pdtEnd = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
       const user = await userProfile.findById({
         _id: userId,
@@ -602,6 +571,7 @@ const dashboardhelper = function () {
           $lte: pdtEnd,
         },
         entryType: { $in: ['default', null] },
+        isActive: { $ne: false },
         personId: userId,
       });
 
@@ -627,8 +597,7 @@ const dashboardhelper = function () {
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
           totaltangibletime_hrs: tangibleSeconds / 3600,
           totalintangibletime_hrs: intangibleSeconds / 3600,
-          percentagespentintangible:
-            (intangibleSeconds / tangibleSeconds) * 100,
+          percentagespentintangible: (intangibleSeconds / tangibleSeconds) * 100,
           timeOffFrom: user.timeOffFrom,
           timeOffTill: user.timeOffTill,
           endDate: user.endDate || null,
@@ -745,10 +714,7 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: [
-                          '$$timeentry.entryType',
-                          ['person', 'team', 'project'],
-                        ],
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
@@ -832,10 +798,7 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: [
-                          '$$timeentry.entryType',
-                          ['person', 'team', 'project'],
-                        ],
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
