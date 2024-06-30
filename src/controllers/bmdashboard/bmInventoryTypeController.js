@@ -1,4 +1,6 @@
 const fs = require('fs');
+const fsPromises = require('fs/promises');
+
 const path = require('path');
 
 const filename = 'BuildingUnits.json';
@@ -32,46 +34,43 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   }
 
   const fetchToolTypes = async (req, res) => {
-    
     try {
-        ToolType
-        .find()
+      ToolType.find()
         .populate([
-              {
-                path: 'available',
-                select: '_id code project',
-                populate: {
-                  path: 'project',
-                  select: '_id name'
-                }
-              },
-              {
-                path: 'using',
-                select: '_id code project',
-                populate: {
-                  path: 'project',
-                  select: '_id name'
-                }
-              }
+          {
+            path: 'available',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name',
+            },
+          },
+          {
+            path: 'using',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name',
+            },
+          },
         ])
         .exec()
-        .then(result => {
+        .then((result) => {
           res.status(200).send(result);
         })
-        .catch(error => {
-          console.error("fetchToolTypes error: ", error);
+        .catch((error) => {
+          console.error('fetchToolTypes error: ', error);
           res.status(500).send(error);
         });
-     
     } catch (err) {
-      console.log("error: ", err)
+      console.log('error: ', err);
       res.json(err);
     }
   };
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
-      console.log(__dirname, filepath);
+      // console.log(__dirname,filepath)
       readFile(filepath, 'utf8', (err, data) => {
         if (err) {
           console.error('Error reading file:', err);
@@ -204,15 +203,15 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;
     let SelectedType = InvType;
-    if (type === 'Materials') {
+    if (type === 'Material') {
       SelectedType = MatType;
-    } else if (type === 'Consumables') {
+    } else if (type === 'Consumable') {
       SelectedType = ConsType;
-    } else if (type === 'Reusables') {
+    } else if (type === 'Reusable') {
       SelectedType = ReusType;
-    } else if (type === 'Tools') {
+    } else if (type === 'Tool') {
       SelectedType = ToolType;
-    } else if (type === 'Equipments') {
+    } else if (type === 'Equipment') {
       SelectedType = EquipType;
     }
     try {
@@ -294,28 +293,83 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
-  const updateNameAndUnit = async (req, res) => {
+  const addInvUnit = async (req, res) => {
+    // NOTE: category is default to be Material as no other item types need units
+    const { unit, category = 'Material' } = req.body;
+    if (typeof unit !== 'string' || unit.length === 0) {
+      res.status(400).json('Invalid unit');
+      return;
+    }
+
     try {
-      const { invtypeId } = req.params;
-      const { name, unit } = req.body;
+      // read JSON file and parse it into an array
+      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
+      const unitsArray = JSON.parse(unitsJSON);
 
-      const updateData = {};
+      // append new unit into array
+      unitsArray.push({ unit, category });
 
-      if (name) {
-        updateData.name = name;
+      // save updated array into JSON file and rend it back
+      await fsPromises.writeFile(filepath, JSON.stringify(unitsArray, null, ' '));
+
+      res.status(201).send(unitsArray);
+    } catch (err) {
+      res.status(500).send(err);
+      console.error(err);
+    }
+  };
+
+  const deleteInvUnit = async (req, res) => {
+    const { unit } = req.body;
+    if (typeof unit !== 'string' || unit.length === 0) {
+      res.status(400).json('Invalid unit');
+      return;
+    }
+
+    try {
+      // read JSON file and parse it into an array
+      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
+      const unitsArray = JSON.parse(unitsJSON);
+
+      // if unit does not exist, send err response
+      const index = unitsArray.findIndex((unitObject) => unitObject.unit === unit);
+      if (index === -1) {
+        res.status(400).json('Unit does not exist');
+        return;
       }
 
-      if (unit) {
-        updateData.unit = unit;
-      }
+      // otherwise, remove unit
+      const filteredUnits = unitsArray.filter((unitObject) => unitObject.unit !== unit);
 
-      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
-        new: true,
-        runValidators: true,
-      });
+      // save updated array into JSON file and rend it back
+      await fsPromises.writeFile(filepath, JSON.stringify(filteredUnits, null, ' '));
+      res.status(200).send(filteredUnits);
+    } catch (err) {
+      res.status(500).send(err);
+      console.error(err);
+    }
+  };
 
+  const updateSingleInvType = async (req, res) => {
+    const { type, invtypeId } = req.params;
+    const { name, description } = req.body;
+
+    // send back errors if required fields are missing
+    if (name?.length === 0 || description?.length === 0) {
+      res.status(400).json({ error: 'Name and description are required.' });
+      return;
+    }
+
+    try {
+      // find invType by id, and update name, description
+      const updatedInvType = await InvType.findByIdAndUpdate(
+        invtypeId,
+        { name, description },
+        { new: true, runValidators: true },
+      );
       if (!updatedInvType) {
-        return res.status(404).json({ error: 'invType Material not found check Id' });
+        res.status(404).json({ error: 'invTypeId does not exist' });
+        return;
       }
 
       res.status(200).json(updatedInvType);
@@ -323,6 +377,26 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.status(500).send(error);
     }
   };
+
+  const deleteSingleInvType = async (req, res) => {
+    const { type, invtypeId } = req.params;
+
+    try {
+      // delete invType with given id
+      const deletedResult = await InvType.findByIdAndDelete(invtypeId);
+      if (!deletedResult) {
+        res.status(404).json({ error: 'invTypeId does not exist' });
+        return;
+      }
+
+      // send the updated list
+      const updatedList = await InvType.find({ category: type });
+      res.status(200).json(updatedList);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   return {
     fetchMaterialTypes,
     fetchConsumableTypes,
@@ -331,11 +405,14 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addEquipmentType,
     fetchEquipmentTypes,
     fetchSingleInventoryType,
-    updateNameAndUnit,
     addMaterialType,
     addConsumableType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
+    addInvUnit,
+    deleteInvUnit,
+    updateSingleInvType,
+    deleteSingleInvType,
   };
 }
 
