@@ -37,6 +37,9 @@ const reportsController = function () {
         roleDistributionStats,
         usersInTeamStats,
         // blueSquareStats,
+        anniversaryStats,
+        totalBadgesAwarded,
+        totalActiveTeams,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
         overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
@@ -46,6 +49,9 @@ const reportsController = function () {
         overviewReportHelper.getRoleDistributionStats(),
         overviewReportHelper.getTeamMembersCount(),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
+        overviewReportHelper.getAnniversaries(startDate, endDate),
+        overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate),
+        overviewReportHelper.getTotalActiveTeamCount(),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -56,6 +62,9 @@ const reportsController = function () {
         roleDistributionStats,
         usersInTeamStats,
         // blueSquareStats,
+        anniversaryStats,
+        totalBadgesAwarded,
+        totalActiveTeams,
       });
     } catch (err) {
       console.log(err);
@@ -75,7 +84,7 @@ const reportsController = function () {
         const summaries = reporthelper.formatSummaries(results);
         res.status(200).send(summaries);
       })
-      .catch(error => res.status(404).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   /**

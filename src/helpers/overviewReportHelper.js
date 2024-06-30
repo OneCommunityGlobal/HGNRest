@@ -7,6 +7,54 @@ const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
+   * Get the total number of active teams
+   */
+  async function getTotalActiveTeamCount() {
+    return Team.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $count: 'activeTeams',
+      },
+    ]);
+  }
+
+  /**
+   *  Get the users celebrating their anniversary between the two input dates.
+   * @param {*} startDate
+   * @param {*} endDate
+   * @returns  The number of users celebrating their anniversary between the two input dates.
+   */
+  async function getAnniversaries(startDate, endDate) {
+    return UserProfile.aggregate([
+      {
+        $addFields: {
+          createdMonthDay: { $dateToString: { format: '%m-%d', date: '$createdDate' } },
+        },
+      },
+      {
+        $match: {
+          createdMonthDay: {
+            $gte: startDate.substring(5, 10),
+            $lte: endDate.substring(5, 10),
+          },
+          isActive: true,
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+        },
+      },
+    ]);
+  }
+
+  /**
    * Get the number of Blue Square infringements between the two input dates.
    * @param {*} startDate
    * @param {*} endDate
@@ -548,6 +596,8 @@ const overviewReportHelper = function () {
   }
 
   return {
+    getTotalActiveTeamCount,
+    getAnniversaries,
     getRoleDistributionStats,
     getVolunteerNumberStats,
     getTasksStats,
