@@ -1,7 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
-const { getInfringementEmailBody } = require('../helpers/userHelper')();
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
 const Task = require('../models/task');
@@ -323,13 +322,13 @@ const addEditHistory = async (
     (edit) => moment().tz('America/Los_Angeles').diff(edit.date, 'days') <= 365,
   ).length;
 
-  if (totalRecentEdits >= 3) {
+  if (totalRecentEdits >= 5) {
     userprofile.infringements.push({
       date: moment().tz('America/Los_Angeles'),
       description: `${totalRecentEdits} time entry edits in the last calendar year`,
     });
 
-    const infringementNotificationEmail = `
+    const infringementNotificationToAdminEmailBody = `
     <p>
       ${userprofile.firstName} ${userprofile.lastName} (${userprofile.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
       within the last calendar year.
@@ -339,28 +338,20 @@ const addEditHistory = async (
     </p>
     `;
 
-    const emailInfringement = {
-      date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
-      description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
-    };
+    const infringementNotificationToUserEmailBody = `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`;
 
     pendingEmailCollection.push(
       emailSender.bind(
         null,
         'onecommunityglobal@gmail.com',
         `${userprofile.firstName} ${userprofile.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`,
-        infringementNotificationEmail,
+        infringementNotificationToAdminEmailBody,
       ),
       emailSender.bind(
         null,
         userprofile.email,
         "You've been issued a blue square for editing your time entry",
-        getInfringementEmailBody(
-          userprofile.firstName,
-          userprofile.lastName,
-          emailInfringement,
-          userprofile.infringements.length,
-        ),
+        infringementNotificationToUserEmailBody,
       ),
     );
   }
@@ -424,6 +415,13 @@ const timeEntrycontroller = function (TimeEntry) {
     const returnErr = (result) => {
       result.status(400).send({ error: 'Bad request' });
     };
+
+    const isPostingForSelf = req.body.personId === req.body.requestor.requestorId;
+    const canPostTimeEntriesForOthers = await hasPermission(req.body.requestor, 'postTimeEntry');
+    if (!isPostingForSelf && !canPostTimeEntriesForOthers) {
+      res.status(403).send({ error: 'You do not have permission to post time entries for others' });
+      return;
+    }
 
     switch (req.body.entryType) {
       case 'person':
@@ -566,15 +564,6 @@ const timeEntrycontroller = function (TimeEntry) {
     const isSameDayTimeEntry =
       moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
     const isSameDayAuthUserEdit = isForAuthUser && isSameDayTimeEntry;
-    const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
-    const hasEditTimeEntryPermission = await hasPermission(req.body.requestor, 'editTimeEntry');
-
-    const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
-
-    if (!canEdit) {
-      const error = 'Unauthorized request';
-      return res.status(403).send({ error });
-    }
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -620,6 +609,48 @@ const timeEntrycontroller = function (TimeEntry) {
       const tangibilityChanged = initialIsTangible !== newIsTangible;
       const timeChanged = initialTotalSeconds !== newTotalSeconds;
       const dateOfWorkChanged = initialDateOfWork !== newDateOfWork;
+      const isTimeModified = newTotalSeconds !== timeEntry.totalSeconds;
+      const isDescriptionModified = newNotes !== timeEntry.notes;
+
+      const isUsingAPermission =
+        isTimeModified ||
+        (isDescriptionModified && !isSameDayAuthUserEdit) ||
+        dateOfWorkChanged ||
+        tangibilityChanged;
+
+      // Time
+      if (isTimeModified && !(await hasPermission(req.body.requestor, 'editTimeEntryTime'))) {
+        const error = `You do not have permission to edit the time entry time`;
+        return res.status(403).send({ error });
+      }
+
+      // Description
+      if (
+        !isSameDayAuthUserEdit &&
+        isDescriptionModified &&
+        !(await hasPermission(req.body.requestor, 'editTimeEntryDescription'))
+      ) {
+        const error = `You do not have permission to edit the time entry description`;
+        return res.status(403).send({ error });
+      }
+
+      // Date
+      if (dateOfWorkChanged && !(await hasPermission(req.body.requestor, 'editTimeEntryDate'))) {
+        const error = `You do not have permission to edit the time entry date`;
+        return res.status(403).send({ error });
+      }
+
+      // Tangible Time
+      if (
+        tangibilityChanged &&
+        (isForAuthUser
+          ? !(await hasPermission(req.body.requestor, 'toggleTangibleTime'))
+          : !(await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')))
+      ) {
+        const error = `You do not have permission to edit the time entry isTangible`;
+        return res.status(403).send({ error });
+      }
+
       timeEntry.notes = newNotes;
       timeEntry.totalSeconds = newTotalSeconds;
       timeEntry.isTangible = newIsTangible;
@@ -727,12 +758,7 @@ const timeEntrycontroller = function (TimeEntry) {
               newDateOfWork,
             );
             // Update edit history
-            if (
-              !isRequestorAdminLikeRole &&
-              !hasEditTimeEntryPermission &&
-              isSameDayAuthUserEdit &&
-              isGeneralEntry
-            ) {
+            if (!isUsingAPermission && isSameDayAuthUserEdit && isGeneralEntry) {
               addEditHistory(
                 userprofile,
                 initialTotalSeconds,
@@ -799,13 +825,11 @@ const timeEntrycontroller = function (TimeEntry) {
       const isSameDayTimeEntry =
         moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === dateOfWork;
       const isSameDayAuthUserDelete = isForAuthUser && isSameDayTimeEntry;
-      const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       const hasDeleteTimeEntryPermission = await hasPermission(
         req.body.requestor,
         'deleteTimeEntry',
       );
-      const canDelete =
-        isSameDayAuthUserDelete || isRequestorAdminLikeRole || hasDeleteTimeEntryPermission;
+      const canDelete = isSameDayAuthUserDelete || hasDeleteTimeEntryPermission;
       if (!canDelete) {
         res.status(403).send({ error: 'Unauthorized request' });
         return;
@@ -871,6 +895,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: { $in: ['default', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
+        isActive: { $ne: false },
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
@@ -878,6 +903,18 @@ const timeEntrycontroller = function (TimeEntry) {
           timeEntry = { ...timeEntry.toObject() };
           const { projectId, taskId } = timeEntry;
           if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
+          if (timeEntry.taskId) {
+            const task = await Task.findById(timeEntry.taskId);
+            if (task) {
+              timeEntry.taskName = task.taskName;
+            }
+          }
+          if (timeEntry.projectId) {
+            const project = await Project.findById(timeEntry.projectId);
+            if (project) {
+              timeEntry.projectName = project.projectName;
+            }
+          }
           const hours = Math.floor(timeEntry.totalSeconds / 3600);
           const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
           Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
@@ -903,7 +940,7 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      '-createdDateTime',
     )
       .populate('personId')
       .populate('projectId')
@@ -912,7 +949,6 @@ const timeEntrycontroller = function (TimeEntry) {
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
         const data = [];
-
         results.forEach((element) => {
           const record = {};
           record._id = element._id;
@@ -922,21 +958,20 @@ const timeEntrycontroller = function (TimeEntry) {
           record.userProfile = element.personId;
           record.dateOfWork = element.dateOfWork;
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId._id;
-          record.projectName = element.projectId.projectName;
-          record.projectCategory = element.projectId.category.toLowerCase();
+          record.projectId = element.projectId?._id || null;
+          record.projectName = element.projectId?.projectName || null;
+          record.projectCategory = element.projectId?.category.toLowerCase() || null;
           record.taskId = element.taskId?._id || null;
           record.taskName = element.taskId?.taskName || null;
           record.taskClassification = element.taskId?.classification?.toLowerCase() || null;
           record.wbsId = element.wbsId?._id || null;
           record.wbsName = element.wbsId?.wbsName || null;
-
           data.push(record);
         });
-
         res.status(200).send(data);
       })
       .catch((error) => {
+        logger.logException(error);
         res.status(400).send(error);
       });
   };
@@ -990,6 +1025,7 @@ const timeEntrycontroller = function (TimeEntry) {
       {
         projectId,
         dateOfWork: { $gte: fromDate, $lte: todate },
+        isActive: { $ne: false },
       },
       '-createdDateTime -lastModifiedDateTime',
     )
@@ -1014,6 +1050,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'person',
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1053,6 +1090,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'project',
         projectId: { $in: projects },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )
@@ -1090,6 +1128,7 @@ const timeEntrycontroller = function (TimeEntry) {
         entryType: 'team',
         teamId: { $in: teams },
         dateOfWork: { $gte: fromDate, $lte: toDate },
+        isActive: { $ne: false },
       },
       ' -createdDateTime',
     )

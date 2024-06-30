@@ -22,6 +22,7 @@ const reportHelper = require('./reporthelper')();
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
+const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
@@ -726,11 +727,27 @@ const userHelper = function () {
                 administrativeContent,
               );
             }
+
+            let emailsBCCs;
+            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
+              .populate('assignedTo')
+              .exec();
+            if (blueSquareBCCs.length > 0) {
+              emailsBCCs = blueSquareBCCs.map((assignment) => {
+                if (assignment.assignedTo.isActive === true) {
+                  return assignment.email
+                }
+              });
+            } else {
+              emailsBCCs = null;
+            }
+            
+
             emailSender(
               status.email,
               'New Infringement Assigned',
               emailBody,
-              null,
+              emailsBCCs,
               'onecommunityglobal@gmail.com',
               status.email,
               null,
@@ -1402,6 +1419,44 @@ const userHelper = function () {
         }
       });
   };
+  
+  const getAllWeeksData = async (personId, user) => {
+    const userId = mongoose.Types.ObjectId(personId);
+    const weeksData = [];
+    const currentDate = moment().tz('America/Los_Angeles');
+    const startDate = moment(user.createdDate).tz('America/Los_Angeles');
+    const numWeeks = Math.ceil((currentDate.diff(startDate, 'days') / 7));
+
+    // iterate through weeks to get hours of each week
+    for (let week = 1; week <= numWeeks; week += 1) {
+      const pdtstart = startDate.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
+      const pdtend = startDate.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
+      try {
+        const results = await dashboardHelper.laborthisweek(userId,pdtstart,pdtend,);
+        const { timeSpent_hrs: timeSpent } = results[0];
+        weeksData.push(timeSpent);
+      } catch (error) {
+        console.error(error);
+        throw error;
+      }
+    }
+    return weeksData;
+  };
+
+  const getMaxHrs = async (personId, user) => {
+    const weeksdata = await getAllWeeksData(personId, user);
+    return Math.max(...weeksdata);
+  };
+
+  const updatePersonalMax = async (personId, user) => {
+    try {
+      const MaxHrs = await getMaxHrs(personId, user);
+      user.personalBestMaxHrs = MaxHrs;
+      await user.save();
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
@@ -1422,17 +1477,20 @@ const userHelper = function () {
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
+      const currentDate = moment(moment().format("MM-DD-YYYY"), "MM-DD-YYYY").tz("America/Los_Angeles").format("MMM-DD-YY");
       if (
         user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+        user.lastWeekTangibleHrs >= user.personalBestMaxHrs  &&
+        !badgeOfType.earnedDate.includes(currentDate)
+
       ) {
         if (badgeOfType) {
-          changeBadgeCount(
+          increaseBadgeCount(
             personId,
-            mongoose.Types.ObjectId(badgeOfType._id),
-            user.personalBestMaxHrs,
+            mongoose.Types.ObjectId(badgeOfType.badge._id),
           );
+          // Update the earnedDate array with the new date
+          badgeOfType.earnedDate.unshift(moment().format("MMM-DD-YYYY"));
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
         }
@@ -1746,7 +1804,8 @@ const userHelper = function () {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
-
+        
+        await updatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
