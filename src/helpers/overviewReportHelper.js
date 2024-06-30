@@ -7,6 +7,31 @@ const Task = require('../models/task');
 
 const overviewReportHelper = function () {
   /**
+   * Get map location statistics
+   * Group and count all volunteers  by their lattitude and longitude
+   */
+  async function getMapLocations() {
+    return UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+          'location.coords.lat': { $ne: null },
+          'location.coords.lng': { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            lat: '$location.coords.lat',
+            lng: '$location.coords.lng',
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+  }
+
+  /**
    * Get the total number of active teams
    */
   async function getTotalActiveTeamCount() {
@@ -596,6 +621,7 @@ const overviewReportHelper = function () {
   }
 
   return {
+    getMapLocations,
     getTotalActiveTeamCount,
     getAnniversaries,
     getRoleDistributionStats,

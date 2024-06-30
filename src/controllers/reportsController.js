@@ -40,6 +40,7 @@ const reportsController = function () {
         anniversaryStats,
         totalBadgesAwarded,
         totalActiveTeams,
+        userLocations,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
         overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
@@ -52,6 +53,7 @@ const reportsController = function () {
         overviewReportHelper.getAnniversaries(startDate, endDate),
         overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate),
         overviewReportHelper.getTotalActiveTeamCount(),
+        overviewReportHelper.getMapLocations(),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -65,6 +67,7 @@ const reportsController = function () {
         anniversaryStats,
         totalBadgesAwarded,
         totalActiveTeams,
+        userLocations,
       });
     } catch (err) {
       console.log(err);
