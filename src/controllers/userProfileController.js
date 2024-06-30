@@ -86,9 +86,9 @@ const sendEmailUponProtectedAccountUpdate = (
   const updatedDate = moment_().format('MMM-DD-YY');
   const subject = 'One Community: Protected Account Has Been Updated';
   const emailBody = `<p> Hi Admin! </p>
-          
+
           <p><strong>Protected Account ${targetEmail} is updated by ${requestorEmail} </strong></p>
-          
+
           <p><strong>Here are the details for the new ${targetEmail} account:</strong></p>
           <ul>
             <li><strong>Updated Date:</strong> ${updatedDate}</li>
@@ -100,12 +100,12 @@ const sendEmailUponProtectedAccountUpdate = (
             <li><strong>Name:</strong> ${requestorFullName}</li>
             <li><strong>Email:</strong> <a href="mailto:${requestorEmail}">${requestorEmail}</a></li>
           </ul>
-         
+
           <p>If you have any questions or notice any issues,
           please investigate further by searching log <b>transaction ID ${logId} in the Sentry </b>.</p>
-          
+
           <p>Thank you for your attention to this matter.</p>
-          
+
           <p>Sincerely,</p>
           <p>The HGN (and One Community)</p>`;
   emailSender(targetEmail, subject, emailBody, null, null);
@@ -357,26 +357,26 @@ const userProfileController = function (UserProfile) {
           const subject = `${process.env.dbName !== 'hgnData_dev' ? '*Main Site* -' : ''}New ${up.role} Role Created`;
 
           const emailBody = `<p> Hi Admin! </p>
-          
+
           <p><strong>New Account Details</strong></p>
           <p>This email is to inform you that <strong>${up.firstName} ${up.lastName}</strong> has been created as a new ${up.role} account on the Highest Good Network application.</p>
-          
+
           <p><strong>Here are the details for the new ${up.role} account:</strong></p>
           <ul>
           <li><strong>Name:</strong> ${up.firstName} ${up.lastName}</li>
           <li><strong>Email:</strong> <a href="mailto:${up.email}">${up.email}</a></li>
           </ul>
-          
+
           <p><strong>Who created this new account?</strong></p>
           <ul>
           <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
           <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
           </ul>
-          
+
           <p>If you have any questions or notice any issues, please investigate further.</p>
-          
+
           <p>Thank you for your attention to this matter.</p>
-          
+
           <p>Sincerely,</p>
           <p>The HGN A.I. (and One Community)</p>`;
 
@@ -1274,15 +1274,15 @@ const userProfileController = function (UserProfile) {
 
         <p><strong>Account Details</strong></p>
         <p>This email is to inform you that a password reset has been executed for an ${user.role} account:</p>
-    
+
         <ul>
             <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
             <li><strong>Email:</strong> <a href="mailto:${user.email}">${user.email}</a></li>
         </ul>
-        
+
         <p><strong>Account that reset the ${user.role}'s password</strong></p>
         <p>The password reset was made by:</p>
-    
+
         <ul>
             <li><strong>Name:</strong> ${requestor.firstName} ${requestor.lastName}</li>
             <li><strong>Email:</strong> <a href="mailto:${requestor.email}">${requestor.email}</a></li>
@@ -1291,7 +1291,7 @@ const userProfileController = function (UserProfile) {
         <p>If you have any questions or need to verify this password reset, please investigate further.</p>
 
         <p>Thank you for your attention to this matter.</p>
-    
+
         <p>Sincerely,</p>
         <p>The HGN A.I. (and One Community)</p>
         `;
