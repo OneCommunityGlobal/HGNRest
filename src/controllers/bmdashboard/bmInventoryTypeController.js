@@ -272,6 +272,18 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.status(500).send(error);
     }
   }
+
+  async function fetchEquipmentTypes(req, res) {
+    try {
+      EquipType.find()
+        .exec()
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  }
+
   const fetchSingleInventoryType = async (req, res) => {
     const { invtypeId } = req.params;
     try {
@@ -317,6 +329,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchReusableTypes,
     fetchToolTypes,
     addEquipmentType,
+    fetchEquipmentTypes,
     fetchSingleInventoryType,
     updateNameAndUnit,
     addMaterialType,

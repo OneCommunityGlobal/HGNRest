@@ -416,6 +416,13 @@ const timeEntrycontroller = function (TimeEntry) {
       result.status(400).send({ error: 'Bad request' });
     };
 
+    const isPostingForSelf = req.body.personId === req.body.requestor.requestorId;
+    const canPostTimeEntriesForOthers = await hasPermission(req.body.requestor, 'postTimeEntry');
+    if (!isPostingForSelf && !canPostTimeEntriesForOthers) {
+      res.status(403).send({ error: 'You do not have permission to post time entries for others' });
+      return;
+    }
+
     switch (req.body.entryType) {
       case 'person':
         if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) returnErr(res);
@@ -554,15 +561,7 @@ const timeEntrycontroller = function (TimeEntry) {
     const isSameDayTimeEntry =
       moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
     const isSameDayAuthUserEdit = isForAuthUser && isSameDayTimeEntry;
-    const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
-    const hasEditTimeEntryPermission = await hasPermission(req.body.requestor, 'editTimeEntry');
 
-    const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
-
-    if (!canEdit) {
-      const error = 'Unauthorized request';
-      return res.status(403).send({ error });
-    }
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -608,6 +607,44 @@ const timeEntrycontroller = function (TimeEntry) {
       const tangibilityChanged = initialIsTangible !== newIsTangible;
       const timeChanged = initialTotalSeconds !== newTotalSeconds;
       const dateOfWorkChanged = initialDateOfWork !== newDateOfWork;
+      const isTimeModified = newTotalSeconds !== timeEntry.totalSeconds;
+      const isDescriptionModified = newNotes !== timeEntry.notes;
+
+      const isUsingAPermission = isTimeModified || (isDescriptionModified && !isSameDayAuthUserEdit) || dateOfWorkChanged || tangibilityChanged;
+
+      // Time
+      if (isTimeModified && !await hasPermission(req.body.requestor, 'editTimeEntryTime')){
+        const error = `You do not have permission to edit the time entry time`;
+        return res.status(403).send({ error });
+      }
+
+      // Description
+      if (!isSameDayAuthUserEdit
+        && isDescriptionModified
+        && !await hasPermission(req.body.requestor, 'editTimeEntryDescription')
+        ){
+        const error = `You do not have permission to edit the time entry description`;
+        return res.status(403).send({ error });
+      }
+
+      // Date
+      if (dateOfWorkChanged
+        && !await hasPermission(req.body.requestor, 'editTimeEntryDate')
+        ){
+        const error = `You do not have permission to edit the time entry date`;
+        return res.status(403).send({ error });
+      }
+
+      // Tangible Time
+      if (tangibilityChanged && (isForAuthUser ?
+        !await hasPermission(req.body.requestor, 'toggleTangibleTime'):
+        !await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')
+        )
+        ){
+        const error = `You do not have permission to edit the time entry isTangible`;
+        return res.status(403).send({ error });
+      }
+
       timeEntry.notes = newNotes;
       timeEntry.totalSeconds = newTotalSeconds;
       timeEntry.isTangible = newIsTangible;
@@ -715,8 +752,7 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // Update edit history
           if (
-            !isRequestorAdminLikeRole &&
-            !hasEditTimeEntryPermission &&
+            !isUsingAPermission &&
             isSameDayAuthUserEdit &&
             isGeneralEntry
           ) {
@@ -781,19 +817,18 @@ const timeEntrycontroller = function (TimeEntry) {
       const isSameDayTimeEntry =
         moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === dateOfWork;
       const isSameDayAuthUserDelete = isForAuthUser && isSameDayTimeEntry;
-      const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       const hasDeleteTimeEntryPermission = await hasPermission(
         req.body.requestor,
         'deleteTimeEntry',
       );
       const canDelete =
-        isSameDayAuthUserDelete || isRequestorAdminLikeRole || hasDeleteTimeEntryPermission;
+        isSameDayAuthUserDelete || hasDeleteTimeEntryPermission;
       if (!canDelete) {
         res.status(403).send({ error: 'Unauthorized request' });
         return;
       }
 
-      const userprofile = await UserProfile.findById(personId);
+    const userprofile = await UserProfile.findById(personId);
 
       // Revert this tangible timeEntry of related task's hoursLogged
       if (isTangible) {
@@ -983,7 +1018,7 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       '-createdDateTime -lastModifiedDateTime',
     )
-      .populate('personId', 'firstName lastName  isActive')
+      .populate('userId')
       .sort({ dateOfWork: -1 })
       .then((results) => {
         res.status(200).send(results);
