@@ -207,7 +207,6 @@ describe('reasonScheduling Controller', () => {
       // process.env.sendEmail = true;
       await postReason(mockReq, mockRes);
       await flushPromises();
-      // expect(emailSender).toHaveBeenCalledTimes(1);
       expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
       expect(mockFoundReason).toHaveBeenCalledWith({
