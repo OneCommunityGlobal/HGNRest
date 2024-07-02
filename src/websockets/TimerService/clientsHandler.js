@@ -4,7 +4,7 @@ const moment = require('moment');
 const Timer = require('../../models/timer');
 const logger = require('../../startup/logger');
 
-export const getClient = async (clients, userId) => {
+const getClient = async (clients, userId) => {
   // In case of there is already a connection that is open for this user
   // for example user open a new connection
   if (!clients.has(userId)) {
@@ -14,26 +14,22 @@ export const getClient = async (clients, userId) => {
       clients.set(userId, timer);
     } catch (e) {
       logger.logException(e);
-      throw new Error(
-        'Something happened when trying to retrieve timer from mongo',
-      );
+      throw new Error('Something happened when trying to retrieve timer from mongo');
     }
   }
   return clients.get(userId);
 };
 
-export const saveClient = async (client) => {
+const saveClient = async (client) => {
   try {
     await Timer.findOneAndUpdate({ userId: client.userId }, client);
   } catch (e) {
     logger.logException(e);
-    throw new Error(
-      `Something happened when trying to save user timer to mongo, Error: ${e}`,
-    );
+    throw new Error(`Something happened when trying to save user timer to mongo, Error: ${e}`);
   }
 };
 
-export const action = {
+const action = {
   START_TIMER: 'START_TIMER',
   PAUSE_TIMER: 'PAUSE_TIMER',
   STOP_TIMER: 'STOP_TIMER',
@@ -119,10 +115,7 @@ const setGoal = (client, msg) => {
 
 const addGoal = (client, msg) => {
   const duration = parseInt(msg.split('=')[1]);
-  const goalAfterAddition = moment
-    .duration(client.goal)
-    .add(duration, 'milliseconds')
-    .asHours();
+  const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
 
   if (goalAfterAddition > MAX_HOURS) return;
 
@@ -163,7 +156,7 @@ const removeGoal = (client, msg) => {
     .toFixed();
 };
 
-export const handleMessage = async (msg, clients, userId) => {
+const handleMessage = async (msg, clients, userId) => {
   if (!clients.has(userId)) {
     throw new Error('It should have this user in memory');
   }
@@ -214,4 +207,14 @@ export const handleMessage = async (msg, clients, userId) => {
   clients.set(userId, client);
   if (resp === null) resp = client;
   return JSON.stringify(resp);
+};
+
+module.exports = {
+  getClient,
+  handleMessage,
+  action,
+  MAX_HOURS,
+  MIN_MINS,
+  saveClient,
+  updatedTimeSinceStart,
 };
