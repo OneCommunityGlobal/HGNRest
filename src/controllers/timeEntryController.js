@@ -323,9 +323,79 @@ const addEditHistory = async (
   ).length;
 
   if (totalRecentEdits >= 5) {
+    const cutOffDate = moment().subtract(1, 'year');
+    const recentInfringements = userprofile.infringements.filter((infringement) =>
+      moment(infringement.date).isAfter(cutOffDate),
+    );
+    let modifiedRecentInfringements = 'No Previous Infringements!';
+    if (recentInfringements.length) {
+      modifiedRecentInfringements = recentInfringements
+        .map((item, index) => {
+          let enhancedDescription;
+          if (item.description) {
+            let sentences = item.description.split('.');
+            const dateRegex =
+              /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+            sentences = sentences.map((sentence) =>
+              sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+              }),
+            );
+            if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else if (
+              sentences[0].includes(
+                'System auto-assigned infringement for editing your time entries',
+              )
+            ) {
+              sentences[0] = sentences[0].replace(
+                /time entries <(\d+)>\s*times/i,
+                'time entries <span><b>$1 times</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+            } else if (sentences[0].includes('System auto-assigned infringement')) {
+              sentences[0] = sentences[0].replace(
+                /(not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else {
+              enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+            }
+          }
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format(
+            'M-D-YYYY',
+          )}</b></span>, Description: ${enhancedDescription}</p>`;
+        })
+        .join('');
+    }
+
     userprofile.infringements.push({
       date: moment().tz('America/Los_Angeles'),
-      description: `${totalRecentEdits} time entry edits in the last calendar year`,
+      description: `System auto-assigned infringement for editing your time entries <${totalRecentEdits}> times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.
+     time entry edits in the last calendar year`,
     });
 
     const infringementNotificationToAdminEmailBody = `
@@ -338,7 +408,24 @@ const addEditHistory = async (
     </p>
     `;
 
-    const infringementNotificationToUserEmailBody = `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`;
+    const infringementNotificationToUserEmailBody = `Dear <b>${userprofile.firstName} ${userprofile.lastName}</b>,
+        <p>Oops, it looks like you chose to edit your time entries too many times and you’ve managed to get a blue square.</p>
+        <p><b>Date Assigned:</b> ${moment().tz('America/Los_Angeles').format('M-D-YYYY')}</p>\
+        <p><b>Description:</b> System auto-assigned infringement for editing your time entries <b><${totalRecentEdits}> times</b> within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.</p>
+        <p><b>Total Infringements:</b> This is your <b><${moment
+          .localeData()
+          .ordinal(recentInfringements.length)}></b> blue square of 5.</p>
+        <p>Thank you,<p>
+        <p>One Community</p>
+        <!-- Adding multiple non-breaking spaces -->
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <hr style="border-top: 1px dashed #000;"/>      
+        <p><b>ADMINISTRATIVE DETAILS:</b></p>
+        <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
+        <p><b>Role:</b> ${userprofile.role}</p>
+        <p><b>Title:</b> ${userprofile.userTitle || 'Volunteer'} </p>
+        <p><b>Previous Blue Square Reasons: </b></p>
+        ${modifiedRecentInfringements}`;
 
     pendingEmailCollection.push(
       emailSender.bind(
@@ -350,7 +437,7 @@ const addEditHistory = async (
       emailSender.bind(
         null,
         userprofile.email,
-        "You've been issued a blue square for editing your time entry",
+        'You’ve been issued a blue square for editing your time entries too many times',
         infringementNotificationToUserEmailBody,
       ),
     );
