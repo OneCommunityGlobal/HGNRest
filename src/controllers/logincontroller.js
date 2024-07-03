@@ -23,7 +23,10 @@ const logincontroller = function () {
       if (!user) {
         res.status(403).send({ message: 'Username not found.' });
       } else if (user.isActive === false) {
-        res.status(403).send({ message: 'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.' });
+        res.status(403).send({
+          message:
+            'Sorry, this account is no longer active. If you feel this is in error, please contact your Manager and/or Administrator.',
+        });
       } else {
         let isPasswordMatch = false;
         let isNewUser = false;
@@ -34,41 +37,42 @@ const logincontroller = function () {
         isPasswordMatch = await bcrypt.compare(_password, user.password);
 
         if (!isPasswordMatch && user.resetPwd !== '') {
-          isPasswordMatch = (_password === user.resetPwd);
+          isPasswordMatch = _password === user.resetPwd;
           isNewUser = true;
         }
 
-      if (isNewUser && isPasswordMatch) {
-        const result = {
-          new: true,
-          userId: user._id,
-        };
-        res.status(200).send(result);
-      } else if (isPasswordMatch && !isNewUser) {
-        const jwtPayload = {
-          userid: user._id,
-          role: user.role,
-          permissions: user.permissions,
-          access: {
-            canAccessBMPortal: false,
-          },
-          expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
-        };
+        if (isNewUser && isPasswordMatch) {
+          const result = {
+            new: true,
+            userId: user._id,
+          };
+          res.status(200).send(result);
+        } else if (isPasswordMatch && !isNewUser) {
+          const jwtPayload = {
+            userid: user._id,
+            role: user.role,
+            permissions: user.permissions,
+            access: {
+              canAccessBMPortal: false,
+            },
+            email: user.email,
+            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+          };
 
-        const token = jwt.sign(jwtPayload, JWT_SECRET);
+          const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-        res.status(200).send({ token });
-      } else {
-        res.status(403).send({
-          message: 'Invalid password.',
-        });
+          res.status(200).send({ token });
+        } else {
+          res.status(403).send({
+            message: 'Invalid password.',
+          });
+        }
       }
-      }
-        } catch (err) {
-    console.log(err);
-    res.json(err);
-  }
-};
+    } catch (err) {
+      console.log(err);
+      res.json(err);
+    }
+  };
 
   const getUser = function (req, res) {
     const { requestor } = req.body;
@@ -77,7 +81,6 @@ const logincontroller = function () {
   };
 
   return {
-
     login,
     getUser,
   };
