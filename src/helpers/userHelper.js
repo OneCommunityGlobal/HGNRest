@@ -137,7 +137,7 @@ const userHelper = function () {
       ) {
         sentences[0] = sentences[0].replace(
           /time entries <(\d+)>\s*times/i,
-          'time entries <span><b>$1 times</b></span>',
+          'time entries &lt;<b>$1</b>&gt; <b>times</b>',
         );
         emailDescription = sentences.join('.');
       } else if (sentences[0].includes('System auto-assigned infringement')) {
@@ -156,15 +156,16 @@ const userHelper = function () {
       }
     }
     // add administrative content
-    const text = `Dear <b>${firstName} ${lastName}</b>,
+    const text = `Dear &lt;<b>${firstName} ${lastName}</b>&gt;,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
+        <p><b>Date Assigned:</b> &lt;${moment(infringement.date).format('M-D-YYYY')}&gt;</p>\
         <p><b>Description:</b> ${emailDescription}</p>
-        <p><b>Total Infringements:</b> This is your <b>${moment
+        <p><b>Total Infringements:</b> This is your &lt;<b>${moment
           .localeData()
-          .ordinal(totalInfringements)}</b> blue square of 5.</p>
+          .ordinal(totalInfringements)}</b>&gt; blue square of 5.</p>
         ${finalParagraph}
-        <p>Thank you, One Community</p>
+        <p>Thank you,<p>
+        <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         <hr style="border-top: 1px dashed #000;"/>      
@@ -578,7 +579,7 @@ const userHelper = function () {
                 ) {
                   sentences[0] = sentences[0].replace(
                     /time entries <(\d+)>\s*times/i,
-                    'time entries <span><b>$1 times</b></span>',
+                    'time entries &lt;<b>$1</b>&gt; <b>times</b>',
                   );
                   enhancedDescription = sentences.join('.');
                 } else if (sentences[0].includes('System auto-assigned infringement')) {
@@ -1091,7 +1092,7 @@ const userHelper = function () {
             ) {
               sentences[0] = sentences[0].replace(
                 /time entries <(\d+)>\s*times/i,
-                'time entries <span><b>$1 times</b></span>',
+                'time entries &lt;<b>$1</b>&gt; <b>times</b>',
               );
               enhancedDescription = sentences.join('.');
             } else if (sentences[0].includes('System auto-assigned infringement')) {

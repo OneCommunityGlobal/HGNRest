@@ -408,13 +408,13 @@ const addEditHistory = async (
     </p>
     `;
 
-    const infringementNotificationToUserEmailBody = `Dear <b>${userprofile.firstName} ${userprofile.lastName}</b>,
+    const infringementNotificationToUserEmailBody = `Dear &lt;<b>${userprofile.firstName} ${userprofile.lastName}</b>&gt;,
         <p>Oops, it looks like you chose to edit your time entries too many times and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${moment().tz('America/Los_Angeles').format('M-D-YYYY')}</p>\
-        <p><b>Description:</b> System auto-assigned infringement for editing your time entries <b><${totalRecentEdits}> times</b> within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.</p>
-        <p><b>Total Infringements:</b> This is your <b><${moment
+        <p><b>Date Assigned:</b> &lt;${moment().tz('America/Los_Angeles').format('M-D-YYYY')}&gt;</p>\
+        <p><b>Description:</b> System auto-assigned infringement for editing your time entries  &lt;<b>${totalRecentEdits}</b>&gt; <b>times</b> within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.</p>
+        <p><b>Total Infringements:</b> This is your &lt;<b>${moment
           .localeData()
-          .ordinal(recentInfringements.length)}></b> blue square of 5.</p>
+          .ordinal(recentInfringements.length)}</b>&gt; blue square of 5.</p>
         <p>Thank you,<p>
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
