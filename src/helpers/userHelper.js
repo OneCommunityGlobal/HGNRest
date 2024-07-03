@@ -132,6 +132,14 @@ const userHelper = function () {
           /logged (\d+(\.\d+)?\s*hours)/i,
           'logged <b>$1</b>',
         );
+      } else if (
+        sentences[0].includes('System auto-assigned infringement for editing your time entries')
+      ) {
+        sentences[0] = sentences[0].replace(
+          /time entries <(\d+)>\s*times/i,
+          'time entries <span><b>$1 times</b></span>',
+        );
+        emailDescription = sentences.join('.');
       } else if (sentences[0].includes('System auto-assigned infringement')) {
         sentences[0] = sentences[0].replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
         sentences[0] = sentences[0].replace(
@@ -563,6 +571,16 @@ const userHelper = function () {
                     /logged (\d+(\.\d+)?\s*hours)/i,
                     'logged <span style="color: blue;"><b>$1</b></span>',
                   );
+                } else if (
+                  sentences[0].includes(
+                    'System auto-assigned infringement for editing your time entries',
+                  )
+                ) {
+                  sentences[0] = sentences[0].replace(
+                    /time entries <(\d+)>\s*times/i,
+                    'time entries <span><b>$1 times</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
                 } else if (sentences[0].includes('System auto-assigned infringement')) {
                   sentences[0] = sentences[0].replace(
                     /(not submitting a weekly summary)/gi,
@@ -729,19 +747,19 @@ const userHelper = function () {
             }
 
             let emailsBCCs;
+            /* eslint-disable array-callback-return */
             const blueSquareBCCs = await BlueSquareEmailAssignment.find()
               .populate('assignedTo')
               .exec();
             if (blueSquareBCCs.length > 0) {
               emailsBCCs = blueSquareBCCs.map((assignment) => {
                 if (assignment.assignedTo.isActive === true) {
-                  return assignment.email
+                  return assignment.email;
                 }
               });
             } else {
               emailsBCCs = null;
             }
-            
 
             emailSender(
               status.email,
@@ -1066,6 +1084,16 @@ const userHelper = function () {
                 /logged (\d+(\.\d+)?\s*hours)/i,
                 'logged <span style="color: blue;"><b>$1</b></span>',
               );
+            } else if (
+              sentences[0].includes(
+                'System auto-assigned infringement for editing your time entries',
+              )
+            ) {
+              sentences[0] = sentences[0].replace(
+                /time entries <(\d+)>\s*times/i,
+                'time entries <span><b>$1 times</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
             } else if (sentences[0].includes('System auto-assigned infringement')) {
               sentences[0] = sentences[0].replace(
                 /(not submitting a weekly summary)/gi,
@@ -1419,20 +1447,24 @@ const userHelper = function () {
         }
       });
   };
-  
+
   const getAllWeeksData = async (personId, user) => {
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
     const currentDate = moment().tz('America/Los_Angeles');
     const startDate = moment(user.createdDate).tz('America/Los_Angeles');
-    const numWeeks = Math.ceil((currentDate.diff(startDate, 'days') / 7));
+    const numWeeks = Math.ceil(currentDate.diff(startDate, 'days') / 7);
 
     // iterate through weeks to get hours of each week
     for (let week = 1; week <= numWeeks; week += 1) {
-      const pdtstart = startDate.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
+      const pdtstart = startDate
+        .clone()
+        .add(week - 1, 'weeks')
+        .startOf('week')
+        .format('YYYY-MM-DD');
       const pdtend = startDate.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
       try {
-        const results = await dashboardHelper.laborthisweek(userId,pdtstart,pdtend,);
+        const results = await dashboardHelper.laborthisweek(userId, pdtstart, pdtend);
         const { timeSpent_hrs: timeSpent } = results[0];
         weeksData.push(timeSpent);
       } catch (error) {
@@ -1477,20 +1509,18 @@ const userHelper = function () {
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
-      const currentDate = moment(moment().format("MM-DD-YYYY"), "MM-DD-YYYY").tz("America/Los_Angeles").format("MMM-DD-YY");
+      const currentDate = moment(moment().format('MM-DD-YYYY'), 'MM-DD-YYYY')
+        .tz('America/Los_Angeles')
+        .format('MMM-DD-YY');
       if (
         user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= user.personalBestMaxHrs  &&
+        user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
         !badgeOfType.earnedDate.includes(currentDate)
-
       ) {
         if (badgeOfType) {
-          increaseBadgeCount(
-            personId,
-            mongoose.Types.ObjectId(badgeOfType.badge._id),
-          );
+          increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
           // Update the earnedDate array with the new date
-          badgeOfType.earnedDate.unshift(moment().format("MMM-DD-YYYY"));
+          badgeOfType.earnedDate.unshift(moment().format('MMM-DD-YYYY'));
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
         }
@@ -1804,7 +1834,7 @@ const userHelper = function () {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
-        
+
         await updatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
