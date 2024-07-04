@@ -1455,31 +1455,34 @@ const userProfileController = function (UserProfile) {
   const getProjectsByPerson = async function (req, res) {
     try {
       const { name } = req.params;
+      const match = name.trim().split(' ');
+      const firstName = match[0];
+      const lastName = match[match.length - 1];
 
-      const match = name.trim().match(/^([A-Za-z]*)\s*([A-Za-z]*)$/i);
-
-      const query =
-        match[2].length > 0
-          ? {
-              $and: [
-                { firstName: { $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i') } },
-                {
-                  lastName: {
-                    $regex: new RegExp(`^${escapeRegExp(match[2])}`, 'i'),
-                  },
-                },
-              ],
-            }
-          : {
-              $or: [
-                { firstName: { $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i') } },
-                {
-                  lastName: {
-                    $regex: new RegExp(`^${escapeRegExp(match[1])}`, 'i'),
-                  },
-                },
-              ],
-            };
+      const query = match[1]
+        ? {
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
+        : {
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
 
       const userProfile = await UserProfile.find(query);
 
