@@ -137,7 +137,7 @@ const userHelper = function () {
       ) {
         sentences[0] = sentences[0].replace(
           /time entries <(\d+)>\s*times/i,
-          'time entries &lt;<b>$1</b>&gt; <b>times</b>',
+          'time entries <b>$1 times</b>',
         );
         emailDescription = sentences.join('.');
       } else if (sentences[0].includes('System auto-assigned infringement')) {
@@ -156,13 +156,13 @@ const userHelper = function () {
       }
     }
     // add administrative content
-    const text = `Dear &lt;<b>${firstName} ${lastName}</b>&gt;,
+    const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> &lt;${moment(infringement.date).format('M-D-YYYY')}&gt;</p>\
+        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
-        <p><b>Total Infringements:</b> This is your &lt;<b>${moment
+        <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
-          .ordinal(totalInfringements)}</b>&gt; blue square of 5.</p>
+          .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${finalParagraph}
         <p>Thank you,<p>
         <p>One Community</p>
@@ -579,7 +579,7 @@ const userHelper = function () {
                 ) {
                   sentences[0] = sentences[0].replace(
                     /time entries <(\d+)>\s*times/i,
-                    'time entries &lt;<b>$1</b>&gt; <b>times</b>',
+                    'time entries <b>$1 times</b>',
                   );
                   enhancedDescription = sentences.join('.');
                 } else if (sentences[0].includes('System auto-assigned infringement')) {
@@ -1092,7 +1092,7 @@ const userHelper = function () {
             ) {
               sentences[0] = sentences[0].replace(
                 /time entries <(\d+)>\s*times/i,
-                'time entries &lt;<b>$1</b>&gt; <b>times</b>',
+                'time entries <b>$1 times</b>',
               );
               enhancedDescription = sentences.join('.');
             } else if (sentences[0].includes('System auto-assigned infringement')) {
@@ -1113,9 +1113,7 @@ const userHelper = function () {
               enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
             }
           }
-          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format(
-            'M-D-YYYY',
-          )}</b></span>, Description: ${enhancedDescription}</p>`;
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
         })
         .join('');
     }
