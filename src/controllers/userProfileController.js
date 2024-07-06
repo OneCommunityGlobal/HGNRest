@@ -15,7 +15,7 @@ const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
-const authorizedUserSara = `sucheta_mu@test.com`; // To test this code please include your email here
+const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
@@ -1452,6 +1452,57 @@ const userProfileController = function (UserProfile) {
     }
   };
 
+  const getProjectsByPerson = async function (req, res) {
+    try {
+      const { name } = req.params;
+      const match = name.trim().split(' ');
+      const firstName = match[0];
+      const lastName = match[match.length - 1];
+
+      const query = match[1]
+        ? {
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
+        : {
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
+
+      const userProfile = await UserProfile.find(query);
+
+      if (userProfile) {
+        const allProjects = userProfile
+          .map((user) => user.projects)
+          .filter((projects) => projects.length > 0)
+          .flat();
+
+        if (allProjects.length === 0) {
+          return res.status(400).send({ message: 'Projects not found' });
+        }
+
+        return res.status(200).send({ message: 'Found profile and related projects', allProjects });
+      }
+    } catch (error) {
+      return res.status(500).send({ massage: 'Encountered an error, please try again!' });
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1473,6 +1524,7 @@ const userProfileController = function (UserProfile) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    getProjectsByPerson,
   };
 };
 
