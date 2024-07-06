@@ -5,7 +5,7 @@
   "main": "restapp",
   "scripts": {
     "test": "jest --passWithNoTests --silent --noStackTrace --runInBand --forceExit",
-    "test:verbose": "jest --passWithNoTests --runInBand projectRouter",
+    "test:verbose": "jest --passWithNoTests --runInBand",
     "test:unit": "npm test -- --watch -c jest-unit.config.js",
     "test:integration": "npm test -- --watch -c jest-integration.config.js",
     "test:staged": "npm test --findRelatedTests",
