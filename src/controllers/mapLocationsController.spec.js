@@ -252,6 +252,32 @@ describe('Map Locations Controller', () => {
       );
     });
 
+    test('returns 500 if an error occurs when updating map location', async () => {
+      const { updateUserLocation } = makeSut();
+      mockReq.body.requestor.role = 'Owner';
+      mockReq.body.type = 'non-user';
+      mockReq.body._id = '60d5f60c2f9b9c3b8a1e4a2f';
+      const updateData = {
+        firstName: mockReq.body.firstName,
+        lastName: mockReq.body.lastName,
+        jobTitle: mockReq.body.jobTitle,
+        location: mockReq.body.location,
+      };
+
+      const errMsg = 'failed to update map locations!';
+      const findAndUpdateSpy = jest
+        .spyOn(MapLocation, 'findOneAndUpdate')
+        .mockImplementationOnce(() => Promise.reject(new Error(errMsg)));
+
+      const res = await updateUserLocation(mockReq, mockRes);
+      assertResMock(500, { message: new Error(errMsg).message }, res, mockRes);
+      expect(findAndUpdateSpy).toHaveBeenCalledWith(
+        { _id: mockReq.body._id },
+        { $set: updateData },
+        { new: true },
+      );
+    });
+
     test('Returns 200 if all is successful when userType is user and clears and resets cache.', async () => {
       mockReq.body.requestor.role = 'Owner';
       mockReq.body.type = 'user';
