@@ -327,5 +327,41 @@ describe('Map Locations Controller', () => {
         JSON.stringify(queryResponse),
       );
     });
+
+    test('Returns 200 if all is succesful when userType is not user', async () => {
+      mockReq.body.requestor.role = 'Owner';
+      mockReq.body.type = 'not-user';
+      mockReq.body._id = '60d5f60c2f9b9c3b8a1e4a2f';
+
+      const { updateUserLocation } = makeSut();
+
+      const updateData = {
+        firstName: mockReq.body.firstName,
+        lastName: mockReq.body.lastName,
+        jobTitle: mockReq.body.jobTitle,
+        location: mockReq.body.location,
+      };
+
+      const queryResponse = {
+        firstName: mockReq.body.firstName,
+        lastName: mockReq.body.lastName,
+        jobTitle: mockReq.body.jobTitle,
+        location: mockReq.body.location,
+        _id: mockReq.body._id,
+      };
+
+      const findOneAndUpdateSpy = jest
+        .spyOn(MapLocation, 'findOneAndUpdate')
+        .mockImplementationOnce(() => Promise.resolve(queryResponse));
+
+      const res = await updateUserLocation(mockReq, mockRes);
+
+      assertResMock(200, { ...queryResponse, type: mockReq.body.type }, res, mockRes);
+      expect(findOneAndUpdateSpy).toHaveBeenCalledWith(
+        { _id: mockReq.body._id },
+        { $set: updateData },
+        { new: true },
+      );
+    });
   });
 });
