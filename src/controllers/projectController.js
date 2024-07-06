@@ -5,7 +5,8 @@ const timeentry = require('../models/timeentry');
 const task = require('../models/task');
 const wbs = require('../models/wbs');
 const userProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+// const { hasPermission } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
 const cache = require('../utilities/nodeCache')();
@@ -25,7 +26,7 @@ const projectController = function (Project) {
   };
 
   const deleteProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteProject'))) {
       res.status(403).send({ error: 'You are not authorized to delete projects.' });
       return;
     }
@@ -37,36 +38,42 @@ const projectController = function (Project) {
       }
       // find if project has any time entries associated with it
 
-      timeentry.find({ projectId: record._id }, '_id').then((timeentries) => {
-        if (timeentries.length > 0) {
-          res.status(400).send({
-            error:
-              'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
-          });
-        } else {
-          const removeprojectfromprofile = userProfile
-            .updateMany({}, { $pull: { projects: record._id } })
-            .exec();
-          const removeproject = record.remove();
-
-          Promise.all([removeprojectfromprofile, removeproject])
-            .then(
-              res.status(200).send({
-                message: 'Project successfully deleted and user profiles updated.',
-              }),
-            )
-            .catch((errors) => {
-              res.status(400).send(errors);
+      timeentry
+        .find({ projectId: record._id }, '_id')
+        .then((timeentries) => {
+          if (timeentries.length > 0) {
+            res.status(400).send({
+              error:
+                'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
             });
-        }
-      });
-    }).catch((errors) => {
-      res.status(400).send(errors);
+          } else {
+            const removeprojectfromprofile = userProfile
+              .updateMany({}, { $pull: { projects: record._id } })
+              .exec();
+            const removeproject = record.remove();
+
+            Promise.all([removeprojectfromprofile, removeproject])
+              .then(() => {
+                res.status(200).send({
+                  message: 'Project successfully deleted and user profiles updated.',
+                });
+              })
+              .catch((errors) => {
+                res.status(400).send(errors);
+              });
+          }
+        })
+        .catch((errors) => {
+          res.status(400).send(errors);
+        });
     });
+    // .catch((errors) => {
+    //   res.status(400).send(errors);
+    // });
   };
 
   const postProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postProject'))) {
       return res.status(401).send('You are not authorized to create new projects.');
     }
 
@@ -105,7 +112,7 @@ const projectController = function (Project) {
   };
 
   const putProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'putProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'putProject'))) {
       res.status(403).send('You are not authorized to make changes in the projects.');
       return;
     }
@@ -206,7 +213,7 @@ const projectController = function (Project) {
 
   const assignProjectToUsers = async function (req, res) {
     // verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
-    if (!(await hasPermission(req.body.requestor, 'assignProjectToUsers'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'assignProjectToUsers'))) {
       res.status(403).send('You are not authorized to perform this operation');
       return;
     }
@@ -269,7 +276,7 @@ const projectController = function (Project) {
       res.status(400).send('Invalid request');
       return;
     }
-    const getId = await hasPermission(req.body.requestor, 'getProjectMembers');
+    const getId = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
 
     userProfile
       .find(
