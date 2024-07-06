@@ -11,8 +11,8 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer((value) => value.trim()),
-      body('lastName').customSanitizer((value) => value.trim()),
+      body('firstName').customSanitizer((req) => req.trim()),
+      body('lastName').customSanitizer((req) => req.trim()),
       controller.postUserProfile,
     );
 
@@ -86,6 +86,8 @@ const routes = function (userProfile) {
   userProfileRouter
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
+
+  userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   return userProfileRouter;
 };
