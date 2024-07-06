@@ -387,6 +387,7 @@ const userHelper = function () {
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
+      console.log('run')
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
 
@@ -402,7 +403,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true  },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
@@ -462,16 +463,18 @@ const userHelper = function () {
          * Condition:
          *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
          *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
-         *  3. No hour logged
+         *  3. No hours logged, and the account was after the start of last week.
          *
          * Notes:
-         *  1. Start date is automatically updated upon frist time-log.
+         *  1. Start date is automatically updated upon first time-log.
          *  2. User meet above condition but meet minimum hours without submitting weekly summary
          *     should get a blue square as reminder.
          *  */
         let isNewUser = false;
         const userStartDate = moment(person.startDate);
-        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0) {
+        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0 && 
+          userStartDate.isAfter(pdtStartOfLastWeek)) {
+          console.log("1")
           isNewUser = true;
         }
 
@@ -481,6 +484,7 @@ const userHelper = function () {
             userStartDate.isBefore(pdtEndOfLastWeek) &&
             timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
         ) {
+          console.log("2")
           isNewUser = true;
         }
 
