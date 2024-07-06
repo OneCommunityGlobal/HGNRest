@@ -38,7 +38,7 @@ const mapLocationsController = function (MapLocation) {
     }
   };
   const deleteLocation = async function (req, res) {
-    if (req.body.requestor.role !== 'Administrator' || req.body.requestor.role !== 'Owner') {
+    if (req.body.requestor.role !== 'Administrator' && req.body.requestor.role !== 'Owner') {
       console.log('not authorized');
       console.log(req.body.requestor.role);
       res.status(403).send('You are not authorized to make changes in the teams.');
@@ -127,7 +127,7 @@ const mapLocationsController = function (MapLocation) {
       res.status(200).send(newData);
     } catch (err) {
       console.log(err.message);
-      res.status(500).json({ message: err.message || 'Something went wrong...' });
+      res.status(500).send({ message: err.message || 'Something went wrong...' });
     }
   };
 
