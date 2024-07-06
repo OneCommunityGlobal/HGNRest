@@ -87,6 +87,13 @@ const routes = function (userProfile) {
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
 
+  userProfileRouter.route('/userProfile/:userId/addInfringement').post(controller.addInfringements);
+
+  userProfileRouter
+    .route('/userProfile/:userId/infringements/:blueSquareId')
+    .put(controller.editInfringements)
+    .delete(controller.deleteInfringements);
+
   return userProfileRouter;
 };
 
