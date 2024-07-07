@@ -2,6 +2,9 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(), // Mocking the hasPermission function
 }));
 
+const originalPremiumKey = process.env.TIMEZONE_PREMIUM_KEY;
+process.env.TIMEZONE_PREMIUM_KEY = 'mockPremiumKey';
+
 const { hasPermission } = require('../utilities/permissions');
 const timeZoneAPIController = require('./timeZoneAPIController');
 const { mockReq, mockRes, assertResMock } = require('../test');
@@ -13,6 +16,15 @@ const makeSut = () => {
 };
 
 describe('timeZoneAPIController Unit Tests', () => {
+  afterAll(() => {
+    // Reseting TIMEZONE_PREMIUM_KEY and TIMEZONE_COMMON_KEY environment variables to their original values
+    if (originalPremiumKey) {
+      process.env.TIMEZONE_PREMIUM_KEY = originalPremiumKey;
+    } else {
+      delete process.env.TIMEZONE_PREMIUM_KEY;
+    }
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -33,9 +45,19 @@ describe('timeZoneAPIController Unit Tests', () => {
     test('Returns 401, as API is missing', async () => {
       const { getTimeZone } = makeSut();
       mockReq.body.requestor.role = 'Volunteer';
+      hasPermission.mockResolvedValue(false);
       const response = getTimeZone(mockReq, mockRes);
       await flushPromises();
       assertResMock(401, 'API Key Missing', await response, mockRes);
+    });
+
+    test('Returns 400, when `location` is missing in req.params', async () => {
+      const { getTimeZone } = makeSut();
+      mockReq.body.requestor.role = 'Volunteer';
+
+      const response = getTimeZone(mockReq, mockRes);
+      await flushPromises();
+      assertResMock(400, 'Missing location', await response, mockRes);
     });
   });
 });

@@ -13,7 +13,7 @@ Cross Mark: ❌
 
 1. ✅ Returns status code 403, if the user is not authorised.
 2. ✅ Returns status code 401, if the API key is missing.
-3. ❌ Returns status code 400, if the location is missing.
+3. ✅ Returns status code 400, if the location is missing.
 4. ❌ Returns status code 404, if geocodeAPIEndpoint returns no results.
 5. ❌ Returns status code 500, if any other error occurs.
 
