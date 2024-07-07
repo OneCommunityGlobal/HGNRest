@@ -15,6 +15,6 @@ Cross Mark: ❌
 2. ✅ Returns status code 401, if the API key is missing.
 3. ✅ Returns status code 400, if the location is missing.
 4. ❌ Returns status code 404, if geocodeAPIEndpoint returns no results.
-5. ❌ Returns status code 500, if any other error occurs.
+5. ✅ Returns status code 500, if any other error occurs.
 
 > ## Edge case
