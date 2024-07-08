@@ -4,11 +4,10 @@ const projects = require('../models/project');
 const wbs = require('../models/wbs');
 const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const helper = require('../utilities/permissions');
 
 const inventoryController = function (Item, ItemType) {
   const getAllInvInProjectWBS = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'getAllInvInProjectWBS'))) {
+    if (!(await hasPermission(req.body.requestor, 'getAllInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.params.projectId and wbsId
