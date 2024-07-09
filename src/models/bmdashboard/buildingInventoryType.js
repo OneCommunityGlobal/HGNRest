@@ -58,14 +58,23 @@ const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Sch
 
 const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
   category: { type: String, enum: ['Tool'] },
-  isPowered: { type: Boolean, required: true },
-  powerSource: { type: String, required: function() {
-    return this.isPowered; // required if isPowered = true 
-  },
-},
-  available: [{type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item'}],
-  using: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
-  //add a date last updated field? 
+  invoice: String,
+  purchaseRental: String,
+  fromDate: Date,
+  toDate:Date,
+  condition: String,
+  phoneNumber: String,
+  quantity: Number,
+  currency: String,
+  unitPrice: Number,
+  shippingFee: Number, 
+  taxes: Number, 
+  totalPriceWithShipping:  Number,
+  images: String,
+  link: String,
+
+  // isPowered: { type: Boolean, required: true },
+  // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
 }));
 
 //---------------------------
