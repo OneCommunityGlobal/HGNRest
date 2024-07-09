@@ -278,7 +278,6 @@ const projectController = function (Project) {
       )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
-        console.log(results);
         res.status(200).send(results);
       })
       .catch((error) => {
