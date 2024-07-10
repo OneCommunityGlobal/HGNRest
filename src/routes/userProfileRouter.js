@@ -100,6 +100,8 @@ const routes = function (userProfile) {
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
 
+  userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
+
   return userProfileRouter;
 };
 
