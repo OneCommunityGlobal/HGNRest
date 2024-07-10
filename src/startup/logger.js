@@ -62,18 +62,17 @@ exports.init = function () {
   Sentry.setTag('app_name', 'hgn-backend');
 };
 
-/**
- * Send message to sentry if in production or development environment. Otherwise, log to console.
- * Please use JSON.stringify() to convert Object to String first.
- * @param {String} message message to be logged to Sentry
- */
-exports.logInfo = function (message) {
+exports.logInfo = function (message, extraDataObject = null) {
   if (process.env.NODE_ENV === 'local' || !process.env.NODE_ENV) {
     // Do not log to Sentry in local environment
     console.log(message);
-  } else {
-    Sentry.captureMessage(message, { level: 'info' });
+    return 'LocalEnvriomentHasNoTrackingId';
   }
+  return Sentry.captureMessage(message, (scope) => {
+    scope.setExtras({ extraDataObject });
+    scope.setLevel('info');
+    return scope;
+  });
 };
 
 /**
