@@ -23,10 +23,13 @@ const invTypeBase = mongoose.model('invTypeBase', invTypeBaseSchema, 'buildingIn
 
 // ex: sand, stone, brick, lumber
 
-const materialType = invTypeBase.discriminator('material_type', new mongoose.Schema({
-  category: { type: String, enum: ['Material'] },
-  unit: { type: String, required: true }, // unit of measurement
-}));
+const materialType = invTypeBase.discriminator(
+  'material_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Material'] },
+    unit: { type: String, required: true }, // unit of measurement
+  }),
+);
 
 //---------------------------
 // CONSUMABLE TYPE
@@ -34,11 +37,14 @@ const materialType = invTypeBase.discriminator('material_type', new mongoose.Sch
 
 // ex: screws, nails, staples
 
-const consumableType = invTypeBase.discriminator('consumable_type', new mongoose.Schema({
-  category: { type: String, enum: ['Consumable'] },
-  unit: { type: String, required: true },
-  size: { type: String, required: false },
-}));
+const consumableType = invTypeBase.discriminator(
+  'consumable_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Consumable'] },
+    unit: { type: String, required: true },
+    size: { type: String, required: false },
+  }),
+);
 
 //---------------------------
 // REUSABLE TYPE
@@ -46,9 +52,12 @@ const consumableType = invTypeBase.discriminator('consumable_type', new mongoose
 
 // ex: gloves, brushes, hammers, screwdrivers
 
-const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Schema({
-  category: { type: String, enum: ['Reusable'] },
-}));
+const reusableType = invTypeBase.discriminator(
+  'reusable_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Reusable'] },
+  }),
+);
 
 //---------------------------
 // TOOL TYPE
@@ -56,17 +65,29 @@ const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Sch
 
 // ex: shovels, wheelbarrows, power drills, jackhammers
 
-const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
-  category: { type: String, enum: ['Tool'] },
-  isPowered: { type: Boolean, required: true },
-  powerSource: { type: String, required: function() {
-    return this.isPowered; // required if isPowered = true 
-  },
-},
-  available: [{type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item'}],
-  using: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
-  //add a date last updated field? 
-}));
+const toolType = invTypeBase.discriminator(
+  'tool_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Tool'] },
+    invoice: String,
+    purchaseRental: String,
+    fromDate: Date,
+    toDate: Date,
+    condition: String,
+    phoneNumber: String,
+    quantity: Number,
+    currency: String,
+    unitPrice: Number,
+    shippingFee: Number,
+    taxes: Number,
+    totalPriceWithShipping: Number,
+    images: String,
+    link: String,
+
+    // isPowered: { type: Boolean, required: true },
+    // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
+  }),
+);
 
 //---------------------------
 // EQUIPMENT TYPE
@@ -74,10 +95,17 @@ const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
 
 // ex: tractors, excavators
 
-const equipmentType = invTypeBase.discriminator('equipment_type', new mongoose.Schema({
-  category: { type: String, enum: ['Equipment'] },
-  fuelType: { type: String, enum: ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'], required: true },
-}));
+const equipmentType = invTypeBase.discriminator(
+  'equipment_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Equipment'] },
+    fuelType: {
+      type: String,
+      enum: ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'],
+      required: true,
+    },
+  }),
+);
 
 module.exports = {
   invTypeBase,
