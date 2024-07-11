@@ -9,57 +9,47 @@ const fetch = require('node-fetch');
 const originalPremiumKey = process.env.TIMEZONE_PREMIUM_KEY;
 process.env.TIMEZONE_PREMIUM_KEY = 'mockPremiumKey';
 
-// const successfulFetchRequestWithResults = jest.fn(() =>
-//   Promise.resolve({
-//     json: () => Promise.resolve({
-//       status: {
-//         code: 200,
-//         message: "Request Processed Successfully"
-//       },
-//       results: [
-//         {
-//           annotations: {
-//             timezone:{
-//               name: 'timeZone - Fiji'
-//             },
-//           },
-//           geometry:{
-//             lat:1,
-//             lng:1,
-//           },
-//           components: {
-//             country: "U.S.",
-//             city: "Paris"
-//           },
-//         },
-//       ],
-//      }),
-//   })
-// );
+const successfulFetchRequestWithResults = jest.fn(() =>
+  Promise.resolve({
+    json: () =>
+      Promise.resolve({
+        status: {
+          code: 200,
+          message: 'Request Processed Successfully',
+        },
+        results: [
+          {
+            annotations: {
+              timezone: {
+                name: 'timeZone - Fiji',
+              },
+            },
+            geometry: {
+              lat: 1,
+              lng: 1,
+            },
+            components: {
+              country: 'U.S.',
+              city: 'Paris',
+            },
+          },
+        ],
+      }),
+  }),
+);
 
-// const successfulFetchRequestWithNoResults = jest.fn(() =>
-//   Promise.resolve({
-//     json: () => Promise.resolve({
-//       status: {
-//         code: 200,
-//         message: "Request Processed Successfully"
-//       },
-//       results: [],
-//      }),
-//   })
-// );
-
-// const unsuccessfulFetchRequestDueToBadRequest = jest.fn(() =>
-//   Promise.resolve({
-//     json: () => Promise.resolve({
-//       status: {
-//         code: 400,
-//         message: "Bad Request"
-//       },
-//       results: [], //
-//      }),
-//   })
-// );
+const successfulFetchRequestWithNoResults = jest.fn(() =>
+  Promise.resolve({
+    json: () =>
+      Promise.resolve({
+        status: {
+          code: 200,
+          message: 'Request Processed Successfully',
+        },
+        results: [],
+      }),
+  }),
+);
 
 const unsuccessfulFetchRequestInternalServerError = jest.fn(() =>
   Promise.resolve({
@@ -69,7 +59,7 @@ const unsuccessfulFetchRequestInternalServerError = jest.fn(() =>
           code: null,
           message: 'Internal Server Error',
         },
-        results: [], //
+        results: [],
       }),
   }),
 );
@@ -140,6 +130,45 @@ describe('timeZoneAPIController Unit Tests', () => {
 
       expect(fetch).toHaveBeenCalled();
       assertResMock(500, 'opencage error- Internal Server Error', response, mockRes);
+    });
+
+    test('Returns 404, when status.code == 200 and data.results is empty', async () => {
+      const { getTimeZone } = makeSut();
+      mockReq.body.requestor.role = 'Volunteer';
+      mockReq.params.location = 'New Jersey';
+
+      fetch.mockImplementation(successfulFetchRequestWithNoResults);
+
+      const response = await getTimeZone(mockReq, mockRes);
+      await flushPromises();
+
+      expect(fetch).toHaveBeenCalled();
+      assertResMock(404, 'No results found', response, mockRes);
+    });
+
+    test('Returns 200, when status.code == 200 and data.results is not empty', async () => {
+      const { getTimeZone } = makeSut();
+      mockReq.body.requestor.role = 'Volunteer';
+      mockReq.params.location = 'New Jersey';
+
+      fetch.mockImplementation(successfulFetchRequestWithResults);
+      const timezone = 'timeZone - Fiji'; // mocking the timezone data to be returned by `successfulFetchRequestWithResults`
+      const currentLocation = {
+        // mocking the currentLocation data to be returned by `successfulFetchRequestWithResults`
+        userProvided: mockReq.params.location,
+        coords: {
+          lat: 1,
+          lng: 1,
+        },
+        country: 'U.S.',
+        city: 'Paris',
+      };
+
+      const response = await getTimeZone(mockReq, mockRes);
+      await flushPromises();
+
+      expect(fetch).toHaveBeenCalled();
+      assertResMock(200, { timezone, currentLocation }, response, mockRes);
     });
   });
 });
