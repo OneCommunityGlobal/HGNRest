@@ -448,7 +448,9 @@ const profileInitialSetupController = function (
    */
   const getSetupInvitation = (req, res) => {
     const { role } = req.body.requestor;
-    if (role === 'Administrator' || role === 'Owner') {
+    const { permissions } = req.body.requestor;
+    let user_permissions = ['getUserProfiles','postUserProfile','putUserProfile','changeUserStatus']
+    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
       try{
       ProfileInitialSetupToken
       .find({ isSetupCompleted: false })
