@@ -450,7 +450,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
     const { permissions } = req.body.requestor;
     let user_permissions = ['getUserProfiles','postUserProfile','putUserProfile','changeUserStatus']
-    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
+    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') || (role === 'Mentor') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
       try{
       ProfileInitialSetupToken
       .find({ isSetupCompleted: false })
