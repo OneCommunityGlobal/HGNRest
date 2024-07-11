@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
-
 //---------------------------
 // BASE INVENTORY TYPE SCHEMA
 //---------------------------
@@ -13,7 +12,7 @@ const invTypeBaseSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, required: true, maxLength: 150 },
   imageUrl: String,
-  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
+  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
 });
 
 const invTypeBase = mongoose.model('invTypeBase', invTypeBaseSchema, 'buildingInventoryTypes');
@@ -66,22 +65,27 @@ const reusableType = invTypeBase.discriminator(
 
 // ex: shovels, wheelbarrows, power drills, jackhammers
 
-const toolType = invTypeBase.discriminator(
-  'tool_type',
-  new mongoose.Schema({
-    category: { type: String, enum: ['Tool'] },
-    isPowered: { type: Boolean, required: true },
-    powerSource: {
-      type: String,
-      required() {
-        return this.isPowered; // required if isPowered = true
-      },
-    },
-    available: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
-    using: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
-    // add a date last updated field?
-  }),
-);
+const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
+  category: { type: String, enum: ['Tool'] },
+  invoice: String,
+  purchaseRental: String,
+  fromDate: Date,
+  toDate:Date,
+  condition: String,
+  phoneNumber: String,
+  quantity: Number,
+  currency: String,
+  unitPrice: Number,
+  shippingFee: Number, 
+  taxes: Number, 
+  totalPriceWithShipping:  Number,
+  images: String,
+  link: String,
+
+  // isPowered: { type: Boolean, required: true },
+  // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
+}));
+
 
 //---------------------------
 // EQUIPMENT TYPE

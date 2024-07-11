@@ -74,6 +74,7 @@ const largeItemBaseSchema = mongoose.Schema({
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       type: { type: String, enum: ['Check In', 'Check Out'] },
   }],
+  userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }, // new field
 });
 
 const largeItemBase = mongoose.model('largeItemBase', largeItemBaseSchema, 'buildingInventoryItems');
@@ -129,7 +130,8 @@ const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schem
   code: { type: String, default: '001' },
   purchaseStatus: {
     type: String,
-    enum: ['Needed', 'Purchased'] // Override enum values
+    enum: ['Rental', 'Purchased'], // Override enum values
+    default: 'Rental',
 }
 }));
 
@@ -143,8 +145,8 @@ const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schem
 // ex: tractors, excavators, bulldozers
 
 const buildingEquipment = largeItemBase.discriminator('equipment_item', new mongoose.Schema({
-  isTracked: { type: Boolean, required: true }, // has asset tracker
-  assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
+  // isTracked: { type: Boolean, required: true }, // has asset tracker
+  // assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
 }));
 
 module.exports = {
