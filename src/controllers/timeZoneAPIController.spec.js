@@ -95,26 +95,36 @@ describe('timeZoneAPIController Unit Tests', () => {
   describe('getTimeZone() function', () => {
     test('Returns 403, as requestor.role is missing in request body', async () => {
       const { getTimeZone } = makeSut();
+
       // setting request.role to `Null`
       mockReq.body.requestor.role = null;
+
       const response = await getTimeZone(mockReq, mockRes);
+
       assertResMock(403, 'Unauthorized Request', response, mockRes);
     });
 
     test('Returns 401, as API is missing', async () => {
       const { getTimeZone } = makeSut();
       mockReq.body.requestor.role = 'Volunteer';
+
       hasPermission.mockResolvedValue(false);
+
       const response = await getTimeZone(mockReq, mockRes);
       await flushPromises();
+
+      expect(hasPermission).toBeCalledTimes(1);
       assertResMock(401, 'API Key Missing', response, mockRes);
     });
 
     test('Returns 400, when `location` is missing in req.params', async () => {
       const { getTimeZone } = makeSut();
       mockReq.body.requestor.role = 'Volunteer';
+
       const response = await getTimeZone(mockReq, mockRes);
       await flushPromises();
+
+      expect(hasPermission).toBeCalledTimes(1);
       assertResMock(400, 'Missing location', response, mockRes);
     });
 
@@ -128,7 +138,8 @@ describe('timeZoneAPIController Unit Tests', () => {
       const response = await getTimeZone(mockReq, mockRes);
       await flushPromises();
 
-      expect(fetch).toHaveBeenCalled();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(hasPermission).toBeCalledTimes(1);
       assertResMock(500, 'opencage error- Internal Server Error', response, mockRes);
     });
 
@@ -142,7 +153,8 @@ describe('timeZoneAPIController Unit Tests', () => {
       const response = await getTimeZone(mockReq, mockRes);
       await flushPromises();
 
-      expect(fetch).toHaveBeenCalled();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(hasPermission).toBeCalledTimes(1);
       assertResMock(404, 'No results found', response, mockRes);
     });
 
@@ -167,7 +179,8 @@ describe('timeZoneAPIController Unit Tests', () => {
       const response = await getTimeZone(mockReq, mockRes);
       await flushPromises();
 
-      expect(fetch).toHaveBeenCalled();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(hasPermission).toBeCalledTimes(1);
       assertResMock(200, { timezone, currentLocation }, response, mockRes);
     });
   });
