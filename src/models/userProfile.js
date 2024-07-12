@@ -227,7 +227,7 @@ const userProfileSchema = new Schema({
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^([a-zA-Z0-9]-[a-zA-Z0-9]{3,5}|[a-zA-Z0-9]{5,7})$/;
+        const teamCoderegex = /^(.{5,7}|^$)$/;
         return teamCoderegex.test(v);
       },
       message:
