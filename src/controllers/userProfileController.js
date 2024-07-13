@@ -407,7 +407,6 @@ const userProfileController = function (UserProfile) {
         _id: up._id,
       });
     } catch (error) {
-      console.log(error);
       res.status(501).send(error);
     }
   };
