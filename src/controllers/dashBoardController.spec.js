@@ -26,7 +26,8 @@ const makeSut = () => {
     dashboarddata,
     sendBugReport,
     sendMakeSuggestion,
-    // getSuggestionOption
+    getSuggestionOption,
+    editSuggestionOption
   } = dashBoardController(AIPrompt);
   return { 
     updateCopiedPrompt,
@@ -40,7 +41,8 @@ const makeSut = () => {
     dashboarddata,
     sendBugReport,
     sendMakeSuggestion,
-    // getSuggestionOption
+    getSuggestionOption,
+    editSuggestionOption
   };
 };
 
@@ -49,14 +51,10 @@ const flushPromises = async () => new Promise(setImmediate);
 
 describe('Dashboard Controller tests', () => {
   beforeAll(() => {
-    // const dashboardHelperObject = 
-    //   {
-    //     laborthisweek: jest.fn(() => Promise.resolve([]))
-    //   };
-    // dashboardHelperClosure.mockImplementation(() => dashboardHelperObject);
+
   });
   beforeEach(() => {
-    dashboardhelper = dashboardHelperClosure();
+    // dashboardhelper = dashboardHelperClosure();
   });
   afterEach(() => {
     jest.clearAllMocks();
@@ -565,8 +563,9 @@ describe('Dashboard Controller tests', () => {
   describe('sendBugReport Tests', () => {
 
     test('Returns 200 if the bug report email is sent ', async () => {
-      const mockReq = {
-        body: {
+      
+      mockReq.body =  {
+          ...mockReq.body,
           firstName: 'Lin',
           lastName: 'Test',
           title: 'Bug in feature X',
@@ -577,7 +576,6 @@ describe('Dashboard Controller tests', () => {
           visual: 'Screenshot attached',
           severity: 'High',
           email: 'lin.test@example.com',
-        },
       };
 
       const { sendBugReport } = makeSut();
@@ -591,19 +589,19 @@ describe('Dashboard Controller tests', () => {
     })
 
     test('Returns 500 if the email fails to send', async () => {
-      const mockReq = {
-        body: {
-          firstName: 'Lin',
-          lastName: 'Test',
-          title: 'Bug in feature X',
-          environment: 'macOS 10.15, Chrome 89, App version 1.2.3',
-          reproduction: '1. Click on button A\n2. Enter invalid data\n3. Click submit',
-          expected: 'The app should display an error message',
-          actual: 'The app',
-          visual: 'Screenshot attached',
-          severity: 'High',
-          email: 'lin.test@example.com',
-        },
+      
+      mockReq.body =  {
+        ...mockReq.body,
+        firstName: 'Lin',
+        lastName: 'Test',
+        title: 'Bug in feature X',
+        environment: 'macOS 10.15, Chrome 89, App version 1.2.3',
+        reproduction: '1. Click on button A\n2. Enter valid data\n3. Click submit',
+        expected: 'The app should not display an error message',
+        actual: 'The app',
+        visual: 'Screenshot attached',
+        severity: 'High',
+        email: 'lin.test@example.com',
       };
 
       emailSender.mockImplementation(() => {
@@ -626,8 +624,8 @@ describe('Dashboard Controller tests', () => {
 
   describe('sendMakeSuggestion Tests', () => {
     test('Returns 500 if the suggestion email fails to send', async () => {
-      const mockReq = {
-        body: {
+      
+      mockReq.body =  {
           suggestioncate: 'Identify and remedy poor client and/or user service experiences',
           suggestion: 'This is a sample suggestion',
           confirm: 'true',
@@ -635,7 +633,6 @@ describe('Dashboard Controller tests', () => {
           firstName: 'Lin',
           lastName: 'Test',
           field: ['field1', 'field2'],
-        },
       };
       
       emailSender.mockImplementation(() => {
@@ -653,8 +650,9 @@ describe('Dashboard Controller tests', () => {
     })
 
     test('Returns 200 if the suggestion email is sent successfully', async () => {
-      const mockReq = {
-        body: {
+      
+      mockReq.body = {
+          ...mockReq.body,
           suggestioncate: 'Identify and remedy poor client and/or user service experiences',
           suggestion: 'This is a sample suggestion',
           confirm: 'true',
@@ -662,7 +660,6 @@ describe('Dashboard Controller tests', () => {
           firstName: 'John',
           lastName: 'Doe',
           field: ['field1', 'field2'],
-        },
       };
 
       emailSender.mockImplementation(() => {
@@ -681,18 +678,161 @@ describe('Dashboard Controller tests', () => {
 
   })
 
-  // describe('getSuggestionOption Tests', () => {
-  //   test.only('Returns 404 if the suggestion data is not found', async () => {
-  //     const mockReq = {}
-  //     dashBoardController.suggestionData = null;
+  // Need to make test cases for negative case
+  describe('getSuggestionOption Tests', () => {
 
-  //     const { getSuggestionOption } = makeSut();
+    // test.only('Returns 404 if the suggestion data is not found', async () => {
 
-  //     await getSuggestionOption(mockReq, mockRes);
+    //   const { getSuggestionOption } = makeSut();
 
-  //     await flushPromises();
+    //   await getSuggestionOption(mockReq, mockRes);
 
-  //     expect(mockRes.status).toBeCalledWith(200);
-  //   })
-  // })
+    //   await flushPromises();
+
+    //   expect(mockRes.status).toHaveBeenCalledWith(404);
+    //   expect(mockRes.send).toHaveBeenCalledWith('Suggestion Data Not Found');
+    // });
+
+    test('Returns 200 if there is suggestion data', async () => {
+      
+      const suggestionData = {
+        "field": [], 
+        "suggestion": [
+          "Identify and remedy poor client and/or user service experiences", 
+          "Identify bright spots and enhance positive service experiences", 
+          "Make fundamental changes to our programs and/or operations", 
+          "Inform the development of new programs/projects", 
+          "Identify where we are less inclusive or equitable across demographic groups", 
+          "Strengthen relationships with the people we serve", 
+          "Understand people's needs and how we can help them achieve their goals", 
+          "Other"
+        ]
+      };
+
+      const { getSuggestionOption } = makeSut();
+
+      await getSuggestionOption(mockReq, mockRes);
+
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(suggestionData);
+    })
+  })
+
+  // Need to make test cases for negative case
+  describe('editSuggestionOption tests', () => {
+    test('Returns 200 if suggestionData.field is added a new field', async () => {
+      
+      const suggestionData = {
+        suggestion: ['newSuggestion'],
+        field: ['newField'],
+      };
+
+      mockReq.body = {
+        suggestion: true,
+        action: 'add',
+        newField: 'new field',
+      };
+
+      const { editSuggestionOption } = makeSut();
+
+      await editSuggestionOption(mockReq, mockRes);
+
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(suggestionData.field).toEqual(['newField']);
+      expect(mockRes.send).toHaveBeenCalledWith('success');
+    });
+
+    test('Returns 200 if suggestionData.suggestion is added a new suggestion', async () => {
+      
+      const suggestionData = {
+        suggestion: ['newSuggestion'],
+        field: [],
+      };
+
+      mockReq.body = {
+        suggestion: true,
+        action: 'add',
+        newField: 'new suggestion',
+      };
+
+      const { editSuggestionOption } = makeSut();
+
+      await editSuggestionOption(mockReq, mockRes);
+
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(suggestionData.suggestion).toEqual(['newSuggestion']);
+      expect(mockRes.send).toHaveBeenCalledWith('success');
+    })
+
+    test('Returns 200 if suggestionData.field is deleted', async () => {
+      
+      const suggestionData = {
+        suggestion: ['newSuggestion'],
+        field: [],
+      };
+
+      mockReq.body = {
+        suggestion: true,
+        action: 'delete',
+        newField: 'new field',
+      };
+
+      const { editSuggestionOption } = makeSut();
+
+      await editSuggestionOption(mockReq, mockRes);
+
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(suggestionData.field).toEqual([]);
+      expect(mockRes.send).toHaveBeenCalledWith('success');
+    });
+
+    test('Returns 200 if suggestionData.suggestion is deleted', async () => {
+      
+      const suggestionData = {
+        suggestion: [],
+        field: [],
+      };
+
+      mockReq.body = {
+        suggestion: true,
+        action: 'delete',
+        newField: 'new field',
+      };
+
+      const { editSuggestionOption } = makeSut();
+
+      await editSuggestionOption(mockReq, mockRes);
+
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(suggestionData.suggestion).toEqual([]);
+      expect(mockRes.send).toHaveBeenCalledWith('success');
+    });
+
+    // test.only('Returns 500 if there is an error in the function', async () => {
+
+    // const { editSuggestionOption } = makeSut();
+
+    // await editSuggestionOption(mockReq, mockRes);
+
+    // jest
+    //   .spyOn(console, 'error')
+    //   .mockRejectedValueOnce('Internal Server Error')
+    
+    // expect(mockRes.status).toHaveBeenCalledWith(500);
+    // expect(mockRes.send).toHaveBeenCalledWith('Internal Server Error');
+    // });
+
+
+  })
+
 });
