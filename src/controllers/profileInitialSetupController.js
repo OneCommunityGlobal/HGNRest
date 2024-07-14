@@ -125,19 +125,19 @@ const profileInitialSetupController = function (
 ) {
   const { JWT_SECRET } = config;
 
-  const setMapLocation = async (locationData) => {
-    const location = new MapLocation(locationData);
+  // const setMapLocation = async (locationData) => {
+  //   const location = new MapLocation(locationData);
 
-    try {
-      const response = await location.save();
-      return response;
-    } catch (err) {
-      return {
-        type: "Error",
-        message: err.message || "An error occurred while saving the location",
-      };
-    }
-  };
+  //   try {
+  //     const response = await location.save();
+  //     return response;
+  //   } catch (err) {
+  //     return {
+  //       type: "Error",
+  //       message: err.message || "An error occurred while saving the location",
+  //     };
+  //   }
+  // };
 
   /**
    * Function to handle token generation and email process:
@@ -316,6 +316,7 @@ const profileInitialSetupController = function (
       newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber;
       newUser.teamCode = '';
       newUser.isFirstTimelog = true;
+      newUser.homeCountry = req.body.homeCountry || req.body.location;
 
       const savedUser = await newUser.save();
 
@@ -336,14 +337,14 @@ const profileInitialSetupController = function (
 
       const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
 
-      const locationData = {
-        title: '',
-        firstName: req.body.firstName,
-        lastName: req.body.lastName,
-        jobTitle: req.body.jobTitle,
-        location: req.body.homeCountry,
-        isActive: true,
-      };
+      // const locationData = {
+      //   title: '',
+      //   firstName: req.body.firstName,
+      //   lastName: req.body.lastName,
+      //   jobTitle: req.body.jobTitle,
+      //   location: req.body.homeCountry,
+      //   isActive: true,
+      // };
 
       res.status(200).send({ token: jwtToken });
       await ProfileInitialSetupToken.findOneAndUpdate(
@@ -352,10 +353,10 @@ const profileInitialSetupController = function (
         { new: true },
       );
 
-      const mapEntryResult = await setMapLocation(locationData);
-      if (mapEntryResult.type === 'Error') {
-        console.log(mapEntryResult.message);
-      }
+      // const mapEntryResult = await setMapLocation(locationData);
+      // if (mapEntryResult.type === 'Error') {
+      //   console.log(mapEntryResult.message);
+      // }
 
       const NewUserCache = {
         permissions: savedUser.permissions,
