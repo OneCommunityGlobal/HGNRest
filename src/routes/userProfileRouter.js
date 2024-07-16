@@ -1,6 +1,7 @@
 const { body } = require('express-validator');
 
 const express = require('express');
+const { ValidationError } = require('../utilities/errorHandling/customError');
 
 const routes = function (userProfile) {
   const controller = require('../controllers/userProfileController')(userProfile);
@@ -11,8 +12,14 @@ const routes = function (userProfile) {
     .route('/userProfile')
     .get(controller.getUserProfiles)
     .post(
-      body('firstName').customSanitizer(value => value.trim()),
-      body('lastName').customSanitizer(value => value.trim()),
+      body('firstName').customSanitizer((value) => {
+        if (!value) throw new ValidationError('First Name is required');
+        return value.trim();
+      }),
+      body('lastName').customSanitizer((value) => {
+        if (!value) throw new ValidationError('Last Name is required');
+        return value.trim();
+      }),
       controller.postUserProfile,
     );
 
@@ -20,8 +27,14 @@ const routes = function (userProfile) {
     .route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(
-      body('firstName').customSanitizer((value) => value.trim()),
-      body('lastName').customSanitizer((value) => value.trim()),
+      body('firstName').customSanitizer((value) => {
+        if (!value) throw new ValidationError('First Name is required');
+        return value.trim();
+      }),
+      body('lastName').customSanitizer((value) => {
+        if (!value) throw new ValidationError('Last Name is required');
+        return value.trim();
+      }),
       body('personalLinks').customSanitizer((value) =>
         value.map((link) => {
           if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
@@ -31,7 +44,7 @@ const routes = function (userProfile) {
               Link: link.Link.replace(/\s/g, ''),
             };
           }
-          throw new Error('Url not valid');
+          throw new ValidationError('personalLinks not valid');
         }),
       ),
       body('adminLinks').customSanitizer((value) =>
@@ -43,7 +56,7 @@ const routes = function (userProfile) {
               Link: link.Link.replace(/\s/g, ''),
             };
           }
-          throw new Error('Url not valid');
+          throw new ValidationError('adminLinks not valid');
         }),
       ),
       controller.putUserProfile,
@@ -86,6 +99,8 @@ const routes = function (userProfile) {
   userProfileRouter
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
+
+  userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   return userProfileRouter;
 };
