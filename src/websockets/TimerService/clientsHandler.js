@@ -117,7 +117,17 @@ const addGoal = (client, msg) => {
   const duration = parseInt(msg.split('=')[1]);
   const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
 
-  if (goalAfterAddition > MAX_HOURS) return;
+  if (goalAfterAddition >= MAX_HOURS) {
+    const oldGoal = client.goal;
+    client.goal = MAX_HOURS * 60 * 60 * 1000;
+    client.time = moment
+      .duration(client.time)
+      .add(client.goal - oldGoal, 'milliseconds')
+      .asMilliseconds()
+      .toFixed();
+
+    return;
+  }
 
   client.goal = moment
     .duration(client.goal)
