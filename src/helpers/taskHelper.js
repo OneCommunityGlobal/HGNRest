@@ -5,12 +5,12 @@ const timeentry = require('../models/timeentry');
 const team = require('../models/team');
 const Task = require('../models/task');
 const TaskNotification = require('../models/taskNotification');
+const { hasPermission } = require('../utilities/permissions');
 
 const taskHelper = function () {
   const getTasksForTeams = async function (userId, requestor) {
     const userid = mongoose.Types.ObjectId(userId);
     const requestorId = mongoose.Types.ObjectId(requestor.requestorId);
-    const requestorRole = requestor.role;
     try {
       const userById = await userProfile.findOne(
         { _id: userid, isActive: true },
@@ -21,8 +21,11 @@ const taskHelper = function () {
           isVisible: 1,
           weeklycommittedHours: 1,
           weeklySummaries: 1,
+          weeklySummaryOption: 1,
           timeOffFrom: 1,
           timeOffTill: 1,
+          teamCode: 1,
+          teams: 1,
           adminLinks: 1,
         },
       );
@@ -30,41 +33,40 @@ const taskHelper = function () {
       if (userById === null) return null;
       const userRole = userById.role;
 
-      const pdtstart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
-      const pdtend = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+      const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+      const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
       let teamMemberIds = [userid];
       let teamMembers = [];
 
-      const isRequestorOwnerLike = [
-        'Administrator',
-        'Owner',
-        'Core Team',
-      ].includes(requestorRole);
-      const isUserOwnerLike = ['Administrator', 'Owner', 'Core Team'].includes(
-        userRole,
-      );
+      const isRequestorOwnerLike = await hasPermission(requestor, 'seeUsersInDashboard');
+      const userAsRequestor = { role: userRole, requestorId: userId };
+      const isUserOwnerLike = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
-          teamMembers = await userProfile.find(
-            { isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              weeklycommittedHours: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-              adminLinks: 1,
-            },
-          );
+          teamMembers = await userProfile
+            .find(
+              { isActive: true },
+              {
+                role: 1,
+                firstName: 1,
+                lastName: 1,
+                weeklycommittedHours: 1,
+                weeklySummaryOption: 1,
+                timeOffFrom: 1,
+                timeOffTill: 1,
+                teamCode: 1,
+                teams: 1,
+                adminLinks: 1,
+              },
+            )
+            .populate([
+              {
+                path: 'teams',
+                select: 'teamName',
+              },
+            ]);
           break;
         }
         case isRequestorOwnerLike && !isUserOwnerLike: {
@@ -79,18 +81,28 @@ const taskHelper = function () {
             });
           });
 
-          teamMembers = await userProfile.find(
-            { _id: { $in: teamMemberIds }, isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              weeklycommittedHours: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-              adminLinks: 1,
-            },
-          );
+          teamMembers = await userProfile
+            .find(
+              { _id: { $in: teamMemberIds }, isActive: true },
+              {
+                role: 1,
+                firstName: 1,
+                lastName: 1,
+                weeklycommittedHours: 1,
+                weeklySummaryOption: 1,
+                timeOffFrom: 1,
+                timeOffTill: 1,
+                teamCode: 1,
+                teams: 1,
+                adminLinks: 1,
+              },
+            )
+            .populate([
+              {
+                path: 'teams',
+                select: 'teamName',
+              },
+            ]);
           break;
         }
         default: {
@@ -105,22 +117,32 @@ const taskHelper = function () {
             });
           });
 
-          teamMembers = await userProfile.find(
-            { _id: { $in: teamMemberIds }, isActive: true },
-            {
-              role: 1,
-              firstName: 1,
-              lastName: 1,
-              weeklycommittedHours: 1,
-              timeOffFrom: 1,
-              timeOffTill: 1,
-              adminLinks: 1,
-            },
-          );
+          teamMembers = await userProfile
+            .find(
+              { _id: { $in: teamMemberIds }, isActive: true },
+              {
+                role: 1,
+                firstName: 1,
+                lastName: 1,
+                weeklycommittedHours: 1,
+                weeklySummaryOption: 1,
+                timeOffFrom: 1,
+                timeOffTill: 1,
+                teamCode: 1,
+                teams: 1,
+                adminLinks: 1,
+              },
+            )
+            .populate([
+              {
+                path: 'teams',
+                select: 'teamName',
+              },
+            ]);
         }
       }
 
-      teamMemberIds = teamMembers.map(member => member._id);
+      teamMemberIds = teamMembers.map((member) => member._id);
 
       const timeEntries = await timeentry.find({
         dateOfWork: {
@@ -128,6 +150,7 @@ const taskHelper = function () {
           $lte: pdtend,
         },
         personId: { $in: teamMemberIds },
+        isActive: { $ne: false },
       });
 
       const timeEntryByPerson = {};
@@ -141,8 +164,7 @@ const taskHelper = function () {
           };
         }
         if (timeEntry.isTangible) {
-          timeEntryByPerson[personIdStr].tangibleSeconds
-            += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
         }
         timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
       });
@@ -153,7 +175,7 @@ const taskHelper = function () {
         path: 'wbsId',
         select: 'projectId',
       });
-      const teamMemberTaskIds = teamMemberTasks.map(task => task._id);
+      const teamMemberTaskIds = teamMemberTasks.map((task) => task._id);
       const teamMemberTaskNotifications = await TaskNotification.find({
         taskId: { $in: teamMemberTaskIds },
       });
@@ -165,13 +187,9 @@ const taskHelper = function () {
         const taskNdUserID = `${taskIdStr},${userIdStr}`;
 
         if (taskNotificationByTaskNdUser[taskNdUserID]) {
-          taskNotificationByTaskNdUser[taskNdUserID].push(
-            teamMemberTaskNotification,
-          );
+          taskNotificationByTaskNdUser[taskNdUserID].push(teamMemberTaskNotification);
         } else {
-          taskNotificationByTaskNdUser[taskNdUserID] = [
-            teamMemberTaskNotification,
-          ];
+          taskNotificationByTaskNdUser[taskNdUserID] = [teamMemberTaskNotification];
         }
       });
 
@@ -185,7 +203,11 @@ const taskHelper = function () {
         teamMemberTask.resources.forEach((resource) => {
           const resourceIdStr = resource.userID?.toString();
           const taskNdUserID = `${taskIdStr},${resourceIdStr}`;
-          _teamMemberTask.taskNotifications = taskNotificationByTaskNdUser[taskNdUserID] || [];
+          // initialize taskNotifications if not exists
+          if (!_teamMemberTask.taskNotifications) _teamMemberTask.taskNotifications = [];
+          // push all notifications into the list if taskNdUserId key exists
+          if (taskNotificationByTaskNdUser[taskNdUserID])
+            _teamMemberTask.taskNotifications.push(...taskNotificationByTaskNdUser[taskNdUserID]);
           if (taskByPerson[resourceIdStr]) {
             taskByPerson[resourceIdStr].push(_teamMemberTask);
           } else {
@@ -196,20 +218,22 @@ const taskHelper = function () {
 
       const teamMemberTasksData = [];
       teamMembers.forEach((teamMember) => {
+        const timeEntry = timeEntryByPerson[teamMember._id.toString()];
+        const tangible = timeEntry?.tangibleSeconds || 0;
+        const total = timeEntry?.totalSeconds || 0;
         const obj = {
           personId: teamMember._id,
           role: teamMember.role,
           name: `${teamMember.firstName} ${teamMember.lastName}`,
           weeklycommittedHours: teamMember.weeklycommittedHours,
-          totaltangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
-              / 3600 || 0,
-          totaltime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600
-            || 0,
+          weeklySummaryOption: teamMember.weeklySummaryOption || null,
+          totaltangibletime_hrs: tangible / 3600,
+          totaltime_hrs: total / 3600,
           tasks: taskByPerson[teamMember._id.toString()] || [],
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
+          teamCode: teamMember.teamCode || null,
+          teams: teamMember.teams || null,
           adminLinks: teamMember.adminLinks || null,
         };
         teamMemberTasksData.push(obj);
@@ -505,14 +529,8 @@ const taskHelper = function () {
     // ]);
   };
   const getTasksForSingleUser = function (userId) {
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
     return userProfile.aggregate([
       {
         $match: {
@@ -572,6 +590,9 @@ const taskHelper = function () {
                   },
                   {
                     $in: ['$$timeentry.entryType', ['default', null]],
+                  },
+                  {
+                    $ne: ['$$timeentry.isActive', false],
                   },
                 ],
               },
@@ -672,10 +693,15 @@ const taskHelper = function () {
       {
         $project: {
           tasks: {
-            resources: {
-              profilePic: 0,
+            $filter: {
+              input: '$tasks',
+              as: 'task',
+              cond: {
+                $ne: ['$$task.isActive', false],
+              },
             },
           },
+          'tasks.resources.profilePic': 0,
         },
       },
       {

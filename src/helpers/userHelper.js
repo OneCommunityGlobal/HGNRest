@@ -1,6 +1,15 @@
 /* eslint-disable quotes */
 /* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
+/* eslint-disable no-console */
+/* eslint-disable consistent-return  */
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable no-use-before-define */
+/* eslint-disable no-unsafe-optional-chaining */
+/* eslint-disable no-restricted-syntax */
+
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -13,10 +22,11 @@ const reportHelper = require('./reporthelper')();
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
+const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
 const timeOffRequest = require('../models/timeOffRequest');
-const notificationService = require("../services/notificationService");
-const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require("../constants/message");
+const notificationService = require('../services/notificationService');
+const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 
 const userHelper = function () {
@@ -96,6 +106,7 @@ const userHelper = function () {
     timeRemaining,
     coreTeamExtraHour,
     requestForTimeOffEmailBody,
+    administrativeContent,
   ) {
     let finalParagraph = '';
 
@@ -107,16 +118,63 @@ const userHelper = function () {
         timeRemaining + coreTeamExtraHour
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
     }
-
+    // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
+    let emailDescription = requestForTimeOffEmailBody;
+    if (!requestForTimeOffEmailBody && infringement.description) {
+      const sentences = infringement.description.split('.');
+      if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+        sentences[0] = sentences[0].replace(
+          /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(
+          /logged (\d+(\.\d+)?\s*hours)/i,
+          'logged <b>$1</b>',
+        );
+      } else if (
+        sentences[0].includes('System auto-assigned infringement for editing your time entries')
+      ) {
+        sentences[0] = sentences[0].replace(
+          /time entries <(\d+)>\s*times/i,
+          'time entries <b>$1 times</b>',
+        );
+        emailDescription = sentences.join('.');
+      } else if (sentences[0].includes('System auto-assigned infringement')) {
+        sentences[0] = sentences[0].replace(/(not submitting a weekly summary)/gi, '<b>$1</b>');
+        sentences[0] = sentences[0].replace(
+          /(not meeting weekly volunteer time commitment)/gi,
+          '<b>$1</b>',
+        );
+        emailDescription = sentences.join('.');
+        emailDescription = emailDescription.replace(
+          /logged (\d+(\.\d+)?\s*hours)/i,
+          'logged <b>$1</b>',
+        );
+      } else {
+        emailDescription = `<b>${infringement.description}<b>`;
+      }
+    }
+    // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${infringement.date}</p>\
-        <p><b>Description:</b> ${requestForTimeOffEmailBody || infringement.description}</p>
+        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
+        <p><b>Description:</b> ${emailDescription}</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
           .localeData()
           .ordinal(totalInfringements)}</b> blue square of 5.</p>
         ${finalParagraph}
-        <p>Thank you, One Community</p>`;
+        <p>Thank you,<p>
+        <p>One Community</p>
+        <!-- Adding multiple non-breaking spaces -->
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <hr style="border-top: 1px dashed #000;"/>      
+        <p><b>ADMINISTRATIVE DETAILS:</b></p>
+        <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Role:</b> ${administrativeContent.role}</p>
+        <p><b>Title:</b> ${administrativeContent.userTitle || 'Volunteer'} </p>
+        <p><b>Previous Blue Square Reasons: </b></p>
+        ${administrativeContent.historyInfringements}`;
 
     return text;
   };
@@ -241,6 +299,7 @@ const userHelper = function () {
           <b>Name:</b> ${firstName} ${lastName}
           <p>
 
+
             <b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}
 
           </p>
@@ -326,7 +385,7 @@ const userHelper = function () {
           },
         },
       })
-      .catch(error => logger.logException(error));
+      .catch((error) => logger.logException(error));
   };
 
   /**
@@ -337,6 +396,7 @@ const userHelper = function () {
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
+      console.log('run')
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
 
@@ -352,10 +412,9 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true  },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
-
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
       // targeted as spam
@@ -374,7 +433,7 @@ const userHelper = function () {
           // save updated records in batch (mongoose updateMany) and do asyc email sending
         2. Wrap the operation in one transaction to ensure the atomicity of the operation.
       */
-     for (let i = 0; i < users.length; i += 1) {
+      for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
         const person = await userProfile.findById(user._id);
@@ -409,26 +468,33 @@ const userHelper = function () {
 
         const timeRemaining = weeklycommittedHours - timeSpent;
 
-         /** Check if the user is new user to prevent blue square assignment
+        /** Check if the user is new user to prevent blue square assignment
          * Condition:
          *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
          *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
-         *  3. No hour logged
+         *  3. No hours logged, and the account was after the start of last week.
          *
          * Notes:
-         *  1. Start date is automatically updated upon frist time-log.
+         *  1. Start date is automatically updated upon first time-log.
          *  2. User meet above condition but meet minimum hours without submitting weekly summary
          *     should get a blue square as reminder.
          *  */
         let isNewUser = false;
         const userStartDate = moment(person.startDate);
-        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0) {
-              isNewUser = true;
+        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0 && 
+          userStartDate.isAfter(pdtStartOfLastWeek)) {
+          console.log("1")
+          isNewUser = true;
         }
 
-        if ((userStartDate.isAfter(pdtEndOfLastWeek))
-               || (userStartDate.isAfter(pdtStartOfLastWeek) && userStartDate.isBefore(pdtEndOfLastWeek) && timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)) {
-            isNewUser = true;
+        if (
+          userStartDate.isAfter(pdtEndOfLastWeek) ||
+          (userStartDate.isAfter(pdtStartOfLastWeek) &&
+            userStartDate.isBefore(pdtEndOfLastWeek) &&
+            timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+        ) {
+          console.log("2")
+          isNewUser = true;
         }
 
         const updateResult = await userProfile.findByIdAndUpdate(
@@ -470,7 +536,8 @@ const userHelper = function () {
             break;
           }
         }
-
+        // use histroy Infringements to align the highlight requirements
+        let historyInfringements = 'No Previous Infringements.';
         if (oldInfringements.length) {
           userProfile.findByIdAndUpdate(
             personId,
@@ -481,6 +548,67 @@ const userHelper = function () {
             },
             { new: true },
           );
+          historyInfringements = oldInfringements
+            .map((item, index) => {
+              let enhancedDescription;
+              if (item.description) {
+                let sentences = item.description.split('.');
+                const dateRegex =
+                  /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+                sentences = sentences.map((sentence) =>
+                  sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                    const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                      'M-D-YYYY',
+                    );
+                    const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                      'M-D-YYYY',
+                    );
+                    return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+                  }),
+                );
+                if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+                  sentences[0] = sentences[0].replace(
+                    /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                  enhancedDescription = enhancedDescription.replace(
+                    /logged (\d+(\.\d+)?\s*hours)/i,
+                    'logged <span style="color: blue;"><b>$1</b></span>',
+                  );
+                } else if (
+                  sentences[0].includes(
+                    'System auto-assigned infringement for editing your time entries',
+                  )
+                ) {
+                  sentences[0] = sentences[0].replace(
+                    /time entries <(\d+)>\s*times/i,
+                    'time entries <b>$1 times</b>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                } else if (sentences[0].includes('System auto-assigned infringement')) {
+                  sentences[0] = sentences[0].replace(
+                    /(not submitting a weekly summary)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  sentences[0] = sentences[0].replace(
+                    /(not meeting weekly volunteer time commitment)/gi,
+                    '<span style="color: blue;"><b>$1</b></span>',
+                  );
+                  enhancedDescription = sentences.join('.');
+                  enhancedDescription = enhancedDescription.replace(
+                    /logged (\d+(\.\d+)?\s*hours)/i,
+                    'logged <span style="color: blue;"><b>$1</b></span>',
+                  );
+                } else {
+                  enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+                }
+              }
+              return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(
+                item.date,
+              ).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+            })
+            .join('');
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
@@ -506,13 +634,13 @@ const userHelper = function () {
           // eslint-disable-next-line prefer-destructuring
           requestForTimeOff = requestsForTimeOff[0];
           requestForTimeOffStartingDate = moment(requestForTimeOff.startingDate).format(
-            'dddd YYYY-MM-DD',
+            'dddd M-D-YYYY',
           );
           requestForTimeOffEndingDate = moment(requestForTimeOff.endingDate).format(
-            'dddd YYYY-MM-DD',
+            'dddd  M-D-YYYY',
           );
           requestForTimeOffreason = requestForTimeOff.reason;
-          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to:</span> ${requestForTimeOffreason}`;
+          requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
         }
 
         if (timeNotMet || !hasWeeklySummary) {
@@ -521,9 +649,9 @@ const userHelper = function () {
           } else if (timeNotMet && !hasWeeklySummary) {
             if (person.role === 'Core Team') {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )} and ending ${pdtEndOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
                 person.weeklycommittedHours
               } hours + ${
@@ -539,15 +667,15 @@ const userHelper = function () {
               description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
                 2,
               )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                'dddd M-D-YYYY',
+              )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
             }
           } else if (timeNotMet) {
             if (person.role === 'Core Team') {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )} and ending ${pdtEndOfLastWeek.format(
-                'dddd YYYY-MM-DD',
+                'dddd M-D-YYYY',
               )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
                 user.weeklycommittedHours
               } hours + ${
@@ -563,13 +691,13 @@ const userHelper = function () {
               description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                 2,
               )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                'dddd YYYY-MM-DD',
-              )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+                'dddd M-D-YYYY',
+              )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
             }
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-              'dddd YYYY-MM-DD',
-            )} and ending ${pdtEndOfLastWeek.format('dddd YYYY-MM-DD')}.`;
+              'dddd M-D-YYYY',
+            )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
           }
 
           const infringement = {
@@ -582,6 +710,7 @@ const userHelper = function () {
           // Only assign blue square and send email if the user IS NOT a new user
           // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
           // All other new users will not receive a blue square or notification
+          let emailBody = '';
           if (!isNewUser) {
             const status = await userProfile.findByIdAndUpdate(
               personId,
@@ -592,9 +721,13 @@ const userHelper = function () {
               },
               { new: true },
             );
-
-            let emailBody = "";
-            if (person.role === "Core Team" && timeRemaining > 0) {
+            const administrativeContent = {
+              startDate: moment(person.startDate).utc().format('M-D-YYYY'),
+              role: person.role,
+              userTitle: person.jobTitle[0],
+              historyInfringements,
+            };
+            if (person.role === 'Core Team' && timeRemaining > 0) {
               emailBody = getInfringementEmailBody(
                 status.firstName,
                 status.lastName,
@@ -603,6 +736,7 @@ const userHelper = function () {
                 timeRemaining,
                 coreTeamExtraHour,
                 requestForTimeOffEmailBody,
+                administrativeContent,
               );
             } else {
               emailBody = getInfringementEmailBody(
@@ -613,15 +747,31 @@ const userHelper = function () {
                 undefined,
                 null,
                 requestForTimeOffEmailBody,
+                administrativeContent,
               );
+            }
+
+            let emailsBCCs;
+            /* eslint-disable array-callback-return */
+            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
+              .populate('assignedTo')
+              .exec();
+            if (blueSquareBCCs.length > 0) {
+              emailsBCCs = blueSquareBCCs.map((assignment) => {
+                if (assignment.assignedTo.isActive === true) {
+                  return assignment.email;
+                }
+              });
+            } else {
+              emailsBCCs = null;
             }
 
             emailSender(
               status.email,
-              "New Infringement Assigned",
+              'New Infringement Assigned',
               emailBody,
-              null,
-              "onecommunityglobal@gmail.com",
+              emailsBCCs,
+              'onecommunityglobal@gmail.com',
               status.email,
               null,
             );
@@ -684,8 +834,14 @@ const userHelper = function () {
       // Create notification for users who are new and met the time requirement but weekly summary not submitted
       // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
       if (usersRequiringBlueSqNotification.length > 0) {
-        const senderId = await userProfile.findOne({ role: "Owner", isActive: true }, "_id");
-        await notificationService.createNotification(senderId._id, usersRequiringBlueSqNotification, NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE, true, false);
+        const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
+        await notificationService.createNotification(
+          senderId._id,
+          usersRequiringBlueSqNotification,
+          NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE,
+          true,
+          false,
+        );
       }
     } catch (err) {
       logger.logException(err);
@@ -824,7 +980,8 @@ const userHelper = function () {
         },
       );
 
-      logger.logInfo(results);
+      logger.logInfo(`Job deleting blue squares older than 1 year finished 
+        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
     } catch (err) {
       logger.logException(err);
     }
@@ -888,13 +1045,89 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (original, current, firstName, lastName, emailAddress) {
+  const notifyInfringements = function (
+    original,
+    current,
+    firstName,
+    lastName,
+    emailAddress,
+    role,
+    startDate,
+    jobTitle,
+  ) {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
-
+    let historyInfringements = 'No Previous Infringements.';
+    if (original.length) {
+      historyInfringements = original
+        .map((item, index) => {
+          let enhancedDescription;
+          if (item.description) {
+            let sentences = item.description.split('.');
+            const dateRegex =
+              /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+            sentences = sentences.map((sentence) =>
+              sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+              }),
+            );
+            if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else if (
+              sentences[0].includes(
+                'System auto-assigned infringement for editing your time entries',
+              )
+            ) {
+              sentences[0] = sentences[0].replace(
+                /time entries <(\d+)>\s*times/i,
+                'time entries <b>$1 times</b>',
+              );
+              enhancedDescription = sentences.join('.');
+            } else if (sentences[0].includes('System auto-assigned infringement')) {
+              sentences[0] = sentences[0].replace(
+                /(not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else {
+              enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+            }
+          }
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+        })
+        .join('');
+    }
+    const administrativeContent = {
+      startDate: moment(startDate).utc().format('M-D-YYYY'),
+      role,
+      userTitle: jobTitle,
+      historyInfringements,
+    };
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
     );
@@ -902,8 +1135,16 @@ const userHelper = function () {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
-        getInfringementEmailBody(firstName, lastName, element, totalInfringements),
-
+        getInfringementEmailBody(
+          firstName,
+          lastName,
+          element,
+          totalInfringements,
+          undefined,
+          undefined,
+          undefined,
+          administrativeContent,
+        ),
         null,
         'onecommunityglobal@gmail.com',
         emailAddress,
@@ -994,7 +1235,7 @@ const userHelper = function () {
         const userInfo = await userProfile.findById(personId);
         let newEarnedDate = [];
         const recordToUpdate = userInfo.badgeCollection.find(
-          item => item.badge._id.toString() === badgeId.toString(),
+          (item) => item.badge._id.toString() === badgeId.toString(),
         );
         if (!recordToUpdate) {
           throw new Error(
@@ -1201,7 +1442,7 @@ const userHelper = function () {
 
           if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
             const theBadge = badgesOfType.find(
-              badgeItem => badgeItem._id.toString() === elem._id.toString(),
+              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
             );
             return theBadge
               ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
@@ -1209,6 +1450,48 @@ const userHelper = function () {
           }
         }
       });
+  };
+
+  const getAllWeeksData = async (personId, user) => {
+    const userId = mongoose.Types.ObjectId(personId);
+    const weeksData = [];
+    const currentDate = moment().tz('America/Los_Angeles');
+    const startDate = moment(user.createdDate).tz('America/Los_Angeles');
+    const numWeeks = Math.ceil(currentDate.diff(startDate, 'days') / 7);
+
+    // iterate through weeks to get hours of each week
+    for (let week = 1; week <= numWeeks; week += 1) {
+      const pdtstart = startDate
+        .clone()
+        .add(week - 1, 'weeks')
+        .startOf('week')
+        .format('YYYY-MM-DD');
+      const pdtend = startDate.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
+      try {
+        const results = await dashboardHelper.laborthisweek(userId, pdtstart, pdtend);
+        const { timeSpent_hrs: timeSpent } = results[0];
+        weeksData.push(timeSpent);
+      } catch (error) {
+        console.error(error);
+        throw error;
+      }
+    }
+    return weeksData;
+  };
+
+  const getMaxHrs = async (personId, user) => {
+    const weeksdata = await getAllWeeksData(personId, user);
+    return Math.max(...weeksdata);
+  };
+
+  const updatePersonalMax = async (personId, user) => {
+    try {
+      const MaxHrs = await getMaxHrs(personId, user);
+      user.personalBestMaxHrs = MaxHrs;
+      await user.save();
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   // 'Personal Max',
@@ -1230,17 +1513,18 @@ const userHelper = function () {
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
+      const currentDate = moment(moment().format('MM-DD-YYYY'), 'MM-DD-YYYY')
+        .tz('America/Los_Angeles')
+        .format('MMM-DD-YY');
       if (
         user.lastWeekTangibleHrs &&
-        user.lastWeekTangibleHrs >= 1 &&
-        user.lastWeekTangibleHrs === user.personalBestMaxHrs
+        user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
+        !badgeOfType.earnedDate.includes(currentDate)
       ) {
         if (badgeOfType) {
-          changeBadgeCount(
-            personId,
-            mongoose.Types.ObjectId(badgeOfType._id),
-            user.personalBestMaxHrs,
-          );
+          increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
+          // Update the earnedDate array with the new date
+          badgeOfType.earnedDate.unshift(moment().format('MMM-DD-YYYY'));
         } else {
           addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
         }
@@ -1309,7 +1593,7 @@ const userHelper = function () {
           return true;
         });
       });
-  }
+  };
 
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
@@ -1555,6 +1839,7 @@ const userHelper = function () {
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
+        await updatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
@@ -1607,13 +1892,19 @@ const userHelper = function () {
         const { endDate } = user;
         endDate.setHours(endDate.getHours() + 7);
         if (moment().isAfter(moment(endDate).add(1, 'days'))) {
-          await userProfile.findByIdAndUpdate(
-            user._id,
-            user.set({
-              isActive: false,
-            }),
-            { new: true },
-          );
+          try {
+            await userProfile.findByIdAndUpdate(
+              user._id,
+              user.set({
+                isActive: false,
+              }),
+              { new: true },
+            );
+          } catch (err) {
+            // Log the error and continue to the next user
+            logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
+            continue;
+          }
           const id = user._id;
           const person = await userProfile.findById(id);
 
@@ -1636,17 +1927,21 @@ const userHelper = function () {
         }
       }
     } catch (err) {
-      logger.logException(err);
+      logger.logException(err, 'Unexpected rrror in deActivateUser');
     }
   };
 
-  /* Function for deleting expired tokens used in new user setup from database  */
+  // Update by Shengwei/Peter PR767:
+  /**
+   *  Delete all tokens used in new user setup from database that in cancelled, expired, or used status.
+   *  Data retention: 90 days
+   */
   const deleteExpiredTokens = async () => {
-    const currentDate = new Date();
+    const ninetyDaysAgo = moment().subtract(90, 'days').toDate();
     try {
-      await token.deleteMany({ expiration: { $lt: currentDate } });
+      await token.deleteMany({ isCancelled: true, expiration: { $lt: ninetyDaysAgo } });
     } catch (error) {
-      logger.logException(error);
+      logger.logException(error, `Error in deleteExpiredTokens. Date ${currentDate}`);
     }
   };
 
@@ -1657,7 +1952,7 @@ const userHelper = function () {
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
     } catch (error) {
-      console.error('Error deleting expired time off requests:', error);
+      logger.logException(error, `Error deleting expired time-off requests: utcEndMoment ${utcEndMoment}`);
     }
   };
 
