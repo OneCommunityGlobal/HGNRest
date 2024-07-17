@@ -6,8 +6,8 @@ Cross Mark: ❌
 > ## Positive case
 
 1. ❌ Receives a POST request in the **/api/userProfile** route
-2. ❌ Returns 201 if succesfully saved data to database
-3. ❌ Returns 201 if succesfully updated an item in the database.
+2. ✅ Returns 201 if succesfully saved data to database
+3. ✅ Returns 201 if succesfully updated an item in the database.
 
 > ## Negative case
 
