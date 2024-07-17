@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (userProfile) {
   const forcePwdrouter = express.Router();
   const controller = require('../controllers/forcePwdController')(userProfile);

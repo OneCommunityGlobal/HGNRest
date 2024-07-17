@@ -27,6 +27,7 @@ const taskschema = new Schema({
   startedDatetime: { type: Date },
   dueDatetime: { type: Date },
   links: [String],
+  relatedWorkLinks: [String],
   category: { type: String },
   deadlineCount: { type: Number, default: 0.0 },
   parentId1: {

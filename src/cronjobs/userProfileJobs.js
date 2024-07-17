@@ -5,9 +5,11 @@ const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
-    '1 0 * * *', // Every day, 1 minute past midnight (PST).
+    // '* * * * *', // Comment out for testing. Run Every minute.
+    '1 0 * * 0', // Every Sunday, 1 minute past midnight.
+
     async () => {
-      const SUNDAY = 0;
+      const SUNDAY = 0; // will change back to 0 after fix
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();

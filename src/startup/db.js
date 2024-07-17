@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const logger = require('./logger');
 const userProfile = require('../models/userProfile');
