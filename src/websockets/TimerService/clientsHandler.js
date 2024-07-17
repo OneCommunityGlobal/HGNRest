@@ -4,7 +4,7 @@ const moment = require('moment');
 const Timer = require('../../models/timer');
 const logger = require('../../startup/logger');
 
-export const getClient = async (clients, userId) => {
+const getClient = async (clients, userId) => {
   // In case of there is already a connection that is open for this user
   // for example user open a new connection
   if (!clients.has(userId)) {
@@ -14,26 +14,22 @@ export const getClient = async (clients, userId) => {
       clients.set(userId, timer);
     } catch (e) {
       logger.logException(e);
-      throw new Error(
-        'Something happened when trying to retrieve timer from mongo',
-      );
+      throw new Error('Something happened when trying to retrieve timer from mongo');
     }
   }
   return clients.get(userId);
 };
 
-export const saveClient = async (client) => {
+const saveClient = async (client) => {
   try {
     await Timer.findOneAndUpdate({ userId: client.userId }, client);
   } catch (e) {
     logger.logException(e);
-    throw new Error(
-      `Something happened when trying to save user timer to mongo, Error: ${e}`,
-    );
+    throw new Error(`Something happened when trying to save user timer to mongo, Error: ${e}`);
   }
 };
 
-export const action = {
+const action = {
   START_TIMER: 'START_TIMER',
   PAUSE_TIMER: 'PAUSE_TIMER',
   STOP_TIMER: 'STOP_TIMER',
@@ -44,6 +40,7 @@ export const action = {
   FORCED_PAUSE: 'FORCED_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
+  HEARTBEAT: 'ping',
 };
 
 const MAX_HOURS = 5;
@@ -118,12 +115,19 @@ const setGoal = (client, msg) => {
 
 const addGoal = (client, msg) => {
   const duration = parseInt(msg.split('=')[1]);
-  const goalAfterAddition = moment
-    .duration(client.goal)
-    .add(duration, 'milliseconds')
-    .asHours();
+  const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
 
-  if (goalAfterAddition > MAX_HOURS) return;
+  if (goalAfterAddition >= MAX_HOURS) {
+    const oldGoal = client.goal;
+    client.goal = MAX_HOURS * 60 * 60 * 1000;
+    client.time = moment
+      .duration(client.time)
+      .add(client.goal - oldGoal, 'milliseconds')
+      .asMilliseconds()
+      .toFixed();
+
+    return;
+  }
 
   client.goal = moment
     .duration(client.goal)
@@ -162,7 +166,7 @@ const removeGoal = (client, msg) => {
     .toFixed();
 };
 
-export const handleMessage = async (msg, clients, userId) => {
+const handleMessage = async (msg, clients, userId) => {
   if (!clients.has(userId)) {
     throw new Error('It should have this user in memory');
   }
@@ -170,22 +174,21 @@ export const handleMessage = async (msg, clients, userId) => {
   const client = clients.get(userId);
   let resp = null;
 
-  const req = msg.toString();
-  switch (req) {
+  switch (msg) {
     case action.START_TIMER:
       startTimer(client);
       break;
-    case req.match(/SET_GOAL=/i)?.input:
-      setGoal(client, req);
+    case msg.match(/SET_GOAL=/i)?.input:
+      setGoal(client, msg);
       break;
-    case req.match(/ADD_TO_GOAL=/i)?.input:
-      addGoal(client, req);
+    case msg.match(/ADD_TO_GOAL=/i)?.input:
+      addGoal(client, msg);
       break;
-    case req.match(/REMOVE_FROM_GOAL=/i)?.input:
-      removeGoal(client, req);
+    case msg.match(/REMOVE_FROM_GOAL=/i)?.input:
+      removeGoal(client, msg);
       break;
-    case req.match(/START_CHIME=/i)?.input:
-      startChime(client, req);
+    case msg.match(/START_CHIME=/i)?.input:
+      startChime(client, msg);
       break;
     case action.PAUSE_TIMER:
       pauseTimer(client);
@@ -202,11 +205,10 @@ export const handleMessage = async (msg, clients, userId) => {
     case action.STOP_TIMER:
       stopTimer(client);
       break;
-
     default:
       resp = {
         ...client,
-        error: `Unknown operation ${req}, please use one of ${action}`,
+        error: `Unknown operation ${msg}, please use one from { ${Object.values(action).join(', ')} }`,
       };
       break;
   }
@@ -215,4 +217,14 @@ export const handleMessage = async (msg, clients, userId) => {
   clients.set(userId, client);
   if (resp === null) resp = client;
   return JSON.stringify(resp);
+};
+
+module.exports = {
+  getClient,
+  handleMessage,
+  action,
+  MAX_HOURS,
+  MIN_MINS,
+  saveClient,
+  updatedTimeSinceStart,
 };
