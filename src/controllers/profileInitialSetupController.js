@@ -161,10 +161,11 @@ const profileInitialSetupController = function (
       const existingEmail = await userProfile.findOne({
         email,
       });
+      
       if (existingEmail) {
         return res.status(400).send('email already in use');
-      }
-      session.startTransaction();
+      } 
+
       await ProfileInitialSetupToken.findOneAndDelete({ email });
 
       const newToken = new ProfileInitialSetupToken({
@@ -259,8 +260,115 @@ const profileInitialSetupController = function (
       });
 
       if (existingEmail) {
-        res.status(400).send('email already in use');
-        return;
+        return res.status(400).send('email already in use');
+      } 
+      if (foundToken) {
+        const expirationMoment = moment(foundToken.expiration);
+
+        if (expirationMoment.isAfter(currentMoment)) {
+          const defaultProject = await Project.findOne({
+            projectName: "Orientation and Initial Setup",
+          });
+
+          const newUser = new userProfile();
+          newUser.password = req.body.password;
+          newUser.role = "Volunteer";
+          newUser.firstName = req.body.firstName;
+          newUser.lastName = req.body.lastName;
+          newUser.jobTitle = req.body.jobTitle;
+          newUser.phoneNumber = req.body.phoneNumber;
+          newUser.bio = "";
+          newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
+          newUser.weeklycommittedHoursHistory = [
+            {
+              hours: newUser.weeklycommittedHours,
+              dateChanged: Date.now(),
+            },
+          ];
+          newUser.personalLinks = [];
+          newUser.adminLinks = [];
+          newUser.teams = Array.from(new Set([]));
+          newUser.projects = Array.from(new Set([defaultProject]));
+          newUser.createdDate = Date.now();
+          newUser.email = req.body.email;
+          newUser.weeklySummaries = [{ summary: "" }];
+          newUser.weeklySummariesCount = 0;
+          newUser.weeklySummaryOption = "Required";
+          newUser.mediaUrl = "";
+          newUser.collaborationPreference = req.body.collaborationPreference;
+          newUser.timeZone = req.body.timeZone || "America/Los_Angeles";
+          newUser.location = req.body.location;
+          newUser.profilePic = req.body.profilePicture;
+          newUser.permissions = {
+            frontPermissions: [],
+            backPermissions: [],
+          };
+          newUser.bioPosted = "default";
+          newUser.privacySettings.email = req.body.privacySettings.email;
+          newUser.privacySettings.phoneNumber =
+            req.body.privacySettings.phoneNumber;
+          newUser.teamCode = "";
+          newUser.isFirstTimelog = true;
+
+          const savedUser = await newUser.save();
+
+          emailSender(
+            process.env.MANAGER_EMAIL || "jae@onecommunityglobal.org", // "jae@onecommunityglobal.org"
+            `NEW USER REGISTERED: ${savedUser.firstName} ${savedUser.lastName}`,
+            informManagerMessage(savedUser),
+            null,
+            null
+          );
+          await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
+
+          const jwtPayload = {
+            userid: savedUser._id,
+            role: savedUser.role,
+            permissions: savedUser.permissions,
+            expiryTimestamp: moment().add(
+              config.TOKEN.Lifetime,
+              config.TOKEN.Units
+            ),
+          };
+
+          const token = jwt.sign(jwtPayload, JWT_SECRET);
+
+          const locationData = {
+            title: "",
+            firstName: req.body.firstName,
+            lastName: req.body.lastName,
+            jobTitle: req.body.jobTitle,
+            location: req.body.homeCountry,
+            isActive: true,
+          };
+
+          res.send({ token }).status(200);
+
+          const mapEntryResult = await setMapLocation(locationData);
+          if (mapEntryResult.type === "Error") {
+            console.log(mapEntryResult.message);
+          }
+
+          const NewUserCache = {
+            permissions: savedUser.permissions,
+            isActive: true,
+            weeklycommittedHours: savedUser.weeklycommittedHours,
+            createdDate: savedUser.createdDate.toISOString(),
+            _id: savedUser._id,
+            role: savedUser.role,
+            firstName: savedUser.firstName,
+            lastName: savedUser.lastName,
+            email: savedUser.email,
+          };
+
+          const allUserCache = JSON.parse(cache.getCache("allusers"));
+          allUserCache.push(NewUserCache);
+          cache.setCache("allusers", JSON.stringify(allUserCache));
+        } else {
+          return res.status(400).send('Token is expired');
+        }
+      } else {
+        return res.status(400).send('Invalid token');
       }
 
       const expirationMoment = moment(foundToken.expiration);
@@ -390,10 +498,9 @@ const profileInitialSetupController = function (
     const foundToken = await ProfileInitialSetupToken.findOne({ token });
 
     if (foundToken) {
-      res.status(200).send({ userAPIKey: premiumKey });
-    } else {
-      res.status(403).send("Unauthorized Request");
-    }
+      return res.status(200).send({ userAPIKey: premiumKey });
+    } 
+    return res.status(403).send('Unauthorized Request');
   };
 
   function calculateTotalHours(hoursByCategory) {
@@ -432,9 +539,10 @@ const profileInitialSetupController = function (
       const combined = [...modifiedUsers, ...mapUsers];
       const countries = combined.map(user => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
-      res.status(200).send({ CountryCount: totalUniqueCountries });
+      return res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
-      res.status(500).send(`Error: ${error}`);
+      LOGGER.logException(error, 'Error in getTotalCountryCount');
+      return res.status(500).send(`Error: ${error}`);
     }
   };
 
