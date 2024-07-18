@@ -396,7 +396,6 @@ const userHelper = function () {
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
-      console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
 
@@ -487,7 +486,6 @@ const userHelper = function () {
           timeSpent === 0 &&
           userStartDate.isAfter(pdtStartOfLastWeek)
         ) {
-          console.log('1');
           isNewUser = true;
         }
 
@@ -497,7 +495,6 @@ const userHelper = function () {
             userStartDate.isBefore(pdtEndOfLastWeek) &&
             timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
         ) {
-          console.log('2');
           isNewUser = true;
         }
 
@@ -1885,9 +1882,26 @@ const userHelper = function () {
       });
   };
 
+  const sendDeactivateEmailBody = function (firstName, lastName, endDate, email, recipients) {
+    if (endDate) {
+      const subject = `IMPORTANT:${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+      const emailBody = `<p>Management, </p>
+
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${endDate}.
+      Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      recipients.push('onecommunityglobal@gmail.com');
+      recipients = recipients.toString();
+      emailSender(recipients, subject, emailBody, null, null, email);
+    }
+  };
+
   const deActivateUser = async () => {
     try {
-      let recipients = [];
+      const recipients = [];
       const emailReceivers = await userProfile.find(
         { isActive: true, role: { $in: ['Administrator', 'Manager', 'Owner'] } },
         '_id isActive role email',
@@ -1921,20 +1935,13 @@ const userHelper = function () {
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
-
-          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
-
-          const emailBody = `<p>Management, </p>
-
-          <p>Please note that ${person.firstName} ${person.lastName} has been made inactive in the Highest Good Network as of ${lastDay}.
-          Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
-          
-          <p>With Gratitude, </p>
-          
-          <p>One Community</p>`;
-          recipients.push('onecommunityglobal@gmail.com');
-          recipients = recipients.toString();
-          emailSender(recipients, subject, emailBody, null, null, 'xiaoyuchen007@gmail.com');
+          sendDeactivateEmailBody(
+            person.firstName,
+            person.lastName,
+            lastDay,
+            person.email,
+            recipients,
+          );
         }
       }
     } catch (err) {
@@ -1980,6 +1987,7 @@ const userHelper = function () {
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
     reActivateUser,
+    sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,
     getInfringementEmailBody,

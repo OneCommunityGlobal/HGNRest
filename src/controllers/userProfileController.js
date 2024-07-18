@@ -1100,6 +1100,15 @@ const userProfileController = function (UserProfile) {
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
 
+    const recipients = [];
+    const emailReceivers = await UserProfile.find(
+      { isActive: true, role: { $in: ['Administrator', 'Manager', 'Owner'] } },
+      '_id isActive role email',
+    );
+    emailReceivers.forEach((receiver) => {
+      recipients.push(receiver.email);
+    });
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -1123,7 +1132,7 @@ const userProfileController = function (UserProfile) {
       return;
     }
     cache.removeCache(`user-${userId}`);
-    UserProfile.findById(userId, 'isActive')
+    UserProfile.findById(userId, 'isActive email firstName lastName')
       .then((user) => {
         user.set({
           isActive: status,
@@ -1146,6 +1155,13 @@ const userProfileController = function (UserProfile) {
               allUserData.splice(userIdx, 1, userData);
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
+            userHelper.sendDeactivateEmailBody(
+              user.firstName,
+              user.lastName,
+              endDate,
+              user.email,
+              recipients,
+            );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
               user.email,
