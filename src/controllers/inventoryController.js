@@ -283,9 +283,9 @@ const inventoryController = function (Item, ItemType) {
     }
 
     // update the original item by decreasing by the quantity and adding a note
-    if (req.body.quantity && req.param.invId && projectExists && wbsExists) {
+    if (req.body.quantity && req.params.invId && projectExists && wbsExists) {
       return Item.findByIdAndUpdate(
-        req.param.invId,
+        req.params.invId,
         {
           $decr: { quantity: req.body.quantity },
           $push: {
