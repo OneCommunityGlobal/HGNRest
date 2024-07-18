@@ -396,7 +396,7 @@ const userHelper = function () {
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
-      console.log('run')
+      console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
 
@@ -412,7 +412,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true  },
+        { isActive: true },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
@@ -481,9 +481,13 @@ const userHelper = function () {
          *  */
         let isNewUser = false;
         const userStartDate = moment(person.startDate);
-        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0 && 
-          userStartDate.isAfter(pdtStartOfLastWeek)) {
-          console.log("1")
+        if (
+          person.totalTangibleHrs === 0 &&
+          person.totalIntangibleHrs === 0 &&
+          timeSpent === 0 &&
+          userStartDate.isAfter(pdtStartOfLastWeek)
+        ) {
+          console.log('1');
           isNewUser = true;
         }
 
@@ -493,7 +497,7 @@ const userHelper = function () {
             userStartDate.isBefore(pdtEndOfLastWeek) &&
             timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
         ) {
-          console.log("2")
+          console.log('2');
           isNewUser = true;
         }
 
@@ -1883,6 +1887,14 @@ const userHelper = function () {
 
   const deActivateUser = async () => {
     try {
+      let recipients = [];
+      const emailReceivers = await userProfile.find(
+        { isActive: true, role: { $in: ['Administrator', 'Manager', 'Owner'] } },
+        '_id isActive role email',
+      );
+      emailReceivers.forEach((receiver) => {
+        recipients.push(receiver.email);
+      });
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
         '_id isActive endDate',
@@ -1907,27 +1919,26 @@ const userHelper = function () {
           }
           const id = user._id;
           const person = await userProfile.findById(id);
-
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
 
           const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
 
-          const emailBody = `<p> Hi Admin! </p>
+          const emailBody = `<p>Management, </p>
 
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has completed their scheduled last day (${lastDay}) and been deactivated in the Highest Good Network application. </p>
+          <p>Please note that ${person.firstName} ${person.lastName} has been made inactive in the Highest Good Network as of ${lastDay}.
+          Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
           
-          <p>This is their email from the system: ${person.email}. Please email them to let them know their work is complete and thank them for their volunteer time with One Community. </p>
+          <p>With Gratitude, </p>
           
-          <p> Thanks! </p>
-          
-          <p>The HGN A.I. (and One Community)</p>`;
-
-          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, person.email);
+          <p>One Community</p>`;
+          recipients.push('onecommunityglobal@gmail.com');
+          recipients = recipients.toString();
+          emailSender(recipients, subject, emailBody, null, null, 'xiaoyuchen007@gmail.com');
         }
       }
     } catch (err) {
-      logger.logException(err, 'Unexpected rrror in deActivateUser');
+      logger.logException(err, 'Unexpected error in deActivateUser');
     }
   };
 
@@ -1941,6 +1952,7 @@ const userHelper = function () {
     try {
       await token.deleteMany({ isCancelled: true, expiration: { $lt: ninetyDaysAgo } });
     } catch (error) {
+      /* eslint-disable no-undef */
       logger.logException(error, `Error in deleteExpiredTokens. Date ${currentDate}`);
     }
   };
@@ -1952,7 +1964,10 @@ const userHelper = function () {
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
     } catch (error) {
-      logger.logException(error, `Error deleting expired time-off requests: utcEndMoment ${utcEndMoment}`);
+      logger.logException(
+        error,
+        `Error deleting expired time-off requests: utcEndMoment ${utcEndMoment}`,
+      );
     }
   };
 
