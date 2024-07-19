@@ -932,6 +932,24 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
+  const updateAllMembersTeamCode = async (req, res) => {
+    const canEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.role === 'Administrator' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+    if (!canEditTeamCode) {
+      res.status(403).send('You are not authorized to edit team code.');
+      return;
+    }
+    const { userIds, replaceCode } = req.body;
+    if (userIds === null || userIds.length <= 0 || replaceCode === undefined) {
+      return res.status(400).send({ error: 'Missing property or value' });
+    }
+    return UserProfile.updateMany({ _id: { $in: userIds } }, { $set: { teamCode: replaceCode } })
+      .then((result) => res.status(200).send({ isUpdated: result.nModified > 0 }))
+      .catch((error) => res.status(500).send(error));
+  };
+
   const updatepassword = async function (req, res) {
     const { userId } = req.params;
     const { requestor } = req.body;
@@ -1511,6 +1529,7 @@ const userProfileController = function (UserProfile) {
     getUserById,
     getreportees,
     updateOneProperty,
+    updateAllMembersTeamCode,
     updatepassword,
     getUserName,
     getTeamMembersofUser,

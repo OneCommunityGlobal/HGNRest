@@ -84,6 +84,8 @@ const routes = function (userProfile) {
 
   userProfileRouter.route('/userProfile/:userId/property').patch(controller.updateOneProperty);
 
+  userProfileRouter.route('/AllTeamCodeChanges').patch(controller.updateAllMembersTeamCode);
+
   userProfileRouter.route('/userProfile/:userId/updatePassword').patch(controller.updatepassword);
 
   userProfileRouter.route('/userProfile/:userId/resetPassword').patch(controller.resetPassword);
