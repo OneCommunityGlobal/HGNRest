@@ -5,9 +5,9 @@ const createUser = async () => {
 
   up.password = 'SuperSecretPassword@';
   up.role = 'Administrator';
-  up.firstName = 'requestor_first_name';
-  up.lastName = 'requestor_last_name';
-  up.jobTitle = ['any_job_title'];
+  up.firstName = 'Requestor_first_name';
+  up.lastName = 'Requestor_last_name';
+  up.jobTitle = ['Any_job_title'];
   up.phoneNumber = ['123456789'];
   up.bio = 'any_bio';
   up.weeklycommittedHours = 21;

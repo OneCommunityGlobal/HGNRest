@@ -39,8 +39,6 @@ const mapLocationsController = function (MapLocation) {
   };
   const deleteLocation = async function (req, res) {
     if (req.body.requestor.role !== 'Administrator' && req.body.requestor.role !== 'Owner') {
-      console.log('not authorized');
-      console.log(req.body.requestor.role);
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -55,6 +53,7 @@ const mapLocationsController = function (MapLocation) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
+    console.log(req.body);
     const locationData = {
       firstName: req.body.firstName,
       lastName: req.body.lastName,
