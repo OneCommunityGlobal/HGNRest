@@ -7,7 +7,6 @@ const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
 
-
 const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
 const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
 const TOKEN_INVALID_MESSAGE = 'INVALID';
@@ -121,7 +120,7 @@ const profileInitialSetupController = function (
   ProfileInitialSetupToken,
   userProfile,
   Project,
-  MapLocation
+  MapLocation,
 ) {
   const { JWT_SECRET } = config;
 
@@ -133,8 +132,8 @@ const profileInitialSetupController = function (
       return response;
     } catch (err) {
       return {
-        type: "Error",
-        message: err.message || "An error occurred while saving the location",
+        type: 'Error',
+        message: err.message || 'An error occurred while saving the location',
       };
     }
   };
@@ -156,17 +155,22 @@ const profileInitialSetupController = function (
     const expiration = moment().add(3, 'week');
     // Wrap multiple db operations in a transaction
     const session = await startSession();
-    
-    try {
-      const existingEmail = await userProfile.findOne({
-        email,
-      });
-      
-      if (existingEmail) {
-        return res.status(400).send('email already in use');
-      } 
+    session.startTransaction();
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email });
+    try {
+      const existingEmail = await userProfile
+        .findOne({
+          email,
+        })
+        .session(session);
+
+      if (existingEmail) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).send('email already in use');
+      }
+
+      await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -178,7 +182,7 @@ const profileInitialSetupController = function (
         createdDate: Date.now(),
       });
 
-      const savedToken = await newToken.save();
+      const savedToken = await newToken.save({ session });
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
@@ -261,23 +265,23 @@ const profileInitialSetupController = function (
 
       if (existingEmail) {
         return res.status(400).send('email already in use');
-      } 
+      }
       if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
 
         if (expirationMoment.isAfter(currentMoment)) {
           const defaultProject = await Project.findOne({
-            projectName: "Orientation and Initial Setup",
+            projectName: 'Orientation and Initial Setup',
           });
 
           const newUser = new userProfile();
           newUser.password = req.body.password;
-          newUser.role = "Volunteer";
+          newUser.role = 'Volunteer';
           newUser.firstName = req.body.firstName;
           newUser.lastName = req.body.lastName;
           newUser.jobTitle = req.body.jobTitle;
           newUser.phoneNumber = req.body.phoneNumber;
-          newUser.bio = "";
+          newUser.bio = '';
           newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
           newUser.weeklycommittedHoursHistory = [
             {
@@ -291,33 +295,32 @@ const profileInitialSetupController = function (
           newUser.projects = Array.from(new Set([defaultProject]));
           newUser.createdDate = Date.now();
           newUser.email = req.body.email;
-          newUser.weeklySummaries = [{ summary: "" }];
+          newUser.weeklySummaries = [{ summary: '' }];
           newUser.weeklySummariesCount = 0;
-          newUser.weeklySummaryOption = "Required";
-          newUser.mediaUrl = "";
+          newUser.weeklySummaryOption = 'Required';
+          newUser.mediaUrl = '';
           newUser.collaborationPreference = req.body.collaborationPreference;
-          newUser.timeZone = req.body.timeZone || "America/Los_Angeles";
+          newUser.timeZone = req.body.timeZone || 'America/Los_Angeles';
           newUser.location = req.body.location;
           newUser.profilePic = req.body.profilePicture;
           newUser.permissions = {
             frontPermissions: [],
             backPermissions: [],
           };
-          newUser.bioPosted = "default";
+          newUser.bioPosted = 'default';
           newUser.privacySettings.email = req.body.privacySettings.email;
-          newUser.privacySettings.phoneNumber =
-            req.body.privacySettings.phoneNumber;
-          newUser.teamCode = "";
+          newUser.privacySettings.phoneNumber = req.body.privacySettings.phoneNumber;
+          newUser.teamCode = '';
           newUser.isFirstTimelog = true;
 
           const savedUser = await newUser.save();
 
           emailSender(
-            process.env.MANAGER_EMAIL || "jae@onecommunityglobal.org", // "jae@onecommunityglobal.org"
+            process.env.MANAGER_EMAIL || 'jae@onecommunityglobal.org', // "jae@onecommunityglobal.org"
             `NEW USER REGISTERED: ${savedUser.firstName} ${savedUser.lastName}`,
             informManagerMessage(savedUser),
             null,
-            null
+            null,
           );
           await ProfileInitialSetupToken.findByIdAndDelete(foundToken._id);
 
@@ -325,16 +328,13 @@ const profileInitialSetupController = function (
             userid: savedUser._id,
             role: savedUser.role,
             permissions: savedUser.permissions,
-            expiryTimestamp: moment().add(
-              config.TOKEN.Lifetime,
-              config.TOKEN.Units
-            ),
+            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
           };
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
 
           const locationData = {
-            title: "",
+            title: '',
             firstName: req.body.firstName,
             lastName: req.body.lastName,
             jobTitle: req.body.jobTitle,
@@ -345,7 +345,7 @@ const profileInitialSetupController = function (
           res.send({ token }).status(200);
 
           const mapEntryResult = await setMapLocation(locationData);
-          if (mapEntryResult.type === "Error") {
+          if (mapEntryResult.type === 'Error') {
             console.log(mapEntryResult.message);
           }
 
@@ -361,9 +361,9 @@ const profileInitialSetupController = function (
             email: savedUser.email,
           };
 
-          const allUserCache = JSON.parse(cache.getCache("allusers"));
+          const allUserCache = JSON.parse(cache.getCache('allusers'));
           allUserCache.push(NewUserCache);
-          cache.setCache("allusers", JSON.stringify(allUserCache));
+          cache.setCache('allusers', JSON.stringify(allUserCache));
         } else {
           return res.status(400).send('Token is expired');
         }
@@ -499,7 +499,7 @@ const profileInitialSetupController = function (
 
     if (foundToken) {
       return res.status(200).send({ userAPIKey: premiumKey });
-    } 
+    }
     return res.status(403).send('Unauthorized Request');
   };
 
@@ -514,16 +514,11 @@ const profileInitialSetupController = function (
   const getTotalCountryCount = async (req, res) => {
     try {
       const users = [];
-      const results = await userProfile.find(
-        {},
-        "location totalTangibleHrs hoursByCategory"
-      );
+      const results = await userProfile.find({}, 'location totalTangibleHrs hoursByCategory');
 
       results.forEach((item) => {
         if (
-          (item.location?.coords.lat &&
-            item.location?.coords.lng &&
-            item.totalTangibleHrs >= 10) ||
+          (item.location?.coords.lat && item.location?.coords.lng && item.totalTangibleHrs >= 10) ||
           (item.location?.coords.lat &&
             item.location?.coords.lng &&
             calculateTotalHours(item.hoursByCategory) >= 10)
@@ -531,13 +526,13 @@ const profileInitialSetupController = function (
           users.push(item);
         }
       });
-      const modifiedUsers = users.map(item => ({
+      const modifiedUsers = users.map((item) => ({
         location: item.location,
       }));
 
       const mapUsers = await MapLocation.find({});
       const combined = [...modifiedUsers, ...mapUsers];
-      const countries = combined.map(user => user.location.country);
+      const countries = combined.map((user) => user.location.country);
       const totalUniqueCountries = [...new Set(countries)].length;
       return res.status(200).send({ CountryCount: totalUniqueCountries });
     } catch (error) {
@@ -545,8 +540,6 @@ const profileInitialSetupController = function (
       return res.status(500).send(`Error: ${error}`);
     }
   };
-
-
 
   /**
    * Returns a list of setup token in not completed status
@@ -557,29 +550,36 @@ const profileInitialSetupController = function (
   const getSetupInvitation = (req, res) => {
     const { role } = req.body.requestor;
     if (role === 'Administrator' || role === 'Owner') {
-      try{
-      ProfileInitialSetupToken
-      .find({ isSetupCompleted: false })
-      .sort({ createdDate: -1 })
-      .exec((err, result) => {
-        // Handle the result
-        if (err) {
-          LOGGER.logException(err);
-          return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-        }
-          return res.status(200).send(result);
-      });
-    } catch (error) {
-      LOGGER.logException(error);
-      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-    }
+      try {
+        ProfileInitialSetupToken.find({ isSetupCompleted: false })
+          .sort({ createdDate: -1 })
+          .exec((err, result) => {
+            // Handle the result
+            if (err) {
+              LOGGER.logException(err);
+              return res
+                .status(500)
+                .send(
+                  'Internal Error: Please retry. If the problem persists, please contact the administrator',
+                );
+            }
+            return res.status(200).send(result);
+          });
+      } catch (error) {
+        LOGGER.logException(error);
+        return res
+          .status(500)
+          .send(
+            'Internal Error: Please retry. If the problem persists, please contact the administrator',
+          );
+      }
     } else {
       return res.status(403).send('You are not authorized to get setup history.');
     }
   };
 
   /**
-   * Cancel the setup token 
+   * Cancel the setup token
    * @param {*} req HTTP request include requester role information
    * @param {*} res HTTP response include whether the setup invitation record is successfully cancelled
    * @returns
@@ -589,33 +589,40 @@ const profileInitialSetupController = function (
     const { token } = req.body;
     if (role === 'Administrator' || role === 'Owner') {
       try {
-    ProfileInitialSetupToken
-      .findOneAndUpdate(
-        { token },
-        { isCancelled: true },
-        (err, result) => {
-          if (err) {
-            LOGGER.logException(err);
-            return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-          }
-          sendEmailWithAcknowledgment(
-            result.email,
-            'One Community: Your Profile Setup Link Has Been Deactivated',
-            sendCancelLinkMessage(),
-          );
-          return res.status(200).send(result);
-        },
-      );
-    } catch (error) {
+        ProfileInitialSetupToken.findOneAndUpdate(
+          { token },
+          { isCancelled: true },
+          (err, result) => {
+            if (err) {
+              LOGGER.logException(err);
+              return res
+                .status(500)
+                .send(
+                  'Internal Error: Please retry. If the problem persists, please contact the administrator',
+                );
+            }
+            sendEmailWithAcknowledgment(
+              result.email,
+              'One Community: Your Profile Setup Link Has Been Deactivated',
+              sendCancelLinkMessage(),
+            );
+            return res.status(200).send(result);
+          },
+        );
+      } catch (error) {
         LOGGER.logException(error);
-        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+        return res
+          .status(500)
+          .send(
+            'Internal Error: Please retry. If the problem persists, please contact the administrator',
+          );
       }
     } else {
       res.status(403).send('You are not authorized to cancel setup invitation.');
     }
   };
-   /**
-    * Update the expired setup token to active status. After refreshing, the expiration date will be extended by 3 weeks.
+  /**
+   * Update the expired setup token to active status. After refreshing, the expiration date will be extended by 3 weeks.
    * @param {*} req HTTP request include requester role information
    * @param {*} res HTTP response include whether the setup invitation record is successfully refreshed
    * @returns updated result of the setup invitation record.
@@ -626,30 +633,37 @@ const profileInitialSetupController = function (
 
     if (role === 'Administrator' || role === 'Owner') {
       try {
-        ProfileInitialSetupToken
-        .findOneAndUpdate(
+        ProfileInitialSetupToken.findOneAndUpdate(
           { token },
           {
             expiration: moment().add(3, 'week'),
             isCancelled: false,
           },
         )
-        .then((result) => {
-          const { email } = result;
-          const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
-          sendEmailWithAcknowledgment(
-             email,
-            'Invitation Link Refreshed: Complete Your One Community Profile Setup',
-            sendRefreshedLinkMessage(link),
-          );
-          return res.status(200).send(result);
-        })
-        .catch((err) => {
-          LOGGER.logException(err);
-          res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-        });
+          .then((result) => {
+            const { email } = result;
+            const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+            sendEmailWithAcknowledgment(
+              email,
+              'Invitation Link Refreshed: Complete Your One Community Profile Setup',
+              sendRefreshedLinkMessage(link),
+            );
+            return res.status(200).send(result);
+          })
+          .catch((err) => {
+            LOGGER.logException(err);
+            res
+              .status(500)
+              .send(
+                'Internal Error: Please retry. If the problem persists, please contact the administrator',
+              );
+          });
       } catch (error) {
-        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+        return res
+          .status(500)
+          .send(
+            'Internal Error: Please retry. If the problem persists, please contact the administrator',
+          );
       }
     } else {
       return res.status(403).send('You are not authorized to refresh setup invitation.');
