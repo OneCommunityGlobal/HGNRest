@@ -9,7 +9,7 @@ const {
 
 const agent = request.agent(app);
 
-describe('actionItem routes', () => {
+describe('mapLocations routes', () => {
   let ownerUser;
   let volunteerUser;
   let ownerToken;
@@ -18,15 +18,33 @@ describe('actionItem routes', () => {
     ...mockReq.body,
   };
 
+  //  beforeEach(async () => {
+  //    await dbClearCollections("userProfiles")
+  //    await dbClearCollections("mapLocations")
+  //  })
+
   beforeAll(async () => {
     await dbConnect();
     ownerUser = await createUser();
     volunteerUser = await createUser();
+    ownerUser.role = 'Owner';
     volunteerUser.role = 'Volunteer';
     ownerToken = jwtPayload(ownerUser);
     volunteerToken = jwtPayload(volunteerUser);
     reqBody = {
       ...reqBody,
+      firstName: volunteerUser.firstName,
+      lastName: volunteerUser.lastName,
+      jobTitle: 'Software Engineer',
+      location: {
+        userProvided: 'A',
+        coords: {
+          lat: '51',
+          lng: '110',
+        },
+        country: 'Test',
+        city: 'Usa',
+      },
     };
   });
 
@@ -112,6 +130,29 @@ describe('actionItem routes', () => {
         .set('Authorization', ownerToken)
         .send(reqBody)
         .expect(200);
+
+      expect(response.body).toEqual(expected);
+    });
+  });
+
+  describe('putMapLocation route', () => {
+    it('Should return 200 on success', async () => {
+      const response = await agent
+        .put('/api/mapLocations')
+        .set('Authorization', ownerToken)
+        .send(reqBody)
+        .expect(200);
+
+      const expected = {
+        _id: expect.anything(),
+        __v: expect.anything(),
+        firstName: reqBody.firstName,
+        lastName: reqBody.lastName,
+        jobTitle: reqBody.jobTitle,
+        location: reqBody.location,
+        isActive: false,
+        title: 'Prior to HGN Data Collection',
+      };
 
       expect(response.body).toEqual(expected);
     });
