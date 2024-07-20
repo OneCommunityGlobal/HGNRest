@@ -45,6 +45,8 @@ describe('mapLocations routes', () => {
         country: 'Test',
         city: 'Usa',
       },
+      _id: volunteerUser._id,
+      type: 'user',
     };
   });
 
@@ -155,6 +157,29 @@ describe('mapLocations routes', () => {
       };
 
       expect(response.body).toEqual(expected);
+    });
+  });
+
+  describe('patchMapLocation route', () => {
+    it('Should return 200 on success', async () => {
+      reqBody.location.coords.lat = 51;
+      reqBody.location.coords.lng = 110;
+      const res = await agent
+        .patch('/api/mapLocations')
+        .set('Authorization', ownerToken)
+        .send(reqBody)
+        .expect(200);
+
+      const expected = {
+        firstName: reqBody.firstName,
+        lastName: reqBody.lastName,
+        jobTitle: [reqBody.jobTitle],
+        location: reqBody.location,
+        _id: reqBody._id.toString(),
+        type: reqBody.type,
+      };
+
+      expect(res.body).toEqual(expected);
     });
   });
 });
