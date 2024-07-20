@@ -53,7 +53,7 @@ const mapLocationsController = function (MapLocation) {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
-    console.log(req.body);
+
     const locationData = {
       firstName: req.body.firstName,
       lastName: req.body.lastName,
