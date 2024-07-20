@@ -6,6 +6,7 @@ const {
   createUser,
   mongoHelper: { dbConnect, dbDisconnect, dbClearAll },
 } = require('../test');
+const MapLocation = require('../models/mapLocation');
 
 const agent = request.agent(app);
 
@@ -180,6 +181,25 @@ describe('mapLocations routes', () => {
       };
 
       expect(res.body).toEqual(expected);
+    });
+  });
+
+  describe('Delete map locations route', () => {
+    it('Should return 200 on success', async () => {
+      const _map = new MapLocation();
+      _map.firstName = reqBody.firstName;
+      _map.lastName = reqBody.lastName;
+      _map.location = reqBody.location;
+      _map.jobTitle = reqBody.jobTitle;
+
+      const map = await _map.save();
+
+      const res = await agent
+        .delete(`/api/mapLocations/${map._id}`)
+        .set('Authorization', ownerToken)
+        .send(reqBody);
+
+      expect(res.body).toEqual({ message: 'The location was successfully removed!' });
     });
   });
 });
