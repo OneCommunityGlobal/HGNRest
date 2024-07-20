@@ -19,11 +19,6 @@ describe('mapLocations routes', () => {
     ...mockReq.body,
   };
 
-  //  beforeEach(async () => {
-  //    await dbClearCollections("userProfiles")
-  //    await dbClearCollections("mapLocations")
-  //  })
-
   beforeAll(async () => {
     await dbConnect();
     ownerUser = await createUser();
