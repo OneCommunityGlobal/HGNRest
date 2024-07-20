@@ -424,9 +424,7 @@ const userProfileController = function (UserProfile) {
         req.body.requestor.requestorId === userid)
     );
 
-    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-    if (!isRequestorAuthorized && !canManageAdminLinks) {
+    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -518,6 +516,7 @@ const userProfileController = function (UserProfile) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
       if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
         const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
         summaryFields.forEach((fieldName) => {
@@ -530,6 +529,7 @@ const userProfileController = function (UserProfile) {
       if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
       }
+
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
@@ -1393,9 +1393,12 @@ const userProfileController = function (UserProfile) {
     const sanitizedFullName = escapeRegExp(req.params.fullName.trim());
     // Create a regular expression to match the sanitized full name, ignoring case
     const fullNameRegex = new RegExp(sanitizedFullName, 'i');
-
+    
     UserProfile.find({
-      $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
+      $or: [
+        { firstName: { $regex: fullNameRegex } },
+        { lastName: { $regex: fullNameRegex } },
+      ],
     })
       .select('firstName lastName')
       // eslint-disable-next-line consistent-return
@@ -1409,9 +1412,9 @@ const userProfileController = function (UserProfile) {
       .catch((error) => res.status(500).send(error));
   };
 
-  // function escapeRegExp(string) {
-  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // }
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
   /**
    * Authorizes user to be able to add Weekly Report Recipients
    *

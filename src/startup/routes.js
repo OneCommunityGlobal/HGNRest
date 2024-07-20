@@ -4,7 +4,7 @@ const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
 // const actionItem = require('../models/actionItem');
-const notification = require('../models/notification');
+// const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
 const popup = require('../models/popupEditor');
@@ -119,8 +119,9 @@ const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
-
+const GPTRouter = require('../routes/aiGPTRouter')();
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(blueSquareEmailAssignment,userProfile)
+
 
 
 module.exports = function (app) {
@@ -159,6 +160,7 @@ module.exports = function (app) {
   app.use('/api', titleRouter);
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
+  app.use('/api', GPTRouter);
   app.use('/api', blueSquareEmailAssignmentRouter)
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
