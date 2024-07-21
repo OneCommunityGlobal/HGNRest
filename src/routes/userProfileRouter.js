@@ -3,8 +3,8 @@ const { body } = require('express-validator');
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 
-const routes = function (userProfile) {
-  const controller = require('../controllers/userProfileController')(userProfile);
+const routes = function (userProfile, project) {
+  const controller = require('../controllers/userProfileController')(userProfile, project);
 
   const userProfileRouter = express.Router();
 
