@@ -1100,21 +1100,13 @@ const userProfileController = function (UserProfile) {
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
 
-    const recipients = [];
-    const emailReceivers = await UserProfile.find(
-      { isActive: true, role: { $in: ['Administrator', 'Manager', 'Owner'] } },
-      '_id isActive role email',
-    );
-    emailReceivers.forEach((receiver) => {
-      recipients.push(receiver.email);
-    });
-
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
       });
       return;
     }
+
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userId,
@@ -1132,6 +1124,27 @@ const userProfileController = function (UserProfile) {
       return;
     }
     cache.removeCache(`user-${userId}`);
+    const emailReceivers = await UserProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+
+    try {
+      const findUser = await UserProfile.findById(userId, 'teams');
+      findUser.teams.map(async (teamId) => {
+        const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+          managementEmails.forEach((management) => {
+            recipients.push(management.email);
+          });
+        }
+      });
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in finding menagement team');
+    }
+
     UserProfile.findById(userId, 'isActive email firstName lastName')
       .then((user) => {
         user.set({
