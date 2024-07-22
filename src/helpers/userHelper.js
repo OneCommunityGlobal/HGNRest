@@ -57,7 +57,7 @@ const userHelper = function () {
             $in: [parsedTeamId],
           },
           role: {
-            $in: ['Manager', 'Mentor', 'Administrator'],
+            $in: ['Manager', 'Administrator'],
           },
         },
         'email role',
