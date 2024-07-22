@@ -47,6 +47,24 @@ const userHelper = function () {
     });
   };
 
+  const getTeamManagementEmail = function (teamId) {
+    const parsedTeamId = mongoose.Types.ObjectId(teamId);
+    return userProfile
+      .find(
+        {
+          isActive: true,
+          teams: {
+            $in: [parsedTeamId],
+          },
+          role: {
+            $in: ['Manager', 'Mentor', 'Administrator'],
+          },
+        },
+        'email role',
+      )
+      .exec();
+  };
+
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     return userProfile.findById(userid, 'firstName lastName');
@@ -1901,14 +1919,11 @@ const userHelper = function () {
 
   const deActivateUser = async () => {
     try {
-      const recipients = [];
       const emailReceivers = await userProfile.find(
-        { isActive: true, role: { $in: ['Administrator', 'Manager', 'Owner'] } },
+        { isActive: true, role: { $in: ['Owner'] } },
         '_id isActive role email',
       );
-      emailReceivers.forEach((receiver) => {
-        recipients.push(receiver.email);
-      });
+      const recipients = emailReceivers.map((receiver) => receiver.email);
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
         '_id isActive endDate',
@@ -1935,6 +1950,14 @@ const userHelper = function () {
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
+          person.teams.map(async (teamId) => {
+            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+              managementEmails.forEach((management) => {
+                recipients.push(management.email);
+              });
+            }
+          });
           sendDeactivateEmailBody(
             person.firstName,
             person.lastName,
@@ -1982,6 +2005,7 @@ const userHelper = function () {
     changeBadgeCount,
     getUserName,
     getTeamMembers,
+    getTeamManagementEmail,
     validateProfilePic,
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
