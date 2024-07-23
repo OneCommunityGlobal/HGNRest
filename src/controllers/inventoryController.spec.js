@@ -14,9 +14,20 @@ const wbs = require('../models/wbs');
 const { hasPermission } = require('../utilities/permissions');
 
 const makeSut = () => {
-  const { getAllInvInProjectWBS, postInvInProjectWBS, getAllInvInProject, postInvInProject } =
-    inventoryController(inventoryItem, inventoryItemType);
-  return { getAllInvInProjectWBS, postInvInProjectWBS, getAllInvInProject, postInvInProject };
+  const {
+    getAllInvInProjectWBS,
+    postInvInProjectWBS,
+    getAllInvInProject,
+    postInvInProject,
+    transferInvById,
+  } = inventoryController(inventoryItem, inventoryItemType);
+  return {
+    getAllInvInProjectWBS,
+    postInvInProjectWBS,
+    getAllInvInProject,
+    postInvInProject,
+    transferInvById,
+  };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -30,15 +41,14 @@ describe('Unit test for inventoryController', () => {
     mockReq.params.userId = '5a7e21f00317bc1538def4b7';
     mockReq.params.wbsId = '5a7e21f00317bc1538def4b7';
     mockReq.params.projectId = '5a7e21f00317bc1538def4b7';
+    mockReq.params.invId = '5a7e21f00317bc1538def4b7';
     mockReq.body = {
       project: '5a7e21f00317bc1538def4b7',
       wbs: '5a7e21f00317bc1538def4b7',
       itemType: '5a7e21f00317bc1538def4b7',
       item: '5a7e21f00317bc1538def4b7',
-      quantity: 1,
       typeId: '5a7e21f00317bc1538def4b7',
-      cost: 20,
-      poNum: '123',
+      quantity: 11,
     };
   });
   afterEach(() => {
@@ -330,7 +340,7 @@ describe('Unit test for inventoryController', () => {
     });
   });
 
-  describe.only('postInvInProject', () => {
+  describe('postInvInProject', () => {
     test('Returns error 403 if the user is not authorized to view data', async () => {
       const { postInvInProject } = makeSut();
       hasPermission.mockReturnValue(false);
@@ -510,4 +520,254 @@ describe('Unit test for inventoryController', () => {
       assertResMock(201, mockUpdatedItem, response, mockRes);
     });
   });
+
+  describe('transferInvById', () => {
+    test('Returns 403 if user is not authorized to view inventory data', async () => {
+      const { transferInvById } = makeSut();
+      hasPermission.mockResolvedValue(false);
+      const response = await transferInvById(mockReq, mockRes);
+      assertResMock(403, 'You are not authorized to transfer inventory data.', response, mockRes);
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+    });
+    test('Returns 400 if the invenotry id provided does not have enough quantity to transfer.', async () => {
+      const { transferInvById } = makeSut();
+      hasPermission.mockResolvedValue(true);
+      const mockInventoryItem = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValue(null),
+      };
+      jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryItem);
+      const response = await transferInvById(mockReq, mockRes);
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+      assertResMock(
+        400,
+        'You must send a valid Inventory Id with enough quantity that you requested to be transfered.',
+        response,
+        mockRes,
+      );
+    });
+
+    test('Returns 400 if an invalid project, quanity and type id are passed.', async () => {
+      const { transferInvById } = makeSut();
+      hasPermission.mockResolvedValue(true);
+      jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => ({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      }));
+
+      jest.spyOn(projects, 'findOne').mockImplementationOnce(() => ({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      }));
+      jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => ({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValue(null),
+      }));
+
+      mockReq.body.quantity = 0;
+      const response = await transferInvById(mockReq, mockRes);
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+      assertResMock(
+        400,
+        'Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned',
+        response,
+        mockRes,
+      );
+    });
+
+    test('Returns 500 if an error occurs when searching and updating an item in the database', async () => {
+      const { transferInvById } = makeSut();
+      hasPermission.mockResolvedValue(true);
+      const mockInventoryItem = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      const mockProjectExists = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      const mockWbsExists = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryItem);
+      jest.spyOn(projects, 'findOne').mockImplementationOnce(() => mockProjectExists);
+      jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => mockWbsExists);
+      jest
+        .spyOn(inventoryItem, 'findByIdAndUpdate')
+        .mockRejectedValueOnce(new Error('Error saving'));
+      const response = await transferInvById(mockReq, mockRes);
+      await flushPromises();
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+      assertResMock(500, new Error('Error saving'), response, mockRes);
+    });
+
+    // review this unit test
+    test('Returns 500 if an error occurs when searching for an item', async () => {
+      const { transferInvById } = makeSut();
+      hasPermission.mockResolvedValue(true);
+      const resolvedInventoryItem = {
+        project: '5a7e21f00317bc1538def4b7',
+        wbs: '5a7e21f00317bc1538def4b7',
+        type: '5a7e21f00317bc1538def4b7',
+        quantity: 1,
+        cost: 20,
+        poNum: '123',
+      };
+
+      const mockInventoryItem = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      const mockProjectExists = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      const mockWbsExists = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+
+      jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryItem);
+      jest.spyOn(projects, 'findOne').mockImplementationOnce(() => mockProjectExists);
+      jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => mockWbsExists);
+      jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockResolvedValueOnce(resolvedInventoryItem);
+      jest.spyOn(inventoryItem, 'findOne').mockRejectedValueOnce(new Error('Error searching'));
+      const response = await transferInvById(mockReq, mockRes);
+      await flushPromises();
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+      assertResMock(500, new Error('Error searching'), response, mockRes);
+    });
+    test('Returns 500 if an error occurs when saving a new item to the database', async () => {
+      const { transferInvById } = makeSut();
+      hasPermission.mockResolvedValue(true);
+      const resolvedInventoryItem = {
+        project: '5a7e21f00317bc1538def4b7',
+        wbs: '5a7e21f00317bc1538def4b7',
+        type: '5a7e21f00317bc1538def4b7',
+        quantity: 1,
+        cost: 20,
+        poNum: '123',
+      };
+
+      const mockInventoryItem = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      const mockProjectExists = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+      const mockWbsExists = {
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+      };
+
+      jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryItem);
+      jest.spyOn(projects, 'findOne').mockImplementationOnce(() => mockProjectExists);
+      jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => mockWbsExists);
+      jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockResolvedValueOnce(resolvedInventoryItem);
+      jest.spyOn(inventoryItem, 'findOne').mockResolvedValueOnce(null);
+      // jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockResolvedValueOnce({
+      //   cost: 19,
+      // });
+      jest
+        .spyOn(inventoryItem.prototype, 'save')
+        .mockRejectedValueOnce(new Error('Error creating new item'));
+
+      const response = await transferInvById(mockReq, mockRes);
+      await flushPromises();
+      expect(hasPermission).toHaveBeenCalledTimes(1);
+      assertResMock(500, new Error('Error creating new item'), response, mockRes);
+    });
+
+    // test('Returns 500 if an error occurs when searching for an item in the database', async () => {
+    //   const { transferInvById } = makeSut();
+    //   hasPermission.mockResolvedValue(true);
+    //   const resolvedInventoryItem = {
+    //     project: '5a7e21f00317bc1538def4b7',
+    //     wbs: '5a7e21f00317bc1538def4b7',
+    //     type: '5a7e21f00317bc1538def4b7',
+    //     quantity: 1,
+    //     cost: 20,
+    //     poNum: '123',
+    //   };
+
+    //   const mockInventoryItem = {
+    //     select: jest.fn().mockReturnThis(),
+    //     lean: jest.fn().mockReturnThis(),
+    //   };
+    //   const mockProjectExists = {
+    //     select: jest.fn().mockReturnThis(),
+    //     lean: jest.fn().mockReturnThis(),
+    //   };
+    //   const mockWbsExists = {
+    //     select: jest.fn().mockReturnThis(),
+    //     lean: jest.fn().mockReturnThis(),
+    //   };
+
+    //   jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryItem);
+    //   jest.spyOn(projects, 'findOne').mockImplementationOnce(() => mockProjectExists);
+    //   jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => mockWbsExists);
+    //   jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockResolvedValueOnce(resolvedInventoryItem);
+    //   jest.spyOn(inventoryItem, 'findOne').mockResolvedValueOnce(null);
+
+    //   const response = await transferInvById(mockReq, mockRes);
+    //   await flushPromises();
+    //   expect(hasPermission).toHaveBeenCalledTimes(1);
+    //   assertResMock(500, new Error('Error creating new item'), response, mockRes);
+    // });
+    // hit line 351
+    // test.only('Returns 500 if an error occurs when a newItem is found and findByIdAndUpdate fails', async () => {
+    //   const { transferInvById } = makeSut();
+    //   hasPermission.mockResolvedValue(true);
+    //   // review the path about new item and old item maybe ened to pass in the old item
+    //   // and the new item
+    //   // review the findByIdAndUpdate and findOneAndUpdate
+
+    //   const resolvedInventoryItem = {
+    //     project: '5a7e21f00317bc1538def4b7',
+    //     wbs: '5a7e21f00317bc1538def4b7',
+    //     type: '5a7e21f00317bc1538def4b7',
+    //     quantity: 0,
+    //     cost: 20,
+    //     costPer: 200,
+    //     _id: '5a7e21f00317bc1538def4b7',
+    //   };
+
+    //   const mockInventoryItem = {
+    //     select: jest.fn().mockReturnThis(),
+    //     lean: jest.fn().mockReturnThis(),
+    //   };
+    //   const mockProjectExists = {
+    //     select: jest.fn().mockReturnThis(),
+    //     lean: jest.fn().mockReturnThis(),
+    //   };
+    //   const mockWbsExists = {
+    //     select: jest.fn().mockReturnThis(),
+    //     lean: jest.fn().mockReturnThis(),
+    //   };
+
+    //   jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryItem);
+    //   jest.spyOn(projects, 'findOne').mockImplementationOnce(() => mockProjectExists);
+    //   jest.spyOn(wbs, 'findOne').mockImplementationOnce(() => mockWbsExists);
+    //   jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockResolvedValueOnce(resolvedInventoryItem);
+    //   jest.spyOn(inventoryItem, 'findOne').mockResolvedValueOnce(resolvedInventoryItem);
+    //   // jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockResolvedValueOnce(resolvedInventoryItem);
+    //   jest
+    //     .spyOn(inventoryItem, 'findByIdAndUpdate')
+    //     .mockResolvedValueOnce(new Error('error occured when searching and updating'));
+
+    //   const response = await transferInvById(mockReq, mockRes);
+    //   await flushPromises();
+    //   expect(hasPermission).toHaveBeenCalledTimes(1);
+    //   assertResMock(500, new Error('error occured when searching and updating'), response, mockRes);
+    // });
+  });
 });
+
+// jest.spyOn(inventoryItem, 'findOne').mockImplementationOnce(() => mockInventoryExists);
+// jest
+// .spyOn(inventoryItem, 'findOneAndUpdate')
+// .mockImplementationOnce(() => Promise.resolve(resolvedInventoryItem));
+// jest.spyOn(inventoryItem, 'findOneAndUpdate').mockResolvedValueOnce(resolvedInventoryItem);
