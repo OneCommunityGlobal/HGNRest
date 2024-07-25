@@ -4,6 +4,7 @@ const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
 // const actionItem = require('../models/actionItem');
+/* eslint-disable */
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
@@ -66,7 +67,11 @@ const taskRouter = require('../routes/taskRouter')(task);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
-const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
+const inventoryRouter = require('../routes/inventoryRouter')(
+  inventoryItem,
+  inventoryItemType,
+  project,
+);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
   profileInitialSetuptoken,
