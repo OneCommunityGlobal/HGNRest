@@ -16,7 +16,7 @@ const projectController = function (Project) {
     try {
       const projects = await Project.find(
         { isArchived: { $ne: true } },
-        'projectName isActive category modifiedDatetime',
+        'projectName isActive category modifiedDatetime membersModifiedDatetime',
       ).sort({ modifiedDatetime: -1 });
       res.status(200).send(projects);
     } catch (error) {
@@ -234,8 +234,15 @@ const projectController = function (Project) {
       res.status(400).send('Invalid request');
       return;
     }
+    const now = new Date();
     // verify project exists
-    Project.findById(req.params.projectId)
+    Project.findByIdAndUpdate(
+      req.params.projectId,
+      {
+        $set: { membersModifiedDatetime: now },
+      },
+      { new: true },
+    )
       .then((project) => {
         if (!project || project.length === 0) {
           res.status(400).send('Invalid project');
@@ -293,7 +300,6 @@ const projectController = function (Project) {
       )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
-        console.log(results);
         res.status(200).send(results);
       })
       .catch((error) => {
