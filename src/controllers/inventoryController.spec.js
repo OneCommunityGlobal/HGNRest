@@ -269,7 +269,7 @@ describe('Unit test for inventoryController', () => {
     });
   });
 
-  describe.only('getAllInvInProject', () => {
+  describe('getAllInvInProject', () => {
     test('Returns 403 if user is not authorized to view inventory data', async () => {
       const { getAllInvInProject } = makeSut();
       hasPermission.mockResolvedValue(false);
