@@ -5,9 +5,9 @@ const createUser = async () => {
 
   up.password = 'SuperSecretPassword@';
   up.role = 'Administrator';
-  up.firstName = 'requestor_first_name';
-  up.lastName = 'requestor_last_name';
-  up.jobTitle = ['any_job_title'];
+  up.firstName = 'Requestor_first_name';
+  up.lastName = 'Requestor_last_name';
+  up.jobTitle = ['Any_job_title'];
   up.phoneNumber = ['123456789'];
   up.bio = 'any_bio';
   up.weeklycommittedHours = 21;
@@ -32,8 +32,8 @@ const createUser = async () => {
   up.location = {
     userProvided: '',
     coords: {
-      lat: null,
-      lng: null,
+      lat: 51,
+      lng: 110,
     },
     country: '',
     city: '',
@@ -46,11 +46,12 @@ const createUser = async () => {
   up.isFirstTimelog = true;
   up.actualEmail = '';
   up.isVisible = true;
+  up.totalTangibleHrs = 10;
 
-  /* 
-      remove hard coded _id field to allow MongoDB to 
+  /*
+      remove hard coded _id field to allow MongoDB to
       automatically create a unique id for us.
-      Now this function is more reusable if we 
+      Now this function is more reusable if we
       need to create more than 1 user.
     */
 
