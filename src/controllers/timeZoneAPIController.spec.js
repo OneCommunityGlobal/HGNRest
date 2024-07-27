@@ -9,6 +9,9 @@ const fetch = require('node-fetch');
 const originalPremiumKey = process.env.TIMEZONE_PREMIUM_KEY;
 process.env.TIMEZONE_PREMIUM_KEY = 'mockPremiumKey';
 
+const originalCommonKey = process.env.TIMEZONE_COMMON_KEY;
+delete process.env.TIMEZONE_COMMON_KEY;
+
 const successfulFetchRequestWithResults = jest.fn(() =>
   Promise.resolve({
     json: () =>
@@ -83,6 +86,12 @@ describe('timeZoneAPIController Unit Tests', () => {
     } else {
       delete process.env.TIMEZONE_PREMIUM_KEY;
     }
+
+    if (originalCommonKey) {
+      process.env.TIMEZONE_COMMON_KEY = originalCommonKey;
+    } else {
+      delete process.env.TIMEZONE_COMMON_KEY;
+    }
   });
 
   describe('getTimeZone() function', () => {
@@ -105,6 +114,8 @@ describe('timeZoneAPIController Unit Tests', () => {
     });
 
     test('Returns 401, as API is missing', async () => {
+      delete process.env.TIMEZONE_COMMON_KEY;
+
       const { getTimeZone } = makeSut();
       mockReq.body.requestor.role = 'Volunteer';
 
