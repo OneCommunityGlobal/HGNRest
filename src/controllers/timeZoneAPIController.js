@@ -11,7 +11,6 @@ const commonKey = process.env.TIMEZONE_COMMON_KEY;
 
 const performTimeZoneRequest = async (req, res, apiKey) => {
   const { location } = req.params;
-  console.log('location:', location);
 
   if (!location) {
     res.status(400).send('Missing location');
@@ -21,7 +20,6 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
   try {
     const geocodeAPIEndpoint = 'https://api.opencagedata.com/geocode/v1/json';
     const url = `${geocodeAPIEndpoint}?key=${apiKey}&q=${location}&pretty=1&limit=1`;
-
     const response = await fetch(url);
     const data = await response.json();
 
@@ -58,24 +56,15 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
 const timeZoneAPIController = function () {
   const getTimeZone = async (req, res) => {
     const { requestor } = req.body;
-    console.log('body printing in controller:', req.body);
     if (!requestor.role) {
       res.status(403).send('Unauthorized Request');
       return;
     }
-    console.log(
-      `hasPermission(requestor, 'getTimeZoneAPIKey'): `,
-      await hasPermission(requestor, 'getTimeZoneAPIKey'),
-    );
-    console.log('premiumKey:', premiumKey);
-    console.log('commonKey:', commonKey);
     const userAPIKey = (await hasPermission(requestor, 'getTimeZoneAPIKey'))
       ? premiumKey
       : commonKey;
-    console.log('userAPI', userAPIKey);
 
     if (!userAPIKey) {
-      console.log('userAPI is empty');
       res.status(401).send('API Key Missing');
       return;
     }

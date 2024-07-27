@@ -43,9 +43,7 @@ module.exports = function (app) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
     }
-    console.log('req header: ', req.headers);
     const authToken = req.header(config.REQUEST_AUTHKEY);
-    console.log('authToken: ', authToken);
 
     let payload = '';
 
@@ -55,7 +53,6 @@ module.exports = function (app) {
       res.status(401).send('Invalid token');
       return;
     }
-    console.log('payload: ', payload);
     if (
       !payload ||
       !payload.expiryTimestamp ||
@@ -73,7 +70,6 @@ module.exports = function (app) {
     requestor.permissions = payload.permissions;
 
     req.body.requestor = requestor;
-    console.log('req.body.requestor: ', req.body.requestor);
     next();
   });
 };

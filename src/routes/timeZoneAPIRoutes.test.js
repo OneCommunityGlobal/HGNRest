@@ -3,16 +3,14 @@ const { jwtPayload } = require('../test');
 const { app } = require('../app');
 const {
   mockReq,
-  // mockUser,
-  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections },
+  mongoHelper: { dbConnect, dbDisconnect },
   createTestPermissions,
   createUser,
+  mockUser,
 } = require('../test');
-// const UserProfile = require('../models/userProfile');
 
-// let originalEnv;
-
-console.log('******:', process.env.TIMEZONE_PREMIUM_KEY);
+const UserProfile = require('../models/userProfile');
+const ProfileInitialSetupToken = require('../models/profileInitialSetupToken');
 
 const agent = request.agent(app);
 
@@ -21,11 +19,29 @@ describe('timeZoneAPI routes', () => {
   let adminToken;
   let volunteerUser;
   let volunteerToken;
+
   const reqBody = {};
+  const incorrectLocationParams = 'r';
+  const locationParamsThatResultsInNoMatch = 'someReallyRandomLocation';
+  const correctLocationParams = 'Berlin,+Germany';
 
   beforeAll(async () => {
     await dbConnect();
     await createTestPermissions();
+
+    reqBody.body = {
+      // This is the user we want to create
+      ...mockReq.body,
+    };
+    adminUser = await createUser(); // This is the admin requestor user
+    adminToken = jwtPayload(adminUser);
+
+    volunteerUser = mockUser(); // This is the admin requestor user
+    volunteerUser.email = 'volunteer@onecommunity.com';
+    volunteerUser.role = 'Volunteer';
+    volunteerUser = new UserProfile(volunteerUser);
+    volunteerUser = await volunteerUser.save();
+    volunteerToken = jwtPayload(volunteerUser);
   });
 
   afterAll(async () => {
@@ -33,16 +49,6 @@ describe('timeZoneAPI routes', () => {
   });
 
   describe('API routes', () => {
-    beforeEach(async () => {
-      await dbClearCollections('userProfiles');
-      reqBody.body = {
-        // This is the user we want to create
-        ...mockReq.body,
-      };
-      adminUser = await createUser(); // This is the admin requestor user
-      adminToken = jwtPayload(adminUser);
-    });
-
     it("should return 404 if route doesn't exist", async () => {
       await agent
         .post('/api/timezonesss')
@@ -52,65 +58,141 @@ describe('timeZoneAPI routes', () => {
     });
   });
 
-  describe('getTimeZone - API is missing', () => {
-    beforeEach(async () => {
-      await dbClearCollections('userProfiles');
-      reqBody.body = {
-        // This is the user we want to create
-        ...mockReq.body,
-      };
-      volunteerUser = await createUser(); // This is the admin requestor user
-      volunteerUser.role = 'Volunteer';
-      volunteerToken = jwtPayload(volunteerUser);
-    });
-
-    afterEach(async () => {
-      await dbClearCollections('userProfiles');
-    });
-
-    test('401 when `API` is missing', async () => {
-      const location = 'someLocation';
+  describe('getTimeZone - request parameter `location` based tests', () => {
+    test('401 when `API key` is missing', async () => {
+      const location = 'Berlin,+Germany';
 
       const response = await agent
         .get(`/api/timezone/${location}`)
-        .set('Authorization', volunteerToken)
+        .set('Authorization', adminToken)
         .send(reqBody.body)
         .expect(401);
 
       expect(response.error.text).toBe('API Key Missing');
     });
+
+    test('400 when `location` is incorrect', async () => {
+      const response = await agent
+        .get(`/api/timezone/${incorrectLocationParams}`) // Make sure this is the intended test
+        .set('Authorization', volunteerToken)
+        .send(reqBody.body)
+        .expect(400);
+
+      expect(response.error.text).toBeTruthy();
+    });
+
+    test('200 when `location` is correctly formatted', async () => {
+      const response = await agent
+        .get(`/api/timezone/${correctLocationParams}`) // Make sure this is the intended test
+        .set('Authorization', volunteerToken)
+        .send(reqBody.body)
+        .expect(200);
+
+      expect(response).toBeTruthy();
+      expect(response._body.timezone).toBeTruthy();
+      expect(response._body.currentLocation).toBeTruthy();
+      expect(response._body.currentLocation.userProvided).toBe(correctLocationParams);
+    });
+
+    test('404 when results.length === 0', async () => {
+      const response = await agent
+        .get(`/api/timezone/${locationParamsThatResultsInNoMatch}`) // Make sure this is the intended test
+        .set('Authorization', volunteerToken)
+        .send(reqBody.body)
+        .expect(404);
+
+      expect(response).toBeTruthy();
+    });
   });
 
-  // describe('getTimeZone - location is missing', () => {
-  //   beforeAll(async () => {
-  //     await dbClearCollections('userProfiles');
-  //   });
+  describe('getTimeZoneProfileInitialSetup - token is missing in body or in ProfileInitialSetupToken', () => {
+    test('401 when `token` is missing in request body', async () => {
+      const location = 'Berlin,+Germany';
 
-  //   beforeEach(async () => {
-  //     await dbClearCollections('userProfiles');
-  //     reqBody.body = {
-  //       // This is the user we want to create
-  //       ...mockReq.body,
-  //     };
-  //     adminUser = await createUser(); // This is the admin requestor user
-  //     adminToken = jwtPayload(adminUser);
-  //   });
+      const response = await agent
+        .post(`/api/timezone/${location}`)
+        .set('Authorization', adminToken)
+        .send(reqBody.body)
+        .expect(400);
 
-  //   test.only('400 when `location` is missing', async () => {
+      expect(response.error.text).toBe('Missing token');
+    });
 
-  //     await UserProfile.findByIdAndUpdate(adminUser._id, {
-  //       $set: {
-  //         role: 'admin',
-  //       }
-  //     });
+    test('403 when ProfileInitialSetupToken does not contains `req.body.token`', async () => {
+      const location = 'Berlin,+Germany';
+      reqBody.body = {
+        ...reqBody,
+        token: 'randomToken',
+      };
 
-  //     const response = await agent
-  //       .get(`/api/timezone/ `) // Make sure this is the intended test
-  //       .set('Authorization', adminToken)
-  //       .send(reqBody.body)
-  //       .expect(400);
+      const response = await agent
+        .post(`/api/timezone/${location}`)
+        .set('Authorization', adminToken)
+        .send(reqBody.body)
+        .expect(403);
 
-  //     expect(response.error.text).toBe('Missing location');
-  //   });
-  // });
+      expect(response.error.text).toBe('Unauthorized Request');
+    });
+  });
+
+  describe('getTimeZoneProfileInitialSetup - token is present in ProfileInitialSetupToken', () => {
+    const tokenData = 'randomToken';
+
+    beforeAll(async () => {
+      const expirationDate = new Date().setDate(new Date().getDate() + 10);
+
+      let data = {
+        token: tokenData,
+        email: 'randomEmail',
+        weeklyCommittedHours: 5,
+        expiration: expirationDate,
+        createdDate: new Date(),
+        isCancelled: false,
+        isSetupCompleted: true,
+      };
+
+      data = new ProfileInitialSetupToken(data);
+
+      // eslint-disable-next-line no-unused-vars
+      data = await data.save();
+
+      reqBody.body = {
+        ...reqBody,
+        token: tokenData,
+      };
+    });
+
+    test('400 when `location` is incorrect', async () => {
+      const response = await agent
+        .get(`/api/timezone/${incorrectLocationParams}`) // Make sure this is the intended test
+        .set('Authorization', volunteerToken)
+        .send(reqBody.body)
+        .expect(400);
+
+      expect(response.error.text).toBeTruthy();
+    });
+
+    test('200 when `location` is correctly formatted', async () => {
+      const response = await agent
+        .get(`/api/timezone/${correctLocationParams}`) // Make sure this is the intended test
+        .set('Authorization', volunteerToken)
+        .send(reqBody.body)
+        .expect(200);
+
+      expect(response).toBeTruthy();
+      expect(response._body.timezone).toBeTruthy();
+      expect(response._body.currentLocation).toBeTruthy();
+      expect(response._body.currentLocation.userProvided).toBe(correctLocationParams);
+    });
+
+    test('404 when results.length === 0', async () => {
+      const response = await agent
+        .get(`/api/timezone/${locationParamsThatResultsInNoMatch}`) // Make sure this is the intended test
+        .set('Authorization', volunteerToken)
+        .send(reqBody.body)
+        .expect(404);
+
+      expect(response).toBeTruthy();
+    });
+  });
 });
