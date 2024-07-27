@@ -6,9 +6,6 @@ dotenv.config();
 const ProfileInitialSetupToken = require('../models/profileInitialSetupToken');
 const { hasPermission } = require('../utilities/permissions');
 
-const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
-const commonKey = process.env.TIMEZONE_COMMON_KEY;
-
 const performTimeZoneRequest = async (req, res, apiKey) => {
   const { location } = req.params;
 
@@ -54,6 +51,9 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
 };
 
 const timeZoneAPIController = function () {
+  const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
+  const commonKey = process.env.TIMEZONE_COMMON_KEY;
+
   const getTimeZone = async (req, res) => {
     const { requestor } = req.body;
     if (!requestor.role) {
