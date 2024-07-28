@@ -34,10 +34,9 @@ const action = {
   PAUSE_TIMER: 'PAUSE_TIMER',
   STOP_TIMER: 'STOP_TIMER',
   CLEAR_TIMER: 'CLEAR_TIMER',
-  GET_TIMER: 'GET_TIMER',
-  SET_GOAL: 'SET_GOAL',
-  ADD_GOAL: 'ADD_TO_GOAL',
-  REMOVE_GOAL: 'REMOVE_FROM_GOAL',
+  SET_GOAL: 'SET_GOAL=',
+  ADD_GOAL: 'ADD_TO_GOAL=',
+  REMOVE_GOAL: 'REMOVE_FROM_GOAL=',
   FORCED_PAUSE: 'FORCED_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
@@ -67,8 +66,6 @@ const startTimer = (client) => {
 };
 
 const pauseTimer = (client, forced = false) => {
-  if (client.paused) return;
-
   client.time = updatedTimeSinceStart(client);
   if (client.time === 0) client.chiming = true;
   client.startAt = moment.invalid(); // invalid can not be saved in database
@@ -77,8 +74,8 @@ const pauseTimer = (client, forced = false) => {
 };
 
 const startChime = (client, msg) => {
-  const state = msg.value;
-  client.chiming = state === true;
+  const state = msg.split('=')[1];
+  client.chiming = state === 'true';
 };
 
 const ackForcedPause = (client) => {
@@ -110,27 +107,17 @@ const clearTimer = (client) => {
 };
 
 const setGoal = (client, msg) => {
-  const newGoal = parseInt(msg.value);
+  const newGoal = parseInt(msg.split('=')[1]);
   client.goal = newGoal;
   client.time = newGoal;
   client.initialGoal = newGoal;
 };
 
 const addGoal = (client, msg) => {
-  const duration = parseInt(msg.value);
+  const duration = parseInt(msg.split('=')[1]);
   const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
 
-  if (goalAfterAddition >= MAX_HOURS) {
-    const oldGoal = client.goal;
-    client.goal = MAX_HOURS * 60 * 60 * 1000;
-    client.time = moment
-      .duration(client.time)
-      .add(client.goal - oldGoal, 'milliseconds')
-      .asMilliseconds()
-      .toFixed();
-
-    return;
-  }
+  if (goalAfterAddition > MAX_HOURS) return;
 
   client.goal = moment
     .duration(client.goal)
@@ -145,7 +132,7 @@ const addGoal = (client, msg) => {
 };
 
 const removeGoal = (client, msg) => {
-  const duration = parseInt(msg.value);
+  const duration = parseInt(msg.split('=')[1]);
   const goalAfterRemoval = moment
     .duration(client.goal)
     .subtract(duration, 'milliseconds')
@@ -170,30 +157,27 @@ const removeGoal = (client, msg) => {
 };
 
 const handleMessage = async (msg, clients, userId) => {
-  // if (!clients.has(userId)) {
-  //   throw new Error('It should have this user in memory');
-  // }
+  if (!clients.has(userId)) {
+    throw new Error('It should have this user in memory');
+  }
 
-  const client = await getClient(clients, userId);
+  const client = clients.get(userId);
   let resp = null;
 
-  switch (msg.action) {
+  switch (msg) {
     case action.START_TIMER:
       startTimer(client);
       break;
-    case action.GET_TIMER:
-      resp = client;
-      break;
-    case action.SET_GOAL:
+    case msg.match(/SET_GOAL=/i)?.input:
       setGoal(client, msg);
       break;
-    case action.ADD_GOAL:
+    case msg.match(/ADD_TO_GOAL=/i)?.input:
       addGoal(client, msg);
       break;
-    case action.REMOVE_GOAL:
+    case msg.match(/REMOVE_FROM_GOAL=/i)?.input:
       removeGoal(client, msg);
       break;
-    case action.START_CHIME:
+    case msg.match(/START_CHIME=/i)?.input:
       startChime(client, msg);
       break;
     case action.PAUSE_TIMER:
@@ -214,7 +198,7 @@ const handleMessage = async (msg, clients, userId) => {
     default:
       resp = {
         ...client,
-        error: `Unknown operation ${msg.action}, please use one from { ${Object.values(action).join(', ')} }`,
+        error: `Unknown operation ${msg}, please use one from { ${Object.values(action).join(', ')} }`,
       };
       break;
   }

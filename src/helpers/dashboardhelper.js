@@ -175,20 +175,10 @@ const dashboardhelper = function () {
           { members: 1 },
         );
 
-        console.log(teamsResult);
         teamsResult.forEach((_myTeam) => {
-          let isUserVisible = false;
           _myTeam.members.forEach((teamMember) => {
-            if (teamMember.userId.equals(userid) && teamMember.visible) isUserVisible = true;
+            if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
           });
-          if(isUserVisible)
-          {
-            _myTeam.members.forEach((teamMember) => {
-               if (!teamMember.userId.equals(userid)) 
-                   teamMemberIds.push(teamMember.userId);
-          });
-        }
-
         });
 
         teamMembers = await userProfile.find(

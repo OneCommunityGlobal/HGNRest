@@ -10,8 +10,6 @@ const routes = function (BuildingEquipment) {
 
   equipmentRouter.route('/equipment/purchase').post(controller.bmPurchaseEquipments);
 
-  equipmentRouter.route('/equipments').get(controller.fetchBMEquipments);
-
   return equipmentRouter;
 };
 
