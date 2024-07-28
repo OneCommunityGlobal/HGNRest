@@ -8,6 +8,7 @@ const projectschema = new Schema({
   isArchived: { type: Boolean, default: false },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
+  membersModifiedDatetime: { type: Date, default: Date.now() },
   category: {
     type: String,
     enum: [

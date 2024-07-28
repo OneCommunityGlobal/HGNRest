@@ -10,6 +10,12 @@ const routes = function (BuildingReusable) {
   BuildingReusableController.route('/reusables/purchase')
     .post(controller.purchaseReusable);
 
+  BuildingReusableController.route('/updateReusableRecord')
+    .post(controller.bmPostReusableUpdateRecord);
+
+  BuildingReusableController.route('/updateReusableRecordBulk')
+    .post(controller.bmPostReusableUpdateBulk);
+
   return BuildingReusableController;
 };
 

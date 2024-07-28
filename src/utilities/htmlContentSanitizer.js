@@ -11,4 +11,3 @@ const cleanHtml = (dirty) =>
 module.exports = {
   cleanHtml,
 };
-

@@ -7,7 +7,9 @@ const router = function (team) {
 
   teamRouter.route('/team')
     .get(controller.getAllTeams)
-    .post(controller.postTeam);
+    .post(controller.postTeam)
+    .put(controller.updateTeamVisibility);
+
 
   teamRouter.route('/team/:teamId')
     .get(controller.getTeamById)
