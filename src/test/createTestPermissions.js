@@ -36,12 +36,9 @@ const permissionsRoles = [
       'putTeam',
       'assignTeamToUsers',
       // Time Entries
-      'editTimeEntryTime',
-      'editTimeEntryDate',
-      'editTimeEntryDescription',
-      'editTimeEntryToggleTangible',
+      'editTimeEntry',
       'deleteTimeEntry',
-      'postTimeEntry',
+      // 'postTimeEntry',?
       // User Profile
       'putRole',
       'postUserProfile',
@@ -188,12 +185,8 @@ const permissionsRoles = [
       'deleteTeam',
       'putTeam',
       'assignTeamToUsers',
-      'editTimeEntryTime',
-      'editTimeEntryDescription',
-      'editTimeEntryDate',
-      'editTimeEntryToggleTangible',
+      'editTimeEntry',
       'deleteTimeEntry',
-      'postTimeEntry',
       'updatePassword',
       'getUserProfiles',
       'getProjectMembers',
