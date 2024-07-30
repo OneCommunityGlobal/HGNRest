@@ -248,7 +248,7 @@ const userHelper = function () {
         const hoursLogged = result.totalSeconds[0] / 3600 || 0;
 
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-        const teamCodeStr = teamCode ? `${teamCode}` : 'Not provided!';
+        const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
         const googleDocLinkValue =
           adminLinks?.length > 0
             ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
@@ -299,7 +299,7 @@ const userHelper = function () {
         <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
           <p>
-          <b>Team Code:</b> ${teamCodeStr || '<span style="color: red;">Not provided!</span>'}
+          <b>Team Code:</b> ${teamCodeStr || 'X-XXX'}
           </p>
           <p>
 
