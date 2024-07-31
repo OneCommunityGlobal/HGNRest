@@ -290,12 +290,28 @@ const teamcontroller = function (Team) {
   
       });
     } catch (error) {
-      res.status(500).send('Error updating team visibility: ' + error.message);
+      res.status(500).send(`Error updating team visibility: ${  error.message}`);
     }
   };
 
+    /**
+   * Leaner version of the teamcontroller.getAllTeams
+   * Remove redundant data: members, isActive, createdDatetime, modifiedDatetime.
+   */
+  const getAllTeamCode = async function (req, res) {
+    Team.find({ isActive: true }, { teamCode: 1, _id: 1, teamName: 1 })
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((error) => {
+        // logger.logException(`Fetch team code failed: ${error}`);
+        res.status(500).send('Fetch team code failed.');
+      });
+  };
+  
   return {
     getAllTeams,
+    getAllTeamCode,
     getTeamById,
     postTeam,
     deleteTeam,
