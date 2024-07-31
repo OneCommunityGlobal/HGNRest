@@ -14,7 +14,7 @@ Cross Mark: ❌
 1. ❌ Returns error 404 if the API does not exist
 2. ✅ Returns 403 if the user is not authorized to transfer inventory data
 3. ✅ Returns 400 if the invenotry id provided does not have enough quantity to transfer.
-4. ❌ Returns 500 if an error occurs when a newItem is found and findByIdAndUpdate fails
+4. ✅ Returns 500 if an error occurs when a newItem is found and findByIdAndUpdate fails
 5. ❌ Returns 500 if an error occurs when a newItem is found and findByIdAndUpdate passes but findByIdAndUpdate fails when updating costPer
 6. ✅ Returns 500 if an error occurs when saving a new item to the database
 7. ✅ Returns 500 if an error occurs when searching for an item
