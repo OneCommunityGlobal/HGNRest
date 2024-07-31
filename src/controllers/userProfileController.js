@@ -156,7 +156,7 @@ const auditIfProtectedAccountUpdated = async (
   }
 };
 
-const userProfileController = function (UserProfile) {
+const userProfileController = function (UserProfile, Project) {
   const cache = cacheClosure();
 
   const forbidden = function (res, message) {
@@ -570,7 +570,39 @@ const userProfileController = function (UserProfile) {
         }
 
         if (req.body.projects !== undefined) {
-          record.projects = req.body.projects.map((project) => project._id);
+          const newProjects = req.body.projects.map((project) => project._id.toString());
+
+          // check if the projects have changed
+          const projectsChanged =
+            !record.projects.every((id) => newProjects.includes(id.toString())) ||
+            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+
+          if (projectsChanged) {
+            // store the old projects for comparison
+            const oldProjects = record.projects.map((id) => id.toString());
+
+            // update the projects
+            record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
+
+            const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
+            const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
+
+            const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
+              mongoose.Types.ObjectId(id),
+            );
+
+            if (changedProjectIds.length > 0) {
+              const now = new Date();
+              Project.updateMany(
+                { _id: { $in: changedProjectIds } },
+                { $set: { membersModifiedDatetime: now } },
+              )
+                .exec()
+                .catch((error) => {
+                  console.error('Error updating project membersModifiedDatetime:', error);
+                });
+            }
+          }
         }
 
         if (req.body.email !== undefined) {
