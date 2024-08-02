@@ -191,7 +191,7 @@ const userHelper = function () {
    */
   const emailWeeklySummariesForAllUsers = async (weekIndex = 1) => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
-
+    /* eslint-disable no-undef */
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`,
     );
@@ -203,7 +203,7 @@ const userHelper = function () {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
       await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, _id: 0 })
+        .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
         // eslint-disable-next-line no-shadow
         .then((results) => {
           mappedResults = results.map((ele) => ele.email);
@@ -235,6 +235,7 @@ const userHelper = function () {
           weeklySummariesCount,
           weeklycommittedHours,
           weeklySummaryOption,
+          teamCode,
         } = result;
 
         if (email !== undefined && email !== null) {
@@ -247,7 +248,7 @@ const userHelper = function () {
         const hoursLogged = result.totalSeconds[0] / 3600 || 0;
 
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-
+        const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
         const googleDocLinkValue =
           adminLinks?.length > 0
             ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
@@ -297,6 +298,9 @@ const userHelper = function () {
         \n
         <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
           <b>Name:</b> ${firstName} ${lastName}
+          <p>
+          <b>Team Code:</b> ${teamCodeStr || 'X-XXX'}
+          </p>
           <p>
 
 
@@ -396,7 +400,7 @@ const userHelper = function () {
    */
   const assignBlueSquareForTimeNotMet = async () => {
     try {
-      console.log('run')
+      console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
 
@@ -412,7 +416,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true  },
+        { isActive: true },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
@@ -481,9 +485,13 @@ const userHelper = function () {
          *  */
         let isNewUser = false;
         const userStartDate = moment(person.startDate);
-        if (person.totalTangibleHrs === 0 && person.totalIntangibleHrs === 0 && timeSpent === 0 && 
-          userStartDate.isAfter(pdtStartOfLastWeek)) {
-          console.log("1")
+        if (
+          person.totalTangibleHrs === 0 &&
+          person.totalIntangibleHrs === 0 &&
+          timeSpent === 0 &&
+          userStartDate.isAfter(pdtStartOfLastWeek)
+        ) {
+          console.log('1');
           isNewUser = true;
         }
 
@@ -493,7 +501,7 @@ const userHelper = function () {
             userStartDate.isBefore(pdtEndOfLastWeek) &&
             timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
         ) {
-          console.log("2")
+          console.log('2');
           isNewUser = true;
         }
 
@@ -2057,7 +2065,10 @@ const userHelper = function () {
     try {
       await timeOffRequest.deleteMany({ endingDate: { $lte: utcEndMoment } });
     } catch (error) {
-      logger.logException(error, `Error deleting expired time-off requests: utcEndMoment ${utcEndMoment}`);
+      logger.logException(
+        error,
+        `Error deleting expired time-off requests: utcEndMoment ${utcEndMoment}`,
+      );
     }
   };
 
