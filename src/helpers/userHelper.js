@@ -107,16 +107,36 @@ const userHelper = function () {
     coreTeamExtraHour,
     requestForTimeOffEmailBody,
     administrativeContent,
+    weeklycommittedHours,
   ) {
     let finalParagraph = '';
-
+    let descrInfringement = '';
     if (timeRemaining === undefined) {
       finalParagraph =
         '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
+        .localeData()
+        .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
     } else {
+      let hrThisweek = weeklycommittedHours || 0 + coreTeamExtraHour;
+      const remainHr = timeRemaining || 0;
+      hrThisweek += remainHr;
       finalParagraph = `Please complete ALL owed time this week (${
-        timeRemaining + coreTeamExtraHour
+        hrThisweek + totalInfringements - 5
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
+        .localeData()
+        .ordinal(
+          totalInfringements,
+        )}</b> blue square of 5 and that means you have ${totalInfringements - 5} hour(s) added to your 
+          requirement this week. This is in addition to any hours missed for last week: 
+          ${weeklycommittedHours} hours commitment + ${remainHr} hours owed for last week + ${totalInfringements - 5} hours 
+          owed for this being your <b>${moment
+            .localeData()
+            .ordinal(
+              totalInfringements,
+            )} blue square = ${hrThisweek + totalInfringements - 5} hours required for this week. 
+          .</p>`;
     }
     // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
@@ -160,9 +180,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
-        <p><b>Total Infringements:</b> This is your <b>${moment
-          .localeData()
-          .ordinal(totalInfringements)}</b> blue square of 5.</p>
+        ${descrInfringement}
         ${finalParagraph}
         <p>Thank you,<p>
         <p>One Community</p>
@@ -620,8 +638,7 @@ const userHelper = function () {
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
-        const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
-
+        const coreTeamExtraHour = Math.max(0, oldInfringements.length - 5);
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
         const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
 
@@ -745,6 +762,7 @@ const userHelper = function () {
                 coreTeamExtraHour,
                 requestForTimeOffEmailBody,
                 administrativeContent,
+                weeklycommittedHours,
               );
             } else {
               emailBody = getInfringementEmailBody(
