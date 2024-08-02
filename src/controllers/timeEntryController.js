@@ -700,13 +700,18 @@ const timeEntrycontroller = function (TimeEntry) {
       const isDescriptionModified = newNotes !== timeEntry.notes;
 
       const isUsingAPermission =
+        !isSameDayAuthUserEdit && (
         isTimeModified ||
-        (isDescriptionModified && !isSameDayAuthUserEdit) ||
+        isDescriptionModified) ||
         dateOfWorkChanged ||
         tangibilityChanged;
 
       // Time
-      if (isTimeModified && !(await hasPermission(req.body.requestor, 'editTimeEntryTime'))) {
+      if (
+        !isSameDayAuthUserEdit &&
+        isTimeModified &&
+        !(await hasPermission(req.body.requestor, 'editTimeEntryTime'))
+      ) {
         const error = `You do not have permission to edit the time entry time`;
         return res.status(403).send({ error });
       }
