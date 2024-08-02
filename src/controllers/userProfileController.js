@@ -697,6 +697,7 @@ const userProfileController = function (UserProfile, Project) {
             results.role,
             results.startDate,
             results.jobTitle[0],
+            results.weeklycommittedHours,
           );
           res.status(200).json({
             _id: record._id,
