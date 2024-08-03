@@ -42,4 +42,26 @@ describe('popupEditorController Controller Unit tests', () => {
       assertResMock(404, error, response, mockRes);
     });
   });
+
+  describe(`getPopupEditorById function`, () => {
+    test(`Should return 200 and popup editor on success`, async () => {
+      const { getPopupEditorById } = makeSut();
+      const mockPopupEditor = { popupName: 'popup', popupContent: 'content' };
+      jest.spyOn(PopUpEditor, 'findById').mockResolvedValue(mockPopupEditor);
+      const response = await getPopupEditorById(mockReq, mockRes);
+      assertResMock(200, mockPopupEditor, response, mockRes);
+    });
+
+    test(`Should return 404 on error`, async () => {
+      const { getPopupEditorById } = makeSut();
+      const error = new Error('Test Error');
+
+      jest.spyOn(PopUpEditor, 'findById').mockRejectedValue(error);
+      const response = await getPopupEditorById(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(404, error, response, mockRes);
+    });
+  });
+
 });
