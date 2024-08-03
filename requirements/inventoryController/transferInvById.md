@@ -6,8 +6,8 @@ Cross Mark: ❌
 > ## Positive case
 
 1. ❌ Receives a POST request in the **/api/userProfile** route
-2. ❌ Returns 201 if saving and updating an inventory item was successful
-3. ❌ Returns 201 if it was sucessful in creating a new item and saving.
+2. ✅ Returns 201 if saving and updating an inventory item was successful
+3. ✅ Returns 201 if it was sucessful in creating a new item and saving.
 
 > ## Negative case
 
