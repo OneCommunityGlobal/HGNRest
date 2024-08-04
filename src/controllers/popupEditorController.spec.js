@@ -112,4 +112,52 @@ describe('popupEditorController Controller Unit tests', () => {
       assertResMock(500, { error }, response, mockRes);
     });
   });
+  describe(`updatePopupEditor function`, () => {
+    test(`Should return 403 if user is not authorized`, async () => {
+      const { updatePopupEditor } = makeSut();
+      mockHasPermission(false);
+      const response = await updatePopupEditor(mockReq, mockRes);
+      assertResMock(
+        403,
+        { error: 'You are not authorized to create new popup' },
+        response,
+        mockRes,
+      );
+    });
+
+    test(`Should return 400 if popupContent is missing`, async () => {
+      const { updatePopupEditor } = makeSut();
+      mockReq.body = {};
+      mockHasPermission(true);
+      const response = await updatePopupEditor(mockReq, mockRes);
+      assertResMock(400, { error: 'popupContent is mandatory field' }, response, mockRes);
+    });
+
+    test(`Should return 201 and popup editor on success`, async () => {
+      const { updatePopupEditor } = makeSut();
+      mockHasPermission(true);
+      mockReq.body = { popupContent: 'content' };
+      const mockPopupEditor = { save: jest.fn().mockResolvedValue(mockReq.body) };
+      jest.spyOn(PopUpEditor, 'findById').mockImplementationOnce((mockReq, callback) => callback(null, mockPopupEditor));
+      jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
+      const response = await updatePopupEditor(mockReq, mockRes);
+      expect(mockPopupEditor.save).toHaveBeenCalled();
+      assertResMock(201, mockReq.body, response, mockRes);
+    });
+
+    test('Should return 500 on popupEditor save error', async () => {
+      const { updatePopupEditor } = makeSut();
+      mockHasPermission(true);
+      const err = new Error('Test Error');
+      mockReq.body = { popupContent: 'content' };
+      const mockPopupEditor = { save: jest.fn().mockRejectedValue(err)};
+      jest
+        .spyOn(PopUpEditor, 'findById')
+        .mockImplementation((mockReq, callback) => callback(null, mockPopupEditor));
+      jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
+      const response = await updatePopupEditor(mockReq, mockRes);
+      await flushPromises();
+      assertResMock(500, {err}, response, mockRes);
+    });
+  });
 });
