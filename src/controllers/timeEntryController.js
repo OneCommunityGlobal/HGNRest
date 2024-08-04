@@ -709,9 +709,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const isNotUsingAPermission =
         (!canEditTimeEntryTime && isTimeModified) ||
-        (!canEditTimeEntryDescription && isDescriptionModified) ||
-        (!canEditTimeEntryDate && dateOfWorkChanged) ||
-        (!canEditTimeEntryIsTangible && tangibilityChanged);
+        (!canEditTimeEntryDate && dateOfWorkChanged);
 
       // Time
       if (
