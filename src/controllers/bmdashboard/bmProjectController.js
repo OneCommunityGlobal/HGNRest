@@ -122,6 +122,7 @@ const bmMProjectController = function (BuildingProject) {
       res.json(err);
     }
   };
+
   return { fetchAllProjects, fetchSingleProject };
 };
 
