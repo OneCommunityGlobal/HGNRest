@@ -699,18 +699,25 @@ const timeEntrycontroller = function (TimeEntry) {
       const isTimeModified = newTotalSeconds !== timeEntry.totalSeconds;
       const isDescriptionModified = newNotes !== timeEntry.notes;
 
-      const isUsingAPermission =
-        !isSameDayAuthUserEdit && (
-        isTimeModified ||
-        isDescriptionModified) ||
-        dateOfWorkChanged ||
-        tangibilityChanged;
+
+      const canEditTimeEntryTime = await hasPermission(req.body.requestor, 'editTimeEntryTime');
+      const canEditTimeEntryDescription = await hasPermission(req.body.requestor, 'editTimeEntryDescription');
+      const canEditTimeEntryDate = await hasPermission(req.body.requestor, 'editTimeEntryDate');
+      const canEditTimeEntryIsTangible = (isForAuthUser
+        ? (await hasPermission(req.body.requestor, 'toggleTangibleTime'))
+        : (await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')));
+
+      const isNotUsingAPermission =
+        (!canEditTimeEntryTime && isTimeModified) ||
+        (!canEditTimeEntryDescription && isDescriptionModified) ||
+        (!canEditTimeEntryDate && dateOfWorkChanged) ||
+        (!canEditTimeEntryIsTangible && tangibilityChanged);
 
       // Time
       if (
         !isSameDayAuthUserEdit &&
         isTimeModified &&
-        !(await hasPermission(req.body.requestor, 'editTimeEntryTime'))
+        !canEditTimeEntryTime
       ) {
         const error = `You do not have permission to edit the time entry time`;
         return res.status(403).send({ error });
@@ -720,14 +727,14 @@ const timeEntrycontroller = function (TimeEntry) {
       if (
         !isSameDayAuthUserEdit &&
         isDescriptionModified &&
-        !(await hasPermission(req.body.requestor, 'editTimeEntryDescription'))
+        !canEditTimeEntryDescription
       ) {
         const error = `You do not have permission to edit the time entry description`;
         return res.status(403).send({ error });
       }
 
       // Date
-      if (dateOfWorkChanged && !(await hasPermission(req.body.requestor, 'editTimeEntryDate'))) {
+      if (dateOfWorkChanged && !canEditTimeEntryDate) {
         const error = `You do not have permission to edit the time entry date`;
         return res.status(403).send({ error });
       }
@@ -735,9 +742,7 @@ const timeEntrycontroller = function (TimeEntry) {
       // Tangible Time
       if (
         tangibilityChanged &&
-        (isForAuthUser
-          ? !(await hasPermission(req.body.requestor, 'toggleTangibleTime'))
-          : !(await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')))
+        canEditTimeEntryIsTangible
       ) {
         const error = `You do not have permission to edit the time entry isTangible`;
         return res.status(403).send({ error });
@@ -850,7 +855,7 @@ const timeEntrycontroller = function (TimeEntry) {
               newDateOfWork,
             );
             // Update edit history
-            if (!isUsingAPermission && isSameDayAuthUserEdit && isGeneralEntry) {
+            if (isNotUsingAPermission && isSameDayAuthUserEdit && isGeneralEntry) {
               addEditHistory(
                 userprofile,
                 initialTotalSeconds,
