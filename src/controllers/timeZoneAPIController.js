@@ -51,10 +51,9 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
 };
 
 const timeZoneAPIController = function () {
-  const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
-  const commonKey = process.env.TIMEZONE_COMMON_KEY;
-
   const getTimeZone = async (req, res) => {
+    const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
+    const commonKey = process.env.TIMEZONE_COMMON_KEY;
     const { requestor } = req.body;
     if (!requestor.role) {
       res.status(403).send('Unauthorized Request');
@@ -73,6 +72,7 @@ const timeZoneAPIController = function () {
   };
 
   const getTimeZoneProfileInitialSetup = async (req, res) => {
+    const commonKey = process.env.TIMEZONE_COMMON_KEY;
     const { token } = req.body;
     if (!token) {
       res.status(400).send('Missing token');

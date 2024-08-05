@@ -1,5 +1,8 @@
 const request = require('supertest');
 const { jwtPayload } = require('../test');
+
+const originalPremiumKey = process.env.TIMEZONE_PREMIUM_KEY;
+
 const { app } = require('../app');
 const {
   mockReq,
@@ -46,6 +49,12 @@ describe('timeZoneAPI routes', () => {
 
   afterAll(async () => {
     await dbDisconnect();
+
+    if (originalPremiumKey) {
+      process.env.TIMEZONE_PREMIUM_KEY = originalPremiumKey;
+    } else {
+      delete process.env.TIMEZONE_PREMIUM_KEY;
+    }
   });
 
   describe('API routes', () => {
@@ -61,6 +70,7 @@ describe('timeZoneAPI routes', () => {
   describe('getTimeZone - request parameter `location` based tests', () => {
     test('401 when `API key` is missing', async () => {
       const location = 'Berlin,+Germany';
+      delete process.env.TIMEZONE_PREMIUM_KEY;
 
       const response = await agent
         .get(`/api/timezone/${location}`)
