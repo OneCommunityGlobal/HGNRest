@@ -1139,6 +1139,7 @@ const userProfileController = function (UserProfile, Project) {
       });
       return;
     }
+
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userId,
@@ -1156,7 +1157,28 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     cache.removeCache(`user-${userId}`);
-    UserProfile.findById(userId, 'isActive')
+    const emailReceivers = await UserProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+
+    try {
+      const findUser = await UserProfile.findById(userId, 'teams');
+      findUser.teams.map(async (teamId) => {
+        const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+          managementEmails.forEach((management) => {
+            recipients.push(management.email);
+          });
+        }
+      });
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in finding menagement team');
+    }
+
+    UserProfile.findById(userId, 'isActive email firstName lastName')
       .then((user) => {
         user.set({
           isActive: status,
@@ -1179,6 +1201,13 @@ const userProfileController = function (UserProfile, Project) {
               allUserData.splice(userIdx, 1, userData);
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
+            userHelper.sendDeactivateEmailBody(
+              user.firstName,
+              user.lastName,
+              endDate,
+              user.email,
+              recipients,
+            );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
               user.email,
