@@ -252,6 +252,8 @@ const permissionsRoles = [
 
       'changeUserRehireableStatus',
       'manageAdminLinks',
+
+      'editHeaderMessage',
     ],
   },
 ];
