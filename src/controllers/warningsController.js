@@ -20,9 +20,9 @@ const warningsController = function (UserProfile) {
       if (!warnings) {
         return res.status(400).send({ message: 'no valiud records' });
       }
-      res.status(201).send({ warnings: completedData });
+      return res.status(201).send({ warnings: completedData });
     } catch (error) {
-      res.status(401).send({ message: error.message || error });
+      return res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -30,9 +30,7 @@ const warningsController = function (UserProfile) {
     try {
       const { userId } = req.params;
 
-      const {
- iconId, color, date, description,
-} = req.body;
+      const { iconId, color, date, description } = req.body;
 
       const record = await UserProfile.findById(userId);
       if (!record) {
@@ -50,9 +48,9 @@ const warningsController = function (UserProfile) {
 
       const completedData = filterWarnings(record.warnings);
 
-      res.status(201).send({ message: 'success', warnings: completedData });
+      return res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
-      res.status(400).send({ message: error.message || error });
+      return res.status(400).send({ message: error.message || error });
     }
   };
 
@@ -72,11 +70,9 @@ const warningsController = function (UserProfile) {
       }
 
       const sortedWarnings = filterWarnings(warnings.warnings);
-      res
-        .status(201)
-        .send({ message: 'succesfully deleted', warnings: sortedWarnings });
+      return res.status(201).send({ message: 'succesfully deleted', warnings: sortedWarnings });
     } catch (error) {
-      res.status(401).send({ message: error.message || error });
+      return res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -123,6 +119,7 @@ const sortByColorAndDate = (a, b) => {
 };
 
 const filterWarnings = (warnings) => {
+  if (!warnings) return [];
   const warningsObject = {};
 
   warnings.forEach((warning) => {
