@@ -45,6 +45,9 @@ const overviewReportHelper = function () {
           },
         },
       },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1 },
+      },
     ]);
   }
 
