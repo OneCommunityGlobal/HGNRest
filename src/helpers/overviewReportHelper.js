@@ -5,6 +5,7 @@ const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
 const TimeEntries = require('../models/timeentry');
 const Task = require('../models/task');
+const Project = require('../models/project');
 
 const overviewReportHelper = function () {
   /**
@@ -223,30 +224,33 @@ const overviewReportHelper = function () {
    * Food, Energy, Housing, Stewardship, Society, Economics and Other
    */
   async function getWorkDistributionStats(startDate, endDate) {
-    const distributionStats = TimeEntries.aggregate([
-      {
-        $match: {
-          dateOfWork: { $gte: startDate, $lte: endDate },
-        },
-      },
+    return Project.aggregate([
       {
         $lookup: {
-          from: 'projects',
-          localField: 'projectId',
-          foreignField: '_id',
-          as: 'project',
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'projectId',
+          as: 'times',
         },
       },
       {
         $unwind: {
-          path: '$project',
+          path: '$times',
           preserveNullAndEmptyArrays: true,
         },
       },
       {
+        $match: {
+          'times.dateOfWork': {
+            $gte: moment(startDate).format('YYYY-MM-DD'),
+            $lte: moment(endDate).format('YYYY-MM-DD'),
+          },
+        },
+      },
+      {
         $group: {
-          _id: '$project.category',
-          aggregatedSeconds: { $sum: '$totalSeconds' },
+          _id: '$category',
+          aggregatedSeconds: { $sum: '$times.totalSeconds' },
         },
       },
       {
@@ -256,8 +260,6 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-
-    return distributionStats;
   }
 
   async function getTasksStats(startDate, endDate) {
