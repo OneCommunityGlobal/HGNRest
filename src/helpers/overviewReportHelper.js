@@ -1,11 +1,53 @@
 /* eslint-disable no-plusplus */
 /* eslint-disable quotes */
+const moment = require('moment');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
 const TimeEntries = require('../models/timeentry');
 const Task = require('../models/task');
 
 const overviewReportHelper = function () {
+  /**
+   * Get volunteer trends by time.
+   * Gets the total number of volunteer hours worked per month
+   * For now it will be aggregated for the past year
+   */
+  async function getVolunteerTrends() {
+    const currentDate = moment();
+    const startDate = currentDate.clone().subtract(11, 'months').startOf('month').toDate();
+    const endDate = currentDate.clone().endOf('month').toDate();
+
+    return TimeEntries.aggregate([
+      {
+        $match: {
+          dateOfWork: {
+            $gte: moment(startDate).format('YYYY-MM-DD'),
+            $lte: moment(endDate).format('YYYY-MM-DD'),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: { $dateFromString: { dateString: '$dateOfWork' } } },
+            month: { $month: { $dateFromString: { dateString: '$dateOfWork' } } },
+          },
+          totalSecondsWorked: {
+            $sum: '$totalSeconds',
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          totalHours: {
+            $divide: ['$totalSecondsWorked', 3600],
+          },
+        },
+      },
+    ]);
+  }
+
   /**
    * Get map location statistics
    * Group and count all volunteers  by their lattitude and longitude
@@ -621,6 +663,7 @@ const overviewReportHelper = function () {
   }
 
   return {
+    getVolunteerTrends,
     getMapLocations,
     getTotalActiveTeamCount,
     getAnniversaries,
