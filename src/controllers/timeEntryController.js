@@ -704,8 +704,8 @@ const timeEntrycontroller = function (TimeEntry) {
       const canEditTimeEntryDescription = await hasPermission(req.body.requestor, 'editTimeEntryDescription');
       const canEditTimeEntryDate = await hasPermission(req.body.requestor, 'editTimeEntryDate');
       const canEditTimeEntryIsTangible = (isForAuthUser
-        ? (await hasPermission(req.body.requestor, 'toggleTangibleTime'))
-        : (await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')));
+        ? !(await hasPermission(req.body.requestor, 'toggleTangibleTime'))
+        : !(await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible')));
 
       const isNotUsingAPermission =
         (!canEditTimeEntryTime && isTimeModified) ||
