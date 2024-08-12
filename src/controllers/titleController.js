@@ -1,7 +1,11 @@
 const Team = require('../models/team');
 const Project = require('../models/project');
+const cacheClosure = require('../utilities/nodeCache');
+const { getAllTeamCodeHelper } = require("./userProfileController");
 
 const titlecontroller = function (Title) {
+  const cache = cacheClosure();
+
     const getAllTitles = function (req, res) {
       Title.find({})
         .then((results) => res.status(200).send(results))
@@ -97,11 +101,15 @@ const titlecontroller = function (Title) {
             res.status(500).send(error);
         });
     };
-
+    // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
     async function checkTeamCodeExists(teamCode) {
       try {
-        const team = await Team.findOne({ teamCode }).exec();
-        return !!team;
+        if (cache.getCache('teamCodes')) {
+          const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+          return teamCodes.includes(teamCode);
+        }
+        const teamCodes = await getAllTeamCodeHelper();
+        return teamCodes.includes(teamCode);
       } catch (error) {
         console.error('Error checking if team code exists:', error);
         throw error;

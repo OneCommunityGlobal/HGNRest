@@ -510,7 +510,7 @@ const userProfileController = function (UserProfile, Project) {
       if (req.body.teamCode) {
         // remove teamCode cache when new team assigned
         if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache(`teamCode`);
+          cache.removeCache('teamCodes');
         }
         record.teamCode = req.body.teamCode;
       }
@@ -1574,21 +1574,33 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getAllTeamCode = async function (req, res) {
+  const getAllTeamCodeHelper = async function () {
     try {
-      if (cache.hasCache('teamCodes')) { 
+      if (cache.hasCache('teamCodes')) {
         const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return res.status(200).send({ message: 'Found', distinctTeamCodes: teamCodes });
+        return teamCodes;
       }
       const distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null }
       });
       cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+      return distinctTeamCodes;
+    } catch (error) {
+      throw new Error('Encountered an error to get all team codes, please try again!');
+    }
+  }
+
+  const getAllTeamCode = async function (req, res) {
+    try {
+      const distinctTeamCodes = await getAllTeamCodeHelper();
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error, please try again!' });
+      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
   } 
+
+
+
 
   return {
     postUserProfile,
@@ -1613,6 +1625,7 @@ const userProfileController = function (UserProfile, Project) {
     authorizeUser,
     getProjectsByPerson,
     getAllTeamCode,
+    getAllTeamCodeHelper,
   };
 };
 
