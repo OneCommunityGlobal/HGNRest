@@ -47,6 +47,24 @@ const userHelper = function () {
     });
   };
 
+  const getTeamManagementEmail = function (teamId) {
+    const parsedTeamId = mongoose.Types.ObjectId(teamId);
+    return userProfile
+      .find(
+        {
+          isActive: true,
+          teams: {
+            $in: [parsedTeamId],
+          },
+          role: {
+            $in: ['Manager', 'Administrator'],
+          },
+        },
+        'email role',
+      )
+      .exec();
+  };
+
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     return userProfile.findById(userid, 'firstName lastName');
@@ -107,16 +125,36 @@ const userHelper = function () {
     coreTeamExtraHour,
     requestForTimeOffEmailBody,
     administrativeContent,
+    weeklycommittedHours,
   ) {
     let finalParagraph = '';
-
+    let descrInfringement = '';
     if (timeRemaining === undefined) {
       finalParagraph =
         '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
+        .localeData()
+        .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
     } else {
+      let hrThisweek = weeklycommittedHours || 0 + coreTeamExtraHour;
+      const remainHr = timeRemaining || 0;
+      hrThisweek += remainHr;
       finalParagraph = `Please complete ALL owed time this week (${
-        timeRemaining + coreTeamExtraHour
+        hrThisweek + totalInfringements - 5
       } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
+        .localeData()
+        .ordinal(
+          totalInfringements,
+        )}</b> blue square of 5 and that means you have ${totalInfringements - 5} hour(s) added to your 
+          requirement this week. This is in addition to any hours missed for last week: 
+          ${weeklycommittedHours} hours commitment + ${remainHr} hours owed for last week + ${totalInfringements - 5} hours 
+          owed for this being your <b>${moment
+            .localeData()
+            .ordinal(
+              totalInfringements,
+            )} blue square = ${hrThisweek + totalInfringements - 5} hours required for this week. 
+          .</p>`;
     }
     // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
@@ -160,9 +198,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
-        <p><b>Total Infringements:</b> This is your <b>${moment
-          .localeData()
-          .ordinal(totalInfringements)}</b> blue square of 5.</p>
+        ${descrInfringement}
         ${finalParagraph}
         <p>Thank you,<p>
         <p>One Community</p>
@@ -620,8 +656,7 @@ const userHelper = function () {
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
-        const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
-
+        const coreTeamExtraHour = Math.max(0, oldInfringements.length - 5);
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
         const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
 
@@ -745,6 +780,7 @@ const userHelper = function () {
                 coreTeamExtraHour,
                 requestForTimeOffEmailBody,
                 administrativeContent,
+                weeklycommittedHours,
               );
             } else {
               emailBody = getInfringementEmailBody(
@@ -1994,8 +2030,30 @@ const userHelper = function () {
       });
   };
 
+  const sendDeactivateEmailBody = function (firstName, lastName, endDate, email, recipients) {
+    if (endDate) {
+      const subject = `IMPORTANT:${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+      const emailBody = `<p>Management, </p>
+
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${endDate}.
+      Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      recipients.push('onecommunityglobal@gmail.com');
+      recipients = recipients.toString();
+      emailSender(recipients, subject, emailBody, null, null, email);
+    }
+  };
+
   const deActivateUser = async () => {
     try {
+      const emailReceivers = await userProfile.find(
+        { isActive: true, role: { $in: ['Owner'] } },
+        '_id isActive role email',
+      );
+      const recipients = emailReceivers.map((receiver) => receiver.email);
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
         '_id isActive endDate',
@@ -2020,27 +2078,27 @@ const userHelper = function () {
           }
           const id = user._id;
           const person = await userProfile.findById(id);
-
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
-
-          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been deactivated in the Highest Good Network`;
-
-          const emailBody = `<p> Hi Admin! </p>
-
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has completed their scheduled last day (${lastDay}) and been deactivated in the Highest Good Network application. </p>
-          
-          <p>This is their email from the system: ${person.email}. Please email them to let them know their work is complete and thank them for their volunteer time with One Community. </p>
-          
-          <p> Thanks! </p>
-          
-          <p>The HGN A.I. (and One Community)</p>`;
-
-          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, person.email);
+          person.teams.map(async (teamId) => {
+            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+              managementEmails.forEach((management) => {
+                recipients.push(management.email);
+              });
+            }
+          });
+          sendDeactivateEmailBody(
+            person.firstName,
+            person.lastName,
+            lastDay,
+            person.email,
+            recipients,
+          );
         }
       }
     } catch (err) {
-      logger.logException(err, 'Unexpected rrror in deActivateUser');
+      logger.logException(err, 'Unexpected error in deActivateUser');
     }
   };
 
@@ -2054,6 +2112,7 @@ const userHelper = function () {
     try {
       await token.deleteMany({ isCancelled: true, expiration: { $lt: ninetyDaysAgo } });
     } catch (error) {
+      /* eslint-disable no-undef */
       logger.logException(error, `Error in deleteExpiredTokens. Date ${currentDate}`);
     }
   };
@@ -2076,11 +2135,13 @@ const userHelper = function () {
     changeBadgeCount,
     getUserName,
     getTeamMembers,
+    getTeamManagementEmail,
     validateProfilePic,
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
     reActivateUser,
+    sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,
     getInfringementEmailBody,
