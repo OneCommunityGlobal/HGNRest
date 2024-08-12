@@ -1,4 +1,3 @@
-/* eslint-disable */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 
@@ -31,22 +30,25 @@ const warningsController = function (UserProfile) {
     try {
       const { userId } = req.params;
 
-      const { iconId, color, date, description } = req.body;
+      const {
+ iconId, color, date, description,
+} = req.body;
 
       const record = await UserProfile.findById(userId);
       if (!record) {
         return res.status(400).send({ message: 'No valid records found' });
       }
 
-      const updatedWarnings = await userProfile.findByIdAndUpdate(
-        {
-          _id: userId,
-        },
-        { $push: { warnings: { userId, iconId, color, date, description } } },
-        { new: true, upsert: true },
-      );
+      record.warnings = record.warnings.concat({
+        userId,
+        iconId,
+        color,
+        date,
+        description,
+      });
+      await record.save();
 
-      const completedData = filterWarnings(updatedWarnings.warnings);
+      const completedData = filterWarnings(record.warnings);
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
@@ -70,7 +72,9 @@ const warningsController = function (UserProfile) {
       }
 
       const sortedWarnings = filterWarnings(warnings.warnings);
-      res.status(201).send({ message: 'succesfully deleted', warnings: sortedWarnings });
+      res
+        .status(201)
+        .send({ message: 'succesfully deleted', warnings: sortedWarnings });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
