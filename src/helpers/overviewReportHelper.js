@@ -317,7 +317,12 @@ const overviewReportHelper = function () {
         $match: {
           $or: [
             { timeEntries: { $exists: false } },
-            { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
+            {
+              'timeEntries.dateOfWork': {
+                $gte: moment(startDate).format('YYYY-MM-DD'),
+                $lte: moment(endDate).format('YYYY-MM-DD'),
+              },
+            },
           ],
         },
       },
