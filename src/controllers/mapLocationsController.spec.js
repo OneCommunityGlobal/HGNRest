@@ -64,7 +64,7 @@ describe('Map Locations Controller', () => {
       assertResMock(404, new Error(errMsg), res, mockRes);
       expect(findSpy).toHaveBeenCalledWith(
         {},
-        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
+        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory homeCountry',
       );
     });
 
@@ -82,7 +82,7 @@ describe('Map Locations Controller', () => {
       assertResMock(404, new Error(errMsg), res, mockRes);
       expect(findSpy).toHaveBeenCalledWith(
         {},
-        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
+        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory homeCountry',
       );
       expect(findLocationSpy).toHaveBeenCalledWith({});
     });
@@ -124,7 +124,7 @@ describe('Map Locations Controller', () => {
       assertResMock(200, { users: [modifiedUsers], mUsers: [] }, res, mockRes);
       expect(findSpy).toHaveBeenCalledWith(
         {},
-        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
+        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory homeCountry',
       );
       expect(findLocationSpy).toHaveBeenCalledWith({});
     });
