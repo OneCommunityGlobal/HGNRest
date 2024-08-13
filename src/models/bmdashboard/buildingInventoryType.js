@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
+
 //---------------------------
 // BASE INVENTORY TYPE SCHEMA
 //---------------------------
@@ -12,7 +13,7 @@ const invTypeBaseSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, required: true, maxLength: 150 },
   imageUrl: String,
-  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
 });
 
 const invTypeBase = mongoose.model('invTypeBase', invTypeBaseSchema, 'buildingInventoryTypes');
@@ -58,23 +59,8 @@ const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Sch
 
 const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
   category: { type: String, enum: ['Tool'] },
-  invoice: String,
-  purchaseRental: String,
-  fromDate: Date,
-  toDate:Date,
-  condition: String,
-  phoneNumber: String,
-  quantity: Number,
-  currency: String,
-  unitPrice: Number,
-  shippingFee: Number, 
-  taxes: Number, 
-  totalPriceWithShipping:  Number,
-  images: String,
-  link: String,
-
-  // isPowered: { type: Boolean, required: true },
-  // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
+  isPowered: { type: Boolean, required: true },
+  powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
 }));
 
 //---------------------------
