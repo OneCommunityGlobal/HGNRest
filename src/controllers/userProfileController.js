@@ -495,7 +495,6 @@ const userProfileController = function (UserProfile, Project) {
         'totalTangibleHrs',
         'totalIntangibleHrs',
         'isFirstTimelog',
-        'teamCode',
         'isVisible',
         'bioPosted',
       ];
@@ -505,6 +504,16 @@ const userProfileController = function (UserProfile, Project) {
           record[fieldName] = req.body[fieldName];
         }
       });
+
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
+      }
 
       record.lastModifiedDate = Date.now();
 
@@ -1589,9 +1598,6 @@ const userProfileController = function (UserProfile, Project) {
       return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
   } 
-
-
-
 
   return {
     postUserProfile,
