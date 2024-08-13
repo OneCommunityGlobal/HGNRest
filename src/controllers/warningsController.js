@@ -50,17 +50,15 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'No valid records found' });
       }
 
-      record.warnings = record.warnings.concat({
-        userId,
-        iconId,
-        color,
-        date,
-        description,
-      });
+      const updatedWarnings = await userProfile.findByIdAndUpdate(
+        {
+          _id: userId,
+        },
+        { $push: { warnings: { userId, iconId, color, date, description } } },
+        { new: true, upsert: true },
+      );
 
-      await record.save();
-
-      const completedData = filterWarnings(currentWarningDescriptions, record.warnings);
+      const completedData = filterWarnings(currentWarningDescriptions, updatedWarnings.warnings);
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {

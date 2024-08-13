@@ -37,16 +37,15 @@ const currentWarningsController = function (currentWarnings) {
         return res.status(400).send({ message: 'no valid records' });
       }
 
-      const lowerCaseWarning = newWarning.toLowerCase();
-      const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
+      const testWarning = checkIfSpecialCharacter(newWarning);
       if (testWarning) {
-        return res.status(422).send({
+        return res.status(200).send({
           error: 'Warning cannot have special characters as the first letter',
         });
       }
 
-      if (checkForDuplicates(lowerCaseWarning, warnings)) {
-        return res.status(422).send({ error: 'warning already exists' });
+      if (checkForDuplicates(newWarning, warnings)) {
+        return res.status(200).send({ error: 'warning already exists' });
       }
 
       const newWarningDescription = new currentWarnings();
