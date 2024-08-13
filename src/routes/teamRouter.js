@@ -5,20 +5,16 @@ const router = function (team) {
 
   const teamRouter = express.Router();
 
-  teamRouter
-    .route('/team')
+  teamRouter.route('/team')
     .get(controller.getAllTeams)
-    .post(controller.postTeam)
-    .put(controller.updateTeamVisibility);
+    .post(controller.postTeam);
 
-  teamRouter
-    .route('/team/:teamId')
+  teamRouter.route('/team/:teamId')
     .get(controller.getTeamById)
     .put(controller.putTeam)
     .delete(controller.deleteTeam);
 
-  teamRouter
-    .route('/team/:teamId/users/')
+  teamRouter.route('/team/:teamId/users/')
     .post(controller.assignTeamToUsers)
     .get(controller.getTeamMembership);
 
