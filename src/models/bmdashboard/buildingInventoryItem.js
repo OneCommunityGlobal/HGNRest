@@ -44,7 +44,8 @@ const largeItemBaseSchema = mongoose.Schema({
   // actual purchases (once there is a system) may need their own subdoc
   // subdoc may contain below purchaseStatus and rental fields
   // for now they have default dummy values
-  purchaseStatus: { type: String, enum: ['Rental', 'Purchase'], default: 'Rental' },
+  purchaseStatus: { type: String, enum: ['Rental', 'Purchase','Needed', 'Purchased'], default: 'Rental' },
+  condition: { type: String, enum: ['Like New', 'Good', 'Worn', 'Lost', 'Needs Repair', 'Needs Replacing'], default: 'Like New'},
   // TODO: rental fields should be required if purchaseStatus === "Rental"
   rentedOnDate: { type: Date, default: Date.now() },
   rentalDueDate: { type: Date, default: new Date(Date.now() + (3600 * 1000 * 24 * 14)) },
@@ -73,6 +74,7 @@ const largeItemBaseSchema = mongoose.Schema({
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       type: { type: String, enum: ['Check In', 'Check Out'] },
   }],
+  userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }, // new field
 });
 
 const largeItemBase = mongoose.model('largeItemBase', largeItemBaseSchema, 'buildingInventoryItems');
@@ -126,6 +128,11 @@ const buildingReusable = smallItemBase.discriminator('reusable_item', new mongoo
 const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schema({
   // TODO: add function to create simple numeric code for on-site tool tracking
   code: { type: String, default: '001' },
+  purchaseStatus: {
+    type: String,
+    enum: ['Rental', 'Purchased'], // Override enum values
+    default: 'Rental',
+}
 }));
 
 //-----------------
@@ -138,8 +145,8 @@ const buildingTool = largeItemBase.discriminator('tool_item', new mongoose.Schem
 // ex: tractors, excavators, bulldozers
 
 const buildingEquipment = largeItemBase.discriminator('equipment_item', new mongoose.Schema({
-  isTracked: { type: Boolean, required: true }, // has asset tracker
-  assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
+  // isTracked: { type: Boolean, required: true }, // has asset tracker
+  // assetTracker: { type: String, required: () => this.isTracked }, // required if isTracked = true (syntax?)
 }));
 
 module.exports = {
