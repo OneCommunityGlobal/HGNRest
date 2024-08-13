@@ -87,6 +87,9 @@ const routes = function (userProfile) {
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
 
+
+  userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
+
   return userProfileRouter;
 };
 
