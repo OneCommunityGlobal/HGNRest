@@ -2,42 +2,56 @@ const express = require('express');
 
 const routes = function (task, userProfile) {
   const controller = require('../controllers/taskController')(task, userProfile);
-  const taskRouter = express.Router();
+  const wbsRouter = express.Router();
 
-  taskRouter
-    .route('/tasks/:wbsId/:level/:mother')
+  wbsRouter.route('/tasks/:wbsId/:level/:mother')
     .get(controller.getTasks)
     .put(controller.fixTasks);
 
-  taskRouter.route('/task/:id').post(controller.postTask).get(controller.getTaskById);
+  wbsRouter.route('/task/:id')
+    .post(controller.postTask)
+    .get(controller.getTaskById);
 
-  taskRouter.route('/task/import/:id').post(controller.importTask);
+  wbsRouter.route('/task/import/:id')
+    .post(controller.importTask);
 
-  taskRouter.route('/task/del/:taskId/:mother').post(controller.deleteTask);
+  wbsRouter.route('/task/del/:taskId/:mother')
+    .post(controller.deleteTask);
 
-  taskRouter.route('/task/wbs/:wbsId').get(controller.getWBSId);
+  wbsRouter.route('/task/wbs/:wbsId')
+    .get(controller.getWBSId);
 
-  taskRouter.route('/task/wbs/del/:wbsId').post(controller.deleteTaskByWBS);
+  wbsRouter.route('/task/wbs/del/:wbsId')
+    .post(controller.deleteTaskByWBS);
 
-  taskRouter.route('/task/update/:taskId').put(controller.updateTask);
+  wbsRouter.route('/task/update/:taskId')
+    .put(controller.updateTask);
 
-  taskRouter.route('/task/updateStatus/:taskId').put(controller.updateTaskStatus);
+  wbsRouter.route('/task/updateStatus/:taskId')
+    .put(controller.updateTaskStatus);
 
-  taskRouter.route('/task/updateAllParents/:wbsId/').put(controller.updateAllParents);
+  wbsRouter.route('/task/updateAllParents/:wbsId/')
+    .put(controller.updateAllParents);
 
-  taskRouter.route('/tasks/swap/').put(controller.swap);
+  wbsRouter.route('/tasks/swap/')
+    .put(controller.swap);
 
-  taskRouter.route('/tasks/update/num').put(controller.updateNum);
+  wbsRouter.route('/tasks/update/num')
+    .put(controller.updateNum);
 
-  taskRouter.route('/tasks/moveTasks/:wbsId').put(controller.moveTask);
+  wbsRouter.route('/tasks/moveTasks/:wbsId')
+    .put(controller.moveTask);
 
-  taskRouter.route('/tasks/user/:userId').get(controller.getTasksByUserId);
+  wbsRouter.route('/tasks/user/:userId')
+    .get(controller.getTasksByUserId);
 
-  taskRouter.route('/user/:userId/teams/tasks').get(controller.getTasksForTeamsByUser);
+  wbsRouter.route('/user/:userId/teams/tasks')
+    .get(controller.getTasksForTeamsByUser);
 
-  taskRouter.route('/tasks/reviewreq/:userId').post(controller.sendReviewReq);
+  wbsRouter.route('/tasks/reviewreq/:userId')
+    .post(controller.sendReviewReq);
 
-  return taskRouter;
+  return wbsRouter;
 };
 
 module.exports = routes;
