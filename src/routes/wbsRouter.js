@@ -6,9 +6,15 @@ const routes = function (wbs) {
 
   wbsRouter.route('/wbs/:projectId').get(controller.getAllWBS);
 
-  wbsRouter.route('/wbs/:id').post(controller.postWBS).delete(controller.deleteWBS);
+  wbsRouter.route('/wbs/:id')
+    .post(controller.postWBS)
+    .delete(controller.deleteWBS);
 
-  wbsRouter.route('/wbsId/:id').get(controller.getWBSById);
+  wbsRouter.route('/wbsId/:id')
+    .get(controller.getWBSById);
+
+  wbsRouter.route('/wbs/user/:userId')
+    .get(controller.getWBSByUserId);
 
   wbsRouter.route('/wbs').get(controller.getWBS);
 

@@ -2,13 +2,12 @@
 const path = require("path");
 const fs = require("fs/promises");
 const mongoose = require("mongoose");
-const dashboardHelperClosure = require("../helpers/dashboardhelper");
+const dashboardhelper = require("../helpers/dashboardhelper")();
 const emailSender = require("../utilities/emailSender");
 const AIPrompt = require("../models/weeklySummaryAIPrompt");
 const User = require("../models/userProfile");
 
 const dashboardcontroller = function () {
-  const dashboardhelper = dashboardHelperClosure();
   const dashboarddata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
@@ -348,4 +347,3 @@ const dashboardcontroller = function () {
 };
 
 module.exports = dashboardcontroller;
-
