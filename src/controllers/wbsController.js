@@ -1,23 +1,20 @@
 /* eslint-disable quotes */
 /* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
-const { hasPermission } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 const Project = require('../models/project');
 const Task = require('../models/task');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
-    WBS.find(
-      { projectId: { $in: [req.params.projectId] }, isActive: { $ne: false } },
-      'wbsName isActive modifiedDatetime',
-    )
+    WBS.find({ projectId: { $in: [req.params.projectId] } }, 'wbsName isActive modifiedDatetime')
       .sort({ modifiedDatetime: -1 })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(404).send(error));
   };
 
   const postWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postWbs'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postWbs'))) {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
     }
@@ -45,13 +42,13 @@ const wbsController = function (WBS) {
 
     _wbs
       .save()
-      .then((results) => res.status(201).send(results))
-      .catch((error) => res.status(500).send({ error }));
+      .then(results => res.status(201).send(results))
+      .catch(error => res.status(500).send({ error }));
   };
 
   const deleteWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteWbs'))) {
-      res.status(403).send({ error: 'You are  not authorized to delete projects.' });
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteWbs'))) {
+      res.status(403).send({ error: 'You are not authorized to delete projects.' });
       return;
     }
     const { id } = req.params;
@@ -69,12 +66,15 @@ const wbsController = function (WBS) {
           res.status(400).send(errors);
         });
     });
+    // .catch((errors) => {
+    //   res.status(400).send(errors);
+    // });
   };
 
   const getWBS = function (req, res) {
-    WBS.find({ isActive: { $ne: false } })
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(500).send({ error }));
+    WBS.find()
+      .then(results => res.status(200).send(results))
+      .catch(error => res.status(500).send({ error }));
   };
 
   const getWBSById = function (req, res) {
@@ -83,7 +83,29 @@ const wbsController = function (WBS) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
+  };
+
+  const getWBSByUserId = async function (req, res) {
+    const { userId } = req.params;
+    try {
+      const result = await Task.aggregate()
+        .match({ 'resources.userID': mongoose.Types.ObjectId(userId) })
+        .project('wbsId -_id')
+        .group({ _id: '$wbsId' })
+        .lookup({
+          from: 'wbs',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'wbs',
+        })
+        .unwind('wbs')
+        .replaceRoot('wbs');
+
+      res.status(200).send(result);
+    } catch (error) {
+      res.status(404).send(error);
+    }
   };
 
   return {
@@ -92,6 +114,7 @@ const wbsController = function (WBS) {
     getAllWBS,
     getWBS,
     getWBSById,
+    getWBSByUserId,
   };
 };
 
