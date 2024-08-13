@@ -41,11 +41,21 @@ const cache = function () {
     return cacheStore.has(key);
   }
 
+  /**
+   * Reset or redefine the ttl of a key. If ttl is not passed or set to 0 it's similar to .del()
+   * @param {*} key
+   * @param {*} ttl
+   */
+  function setKeyTimeToLive(key, ttl) {
+    cacheStore.ttl(key, ttl);
+  }
+
   return {
     setCache,
     getCache,
     removeCache,
     hasCache,
+    setKeyTimeToLive,
   };
 };
 
