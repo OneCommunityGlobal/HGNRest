@@ -18,6 +18,7 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 // Title
 const title = require('../models/title');
+const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
@@ -43,11 +44,10 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
-// const buildingTool = require('../models/bmdashboard/buildingTool');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
-const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
+const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
@@ -116,10 +116,14 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 );
 
 const titleRouter = require('../routes/titleRouter')(title);
-const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool);
+const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 
+const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
+  blueSquareEmailAssignment,
+  userProfile,
+);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -157,6 +161,7 @@ module.exports = function (app) {
   app.use('/api', titleRouter);
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
+  app.use('/api', blueSquareEmailAssignmentRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
