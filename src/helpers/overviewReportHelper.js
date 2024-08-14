@@ -367,7 +367,10 @@ const overviewReportHelper = function () {
     const data = await TimeEntries.aggregate([
       {
         $match: {
-          dateOfWork: { $gte: startDate, $lte: endDate },
+          dateOfWork: {
+            $gte: moment(startDate).format('YYYY-MM-DD'),
+            $lte: moment(endDate).format('YYYY-MM-DD'),
+          },
         },
       },
       {
