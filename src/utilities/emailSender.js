@@ -25,15 +25,17 @@ const closure = () => {
 
   OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
-  setInterval(async () => {
+  const processQueue = async () => {
     const nextItem = queue.shift();
+    if (!nextItem) {
+      setTimeout(processQueue, process.env.MAIL_QUEUE_INTERVAL || 1000);
+      return;
+    }
 
-    if (!nextItem) return;
-
-    const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt } = nextItem;
+    const { recipient, subject, message, attachments, cc, bcc, replyTo, acknowledgingReceipt } =
+      nextItem;
 
     try {
-      // Generate the accessToken on the fly
       const res = await OAuth2Client.getAccessToken();
       const ACCESSTOKEN = res.token;
 
@@ -44,6 +46,7 @@ const closure = () => {
         bcc,
         subject,
         html: message,
+        attachments,
         replyTo,
         auth: {
           user: CLIENT_EMAIL,
@@ -56,12 +59,6 @@ const closure = () => {
       if (typeof acknowledgingReceipt === 'function') {
         acknowledgingReceipt(null, result);
       }
-      // Prevent logging email in production
-      // Why?
-      // 1. Could create a security risk
-      // 2. Could create heavy loads on the server if emails are sent to many people
-      // 3. Contain limited useful info:
-      //   result format : {"accepted":["emailAddr"],"rejected":[],"envelopeTime":209,"messageTime":566,"messageSize":317,"response":"250 2.0.0 OK  17***69 p11-2***322qvd.85 - gsmtp","envelope":{"from":"emailAddr", "to":"emailAddr"}}
       if (process.env.NODE_ENV === 'local') {
         logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
       }
@@ -74,13 +71,18 @@ const closure = () => {
         `Error sending email: from ${CLIENT_EMAIL} to ${recipient} subject ${subject}`,
         `Extra Data: cc ${cc} bcc ${bcc}`,
       );
+    } finally {
+      setTimeout(processQueue, process.env.MAIL_QUEUE_INTERVAL || 1000);
     }
-  }, process.env.MAIL_QUEUE_INTERVAL || 1000);
+  };
+
+  processQueue();
 
   const emailSender = function (
     recipient,
     subject,
     message,
+    attachments = null,
     cc = null,
     bcc = null,
     replyTo = null,
@@ -91,6 +93,7 @@ const closure = () => {
         recipient,
         subject,
         message,
+        attachments,
         cc,
         bcc,
         replyTo,
