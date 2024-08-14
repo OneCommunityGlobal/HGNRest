@@ -77,13 +77,13 @@ const currentWarningsController = function (currentWarnings) {
       const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
 
       if (testWarning) {
-        return res.status(422).send({
+        return res.status(200).send({
           error: 'Warning cannot have special characters as the first letter',
         });
       }
 
       if (checkForDuplicates(lowerCaseWarning, warnings)) {
-        return res.status(422).send({ error: 'warning already exists try a different name' });
+        return res.status(200).send({ error: 'warning already exists try a different name' });
       }
 
       await currentWarnings.findOneAndUpdate(
