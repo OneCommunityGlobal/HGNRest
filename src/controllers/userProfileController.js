@@ -1565,31 +1565,6 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getAllTeamCodeHelper = async function () {
-    try {
-      if (cache.hasCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes;
-      }
-      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
-        teamCode: { $ne: null }
-      });
-      cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
-      return distinctTeamCodes;
-    } catch (error) {
-      throw new Error('Encountered an error to get all team codes, please try again!');
-    }
-  }
-
-  const getAllTeamCode = async function (req, res) {
-    try {
-      const distinctTeamCodes = await getAllTeamCodeHelper();
-      return res.status(200).send({ message: 'Found', distinctTeamCodes });
-    } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
-    }
-  } 
-  
   return {
     postUserProfile,
     getUserProfiles,
@@ -1612,8 +1587,6 @@ const userProfileController = function (UserProfile, Project) {
     changeUserRehireableStatus,
     authorizeUser,
     getProjectsByPerson,
-    getAllTeamCode,
-    getAllTeamCodeHelper,
   };
 };
 
