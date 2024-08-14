@@ -22,8 +22,6 @@ const router = function (team) {
     .post(controller.assignTeamToUsers)
     .get(controller.getTeamMembership);
 
-  teamRouter.route('/teamCode').get(controller.getAllTeamCode);
-
   return teamRouter;
 };
 

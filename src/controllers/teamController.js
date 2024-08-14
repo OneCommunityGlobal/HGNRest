@@ -250,6 +250,7 @@ const teamcontroller = function (Team) {
         team.modifiedDatetime = Date.now();
   
         team.save()
+          // eslint-disable-next-line no-unused-vars
           .then(updatedTeam => {  
             // Additional operations after team.save() 
             const assignlist = [];
@@ -279,8 +280,8 @@ const teamcontroller = function (Team) {
               .then(() => {
                 res.status(200).send({ result: 'Done' });
               })
-              .catch((error) => {
-                res.status(500).send({ error });
+              .catch((err) => {
+                res.status(500).send({ err });
               });
           })
           .catch(errors => {
@@ -294,24 +295,9 @@ const teamcontroller = function (Team) {
     }
   };
 
-    /**
-   * Leaner version of the teamcontroller.getAllTeams
-   * Remove redundant data: members, isActive, createdDatetime, modifiedDatetime.
-   */
-  const getAllTeamCode = async function (req, res) {
-    Team.find({ isActive: true }, { teamCode: 1, _id: 1, teamName: 1 })
-      .then((results) => {
-        res.status(200).send(results);
-      })
-      .catch((error) => {
-        // logger.logException(`Fetch team code failed: ${error}`);
-        res.status(500).send('Fetch team code failed.');
-      });
-  };
   
   return {
     getAllTeams,
-    getAllTeamCode,
     getTeamById,
     postTeam,
     deleteTeam,
