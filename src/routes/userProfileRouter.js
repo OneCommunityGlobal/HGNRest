@@ -102,8 +102,6 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
-  userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
-
   return userProfileRouter;
 };
 
