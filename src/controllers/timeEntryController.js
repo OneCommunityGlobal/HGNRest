@@ -740,7 +740,7 @@ const timeEntrycontroller = function (TimeEntry) {
       // Tangible Time
       if (
         tangibilityChanged &&
-        canEditTimeEntryIsTangible
+        !canEditTimeEntryIsTangible
       ) {
         const error = `You do not have permission to edit the time entry isTangible`;
         return res.status(403).send({ error });

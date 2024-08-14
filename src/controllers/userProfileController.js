@@ -495,7 +495,6 @@ const userProfileController = function (UserProfile, Project) {
         'totalTangibleHrs',
         'totalIntangibleHrs',
         'isFirstTimelog',
-        'teamCode',
         'isVisible',
         'bioPosted',
       ];
@@ -505,6 +504,16 @@ const userProfileController = function (UserProfile, Project) {
           record[fieldName] = req.body[fieldName];
         }
       });
+
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
+      }
 
       record.lastModifiedDate = Date.now();
 
@@ -1139,6 +1148,7 @@ const userProfileController = function (UserProfile, Project) {
       });
       return;
     }
+
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userId,
@@ -1156,7 +1166,28 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     cache.removeCache(`user-${userId}`);
-    UserProfile.findById(userId, 'isActive')
+    const emailReceivers = await UserProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+
+    try {
+      const findUser = await UserProfile.findById(userId, 'teams');
+      findUser.teams.map(async (teamId) => {
+        const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+          managementEmails.forEach((management) => {
+            recipients.push(management.email);
+          });
+        }
+      });
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in finding menagement team');
+    }
+
+    UserProfile.findById(userId, 'isActive email firstName lastName')
       .then((user) => {
         user.set({
           isActive: status,
@@ -1179,6 +1210,13 @@ const userProfileController = function (UserProfile, Project) {
               allUserData.splice(userIdx, 1, userData);
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
+            userHelper.sendDeactivateEmailBody(
+              user.firstName,
+              user.lastName,
+              endDate,
+              user.email,
+              recipients,
+            );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
               user.email,
@@ -1536,6 +1574,31 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getAllTeamCodeHelper = async function () {
+    try {
+      if (cache.hasCache('teamCodes')) {
+        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+        return teamCodes;
+      }
+      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
+        teamCode: { $ne: null }
+      });
+      cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+      return distinctTeamCodes;
+    } catch (error) {
+      throw new Error('Encountered an error to get all team codes, please try again!');
+    }
+  }
+
+  const getAllTeamCode = async function (req, res) {
+    try {
+      const distinctTeamCodes = await getAllTeamCodeHelper();
+      return res.status(200).send({ message: 'Found', distinctTeamCodes });
+    } catch (error) {
+      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
+    }
+  } 
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1558,6 +1621,8 @@ const userProfileController = function (UserProfile, Project) {
     changeUserRehireableStatus,
     authorizeUser,
     getProjectsByPerson,
+    getAllTeamCode,
+    getAllTeamCodeHelper,
   };
 };
 
