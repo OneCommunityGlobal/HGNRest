@@ -495,6 +495,7 @@ const userProfileController = function (UserProfile, Project) {
         'totalTangibleHrs',
         'totalIntangibleHrs',
         'isFirstTimelog',
+        'teamCode',
         'isVisible',
         'bioPosted',
       ];
@@ -504,16 +505,6 @@ const userProfileController = function (UserProfile, Project) {
           record[fieldName] = req.body[fieldName];
         }
       });
-
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
-      // we need to remove the cache when team code is updated in case of new team code generation
-      if (req.body.teamCode) {
-        // remove teamCode cache when new team assigned
-        if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache('teamCodes');
-        }
-        record.teamCode = req.body.teamCode;
-      }
 
       record.lastModifiedDate = Date.now();
 
@@ -1574,31 +1565,6 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getAllTeamCodeHelper = async function () {
-    try {
-      if (cache.hasCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes;
-      }
-      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
-        teamCode: { $ne: null }
-      });
-      cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
-      return distinctTeamCodes;
-    } catch (error) {
-      throw new Error('Encountered an error to get all team codes, please try again!');
-    }
-  }
-
-  const getAllTeamCode = async function (req, res) {
-    try {
-      const distinctTeamCodes = await getAllTeamCodeHelper();
-      return res.status(200).send({ message: 'Found', distinctTeamCodes });
-    } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
-    }
-  } 
-
   return {
     postUserProfile,
     getUserProfiles,
@@ -1621,8 +1587,6 @@ const userProfileController = function (UserProfile, Project) {
     changeUserRehireableStatus,
     authorizeUser,
     getProjectsByPerson,
-    getAllTeamCode,
-    getAllTeamCodeHelper,
   };
 };
 
