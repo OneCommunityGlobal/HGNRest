@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+/* eslint-disable no-unused-vars */
 const { v4: uuidv4 } = require('uuid');
 const { CustomError } = require('./customError');
 const Logger = require('../../startup/logger');
@@ -52,4 +53,4 @@ function globalErrorHandler(err, req, res, next) {
   });
 }
 
-export default globalErrorHandler;
+module.exports = globalErrorHandler;
