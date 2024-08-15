@@ -8,7 +8,7 @@ const mapLocationsController = function (MapLocation) {
       const users = [];
       const results = await UserProfile.find(
         {},
-        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory homeCountry',
+        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
       );
 
       results.forEach((item) => {
@@ -23,7 +23,7 @@ const mapLocationsController = function (MapLocation) {
         }
       });
       const modifiedUsers = users.map((item) => ({
-        location: item.homeCountry || item.location,
+        location: item.location,
         isActive: item.isActive,
         jobTitle: item.jobTitle[0],
         _id: item._id,
