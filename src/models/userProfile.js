@@ -55,7 +55,9 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
+    validate: [
+      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
+    ],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
@@ -75,7 +77,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default() {
+    default () {
       return this.createdDate;
     },
   },
@@ -130,15 +132,6 @@ const userProfileSchema = new Schema({
     },
   ],
   location: {
-    userProvided: { type: String, default: '' },
-    coords: {
-      lat: { type: Number, default: '' },
-      lng: { type: Number, default: '' },
-    },
-    country: { type: String, default: '' },
-    city: { type: String, default: '' },
-  },
-  homeCountry: {
     userProvided: { type: String, default: '' },
     coords: {
       lat: { type: Number, default: '' },
@@ -226,21 +219,19 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: true },
+  isVisible: { type: Boolean, default: false },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
-  badgeCount: { type: Number, default: 0 },
   teamCode: {
     type: String,
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^(.{5,7}|^$)$/;
+        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
         return teamCoderegex.test(v);
       },
-      message:
-        'Please enter a code in the format of A-AAAA or AAAAA, with optional numbers, and a total length between 5 and 7 characters.',
+      message: 'Please enter a code in the format of A-AAA or AAAAA',
     },
   },
   infoCollections: [
@@ -271,4 +262,11 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
-module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+userProfileSchema.index({ teamCode: 1 });
+userProfileSchema.index({ email: 1 });
+
+module.exports = mongoose.model(
+  'userProfile',
+  userProfileSchema,
+  'userProfiles',
+);
