@@ -13,7 +13,7 @@ const inventoryController = function (Item, ItemType) {
     // use req.params.projectId and wbsId
     // Run a mongo query on the Item model to find all items with both the project and wbs
     // sort the mongo query so that the Wasted false items are listed first
-    await Item.find({
+    return Item.find({
       project: mongoose.Types.ObjectId(req.params.projectId),
       wbs:
         req.params.wbsId && req.params.wbsId !== 'Unassigned'
@@ -283,9 +283,9 @@ const inventoryController = function (Item, ItemType) {
     }
 
     // update the original item by decreasing by the quantity and adding a note
-    if (req.body.quantity && req.param.invId && projectExists && wbsExists) {
+    if (req.body.quantity && req.params.invId && projectExists && wbsExists) {
       return Item.findByIdAndUpdate(
-        req.param.invId,
+        req.params.invId,
         {
           $decr: { quantity: req.body.quantity },
           $push: {
