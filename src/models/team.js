@@ -2,12 +2,6 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-/**
- * This schema represents a team in the system. 
- * 
- * Deprecated field: teamCode. Team code is no longer associated with a team. 
- * Team code is used as a text string identifier in the user profile data model.
- */
 const team = new Schema({
   teamName: { type: 'String', required: true },
   isActive: { type: 'Boolean', required: true, default: true },
@@ -20,7 +14,6 @@ const team = new Schema({
       visible: { type : 'Boolean', default:true},
     },
   ],
-  // Deprecated field
   teamCode: {
     type: 'String',
     default: '',

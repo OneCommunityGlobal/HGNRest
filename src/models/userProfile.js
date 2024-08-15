@@ -75,7 +75,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default () {
+    default() {
       return this.createdDate;
     },
   },
@@ -271,11 +271,4 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
-userProfileSchema.index({ teamCode: 1 });
-userProfileSchema.index({ email: 1 });
-
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
