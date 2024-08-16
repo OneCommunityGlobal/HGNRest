@@ -6,8 +6,61 @@ const Logger = require('../startup/logger');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
-    Team.find({})
-      .sort({ teamName: 1 })
+    Team.aggregate([
+      {
+        $unwind: '$members',
+      },
+      {
+        $lookup: {
+          from: 'userProfiles',
+          localField: 'members.userId',
+          foreignField: '_id',
+          as: 'userProfile',
+        },
+      },
+      {
+        $unwind: '$userProfile',
+      },
+      {
+        $group: {
+          _id: {
+            teamId: '$_id',
+            teamCode: '$userProfile.teamCode',
+          },
+          count: { $sum: 1 },
+          teamName: { $first: '$teamName' },
+          members: {
+            $push: {
+              _id: '$userProfile._id',
+              name: '$userProfile.name',
+              email: '$userProfile.email',
+              teamCode: '$userProfile.teamCode',
+              addDateTime: '$members.addDateTime',
+            },
+          },
+          createdDatetime: { $first: '$createdDatetime' },
+          modifiedDatetime: { $first: '$modifiedDatetime' },
+          isActive: { $first: '$isActive' },
+        },
+      },
+      {
+        $sort: { count: -1 }, // Sort by the most frequent teamCode
+      },
+      {
+        $group: {
+          _id: '$_id.teamId',
+          teamCode: { $first: '$_id.teamCode' }, // Get the most frequent teamCode
+          teamName: { $first: '$teamName' },
+          members: { $first: '$members' },
+          createdDatetime: { $first: '$createdDatetime' },
+          modifiedDatetime: { $first: '$modifiedDatetime' },
+          isActive: { $first: '$isActive' },
+        },
+      },
+      {
+        $sort: { teamName: 1 }, // Sort teams by name
+      },
+    ])
       .then((results) => res.status(200).send(results))
       .catch((error) => {
         Logger.logException(error);
@@ -229,52 +282,53 @@ const teamcontroller = function (Team) {
       });
   };
   const updateTeamVisibility = async (req, res) => {
-    console.log("==============>   9 ");
+    console.log('==============>   9 ');
 
     const { visibility, teamId, userId } = req.body;
-  
+
     try {
       Team.findById(teamId, (error, team) => {
         if (error || team === null) {
           res.status(400).send('No valid records found');
           return;
         }
-  
-        const memberIndex = team.members.findIndex(member => member.userId.toString() === userId);
+
+        const memberIndex = team.members.findIndex((member) => member.userId.toString() === userId);
         if (memberIndex === -1) {
           res.status(400).send('Member not found in the team.');
           return;
         }
-  
+
         team.members[memberIndex].visible = visibility;
         team.modifiedDatetime = Date.now();
-  
-        team.save()
-          .then(updatedTeam => {  
-            // Additional operations after team.save() 
+
+        team
+          .save()
+          .then((updatedTeam) => {
+            // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
-            team.members.forEach(member => {
+            team.members.forEach((member) => {
               if (member.userId.toString() === userId) {
                 // Current user, no need to process further
                 return;
               }
-            
+
               if (visibility) {
                 assignlist.push(member.userId);
               } else {
-                console.log("Visiblity set to false so removing it");
+                console.log('Visiblity set to false so removing it');
                 unassignlist.push(member.userId);
               }
             });
-  
+
             const addTeamToUserProfile = userProfile
               .updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: teamId } })
               .exec();
             const removeTeamFromUserProfile = userProfile
               .updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: teamId } })
               .exec();
-  
+
             Promise.all([addTeamToUserProfile, removeTeamFromUserProfile])
               .then(() => {
                 res.status(200).send({ result: 'Done' });
@@ -283,11 +337,10 @@ const teamcontroller = function (Team) {
                 res.status(500).send({ error });
               });
           })
-          .catch(errors => {
+          .catch((errors) => {
             console.error('Error saving team:', errors);
             res.status(400).send(errors);
           });
-  
       });
     } catch (error) {
       res.status(500).send('Error updating team visibility: ' + error.message);
