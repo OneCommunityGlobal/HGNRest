@@ -9,7 +9,7 @@ const userProfile = require('../models/userProfile');
 const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
 
-const handleContentToAll = (htmlContent) =>
+const handleContentToOC = (htmlContent) =>
   `<!DOCTYPE html>
     <html>
       <head>
@@ -20,7 +20,7 @@ const handleContentToAll = (htmlContent) =>
       </body>
     </html>`;
 
-const handleContentToSubscriber = (htmlContent, email) =>
+const handleContentToNonOC = (htmlContent, email) =>
   `<!DOCTYPE html>
       <html>
         <head>
@@ -34,7 +34,6 @@ const handleContentToSubscriber = (htmlContent, email) =>
       </html>`;
 
 function extractImagesAndCreateAttachments(html) {
-  console.log('extractImagesAndCreateAttachments');
   const $ = cheerio.load(html);
   const attachments = [];
 
@@ -51,9 +50,6 @@ function extractImagesAndCreateAttachments(html) {
       $(img).attr('src', `cid:${_cid}`);
     }
   });
-
-  console.log('attachments', attachments);
-
   return {
     html: $.html(),
     attachments,
@@ -63,10 +59,26 @@ function extractImagesAndCreateAttachments(html) {
 const sendEmail = async (req, res) => {
   try {
     const { to, subject, html } = req.body;
+    // Validate required fields
+    if (!subject || !html || !to) {
+      const missingFields = [];
+      if (!subject) missingFields.push('Subject');
+      if (!html) missingFields.push('HTML content');
+      if (!to) missingFields.push('Recipient email');
+      return res
+        .status(400)
+        .send(`${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`);
+    }
 
-    console.log('to', to);
+    // Extract images and create attachments
+    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
 
-    emailSender(to, subject, html);
+    // Log recipient for debugging
+    console.log('Recipient:', to);
+
+    // Send email
+    emailSender(to, subject, processedHtml, attachments);
+
     return res.status(200).send('Email sent successfully');
   } catch (error) {
     console.error('Error sending email:', error);
@@ -77,12 +89,11 @@ const sendEmail = async (req, res) => {
 const sendEmailToAll = async (req, res) => {
   try {
     const { subject, html } = req.body;
-    // Check if subject and html are provided
     if (!subject || !html) {
       return res.status(400).send('Subject and HTML content are required');
     }
 
-    const { html: updatedHtml, attachments } = extractImagesAndCreateAttachments(html);
+    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
 
     const users = await userProfile.find({
       firstName: 'Angela',
@@ -94,22 +105,28 @@ const sendEmailToAll = async (req, res) => {
       return res.status(404).send('No users found');
     }
 
-    const to = users.map((user) => user.email).join(',');
-    console.log('# sendEmailToAll to', to);
-    if (!to) {
+    const recipientEmails = users.map((user) => user.email);
+    console.log('# sendEmailToAll to', recipientEmails.join(','));
+    if (recipientEmails.length === 0) {
       throw new Error('No recipients defined');
     }
 
-    const emailContentToAll = handleContentToAll(updatedHtml);
+    const emailContentToOCmembers = handleContentToOC(processedHtml);
+    await Promise.all(
+      recipientEmails.map((email) =>
+        emailSender(email, subject, emailContentToOCmembers, attachments),
+      ),
+    );
 
-    emailSender(to, subject, emailContentToAll, attachments);
+    const emailSubscribers = await EmailSubcriptionList.find({ email: { $exists: true, $ne: '' } });
+    console.log('# sendEmailToAll emailSubscribers', emailSubscribers.length);
+    await Promise.all(
+      emailSubscribers.map(({ email }) => {
+        const emailContentToNonOCmembers = handleContentToNonOC(processedHtml, email);
+        return emailSender(email, subject, emailContentToNonOCmembers, attachments);
+      }),
+    );
 
-    const emailList = await EmailSubcriptionList.find({ email: { $ne: null } });
-    emailList.forEach((emailObject) => {
-      const { email } = emailObject;
-      const emailContentToSubscriber = handleContentToSubscriber(html, email);
-      emailSender(email, subject, emailContentToSubscriber);
-    });
     return res.status(200).send('Email sent successfully');
   } catch (error) {
     console.error('Error sending email:', error);
