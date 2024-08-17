@@ -49,6 +49,7 @@ const dashboardhelper = function () {
           name: 1,
           weeklycommittedHours: 1,
           role: 1,
+          endDate: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -84,6 +85,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           weeklycommittedHours: 1,
+          endDate: 1,
           totalSeconds: {
             $cond: [
               {
@@ -173,10 +175,20 @@ const dashboardhelper = function () {
           { members: 1 },
         );
 
+        console.log(teamsResult);
         teamsResult.forEach((_myTeam) => {
+          let isUserVisible = false;
           _myTeam.members.forEach((teamMember) => {
-            if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+            if (teamMember.userId.equals(userid) && teamMember.visible) isUserVisible = true;
           });
+          if(isUserVisible)
+          {
+            _myTeam.members.forEach((teamMember) => {
+               if (!teamMember.userId.equals(userid)) 
+                   teamMemberIds.push(teamMember.userId);
+          });
+        }
+
         });
 
         teamMembers = await userProfile.find(
@@ -190,7 +202,9 @@ const dashboardhelper = function () {
             weeklySummaries: 1,
             timeOffFrom: 1,
             timeOffTill: 1,
-          },
+            endDate: 1,
+          }
+
         );
       } else {
         // 'Core Team', 'Owner' //All users
@@ -205,6 +219,8 @@ const dashboardhelper = function () {
             weeklySummaries: 1,
             timeOffFrom: 1,
             timeOffTill: 1,
+            endDate: 1,
+
           },
         );
       }
@@ -254,10 +270,11 @@ const dashboardhelper = function () {
               : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
           totaltangibletime_hrs:
-            (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds || 0) / 3600,
+            (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds ?? 0) / 3600,
           totalintangibletime_hrs:
-            (timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds || 0) / 3600,
-          totaltime_hrs: (timeEntryByPerson[teamMember._id.toString()]?.totalSeconds || 0) / 3600,
+            (timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds ?? 0) / 3600,
+          totaltime_hrs: (timeEntryByPerson[teamMember._id.toString()]?.totalSeconds ?? 0) / 3600,
+
           percentagespentintangible:
             timeEntryByPerson[teamMember._id.toString()] &&
             timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0 &&
@@ -268,6 +285,7 @@ const dashboardhelper = function () {
               : 0,
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
+          endDate: teamMember.endDate || null,
         };
         leaderBoardData.push(obj);
       });
@@ -592,6 +610,7 @@ const dashboardhelper = function () {
           percentagespentintangible: (intangibleSeconds / tangibleSeconds) * 100,
           timeOffFrom: user.timeOffFrom,
           timeOffTill: user.timeOffTill,
+          endDate: user.endDate || null,
         },
       ];
     } catch (err) {
