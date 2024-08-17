@@ -14,8 +14,6 @@ const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
 const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
 const { startSession } = mongoose;
 
-const { hasPermission } = require('../utilities/permissions');
-
 // returns the email body that includes the setup link for the recipient.
 function sendLinkMessage(Link) {
   const message = `<p>Hello,</p>
@@ -123,7 +121,6 @@ const profileInitialSetupController = function (
   userProfile,
   Project,
   MapLocation,
-  MapLocation,
 ) {
   const { JWT_SECRET } = config;
 
@@ -139,14 +136,6 @@ const profileInitialSetupController = function (
   const getSetupToken = async (req, res) => {
     let { email } = req.body;
     const { baseUrl, weeklyCommittedHours } = req.body;
-
-    if (
-      !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality')) &&
-      !(await hasPermission(req.body.requestor, 'postUserProfile'))
-    ) {
-      return res.status(403).send('You are not authorized to send setup link');
-    }
-
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().add(3, 'week');
@@ -247,14 +236,6 @@ const profileInitialSetupController = function (
 */
   const setUpNewUser = async (req, res) => {
     const { token } = req.body;
-
-    if (
-      !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality')) &&
-      !(await hasPermission(req.body.requestor, 'postUserProfile'))
-    ) {
-      return res.status(403).send('You are not authorized to setup new user');
-    }
-
     const currentMoment = moment.now(); // use UTC for comparison
     try {
       const foundToken = await ProfileInitialSetupToken.findOne({ token });
