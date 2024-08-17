@@ -1,7 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
-const { getInfringementEmailBody } = require('../helpers/userHelper')();
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
 const Task = require('../models/task');
@@ -324,12 +323,82 @@ const addEditHistory = async (
   ).length;
 
   if (totalRecentEdits >= 5) {
+    const cutOffDate = moment().subtract(1, 'year');
+    const recentInfringements = userprofile.infringements.filter((infringement) =>
+      moment(infringement.date).isAfter(cutOffDate),
+    );
+    let modifiedRecentInfringements = 'No Previous Infringements!';
+    if (recentInfringements.length) {
+      modifiedRecentInfringements = recentInfringements
+        .map((item, index) => {
+          let enhancedDescription;
+          if (item.description) {
+            let sentences = item.description.split('.');
+            const dateRegex =
+              /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+            sentences = sentences.map((sentence) =>
+              sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                  'M-D-YYYY',
+                );
+                return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+              }),
+            );
+            if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else if (
+              sentences[0].includes(
+                'System auto-assigned infringement for editing your time entries',
+              )
+            ) {
+              sentences[0] = sentences[0].replace(
+                /time entries <(\d+)>\s*times/i,
+                'time entries <span><b>$1 times</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+            } else if (sentences[0].includes('System auto-assigned infringement')) {
+              sentences[0] = sentences[0].replace(
+                /(not submitting a weekly summary)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              sentences[0] = sentences[0].replace(
+                /(not meeting weekly volunteer time commitment)/gi,
+                '<span style="color: blue;"><b>$1</b></span>',
+              );
+              enhancedDescription = sentences.join('.');
+              enhancedDescription = enhancedDescription.replace(
+                /logged (\d+(\.\d+)?\s*hours)/i,
+                'logged <span style="color: blue;"><b>$1</b></span>',
+              );
+            } else {
+              enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+            }
+          }
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format(
+            'M-D-YYYY',
+          )}</b></span>, Description: ${enhancedDescription}</p>`;
+        })
+        .join('');
+    }
+
     userprofile.infringements.push({
       date: moment().tz('America/Los_Angeles'),
-      description: `${totalRecentEdits} time entry edits in the last calendar year`,
+      description: `System auto-assigned infringement for editing your time entries <${totalRecentEdits}> times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.
+     time entry edits in the last calendar year`,
     });
 
-    const infringementNotificationEmail = `
+    const infringementNotificationToAdminEmailBody = `
     <p>
       ${userprofile.firstName} ${userprofile.lastName} (${userprofile.email}) was issued a blue square for editing their time entries ${totalRecentEdits} times
       within the last calendar year.
@@ -339,28 +408,37 @@ const addEditHistory = async (
     </p>
     `;
 
-    const emailInfringement = {
-      date: moment().tz('America/Los_Angeles').format('MMMM-DD-YY'),
-      description: `You edited your time entries ${totalRecentEdits} times within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.`,
-    };
+    const infringementNotificationToUserEmailBody = `Dear <b>${userprofile.firstName} ${userprofile.lastName}</b>,
+        <p>Oops, it looks like you chose to edit your time entries too many times and you’ve managed to get a blue square.</p>
+        <p><b>Date Assigned:</b> ${moment().tz('America/Los_Angeles').format('M-D-YYYY')}</p>\
+        <p><b>Description:</b> System auto-assigned infringement for editing your time entries <b>${totalRecentEdits} times</b> within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.</p>
+        <p><b>Total Infringements:</b> This is your <b>${moment
+          .localeData()
+          .ordinal(recentInfringements.length)}</b> blue square of 5.</p>
+        <p>Thank you,<p>
+        <p>One Community</p>
+        <!-- Adding multiple non-breaking spaces -->
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <hr style="border-top: 1px dashed #000;"/>      
+        <p><b>ADMINISTRATIVE DETAILS:</b></p>
+        <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
+        <p><b>Role:</b> ${userprofile.role}</p>
+        <p><b>Title:</b> ${userprofile.userTitle || 'Volunteer'} </p>
+        <p><b>Previous Blue Square Reasons: </b></p>
+        ${modifiedRecentInfringements}`;
 
     pendingEmailCollection.push(
       emailSender.bind(
         null,
         'onecommunityglobal@gmail.com',
         `${userprofile.firstName} ${userprofile.lastName} was issued a blue square for for editing a time entry ${totalRecentEdits} times`,
-        infringementNotificationEmail,
+        infringementNotificationToAdminEmailBody,
       ),
       emailSender.bind(
         null,
         userprofile.email,
-        "You've been issued a blue square for editing your time entry",
-        getInfringementEmailBody(
-          userprofile.firstName,
-          userprofile.lastName,
-          emailInfringement,
-          userprofile.infringements.length,
-        ),
+        'You’ve been issued a blue square for editing your time entries too many times',
+        infringementNotificationToUserEmailBody,
       ),
     );
   }
@@ -425,6 +503,13 @@ const timeEntrycontroller = function (TimeEntry) {
       result.status(400).send({ error: 'Bad request' });
     };
 
+    const isPostingForSelf = req.body.personId === req.body.requestor.requestorId;
+    const canPostTimeEntriesForOthers = await hasPermission(req.body.requestor, 'postTimeEntry');
+    if (!isPostingForSelf && !canPostTimeEntriesForOthers) {
+      res.status(403).send({ error: 'You do not have permission to post time entries for others' });
+      return;
+    }
+
     switch (req.body.entryType) {
       case 'person':
         if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) returnErr(res);
@@ -468,32 +553,34 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const userprofile = await UserProfile.findById(timeEntry.personId);
 
-      // if the time entry is tangible, update the tangible hours in the user profile
-      if (timeEntry.isTangible) {
-        // update the total tangible hours in the user profile and the hours by category
-        updateUserprofileTangibleIntangibleHrs(timeEntry.totalSeconds, 0, userprofile);
-        updateUserprofileCategoryHrs(
-          null,
-          null,
-          timeEntry.projectId,
-          timeEntry.totalSeconds,
-          userprofile,
-        );
-        // if the time entry is related to a task, update the task hoursLogged
-        if (timeEntry.taskId) {
-          updateTaskLoggedHours(
-            timeEntry.taskId,
-            0,
-            timeEntry.taskId,
+      if (userprofile) {
+        // if the time entry is tangible, update the tangible hours in the user profile
+        if (timeEntry.isTangible) {
+          // update the total tangible hours in the user profile and the hours by category
+          updateUserprofileTangibleIntangibleHrs(timeEntry.totalSeconds, 0, userprofile);
+          updateUserprofileCategoryHrs(
+            null,
+            null,
+            timeEntry.projectId,
             timeEntry.totalSeconds,
             userprofile,
-            session,
-            pendingEmailCollection,
           );
+          // if the time entry is related to a task, update the task hoursLogged
+          if (timeEntry.taskId) {
+            updateTaskLoggedHours(
+              timeEntry.taskId,
+              0,
+              timeEntry.taskId,
+              timeEntry.totalSeconds,
+              userprofile,
+              session,
+              pendingEmailCollection,
+            );
+          }
+        } else {
+          // if the time entry is intangible, just update the intangible hours in the userprofile
+          updateUserprofileTangibleIntangibleHrs(0, timeEntry.totalSeconds, userprofile);
         }
-      } else {
-        // if the time entry is intangible, just update the intangible hours in the userprofile
-        updateUserprofileTangibleIntangibleHrs(0, timeEntry.totalSeconds, userprofile);
       }
 
       // Replace the isFirstTimelog checking logic from the frontend to the backend
@@ -505,10 +592,11 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       await timeEntry.save({ session });
-      await userprofile.save({ session });
-
-      // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
-      removeOutdatedUserprofileCache(userprofile._id.toString());
+      if (userprofile) {
+        await userprofile.save({ session });
+        // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
+        removeOutdatedUserprofileCache(userprofile._id.toString());
+      }
 
       await session.commitTransaction();
       pendingEmailCollection.forEach((emailHandler) => emailHandler());
@@ -563,15 +651,6 @@ const timeEntrycontroller = function (TimeEntry) {
     const isSameDayTimeEntry =
       moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === newDateOfWork;
     const isSameDayAuthUserEdit = isForAuthUser && isSameDayTimeEntry;
-    const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
-    const hasEditTimeEntryPermission = await hasPermission(req.body.requestor, 'editTimeEntry');
-
-    const canEdit = isSameDayAuthUserEdit || isRequestorAdminLikeRole || hasEditTimeEntryPermission;
-
-    if (!canEdit) {
-      const error = 'Unauthorized request';
-      return res.status(403).send({ error });
-    }
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -609,7 +688,7 @@ const timeEntrycontroller = function (TimeEntry) {
         dateOfWork: initialDateOfWork,
       } = timeEntry;
 
-      const initialProjectId = initialProjectIdObject.toString();
+      const initialProjectId = initialProjectIdObject ? initialProjectIdObject.toString() : null;
       const initialTaskId = initialTaskIdObject ? initialTaskIdObject.toString() : null;
 
       // Check if any of the fields have changed
@@ -617,11 +696,51 @@ const timeEntrycontroller = function (TimeEntry) {
       const tangibilityChanged = initialIsTangible !== newIsTangible;
       const timeChanged = initialTotalSeconds !== newTotalSeconds;
       const dateOfWorkChanged = initialDateOfWork !== newDateOfWork;
+      const isTimeModified = newTotalSeconds !== timeEntry.totalSeconds;
+      const isDescriptionModified = newNotes !== timeEntry.notes;
+
+      const canEditTimeEntryTime = await hasPermission(req.body.requestor, 'editTimeEntryTime');
+      const canEditTimeEntryDescription = await hasPermission(
+        req.body.requestor,
+        'editTimeEntryDescription',
+      );
+      const canEditTimeEntryDate = await hasPermission(req.body.requestor, 'editTimeEntryDate');
+      const canEditTimeEntryIsTangible = isForAuthUser
+        ? await hasPermission(req.body.requestor, 'toggleTangibleTime')
+        : await hasPermission(req.body.requestor, 'editTimeEntryToggleTangible');
+
+      const isNotUsingAPermission =
+        (!canEditTimeEntryTime && isTimeModified) || (!canEditTimeEntryDate && dateOfWorkChanged);
+
+      // Time
+      if (!isSameDayAuthUserEdit && isTimeModified && !canEditTimeEntryTime) {
+        const error = `You do not have permission to edit the time entry time`;
+        return res.status(403).send({ error });
+      }
+
+      // Description
+      if (!isSameDayAuthUserEdit && isDescriptionModified && !canEditTimeEntryDescription) {
+        const error = `You do not have permission to edit the time entry description`;
+        return res.status(403).send({ error });
+      }
+
+      // Date
+      if (dateOfWorkChanged && !canEditTimeEntryDate) {
+        const error = `You do not have permission to edit the time entry date`;
+        return res.status(403).send({ error });
+      }
+
+      // Tangible Time
+      if (tangibilityChanged && !canEditTimeEntryIsTangible) {
+        const error = `You do not have permission to edit the time entry isTangible`;
+        return res.status(403).send({ error });
+      }
+
       timeEntry.notes = newNotes;
       timeEntry.totalSeconds = newTotalSeconds;
       timeEntry.isTangible = newIsTangible;
       timeEntry.lastModifiedDateTime = moment().utc().toISOString();
-      timeEntry.projectId = mongoose.Types.ObjectId(newProjectId);
+      if (newProjectId) timeEntry.projectId = mongoose.Types.ObjectId(newProjectId);
       timeEntry.wbsId = newWbsId ? mongoose.Types.ObjectId(newWbsId) : null;
       timeEntry.taskId = newTaskId ? mongoose.Types.ObjectId(newTaskId) : null;
       timeEntry.dateOfWork = moment(newDateOfWork).format('YYYY-MM-DD');
@@ -629,129 +748,128 @@ const timeEntrycontroller = function (TimeEntry) {
       // now handle the side effects in task and userprofile if certain fields have changed
       const userprofile = await UserProfile.findById(personId);
 
-      if (tangibilityChanged) {
-        // if tangibility changed
-        // tangiblity change usually only happens by itself via tangibility checkbox,
-        // and it can't be changed by user directly (except for owner-like roles)
-        // but here the other changes are also considered here for completeness
-        // change from tangible to intangible
-        if (initialIsTangible) {
-          // subtract initial logged hours from old task (if not null)
-          updateTaskLoggedHours(
-            initialTaskId,
-            initialTotalSeconds,
-            null,
-            null,
-            userprofile,
-            session,
-            pendingEmailCollection,
-          );
-          // subtract initial logged hours from userprofile totalTangibleHrs and add new logged hours to userprofile totalIntangibleHrs
-          updateUserprofileTangibleIntangibleHrs(
-            -initialTotalSeconds,
-            newTotalSeconds,
-            userprofile,
-          );
-
-          // if project is changed, update userprofile hoursByCategory
-          if (projectChanged) {
-            updateUserprofileCategoryHrs(
-              initialProjectIdObject,
+      if (userprofile) {
+        if (tangibilityChanged) {
+          // if tangibility changed
+          // tangiblity change usually only happens by itself via tangibility checkbox,
+          // and it can't be changed by user directly (except for owner-like roles)
+          // but here the other changes are also considered here for completeness
+          // change from tangible to intangible
+          if (initialIsTangible) {
+            // subtract initial logged hours from old task (if not null)
+            updateTaskLoggedHours(
+              initialTaskId,
               initialTotalSeconds,
               null,
               null,
               userprofile,
+              session,
+              pendingEmailCollection,
             );
+            // subtract initial logged hours from userprofile totalTangibleHrs and add new logged hours to userprofile totalIntangibleHrs
+            updateUserprofileTangibleIntangibleHrs(
+              -initialTotalSeconds,
+              newTotalSeconds,
+              userprofile,
+            );
+
+            // if project is changed, update userprofile hoursByCategory
+            if (projectChanged) {
+              updateUserprofileCategoryHrs(
+                initialProjectIdObject,
+                initialTotalSeconds,
+                null,
+                null,
+                userprofile,
+              );
+            }
+          } else {
+            // from intangible to tangible
+            updateTaskLoggedHours(
+              null,
+              null,
+              newTaskId,
+              newTotalSeconds,
+              userprofile,
+              session,
+              pendingEmailCollection,
+            );
+            updateUserprofileTangibleIntangibleHrs(
+              initialTotalSeconds,
+              -newTotalSeconds,
+              userprofile,
+            );
+            if (projectChanged) {
+              updateUserprofileCategoryHrs(null, null, newProjectId, newTotalSeconds, userprofile);
+            }
           }
-        } else {
-          // from intangible to tangible
+          // make sure all hours are positive
+          validateUserprofileHours(userprofile);
+        } else if (initialIsTangible) {
+          // if tangibility is not changed,
+          // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
+
+          // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
           updateTaskLoggedHours(
-            null,
-            null,
+            initialTaskId,
+            initialTotalSeconds,
             newTaskId,
             newTotalSeconds,
             userprofile,
             session,
             pendingEmailCollection,
           );
-          updateUserprofileTangibleIntangibleHrs(
-            initialTotalSeconds,
-            -newTotalSeconds,
-            userprofile,
-          );
+          // when project is also changed
           if (projectChanged) {
-            updateUserprofileCategoryHrs(null, null, newProjectId, newTotalSeconds, userprofile);
-          }
-        }
-        // make sure all hours are positive
-        validateUserprofileHours(userprofile);
-      } else if (initialIsTangible) {
-        // if tangibility is not changed,
-        // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
-
-        // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
-        updateTaskLoggedHours(
-          initialTaskId,
-          initialTotalSeconds,
-          newTaskId,
-          newTotalSeconds,
-          userprofile,
-          session,
-          pendingEmailCollection,
-        );
-        // when project is also changed
-        if (projectChanged) {
-          updateUserprofileCategoryHrs(
-            initialProjectIdObject,
-            initialTotalSeconds,
-            newProjectId,
-            newTotalSeconds,
-            userprofile,
-          );
-          validateUserprofileHours(userprofile);
-        }
-        // if time or dateOfWork is changed
-        if (timeChanged || dateOfWorkChanged) {
-          const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
-          updateUserprofileTangibleIntangibleHrs(timeDiffInSeconds, 0, userprofile);
-          notifyEditByEmail(
-            userprofile,
-            req.body.requestor.requestorId,
-            initialTotalSeconds,
-            newTotalSeconds,
-            initialDateOfWork,
-            newDateOfWork,
-          );
-          // Update edit history
-          if (
-            !isRequestorAdminLikeRole &&
-            !hasEditTimeEntryPermission &&
-            isSameDayAuthUserEdit &&
-            isGeneralEntry
-          ) {
-            addEditHistory(
+            updateUserprofileCategoryHrs(
+              initialProjectIdObject,
+              initialTotalSeconds,
+              newProjectId,
+              newTotalSeconds,
               userprofile,
+            );
+            validateUserprofileHours(userprofile);
+          }
+          // if time or dateOfWork is changed
+          if (timeChanged || dateOfWorkChanged) {
+            const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
+            updateUserprofileTangibleIntangibleHrs(timeDiffInSeconds, 0, userprofile);
+            notifyEditByEmail(
+              userprofile,
+              req.body.requestor.requestorId,
               initialTotalSeconds,
               newTotalSeconds,
               initialDateOfWork,
               newDateOfWork,
-              pendingEmailCollection,
             );
+            // Update edit history
+            if (isNotUsingAPermission && isSameDayAuthUserEdit && isGeneralEntry) {
+              addEditHistory(
+                userprofile,
+                initialTotalSeconds,
+                newTotalSeconds,
+                initialDateOfWork,
+                newDateOfWork,
+                pendingEmailCollection,
+              );
+            }
           }
+        } else {
+          // when timeentry is intangible before and after change,
+          // just update timeEntry and the intangible hours in userprofile,
+          // no need to update task/userprofile
+          const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
+          updateUserprofileTangibleIntangibleHrs(0, timeDiffInSeconds, userprofile);
         }
-      } else {
-        // when timeentry is intangible before and after change,
-        // just update timeEntry and the intangible hours in userprofile,
-        // no need to update task/userprofile
-        const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
-        updateUserprofileTangibleIntangibleHrs(0, timeDiffInSeconds, userprofile);
       }
 
       await timeEntry.save({ session });
-      await userprofile.save({ session });
+      if (userprofile) {
+        await userprofile.save({ session });
 
-      // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
-      removeOutdatedUserprofileCache(userprofile._id.toString());
+        // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
+        removeOutdatedUserprofileCache(userprofile._id.toString());
+      }
 
       pendingEmailCollection.forEach((emailHandler) => emailHandler());
       await session.commitTransaction();
@@ -786,17 +904,17 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       const { personId, totalSeconds, dateOfWork, projectId, taskId, isTangible } = timeEntry;
 
-      const isForAuthUser = personId.toString() === req.body.requestor.requestorId;
+      const isForAuthUser = personId
+        ? personId.toString() === req.body.requestor.requestorId
+        : false;
       const isSameDayTimeEntry =
         moment().tz('America/Los_Angeles').format('YYYY-MM-DD') === dateOfWork;
       const isSameDayAuthUserDelete = isForAuthUser && isSameDayTimeEntry;
-      const isRequestorAdminLikeRole = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       const hasDeleteTimeEntryPermission = await hasPermission(
         req.body.requestor,
         'deleteTimeEntry',
       );
-      const canDelete =
-        isSameDayAuthUserDelete || isRequestorAdminLikeRole || hasDeleteTimeEntryPermission;
+      const canDelete = isSameDayAuthUserDelete || hasDeleteTimeEntryPermission;
       if (!canDelete) {
         res.status(403).send({ error: 'Unauthorized request' });
         return;
@@ -804,23 +922,27 @@ const timeEntrycontroller = function (TimeEntry) {
 
       const userprofile = await UserProfile.findById(personId);
 
-      // Revert this tangible timeEntry of related task's hoursLogged
-      if (isTangible) {
-        updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
-        updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
-        // if the time entry is related to a task, update the task hoursLogged
-        if (taskId) {
-          updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+      if (userprofile) {
+        // Revert this tangible timeEntry of related task's hoursLogged
+        if (isTangible) {
+          updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
+          updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
+          // if the time entry is related to a task, update the task hoursLogged
+          if (taskId) {
+            updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+          }
+        } else {
+          updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
         }
-      } else {
-        updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
       }
 
-      await userprofile.save({ session });
       await timeEntry.remove({ session });
+      if (userprofile) {
+        await userprofile.save({ session });
 
-      // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
-      removeOutdatedUserprofileCache(userprofile._id.toString());
+        // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
+        removeOutdatedUserprofileCache(userprofile._id.toString());
+      }
 
       await session.commitTransaction();
       res.status(200).send({ message: 'Successfully deleted' });
@@ -992,7 +1114,7 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       '-createdDateTime -lastModifiedDateTime',
     )
-      .populate('userId')
+      .populate('personId', 'firstName lastName  isActive')
       .sort({ dateOfWork: -1 })
       .then((results) => {
         res.status(200).send(results);
