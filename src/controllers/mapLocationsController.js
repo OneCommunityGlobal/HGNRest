@@ -1,14 +1,14 @@
+/* eslint-disable no-use-before-define */
 const UserProfile = require('../models/userProfile');
-const cacheClosure = require('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache')();
 
 const mapLocationsController = function (MapLocation) {
-  const cache = cacheClosure();
   const getAllLocations = async function (req, res) {
     try {
       const users = [];
       const results = await UserProfile.find(
         {},
-        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory',
+        '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory homeCountry',
       );
 
       results.forEach((item) => {
@@ -16,14 +16,13 @@ const mapLocationsController = function (MapLocation) {
           (item.location?.coords.lat && item.location?.coords.lng && item.totalTangibleHrs >= 10) ||
           (item.location?.coords.lat &&
             item.location?.coords.lng &&
-            // eslint-disable-next-line no-use-before-define
             calculateTotalHours(item.hoursByCategory) >= 10)
         ) {
           users.push(item);
         }
       });
       const modifiedUsers = users.map((item) => ({
-        location: item.location,
+        location: item.homeCountry || item.location,
         isActive: item.isActive,
         jobTitle: item.jobTitle[0],
         _id: item._id,
@@ -38,7 +37,7 @@ const mapLocationsController = function (MapLocation) {
     }
   };
   const deleteLocation = async function (req, res) {
-    if (req.body.requestor.role !== 'Administrator' && req.body.requestor.role !== 'Owner') {
+    if (!req.body.requestor.role === 'Administrator' || !req.body.requestor.role === 'Owner') {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -49,11 +48,10 @@ const mapLocationsController = function (MapLocation) {
       .catch((error) => res.status(500).send({ message: error || "Couldn't remove the location" }));
   };
   const putUserLocation = async function (req, res) {
-    if (req.body.requestor.role !== 'Owner') {
+    if (!req.body.requestor.role === 'Owner') {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
-
     const locationData = {
       firstName: req.body.firstName,
       lastName: req.body.lastName,
@@ -70,11 +68,11 @@ const mapLocationsController = function (MapLocation) {
       res.status(200).send(response);
     } catch (err) {
       console.log(err.message);
-      res.status(500).send({ message: err.message || 'Something went wrong...' });
+      res.status(500).json({ message: err.message || 'Something went wrong...' });
     }
   };
   const updateUserLocation = async function (req, res) {
-    if (req.body.requestor.role !== 'Owner') {
+    if (!req.body.requestor.role === 'Owner') {
       res.status(403).send('You are not authorized to make changes in the teams.');
       return;
     }
@@ -126,7 +124,7 @@ const mapLocationsController = function (MapLocation) {
       res.status(200).send(newData);
     } catch (err) {
       console.log(err.message);
-      res.status(500).send({ message: err.message || 'Something went wrong...' });
+      res.status(500).json({ message: err.message || 'Something went wrong...' });
     }
   };
 
