@@ -84,7 +84,7 @@ const titlecontroller = function (Title) {
         .catch((error) => res.status(404).send(error));
     };
 
-    const putTitle = async function (req, res) {
+    const updateTitle = async function (req, res) {
       const title = new Title();
       const filter=req.body.id;
       title.titleName = req.body.titleName;
@@ -144,11 +144,9 @@ const titlecontroller = function (Title) {
       .then((result) => {
           if (result.modifiedCount === 0) {
               // No documents were modified, handle this case if necessary
-              console.log("No docs")
               return res.status(404).send({ message: 'No documents were updated' });
           }
           // Send a success response
-          console.log("Success")
           res.status(200).send({ message: 'Update successful', result });
       })
       .catch((error) => {
@@ -212,7 +210,7 @@ const titlecontroller = function (Title) {
     postTitle,
     deleteTitleById,
     deleteAllTitles,
-    putTitle
+    updateTitle
   };
 };
 
