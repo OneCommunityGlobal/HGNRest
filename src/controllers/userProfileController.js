@@ -1588,7 +1588,7 @@ const userProfileController = function (UserProfile, Project) {
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
     }
-  }
+  };
 
   const getAllTeamCode = async function (req, res) {
     try {
@@ -1597,7 +1597,7 @@ const userProfileController = function (UserProfile, Project) {
     } catch (error) {
       return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
-  } 
+  }
 
   return {
     postUserProfile,
