@@ -23,7 +23,7 @@ const mapLocationsController = function (MapLocation) {
         }
       });
       const modifiedUsers = users.map((item) => ({
-        location: item.homeCountry || item.location,
+        location: item.location || item.homeCountry,
         isActive: item.isActive,
         jobTitle: item.jobTitle[0],
         _id: item._id,
