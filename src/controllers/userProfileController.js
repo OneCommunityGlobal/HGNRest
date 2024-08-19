@@ -1184,7 +1184,6 @@ const userProfileController = function (UserProfile, Project) {
           isActive: status,
           reactivationDate: activationDate,
           endDate,
-          isSet,
         });
         user
           .save()
