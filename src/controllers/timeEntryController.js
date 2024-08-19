@@ -234,7 +234,7 @@ const updateUserprofileCategoryHrs = async (
   if (fromProjectId) {
     const fromProject = await Project.findById(fromProjectId);
     const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
-    if (fromProject.category in userprofile.hoursByCategory) {
+    if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[fromProject.category.toLowerCase()] -= hoursToBeRemoved;
     } else {
       userprofile.hoursByCategory.unassigned -= hoursToBeRemoved;
@@ -243,7 +243,7 @@ const updateUserprofileCategoryHrs = async (
   if (toProjectId) {
     const toProject = await Project.findById(toProjectId);
     const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
-    if (toProject.category in userprofile.hoursByCategory) {
+    if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
     } else {
       userprofile.hoursByCategory.unassigned += hoursToBeAdded;
@@ -558,7 +558,7 @@ const timeEntrycontroller = function (TimeEntry) {
         if (timeEntry.isTangible) {
           // update the total tangible hours in the user profile and the hours by category
           updateUserprofileTangibleIntangibleHrs(timeEntry.totalSeconds, 0, userprofile);
-          updateUserprofileCategoryHrs(
+          await updateUserprofileCategoryHrs(
             null,
             null,
             timeEntry.projectId,
@@ -773,16 +773,14 @@ const timeEntrycontroller = function (TimeEntry) {
               userprofile,
             );
 
-            // if project is changed, update userprofile hoursByCategory
-            if (projectChanged) {
-              updateUserprofileCategoryHrs(
-                initialProjectIdObject,
-                initialTotalSeconds,
-                null,
-                null,
-                userprofile,
-              );
-            }
+            // when changing from tangible to intangible, the original time needs to be removed from hoursByCategory
+            await updateUserprofileCategoryHrs(
+              initialProjectIdObject,
+              initialTotalSeconds,
+              null,
+              null,
+              userprofile,
+            );
           } else {
             // from intangible to tangible
             updateTaskLoggedHours(
@@ -795,13 +793,17 @@ const timeEntrycontroller = function (TimeEntry) {
               pendingEmailCollection,
             );
             updateUserprofileTangibleIntangibleHrs(
-              initialTotalSeconds,
-              -newTotalSeconds,
+              newTotalSeconds,
+              -initialTotalSeconds,
               userprofile,
             );
-            if (projectChanged) {
-              updateUserprofileCategoryHrs(null, null, newProjectId, newTotalSeconds, userprofile);
-            }
+            await updateUserprofileCategoryHrs(
+              null,
+              null,
+              newProjectId,
+              newTotalSeconds,
+              userprofile,
+            );
           }
           // make sure all hours are positive
           validateUserprofileHours(userprofile);
@@ -820,8 +822,8 @@ const timeEntrycontroller = function (TimeEntry) {
             pendingEmailCollection,
           );
           // when project is also changed
-          if (projectChanged) {
-            updateUserprofileCategoryHrs(
+          if (projectChanged || timeChanged) {
+            await updateUserprofileCategoryHrs(
               initialProjectIdObject,
               initialTotalSeconds,
               newProjectId,
@@ -862,7 +864,6 @@ const timeEntrycontroller = function (TimeEntry) {
           updateUserprofileTangibleIntangibleHrs(0, timeDiffInSeconds, userprofile);
         }
       }
-
       await timeEntry.save({ session });
       if (userprofile) {
         await userprofile.save({ session });
@@ -926,7 +927,7 @@ const timeEntrycontroller = function (TimeEntry) {
         // Revert this tangible timeEntry of related task's hoursLogged
         if (isTangible) {
           updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
-          updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
+          await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
             updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
@@ -977,10 +978,10 @@ const timeEntrycontroller = function (TimeEntry) {
 
     try {
       const timeEntries = await TimeEntry.find({
-        entryType: { $in: ['default', null] },
+        entryType: { $in: ['default', 'person', null] },
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
-        isActive: { $ne: false },
+        // include the time entries for the archived projects
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
@@ -1240,6 +1241,194 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  /**
+   * back up the hoursByCategory value in a newly created field backupHoursByCategory if this user hasn't been backed up before
+   * for testing purpose in the recalculation
+   */
+  const backupHoursByCategoryAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const userprofiles = await UserProfile.find({}, '_id hoursByCategory').lean();
+      const backupPromises = userprofiles.map(async (userprofile) => {
+        const { hoursByCategory: oldHoursByCategory, _id: personId } = userprofile;
+
+        await UserProfile.findOneAndUpdate(
+          { _id: personId, backupHoursByCategory: { $exists: false } },
+          { $set: { backupHoursByCategory: oldHoursByCategory } },
+          { strict: false },
+        );
+      });
+
+      await Promise.all(backupPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'backup of hoursByCategory for all users successfully',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
+  };
+
+  /**
+   * back up the totalIntangible value in a newly created field backupHoursByCategory if this user hasn't been backed up before
+   * for testing purpose in the recalculation
+   */
+  const backupIntangibleHrsAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const userprofiles = await UserProfile.find({}, '_id totalIntangibleHrs').lean();
+      const backupPromises = userprofiles.map(async (userprofile) => {
+        const { totalIntangibleHrs: oldTotalIntangibleHrs, _id: personId } = userprofile;
+
+        await UserProfile.findOneAndUpdate(
+          { _id: personId, backupTotalIntangibleHrs: { $exists: false } },
+          { $set: { backupTotalIntangibleHrs: oldTotalIntangibleHrs } },
+          { strict: false },
+        );
+      });
+
+      await Promise.all(backupPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'backup of totalIntangibleHrs for all users successfully',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
+  };
+
+  /**
+   * helper function for calculating a user's hoursByCategory from TimeEntry and Projects
+   */
+  const tangibleCalculationHelper = async (userId) => {
+    const newCalculatedCategoryHrs = {
+      housing: 0,
+      food: 0,
+      education: 0,
+      society: 0,
+      energy: 0,
+      economics: 0,
+      stewardship: 0,
+      unassigned: 0,
+    };
+
+    const timeEntries = await TimeEntry.find({ personId: userId });
+    const updateCategoryPromises = timeEntries.map(async (timeEntry) => {
+      const { projectId, totalSeconds, isTangible } = timeEntry;
+      const totalHours = Number(totalSeconds / 3600);
+      const project = await Project.findById(projectId);
+
+      if (isTangible) {
+        if (project) {
+          const { category } = project;
+          if (category && category.toLowerCase() in newCalculatedCategoryHrs) {
+            newCalculatedCategoryHrs[category.toLowerCase()] += totalHours;
+          } else {
+            newCalculatedCategoryHrs.unassigned += totalHours;
+          }
+        } else {
+          newCalculatedCategoryHrs.unassigned += totalHours;
+        }
+      }
+    });
+    await Promise.all(updateCategoryPromises);
+
+    return newCalculatedCategoryHrs;
+  };
+
+  /**
+   * helper function for calculating a user's totalIntangibleHrs from TimeEntry and Projects
+   */
+  const intangibleCalculationHelper = async (userId) => {
+    let newTotalIntangibleHrs = 0;
+
+    const timeEntries = await TimeEntry.find({ personId: userId });
+    const updateIntangibleHrsPromises = timeEntries.map(async (timeEntry) => {
+      const { totalSeconds, isTangible } = timeEntry;
+      const totalHours = Number(totalSeconds / 3600);
+      if (!isTangible) {
+        newTotalIntangibleHrs += totalHours;
+      }
+    });
+    await Promise.all(updateIntangibleHrsPromises);
+
+    return newTotalIntangibleHrs;
+  };
+
+  /**
+   * recalculate the hoursByCatefory for all users and update the field
+   */
+  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userprofiles = await UserProfile.find({}, '_id').lean();
+
+      const recalculationPromises = userprofiles.map(async (userprofile) => {
+        const { _id: userId } = userprofile;
+        const newCalculatedCategoryHrs = await tangibleCalculationHelper(userId);
+        await UserProfile.findByIdAndUpdate(userId, { hoursByCategory: newCalculatedCategoryHrs });
+      });
+      await Promise.all(recalculationPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'finished the recalculation for hoursByCategory for all users',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
+  };
+
+  /**
+   * recalculate the totalIntangibleHrs for all users and update the field
+   */
+  const recalculateIntangibleHrsAllUsers = async function (req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userprofiles = await UserProfile.find({}, '_id').lean();
+
+      const recalculationPromises = userprofiles.map(async (userprofile) => {
+        const { _id: userId } = userprofile;
+        const newCalculatedIntangibleHrs = await intangibleCalculationHelper(userId);
+        await UserProfile.findByIdAndUpdate(userId, {
+          totalIntangibleHrs: newCalculatedIntangibleHrs,
+        });
+      });
+      await Promise.all(recalculationPromises);
+
+      await session.commitTransaction();
+      return res.status(200).send({
+        message: 'finished the recalculation for totalIntangibleHrs for all users',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      logger.logException(err);
+      return res.status(500).send({ error: err.toString() });
+    } finally {
+      session.endSession();
+    }
+  };
+
   return {
     postTimeEntry,
     editTimeEntry,
@@ -1250,6 +1439,10 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForUserList,
     getLostTimeEntriesForProjectList,
     getLostTimeEntriesForTeamList,
+    backupHoursByCategoryAllUsers,
+    backupIntangibleHrsAllUsers,
+    recalculateHoursByCategoryAllUsers,
+    recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
   };
 };
