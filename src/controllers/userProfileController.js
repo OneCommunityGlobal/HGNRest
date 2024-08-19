@@ -933,10 +933,7 @@ const userProfileController = function (UserProfile) {
   };
 
   const updateAllMembersTeamCode = async (req, res) => {
-    const canEditTeamCode =
-      req.body.requestor.role === 'Owner' ||
-      req.body.requestor.role === 'Administrator' ||
-      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+    const canEditTeamCode = await hasPermission(req.body.requestor, 'editTeamCode');
     if (!canEditTeamCode) {
       res.status(403).send('You are not authorized to edit team code.');
       return;
