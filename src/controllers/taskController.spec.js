@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 // Utility to aid in testing
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
@@ -12,15 +14,17 @@ const taskController = require('./taskController');
 
 // MongoDB Model imports
 const Task = require('../models/task');
+const Project = require('../models/project');
 const WBS = require('../models/wbs');
 
 const makeSut = () => {
-  const { getTasks, getWBSId, importTask } = taskController(Task);
+  const { getTasks, getWBSId, importTask, postTask } = taskController(Task);
 
   return {
     getTasks,
     getWBSId,
     importTask,
+    postTask,
   };
 };
 
@@ -174,6 +178,198 @@ describe('Unit Tests for taskController.js', () => {
 
       assertResMock(400, error, response, mockRes);
       expect(TaskConstructorSpy).toBeCalled();
+    });
+  });
+
+  describe('postTask function()', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Return 403 if `postTask` permission is missing', async () => {
+      const { postTask } = makeSut();
+      hasPermission.mockResolvedValueOnce(false);
+
+      const error = { error: 'You are not authorized to create new Task.' };
+
+      const response = await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+    });
+
+    test.each([
+      [
+        { taskName: undefined, isActive: true },
+        'Task Name, Active status, Task Number are mandatory fields',
+      ],
+      [
+        { taskName: 'some task name', isActive: undefined },
+        'Task Name, Active status, Task Number are mandatory fields',
+      ],
+      [
+        { taskName: undefined, isActive: undefined },
+        'Task Name, Active status, Task Number are mandatory fields',
+      ],
+    ])('Return 400 if any required field is missing', async (body, expectedError) => {
+      const { postTask } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      // Set the request body based on the current test case
+      mockReq.body.taskName = body.taskName;
+      mockReq.body.isActive = body.isActive;
+
+      const error = { error: expectedError };
+
+      const response = await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Return 201 on successfully saving a new Task', async () => {
+      const { postTask } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      const newTask = {
+        taskName: 'Sample Task',
+        wbsId: new mongoose.Types.ObjectId(),
+        num: '1',
+        level: 1,
+        position: 1,
+        childrenQty: 0,
+        isActive: true,
+      };
+
+      // Mock the current datetime
+      const currentDate = Date.now();
+
+      // Mock Task model
+      const mockTask = {
+        save: jest.fn().mockResolvedValue({
+          _id: new mongoose.Types.ObjectId(),
+          wbsId: new mongoose.Types.ObjectId(),
+          createdDatetime: currentDate,
+          modifiedDatetime: currentDate,
+        }),
+      };
+      const taskSaveSpy = jest.spyOn(Task.prototype, 'save').mockResolvedValue(mockTask);
+
+      // Mock WBS model
+      const mockWBS = {
+        _id: new mongoose.Types.ObjectId(),
+        projectId: 'projectId',
+        modifiedDatetime: Date.now(),
+        save: jest.fn().mockResolvedValue({
+          _id: new mongoose.Types.ObjectId(),
+          projectId: 'projectId',
+          modifiedDatetime: Date.now(),
+        }),
+      };
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWBS);
+
+      // Mock Project model
+      const mockProjectObj = {
+        save: jest.fn().mockResolvedValue({
+          _id: new mongoose.Types.ObjectId(),
+          modifiedDatetime: currentDate,
+        }),
+        modifiedDatetime: currentDate,
+      };
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockProjectObj);
+
+      // add the necessary request params
+      mockReq.params = {
+        ...mockReq.params,
+        id: new mongoose.Types.ObjectId(),
+      };
+
+      // add the necessary body parameters
+      mockReq.body = {
+        ...mockReq.body,
+        ...newTask,
+      };
+
+      const response = await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(201, expect.anything(), response, mockRes);
+      expect(taskSaveSpy).toBeCalled();
+      expect(wbsFindByIdSpy).toBeCalled();
+      expect(projectFindByIdSpy).toBeCalled();
+    });
+
+    test('Return 400 on encountering any error during Promise.all', async () => {
+      const { postTask } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      const newTask = {
+        taskName: 'Sample Task',
+        wbsId: new mongoose.Types.ObjectId(),
+        num: '1',
+        level: 1,
+        position: 1,
+        childrenQty: 0,
+        isActive: true,
+      };
+
+      // Mock the current datetime
+      const currentDate = Date.now();
+
+      // Mock the Task model
+      const mockTaskError = new Error('Failed to save task');
+
+      // Use jest.fn() to mock the save method to reject with an error
+      const taskSaveMock = jest.fn().mockRejectedValue(mockTaskError);
+
+      // Spy on the Task prototype's save method
+      const taskSaveSpy = jest.spyOn(Task.prototype, 'save').mockImplementation(taskSaveMock);
+
+      // Mock WBS model
+      const mockWBS = {
+        _id: new mongoose.Types.ObjectId(),
+        projectId: 'projectId',
+        modifiedDatetime: Date.now(),
+        save: jest.fn().mockResolvedValue({
+          _id: new mongoose.Types.ObjectId(),
+          projectId: 'projectId',
+          modifiedDatetime: Date.now(),
+        }),
+      };
+      // Mock `WBS.findById` to return `mockWBS`
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWBS);
+
+      // Mock Project model
+      const mockProjectObj = {
+        save: jest.fn().mockResolvedValueOnce({
+          _id: new mongoose.Types.ObjectId(),
+          modifiedDatetime: currentDate,
+        }),
+        modifiedDatetime: currentDate,
+      };
+      const projectFindByIdSpy = jest
+        .spyOn(Project, 'findById')
+        .mockResolvedValueOnce(mockProjectObj);
+
+      // add the necessary request params
+      mockReq.params = {
+        ...mockReq.params,
+        id: new mongoose.Types.ObjectId(),
+      };
+
+      // add the necessary body parameters
+      mockReq.body = {
+        ...mockReq.body,
+        ...newTask,
+      };
+
+      const response = await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, mockTaskError, response, mockRes);
+      expect(taskSaveSpy).toBeCalled();
+      expect(wbsFindByIdSpy).toBeCalled();
+      expect(projectFindByIdSpy).toBeCalled();
     });
   });
 });
