@@ -18,13 +18,14 @@ const Project = require('../models/project');
 const WBS = require('../models/wbs');
 
 const makeSut = () => {
-  const { getTasks, getWBSId, importTask, postTask } = taskController(Task);
+  const { getTasks, getWBSId, importTask, postTask, updateNum } = taskController(Task);
 
   return {
     getTasks,
     getWBSId,
     importTask,
     postTask,
+    updateNum,
   };
 };
 
@@ -370,6 +371,144 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskSaveSpy).toBeCalled();
       expect(wbsFindByIdSpy).toBeCalled();
       expect(projectFindByIdSpy).toBeCalled();
+    });
+  });
+
+  describe('updateNum function()', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Return 403 if `updateNum` permission is missing', async () => {
+      const { updateNum } = makeSut();
+      hasPermission.mockResolvedValueOnce(false);
+
+      const error = { error: 'You are not authorized to create new projects.' };
+
+      const response = await updateNum(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+    });
+
+    test('Return 400 if `nums` is missing from the request body', async () => {
+      const { updateNum } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      const error = { error: 'Num is a mandatory fields' };
+      mockReq.body.nums = null;
+
+      const response = await updateNum(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Return 200 on successful update - nums is empty array', async () => {
+      const { updateNum } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.nums = [];
+
+      const response = await updateNum(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, true, response, mockRes);
+    });
+
+    test('Return 200 on successful update - nums is not an empty array', async () => {
+      const { updateNum } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.nums = [
+        {
+          id: 'sample-id',
+          num: 'sample-num',
+        },
+      ];
+
+      const mockDataForTaskFindByIdSpy = {
+        num: 0,
+        save: jest.fn().mockResolvedValue({}),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        callback(null, mockDataForTaskFindByIdSpy);
+      });
+
+      const mockDataForTaskFindSpy = [];
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce(mockDataForTaskFindSpy);
+
+      const response = await updateNum(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, true, response, mockRes);
+      expect(taskFindSpy).toBeCalled();
+      expect(taskFindByIdSpy).toBeCalled();
+    });
+
+    test('Return 404 if error occurs on Task.find()', async () => {
+      const { updateNum } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.nums = [
+        {
+          id: 'sample-id',
+          num: 'sample-num',
+        },
+      ];
+
+      const mockDataForTaskFindByIdSpy = {
+        num: 0,
+        save: jest.fn().mockResolvedValue({}),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        callback(null, mockDataForTaskFindByIdSpy);
+      });
+
+      const mockError = new Error({ error: 'some error occurred' });
+      const taskFindSpy = jest.spyOn(Task, 'find').mockRejectedValueOnce(mockError);
+
+      const response = await updateNum(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(404, mockError, response, mockRes);
+      expect(taskFindSpy).toBeCalled();
+      expect(taskFindByIdSpy).toBeCalled();
+    });
+
+    test('Return 400 if error occurs while saving a Task within Task.findById()', async () => {
+      const { updateNum } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.nums = [
+        {
+          id: 'sample-id',
+          num: 'sample-num',
+        },
+      ];
+
+      const mockError = new Error({ error: 'some error occurred' });
+
+      const mockDataForTaskFindByIdSpy = {
+        num: 0,
+        save: jest.fn().mockRejectedValueOnce(mockError),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        callback(null, mockDataForTaskFindByIdSpy);
+      });
+
+      const mockDataForTaskFindSpy = [];
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce(mockDataForTaskFindSpy);
+
+      const response = await updateNum(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, mockError, response, mockRes);
+      expect(taskFindSpy).toBeCalled();
+      expect(taskFindByIdSpy).toBeCalled();
     });
   });
 });
