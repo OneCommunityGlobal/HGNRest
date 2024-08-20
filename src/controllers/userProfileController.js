@@ -1206,7 +1206,6 @@ const userProfileController = function (UserProfile, Project) {
               endDate,
               user.email,
               recipients,
-              isSet,
             );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
