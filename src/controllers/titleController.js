@@ -84,77 +84,70 @@ const titlecontroller = function (Title) {
         .catch((error) => res.status(404).send(error));
     };
 
+    // update title function.
     const updateTitle = async function (req, res) {
-      const title = new Title();
-      const filter=req.body.id;
-      title.titleName = req.body.titleName;
-      title.teamCode = req.body.teamCode;
-      title.projectAssigned = req.body.projectAssigned;
-      title.mediaFolder = req.body.mediaFolder;
-      title.teamAssiged = req.body.teamAssiged;
+      try{
 
-      // valid title name
-      if (!title.titleName.trim()) {
-        res.status(400).send({ message: 'Title cannot be empty.' });
-        return;
-      }
-
-      //  if media is empty
-      if (!title.mediaFolder.trim()) {
-        res.status(400).send({ message: 'Media folder cannot be empty.' });
-        return;
-      }
-
-      const shortnames = title.titleName.trim().split(' ');
-      let shortname;
-      if (shortnames.length > 1) {
+        const filter=req.body.id;
+        
+        // valid title name
+        if (!req.body.titleName.trim()) {
+          res.status(400).send({ message: 'Title cannot be empty.' });
+          return;
+        }
+        
+        //  if media is empty
+        if (!req.body.mediaFolder.trim()) {
+          res.status(400).send({ message: 'Media folder cannot be empty.' });
+          return;
+        }
+        const shortnames = req.body.titleName.trim().split(' ');
+        let shortname;
+        if (shortnames.length > 1) {
           shortname = (shortnames[0][0] + shortnames[1][0]).toUpperCase();
-      } else if (shortnames.length === 1) {
+        } else if (shortnames.length === 1) {
           shortname = shortnames[0][0].toUpperCase();
-      }
-      title.shortName = shortname;
+        }
+        req.body.shortName = shortname;
+        
+        // Validate team code by checking if it exists in the database
+        if (!req.body.teamCode) {
+          res.status(400).send({ message: 'Please provide a team code.' });
+          return;
+        }
+        
+        const teamCodeExists = await checkTeamCodeExists(req.body.teamCode);
+        if (!teamCodeExists) {
+          res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
+          return;
+        }
+        
+        // validate if project exist
+        const projectExist = await checkProjectExists(req.body.projectAssigned._id);
+        if (!projectExist) {
+          res.status(400).send({ message: 'Project is empty or not exist.' });
+          return;
+        }
+        
+        // validate if team exist
+        if (req.body.teamAssiged && req.body.teamAssiged._id === 'N/A') {
+          res.status(400).send({ message: 'Team not exists.' });
+          return;
+        }
+        const result = await Title.findById(filter);
+        result.titleName = req.body.titleName;
+        result.teamCode = req.body.teamCode;
+        result.projectAssigned = req.body.projectAssigned;
+        result.mediaFolder = req.body.mediaFolder;
+        result.teamAssiged = req.body.teamAssiged;
+        const updatedTitle = await result.save();
+        res.status(200).send({ message: 'Update successful', updatedTitle });
 
-      // Validate team code by checking if it exists in the database
-      if (!title.teamCode) {
-        res.status(400).send({ message: 'Please provide a team code.' });
-        return;
+      }catch(error){
+        console.log(error);
+        res.status(500).send({ message: 'An error occurred', error });
       }
-
-      const teamCodeExists = await checkTeamCodeExists(title.teamCode);
-      if (!teamCodeExists) {
-        res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
-        return;
-      }
-
-      // validate if project exist
-      const projectExist = await checkProjectExists(title.projectAssigned._id);
-      if (!projectExist) {
-        res.status(400).send({ message: 'Project is empty or not exist.' });
-        return;
-      }
-
-      // validate if team exist
-      if (title.teamAssiged && title.teamAssiged._id === 'N/A') {
-        res.status(400).send({ message: 'Team not exists.' });
-        return;
-      }
-    
-      title
-      .updateOne({ _id: filter }, title)
-      .then((result) => {
-          if (result.modifiedCount === 0) {
-              // No documents were modified, handle this case if necessary
-              return res.status(404).send({ message: 'No documents were updated' });
-          }
-          // Send a success response
-          res.status(200).send({ message: 'Update successful', result });
-      })
-      .catch((error) => {
-          // Send a server error response
-          console.log(error)
-          res.status(500).send({ message: 'An error occurred', error });
-    });
-
+        
     };
 
     const deleteTitleById = async function (req, res) {
@@ -174,6 +167,7 @@ const titlecontroller = function (Title) {
             }
         })
         .catch((error) => {
+          console.log(error)
             res.status(500).send(error);
         });
     };
