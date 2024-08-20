@@ -18,7 +18,7 @@ const Project = require('../models/project');
 const WBS = require('../models/wbs');
 
 const makeSut = () => {
-  const { getTasks, getWBSId, importTask, postTask, updateNum } = taskController(Task);
+  const { getTasks, getWBSId, importTask, postTask, updateNum, moveTask } = taskController(Task);
 
   return {
     getTasks,
@@ -26,6 +26,7 @@ const makeSut = () => {
     importTask,
     postTask,
     updateNum,
+    moveTask,
   };
 };
 
@@ -509,6 +510,83 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(400, mockError, response, mockRes);
       expect(taskFindSpy).toBeCalled();
       expect(taskFindByIdSpy).toBeCalled();
+    });
+  });
+
+  describe('moveTask function()', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Return 400 if either `fromNum` or `toNum` is missing in request body', async () => {
+      const { moveTask } = makeSut();
+
+      const error = { error: 'wbsId, fromNum, toNum are mandatory fields' };
+      mockReq.body.fromNum = null;
+
+      const response = await moveTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Return 200 on successful exeecution', async () => {
+      const { moveTask } = makeSut();
+
+      const requestData = {
+        body: {
+          fromNum: '1.0',
+          toNum: '2.0',
+        },
+      };
+
+      mockReq.body = {
+        ...mockReq.body,
+        ...requestData.body,
+      };
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValue([
+        { num: '1.0', save: jest.fn().mockResolvedValue({}) },
+        { num: '1.1', save: jest.fn().mockResolvedValue({}) },
+      ]);
+
+      mockReq.params.wbsId = 'someWbsId';
+
+      const response = await moveTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, 'Success!', response, mockRes);
+      expect(taskFindSpy).toBeCalled();
+    });
+
+    test('Return 400 on some error', async () => {
+      const { moveTask } = makeSut();
+
+      const requestData = {
+        body: {
+          fromNum: '1.0',
+          toNum: '2.0',
+        },
+      };
+
+      mockReq.body = {
+        ...mockReq.body,
+        ...requestData.body,
+      };
+
+      const error = new Error({ error: 'some error' });
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValue([
+        { num: '1.0', save: jest.fn().mockResolvedValue({}) },
+        { num: '1.1', save: jest.fn().mockRejectedValueOnce(error) },
+      ]);
+
+      mockReq.params.wbsId = 'someWbsId';
+
+      const response = await moveTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindSpy).toBeCalled();
     });
   });
 });
