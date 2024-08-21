@@ -77,7 +77,7 @@ const sendEmail = async (req, res) => {
     console.log('Recipient:', to);
 
     // Send email
-    emailSender(to, subject, processedHtml, attachments);
+    emailSender(to, subject, handleContentToOC(processedHtml), attachments);
 
     return res.status(200).send('Email sent successfully');
   } catch (error) {
@@ -96,7 +96,7 @@ const sendEmailToAll = async (req, res) => {
     const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
 
     const users = await userProfile.find({
-      firstName: 'Angela',
+      firstName: '',
       email: { $ne: null },
       isActive: true,
       emailSubscriptions: true,
