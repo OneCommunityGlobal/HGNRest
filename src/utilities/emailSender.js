@@ -85,7 +85,6 @@ const closure = () => {
 
     const processBatch = async (batch) => {
       await batch.reduce(async (previousPromise, item) => {
-        console.log('item', item);
         await previousPromise;
         await sendEmail(item);
         await delay(1000);
@@ -99,7 +98,6 @@ const closure = () => {
       }
 
       const batch = queue.splice(0, config.batchSize);
-      console.log('processBatch', batch);
       await processBatch(batch);
 
       if (queue.length > 0) {
@@ -108,7 +106,6 @@ const closure = () => {
         setTimeout(processQueue, config.mailQueueInterval);
       }
     };
-    console.log('processAllBatches in queue');
     processAllBatches();
   };
 
