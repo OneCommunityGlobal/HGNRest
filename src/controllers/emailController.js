@@ -28,9 +28,9 @@ const sendEmail = async (req, res) => {
 };
 
 const sendEmailToAll = async (req, res) => {
-  const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
-  if (!canSendEmail) {
-    res.status(403).send('You are not authorized to send emails.');
+  const canSendEmailToAll = await hasPermission(req.body.requestor, 'sendEmailToAll');
+  if (!canSendEmailToAll) {
+    res.status(403).send('You are not authorized to send emails to all.');
     return;
   }
   try {
