@@ -29,7 +29,7 @@ const currentWarningsController = function (currentWarnings) {
 
   const postNewWarningDescription = async (req, res) => {
     try {
-      const { newWarning, activeWarning } = req.body;
+      const { newWarning, activeWarning, isPermanent } = req.body;
 
       const warnings = await currentWarnings.find({});
 
@@ -37,21 +37,21 @@ const currentWarningsController = function (currentWarnings) {
         return res.status(400).send({ message: 'no valid records' });
       }
 
-      const lowerCaseWarning = newWarning.toLowerCase();
-      const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
+      const testWarning = checkIfSpecialCharacter(newWarning);
       if (testWarning) {
-        return res.status(422).send({
+        return res.status(200).send({
           error: 'Warning cannot have special characters as the first letter',
         });
       }
 
-      if (checkForDuplicates(lowerCaseWarning, warnings)) {
-        return res.status(422).send({ error: 'warning already exists' });
+      if (checkForDuplicates(newWarning, warnings)) {
+        return res.status(200).send({ error: 'warning already exists' });
       }
 
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
       newWarningDescription.activeWarning = activeWarning;
+      newWarningDescription.isPermanent = isPermanent;
 
       warnings.push(newWarningDescription);
       await newWarningDescription.save();
@@ -78,13 +78,13 @@ const currentWarningsController = function (currentWarnings) {
       const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
 
       if (testWarning) {
-        return res.status(422).send({
+        return res.status(200).send({
           error: 'Warning cannot have special characters as the first letter',
         });
       }
 
       if (checkForDuplicates(lowerCaseWarning, warnings)) {
-        return res.status(422).send({ error: 'warning already exists try a different name' });
+        return res.status(200).send({ error: 'warning already exists try a different name' });
       }
 
       await currentWarnings.findOneAndUpdate(
