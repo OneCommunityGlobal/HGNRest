@@ -29,7 +29,7 @@ const currentWarningsController = function (currentWarnings) {
 
   const postNewWarningDescription = async (req, res) => {
     try {
-      const { newWarning, activeWarning } = req.body;
+      const { newWarning, activeWarning, isPermanent } = req.body;
 
       const warnings = await currentWarnings.find({});
 
@@ -51,6 +51,7 @@ const currentWarningsController = function (currentWarnings) {
       const newWarningDescription = new currentWarnings();
       newWarningDescription.warningTitle = newWarning;
       newWarningDescription.activeWarning = activeWarning;
+      newWarningDescription.isPermanent = isPermanent;
 
       warnings.push(newWarningDescription);
       await newWarningDescription.save();
