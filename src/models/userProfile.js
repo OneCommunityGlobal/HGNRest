@@ -6,8 +6,10 @@ const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
-const nextDay = new Date();
-nextDay.setDate(nextDay.getDate() + 1);
+// Update createdDate to be the current date from the next day
+// const nextDay = new Date();
+// nextDay.setDate(nextDay.getDate() + 1);
+const today = new Date();
 
 const userProfileSchema = new Schema({
   password: {
@@ -47,15 +49,13 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String }],
+  jobTitle: [{ type: String, jobTitle: String, required: true }],
   bio: { type: String },
   email: {
     type: String,
     required: true,
     unique: true,
-    validate: [
-      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
-    ],
+    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
@@ -70,12 +70,18 @@ const userProfileSchema = new Schema({
     },
   ],
   missedHours: { type: Number, default: 0 },
-  createdDate: { type: Date, required: true, default: nextDay },
+  createdDate: { type: Date, required: true, default: today },
+  // eslint-disable-next-line object-shorthand
+  startDate: {
+    type: Date,
+    required: true,
+    default () {
+      return this.createdDate;
+    },
+  },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [
-    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
-  ],
+  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
@@ -124,6 +130,15 @@ const userProfileSchema = new Schema({
     },
   ],
   location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+  },
+  homeCountry: {
     userProvided: { type: String, default: '' },
     coords: {
       lat: { type: Number, default: '' },
@@ -215,15 +230,17 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
+  badgeCount: { type: Number, default: 0 },
   teamCode: {
     type: String,
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
+        const teamCoderegex = /^(.{5,7}|^$)$/;
         return teamCoderegex.test(v);
       },
-      message: 'Please enter a code in the format of A-AAA or AAAAA',
+      message:
+        'Please enter a code in the format of A-AAAA or AAAAA, with optional numbers, and a total length between 5 and 7 characters.',
     },
   },
   infoCollections: [
@@ -254,8 +271,7 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+userProfileSchema.index({ teamCode: 1 });
+userProfileSchema.index({ email: 1 });
+
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
