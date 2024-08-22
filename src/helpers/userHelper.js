@@ -401,7 +401,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true, email: 'arevaloluis114@gmail.com' },
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
@@ -731,7 +731,7 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
-              'onecommunityglobal@gmail.com',
+              'arevaloluis114@gmail.com',
               status.email,
               null,
             );
