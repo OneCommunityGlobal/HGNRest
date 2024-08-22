@@ -55,9 +55,7 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [
-      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
-    ],
+    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
@@ -77,7 +75,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default: function () {
+    default() {
       return this.createdDate;
     },
   },
@@ -262,8 +260,4 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
