@@ -137,10 +137,9 @@ describe('PopupEditorBackups routes', () => {
       const popupEditorBackups = await _popupEditorBackups.save();
 
       const response = await agent
-        .get(`/api/backup/popupeditor/${popupEditorBackups.popupId}`)
+        .get(`/api/backup/popupeditor/${popupEditorBackups._id}`)
         .set('Authorization', adminToken)
         .expect(200);
-
       expect(response.body).toEqual({
         _id: expect.anything(),
         __v: expect.anything(),

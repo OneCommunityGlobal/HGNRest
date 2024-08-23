@@ -7,12 +7,11 @@ const popupEditorBackupController = function (PopupEditorBackups) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const getPopupEditorBackupById = function (req, res) {
+  const getPopupEditorBackupById = async function (req, res) {
     const popupId = req.params.id;
     try {
-      PopupEditorBackups.find({ popupId: { $in: popupId } }, (error, popupBackup) => {
-        res.status(200).send(popupBackup[0]);
-      });
+      const popupBackup = await PopupEditorBackups.findById(popupId);
+      res.status(200).send(popupBackup);
     } catch (error) {
       res.status(404).send(error);
     }
