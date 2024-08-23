@@ -180,45 +180,30 @@ describe('popupEditorBackup Controller', () => {
   describe('getPopupEditorBackupById method', () => {
     test('Ensure getPopupEditorBackupById returns 404 if error in finding', async () => {
       const { getPopupEditorBackupById } = makeSut();
-
       const findByIdSpy = jest
-        .spyOn(PopupEditorBackups, 'find')
-        .mockImplementationOnce((_, cb) => cb(true, null));
+        .spyOn(PopupEditorBackups, 'findById')
+        .mockImplementationOnce(() => Promise.reject(new Error('Error when finding by id')));
 
-      getPopupEditorBackupById(mockReq, mockRes);
+      const response = await getPopupEditorBackupById(mockReq, mockRes);
       await flushPromises();
-
-      expect(findByIdSpy).toHaveBeenCalledWith(
-        { popupId: { $in: mockReq.params.id } },
-        expect.anything(),
-      );
-      expect(mockRes.status).toHaveBeenCalledWith(404);
+      assertResMock(404, new Error('Error when finding by id'), response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id);
     });
     test('Ensure getPopupEditorBackupById returns 200 ifget popupEditorBackup by id successfully', async () => {
       const { getPopupEditorBackupById } = makeSut();
-      const data = [
-        {
-          popupId: 'test randomId334',
-          popupName: 'testpopupName',
-          popupContent: 'test popupContent',
-        },
-        {
-          popupId: 'test randomId335',
-          popupName: 'testpopupName5',
-          popupContent: 'test popupContent5',
-        },
-      ];
+      const data = {
+        popupId: 'test randomId334',
+        popupName: 'testpopupName',
+        popupContent: 'test popupContent',
+      };
       const findByIdSpy = jest
-        .spyOn(PopupEditorBackups, 'find')
-        .mockImplementationOnce((_, cb) => cb(false, data));
+        .spyOn(PopupEditorBackups, 'findById')
+        .mockImplementationOnce(() => Promise.resolve(data));
 
-      const response = getPopupEditorBackupById(mockReq, mockRes);
+      const response = await getPopupEditorBackupById(mockReq, mockRes);
       await flushPromises();
-      expect(findByIdSpy).toHaveBeenCalledWith(
-        { popupId: { $in: mockReq.params.id } },
-        expect.anything(),
-      );
-      assertResMock(200, data[0], response, mockRes);
+      expect(findByIdSpy).toHaveBeenCalledWith(mockReq.params.id);
+      assertResMock(200, data, response, mockRes);
     });
   });
   describe('updatePopupEditorBackup method', () => {
