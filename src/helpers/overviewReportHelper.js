@@ -7,6 +7,11 @@ const TimeEntries = require('../models/timeentry');
 const Task = require('../models/task');
 const Project = require('../models/project');
 
+function calculateGrowthPercentage(current, prev) {
+  const percentage = (current - prev) / prev;
+  return Math.round(percentage * 100) / 100;
+}
+
 const overviewReportHelper = function () {
   /**
    * Get volunteer trends by time.
@@ -466,7 +471,7 @@ const overviewReportHelper = function () {
                 ],
               },
             },
-            { $count: 'deactivedVolunteersCount' },
+            { $count: 'deactivatedVolunteersCount' },
           ],
 
           comparisonDeactivatedVolunteers: [
@@ -479,13 +484,45 @@ const overviewReportHelper = function () {
                 ],
               },
             },
-            { $count: 'deactivedVolunteersCount' },
+            { $count: 'deactivatedVolunteersCount' },
           ],
         },
       },
     ]);
 
-    return data;
+    const currentActiveVolunteers = data.currentActiveVolunteers[0].activeVolunteersCount;
+    const comparisonActiveVolunteers = data.comparisonActiveVolunteers[0].activeVolunteersCount;
+    const newVolunteers = data.currentNewVolunteers[0].newVolunteersCount;
+    const comparisonNewVolunteers = data.comparisonNewVolunteers[0].newVolunteersCount;
+    const currentDeactivatedVolunteers =
+      data.currentDeactivatedVolunteers[0].deactivatedVolunteersCount;
+    const comparisonDeactivatedVolunteers =
+      data.comparisonDeactivatedVolunteers[0].deactivatedVolunteersCount;
+
+    const res = {
+      activeVolunteers: {
+        count: currentActiveVolunteers,
+        comparisonPercentage: calculateGrowthPercentage(
+          currentActiveVolunteers,
+          comparisonActiveVolunteers,
+        ),
+      },
+
+      newVolunteers: {
+        count: newVolunteers,
+        comparisonPercentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
+      },
+
+      deactivatedVolunteers: {
+        count: currentDeactivatedVolunteers,
+        comparisonPercentage: calculateGrowthPercentage(
+          currentDeactivatedVolunteers,
+          comparisonDeactivatedVolunteers,
+        ),
+      },
+    };
+
+    return res;
   };
 
   /**
