@@ -20,12 +20,20 @@ const reportsController = function () {
    * In teams stats
    */
   const getVolunteerStatsData = async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
+
     if (!startDate || !endDate) {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
+
+    if (!comparisonStartDate || !comparisonEndDate) {
+      return res.status(400).send({ msg: 'Please provide a comparison date' });
+    }
+
     const isoStartDate = new Date(startDate);
     const isoEndDate = new Date(endDate);
+    const isoComparisonStartDate = new Date(comparisonStartDate);
+    const isoComparisonEndDate = new Date(comparisonEndDate);
 
     try {
       const [
@@ -43,11 +51,36 @@ const reportsController = function () {
         userLocations,
         volunteerTrends,
       ] = await Promise.all([
-        overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
-        overviewReportHelper.getTasksStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getWorkDistributionStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getVolunteerNumberStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getHoursStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalHoursWorked(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTasksStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getWorkDistributionStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getRoleDistributionStats(),
         overviewReportHelper.getTeamMembersCount(),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
