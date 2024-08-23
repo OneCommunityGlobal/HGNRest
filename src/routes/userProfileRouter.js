@@ -23,6 +23,7 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
+  userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation)  
   userProfileRouter
     .route('/userProfile/:userId')
     .get(controller.getUserById)
