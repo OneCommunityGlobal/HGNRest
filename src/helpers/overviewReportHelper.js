@@ -399,13 +399,40 @@ const overviewReportHelper = function () {
    * @param {string} startDate
    * @param {string} endDate
    */
-  const getVolunteerNumberStats = async (startDate, endDate) => {
+  const getVolunteerNumberStats = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
     const [data] = await UserProfile.aggregate([
       {
         $facet: {
-          activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
+          currentActiveVolunteers: [
+            {
+              $match: {
+                createdDate: {
+                  $lte: endDate,
+                },
+                isActive: true,
+              },
+            },
+            { $count: 'activeVolunteersCount' },
+          ],
 
-          newVolunteers: [
+          comparisonActiveVolunteers: [
+            {
+              $match: {
+                createdDate: {
+                  $lte: comparisonEndDate,
+                },
+                isActive: true,
+              },
+            },
+            { $count: 'activeVolunteersCount' },
+          ],
+
+          currentNewVolunteers: [
             {
               $match: {
                 createdDate: {
@@ -417,12 +444,37 @@ const overviewReportHelper = function () {
             { $count: 'newVolunteersCount' },
           ],
 
-          deactivatedVolunteers: [
+          comparisonNewVolunteers: [
+            {
+              $match: {
+                createdDate: {
+                  $gte: comparisonStartDate,
+                  $lte: comparisonEndDate,
+                },
+              },
+            },
+            { $count: 'newVolunteersCount' },
+          ],
+
+          currentDeactivatedVolunteers: [
             {
               $match: {
                 $and: [
                   { lastModifiedDate: { $gte: startDate } },
                   { lastModifiedDate: { $lte: endDate } },
+                  { isActive: false },
+                ],
+              },
+            },
+            { $count: 'deactivedVolunteersCount' },
+          ],
+
+          comparisonDeactivatedVolunteers: [
+            {
+              $match: {
+                $and: [
+                  { lastModifiedDate: { $gte: comparisonStartDate } },
+                  { lastModifiedDate: { $lte: comparisonEndDate } },
                   { isActive: false },
                 ],
               },
