@@ -1610,6 +1610,7 @@ const userProfileController = function (UserProfile, Project) {
       return res.status(500)
     }
   }
+
   return {
     postUserProfile,
     getUserProfiles,
