@@ -18,18 +18,16 @@ const informationController = function (Information) {
         cache.setCache('informations', results);
         res.status(200).send(results);
       })
-      .catch((error) => res.status(500).send(error));
+      .catch((error) => res.status(404).send(error));
   };
 
   const addInformation = function (req, res) {
     Information.find({ infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
-          res
-            .status(400)
-            .send({
-              error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
-            });
+          res.status(400).send({
+            error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
+          });
           return;
         }
         const _info = new Information();
