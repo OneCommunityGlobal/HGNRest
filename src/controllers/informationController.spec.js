@@ -1,21 +1,16 @@
 /* eslint-disable no-unused-vars */
 // const mongoose = require('mongoose');
-const informationController = require('./informationController');
-const {
-  mockReq,
-  mockRes,
-  assertResMock,
-  mongoHelper: { dbConnect, dbDisconnect },
-} = require('../test');
+const mongoose = require('mongoose');
+
+jest.mock('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache');
 const Information = require('../models/information');
 const escapeRegex = require('../utilities/escapeRegex');
+const informationController = require('./informationController');
+const { mockReq, mockRes, assertResMock } = require('../test');
 
 /* eslint-disable no-unused-vars */
 /* eslint-disable prefer-promise-reject-errors */
-
-const cache = require('../utilities/nodeCache');
-
-jest.mock('../utilities/nodeCache');
 
 const makeSut = () => {
   const { addInformation, getInformations, updateInformation, deleteInformation } =
@@ -31,39 +26,28 @@ const makeSut = () => {
 // Define flushPromises function));
 const flushPromises = () => new Promise(setImmediate);
 
-// const makeMockGetCache = (value) => {
-//   const getCacheObject = {
-//     getCache: () => {},
-//   };
+const makeMockCache = (method, value) => {
+  const cacheObject = {
+    getCache: jest.fn(),
+    removeCache: jest.fn(),
+    hasCache: jest.fn(),
+    setCache: jest.fn(),
+  };
 
-//   const mockGetCache = jest.spyOn(getCacheObject, 'getCache').mockImplementation(() => value);
+  const mockCache = jest.spyOn(cacheObject, method).mockImplementationOnce(() => value);
 
-//   cache.mockImplementation(() => getCacheObject);
+  cache.mockImplementationOnce(() => cacheObject);
 
-//   return mockGetCache;
-// };
-// const makeMockHasCache = (value) => {
-//   const cacheObject = {
-//     hasCache: () => {},
-//   };
-
-//   const mockHasCache = jest.spyOn(cacheObject, 'hasCache').mockImplementation(() => value);
-
-//   cache.mockImplementation(() => cacheObject);
-
-//   return mockHasCache;
-// };
+  return { mockCache, cacheObject };
+};
 
 describe('informationController module', () => {
-  beforeAll(async () => {
-    await dbConnect();
-  });
-  afterEach(async () => {
+  // beforeAll(async () => {
+  //   await dbConnect();
+  // });
+  beforeEach(() => {});
+  afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  afterAll(async () => {
-    await dbDisconnect();
   });
   describe('addInformation function', () => {
     test('Ensure addInformation returns 500 if any error when adding any information', async () => {
@@ -129,16 +113,14 @@ describe('informationController module', () => {
       });
       assertResMock(400, new Error('Error when saving'), response, mockRes);
     });
-    test('Ensure addInformation returns 201 if creating information successfully', async () => {
+    test.only('Ensure addInformation returns 201 if creating information successfully', async () => {
+      const { mockCache: hasCacheMock } = makeMockCache('hasCache', '');
       const { addInformation } = makeSut();
-      const data = [
-        {
-          infoName: 'mockAdd',
-          infoContent: 'mockContent',
-          visibility: '1',
-        },
-      ];
-      // const mockHasCache = makeMockGetCache(["info"]);
+      const data = {
+        infoName: 'mockAdd',
+        infoContent: 'mockContent',
+        visibility: '1',
+      };
 
       const findSpy = jest
         .spyOn(Information, 'find')
@@ -157,7 +139,7 @@ describe('informationController module', () => {
       expect(findSpy).toHaveBeenCalledWith({
         infoName: { $regex: escapeRegex(newMockReq.body.infoName), $options: 'i' },
       });
-      // expect(mockHasCache).toHaveBeenCalledWith('informations');
+      expect(hasCacheMock).toHaveBeenCalledWith('informations');
       assertResMock(201, data, response, mockRes);
     });
   });
