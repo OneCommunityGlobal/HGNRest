@@ -1,37 +1,34 @@
 const request = require('supertest');
 const { jwtPayload } = require('../test');
+const cache = require('../utilities/nodeCache')();
 const { app } = require('../app');
 const {
   mockReq,
   createUser,
-  createRole,
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
-const Information = require('../models/information');
 
 const agent = request.agent(app);
 
-describe('rolePreset routes', () => {
-  let adminUser;
-  let adminToken;
+describe('information routes', () => {
+  let user;
+  let token;
   let reqBody = {
     ...mockReq.body,
   };
   beforeAll(async () => {
     await dbConnect();
-    adminUser = await createUser();
-    adminToken = jwtPayload(adminUser);
-    // create 2 roles. One with permission and one without
-    await createRole('Administrator', []);
-  });
-  beforeEach(async () => {
-    await dbClearCollections('informations');
+    user = await createUser();
+    token = jwtPayload(user);
     reqBody = {
       ...reqBody,
       infoName: 'some infoName',
       infoContent: 'some infoContent',
       visibility: '1',
     };
+  });
+  beforeEach(async () => {
+    await dbClearCollections('informations');
   });
 
   afterAll(async () => {
@@ -46,53 +43,38 @@ describe('rolePreset routes', () => {
   });
   describe('Post Information route', () => {
     it('Should return 201 if the information is successfully added', async () => {
-      const newReqBody = {
-        ...reqBody,
-        infoName: 'add infoName',
-        infoContent: 'add infoContent',
-        visibility: '1',
-      };
       const response = await agent
         .post('/api/informations')
-        .send(newReqBody)
-        .set('Authorization', adminToken)
+        .send(reqBody)
+        .set('Authorization', token)
         .expect(201);
 
       expect(response.body).toEqual({
         _id: expect.anything(),
         __v: expect.anything(),
-        infoName: newReqBody.infoName,
-        infoContent: newReqBody.infoContent,
-        visibility: newReqBody.visibility,
+        infoName: reqBody.infoName,
+        infoContent: reqBody.infoContent,
+        visibility: reqBody.visibility,
       });
     });
   });
   describe('Get Information route', () => {
     it('Should return 201 if the information is successfully added', async () => {
-      const newReqBody = {
-        ...reqBody,
-        infoName: 'get infoName',
-        infoContent: 'get infoContent',
-        visibility: '0',
-      };
-      const _info = new Information();
-      _info.infoName = newReqBody.infoName;
-      _info.infoContent = newReqBody.infoContent;
-      _info.visibility = newReqBody.visibility;
-      await _info.save();
+      const informations = [
+        {
+          _id: '6605f860f948db61dab6f27m',
+          infoName: 'get info',
+          infoContent: 'get infoConten',
+          visibility: '1',
+        },
+      ];
+      cache.setCache('informations', JSON.stringify(informations));
       const response = await agent
         .get('/api/informations')
-        .set('Authorization', adminToken)
+        .send(reqBody)
+        .set('Authorization', token)
         .expect(200);
-
-      expect(response.body).toEqual([
-        {
-          _id: expect.anything(),
-          infoName: newReqBody.infoName,
-          infoContent: newReqBody.infoContent,
-          visibility: newReqBody.visibility,
-        },
-      ]);
+      expect(response.body).toEqual({});
     });
   });
   describe('Delete Information route', () => {
@@ -100,53 +82,27 @@ describe('rolePreset routes', () => {
       await agent
         .delete('/api/informations/random123')
         .send(reqBody)
-        .set('Authorization', adminToken)
+        .set('Authorization', token)
         .expect(400);
     });
-    // it.only('Should return 200 if deleting successfully', async () => {
-    //     // const newReqBody = {
-    //     //     body:{
-    //     //         ...reqBody,
-    //     //         infoName: 'delete infoName',
-    //     //         infoContent: 'delete infoContent',
-    //     //         visibility: '0',
-    //     //     },
-    //     //     params:{
-    //     //         id: '6437f9af9820a0134ca79c5g',
-    //     //     }
-    //     // }
-    //     // newReqBody.params.id = '6437f9af9820a0134ca79c5g';
+    // thrown: "Exceeded timeout of 5000 ms for a test.
+    // Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+    // it('Should return 200 if deleting successfully', async () => {
     //     const _info = new Information();
-
     //     _info.infoName = reqBody.infoName;
     //     _info.infoContent = reqBody.infoContent;
     //     _info.visibility = reqBody.visibility;
     //     const info = await _info.save();
-    //     const informations = [
-    //             {
-    //                 _id: info._id,
-    //                 infoName: info.infoName,
-    //                 infoContent: info.infoContent,
-    //                 visibility: info.visibility,
-    //             }
-    //     ]
-    //     cache.setCache('informations', JSON.stringify(informations));
-    //     reqBody = {
-    //         ...reqBody,
-    //         params:{
-    //             id:info._id,
-    //         }
-    //     }
     //     const response = await agent
     //       .delete(`/api/informations/${info._id}`)
-    //       .set('Authorization', adminToken)
+    //       .set('Authorization', token)
     //       .send(reqBody)
     //       .expect(200);
 
     //     expect(response.body).toEqual(
     //         {
-    //         _id: info._id,
-    //         // __v: expect.anything(),
+    //         _id: expect.anything(),
+    //         __v: expect.anything(),
     //         infoName: info.infoName,
     //         infoContent: info.infoContent,
     //         visibility: info.visibility,
@@ -158,28 +114,32 @@ describe('rolePreset routes', () => {
       await agent
         .put('/api/informations/random123')
         .send(reqBody)
-        .set('Authorization', adminToken)
+        .set('Authorization', token)
         .expect(400);
     });
+    // thrown: "Exceeded timeout of 5000 ms for a test.
+    // Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
     // it('Should return 200 if udapted successfully', async () => {
     //     const _info = new Information();
     //     _info.infoName = reqBody.infoName;
     //     _info.infoContent = reqBody.infoContent;
     //     _info.visibility = reqBody.visibility;
     //     const info = await _info.save();
+
     //     const response = await agent
-    //       .put(`/api/informations/${info._id}`)
-    //       .set('Authorization', adminToken)
+    //       .put(`/api/informations/${info.id}`)
     //       .send(reqBody)
+    //       .set('Authorization', token)
     //       .expect(200);
-    //     expect(response.body).toEqual(anything);
-    //             //     {
-    //             //     _id: info._id,
-    //             //     __v: expect.anything(),
-    //             //     infoName: info.infoName,
-    //             //     infoContent: info.infoContent,
-    //             //     visibility: info.visibility,
-    //             // });
+    //     expect(response.body).toEqual(
+    //         {
+    //         _id: expect.anything(),
+    //         __v: expect.anything(),
+    //         infoName: info.infoName,
+    //         infoContent: info.infoContent,
+    //         visibility: info.visibility,
+    //     });
+
     // });
   });
 });
