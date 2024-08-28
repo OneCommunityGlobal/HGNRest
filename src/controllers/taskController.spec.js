@@ -16,9 +16,11 @@ const taskController = require('./taskController');
 const Task = require('../models/task');
 const Project = require('../models/project');
 const WBS = require('../models/wbs');
+const FollowUp = require('../models/followUp');
 
 const makeSut = () => {
-  const { getTasks, getWBSId, importTask, postTask, updateNum, moveTask } = taskController(Task);
+  const { getTasks, getWBSId, importTask, postTask, updateNum, moveTask, deleteTask } =
+    taskController(Task);
 
   return {
     getTasks,
@@ -27,6 +29,7 @@ const makeSut = () => {
     postTask,
     updateNum,
     moveTask,
+    deleteTask,
   };
 };
 
@@ -587,6 +590,78 @@ describe('Unit Tests for taskController.js', () => {
 
       assertResMock(400, error, response, mockRes);
       expect(taskFindSpy).toBeCalled();
+    });
+  });
+
+  describe('deleteTask function()', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Return 403 if `deleteTask` permission is missing', async () => {
+      const { deleteTask } = makeSut();
+      hasPermission.mockResolvedValueOnce(false);
+
+      const error = { error: 'You are not authorized to deleteTasks.' };
+
+      const response = await deleteTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+    });
+
+    test('Return 400 if no Task found', async () => {
+      const { deleteTask } = makeSut();
+
+      const error = { error: 'No valid records found' };
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+        mother: 'null',
+      };
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValue([]);
+      const followUpFindOneAndDeleteSpy = jest
+        .spyOn(FollowUp, 'findOneAndDelete')
+        .mockResolvedValue(true);
+
+      const response = await deleteTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindSpy).toHaveBeenCalled();
+      expect(followUpFindOneAndDeleteSpy).toHaveBeenCalled();
+    });
+
+    test('Return 200 on successfully deleting task', async () => {
+      const { deleteTask } = makeSut();
+
+      const message = { message: 'Task successfully deleted' };
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+        mother: 'null',
+      };
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValue([
+        {
+          remove: jest.fn().mockImplementation(() => Promise.resolve(1)),
+        },
+      ]);
+      const followUpFindOneAndDeleteSpy = jest
+        .spyOn(FollowUp, 'findOneAndDelete')
+        .mockResolvedValue(true);
+
+      const response = await deleteTask(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, message, response, mockRes);
+      expect(taskFindSpy).toHaveBeenCalled();
+      expect(followUpFindOneAndDeleteSpy).toHaveBeenCalled();
     });
   });
 });
