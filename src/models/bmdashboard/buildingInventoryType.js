@@ -65,7 +65,7 @@ const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
 },
   available: [{type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item'}],
   using: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
-  //add a date last updated field?
+  //add a date last updated field? 
 }));
 
 //---------------------------
