@@ -168,8 +168,8 @@ const bmToolController = (BuildingTool, ToolType) => {
         }
         
         for (const type of typesArray) {
-          const toolName = type.toolName;
-          const toolCodes = type.toolCodes;
+          const toolName = type.toolName; 
+          const toolCodes = type.toolCodes; 
           const codeMap = {};
           toolCodes.forEach(obj => {
             codeMap[obj.value] = obj.label;
