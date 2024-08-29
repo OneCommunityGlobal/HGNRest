@@ -4,7 +4,7 @@ Cross Mark: ❌
 # deleteReason
 
 > ## Positive case
-<!-- 1. ❌ Receives a POST request in the **/api/backup/popupeditors/** route. -->
+1. ❌ Receives a POST request in the **/api/backup/popupeditors/** route.
 2. ✅ Return 200 if delete reason successfully.
 
 > ## Negative case
