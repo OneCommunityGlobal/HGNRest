@@ -143,31 +143,30 @@ describe('reason routers', () => {
         .set('Authorization', adminToken)
         .expect(403);
       });
-
-    });
     it('Should return 200 if post successfully', async () => {
-      // const userProfile = new userPro
-      let response = await agent
-        .post('/api/userProfile')
-        .send(reqBody.body)
-        .set('Authorization', adminToken)
-        .expect(200);
+        // const userProfile = new userPro
+        let response = await agent
+          .post('/api/userProfile')
+          .send(reqBody.body)
+          .set('Authorization', adminToken)
+          .expect(200);
 
-      expect(response.body).toBeTruthy();
-      response = await agent
-        .get('/api/userProfile')
-        .send(reqBody.body)
-        .set('Authorization', adminToken)
-        .expect(200);
-      const userId = response.body[0]._id;
-      reqBody.body.userId = userId;
-      response = await agent
-        .post('/api/reason/')
-        .send(reqBody.body)
-        .set('Authorization', adminToken)
-        .expect(200);
+        expect(response.body).toBeTruthy();
+        response = await agent
+          .get('/api/userProfile')
+          .send(reqBody.body)
+          .set('Authorization', adminToken)
+          .expect(200);
+        const userId = response.body[0]._id;
+        reqBody.body.userId = userId;
+        response = await agent
+          .post('/api/reason/')
+          .send(reqBody.body)
+          .set('Authorization', adminToken)
+          .expect(200);
+      });
     });
-
+      
   });
   // describe('Get reason route', () => {
 
