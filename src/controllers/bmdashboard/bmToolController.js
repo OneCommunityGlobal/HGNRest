@@ -168,8 +168,8 @@ const bmToolController = (BuildingTool, ToolType) => {
         }
         
         for (const type of typesArray) {
-          const {toolName} = type; 
-          const {toolCodes} = type; 
+          const toolName = type.toolName;
+          const toolCodes = type.toolCodes;
           const codeMap = {};
           toolCodes.forEach(obj => {
             codeMap[obj.value] = obj.label;
@@ -214,7 +214,7 @@ const bmToolController = (BuildingTool, ToolType) => {
               }
 
               const newRecord = {
-                date,
+                date: date,
                 createdBy: requestor,
                 responsibleUser: buildingToolDoc.userResponsible, 
                 type: action
@@ -233,9 +233,9 @@ const bmToolController = (BuildingTool, ToolType) => {
 
         if (errors.length > 0) {
           return res.status(404).send({ errors, results });
-        } 
+        } else {
           return res.status(200).send({ errors, results });
-        
+        }
       }
 
       return {
