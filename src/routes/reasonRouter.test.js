@@ -1,10 +1,13 @@
 const request = require('supertest');
 const moment = require('moment-timezone');
 const { jwtPayload } = require('../test');
+const cache = require('../utilities/nodeCache')();
 const { app } = require('../app');
 const {
   mockReq,
+  mockUser,
   createUser,
+  createTestPermissions,
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
 // const Reason = require('../models/reason');
@@ -20,29 +23,33 @@ const agent = request.agent(app);
 describe('reason routers', () => {
   let adminUser;
   let adminToken;
-  // let volunteerUser;
-  // let volunteerToken;
   let reqBody = {
-    ...mockReq.body,
+    body:{
+      ...mockReq.body,
+      ...mockUser(),
+    }
   };
   beforeAll(async () => {
     await dbConnect();
+    await createTestPermissions();
     adminUser = await createUser();
     adminToken = jwtPayload(adminUser);
-    // volunteerUser = await createUser();
-    // volunteerUser.role = 'Volunteer';
-    // volunteerToken = jwtPayload(volunteerUser);
   });
   beforeEach(async () => {
     await dbClearCollections('reason');
+    await dbClearCollections('userProfiles');
+    cache.setCache('allusers', '[]');
     reqBody = {
-      ...reqBody,
-      reasonData: {
-        date: mockDay(0),
-        message: 'some reason',
+      body:{
+        ...mockReq.body,
+        ...mockUser(),
+        reasonData: {
+          date: mockDay(0),
+          message: 'some reason',
+          
       },
-      userId: adminUser.userId,
       currentDate: moment.tz('America/Los_Angeles').startOf('day'),
+      }
     };
   });
   afterAll(async () => {
@@ -51,19 +58,19 @@ describe('reason routers', () => {
   });
   describe('reasonRouters', () => {
     it('should return 401 if authorization header is not present', async () => {
-      await agent.post('/api/reason/').send(reqBody).expect(401);
-      await agent.get('/api/reason/randomId').send(reqBody).expect(401);
-      await agent.get('/api/reason/single/randomId').send(reqBody).expect(401);
-      await agent.patch('/api/reason/randomId/').send(reqBody).expect(401);
-      await agent.delete('/api/reason/randomId').send(reqBody).expect(401);
+      await agent.post('/api/reason/').send(reqBody.body).expect(401);
+      await agent.get('/api/reason/randomId').send(reqBody.body).expect(401);
+      await agent.get('/api/reason/single/randomId').send(reqBody.body).expect(401);
+      await agent.patch('/api/reason/randomId/').send(reqBody.body).expect(401);
+      await agent.delete('/api/reason/randomId').send(reqBody.body).expect(401);
     });
   });
   describe('Post reason route', () => {
     it('Should return 400 if user did not choose SUNDAY', async () => {
-      reqBody.reasonData.date = mockDay(1, true);
+      reqBody.body.reasonData.date = mockDay(1, true);
       const response = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(reqBody.body)
         .set('Authorization', adminToken)
         .expect(400);
       expect(response.body).toEqual({
@@ -73,10 +80,10 @@ describe('reason routers', () => {
       });
     });
     it('Should return 400 if warning to choose a future date', async () => {
-      reqBody.reasonData.date = mockDay(0, true);
+      reqBody.body.reasonData.date = mockDay(0, true);
       const response = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(reqBody.body)
         .set('Authorization', adminToken)
         .expect(400);
       expect(response.body).toEqual({
@@ -85,10 +92,10 @@ describe('reason routers', () => {
       });
     });
     it('Should return 400 if not providing reason', async () => {
-      reqBody.reasonData.message = null;
+      reqBody.body.reasonData.message = null;
       const response = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(reqBody.body)
         .set('Authorization', adminToken)
         .expect(400);
       expect(response.body).toEqual({
@@ -97,10 +104,10 @@ describe('reason routers', () => {
       });
     });
     it('Should return 404 if error in finding user Id', async () => {
-      reqBody.userId = null;
+      reqBody.body.userId = null;
       const response = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(reqBody.body)
         .set('Authorization', adminToken)
         .expect(404);
       expect(response.body).toEqual({
@@ -108,27 +115,61 @@ describe('reason routers', () => {
         errorCode: 2,
       });
     });
-    it('Should return 403 if duplicate reason to the date', async () => {
-      reqBody.reasonData.userId = adminUser.userId;
-      adminUser.timeOffFrom = reqBody.currentDate;
-      adminUser.timeOffTill = reqBody.reasonData.date;
+    it('Should return 40 if duplicate resonse', async () => {
+      // const userProfile = new userPro
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
 
-      // let response = await agent
-      //     .post('/api/reason/')
-      //     .send(reqBody)
-      //     .set('Authorization', adminToken)
-      //     .expect(200);
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .get('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .post('/api/reason/')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .post('/api/reason/')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(403);
+      });
 
-      // expect(response.body).toBeTruthy();
-      // response = await agent
-      //     .post('/api/reason/')
-      //     .send(reqBody)
-      //     .set('Authorization', adminToken)
-      //     .expect(403);
-      // expect(response.body).toEqual({
-      //     message: 'The reason must be unique to the date',
-      //     errorCode: 3,
-      //   });
     });
+    it('Should return 200 if post successfully', async () => {
+      // const userProfile = new userPro
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .get('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .post('/api/reason/')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+    });
+
   });
-});
+  // describe('Get reason route', () => {
+
+  // });
+

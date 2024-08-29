@@ -1,4 +1,10 @@
 const moment = require('moment-timezone');
+const { mockReq, mockRes, mockUser } = require('../test');
+const UserModel = require('../models/userProfile');
+
+jest.mock('../utilities/emailSender');
+const emailSender = require('../utilities/emailSender')
+
 const {
   postReason,
   getAllReasons,
@@ -6,21 +12,9 @@ const {
   patchReason,
   deleteReason,
 } = require('./reasonSchedulingController');
-const { mockReq, mockRes, mockUser } = require('../test');
-const UserModel = require('../models/userProfile');
+
 //  assertResMock
 const ReasonModel = require('../models/reason');
-
-// Mock the models
-jest.mock('../models/reason');
-jest.mock('../models/userProfile');
-jest.mock('../utilities/emailSender');
-const emailSender = require('../utilities/emailSender');
-
-emailSender.mockImplementation(() => undefined);
-// jest.mock('../utilities/emailSender', () => ({
-//   emailSender: jest.fn().mockResolvedValueOnce(''),
-// }));
 
 const flushPromises = () => new Promise(setImmediate);
 
@@ -95,7 +89,8 @@ describe('reasonScheduling Controller', () => {
       );
     });
     test('Ensure postReason returns 404 when error in finding user Id', async () => {
-      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() => null);
+      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() =>
+        Promise.resolve(null));
 
       await postReason(mockReq, mockRes);
       await flushPromises();
@@ -164,10 +159,13 @@ describe('reasonScheduling Controller', () => {
       };
       const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
       const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockRejectedValue(newReason);
+      emailSender.mockImplementation(() => {
+        throw new Error('Failed to send email');
+      });
 
       await postReason(mockReq, mockRes);
       await flushPromises();
-
+      emailSender.mockRejectedValue(new Error('Failed'));
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
       expect(mockFoundReason).toHaveBeenCalledWith({
@@ -204,7 +202,9 @@ describe('reasonScheduling Controller', () => {
       };
       const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
       const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockResolvedValue(newReason);
-      // process.env.sendEmail = true;
+      emailSender.mockImplementation(() => {
+        Promise.resolve();
+      });
       await postReason(mockReq, mockRes);
       await flushPromises();
       expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
@@ -217,8 +217,6 @@ describe('reasonScheduling Controller', () => {
         userId: mockReq.body.userId,
       });
       expect(mockSave).toHaveBeenCalledWith();
-
-      // expect(emailSender).toHaveBeenCalledWith(mockFindUser.email, subject, emailBody, null, null);
     });
   });
   describe('getAllReason method', () => {
@@ -437,10 +435,13 @@ describe('reasonScheduling Controller', () => {
         userId: mockReq.params.userId,
         save: jest.fn().mockRejectedValueOnce(),
       };
+      emailSender.mockImplementation(() => {
+        throw new Error('Failed to send email');
+      });
       const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce(oldReason);
       await patchReason(mockReq, mockRes);
       await flushPromises();
-
+      emailSender.mockRejectedValue(new Error('Failed'));
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockFindUser).toHaveBeenCalledWith(mockReq.params.userId);
       expect(mockFoundReason).toHaveBeenCalledWith({
@@ -471,7 +472,9 @@ describe('reasonScheduling Controller', () => {
         save: jest.fn().mockResolvedValueOnce(),
       };
       const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValueOnce(oldReason);
-
+      emailSender.mockImplementation(() => {
+        Promise.resolve();
+      });
       await patchReason(mockReq, mockRes);
       await flushPromises();
 

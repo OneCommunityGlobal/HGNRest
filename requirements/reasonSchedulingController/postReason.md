@@ -4,8 +4,8 @@ Cross Mark: ❌
 # postReason
 
 > ## Positive case
-1. ❌ Receives a POST request in the **/api/reason/** route.
-2. ❌ Return 200 if schedule reason and send blue sqaure email successfully.
+1. ✅ Receives a POST request in the **/api/reason/** route.
+2. ✅ Return 200 if schedule reason and send blue sqaure email successfully.
 
 > ## Negative case
 1. ✅ Returns 400 for warning to choose Sunday. 
