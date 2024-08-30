@@ -4,8 +4,8 @@ Cross Mark: ❌
 # patchReason
 
 > ## Positive case
-1. ❌ Receives a POST request in the **/api/breason/** route.
-2. ❌ Return 200 if updated schedule reason and send blue sqaure email successfully.
+1. ✅ Receives a POST request in the **/api/breason/** route.
+2. ✅ Return 200 if updated schedule reason and send blue sqaure email successfully.
 
 > ## Negative case
 1. ✅ Returns 400 for not providing reason. 
