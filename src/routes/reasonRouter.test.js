@@ -24,10 +24,10 @@ describe('reason routers', () => {
   let adminUser;
   let adminToken;
   let reqBody = {
-    body:{
+    body: {
       ...mockReq.body,
       ...mockUser(),
-    }
+    },
   };
   beforeAll(async () => {
     await dbConnect();
@@ -40,16 +40,15 @@ describe('reason routers', () => {
     await dbClearCollections('userProfiles');
     cache.setCache('allusers', '[]');
     reqBody = {
-      body:{
+      body: {
         ...mockReq.body,
         ...mockUser(),
         reasonData: {
           date: mockDay(0),
           message: 'some reason',
-          
+        },
+        currentDate: moment.tz('America/Los_Angeles').startOf('day'),
       },
-      currentDate: moment.tz('America/Los_Angeles').startOf('day'),
-      }
     };
   });
   afterAll(async () => {
@@ -115,7 +114,7 @@ describe('reason routers', () => {
         errorCode: 2,
       });
     });
-    it('Should return 40 if duplicate resonse', async () => {
+    it('Should return 403 if duplicate resonse', async () => {
       // const userProfile = new userPro
       let response = await agent
         .post('/api/userProfile')
@@ -142,33 +141,198 @@ describe('reason routers', () => {
         .send(reqBody.body)
         .set('Authorization', adminToken)
         .expect(403);
-      });
+    });
     it('Should return 200 if post successfully', async () => {
-        // const userProfile = new userPro
-        let response = await agent
-          .post('/api/userProfile')
-          .send(reqBody.body)
-          .set('Authorization', adminToken)
-          .expect(200);
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
 
-        expect(response.body).toBeTruthy();
-        response = await agent
-          .get('/api/userProfile')
-          .send(reqBody.body)
-          .set('Authorization', adminToken)
-          .expect(200);
-        const userId = response.body[0]._id;
-        reqBody.body.userId = userId;
-        response = await agent
-          .post('/api/reason/')
-          .send(reqBody.body)
-          .set('Authorization', adminToken)
-          .expect(200);
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .get('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .post('/api/reason/')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+    });
+  });
+  describe('Get AllReason route', () => {
+    it('Should return 400 if route does not exist', async () => {
+      const response = await agent
+        .get(`/api/reason/random123`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(400);
+      expect(response.body).toEqual({
+        errMessage: 'Something went wrong while fetching the user',
       });
     });
-      
+    it('Should return 200 if get all reasons', async () => {
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .get('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .get(`/api/reason/${userId}`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+    });
   });
-  // describe('Get reason route', () => {
+  describe('Get Single Reason route', () => {
+    it('Should return 400 if route does not exist', async () => {
+      reqBody.query = {
+        queryDate: mockDay(1, true),
+      };
+      const response = await agent
+        .get(`/api/reason/single/5a7e21f00317bc1538def4b9`)
+        .set('Authorization', adminToken)
+        .expect(404);
+      expect(response.body).toEqual({
+        message: 'User not found',
+        errorCode: 2,
+      });
+    });
+    it('Should return 200 if get all reasons', async () => {
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
 
-  // });
+      expect(response.body).toBeTruthy();
+      response = await agent.get('/api/userProfile').set('Authorization', adminToken).expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      reqBody.query = {
+        queryDate: mockDay(1, true),
+      };
+      response = await agent
+        .get(`/api/reason/single/${userId}`)
+        .set('Authorization', adminToken)
+        .expect(200);
+    });
+  });
+  describe('Patch reason route', () => {
+    it('Should return 404 if error in finding user Id', async () => {
+      reqBody.body.userId = null;
+      const response = await agent
+        .patch('/api/reason/5a7e21f00317bc1538def4b9/')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(404);
+      expect(response.body).toEqual({
+        message: 'User not found',
+        errorCode: 2,
+      });
+    });
+    it('Should return 404 if duplicate reasons', async () => {
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
 
+      expect(response.body).toBeTruthy();
+      response = await agent.get('/api/userProfile').set('Authorization', adminToken).expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .patch(`/api/reason/${userId}/`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(404);
+      expect(response.body).toEqual({
+        message: 'Reason not found',
+        errorCode: 4,
+      });
+    });
+    it('Should return 200 if patch successfully', async () => {
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toBeTruthy();
+      response = await agent.get('/api/userProfile').set('Authorization', adminToken).expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .post(`/api/reason/`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .patch(`/api/reason/${userId}/`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      expect(response.body).toEqual({
+        message: 'Reason Updated!',
+      });
+    });
+  });
+  describe('Delete reason route', () => {
+    it('Should return 404 if route does not exist', async () => {
+      const response = await agent
+        .delete(`/api/reason/5a7e21f00317bc1538def4b9`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(404);
+      expect(response.body).toEqual({
+        message: 'User not found',
+        errorCode: 2,
+      });
+    });
+    it('Should return 200 if deleting successfully', async () => {
+      let response = await agent
+        .post('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .get('/api/userProfile')
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      const userId = response.body[0]._id;
+      reqBody.body.userId = userId;
+      response = await agent
+        .post(`/api/reason/`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      expect(response.body).toBeTruthy();
+      response = await agent
+        .delete(`/api/reason/${userId}`)
+        .send(reqBody.body)
+        .set('Authorization', adminToken)
+        .expect(200);
+      expect(response.body).toEqual({
+        message: 'Document deleted',
+      });
+    });
+  });
+});

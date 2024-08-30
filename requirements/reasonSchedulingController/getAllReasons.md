@@ -4,7 +4,7 @@ Cross Mark: ❌
 # getAllReasons
 
 > ## Positive case
-1. ❌ Receives a GET request in the **/api/reason/:userId** route.
+1. ✅ Receives a GET request in the **/api/reason/:userId** route.
 2. ✅ Return 200 if get schedule reason successfully.
 
 > ## Negative case
