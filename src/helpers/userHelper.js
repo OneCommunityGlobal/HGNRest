@@ -956,29 +956,54 @@ const userHelper = function () {
           $project: {
             _id: 1,
             missedHours: {
-              $max: [
-                {
-                  $subtract: [
-                    {
-                      $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
-                    },
-                    {
-                      $divide: [
-                        {
-                          $sum: {
-                            $map: {
-                              input: '$timeEntries',
-                              in: '$$this.totalSeconds',
-                            },
+              $let: {
+                vars: {
+                  baseMissedHours: {
+                    $max: [
+                      {
+                        $subtract: [
+                          {
+                            $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
                           },
-                        },
-                        3600,
-                      ],
-                    },
+                          {
+                            $divide: [
+                              {
+                                $sum: {
+                                  $map: {
+                                    input: '$timeEntries',
+                                    in: '$$this.totalSeconds',
+                                  },
+                                },
+                              },
+                              3600,
+                            ],
+                          },
+                        ],
+                      },
+                      0,
+                    ],
+                  },
+                  infringementsAdjustment: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $gt: ['$infringements', null] },
+                          { $gt: [{ $size: '$infringements' }, 5] },
+                        ],
+                      },
+                      { $subtract: [{ $size: '$infringements' }, 5] },
+                      0,
+                    ],
+                  },
+                },
+                in: {
+                  $cond: [
+                    { $gt: ['$$baseMissedHours', 0] },
+                    { $add: ['$$baseMissedHours', '$$infringementsAdjustment'] },
+                    '$$baseMissedHours',
                   ],
                 },
-                0,
-              ],
+              },
             },
           },
         },
