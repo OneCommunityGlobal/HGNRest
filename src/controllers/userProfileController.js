@@ -505,7 +505,7 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
         // remove teamCode cache when new team assigned
@@ -1549,6 +1549,45 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const toggleInvisibility = async function (req, res) {
+    const { userId } = req.params;
+    const { isVisible } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({
+        error: 'Bad Request',
+      });
+      return;
+    }
+    if (!(await hasPermission(req.body.requestor, 'toggleInvisibility'))) {
+      res.status(403).send('You are not authorized to change user visibility');
+      return;
+    }
+
+    // console.log("Updating User Visibility ", isVisible);
+    cache.removeCache(`user-${userId}`);
+    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
+      if (err) {
+        return res.status(500).send(`Could not Find user with id ${userId}`);
+      }
+      // Check if there's a cache for all users and update it accordingly
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((users) => users._id === userId);
+        const userData = allUserData[userIdx];
+        userData.isVisible = isVisible;
+        allUserData.splice(userIdx, 1, userData);
+        cache.setCache('allusers', JSON.stringify(allUserData));
+      }
+
+      return res.status(200).send({
+        message: 'User visibility updated successfully',
+        isVisible,
+      });
+    });
+  };
+
   const getProjectsByPerson = async function (req, res) {
     try {
       const { name } = req.params;
@@ -1607,23 +1646,25 @@ const userProfileController = function (UserProfile, Project) {
         return teamCodes;
       }
       const distinctTeamCodes = await UserProfile.distinct('teamCode', {
-        teamCode: { $ne: null }
+        teamCode: { $ne: null },
       });
       cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
       return distinctTeamCodes;
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
     }
-  }
+  };
 
   const getAllTeamCode = async function (req, res) {
     try {
       const distinctTeamCodes = await getAllTeamCodeHelper();
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
+      return res
+        .status(500)
+        .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1647,6 +1688,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    toggleInvisibility,
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,

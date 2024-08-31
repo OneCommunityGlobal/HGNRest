@@ -53,6 +53,7 @@ const permissionsRoles = [
       'updatePassword',
       'deleteUserProfile',
       'infringementAuthorizer',
+      'toggleInvisibility',
       'manageAdminLinks',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
@@ -251,6 +252,7 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
+      'toggleInvisibility',
       'manageAdminLinks',
     ],
   },
