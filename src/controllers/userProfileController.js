@@ -727,7 +727,17 @@ const userProfileController = function (UserProfile, Project) {
             'update',
           );
         })
-        .catch((error) => res.status(400).send(error));
+        .catch((error) => {
+          if (error.name === 'ValidationError' && error.errors.lastName) {
+            const errors = Object.values(error.errors).map(er => er.message);
+            return res.status(400).json({
+              message: 'Validation Error',
+              error: errors,
+            });
+          }
+            console.error('Failed to save record:', error);
+            return res.status(400).json({ error: 'Failed to save record.' });
+        });
     });
   };
 
