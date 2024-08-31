@@ -26,14 +26,18 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
 
-    if (!comparisonStartDate || !comparisonEndDate) {
-      return res.status(400).send({ msg: 'Please provide a comparison date' });
+    let isoComparisonStartDate;
+    let isoComparisonEndDate;
+
+    if (comparisonStartDate && comparisonEndDate) {
+      isoComparisonStartDate = new Date(comparisonStartDate);
+      isoComparisonEndDate = new Date(comparisonEndDate);
     }
+
+    console.log(isoComparisonStartDate, isoComparisonEndDate);
 
     const isoStartDate = new Date(startDate);
     const isoEndDate = new Date(endDate);
-    const isoComparisonStartDate = new Date(comparisonStartDate);
-    const isoComparisonEndDate = new Date(comparisonEndDate);
 
     try {
       const [
