@@ -645,7 +645,6 @@ const userProfileController = function (UserProfile, Project) {
 
         if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
           record.startDate = moment.tz(req.body.startDate, 'America/Los_Angeles').toDate();
-          console.log('record.startDate', record.startDate);
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -668,7 +667,8 @@ const userProfileController = function (UserProfile, Project) {
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
-            record.endDate = moment(req.body.endDate).toDate();
+            // record.endDate = moment(req.body.endDate).toDate();
+            record.endDate = moment.tz(req.body.endDate, 'America/Los_Angeles').toDate();
             if (isUserInCache) {
               userData.endDate = record.endDate.toISOString();
             }
