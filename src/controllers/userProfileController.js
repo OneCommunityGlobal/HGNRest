@@ -505,7 +505,7 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
         // remove teamCode cache when new team assigned
@@ -729,14 +729,14 @@ const userProfileController = function (UserProfile, Project) {
         })
         .catch((error) => {
           if (error.name === 'ValidationError' && error.errors.lastName) {
-            const errors = Object.values(error.errors).map(er => er.message);
+            const errors = Object.values(error.errors).map((er) => er.message);
             return res.status(400).json({
               message: 'Validation Error',
               error: errors,
             });
           }
-            console.error('Failed to save record:', error);
-            return res.status(400).json({ error: 'Failed to save record.' });
+          console.error('Failed to save record:', error);
+          return res.status(400).json({ error: 'Failed to save record.' });
         });
     });
   };
@@ -1241,6 +1241,7 @@ const userProfileController = function (UserProfile, Project) {
               endDate,
               user.email,
               recipients,
+              isSet,
             );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
@@ -1606,23 +1607,25 @@ const userProfileController = function (UserProfile, Project) {
         return teamCodes;
       }
       const distinctTeamCodes = await UserProfile.distinct('teamCode', {
-        teamCode: { $ne: null }
+        teamCode: { $ne: null },
       });
       cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
       return distinctTeamCodes;
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
     }
-  }
+  };
 
   const getAllTeamCode = async function (req, res) {
     try {
       const distinctTeamCodes = await getAllTeamCodeHelper();
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
+      return res
+        .status(500)
+        .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
-  }
+  };
 
   return {
     postUserProfile,

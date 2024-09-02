@@ -2114,6 +2114,7 @@ const userHelper = function () {
             lastDay,
             person.email,
             recipients,
+            person.isSet,
           );
         }
       }
