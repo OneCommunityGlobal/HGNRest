@@ -212,6 +212,8 @@ const permissionsRoles = [
       'editTimeEntryToggleTangible',
       'deleteTimeEntry',
       'postTimeEntry',
+      'sendEmails',
+      'sendEmailToAll',
       'updatePassword',
       'getUserProfiles',
       'getProjectMembers',
