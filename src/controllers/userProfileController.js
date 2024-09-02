@@ -495,7 +495,6 @@ const userProfileController = function (UserProfile, Project) {
         'totalTangibleHrs',
         'totalIntangibleHrs',
         'isFirstTimelog',
-        'teamCode',
         'isVisible',
         'bioPosted',
       ];
@@ -505,6 +504,16 @@ const userProfileController = function (UserProfile, Project) {
           record[fieldName] = req.body[fieldName];
         }
       });
+
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
+      }
 
       record.lastModifiedDate = Date.now();
 
@@ -718,7 +727,17 @@ const userProfileController = function (UserProfile, Project) {
             'update',
           );
         })
-        .catch((error) => res.status(400).send(error));
+        .catch((error) => {
+          if (error.name === 'ValidationError' && error.errors.lastName) {
+            const errors = Object.values(error.errors).map(er => er.message);
+            return res.status(400).json({
+              message: 'Validation Error',
+              error: errors,
+            });
+          }
+            console.error('Failed to save record:', error);
+            return res.status(400).json({ error: 'Failed to save record.' });
+        });
     });
   };
 
@@ -962,6 +981,21 @@ const userProfileController = function (UserProfile, Project) {
           })
           .catch((error) => res.status(500).send(error));
       })
+      .catch((error) => res.status(500).send(error));
+  };
+
+  const updateAllMembersTeamCode = async (req, res) => {
+    const canEditTeamCode = await hasPermission(req.body.requestor, 'editTeamCode');
+    if (!canEditTeamCode) {
+      res.status(403).send('You are not authorized to edit team code.');
+      return;
+    }
+    const { userIds, replaceCode } = req.body;
+    if (userIds === null || userIds.length <= 0 || replaceCode === undefined) {
+      return res.status(400).send({ error: 'Missing property or value' });
+    }
+    return UserProfile.updateMany({ _id: { $in: userIds } }, { $set: { teamCode: replaceCode } })
+      .then((result) => res.status(200).send({ isUpdated: result.nModified > 0 }))
       .catch((error) => res.status(500).send(error));
   };
 
@@ -1565,6 +1599,31 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getAllTeamCodeHelper = async function () {
+    try {
+      if (cache.hasCache('teamCodes')) {
+        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+        return teamCodes;
+      }
+      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
+        teamCode: { $ne: null }
+      });
+      cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+      return distinctTeamCodes;
+    } catch (error) {
+      throw new Error('Encountered an error to get all team codes, please try again!');
+    }
+  }
+
+  const getAllTeamCode = async function (req, res) {
+    try {
+      const distinctTeamCodes = await getAllTeamCodeHelper();
+      return res.status(200).send({ message: 'Found', distinctTeamCodes });
+    } catch (error) {
+      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
+    }
+  }
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1573,6 +1632,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserById,
     getreportees,
     updateOneProperty,
+    updateAllMembersTeamCode,
     updatepassword,
     getUserName,
     getTeamMembersofUser,
@@ -1587,6 +1647,8 @@ const userProfileController = function (UserProfile, Project) {
     changeUserRehireableStatus,
     authorizeUser,
     getProjectsByPerson,
+    getAllTeamCode,
+    getAllTeamCodeHelper,
   };
 };
 

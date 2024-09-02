@@ -2030,9 +2030,29 @@ const userHelper = function () {
       });
   };
 
-  const sendDeactivateEmailBody = function (firstName, lastName, endDate, email, recipients) {
-    if (endDate) {
-      const subject = `IMPORTANT:${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+  const sendDeactivateEmailBody = function (
+    firstName,
+    lastName,
+    endDate,
+    email,
+    recipients,
+    isSet,
+  ) {
+    if (endDate && isSet) {
+      const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
+      const emailBody = `<p>Management, </p>
+
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network ${endDate}.
+      For a smooth transition, please confirm all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      recipients.push('onecommunityglobal@gmail.com');
+      recipients = recipients.toString();
+      emailSender(recipients, subject, emailBody, null, null, email);
+    } else if (endDate && !isSet) {
+      const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
       <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${endDate}.

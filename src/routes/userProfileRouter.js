@@ -84,6 +84,8 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/:userId/property').patch(controller.updateOneProperty);
 
+  userProfileRouter.route('/AllTeamCodeChanges').patch(controller.updateAllMembersTeamCode);
+
   userProfileRouter.route('/userProfile/:userId/updatePassword').patch(controller.updatepassword);
 
   userProfileRouter.route('/userProfile/:userId/resetPassword').patch(controller.resetPassword);
@@ -101,6 +103,8 @@ const routes = function (userProfile, project) {
     .post(controller.authorizeUser);
 
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
+
+  userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
 
   return userProfileRouter;
 };
