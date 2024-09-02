@@ -2099,7 +2099,7 @@ const userHelper = function () {
           const id = user._id;
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id} was de-acticated at ${moment().format()}.`);
+          logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
             const managementEmails = await userHelper.getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
