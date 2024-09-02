@@ -2076,7 +2076,7 @@ const userHelper = function () {
       const recipients = emailReceivers.map((receiver) => receiver.email);
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
-        '_id isActive endDate',
+        '_id isActive endDate isSet',
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
