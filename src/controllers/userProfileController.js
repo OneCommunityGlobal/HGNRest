@@ -219,7 +219,10 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const postUserProfile = async function (req, res) {
-    if (!(await checkPermission(req, 'postUserProfile'))) {
+    if (
+      !(await checkPermission(req, 'postUserProfile')) &&
+      !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality'))
+    ) {
       forbidden(res, 'You are not authorized to create new users');
       return;
     }
@@ -505,7 +508,7 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
         // remove teamCode cache when new team assigned
@@ -1347,7 +1350,10 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
-      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
+      if (
+        !(await hasPermission(requestor, 'putUserProfileImportantInfo')) &&
+        !(await hasPermission(req.body.requestor, 'userManagementFullFunctionality'))
+      ) {
         res.status(403).send('You are not authorized to reset this users password');
         return;
       }
@@ -1607,23 +1613,25 @@ const userProfileController = function (UserProfile, Project) {
         return teamCodes;
       }
       const distinctTeamCodes = await UserProfile.distinct('teamCode', {
-        teamCode: { $ne: null }
+        teamCode: { $ne: null },
       });
       cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
       return distinctTeamCodes;
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
     }
-  }
+  };
 
   const getAllTeamCode = async function (req, res) {
     try {
       const distinctTeamCodes = await getAllTeamCodeHelper();
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
+      return res
+        .status(500)
+        .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
-  }
+  };
 
   return {
     postUserProfile,
