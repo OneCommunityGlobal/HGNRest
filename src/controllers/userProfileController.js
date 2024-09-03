@@ -684,14 +684,7 @@ const userProfileController = function (UserProfile, Project) {
           userData.startDate = record.startDate.toISOString();
         }
       }
-      if (
-        req.body.infringements !== undefined &&
-        ((await hasPermission(req.body.requestor, 'addInfringements')) ||
-          (await hasPermission(req.body.requestor, 'deleteInfringements')) ||
-          (await hasPermission(req.body.requestor, 'editInfringements')))
-      ) {
-        record.infringements = req.body.infringements;
-      }
+
       let updatedDiff = null;
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         updatedDiff = record.modifiedPaths();
