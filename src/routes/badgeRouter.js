@@ -13,7 +13,7 @@ const routes = function (badge) {
 
   badgeRouter.route('/badge/assign').post(controller.assignBadges);
 
-  badgeRouter.route('/badge/assign/:userId').put(controller.assignBadges);
+  badgeRouter.route('/badge/assign/:userId').put(controller.assignBadgesToSingleUser);
 
   badgeRouter.route('/badge/badgecount/:userId').get(controller.getBadgeCount).put(controller.putBadgecount);
 
