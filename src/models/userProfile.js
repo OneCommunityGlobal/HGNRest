@@ -75,7 +75,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default() {
+    default () {
       return this.createdDate;
     },
   },
@@ -130,6 +130,15 @@ const userProfileSchema = new Schema({
     },
   ],
   location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+  },
+  homeCountry: {
     userProvided: { type: String, default: '' },
     coords: {
       lat: { type: Number, default: '' },
@@ -221,6 +230,7 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
+  badgeCount: { type: Number, default: 0 },
   teamCode: {
     type: String,
     default: '',
@@ -260,5 +270,8 @@ userProfileSchema.pre('save', function (next) {
     })
     .catch((error) => next(error));
 });
+
+userProfileSchema.index({ teamCode: 1 });
+userProfileSchema.index({ email: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
