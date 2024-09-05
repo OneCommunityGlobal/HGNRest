@@ -505,7 +505,7 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()), 
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
         // remove teamCode cache when new team assigned
@@ -684,12 +684,7 @@ const userProfileController = function (UserProfile, Project) {
           userData.startDate = record.startDate.toISOString();
         }
       }
-      if (
-        req.body.infringements !== undefined &&
-        (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
-      ) {
-        record.infringements = req.body.infringements;
-      }
+
       let updatedDiff = null;
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         updatedDiff = record.modifiedPaths();
@@ -1549,6 +1544,124 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const addInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
+      res.status(403).send('You are not authorized to add blue square');
+      return;
+    }
+    const userid = req.params.userId;
+
+    cache.removeCache(`user-${userid}`);
+
+    if (req.body.blueSquare === undefined) {
+      res.status(400).send('Invalid Data');
+      return;
+    }
+
+    UserProfile.findById(userid, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+      // find userData in cache
+      const isUserInCache = cache.hasCache('allusers');
+      let allUserData;
+      let userData;
+      let userIdx;
+      if (isUserInCache) {
+        allUserData = JSON.parse(cache.getCache('allusers'));
+        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userData = allUserData[userIdx];
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+      record.infringements = originalinfringements.concat(req.body.blueSquare);
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+
+          // update alluser cache if we have cache
+          if (isUserInCache) {
+            allUserData.splice(userIdx, 1, userData);
+            cache.setCache('allusers', JSON.stringify(allUserData));
+          }
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
+  const editInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'editInfringements'))) {
+      res.status(403).send('You are not authorized to edit blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+    const { dateStamp, summary } = req.body;
+
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.map((blueSquare) => {
+        if (blueSquare._id.equals(blueSquareId)) {
+          blueSquare.date = dateStamp ?? blueSquare.date;
+          blueSquare.description = summary ?? blueSquare.description;
+        }
+        return blueSquare;
+      });
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
+  const deleteInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+      res.status(403).send('You are not authorized to delete blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.filter(
+        (infringement) => !infringement._id.equals(blueSquareId),
+      );
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
   const getProjectsByPerson = async function (req, res) {
     try {
       const { name } = req.params;
@@ -1607,23 +1720,25 @@ const userProfileController = function (UserProfile, Project) {
         return teamCodes;
       }
       const distinctTeamCodes = await UserProfile.distinct('teamCode', {
-        teamCode: { $ne: null }
+        teamCode: { $ne: null },
       });
       cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
       return distinctTeamCodes;
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
     }
-  }
+  };
 
   const getAllTeamCode = async function (req, res) {
     try {
       const distinctTeamCodes = await getAllTeamCodeHelper();
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
-      return res.status(500).send({ message: 'Encountered an error to get all team codes, please try again!' });
+      return res
+        .status(500)
+        .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1647,6 +1762,9 @@ const userProfileController = function (UserProfile, Project) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    addInfringements,
+    editInfringements,
+    deleteInfringements,
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
