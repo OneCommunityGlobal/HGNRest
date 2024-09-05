@@ -102,6 +102,13 @@ const routes = function (userProfile, project) {
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
 
+  userProfileRouter.route('/userProfile/:userId/addInfringement').post(controller.addInfringements);
+
+  userProfileRouter
+    .route('/userProfile/:userId/infringements/:blueSquareId')
+    .put(controller.editInfringements)
+    .delete(controller.deleteInfringements);
+
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
