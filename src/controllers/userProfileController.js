@@ -848,11 +848,11 @@ const userProfileController = function (UserProfile, Project) {
   const getUserById = function (req, res) {
     const userid = req.params.userId;
 
-    if (cache.getCache(`user-${userid}`)) {
-      const getData = JSON.parse(cache.getCache(`user-${userid}`));
-      res.status(200).send(getData);
-      return;
-    }
+    // if (cache.getCache(`user-${userid}`)) {
+    //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
+    //   res.status(200).send(getData);
+    //   return;
+    // }
 
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
@@ -882,6 +882,15 @@ const userProfileController = function (UserProfile, Project) {
             select: '_id badgeName type imageUrl description ranking showReport',
           },
         },
+        {
+          path: 'infringements', // Populate infringements field
+          select: 'date description',
+          options: {
+            sort: {
+              date: -1, // Sort by date descending if needed
+              },
+            },
+          },
       ])
       .exec()
       .then((results) => {
