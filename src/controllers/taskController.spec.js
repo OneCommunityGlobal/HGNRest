@@ -5,9 +5,18 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
 
+jest.mock('../utilities/emailSender', () => jest.fn());
+
+const taskHelperMethods = {
+  getTasksForTeams: jest.fn(),
+  getTasksForSingleUser: jest.fn(),
+};
+jest.mock('../helpers/taskHelper', () => () => ({ ...taskHelperMethods }));
+
 const flushPromises = () => new Promise(setImmediate);
 const { mockReq, mockRes, assertResMock } = require('../test');
 const { hasPermission } = require('../utilities/permissions');
+const emailSender = require('../utilities/emailSender');
 
 // controller to test
 const taskController = require('./taskController');
@@ -15,6 +24,7 @@ const taskController = require('./taskController');
 // MongoDB Model imports
 const Task = require('../models/task');
 const Project = require('../models/project');
+const UserProfile = require('../models/userProfile');
 const WBS = require('../models/wbs');
 const FollowUp = require('../models/followUp');
 
@@ -29,6 +39,13 @@ const makeSut = () => {
     deleteTask,
     deleteTaskByWBS,
     updateTask,
+    swap,
+    getTaskById,
+    fixTasks,
+    updateAllParents,
+    getTasksByUserId,
+    sendReviewReq,
+    getTasksForTeamsByUser,
   } = taskController(Task);
 
   return {
@@ -41,6 +58,13 @@ const makeSut = () => {
     deleteTask,
     deleteTaskByWBS,
     updateTask,
+    swap,
+    getTaskById,
+    fixTasks,
+    updateAllParents,
+    getTasksByUserId,
+    sendReviewReq,
+    getTasksForTeamsByUser,
   };
 };
 
@@ -867,6 +891,574 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
       expect(wbsFindByIdSpy).toHaveBeenCalled();
       expect(projectFindByIdSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('swap function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Return 403 if `swapTask` permission is missing', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(false);
+
+      const error = { error: 'You are not authorized to create new projects.' };
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(403, error, response, mockRes);
+    });
+
+    test('Return 400 if `taskId1` is missing', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = null;
+      mockReq.body.taskId2 = 'some-value';
+
+      const error = { error: 'taskId1 and taskId2 are mandatory fields' };
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Return 400 if `taskId2` is missing', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'some-value';
+      mockReq.body.taskId2 = null;
+
+      const error = { error: 'taskId1 and taskId2 are mandatory fields' };
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Return 400 if `taskId1` and `taskId2` are missing', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = null;
+      mockReq.body.taskId2 = null;
+
+      const error = { error: 'taskId1 and taskId2 are mandatory fields' };
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Return 400 if no task exists with the id same as `taskId1`', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'invalid-taskId1';
+      mockReq.body.taskId2 = 'some value';
+
+      const error = 'No valid records found';
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        if (id === 'invalid-taskId1') {
+          callback(null, null); // the first null shows no error | second null show no task1
+        } else if (id === 'invalid-taskId2') {
+          callback(null, 'some task2 exists');
+        }
+      });
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+    });
+
+    test('Return 400 if no task exists with the id same as `taskId2`', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'valid-taskId1';
+      mockReq.body.taskId2 = 'invalid-taskId2';
+
+      const error = 'No valid records found';
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        if (id === 'valid-taskId1') {
+          callback(null, { _id: 'valid-taskId1', name: 'Task 1' });
+        }
+
+        if (id === 'invalid-taskId2') {
+          callback(null, null); // the first null shows no error | second null show no task2 found
+        }
+      });
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalledTimes(2);
+      expect(taskFindByIdSpy).toHaveBeenNthCalledWith(1, 'valid-taskId1', expect.any(Function));
+      expect(taskFindByIdSpy).toHaveBeenNthCalledWith(2, 'invalid-taskId2', expect.any(Function));
+    });
+
+    test('Return 400 if some error occurs while saving task1', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'valid-taskId1';
+      mockReq.body.taskId2 = 'valid-taskId2';
+
+      const error = 'some error';
+
+      const validTask1 = {
+        _id: 'valid-taskId1',
+        name: 'Task 1',
+        num: 1,
+        parentId: 'pId',
+        save: jest.fn().mockRejectedValue(error),
+      };
+
+      const validTask2 = {
+        _id: 'valid-taskId2',
+        name: 'Task 2',
+        num: 2,
+        parentId: 'pId',
+        save: jest.fn().mockResolvedValue('sadasd'),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        if (id === 'valid-taskId1') {
+          callback(null, validTask1);
+        }
+        if (id === 'valid-taskId2') {
+          callback(null, validTask2);
+        }
+      });
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce('works fine');
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(taskFindSpy).toHaveBeenCalled();
+    });
+
+    test('Return 400 if some error occurs while saving task2', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'valid-taskId1';
+      mockReq.body.taskId2 = 'valid-taskId2';
+
+      const error = 'some error';
+
+      const validTask1 = {
+        _id: 'valid-taskId1',
+        name: 'Task 1',
+        num: 1,
+        parentId: 'pId',
+        save: jest.fn().mockResolvedValue(),
+      };
+
+      const validTask2 = {
+        _id: 'valid-taskId2',
+        name: 'Task 2',
+        num: 2,
+        parentId: 'pId',
+        save: jest.fn().mockRejectedValue(error),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        if (id === 'valid-taskId1') {
+          callback(null, validTask1);
+        }
+        if (id === 'valid-taskId2') {
+          callback(null, validTask2);
+        }
+      });
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce('works fine');
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(taskFindSpy).toHaveBeenCalled();
+    });
+
+    test('Return 404 if some error occurs while saving task.find', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'valid-taskId1';
+      mockReq.body.taskId2 = 'valid-taskId2';
+
+      const error = 'some error';
+
+      const validTask1 = {
+        _id: 'valid-taskId1',
+        name: 'Task 1',
+        num: 1,
+        parentId: 'pId',
+        save: jest.fn().mockResolvedValue(),
+      };
+
+      const validTask2 = {
+        _id: 'valid-taskId2',
+        name: 'Task 2',
+        num: 2,
+        parentId: 'pId',
+        save: jest.fn().mockResolvedValue(),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        if (id === 'valid-taskId1') {
+          callback(null, validTask1);
+        }
+        if (id === 'valid-taskId2') {
+          callback(null, validTask2);
+        }
+      });
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockRejectedValueOnce(error);
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(404, error, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(taskFindSpy).toHaveBeenCalled();
+    });
+
+    test('Return 200 if swapped correctly', async () => {
+      const { swap } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.body.taskId1 = 'valid-taskId1';
+      mockReq.body.taskId2 = 'valid-taskId2';
+
+      const message = 'no error';
+
+      const validTask1 = {
+        _id: 'valid-taskId1',
+        name: 'Task 1',
+        num: 1,
+        parentId: 'pId',
+        save: jest.fn().mockResolvedValue(),
+      };
+
+      const validTask2 = {
+        _id: 'valid-taskId2',
+        name: 'Task 2',
+        num: 2,
+        parentId: 'pId',
+        save: jest.fn().mockResolvedValue(),
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockImplementation((id, callback) => {
+        if (id === 'valid-taskId1') {
+          callback(null, validTask1);
+        }
+        if (id === 'valid-taskId2') {
+          callback(null, validTask2);
+        }
+      });
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce(message);
+
+      const response = await swap(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, message, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(taskFindSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('getTaskById function()', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Returns 400 if the taskId is missing from the params', async () => {
+      const { getTaskById } = makeSut();
+
+      mockReq.params.id = null;
+
+      const error = { error: 'Task ID is missing' };
+
+      const response = await getTaskById(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+    });
+
+    test('Returns 400 if the taskId is missing from the params', async () => {
+      const { getTaskById } = makeSut();
+
+      mockReq.params.id = 'someTaskId';
+
+      const error = { error: 'This is not a valid task' };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValueOnce(null);
+
+      const response = await getTaskById(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+    });
+
+    test('Returns 500 if some error occurs at Task.findById', async () => {
+      const { getTaskById } = makeSut();
+
+      mockReq.params.id = 'someTaskId';
+
+      const error = new Error('some error occurred');
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockRejectedValueOnce(error);
+
+      const response = await getTaskById(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(
+        500,
+        { error: 'Internal Server Error', details: error.message },
+        response,
+        mockRes,
+      );
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+    });
+
+    test('Returns 200 if some error occurs at Task.findById', async () => {
+      const { getTaskById } = makeSut();
+
+      mockReq.params.id = 'someTaskId';
+
+      const mockTask = {
+        resources: [],
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValueOnce(mockTask);
+
+      const response = await getTaskById(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, mockTask, response, mockRes);
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('fixTasks function()', () => {
+    test('Returns 200 without performing any action', async () => {
+      const { fixTasks } = makeSut();
+
+      const response = fixTasks(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(200, 'done', response, mockRes);
+    });
+  });
+
+  describe('updateAllParents function()', () => {
+    test('Returns 200 Task.Find() on successful operation', async () => {
+      const { updateAllParents } = makeSut();
+
+      const mockTasks = [];
+
+      const taskFind = jest.spyOn(Task, 'find').mockResolvedValueOnce(mockTasks);
+      const response = updateAllParents(mockReq, mockRes);
+
+      await flushPromises();
+
+      assertResMock(200, 'done', response, mockRes);
+      expect(taskFind).toHaveBeenCalled();
+    });
+  });
+
+  describe('getTasksByUserId function()', () => {
+    test('Returns 200 and tasks when aggregation is successful', async () => {
+      const { getTasksByUserId } = makeSut();
+
+      mockReq.params.userId = '507f1f77bcf86cd799439011';
+
+      const mockTasks = [
+        { _id: 'task1', taskName: 'Task 1', wbsName: 'WBS 1', projectName: 'Project 1' },
+        { _id: 'task2', taskName: 'Task 2', wbsName: 'WBS 2', projectName: 'Project 2' },
+      ];
+
+      // Mock the Task.aggregate method
+      const mockAggregate = {
+        match: jest.fn().mockReturnThis(),
+        lookup: jest.fn().mockReturnThis(),
+        unwind: jest.fn().mockReturnThis(),
+        addFields: jest.fn().mockReturnThis(),
+        project: jest.fn().mockReturnThis(),
+      };
+
+      mockAggregate.project.mockResolvedValue(mockTasks);
+
+      const taskAggregate = jest.spyOn(Task, 'aggregate').mockReturnValue(mockAggregate);
+
+      const response = await getTasksByUserId(mockReq, mockRes);
+
+      assertResMock(200, mockTasks, response, mockRes);
+      expect(taskAggregate).toHaveBeenCalled();
+    });
+
+    test('Returns 400 when error occurs', async () => {
+      const { getTasksByUserId } = makeSut();
+
+      mockReq.params.userId = '507f1f77bcf86cd799439011';
+
+      const mockError = new Error('some error');
+
+      // Mock the Task.aggregate method
+      const mockAggregate = {
+        match: jest.fn().mockReturnThis(),
+        lookup: jest.fn().mockReturnThis(),
+        unwind: jest.fn().mockReturnThis(),
+        addFields: jest.fn().mockReturnThis(),
+        project: jest.fn().mockReturnThis(),
+      };
+
+      mockAggregate.project.mockRejectedValueOnce(mockError);
+
+      const taskAggregate = jest.spyOn(Task, 'aggregate').mockReturnValue(mockAggregate);
+
+      const response = await getTasksByUserId(mockReq, mockRes);
+
+      assertResMock(400, mockError, response, mockRes);
+      expect(taskAggregate).toHaveBeenCalled();
+    });
+  });
+
+  describe('sendReviewReq function()', () => {
+    test('Returns 200 on success', async () => {
+      const { sendReviewReq } = makeSut();
+
+      mockReq.body = {
+        ...mockReq.body,
+        myUserId: 'id',
+        name: 'name',
+        taskName: 'task',
+      };
+
+      const userProfileFindByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValueOnce([]);
+      const userProfileFindSpy = jest.spyOn(UserProfile, 'find').mockResolvedValueOnce([]);
+
+      const response = await sendReviewReq(mockReq, mockRes);
+
+      assertResMock(200, 'Success', response, mockRes);
+      expect(emailSender).toHaveBeenCalledWith(
+        [],
+        expect.any(String),
+        expect.any(String),
+        null,
+        null,
+      );
+      expect(userProfileFindByIdSpy).toHaveBeenCalled();
+      expect(userProfileFindSpy).toHaveBeenCalled();
+    });
+
+    test('Returns 400 on error', async () => {
+      const { sendReviewReq } = makeSut();
+
+      mockReq.body = {
+        ...mockReq.body,
+        myUserId: 'id',
+        name: 'name',
+        taskName: 'task',
+      };
+
+      const mockError = new Error('some error');
+
+      emailSender.mockImplementation(() => mockError);
+
+      const userProfileFindByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValueOnce([]);
+      const userProfileFindSpy = jest.spyOn(UserProfile, 'find').mockResolvedValueOnce([]);
+
+      const response = await sendReviewReq(mockReq, mockRes);
+
+      assertResMock(400, mockError, response, mockRes);
+
+      expect(emailSender).toHaveBeenCalledWith(
+        [],
+        expect.any(String),
+        expect.any(String),
+        null,
+        null,
+      );
+      expect(userProfileFindByIdSpy).toHaveBeenCalled();
+      expect(userProfileFindSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('getTasksForTeamsByUser function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Returns 200 on success - getTasksForTeams', async () => {
+      mockReq.params.userId = 1234;
+      const mockData = ['mockData'];
+
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce(mockData);
+
+      const { getTasksForTeamsByUser } = makeSut();
+
+      const response = await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, mockData, response, mockRes);
+    });
+
+    test('Returns 200 on success - getTasksForTeamsByUser', async () => {
+      mockReq.params.userId = 1234;
+      const mockData = ['mockData'];
+
+      const execMock = {
+        exec: jest.fn().mockResolvedValueOnce(mockData),
+      };
+
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce([]);
+      taskHelperMethods.getTasksForSingleUser.mockImplementation(() => execMock);
+
+      const { getTasksForTeamsByUser } = makeSut();
+
+      const response = await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(200, mockData, response, mockRes);
+    });
+
+    test('Returns 400 on error', async () => {
+      mockReq.params.userId = 1234;
+      const mockError = new Error('error');
+
+      taskHelperMethods.getTasksForTeams.mockRejectedValueOnce(mockError);
+
+      const { getTasksForTeamsByUser } = makeSut();
+
+      const response = await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, { error: mockError }, response, mockRes);
     });
   });
 });
