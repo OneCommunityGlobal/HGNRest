@@ -1,5 +1,6 @@
 /* eslint-disable no-plusplus */
 /* eslint-disable quotes */
+/* eslint-disable no-use-before-define */
 const moment = require('moment');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
@@ -297,8 +298,8 @@ const overviewReportHelper = function () {
    * @param {*} startDate
    * @param {*} endDate
    */
-  async function getHoursStats(startDate, endDate) {
-    const hoursStats = await UserProfile.aggregate([
+  async function getHoursStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    const query = UserProfile.aggregate([
       {
         $match: {
           isActive: true,
@@ -356,12 +357,43 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-    for (let i = 0; i < 5; i++) {
-      if (!hoursStats.find((x) => x._id === i * 10)) {
-        hoursStats.push({ _id: i * 10, count: 0 });
+
+    const data = {};
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const [hoursStats, totalHoursCurr, totalHoursPrev] = await Promise.all([
+        query,
+        getTotalHoursWorked(startDate, endDate),
+        getTotalHoursWorked(comparisonStartDate, comparisonEndDate),
+      ]);
+
+      for (let i = 0; i < 5; i++) {
+        if (!hoursStats.find((x) => x._id === i * 10)) {
+          hoursStats.push({ _id: i * 10, count: 0 });
+        }
       }
+
+      data.distribution = hoursStats;
+      data.totalHoursCurr = totalHoursCurr;
+      data.totalHoursPrev = totalHoursPrev;
+      data.percentage = calculateGrowthPercentage(totalHoursCurr, totalHoursPrev);
+    } else {
+      const [hoursStats, totalHoursCurr] = await Promise.all([
+        query,
+        getTotalHoursWorked(startDate, endDate),
+      ]);
+
+      for (let i = 0; i < 5; i++) {
+        if (!hoursStats.find((x) => x._id === i * 10)) {
+          hoursStats.push({ _id: i * 10, count: 0 });
+        }
+      }
+
+      data.distribution = hoursStats;
+      data.totalHoursCurr = totalHoursCurr;
     }
-    return hoursStats;
+
+    return data;
   }
 
   /**
@@ -391,7 +423,7 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    return data;
+    return data[0].totalHours;
   }
 
   /**
