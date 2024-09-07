@@ -399,31 +399,88 @@ const overviewReportHelper = function () {
   /**
    * Aggregates total number of hours worked across all volunteers within the specified date range
    */
-  async function getTotalHoursWorked(startDate, endDate) {
-    const data = await TimeEntries.aggregate([
-      {
-        $match: {
-          dateOfWork: {
-            $gte: moment(startDate).format('YYYY-MM-DD'),
-            $lte: moment(endDate).format('YYYY-MM-DD'),
+  async function getTotalHoursWorked(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    if (!comparisonStartDate && !comparisonEndDate) {
+      const data = await TimeEntries.aggregate([
+        {
+          $match: {
+            dateOfWork: {
+              $gte: moment(startDate).format('YYYY-MM-DD'),
+              $lte: moment(endDate).format('YYYY-MM-DD'),
+            },
           },
         },
-      },
-      {
-        $group: {
-          _id: null,
-          totalSeconds: { $sum: '$totalSeconds' },
+        {
+          $group: {
+            _id: null,
+            totalSeconds: { $sum: '$totalSeconds' },
+          },
         },
-      },
+        {
+          $project: {
+            _id: 0,
+            totalHours: { $divide: ['$totalSeconds', 3600] },
+          },
+        },
+      ]);
+
+      return { current: data[0].totalHours };
+    }
+    const data = await TimeEntries.aggregate([
       {
-        $project: {
-          _id: 0,
-          totalHours: { $divide: ['$totalSeconds', 3600] },
+        $facet: {
+          currentTotalHours: [
+            {
+              $match: {
+                dateOfWork: {
+                  $gte: moment(startDate).format('YYYY-MM-DD'),
+                  $lte: moment(endDate).format('YYYY-MM-DD'),
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalSeconds: { $sum: '$totalSeconds' },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                totalHours: { $divide: ['$totalSeconds', 3600] },
+              },
+            },
+          ],
+
+          comparisonTotalHours: [
+            {
+              $match: {
+                dateOfWork: {
+                  $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
+                  $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalSeconds: { $sum: '$totalSeconds' },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                totalHours: { $divide: ['$totalSeconds', 3600] },
+              },
+            },
+          ],
         },
       },
     ]);
 
-    return data[0].totalHours;
+    const current = data[0].currentTotalHours[0].totalHours;
+    const comparison = data[0].comparisonTotalHours[0].totalHours;
+    return { current, comparison, percentage: calculateGrowthPercentage(current, comparison) };
   }
 
   /**
