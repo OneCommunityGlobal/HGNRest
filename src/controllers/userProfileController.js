@@ -418,10 +418,12 @@ const userProfileController = function (UserProfile, Project) {
       userid,
     );
 
+    const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+        req.body.requestor.requestorId === userid ||
+        canToggleRequestBio)
     );
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
@@ -470,6 +472,14 @@ const userProfileController = function (UserProfile, Project) {
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');
+        return;
+      }
+
+      if (
+        !canToggleRequestBio &&
+        (record.bioPosted !== req.body.bioPosted || record.bioPosted !== 'default')
+      ) {
+        res.status(403).send('You are not authorized to toggle request bio');
         return;
       }
 
