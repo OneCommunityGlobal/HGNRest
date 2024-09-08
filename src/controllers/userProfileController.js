@@ -667,7 +667,6 @@ const userProfileController = function (UserProfile, Project) {
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
-            // record.endDate = moment(req.body.endDate).toDate();
             record.endDate = moment.tz(req.body.endDate, 'America/Los_Angeles').toDate();
             if (isUserInCache) {
               userData.endDate = record.endDate.toISOString();
