@@ -1747,6 +1747,7 @@ const userProfileController = function (UserProfile, Project) {
         .status(500)
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
+
   };
 
   return {
