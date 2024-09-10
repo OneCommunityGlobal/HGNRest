@@ -1380,7 +1380,7 @@ const timeEntrycontroller = function (TimeEntry) {
       res.setHeader('Transfer-Encoding', 'chunked');
       keepAliveInterval = setInterval(() => {
         res.write('Processing... keep connection alive\n');
-      }, 100 * 1000); // interval of 100 seconds
+      }, 150 * 1000); // interval of 150 seconds
 
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
@@ -1392,9 +1392,6 @@ const timeEntrycontroller = function (TimeEntry) {
       await Promise.all(recalculationPromises);
 
       await session.commitTransaction();
-      // return res.status(200).send({
-      //   message: 'finished the recalculation for hoursByCategory for all users',
-      // });
       clearInterval(keepAliveInterval);
       res.write('finished the recalculation for hoursByCategory for all users\n');
       return res.end();
@@ -1405,7 +1402,6 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       logger.logException(err);
       res.write(`error: ${err.toString()}\n`);
-      // return res.status(500).send({ error: err.toString() });
       return res.end();
     } finally {
       session.endSession();
