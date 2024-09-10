@@ -2042,8 +2042,8 @@ const userHelper = function () {
       const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
-      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${moment(endDate).format('M-D-YYYY')}.
-      Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
       
       <p>With Gratitude, </p>
       
