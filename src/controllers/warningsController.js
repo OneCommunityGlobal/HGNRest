@@ -2,8 +2,27 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const currentWarnings = require('../models/currentWarnings');
-let currentWarningDescriptions = null;
+const emailSender = require('../utilities/emailSender');
 
+let currentWarningDescriptions = null;
+let currentUserName = null;
+const emailTemplate = {
+  thirdWarning: {
+    subject: 'Third Warning',
+    body: `<p>This is the 3rd time the Admin team has requested the same thing from you. Specifically <“tracked area”>. Please carefully review the communications you’ve gotten about this so you understand what is being requested. Ask questions if anything isn’t clear, the Admin team is here to help.</p>
+    <p>Please also be sure to fix this from here on forward, asking for the same thing over and over requires administration that really shouldn’t be needed and will result in a blue square if it happens again.</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`,
+  },
+  fourthWarning: {
+    subject: 'Fourth Warning',
+    body: `<p> username ! </p>
+    <p>This is the 3rd time the Admin team has requested the same thing from you. Specifically <“tracked area”>. Please carefully review the communications you’ve gotten about this so you understand what is being requested. Ask questions if anything isn’t clear, the Admin team is here to help.</p>
+    <p>Please also be sure to fix this from here on forward, asking for the same thing over and over requires administration that really shouldn’t be needed and will result in a blue square if it happens again.</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`,
+  },
+};
 async function getWarningDescriptions() {
   currentWarningDescriptions = await currentWarnings.find({}, { warningTitle: 1, _id: 0 });
 }
@@ -28,7 +47,7 @@ const warningsController = function (UserProfile) {
     try {
       const { warnings } = await UserProfile.findById(userId);
 
-      const completedData = filterWarnings(currentWarningDescriptions, warnings);
+      const { completedData } = filterWarnings(currentWarningDescriptions, warnings);
 
       if (!warnings) {
         return res.status(400).send({ message: 'no valiud records' });
@@ -44,12 +63,20 @@ const warningsController = function (UserProfile) {
       const { userId } = req.params;
 
       const { iconId, color, date, description } = req.body;
+      const { monitorData } = req.body;
 
+      const myData = {
+        firstName: 'tim',
+        lastName: 'smith',
+        email: 'tim@gmail.com',
+      };
       const record = await UserProfile.findById(userId);
       if (!record) {
         return res.status(400).send({ message: 'No valid records found' });
       }
 
+      currentUserName = `${record.firstName} ${record.lastName}`;
+      //check warning id
       const updatedWarnings = await userProfile.findByIdAndUpdate(
         {
           _id: userId,
@@ -58,7 +85,15 @@ const warningsController = function (UserProfile) {
         { new: true, upsert: true },
       );
 
-      const completedData = filterWarnings(currentWarningDescriptions, updatedWarnings.warnings);
+      const { completedData, sendEmail } = filterWarnings(
+        currentWarningDescriptions,
+        updatedWarnings.warnings,
+        description,
+        iconId,
+      );
+      if (sendEmail !== null) {
+        sendEmailToUser(sendEmail, description, currentUserName, monitorData);
+      }
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
@@ -81,8 +116,8 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'no valid records' });
       }
 
-      const sortedWarnings = filterWarnings(currentWarningDescriptions, warnings.warnings);
-      res.status(201).send({ message: 'succesfully deleted', warnings: sortedWarnings });
+      const { completedData } = filterWarnings(currentWarningDescriptions, warnings.warnings);
+      res.status(201).send({ message: 'succesfully deleted', warnings: completedData });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -93,6 +128,41 @@ const warningsController = function (UserProfile) {
     postWarningsToUserProfile,
     deleteUsersWarnings,
   };
+};
+
+const sendEmailToUser = (sendEmail, warningDescription, currentUserName, monitorData) => {
+  let time = sendEmail === '3' ? '3rd' : '4th';
+  console.log('monitorData', monitorData.firstName);
+  const emailTemplate =
+    time === '3rd'
+      ? `
+      <p>Hello ${currentUserName},</p>
+      <p>This is the ${time} time the Admin team has requested the same thing from you. Specifically <strong>${warningDescription}</strong>. Please carefully review the communications you’ve gotten about this so you understand what is being requested. Ask questions if anything isn’t clear, the Admin team is here to help.</p>
+      <p>Please also be sure to fix this from here on forward, asking for the same thing over and over requires administration that really shouldn’t be needed and will result in a blue square if it happens again.</p>
+      <p>The Admin memember who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}</p>
+      <p>With Gratitude,</p>
+      <p>One Community</p>`
+      : `<p>Hello ${currentUserName},</p>
+      <p>This is the ${time} time the Admin team has requested the same thing from you. Specifically <strong>${warningDescription}</strong>. Please carefully review the communications you’ve gotten about this so you understand what is being requested. Ask questions if anything isn’t clear, the Admin team is here to help.</p>
+      <p>Please also be sure to fix this from here on forward, asking for the same thing over and over requires administration that really shouldn’t be needed and will result in a blue square if it happens again.</p>
+      <p>The Admin memember who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}</p>
+      <p>With Gratitude,</p>
+      <p>One Community</p>`;
+
+  if (sendEmail === '3') {
+    emailSender('arevaloluis114@gmail.com', 'Third Warning', emailTemplate, null, null);
+  } else {
+    emailSender('arevaloluis114@gmail.com', 'Fourth Warning', emailTemplate, null, null);
+  }
+
+  // const emailBody = `<p>Hello ${currentUserName},</p> \n ${emailTemplate.thirdWarning.body}`;
+  // emailSender(
+  //   'arevaloluis114@gmail.com',
+  //   emailTemplate.thirdWarning.subject,
+  //   emailBody,
+  //   null,
+  //   null,
+  // );
 };
 
 // gests the dsecriptions key from the array
@@ -122,14 +192,50 @@ const sortByColorAndDate = (a, b) => {
   return colorComparison;
 };
 
-const filterWarnings = (currentWarningDescriptions, warnings) => {
+const filterWarnings = (
+  currentWarningDescriptions,
+  warnings,
+  description = null,
+  iconId = null,
+) => {
   const warningsObject = {};
+
+  let sendEmail = null;
 
   warnings.forEach((warning) => {
     if (!warningsObject[warning.description]) {
       warningsObject[warning.description] = [];
     }
     warningsObject[warning.description].push(warning);
+
+    if (
+      warningsObject[warning.description].length === 3 &&
+      description === warning.description &&
+      sendEmail === null
+    ) {
+      sendEmail = '3';
+      //send email
+      // const emailBody = `<p>Hello ${currentUserName},</p> \n ${emailTemplate.thirdWarning.body}`;
+      // emailSender(
+      //   'arevaloluis114@gmail.com',
+      //   emailTemplate.thirdWarning.subject,
+      //   emailBody,
+      //   null,
+      //   null,
+      // );
+    } else if (
+      warningsObject[warning.description].length === 4 &&
+      description === warning.description &&
+      sendEmail === null
+    ) {
+      sendEmail = '4';
+      //send email
+      // const emailBody = `<p>Hello ${currentUserName},</p> \n ${emailTemplate.fourthWarning.body}`;
+      // emailSender(
+      //   '
+    } else {
+      sendEmail = null;
+    }
   });
 
   const warns = Object.keys(warningsObject)
@@ -151,7 +257,7 @@ const filterWarnings = (currentWarningDescriptions, warnings) => {
       warnings: warns[descrip] ? warns[descrip] : [],
     });
   }
-  return completedData;
+  return { completedData, sendEmail };
 };
 
 module.exports = warningsController;
