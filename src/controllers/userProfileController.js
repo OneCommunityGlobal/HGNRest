@@ -684,12 +684,7 @@ const userProfileController = function (UserProfile, Project) {
           userData.startDate = record.startDate.toISOString();
         }
       }
-      if (
-        req.body.infringements !== undefined &&
-        (await hasPermission(req.body.requestor, 'infringementAuthorizer'))
-      ) {
-        record.infringements = req.body.infringements;
-      }
+
       let updatedDiff = null;
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         updatedDiff = record.modifiedPaths();
@@ -727,7 +722,17 @@ const userProfileController = function (UserProfile, Project) {
             'update',
           );
         })
-        .catch((error) => res.status(400).send(error));
+        .catch((error) => {
+          if (error.name === 'ValidationError' && error.errors.lastName) {
+            const errors = Object.values(error.errors).map((er) => er.message);
+            return res.status(400).json({
+              message: 'Validation Error',
+              error: errors,
+            });
+          }
+          console.error('Failed to save record:', error);
+          return res.status(400).json({ error: 'Failed to save record.' });
+        });
     });
   };
 
@@ -843,11 +848,11 @@ const userProfileController = function (UserProfile, Project) {
   const getUserById = function (req, res) {
     const userid = req.params.userId;
 
-    if (cache.getCache(`user-${userid}`)) {
-      const getData = JSON.parse(cache.getCache(`user-${userid}`));
-      res.status(200).send(getData);
-      return;
-    }
+    // if (cache.getCache(`user-${userid}`)) {
+    //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
+    //   res.status(200).send(getData);
+    //   return;
+    // }
 
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
@@ -877,6 +882,15 @@ const userProfileController = function (UserProfile, Project) {
             select: '_id badgeName type imageUrl description ranking showReport',
           },
         },
+        {
+          path: 'infringements', // Populate infringements field
+          select: 'date description',
+          options: {
+            sort: {
+              date: -1, // Sort by date descending if needed
+              },
+            },
+          },
       ])
       .exec()
       .then((results) => {
@@ -1540,6 +1554,124 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const addInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
+      res.status(403).send('You are not authorized to add blue square');
+      return;
+    }
+    const userid = req.params.userId;
+
+    cache.removeCache(`user-${userid}`);
+
+    if (req.body.blueSquare === undefined) {
+      res.status(400).send('Invalid Data');
+      return;
+    }
+
+    UserProfile.findById(userid, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+      // find userData in cache
+      const isUserInCache = cache.hasCache('allusers');
+      let allUserData;
+      let userData;
+      let userIdx;
+      if (isUserInCache) {
+        allUserData = JSON.parse(cache.getCache('allusers'));
+        userIdx = allUserData.findIndex((users) => users._id === userid);
+        userData = allUserData[userIdx];
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+      record.infringements = originalinfringements.concat(req.body.blueSquare);
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+
+          // update alluser cache if we have cache
+          if (isUserInCache) {
+            allUserData.splice(userIdx, 1, userData);
+            cache.setCache('allusers', JSON.stringify(allUserData));
+          }
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
+  const editInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'editInfringements'))) {
+      res.status(403).send('You are not authorized to edit blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+    const { dateStamp, summary } = req.body;
+
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.map((blueSquare) => {
+        if (blueSquare._id.equals(blueSquareId)) {
+          blueSquare.date = dateStamp ?? blueSquare.date;
+          blueSquare.description = summary ?? blueSquare.description;
+        }
+        return blueSquare;
+      });
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
+  const deleteInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+      res.status(403).send('You are not authorized to delete blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.filter(
+        (infringement) => !infringement._id.equals(blueSquareId),
+      );
+
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
+  };
+
   const getProjectsByPerson = async function (req, res) {
     try {
       const { name } = req.params;
@@ -1616,6 +1748,7 @@ const userProfileController = function (UserProfile, Project) {
         .status(500)
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
+
   };
 
   return {
@@ -1640,6 +1773,9 @@ const userProfileController = function (UserProfile, Project) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    addInfringements,
+    editInfringements,
+    deleteInfringements,
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
