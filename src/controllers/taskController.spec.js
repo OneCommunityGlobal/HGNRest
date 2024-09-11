@@ -46,6 +46,7 @@ const makeSut = () => {
     getTasksByUserId,
     sendReviewReq,
     getTasksForTeamsByUser,
+    updateTaskStatus,
   } = taskController(Task);
 
   return {
@@ -65,6 +66,7 @@ const makeSut = () => {
     getTasksByUserId,
     sendReviewReq,
     getTasksForTeamsByUser,
+    updateTaskStatus,
   };
 };
 
@@ -1289,6 +1291,21 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(200, 'done', response, mockRes);
       expect(taskFind).toHaveBeenCalled();
     });
+
+    test('Returns 400 on some error', async () => {
+      const { updateAllParents } = makeSut();
+
+      const error = new Error('some error');
+
+      const taskFind = jest.spyOn(Task, 'find').mockImplementationOnce(() => {
+        throw error;
+      });
+      const response = await updateAllParents(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(400, error, response, mockRes);
+      expect(taskFind).toHaveBeenCalled();
+    });
   });
 
   describe('getTasksByUserId function()', () => {
@@ -1459,6 +1476,80 @@ describe('Unit Tests for taskController.js', () => {
       await flushPromises();
 
       assertResMock(400, { error: mockError }, response, mockRes);
+    });
+  });
+
+  describe('updateTaskStatus function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    const mockedTask = {
+      wbs: 111,
+    };
+    const mockedWBS = {
+      projectId: 111,
+      modifiedDatetime: new Date(),
+      save: jest.fn(),
+    };
+    const mockedProject = {
+      projectId: 111,
+      modifiedDatetime: new Date(),
+      save: jest.fn(),
+    };
+
+    test('Returns 200 on success - updateTaskStatus', async () => {
+      const { updateTaskStatus } = makeSut();
+
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindOneAndUpdateSpy = jest
+        .spyOn(Task, 'findOneAndUpdate')
+        .mockResolvedValueOnce(true);
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+
+      const response = await updateTaskStatus(mockReq, mockRes);
+      await flushPromises();
+
+      // assertResMock(201, null, response, mockRes);
+      expect(mockRes.status).toBeCalledWith(201);
+      expect(response).toBeUndefined();
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
+      expect(wbsFindByIdSpy).toHaveBeenCalled();
+      expect(projectFindByIdSpy).toHaveBeenCalled();
+    });
+
+    test('Returns 400 on error', async () => {
+      const { updateTaskStatus } = makeSut();
+      const error = new Error('some error');
+
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindOneAndUpdateSpy = jest
+        .spyOn(Task, 'findOneAndUpdate')
+        .mockRejectedValueOnce(error);
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+
+      const response = await updateTaskStatus(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(404, error, response, mockRes);
+
+      expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
+      expect(wbsFindByIdSpy).toHaveBeenCalled();
+      expect(projectFindByIdSpy).toHaveBeenCalled();
     });
   });
 });
