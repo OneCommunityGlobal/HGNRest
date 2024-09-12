@@ -2038,12 +2038,12 @@ const userHelper = function () {
     recipients,
     isSet,
   ) {
-    if (endDate && isSet) {
-      const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
+    if (endDate && !isSet) {
+      const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
       <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${moment(endDate).format('M-D-YYYY')}.</p>
-      <p>For a smooth transition, please confirm all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
+      <p>Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
       
       <p>With Gratitude, </p>
       
@@ -2052,11 +2052,10 @@ const userHelper = function () {
       recipients = recipients.toString();
       emailSender(recipients, subject, emailBody, null, null, email);
     } else if (isSet) {
-      const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+      const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
-
-      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${moment(endDate).format('M-D-YYYY')}.</p>.
-      <p>Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as of ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>For a smooth transition, please confirm all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
       
       <p>With Gratitude, </p>
       
