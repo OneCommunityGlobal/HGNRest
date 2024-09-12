@@ -2037,8 +2037,22 @@ const userHelper = function () {
     email,
     recipients,
     isSet,
+    reactivationDate,
   ) {
-    if (endDate && isSet) {
+    if (reactivationDate) {
+      const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
+      const emailBody = `<p>Management, </p>
+
+      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as of ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part until they return on ${moment(reactivationDate).format('M-D-YYYY')}. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      recipients.push('onecommunityglobal@gmail.com');
+      recipients = recipients.toString();
+      emailSender(recipients, subject, emailBody, null, null, email);
+    } else if (endDate && isSet) {
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
@@ -2076,7 +2090,7 @@ const userHelper = function () {
       const recipients = emailReceivers.map((receiver) => receiver.email);
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
-        '_id isActive endDate isSet',
+        '_id isActive endDate isSet reactivationDate',
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
@@ -2115,6 +2129,7 @@ const userHelper = function () {
             person.email,
             recipients,
             person.isSet,
+            person.reactivationDate,
           );
         }
       }
