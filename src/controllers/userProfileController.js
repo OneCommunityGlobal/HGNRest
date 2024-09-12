@@ -1156,7 +1156,15 @@ const userProfileController = function (UserProfile, Project) {
     const activationDate = req.body.reactivationDate;
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
-
+    let activeStatus = status;
+    if (endDate && status) {
+      const dateObject = new Date(endDate);
+      dateObject.setHours(dateObject.getHours() + 7);
+      const setEndDate = dateObject;
+      if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
+        activeStatus = false;
+      }
+    }
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -1205,7 +1213,7 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.findById(userId, 'isActive email firstName lastName')
       .then((user) => {
         user.set({
-          isActive: status,
+          isActive: activeStatus,
           reactivationDate: activationDate,
           endDate,
           isSet,
