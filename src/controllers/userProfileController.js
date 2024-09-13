@@ -1180,10 +1180,8 @@ const userProfileController = function (UserProfile, Project) {
         activeStatus = false;
       }else if(moment().isBefore(moment(endDate).subtract(3, 'weeks'))){
         emailThreeWeeksSent = true;
-        console.log("meet",emailThreeWeeksSent)
       }
     }
-    console.log("emailThreeWeeksSent",endDate,  emailThreeWeeksSent)
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
