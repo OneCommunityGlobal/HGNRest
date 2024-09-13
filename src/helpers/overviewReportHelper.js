@@ -679,8 +679,59 @@ const overviewReportHelper = function () {
    * @param {*} endDate
    * @returns The total number of badges awarded between the two input dates.
    */
-  async function getTotalBadgesAwardedCount(startDate, endDate) {
-    return UserProfile.aggregate([
+  async function getTotalBadgesAwardedCount(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    if (comparisonStartDate && comparisonEndDate) {
+      const res = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $unwind: '$badgeCollection',
+              },
+              {
+                $match: {
+                  'badgeCollection.earnedDate': {
+                    $gte: startDate,
+                    $lte: endDate,
+                  },
+                },
+              },
+              {
+                $count: 'badgeCollection',
+              },
+            ],
+            comparison: [
+              {
+                $unwind: '$badgeCollection',
+              },
+              {
+                $match: {
+                  'badgeCollection.earnedDate': {
+                    $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
+                    $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
+                  },
+                },
+              },
+              {
+                $count: 'badgeCollection',
+              },
+            ],
+          },
+        },
+      ]);
+
+      const data = {};
+      data.current = res[0].current[0].badgeCollection;
+      data.comparison = res[0].comparison[0].badgeCollection;
+      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
+      return data;
+    }
+    const res = await UserProfile.aggregate([
       {
         $unwind: '$badgeCollection',
       },
@@ -696,6 +747,8 @@ const overviewReportHelper = function () {
         $count: 'badgeCollection',
       },
     ]);
+
+    return { current: res[0].badgeCollection };
   }
 
   /**
