@@ -87,7 +87,12 @@ const reportsController = function () {
         overviewReportHelper.getTeamMembersCount(),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
         overviewReportHelper.getAnniversaries(startDate, endDate),
-        overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate),
+        overviewReportHelper.getTotalBadgesAwardedCount(
+          startDate,
+          endDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getMapLocations(),
         overviewReportHelper.getVolunteerTrends(),
