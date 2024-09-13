@@ -23,32 +23,11 @@ const informationController = function (Information) {
 
   const addInformation = function (req, res) {
     Information.find({ infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' } })
-      .then((result) => {
-        if (result.length > 0) {
-          res.status(400).send({
-            error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
-          });
-          return;
-        }
-        const _info = new Information();
-        _info.infoName = req.body.infoName;
-        _info.infoContent = req.body.infoContent || 'Unspecified';
-        _info.visibility = req.body.visibility || '0';
-        _info
-          .save()
-          .then((newInformation) => {
-            // remove cache if cache is available
-            if (cache.hasCache('informations')) {
-              cache.removeCache('informations');
-              return;
+        .then((result) => {
+            if (result.length > 0) {
+                res.status(400).send({ error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive` });
+                return;
             }
-<<<<<<< HEAD
-            res.status(201).send(newInformation);
-          })
-          .catch((error) => res.status(400).send(error));
-      })
-      .catch((error) => res.status(500).send({ error }));
-=======
             const _info = new Information();
             _info.infoName = req.body.infoName;
             _info.infoContent = req.body.infoContent || 'Unspecified';
@@ -65,7 +44,6 @@ const informationController = function (Information) {
                 .catch(error => res.status(400).send(error));
         })
         .catch(error => res.status(500).send({ error }));
->>>>>>> development
   };
 
   const deleteInformation = function (req, res) {
