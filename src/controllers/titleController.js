@@ -6,7 +6,7 @@ const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 
 const controller = userProfileController(userProfile, project);
-const {getAllTeamCodeHelper} = controller;
+const getAllTeamCodeHelper = controller.getAllTeamCodeHelper;
 
 const titlecontroller = function (Title) {
   const cache = cacheClosure();
