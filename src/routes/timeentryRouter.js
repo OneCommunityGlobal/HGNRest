@@ -17,6 +17,8 @@ const routes = function (TimeEntry) {
 
   TimeEntryRouter.route('/TimeEntry/users').post(controller.getTimeEntriesForUsersList);
 
+  TimeEntryRouter.route('/TimeEntry/reports').post(controller.getTimeEntriesForReports);
+
   TimeEntryRouter.route('/TimeEntry/lostUsers').post(controller.getLostTimeEntriesForUserList);
 
   TimeEntryRouter.route('/TimeEntry/lostProjects').post(
@@ -27,6 +29,22 @@ const routes = function (TimeEntry) {
 
   TimeEntryRouter.route('/TimeEntry/projects/:projectId/:fromDate/:toDate').get(
     controller.getTimeEntriesForSpecifiedProject,
+  );
+
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/tangible').post(
+    controller.recalculateHoursByCategoryAllUsers,
+  );
+
+  TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/intangible').post(
+    controller.recalculateIntangibleHrsAllUsers,
+  );
+
+  TimeEntryRouter.route('/TimeEntry/backupAllUsers/HoursByCategory').post(
+    controller.backupHoursByCategoryAllUsers,
+  );
+
+  TimeEntryRouter.route('/TimeEntry/backupAllUsers/totalIntangibleHrs').post(
+    controller.backupIntangibleHrsAllUsers,
   );
 
   return TimeEntryRouter;

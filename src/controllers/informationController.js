@@ -18,7 +18,7 @@ const informationController = function (Information) {
         cache.setCache('informations', results);
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const addInformation = function (req, res) {
@@ -42,11 +42,30 @@ const informationController = function (Information) {
               cache.removeCache('informations');
               return;
             }
+<<<<<<< HEAD
             res.status(201).send(newInformation);
           })
           .catch((error) => res.status(400).send(error));
       })
       .catch((error) => res.status(500).send({ error }));
+=======
+            const _info = new Information();
+            _info.infoName = req.body.infoName;
+            _info.infoContent = req.body.infoContent || 'Unspecified';
+            _info.visibility = req.body.visibility || '0';
+            _info.save()
+                .then((newInformation) => {
+                  // remove cache if cache is available
+                  if (cache.hasCache('informations')) {
+                    cache.removeCache('informations');
+                    return;
+                  }
+                  res.status(201).send(newInformation);
+                })
+                .catch(error => res.status(400).send(error));
+        })
+        .catch(error => res.status(500).send({ error }));
+>>>>>>> development
   };
 
   const deleteInformation = function (req, res) {
@@ -59,7 +78,7 @@ const informationController = function (Information) {
         }
         res.status(200).send(deletedInformation);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   // Update existing information by id
@@ -73,7 +92,7 @@ const informationController = function (Information) {
         }
         res.status(200).send(updatedInformation);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   return {

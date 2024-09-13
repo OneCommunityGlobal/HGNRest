@@ -15,6 +15,7 @@ const TimeEntry = new Schema({
   isTangible: { type: Boolean, default: false },
   createdDateTime: { type: Date },
   lastModifiedDateTime: { type: Date, default: Date.now },
+  isActive: { type: Boolean, default: true },
 });
 
 module.exports = mongoose.model('timeEntry', TimeEntry, 'timeEntries');
