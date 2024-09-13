@@ -86,17 +86,55 @@ const overviewReportHelper = function () {
   /**
    * Get the total number of active teams
    */
-  async function getTotalActiveTeamCount() {
-    return Team.aggregate([
+  async function getTotalActiveTeamCount(endDate, comparisonEndDate) {
+    if (comparisonEndDate) {
+      const res = await Team.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $match: {
+                  isActive: true,
+                  createdDatetime: { $lte: endDate },
+                },
+              },
+              {
+                $count: 'activeTeams',
+              },
+            ],
+            comparison: [
+              {
+                $match: {
+                  isActive: true,
+                  createdDatetime: { $lte: comparisonEndDate },
+                },
+              },
+              {
+                $count: 'activeTeams',
+              },
+            ],
+          },
+        },
+      ]);
+      const data = {};
+      data.current = res[0].current[0].activeTeams;
+      data.comparison = res[0].comparison[0].activeTeams;
+      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
+      return data;
+    }
+    const res = await Team.aggregate([
       {
         $match: {
           isActive: true,
+          createdDatetime: { $lte: endDate },
         },
       },
       {
         $count: 'activeTeams',
       },
     ]);
+
+    return { current: res[0].activeTeams };
   }
 
   /**
