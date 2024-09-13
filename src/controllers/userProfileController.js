@@ -888,9 +888,9 @@ const userProfileController = function (UserProfile, Project) {
           options: {
             sort: {
               date: -1, // Sort by date descending if needed
-              },
             },
           },
+        },
       ])
       .exec()
       .then((results) => {
@@ -1756,7 +1756,42 @@ const userProfileController = function (UserProfile, Project) {
         .status(500)
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
+  };
 
+  const getUserByAutocomplete = (req, res) => {
+    const { searchText } = req.params;
+
+    if (!searchText) {
+      return res.status(400).send({ message: 'Search text is required' });
+    }
+
+    const regex = new RegExp(searchText, 'i'); // Case-insensitive regex for partial matching
+
+    UserProfile.find(
+      {
+        $or: [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$firstName', ' ', '$lastName'] },
+                regex: searchText,
+                options: 'i',
+              },
+            },
+          },
+        ],
+      },
+      '_id firstName lastName', // Projection to limit fields returned
+    )
+      .limit(10) // Limit results for performance
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(() => {
+        res.status(500).send({ error: 'Internal Server Error' });
+      });
   };
 
   return {
@@ -1787,6 +1822,7 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    getUserByAutocomplete,
   };
 };
 
