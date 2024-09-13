@@ -1,6 +1,8 @@
 /* eslint-disable no-plusplus */
 /* eslint-disable quotes */
 /* eslint-disable no-use-before-define */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable guard-for-in */
 const moment = require('moment');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
@@ -306,7 +308,76 @@ const overviewReportHelper = function () {
     ]);
   }
 
-  async function getTasksStats(startDate, endDate) {
+  async function getTasksStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    if (comparisonStartDate && comparisonEndDate) {
+      const taskStats = await Task.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $match: {
+                  modifiedDatetime: { $gte: startDate, $lte: endDate },
+                  status: { $in: ['Complete', 'Active'] },
+                },
+              },
+              {
+                $group: {
+                  _id: '$status',
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            comparison: [
+              {
+                $match: {
+                  modifiedDatetime: {
+                    $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
+                    $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
+                  },
+                  status: { $in: ['Complete', 'Active'] },
+                },
+              },
+              {
+                $group: {
+                  _id: '$status',
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+          },
+        },
+      ]);
+      /* [
+            {
+              "_id": "Active",
+              "count": 1
+            },
+            {
+              "_id": "Complete",
+              "count": 1
+            }
+        ],
+      */
+      const data = { current: {}, comparison: {} };
+      for (const key in taskStats[0]) {
+        const active = taskStats[0][key].find((x) => x._id === 'Active');
+        data[key].active = active ? active.count : 0;
+
+        const complete = taskStats[0][key].find((x) => x._id === 'Complete');
+        data[key].complete = complete ? active.complete : 0;
+      }
+
+      return {
+        active: {
+          current: data.current.active,
+          percentage: calculateGrowthPercentage(data.current.active, data.comparison.active),
+        },
+        complete: {
+          current: data.current.complete,
+          percentage: calculateGrowthPercentage(data.current.complete, data.comparison.complete),
+        },
+      };
+    }
     const taskStats = await Task.aggregate([
       {
         $match: {
@@ -322,14 +393,12 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    if (!taskStats.find((x) => x._id === 'Active')) {
-      taskStats.push({ _id: 'Active', count: 0 });
-    }
-    if (!taskStats.find((x) => x._id === 'Complete')) {
-      taskStats.push({ _id: 'Complete', count: 0 });
-    }
-
-    return taskStats;
+    const data = {};
+    const active = taskStats.find((x) => x._id === 'Active');
+    const complete = taskStats.find((x) => x._id === 'Complete');
+    data.active = { current: active?.count || 0 };
+    data.complete = { current: complete?.count || 0 };
+    return data;
   }
   /**
    * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
