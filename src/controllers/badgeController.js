@@ -3,6 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
+// const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -11,6 +12,11 @@ const badgeController = function (Badge) {
    * @returns {Array<Object>} List containing badge records.
    */
   const cache = cacheClosure();
+
+  // const awardBadgesTest = async function (req, res) {
+  //   await userHelper.awardNewBadges();
+  //   res.status(200).send('Badges awarded');
+  // };
 
   const getAllBadges = async function (req, res) {
     console.log(req.body.requestor);  // Retain logging from development branch for debugging
@@ -27,7 +33,7 @@ const badgeController = function (Badge) {
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
-    
+
     // Add cache to reduce database query and optimize performance
     if (cache.hasCache('allBadges')) {
       res.status(200).send(cache.getCache('allBadges'));
@@ -81,6 +87,13 @@ const badgeController = function (Badge) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
       }
+      let totalNewBadges = 0;
+      const existingBadges = {};
+      if (record.badgeCollection && Array.isArray(record.badgeCollection)) {
+        record.badgeCollection.forEach(badgeItem => {
+          existingBadges[badgeItem.badge] = badgeItem.count;
+        });
+      }
 
       const badgeGroups = req.body.badgeCollection.reduce((grouped, item) => {
         const { badge } = item;
@@ -95,6 +108,7 @@ const badgeController = function (Badge) {
         if (item.count === 0) {
           return grouped;
         }
+
 
         if (!grouped[badge]) {
           // If the badge is not in the grouped object, add a new entry
@@ -123,6 +137,11 @@ const badgeController = function (Badge) {
             );
           }
         }
+        if (existingBadges[badge]) {
+          totalNewBadges += Math.max(0, item.count - existingBadges[badge]);
+        } else {
+          totalNewBadges += item.count;
+        }
 
         return grouped;
       }, {});
@@ -137,6 +156,7 @@ const badgeController = function (Badge) {
       }));
 
       record.badgeCollection = badgeGroupsArray;
+      record.badgeCount += totalNewBadges;
 
       if (cache.hasCache(`user-${userToBeAssigned}`)) {
         cache.removeCache(`user-${userToBeAssigned}`);
@@ -273,13 +293,67 @@ const badgeController = function (Badge) {
       res.status(200).send({ message: 'Badge successfully updated' });
     });
   };
+  const getBadgeCount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      // Check for errors or if user profile doesn't exist
+      if (error || record === null) {
+        res.sendStatus(404).send('Can not find the user to be assigned.');
+        return;
+      }
+      // Return badge count from user profile
+      res.status(200).send({ count: record.badgeCount });
+    });
+  }
+
+
+  const putBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 1;
+
+      record
+        .save()
+        .then(results => res.status(201).send(results._id))
+        .catch((err) => {
+          res.status(500).send(err);
+        });
+    });
+  };
+
+  const resetBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 0;
+
+      record.save();
+      res.status(201).send({ count: record.badgeCount });
+
+    });
+  }
+
 
   return {
+    // awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
     putBadge,
+    getBadgeCount,
+    putBadgecount,
+    resetBadgecount
   };
 };
 
