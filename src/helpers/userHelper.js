@@ -2041,6 +2041,8 @@ const userHelper = function () {
     sendThreeWeeks,
     followup,
   ) {
+      let subject;
+      let emailBody;
       recipients.push('onecommunityglobal@gmail.com');
       recipients = recipients.toString();
     if (reactivationDate) {
@@ -2054,7 +2056,7 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(recipients, subject, emailBody, null, null, email);
-    } else if (endDate && isSet) {
+    } else if (endDate && isSet && sendThreeWeeks) {
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
       
