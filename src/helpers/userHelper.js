@@ -2055,7 +2055,7 @@ const userHelper = function () {
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      emailSender(recipients, subject, emailBody, null, null, email);
+      emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && sendThreeWeeks) {
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
@@ -2068,7 +2068,7 @@ const userHelper = function () {
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      emailSender(recipients, subject, emailBody, null, null, email);
+      emailSender(email, subject, emailBody, null, recipients, email);
 
     } else if (endDate && isSet && followup) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
@@ -2080,7 +2080,7 @@ const userHelper = function () {
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      emailSender(recipients, subject, emailBody, null, null, email);
+      emailSender(email, subject, emailBody, null, recipients, email);
   
     } else if (endDate && isSet ) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
@@ -2092,7 +2092,7 @@ const userHelper = function () {
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      emailSender(recipients, subject, emailBody, null, null, email);
+      emailSender(email, subject, emailBody, null, recipients, email);
   
     } else if(endDate){
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
@@ -2104,7 +2104,7 @@ const userHelper = function () {
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      emailSender(recipients, subject, emailBody, null, null, email);
+      emailSender(email, subject, emailBody, null, recipients, email);
      };
   
     }
@@ -2125,7 +2125,7 @@ const userHelper = function () {
         const { endDate, finalEmailThreeWeeksSent } = user;
         endDate.setHours(endDate.getHours() + 7);
         // notify reminder set final day before 2 weeks 
-       if(finalEmailThreeWeeksSent && moment().isBefore(moment(endDate).subtract(2, 'weeks'))){
+       if(finalEmailThreeWeeksSent && moment().isBefore(moment(endDate).subtract(2, 'weeks')) && moment().isAfter(moment(endDate).subtract(3, 'weeks'))){
           const id = user._id;
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
