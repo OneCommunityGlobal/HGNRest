@@ -4,10 +4,10 @@ const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
+  var summaryNotSubmitted;
   const allUserProfileJobs = new CronJob(
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * 0', // Every Sunday, 1 minute past midnight.
-
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
@@ -26,6 +26,21 @@ const userProfileJobs = () => {
     'America/Los_Angeles',
   );
 
+  const summaryNotSubmittedJobs=new CronJob(
+      // '* * * * *',
+      '0 4 * * 0', // Every Sunday at 4AM
+      async () => {
+        const SUNDAY = 0;
+        if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
+          await userhelper.completeHoursAndMissedSummary();
+        }
+      },
+      null,
+      false,
+      'America/Los_Angeles', 
+  )
+
   allUserProfileJobs.start();
+  summaryNotSubmittedJobs.start();
 };
 module.exports = userProfileJobs;
