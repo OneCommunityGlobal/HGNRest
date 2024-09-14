@@ -1171,12 +1171,15 @@ const userProfileController = function (UserProfile, Project) {
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
     let activeStatus = status;
+    let emailThreeWeeksSent = false;
     if (endDate && status) {
       const dateObject = new Date(endDate);
       dateObject.setHours(dateObject.getHours() + 7);
       const setEndDate = dateObject;
       if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
         activeStatus = false;
+      }else if(moment().isBefore(moment(endDate).subtract(3, 'weeks'))){
+        emailThreeWeeksSent = true;
       }
     }
     if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -1224,13 +1227,14 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName')
+    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
       .then((user) => {
         user.set({
           isActive: activeStatus,
           reactivationDate: activationDate,
           endDate,
           isSet,
+          finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
         user
           .save()
@@ -1255,6 +1259,7 @@ const userProfileController = function (UserProfile, Project) {
               recipients,
               isSet,
               activationDate,
+              emailThreeWeeksSent,
             );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
