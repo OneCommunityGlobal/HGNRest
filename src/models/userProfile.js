@@ -75,7 +75,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default () {
+    default() {
       return this.createdDate;
     },
   },
@@ -97,6 +97,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: false,
       },
+      viewed: { type: Boolean, default: false },
     },
   ],
   profilePic: { type: String },

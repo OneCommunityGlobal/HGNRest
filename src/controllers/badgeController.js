@@ -19,7 +19,7 @@ const badgeController = function (Badge) {
   // };
 
   const getAllBadges = async function (req, res) {
-    console.log(req.body.requestor);  // Retain logging from development branch for debugging
+    console.log(req.body.requestor); // Retain logging from development branch for debugging
 
     // Check if the user has any of the following permissions
     if (
@@ -29,7 +29,7 @@ const badgeController = function (Badge) {
       !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
-      console.log('in if statement');  // Retain logging from development branch for debugging
+      console.log('in if statement'); // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -80,7 +80,6 @@ const badgeController = function (Badge) {
     }
 
     const userToBeAssigned = mongoose.Types.ObjectId(req.params.userId);
-
     try {
       const record = await UserProfile.findById(userToBeAssigned);
       if (record === null) {
@@ -90,14 +89,13 @@ const badgeController = function (Badge) {
       let totalNewBadges = 0;
       const existingBadges = {};
       if (record.badgeCollection && Array.isArray(record.badgeCollection)) {
-        record.badgeCollection.forEach(badgeItem => {
+        record.badgeCollection.forEach((badgeItem) => {
           existingBadges[badgeItem.badge] = badgeItem.count;
         });
       }
 
       const badgeGroups = req.body.badgeCollection.reduce((grouped, item) => {
         const { badge } = item;
-
         if (typeof item.count !== 'number') {
           item.count = Number(item.count);
           if (Number.isNaN(item.count)) {
@@ -109,7 +107,6 @@ const badgeController = function (Badge) {
           return grouped;
         }
 
-
         if (!grouped[badge]) {
           // If the badge is not in the grouped object, add a new entry
           grouped[badge] = {
@@ -117,12 +114,14 @@ const badgeController = function (Badge) {
             lastModified: item.lastModified ? item.lastModified : Date.now(),
             featured: item.featured || false,
             earnedDate: item.earnedDate,
+            viewed: item.viewed,
           };
         } else {
           // If the badge is already in the grouped object, update properties
           grouped[badge].count += item.count;
           grouped[badge].lastModified = Date.now();
           grouped[badge].featured = grouped[badge].featured || item.featured || false;
+          grouped[badge].viewed = item.viewed;
 
           // Combine and sort earnedDate arrays
           if (Array.isArray(item.earnedDate)) {
@@ -153,6 +152,7 @@ const badgeController = function (Badge) {
         lastModified: data.lastModified,
         featured: data.featured,
         earnedDate: data.earnedDate,
+        viewed: data.viewed,
       }));
 
       record.badgeCollection = badgeGroupsArray;
@@ -305,8 +305,7 @@ const badgeController = function (Badge) {
       // Return badge count from user profile
       res.status(200).send({ count: record.badgeCount });
     });
-  }
-
+  };
 
   const putBadgecount = async function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
@@ -320,7 +319,7 @@ const badgeController = function (Badge) {
 
       record
         .save()
-        .then(results => res.status(201).send(results._id))
+        .then((results) => res.status(201).send(results._id))
         .catch((err) => {
           res.status(500).send(err);
         });
@@ -339,11 +338,24 @@ const badgeController = function (Badge) {
 
       record.save();
       res.status(201).send({ count: record.badgeCount });
-
     });
-  }
+  };
 
-
+  const viewedBadges = async function (req, res) {
+    const user = mongoose.Types.ObjectId(req.params.userId);
+    try {
+      const record = await UserProfile.findById(user);
+      if (record === null) {
+        res.status(400).send('Can not find the user');
+        return;
+      }
+      record.badgeCollection = req.body.badgeCollection;
+      const results = await record.save();
+      res.status(201).send(results._id);
+    } catch (err) {
+      res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
+    }
+  };
   return {
     // awardBadgesTest,
     getAllBadges,
@@ -353,7 +365,8 @@ const badgeController = function (Badge) {
     putBadge,
     getBadgeCount,
     putBadgecount,
-    resetBadgecount
+    resetBadgecount,
+    viewedBadges,
   };
 };
 
