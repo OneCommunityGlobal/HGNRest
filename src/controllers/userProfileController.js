@@ -1035,7 +1035,7 @@ const userProfileController = function (UserProfile, Project) {
     const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
     // if they're updating someone else's password, they need the 'updatePassword' permission.
-    if (!hasUpdatePasswordPermission) {
+    if (userId !== requestor.requestorId && !hasUpdatePasswordPermission) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
