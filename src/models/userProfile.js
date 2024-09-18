@@ -127,6 +127,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
+      iconId: { type: String, required: true },
     },
   ],
   location: {

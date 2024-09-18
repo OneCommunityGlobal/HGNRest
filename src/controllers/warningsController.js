@@ -65,11 +65,6 @@ const warningsController = function (UserProfile) {
       const { iconId, color, date, description } = req.body;
       const { monitorData } = req.body;
 
-      const myData = {
-        firstName: 'tim',
-        lastName: 'smith',
-        email: 'tim@gmail.com',
-      };
       const record = await UserProfile.findById(userId);
       if (!record) {
         return res.status(400).send({ message: 'No valid records found' });
@@ -77,7 +72,7 @@ const warningsController = function (UserProfile) {
 
       currentUserName = `${record.firstName} ${record.lastName}`;
       //check warning id
-      const updatedWarnings = await userProfile.findByIdAndUpdate(
+      const updatedWarnings = await UserProfile.findByIdAndUpdate(
         {
           _id: userId,
         },
@@ -85,18 +80,20 @@ const warningsController = function (UserProfile) {
         { new: true, upsert: true },
       );
 
-      const { completedData, sendEmail } = filterWarnings(
+      const { completedData, sendEmail, size } = filterWarnings(
         currentWarningDescriptions,
         updatedWarnings.warnings,
-        description,
         iconId,
+        color,
       );
+
       if (sendEmail !== null) {
-        sendEmailToUser(sendEmail, description, currentUserName, monitorData);
+        sendEmailToUser(sendEmail, description, currentUserName, monitorData, size);
       }
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
+      console.log('error', error);
       res.status(400).send({ message: error.message || error });
     }
   };
@@ -130,42 +127,42 @@ const warningsController = function (UserProfile) {
   };
 };
 
-const sendEmailToUser = (sendEmail, warningDescription, currentUserName, monitorData) => {
-  let time = sendEmail === '3' ? '3rd' : '4th';
-  console.log('monitorData', monitorData.firstName);
+//helper function to get the ordinal
+function getOrdinal(n) {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const value = n % 100;
+  return n + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
+}
+const sendEmailToUser = (sendEmail, warningDescription, currentUserName, monitorData, size) => {
+  //issued blue square? if so, send second tempalte
+  //
+  const ordinal = getOrdinal(size);
+  const subjectTitle = ordinal + ' Warning';
+
   const emailTemplate =
-    time === '3rd'
-      ? `
-      <p>Hello ${currentUserName},</p>
-      <p>This is the ${time} time the Admin team has requested the same thing from you. Specifically <strong>${warningDescription}</strong>. Please carefully review the communications you’ve gotten about this so you understand what is being requested. Ask questions if anything isn’t clear, the Admin team is here to help.</p>
-      <p>Please also be sure to fix this from here on forward, asking for the same thing over and over requires administration that really shouldn’t be needed and will result in a blue square if it happens again.</p>
-      <p>The Admin memember who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}</p>
-      <p>With Gratitude,</p>
-      <p>One Community</p>`
+    sendEmail === 'issue warning'
+      ? `<p>Hello ${currentUserName},</p>
+         <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
+         <p>Please ensure this issue is resolved moving forward. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square if it happens again.</p>
+         <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them via email if you have any questions.</p>
+         <p>With Gratitude,</p>
+         <p>One Community</p>`
       : `<p>Hello ${currentUserName},</p>
-      <p>This is the ${time} time the Admin team has requested the same thing from you. Specifically <strong>${warningDescription}</strong>. Please carefully review the communications you’ve gotten about this so you understand what is being requested. Ask questions if anything isn’t clear, the Admin team is here to help.</p>
-      <p>Please also be sure to fix this from here on forward, asking for the same thing over and over requires administration that really shouldn’t be needed and will result in a blue square if it happens again.</p>
-      <p>The Admin memember who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}</p>
-      <p>With Gratitude,</p>
-      <p>One Community</p>`;
+         <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>.</p>
+         <p>Please ensure this issue is resolved moving forward. Repeated requests for the same thing require unnecessary administrative attention and have resulted in a blue square being issued.</p>
+         <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
+         <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them via email if you have any questions.</p>
+         <p>With Gratitude,</p>
+         <p>One Community</p>`;
 
-  if (sendEmail === '3') {
-    emailSender('arevaloluis114@gmail.com', 'Third Warning', emailTemplate, null, null);
-  } else {
-    emailSender('arevaloluis114@gmail.com', 'Fourth Warning', emailTemplate, null, null);
+  if (sendEmail === 'issue warning') {
+    emailSender('arevaloluis114@gmail.com', subjectTitle, emailTemplate, null, null);
+  } else if (sendEmail === 'issue blue square') {
+    emailSender('arevaloluis114@gmail.com', subjectTitle, emailTemplate, null, null);
   }
-
-  // const emailBody = `<p>Hello ${currentUserName},</p> \n ${emailTemplate.thirdWarning.body}`;
-  // emailSender(
-  //   'arevaloluis114@gmail.com',
-  //   emailTemplate.thirdWarning.subject,
-  //   emailBody,
-  //   null,
-  //   null,
-  // );
 };
 
-// gests the dsecriptions key from the array
+// gets the dsecriptions key from the array
 const getDescriptionKey = (val) =>
   //  currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
 
@@ -192,15 +189,11 @@ const sortByColorAndDate = (a, b) => {
   return colorComparison;
 };
 
-const filterWarnings = (
-  currentWarningDescriptions,
-  warnings,
-  description = null,
-  iconId = null,
-) => {
+const filterWarnings = (currentWarningDescriptions, warnings, iconId = null, color = null) => {
   const warningsObject = {};
 
   let sendEmail = null;
+  let size = null;
 
   warnings.forEach((warning) => {
     if (!warningsObject[warning.description]) {
@@ -209,32 +202,15 @@ const filterWarnings = (
     warningsObject[warning.description].push(warning);
 
     if (
-      warningsObject[warning.description].length === 3 &&
-      description === warning.description &&
-      sendEmail === null
+      warningsObject[warning.description].length >= 3 &&
+      warning.iconId === iconId &&
+      color === 'yellow'
     ) {
-      sendEmail = '3';
-      //send email
-      // const emailBody = `<p>Hello ${currentUserName},</p> \n ${emailTemplate.thirdWarning.body}`;
-      // emailSender(
-      //   'arevaloluis114@gmail.com',
-      //   emailTemplate.thirdWarning.subject,
-      //   emailBody,
-      //   null,
-      //   null,
-      // );
-    } else if (
-      warningsObject[warning.description].length === 4 &&
-      description === warning.description &&
-      sendEmail === null
-    ) {
-      sendEmail = '4';
-      //send email
-      // const emailBody = `<p>Hello ${currentUserName},</p> \n ${emailTemplate.fourthWarning.body}`;
-      // emailSender(
-      //   '
-    } else {
-      sendEmail = null;
+      sendEmail = 'issue warning';
+      size = warningsObject[warning.description].length;
+    } else if (warning.iconId === iconId && color === 'red') {
+      sendEmail = 'issue blue square';
+      size = warningsObject[warning.description].length;
     }
   });
 
@@ -257,7 +233,7 @@ const filterWarnings = (
       warnings: warns[descrip] ? warns[descrip] : [],
     });
   }
-  return { completedData, sendEmail };
+  return { completedData, sendEmail, size };
 };
 
 module.exports = warningsController;
