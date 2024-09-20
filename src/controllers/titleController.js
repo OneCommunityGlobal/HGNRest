@@ -33,8 +33,6 @@ const titlecontroller = function (Title) {
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
 
-    console.log('Before saving to MongoDB - titleCode:', title.titleCode);
-
     const titleCodeRegex = /^[A-Za-z]+$/;
     if (!title.titleCode || !title.titleCode.trim()) {
       return res.status(400).send({ message: 'Title code cannot be empty.' });
@@ -54,16 +52,6 @@ const titlecontroller = function (Title) {
       return;
     }
 
-    // const shortnames = title.titleName.trim().split(' ');
-    // let shortname;
-    // if (shortnames.length > 1) {
-    //   shortname = (shortnames[0][0] + shortnames[1][0]).toUpperCase();
-    // } else if (shortnames.length === 1) {
-    //   shortname = shortnames[0][0].toUpperCase();
-    // }
-    // title.shortName = shortname;
-
-    // Validate team code by checking if it exists in the database
     if (!title.teamCode) {
       res.status(400).send({ message: 'Please provide a team code.' });
       return;
@@ -90,15 +78,8 @@ const titlecontroller = function (Title) {
 
     title
       .save()
-      .then((results) => {
-        console.log('Saved title:', results);
-        console.log('Check titleCode in saved results:', results.titleCode);
-        res.status(200).send(results)
-      })
-      .catch((error) => {
-        console.log('Error saving title:', error);
-        res.status(404).send(error)
-      })
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error))
   };
 
   // update title function.
@@ -128,16 +109,7 @@ const titlecontroller = function (Title) {
         res.status(400).send({ message: 'Media folder cannot be empty.' });
         return;
       }
-      // const shortnames = req.body.titleName.trim().split(' ');
-      // let shortname;
-      // if (shortnames.length > 1) {
-      //   shortname = (shortnames[0][0] + shortnames[1][0]).toUpperCase();
-      // } else if (shortnames.length === 1) {
-      //   shortname = shortnames[0][0].toUpperCase();
-      // }
-      // req.body.shortName = shortname;
 
-      // Validate team code by checking if it exists in the database
       if (!req.body.teamCode) {
         res.status(400).send({ message: 'Please provide a team code.' });
         return;
