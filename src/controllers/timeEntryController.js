@@ -866,7 +866,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -939,7 +939,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.remove({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
