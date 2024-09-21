@@ -347,17 +347,7 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-      /* [
-            {
-              "_id": "Active",
-              "count": 1
-            },
-            {
-              "_id": "Complete",
-              "count": 1
-            }
-        ],
-      */
+
       const data = { current: {}, comparison: {} };
       for (const key in taskStats[0]) {
         const active = taskStats[0][key].find((x) => x._id === 'Active');
@@ -657,14 +647,15 @@ const overviewReportHelper = function () {
         },
       ]);
 
-      const currentActiveVolunteers = data.currentActiveVolunteers[0].activeVolunteersCount;
-      const comparisonActiveVolunteers = data.comparisonActiveVolunteers[0].activeVolunteersCount;
-      const newVolunteers = data.currentNewVolunteers[0].newVolunteersCount;
-      const comparisonNewVolunteers = data.comparisonNewVolunteers[0].newVolunteersCount;
+      const currentActiveVolunteers = data.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const comparisonActiveVolunteers =
+        data.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const newVolunteers = data.currentNewVolunteers[0]?.newVolunteersCount || 0;
+      const comparisonNewVolunteers = data.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
       const currentDeactivatedVolunteers =
-        data.currentDeactivatedVolunteers[0].deactivatedVolunteersCount;
+        data.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
       const comparisonDeactivatedVolunteers =
-        data.comparisonDeactivatedVolunteers[0].deactivatedVolunteersCount;
+        data.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
 
       const res = {
         activeVolunteers: {
@@ -723,11 +714,14 @@ const overviewReportHelper = function () {
         },
       },
     ]);
+    const activeVolunteers = data[0].activeVolunteers[0]?.activeVolunteersCount || 0;
+    const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
+    const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
 
     const transformedData = {
-      activeVolunteers: { count: data[0].activeVolunteers[0].activeVolunteersCount },
-      newVolunteers: { count: data[0].newVolunteers[0].newVolunteersCount },
-      deactivatedVolunteers: { count: data[0].deactivatedVolunteers[0].deactivedVolunteersCount },
+      activeVolunteers: { count: activeVolunteers },
+      newVolunteers: { count: newVolunteers },
+      deactivatedVolunteers: { count: deactivatedVolunteers },
     };
 
     return transformedData;
