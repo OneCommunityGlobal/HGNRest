@@ -1368,8 +1368,7 @@ const timeEntrycontroller = function (TimeEntry) {
     return newTotalIntangibleHrs;
   };
 
-  const recalculationTasks = {};
-  // let recalculateTangibleStatus = 'pending';
+  const recalculationTaskQueue = [];
 
   /**
    * recalculate the hoursByCategory for all users and update the field
@@ -1389,12 +1388,20 @@ const timeEntrycontroller = function (TimeEntry) {
       await Promise.all(recalculationPromises);
 
       await session.commitTransaction();
-      // recalculateTangibleStatus = 'completed';
-      recalculationTasks[taskId] = 'Completed';
+
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Completed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
     } catch (err) {
       await session.abortTransaction();
-      // recalculateTangibleStatus = 'failed';
-      recalculationTasks[taskId] = 'Failed';
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
+
       logger.logException(err);
     } finally {
       session.endSession();
@@ -1403,7 +1410,16 @@ const timeEntrycontroller = function (TimeEntry) {
 
   const startRecalculation = async function (req, res) {
     const taskId = uuidv4();
-    recalculationTasks[taskId] = 'In progress';
+    recalculationTaskQueue.push({
+      taskId,
+      status: 'In progress',
+      startTime: new Date().toISOString(),
+      completionTime: null,
+    });
+    if (recalculationTaskQueue.length > 10) {
+      recalculationTaskQueue.shift();
+    }
+
     res.status(200).send({
       message: 'The recalculation task started in the background',
       taskId,
@@ -1414,9 +1430,13 @@ const timeEntrycontroller = function (TimeEntry) {
 
   const checkRecalculationStatus = async function (req, res) {
     const { taskId } = req.params;
-    const status = recalculationTasks[taskId];
-    if (status) {
-      res.status(200).send({ status });
+    const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+    if (recalculationTask) {
+      res.status(200).send({
+        status: recalculationTask.status,
+        startTime: recalculationTask.startTime,
+        completionTime: recalculationTask.completionTime,
+      });
     } else {
       res.status(404).send({ message: 'Task not found' });
     }
