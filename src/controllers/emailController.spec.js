@@ -1,7 +1,7 @@
 const { mockReq, mockRes, assertResMock } = require('../test');
 const emailController = require('./emailController');
 const jwt = require('jsonwebtoken');
-// const EmailSubcriptionList = require('../models/emailSubcriptionList');
+const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 // const emailSender = require('../utilities/emailSender');
 
@@ -36,6 +36,7 @@ describe('emailController Controller Unit tests', () => {
     jest.clearAllMocks();
   });
 
+  describe('sendEmail function', () => {
   test('should send email successfully', async () => {
     const { sendEmail } = makeSut();
     const mockReq = {
@@ -48,6 +49,7 @@ describe('emailController Controller Unit tests', () => {
     const response = await sendEmail(mockReq, mockRes);
     assertResMock(200, 'Email sent successfully', response, mockRes);
   });
+});
 
   describe('updateEmailSubscriptions function', () => {
     test('should handle error when updating email subscriptions', async () => {
@@ -73,12 +75,6 @@ describe('emailController Controller Unit tests', () => {
     });
   });
 
-  describe('addNonHgnEmailSubscription function', () => {
-
-    beforeEach(() => {
-      jest.clearAllMocks();
-    });
-  })
 
   describe('confirmNonHgnEmailSubscription function', () => {
     afterEach(() => {
@@ -134,7 +130,19 @@ describe('emailController Controller Unit tests', () => {
 
 
   });
+  describe('removeNonHgnEmailSubscription function', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
 
+    test('should return 400 if email is missing', async () => {
+      const { removeNonHgnEmailSubscription } = makeSut();
+      const mockReq = { body: {} };
 
+      const response = await removeNonHgnEmailSubscription(mockReq, mockRes);
 
-});
+      assertResMock(400, 'Email is required', response, mockRes);
+    });
+  });
+
+  });
