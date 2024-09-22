@@ -5,6 +5,7 @@ const cheerio = require('cheerio');
 const emailSender = require('../utilities/emailSender');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
+const { hasPermission } = require('../utilities/permissions');
 
 const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
@@ -64,10 +65,8 @@ const sendEmail = async (req, res) => {
   }
   try {
     const { to, subject, html } = req.body;
-    console.log('html', html);
     // Validate required fields
     if (!subject || !html || !to) {
-      console.log('missingFields');
       const missingFields = [];
       if (!subject) missingFields.push('Subject');
       if (!html) missingFields.push('HTML content');
