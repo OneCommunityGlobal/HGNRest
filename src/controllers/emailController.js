@@ -59,12 +59,15 @@ function extractImagesAndCreateAttachments(html) {
 const sendEmail = async (req, res) => {
   try {
     const { to, subject, html } = req.body;
+    console.log('html', html);
     // Validate required fields
     if (!subject || !html || !to) {
+      console.log('missingFields');
       const missingFields = [];
       if (!subject) missingFields.push('Subject');
       if (!html) missingFields.push('HTML content');
       if (!to) missingFields.push('Recipient email');
+      console.log('missingFields', missingFields);
       return res
         .status(400)
         .send(`${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`);
