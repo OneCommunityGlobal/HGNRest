@@ -8,9 +8,9 @@ const config = {
   clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
   redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
   refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
-  batchSize: 100,
-  batchDelay: 60000,
-  mailQueueInterval: process.env.MAIL_QUEUE_INTERVAL || 60000,
+  batchSize: 20,
+  batchDelay: 172800,
+  mailQueueInterval: process.env.MAIL_QUEUE_INTERVAL || 172800,
 };
 
 const closure = () => {
