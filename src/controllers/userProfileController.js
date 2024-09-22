@@ -724,14 +724,14 @@ const userProfileController = function (UserProfile, Project) {
         })
         .catch((error) => {
           if (error.name === 'ValidationError' && error.errors.lastName) {
-            const errors = Object.values(error.errors).map(er => er.message);
+            const errors = Object.values(error.errors).map((er) => er.message);
             return res.status(400).json({
               message: 'Validation Error',
               error: errors,
             });
           }
-            console.error('Failed to save record:', error);
-            return res.status(400).json({ error: 'Failed to save record.' });
+          console.error('Failed to save record:', error);
+          return res.status(400).json({ error: 'Failed to save record.' });
         });
     });
   };
@@ -847,12 +847,11 @@ const userProfileController = function (UserProfile, Project) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
-    if (cache.getCache(`user-${userid}`)) {
-      const getData = JSON.parse(cache.getCache(`user-${userid}`));
-      res.status(200).send(getData);
-      return;
-    }
-
+    // if (cache.getCache(`user-${userid}`)) {
+    //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
+    //   res.status(200).send(getData);
+    //   return;
+    // }
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
@@ -881,6 +880,15 @@ const userProfileController = function (UserProfile, Project) {
             select: '_id badgeName type imageUrl description ranking showReport',
           },
         },
+        {
+          path: 'infringements', // Populate infringements field
+          select: 'date description',
+          options: {
+            sort: {
+              date: -1, // Sort by date descending if needed
+              },
+            },
+          },
       ])
       .exec()
       .then((results) => {
@@ -1160,7 +1168,18 @@ const userProfileController = function (UserProfile, Project) {
     const activationDate = req.body.reactivationDate;
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
-
+    let activeStatus = status;
+    let emailThreeWeeksSent = false;
+    if (endDate && status) {
+      const dateObject = new Date(endDate);
+      dateObject.setHours(dateObject.getHours() + 7);
+      const setEndDate = dateObject;
+      if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
+        activeStatus = false;
+      }else if(moment().isBefore(moment(endDate).subtract(3, 'weeks'))){
+        emailThreeWeeksSent = true;
+      }
+    }
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       res.status(400).send({
         error: 'Bad Request',
@@ -1206,13 +1225,14 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName')
+    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
       .then((user) => {
         user.set({
-          isActive: status,
+          isActive: activeStatus,
           reactivationDate: activationDate,
           endDate,
           isSet,
+          finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
         user
           .save()
@@ -1236,6 +1256,8 @@ const userProfileController = function (UserProfile, Project) {
               user.email,
               recipients,
               isSet,
+              activationDate,
+              emailThreeWeeksSent,
             );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
@@ -1737,6 +1759,7 @@ const userProfileController = function (UserProfile, Project) {
         .status(500)
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
+
   };
   
   const removeProfileImage = async (req,res) =>{
