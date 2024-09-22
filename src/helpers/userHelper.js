@@ -2313,7 +2313,7 @@ function searchForTerm2(data, term2) {
             })
         newData=newData.filter(item=>item.imgs.length!==0 && item.strongTexts.length!==0)
         await browser.close();
-        var users=await userProfile.find({'isActive':true,'firstName':'Jatin'},"firstName lastName email profilePic suggestedProfilePics")    
+        var users=await userProfile.find({'isActive':true},"firstName lastName email profilePic suggestedProfilePics")    
         users.map(async(u)=>{
           if(u.profilePic==undefined || u.profilePic==null || u.profilePic==""){
             let result=searchForTermsInFields(newData,u.firstName,u.lastName)
