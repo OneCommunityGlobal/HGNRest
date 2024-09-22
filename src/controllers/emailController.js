@@ -57,6 +57,11 @@ function extractImagesAndCreateAttachments(html) {
 }
 
 const sendEmail = async (req, res) => {
+  const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
+  if (!canSendEmail) {
+    res.status(403).send('You are not authorized to send emails.');
+    return;
+  }
   try {
     const { to, subject, html } = req.body;
     console.log('html', html);
@@ -90,6 +95,11 @@ const sendEmail = async (req, res) => {
 };
 
 const sendEmailToAll = async (req, res) => {
+  const canSendEmailToAll = await hasPermission(req.body.requestor, 'sendEmailToAll');
+  if (!canSendEmailToAll) {
+    res.status(403).send('You are not authorized to send emails to all.');
+    return;
+  }
   try {
     const { subject, html } = req.body;
     if (!subject || !html) {
