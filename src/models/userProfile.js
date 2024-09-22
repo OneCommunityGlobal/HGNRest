@@ -100,6 +100,10 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics:{
+    type:[mongoose.Schema.Types.Mixed],
+    default:[]
+  },
   infringements: [
     {
       date: { type: String, required: true },
