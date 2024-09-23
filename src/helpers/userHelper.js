@@ -2037,36 +2037,78 @@ const userHelper = function () {
     email,
     recipients,
     isSet,
+    reactivationDate,
+    sendThreeWeeks,
+    followup,
   ) {
-    if (endDate && !isSet) {
-      const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
-      const emailBody = `<p>Management, </p>
+      let subject;
+      let emailBody;
+      recipients.push('onecommunityglobal@gmail.com');
+      recipients = recipients.toString();
+    if (reactivationDate) {
+      subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
+      emailBody = `<p>Management, </p>
 
-      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as of ${endDate}.
-      Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part until they return on ${moment(reactivationDate).format('M-D-YYYY')}. </p>
       
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      recipients.push('onecommunityglobal@gmail.com');
-      recipients = recipients.toString();
-      emailSender(recipients, subject, emailBody, null, null, email);
-    } else if (isSet) {
-      const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+      emailSender(email, subject, emailBody, null, recipients, email);
+    } else if (endDate && isSet && sendThreeWeeks) {
+      const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
+      
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>This is more than 3 weeks from now, but you should still start confirming all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network ${endDate}.
-      For a smooth transition, please confirm all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
+      <p>An additional reminder email will be sent in their final 2 weeks.</p>
       
       <p>With Gratitude, </p>
       
       <p>One Community</p>`;
-      recipients.push('onecommunityglobal@gmail.com');
-      recipients = recipients.toString();
-      emailSender(recipients, subject, emailBody, null, null, email);
+      emailSender(email, subject, emailBody, null, recipients, email);
+
+    } else if (endDate && isSet && followup) {
+      subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
+      emailBody = `<p>Management, </p>
+      
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p> This is coming up soon. For a smooth transition, please confirm all your work is wrapped up with this individual and nothing further will be needed on their part after this date. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      emailSender(email, subject, emailBody, null, recipients, email);
+  
+    } else if (endDate && isSet ) {
+      subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
+      emailBody = `<p>Management, </p>
+      
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p> For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      emailSender(email, subject, emailBody, null, recipients, email);
+  
+    } else if(endDate){
+      subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+      emailBody = `<p>Management, </p>
+      
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
+      
+      <p>With Gratitude, </p>
+      
+      <p>One Community</p>`;
+      emailSender(email, subject, emailBody, null, recipients, email);
+     };
+  
     }
-  };
-
+   
   const deActivateUser = async () => {
     try {
       const emailReceivers = await userProfile.find(
@@ -2076,13 +2118,38 @@ const userHelper = function () {
       const recipients = emailReceivers.map((receiver) => receiver.email);
       const users = await userProfile.find(
         { isActive: true, endDate: { $exists: true } },
-        '_id isActive endDate isSet',
+        '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const { endDate } = user;
+        const { endDate, finalEmailThreeWeeksSent } = user;
         endDate.setHours(endDate.getHours() + 7);
-        if (moment().isAfter(moment(endDate).add(1, 'days'))) {
+        // notify reminder set final day before 2 weeks 
+       if(finalEmailThreeWeeksSent && moment().isBefore(moment(endDate).subtract(2, 'weeks')) && moment().isAfter(moment(endDate).subtract(3, 'weeks'))){
+          const id = user._id;
+          const person = await userProfile.findById(id);
+          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
+          logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
+          person.teams.map(async (teamId) => {
+          const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+              managementEmails.forEach((management) => {
+                recipients.push(management.email);
+              });
+            }
+          });
+          sendDeactivateEmailBody(
+            person.firstName,
+            person.lastName,
+            lastDay,
+            person.email,
+            recipients,
+            person.isSet,
+            person.reactivationDate,
+            false,
+            true,
+          );
+        } else if (moment().isAfter(moment(endDate).add(1, 'days'))) {
           try {
             await userProfile.findByIdAndUpdate(
               user._id,
@@ -2115,6 +2182,8 @@ const userHelper = function () {
             person.email,
             recipients,
             person.isSet,
+            person.reactivationDate,
+            undefined,
           );
         }
       }
