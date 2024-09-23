@@ -27,6 +27,7 @@ const userProfileSchema = new Schema({
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
+  finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
     type: String,
     required: true,
@@ -274,8 +275,4 @@ userProfileSchema.pre('save', function (next) {
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
 
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
