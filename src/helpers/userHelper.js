@@ -473,7 +473,6 @@ const userHelper = function () {
           // save updated records in batch (mongoose updateMany) and do asyc email sending
         2. Wrap the operation in one transaction to ensure the atomicity of the operation.
       */
-      var summaryNotSubmitted = []
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
 
@@ -673,7 +672,6 @@ const userHelper = function () {
         let requestForTimeOffEndingDate;
         let requestForTimeOffreason;
         let requestForTimeOffEmailBody;
-        var checkFlag=false; // variable to check if a user has completed the hours but has not submitted the weekly summary.
 
         if (hasTimeOffRequest) {
           // eslint-disable-next-line prefer-destructuring
@@ -744,9 +742,6 @@ const userHelper = function () {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
               'dddd M-D-YYYY',
             )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
-            // add firstname and email for sending
-            summaryNotSubmitted.push({'firstName':user.firstName,'email':user.email});
-            console.log(summaryNotSubmitted)
           }
 
           const infringement = {
@@ -905,7 +900,6 @@ const userHelper = function () {
     } catch (err) {
       logger.logException(err);
     }
-    return summaryNotSubmitted;
   };
 
   const missedSummaryTemplate = (firstname) => {
