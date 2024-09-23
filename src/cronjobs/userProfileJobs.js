@@ -4,7 +4,6 @@ const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
-  var summaryNotSubmitted;
   const allUserProfileJobs = new CronJob(
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * 0', // Every Sunday, 1 minute past midnight.
