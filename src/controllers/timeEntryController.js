@@ -1096,6 +1096,41 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const getTimeEntriesForProjectReports = function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+
+    // Fetch only necessary fields and avoid bringing the entire document
+    TimeEntry.find(
+      {
+        personId: { $in: users },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      'totalSeconds isTangible dateOfWork projectId',
+    )
+      .populate('projectId', 'projectName _id')
+      .lean() // lean() for better performance as we don't need Mongoose document methods
+      .then((results) => {
+        const data = results.map((element) => {
+          const record = {
+            isTangible: element.isTangible,
+            dateOfWork: element.dateOfWork,
+            projectId: element.projectId ? element.projectId._id : '',
+            projectName: element.projectId ? element.projectId.projectName : '',
+          };
+
+          // Convert totalSeconds to hours and minutes
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+
+          return record;
+        });
+
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        res.status(400).send({ message: 'Error fetching time entries for project reports', error });
+      });
+  };
+
   /**
    * Get time entries for a specified project
    */
@@ -1455,6 +1490,7 @@ const timeEntrycontroller = function (TimeEntry) {
     recalculateHoursByCategoryAllUsers,
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
+    getTimeEntriesForProjectReports,
   };
 };
 
