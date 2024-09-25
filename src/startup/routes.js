@@ -21,6 +21,7 @@ const currentWarnings = require('../models/currentWarnings');
 
 // Title
 const title = require('../models/title');
+const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
@@ -49,7 +50,7 @@ const {
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
-const userProfileRouter = require('../routes/userProfileRouter')(userProfile);
+const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -123,6 +124,11 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 
+const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
+  blueSquareEmailAssignment,
+  userProfile,
+);
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -160,6 +166,7 @@ module.exports = function (app) {
   app.use('/api', titleRouter);
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
+  app.use('/api', blueSquareEmailAssignmentRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
