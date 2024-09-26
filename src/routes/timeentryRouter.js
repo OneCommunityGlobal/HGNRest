@@ -23,6 +23,10 @@ const routes = function (TimeEntry) {
     controller.getTimeEntriesForProjectReports,
   );
 
+  TimeEntryRouter.route('/TimeEntry/reports/people').post(
+    controller.getTimeEntriesForPeopleReports,
+  );
+
   TimeEntryRouter.route('/TimeEntry/lostUsers').post(controller.getLostTimeEntriesForUserList);
 
   TimeEntryRouter.route('/TimeEntry/lostProjects').post(
