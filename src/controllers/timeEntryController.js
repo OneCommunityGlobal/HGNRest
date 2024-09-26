@@ -1131,6 +1131,37 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const getTimeEntriesForPeopleReports = async function (req, res) {
+    try {
+      const { users, fromDate, toDate } = req.body;
+
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        'personId totalSeconds isTangible dateOfWork',
+      ).lean(); // Use lean() for better performance
+
+      const data = results
+        .map((entry) => {
+          const [hours, minutes] = formatSeconds(entry.totalSeconds);
+          return {
+            personId: entry.personId,
+            hours,
+            minutes,
+            isTangible: entry.isTangible,
+            dateOfWork: entry.dateOfWork,
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send({ message: 'Error fetching time entries for people reports', error });
+    }
+  };
+
   /**
    * Get time entries for a specified project
    */
@@ -1491,6 +1522,7 @@ const timeEntrycontroller = function (TimeEntry) {
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
     getTimeEntriesForProjectReports,
+    getTimeEntriesForPeopleReports,
   };
 };
 
