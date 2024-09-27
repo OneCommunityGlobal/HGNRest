@@ -19,11 +19,11 @@ function extractTextAndImgUrl(htmlString) {
 
   const textContent = $('body').text().replace(/\+/g, '').trim();
 
-  const imgUrls = $('img')
+  const imgSrcs = $('img')
     .map((i, img) => $(img).attr('src'))
     .get();
 
-  return { textContent, imgUrls };
+  return { textContent, imgSrcs };
 }
 
 async function getPinterestAccessToken(req, res) {
@@ -111,17 +111,32 @@ async function createPin(req, res) {
 
 async function createTweet(req, res) {
   const rwClient = TwitterClient.readWrite;
-  const { textContent, imgUrls } = extractTextAndImgUrl(req.body.EmailContent);
-
-  console.log('Create Tweet:', textContent, imgUrls);
-
-  console.log('#: ', TwitterClient);
+  const { textContent, imgSrcs } = extractTextAndImgUrl(req.body.EmailContent);
 
   try {
     const userInfo = await rwClient.v2.me();
     console.log('User Info:', userInfo);
-    const tweet = await rwClient.v2.tweet(textContent);
-    res.json({ success: true, data: tweet });
+
+    let mediaIds = [];
+    if (imgSrcs && imgSrcs.length > 0) {
+      console.log('Uploading media...');
+      mediaIds = await Promise.all(
+        imgSrcs.map(async (imgSrc) => {
+          const base64Data = imgSrc.replace(/^data:image\/\w+;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const mimeType = 'image/png';
+          return rwClient.v1.uploadMedia(buffer, { mimeType });
+        }),
+      );
+      console.log('Media uploaded, IDs:', mediaIds);
+    }
+
+    const tweet = await rwClient.v2.tweet({
+      text: textContent,
+      media: { media_ids: mediaIds },
+    });
+
+    res.json({ success: true, tweet });
   } catch (error) {
     console.error('Error posting tweet:', error);
     res.status(500).json({ success: false, error: error.message });
