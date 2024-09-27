@@ -1692,6 +1692,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
+    // console.log(userId, blueSquareId);
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
