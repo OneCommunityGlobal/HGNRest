@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../startup/logger');
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
@@ -1433,21 +1434,16 @@ const timeEntrycontroller = function (TimeEntry) {
     return newTotalIntangibleHrs;
   };
 
+  const recalculationTaskQueue = [];
+
   /**
-   * recalculate the hoursByCatefory for all users and update the field
+   * recalculate the hoursByCategory for all users and update the field
    */
-  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+  const recalculateHoursByCategoryAllUsers = async function (taskId) {
     const session = await mongoose.startSession();
     session.startTransaction();
-    let keepAliveInterval;
 
     try {
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Transfer-Encoding', 'chunked');
-      keepAliveInterval = setInterval(() => {
-        res.write('Processing... keep connection alive\n');
-      }, 150 * 1000); // interval of 150 seconds
-
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1458,19 +1454,57 @@ const timeEntrycontroller = function (TimeEntry) {
       await Promise.all(recalculationPromises);
 
       await session.commitTransaction();
-      clearInterval(keepAliveInterval);
-      res.write('finished the recalculation for hoursByCategory for all users\n');
-      return res.end();
+
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Completed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
     } catch (err) {
       await session.abortTransaction();
-      if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
       }
+
       logger.logException(err);
-      res.write(`error: ${err.toString()}\n`);
-      return res.end();
     } finally {
       session.endSession();
+    }
+  };
+
+  const startRecalculation = async function (req, res) {
+    const taskId = uuidv4();
+    recalculationTaskQueue.push({
+      taskId,
+      status: 'In progress',
+      startTime: new Date().toISOString(),
+      completionTime: null,
+    });
+    if (recalculationTaskQueue.length > 10) {
+      recalculationTaskQueue.shift();
+    }
+
+    res.status(200).send({
+      message: 'The recalculation task started in the background',
+      taskId,
+    });
+
+    setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0);
+  };
+
+  const checkRecalculationStatus = async function (req, res) {
+    const { taskId } = req.params;
+    const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+    if (recalculationTask) {
+      res.status(200).send({
+        status: recalculationTask.status,
+        startTime: recalculationTask.startTime,
+        completionTime: recalculationTask.completionTime,
+      });
+    } else {
+      res.status(404).send({ message: 'Task not found' });
     }
   };
 
@@ -1518,11 +1552,12 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForTeamList,
     backupHoursByCategoryAllUsers,
     backupIntangibleHrsAllUsers,
-    recalculateHoursByCategoryAllUsers,
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
     getTimeEntriesForProjectReports,
     getTimeEntriesForPeopleReports,
+    startRecalculation,
+    checkRecalculationStatus,
   };
 };
 
