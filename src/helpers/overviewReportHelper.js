@@ -16,6 +16,221 @@ function calculateGrowthPercentage(current, prev) {
 }
 
 const overviewReportHelper = function () {
+  /*
+   * Get volunteers completed assigned hours.
+   * aggregates the number of volunteers who met their weekly committed hours in the time periods provided
+   */
+  async function getVolunteersCompletedHours(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    if (comparisonStartDate && comparisonEndDate) {
+      const hoursStats = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $match: {
+                  isActive: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: 'timeEntries', // The collection to join
+                  localField: '_id', // Field from the userProfile collection
+                  foreignField: 'personId', // Field from the timeEntries collection
+                  as: 'timeEntries', // The array field that will contain the joined documents
+                },
+              },
+              {
+                $unwind: {
+                  path: '$timeEntries',
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $match: {
+                  $or: [
+                    { timeEntries: { $exists: false } },
+                    {
+                      'timeEntries.dateOfWork': {
+                        $gte: moment(startDate).format('YYYY-MM-DD'),
+                        $lte: moment(endDate).format('YYYY-MM-DD'),
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $group: {
+                  _id: '$_id',
+                  personId: { $first: '$_id' },
+                  totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+                  weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+                },
+              },
+              {
+                $project: {
+                  totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+                  weeklycommittedHours: 1, // make sure we include it in the end result
+                },
+              },
+              {
+                $project: {
+                  metCommitment: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+                },
+              },
+              {
+                $match: {
+                  metCommitment: true,
+                },
+              },
+              {
+                $count: 'metCommitment',
+              },
+            ],
+
+            comparison: [
+              {
+                $match: {
+                  isActive: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: 'timeEntries', // The collection to join
+                  localField: '_id', // Field from the userProfile collection
+                  foreignField: 'personId', // Field from the timeEntries collection
+                  as: 'timeEntries', // The array field that will contain the joined documents
+                },
+              },
+              {
+                $unwind: {
+                  path: '$timeEntries',
+                  preserveNullAndEmptyArrays: false,
+                },
+              },
+              {
+                $match: {
+                  $or: [
+                    // { timeEntries: { $exists: false } },
+                    {
+                      'timeEntries.dateOfWork': {
+                        $gte: moment(startDate).format('YYYY-MM-DD'),
+                        $lte: moment(endDate).format('YYYY-MM-DD'),
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $group: {
+                  _id: '$_id',
+                  personId: { $first: '$_id' },
+                  totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+                  weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+                },
+              },
+              {
+                $project: {
+                  totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+                  weeklycommittedHours: 1, // make sure we include it in the end result
+                },
+              },
+              {
+                $project: {
+                  metCommitment: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+                },
+              },
+              {
+                $match: {
+                  metCommitment: true,
+                },
+              },
+              {
+                $count: 'metCommitment',
+              },
+            ],
+          },
+        },
+      ]);
+
+      const data = {};
+      data.current = hoursStats[0]?.current[0]?.metCommitment || 0;
+      data.comparison = hoursStats[0]?.comparison[0]?.metCommitment || 0;
+      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
+
+      return data;
+    }
+
+    const hoursStats = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries', // The collection to join
+          localField: '_id', // Field from the userProfile collection
+          foreignField: 'personId', // Field from the timeEntries collection
+          as: 'timeEntries', // The array field that will contain the joined documents
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntries',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { timeEntries: { $exists: false } },
+            {
+              'timeEntries.dateOfWork': {
+                $gte: moment(startDate).format('YYYY-MM-DD'),
+                $lte: moment(endDate).format('YYYY-MM-DD'),
+              },
+            },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          personId: { $first: '$_id' },
+          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+          weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+        },
+      },
+      {
+        $project: {
+          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+          weeklycommittedHours: 1, // make sure we include it in the end result
+        },
+      },
+      {
+        $project: {
+          metCommitment: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+        },
+      },
+      {
+        $match: {
+          metCommitment: true,
+        },
+      },
+      {
+        $count: 'metCommitment',
+      },
+    ]);
+
+    const data = {};
+    data.current = hoursStats[0]?.metCommitment || 0;
+    return data;
+  }
   /**
    * Get volunteer trends by time.
    * Gets the total number of volunteer hours worked per month
@@ -1039,6 +1254,7 @@ const overviewReportHelper = function () {
     getActiveInactiveUsersCount,
     getVolunteerHoursStats,
     getTaskAndProjectStats,
+    getVolunteersCompletedHours,
   };
 };
 
