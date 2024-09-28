@@ -75,67 +75,66 @@ async function getListPins(req, res) {
     console.error('backend error: ', error);
   }
 }
-
+// TODO: IF scr is link?
 async function createPin(req, res) {
   const requestUrl = 'https://api-sandbox.pinterest.com/v5/pins';
   const authToken = req.body.Authorization;
   const { textContent, imgSrcs } = extractTextAndImgUrl(req.body.EmailContent);
+
+  if (imgSrcs.length === 0) {
+    return res.status(400).json({ message: 'No image found in the email content' });
+  }
+
   try {
-    let requestBody;
+    const baseRequestBody = {
+      title: 'Weekly Update',
+      description: textContent,
+      dominant_color: '#6E7874',
+      board_id: '1074812336009724062',
+    };
 
-    if (imgSrcs.length === 1) {
-      requestBody = JSON.stringify({
-        title: 'Weekly Update',
-        description: textContent,
-        dominant_color: '#6E7874',
-        board_id: '1074812336009724062',
-        media_source: {
-          source_type: 'image_base64',
-          content_type: 'image/jpeg',
-          data: imgSrcs[0].replace(/^data:image\/\w+;base64,/, ''),
-        },
-      });
-    } else {
-      const items = imgSrcs.map((imgSrc) => ({
-        content_type: 'image/jpeg',
-        data: imgSrc.replace(/^data:image\/\w+;base64,/, ''),
-      }));
+    const mediaSource =
+      imgSrcs.length === 1
+        ? {
+            source_type: 'image_base64',
+            content_type: 'image/jpeg',
+            data: imgSrcs[0].replace(/^data:image\/\w+;base64,/, ''),
+          }
+        : {
+            source_type: 'multiple_image_base64',
+            items: imgSrcs.map((imgSrc) => ({
+              content_type: 'image/jpeg',
+              data: imgSrc.replace(/^data:image\/\w+;base64,/, ''),
+            })),
+          };
 
-      requestBody = JSON.stringify({
-        title: 'Weekly Update',
-        description: textContent,
-        dominant_color: '#6E7874',
-        board_id: '1074812336009724062',
-        media_source: {
-          source_type: 'multiple_image_base64',
-          items,
-        },
-      });
-    }
+    const requestBody = JSON.stringify({
+      ...baseRequestBody,
+      media_source: mediaSource,
+    });
 
     const response = await fetch(requestUrl, {
       method: 'POST',
       headers: {
-        Authorization: `${authToken}`,
+        Authorization: authToken,
         'Content-Type': 'application/json',
       },
       body: requestBody,
     });
 
     const statusCode = response.status;
+    const responseData = await response.json();
 
     if (statusCode >= 200 && statusCode < 300) {
-      const data = await response.json();
-      res.status(200).json(data);
+      res.status(200).json(responseData);
     } else {
-      const errorData = await response.json();
-      console.error('Error creating pin: ', errorData.message);
+      console.error('[Backend] Error creating Pin: ', responseData.message);
       res.status(statusCode).json({
-        message: errorData.message || 'Unexpected error',
+        message: responseData.message || 'Unexpected error',
       });
     }
   } catch (error) {
-    console.error('Network or other error: ', error);
+    console.error('[Backend] Network or other error: ', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -166,7 +165,7 @@ async function createTweet(req, res) {
 
     res.status(200).json({ success: true, tweet });
   } catch (error) {
-    console.error('Network or other error: ', error);
+    console.error('[Backend] Network or other error: ', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
