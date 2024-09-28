@@ -143,15 +143,15 @@ const sendEmailToUser = (sendEmail, warningDescription, currentUserName, monitor
     sendEmail === 'issue warning'
       ? `<p>Hello ${currentUserName},</p>
          <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
-         <p>Please ensure this issue is resolved moving forward. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square if it happens again.</p>
-         <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them via email if you have any questions.</p>
+         <p>Moving forward, please ensure this issue is resolved. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
+         <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them using this email if you have any questions.</p>
          <p>With Gratitude,</p>
          <p>One Community</p>`
       : `<p>Hello ${currentUserName},</p>
          <p>A blue square has been issued because this is the ${ordinal} time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>.</p>
-         <p>Please ensure this issue is resolved moving forward. Repeated requests for the same thing require unnecessary administrative attention, will result in additional blue square being issued, and could lead to termination.</p>
+         <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
          <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
-         <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them via email.</p>
+         <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
          <p>With Gratitude,</p>
          <p>One Community</p>`;
 
