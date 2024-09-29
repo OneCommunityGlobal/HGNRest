@@ -1601,10 +1601,13 @@ const userProfileController = function (UserProfile, Project) {
 
   const updateUserInformation = async function (req,res){
     try {
-      const result = await UserProfile.findById(req.body.id);
-      result[req.body.item]=req.body.value
-      let newdata=await result.save()
-      res.status(200).send({ message: 'Update successful', newdata });
+      const data=req.body;
+      data.map(async (e)=>  {
+        let result = await UserProfile.findById(e.user_id);
+        result[e.item]=e.value
+        let newdata=await result.save()
+      })
+      res.status(200).send({ message: 'Update successful'});
     } catch (error) {
       console.log(error)
       return res.status(500)
