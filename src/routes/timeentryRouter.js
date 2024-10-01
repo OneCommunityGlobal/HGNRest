@@ -32,8 +32,10 @@ const routes = function (TimeEntry) {
   );
 
   TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/tangible').post(
-    controller.recalculateHoursByCategoryAllUsers,
+    controller.startRecalculation,
   );
+
+  TimeEntryRouter.route('/TimeEntry/checkStatus/:taskId').get(controller.checkRecalculationStatus);
 
   TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/intangible').post(
     controller.recalculateIntangibleHrsAllUsers,
