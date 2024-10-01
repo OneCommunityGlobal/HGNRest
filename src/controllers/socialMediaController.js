@@ -56,25 +56,6 @@ async function getPinterestAccessToken(req, res) {
   }
 }
 
-async function getListPins(req, res) {
-  const requestUrl = 'https://api-sandbox.pinterest.com/v5/pins';
-  const authToken = req.body.Authorization;
-
-  try {
-    const response = await fetch(requestUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `${authToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-    });
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error('backend error: ', error);
-  }
-}
 // TODO: IF scr is link?
 async function createPin(req, res) {
   const requestUrl = 'https://api-sandbox.pinterest.com/v5/pins';
@@ -172,7 +153,6 @@ async function createTweet(req, res) {
 
 module.exports = {
   getPinterestAccessToken,
-  getListPins,
   createPin,
   createTweet,
 };
