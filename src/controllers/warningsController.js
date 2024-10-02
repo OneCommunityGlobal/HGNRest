@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const currentWarnings = require('../models/currentWarnings');
 const emailSender = require('../utilities/emailSender');
-
+const userHelper = require('../helpers/userHelper')();
 let currentWarningDescriptions = null;
 let currentUserName = null;
 const emailTemplate = {
@@ -71,7 +71,7 @@ const warningsController = function (UserProfile) {
       }
 
       currentUserName = `${record.firstName} ${record.lastName}`;
-      //check warning id
+
       const updatedWarnings = await UserProfile.findByIdAndUpdate(
         {
           _id: userId,
@@ -87,8 +87,9 @@ const warningsController = function (UserProfile) {
         color,
       );
 
+      const adminEmails = await getUserRoleByEmail(record);
       if (sendEmail !== null) {
-        sendEmailToUser(sendEmail, description, currentUserName, monitorData, size);
+        sendEmailToUser(sendEmail, description, currentUserName, monitorData, size, adminEmails);
       }
 
       res.status(201).send({ message: 'success', warnings: completedData });
@@ -127,15 +128,34 @@ const warningsController = function (UserProfile) {
   };
 };
 
+//helper to get the team members admin emails
+async function getUserRoleByEmail(user) {
+  const recipients = [];
+  for (const teamId of user.teams) {
+    const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+    if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+      managementEmails.forEach((management) => {
+        recipients.push(management.email);
+      });
+    }
+  }
+  return recipients;
+}
+
 //helper function to get the ordinal
 function getOrdinal(n) {
   const suffixes = ['th', 'st', 'nd', 'rd'];
   const value = n % 100;
   return n + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
 }
-const sendEmailToUser = (sendEmail, warningDescription, currentUserName, monitorData, size) => {
-  //issued blue square? if so, send second tempalte
-  //
+const sendEmailToUser = (
+  sendEmail,
+  warningDescription,
+  currentUserName,
+  monitorData,
+  size,
+  adminEmails,
+) => {
   const ordinal = getOrdinal(size);
   const subjectTitle = ordinal + ' Warning';
 
@@ -156,23 +176,27 @@ const sendEmailToUser = (sendEmail, warningDescription, currentUserName, monitor
          <p>One Community</p>`;
 
   if (sendEmail === 'issue warning') {
-    emailSender('arevaloluis114@gmail.com', subjectTitle, emailTemplate, null, null);
+    emailSender(
+      'arevaloluis114@gmail.com',
+      subjectTitle,
+      emailTemplate,
+      adminEmails.toString(),
+      null,
+    );
   } else if (sendEmail === 'issue blue square') {
     emailSender(
       'arevaloluis114@gmail.com',
       `Blue Square issued for ${warningDescription}`,
       emailTemplate,
-      null,
+      adminEmails.toString(),
       null,
     );
   }
 };
 
 // gets the dsecriptions key from the array
-const getDescriptionKey = (val) =>
-  //  currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
+const getDescriptionKey = (val) => currentWarningDescriptions.indexOf(val);
 
-  currentWarningDescriptions.indexOf(val);
 const sortKeysAlphabetically = (a, b) => getDescriptionKey(a) - getDescriptionKey(b);
 
 // method to see which color is first
