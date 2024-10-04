@@ -70,7 +70,11 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'No valid records found' });
       }
 
-      currentUserName = `${record.firstName} ${record.lastName}`;
+      const userAssignedWarning = {
+        firstName: record.firstName,
+        lastName: record.lastName,
+        email: record.email,
+      };
 
       const updatedWarnings = await UserProfile.findByIdAndUpdate(
         {
@@ -89,7 +93,14 @@ const warningsController = function (UserProfile) {
 
       const adminEmails = await getUserRoleByEmail(record);
       if (sendEmail !== null) {
-        sendEmailToUser(sendEmail, description, currentUserName, monitorData, size, adminEmails);
+        sendEmailToUser(
+          sendEmail,
+          description,
+          userAssignedWarning,
+          monitorData,
+          size,
+          adminEmails,
+        );
       }
 
       res.status(201).send({ message: 'success', warnings: completedData });
@@ -151,7 +162,7 @@ function getOrdinal(n) {
 const sendEmailToUser = (
   sendEmail,
   warningDescription,
-  currentUserName,
+  userAssignedWarning,
   monitorData,
   size,
   adminEmails,
@@ -159,6 +170,7 @@ const sendEmailToUser = (
   const ordinal = getOrdinal(size);
   const subjectTitle = ordinal + ' Warning';
 
+  const currentUserName = `${userAssignedWarning.firstName} ${userAssignedWarning.lastName}`;
   const emailTemplate =
     sendEmail === 'issue warning'
       ? `<p>Hello ${currentUserName},</p>
@@ -177,7 +189,7 @@ const sendEmailToUser = (
 
   if (sendEmail === 'issue warning') {
     emailSender(
-      'arevaloluis114@gmail.com',
+      `${userAssignedWarning.email}`,
       subjectTitle,
       emailTemplate,
       adminEmails.toString(),
@@ -185,7 +197,7 @@ const sendEmailToUser = (
     );
   } else if (sendEmail === 'issue blue square') {
     emailSender(
-      'arevaloluis114@gmail.com',
+      `${userAssignedWarning.email}`,
       `Blue Square issued for ${warningDescription}`,
       emailTemplate,
       adminEmails.toString(),
