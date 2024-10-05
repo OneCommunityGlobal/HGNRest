@@ -105,7 +105,6 @@ const warningsController = function (UserProfile) {
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
-      console.log('error', error);
       res.status(400).send({ message: error.message || error });
     }
   };
@@ -150,7 +149,10 @@ async function getUserRoleByEmail(user) {
       });
     }
   }
-  return recipients;
+
+  const sortedList = [...new Set(recipients)];
+  console.log(sortedList);
+  return [...new Set(recipients)];
 }
 
 //helper function to get the ordinal
