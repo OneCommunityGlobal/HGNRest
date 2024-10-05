@@ -150,8 +150,6 @@ async function getUserRoleByEmail(user) {
     }
   }
 
-  const sortedList = [...new Set(recipients)];
-  console.log(sortedList);
   return [...new Set(recipients)];
 }
 
