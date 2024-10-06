@@ -326,6 +326,7 @@ const userProfileController = function (UserProfile, Project) {
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
+    up.teamCode = req.body.teamCode;
     up.createdDate = req.body.createdDate;
     up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
