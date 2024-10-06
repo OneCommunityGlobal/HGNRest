@@ -1063,38 +1063,74 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const getTimeEntriesForReports = function (req, res) {
+  const getTimeEntriesForReports =async function (req, res) {
     const { users, fromDate, toDate } = req.body;
 
-    TimeEntry.find(
-      {
-        personId: { $in: users },
-        dateOfWork: { $gte: fromDate, $lte: toDate },
-      },
-      ' -createdDateTime',
-    )
-      .populate('projectId')
+    // TimeEntry.find(
+    //   {
+    //     personId: { $in: users },
+    //     dateOfWork: { $gte: fromDate, $lte: toDate },
+    //   },
+    //   ' -createdDateTime',
+    // )
+    //   .populate('projectId')
 
-      .then((results) => {
-        const data = [];
+    //   .then((results) => {
+    //     const data = [];
 
-        results.forEach((element) => {
-          const record = {};
-          record._id = element._id;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId._id;
-          record.dateOfWork = element.dateOfWork;
-          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId ? element.projectId.projectName : '';
-          data.push(record);
-        });
+    //     results.forEach((element) => {
+    //       const record = {};
+    //       record._id = element._id;
+    //       record.isTangible = element.isTangible;
+    //       record.personId = element.personId._id;
+    //       record.dateOfWork = element.dateOfWork;
+    //       [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+    //       record.projectId = element.projectId ? element.projectId._id : '';
+    //       record.projectName = element.projectId ? element.projectId.projectName : '';
+    //       data.push(record);
+    //     });
 
-        res.status(200).send(data);
-      })
-      .catch((error) => {
-        res.status(400).send(error);
+    //     res.status(200).send(data);
+    //   })
+    //   .catch((error) => {
+    //     res.status(400).send(error);
+    //   });
+
+    try {
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        '-createdDateTime' // Exclude unnecessary fields
+      )
+        .lean() // Returns plain JavaScript objects, not Mongoose documents
+        .populate({
+          path: 'projectId',
+          select: '_id projectName', // Only return necessary fields from the project
+        })
+        .exec(); // Executes the query
+  
+      const data = results.map(element => {
+        const record = {
+          _id: element._id,
+          isTangible: element.isTangible,
+          personId: element.personId,
+          dateOfWork: element.dateOfWork,
+          hours: formatSeconds(element.totalSeconds)[0],
+          minutes: formatSeconds(element.totalSeconds)[1],
+          projectId: element.projectId?._id || '',
+          projectName: element.projectId?.projectName || '',
+        };
+        return record;
       });
+  
+      console.log("Function complete");
+      res.status(200).send(data);
+    } catch (error) {
+      console.error("Error:", error);
+      res.status(400).send(error);
+    }
   };
 
   const getTimeEntriesForProjectReports = function (req, res) {
@@ -1284,7 +1320,7 @@ const timeEntrycontroller = function (TimeEntry) {
         isActive: { $ne: false },
       },
       ' -createdDateTime',
-    )
+    ).lean()
       .populate('teamId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
