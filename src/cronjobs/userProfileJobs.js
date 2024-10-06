@@ -19,6 +19,16 @@ const userProfileJobs = () => {
       }
       await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
+    },
+    null,
+    false,
+    'America/Los_Angeles',
+  );
+
+  // Job to run every day, 1 minute past midnight to deactivate the user
+  const dailyUserDeactivateJobs = new CronJob(
+    '1 0 * * *', // Every day, 1 minute past midnight
+    async () => {
       await userhelper.deActivateUser();
     },
     null,
@@ -27,5 +37,6 @@ const userProfileJobs = () => {
   );
 
   allUserProfileJobs.start();
+  dailyUserDeactivateJobs.start();
 };
 module.exports = userProfileJobs;
