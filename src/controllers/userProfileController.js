@@ -196,38 +196,6 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(404).send(error));
   };
 
-  /**
-   * Controller function to retrieve basic user profile information.
-   * This endpoint checks if the user has the necessary permissions to access user profiles.
-   * If authorized, it queries the database to fetch only the required fields:
-   * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
-   */
-  const getUserProfileBasicInfo = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
-    }
-
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
-      .sort({
-        lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
-        }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
-      })
-      .catch((error) => res.status(404).send(error));
-  };
-
   const getProjectMembers = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'getProjectMembers'))) {
       res.status(403).send('You are not authorized to view all users');
@@ -920,9 +888,9 @@ const userProfileController = function (UserProfile, Project) {
           options: {
             sort: {
               date: -1, // Sort by date descending if needed
+              },
             },
           },
-        },
       ])
       .exec()
       .then((results) => {
@@ -1210,7 +1178,7 @@ const userProfileController = function (UserProfile, Project) {
       const setEndDate = dateObject;
       if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
         activeStatus = false;
-      } else if (moment().isBefore(moment(endDate).subtract(3, 'weeks'))) {
+      }else if(moment().isBefore(moment(endDate).subtract(3, 'weeks'))){
         emailThreeWeeksSent = true;
       }
     }
@@ -1794,6 +1762,7 @@ const userProfileController = function (UserProfile, Project) {
         .status(500)
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
+
   };
 
   return {
@@ -1824,7 +1793,6 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
-    getUserProfileBasicInfo,
   };
 };
 
