@@ -110,7 +110,7 @@ const teamcontroller = function (Team) {
         return;
       }
 
-      //Removed the permission check as the permission check if done in earlier
+      // Removed the permission check as the permission check if done in earlier
       // const canEditTeamCode =
       //   req.body.requestor.role === 'Owner' ||
       //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');

@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../startup/logger');
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
@@ -1096,6 +1097,72 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
+  const getTimeEntriesForProjectReports = function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+
+    // Fetch only necessary fields and avoid bringing the entire document
+    TimeEntry.find(
+      {
+        personId: { $in: users },
+        dateOfWork: { $gte: fromDate, $lte: toDate },
+      },
+      'totalSeconds isTangible dateOfWork projectId',
+    )
+      .populate('projectId', 'projectName _id')
+      .lean() // lean() for better performance as we don't need Mongoose document methods
+      .then((results) => {
+        const data = results.map((element) => {
+          const record = {
+            isTangible: element.isTangible,
+            dateOfWork: element.dateOfWork,
+            projectId: element.projectId ? element.projectId._id : '',
+            projectName: element.projectId ? element.projectId.projectName : '',
+          };
+
+          // Convert totalSeconds to hours and minutes
+          [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
+
+          return record;
+        });
+
+        res.status(200).send(data);
+      })
+      .catch((error) => {
+        res.status(400).send({ message: 'Error fetching time entries for project reports', error });
+      });
+  };
+
+  const getTimeEntriesForPeopleReports = async function (req, res) {
+    try {
+      const { users, fromDate, toDate } = req.body;
+
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        'personId totalSeconds isTangible dateOfWork',
+      ).lean(); // Use lean() for better performance
+
+      const data = results
+        .map((entry) => {
+          const [hours, minutes] = formatSeconds(entry.totalSeconds);
+          return {
+            personId: entry.personId,
+            hours,
+            minutes,
+            isTangible: entry.isTangible,
+            dateOfWork: entry.dateOfWork,
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send({ message: 'Error fetching time entries for people reports', error });
+    }
+  };
+
   /**
    * Get time entries for a specified project
    */
@@ -1367,21 +1434,16 @@ const timeEntrycontroller = function (TimeEntry) {
     return newTotalIntangibleHrs;
   };
 
+  const recalculationTaskQueue = [];
+
   /**
-   * recalculate the hoursByCatefory for all users and update the field
+   * recalculate the hoursByCategory for all users and update the field
    */
-  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+  const recalculateHoursByCategoryAllUsers = async function (taskId) {
     const session = await mongoose.startSession();
     session.startTransaction();
-    let keepAliveInterval;
 
     try {
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Transfer-Encoding', 'chunked');
-      keepAliveInterval = setInterval(() => {
-        res.write('Processing... keep connection alive\n');
-      }, 150 * 1000); // interval of 150 seconds
-
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1392,19 +1454,57 @@ const timeEntrycontroller = function (TimeEntry) {
       await Promise.all(recalculationPromises);
 
       await session.commitTransaction();
-      clearInterval(keepAliveInterval);
-      res.write('finished the recalculation for hoursByCategory for all users\n');
-      return res.end();
+
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Completed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
     } catch (err) {
       await session.abortTransaction();
-      if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
       }
+
       logger.logException(err);
-      res.write(`error: ${err.toString()}\n`);
-      return res.end();
     } finally {
       session.endSession();
+    }
+  };
+
+  const startRecalculation = async function (req, res) {
+    const taskId = uuidv4();
+    recalculationTaskQueue.push({
+      taskId,
+      status: 'In progress',
+      startTime: new Date().toISOString(),
+      completionTime: null,
+    });
+    if (recalculationTaskQueue.length > 10) {
+      recalculationTaskQueue.shift();
+    }
+
+    res.status(200).send({
+      message: 'The recalculation task started in the background',
+      taskId,
+    });
+
+    setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0);
+  };
+
+  const checkRecalculationStatus = async function (req, res) {
+    const { taskId } = req.params;
+    const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+    if (recalculationTask) {
+      res.status(200).send({
+        status: recalculationTask.status,
+        startTime: recalculationTask.startTime,
+        completionTime: recalculationTask.completionTime,
+      });
+    } else {
+      res.status(404).send({ message: 'Task not found' });
     }
   };
 
@@ -1452,9 +1552,12 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForTeamList,
     backupHoursByCategoryAllUsers,
     backupIntangibleHrsAllUsers,
-    recalculateHoursByCategoryAllUsers,
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
+    getTimeEntriesForProjectReports,
+    getTimeEntriesForPeopleReports,
+    startRecalculation,
+    checkRecalculationStatus,
   };
 };
 
