@@ -1796,6 +1796,42 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getUserByAutocomplete = (req, res) => {
+    const { searchText } = req.params;
+
+    if (!searchText) {
+      return res.status(400).send({ message: 'Search text is required' });
+    }
+
+    const regex = new RegExp(searchText, 'i'); // Case-insensitive regex for partial matching
+
+    UserProfile.find(
+      {
+        $or: [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$firstName', ' ', '$lastName'] },
+                regex: searchText,
+                options: 'i',
+              },
+            },
+          },
+        ],
+      },
+      '_id firstName lastName', // Projection to limit fields returned
+    )
+      .limit(10) // Limit results for performance
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(() => {
+        res.status(500).send({ error: 'Internal Server Error' });
+      });
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1824,6 +1860,7 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    getUserByAutocomplete,
     getUserProfileBasicInfo,
   };
 };
