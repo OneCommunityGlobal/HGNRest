@@ -196,6 +196,38 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(404).send(error));
   };
 
+  /**
+   * Controller function to retrieve basic user profile information.
+   * This endpoint checks if the user has the necessary permissions to access user profiles.
+   * If authorized, it queries the database to fetch only the required fields:
+   * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
+   */
+  const getUserProfileBasicInfo = async function (req, res) {
+    if (!(await checkPermission(req, 'getUserProfiles'))) {
+      forbidden(res, 'You are not authorized to view all users');
+      return;
+    }
+
+    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
+      .sort({
+        lastName: 1,
+      })
+      .then((results) => {
+        if (!results) {
+          if (cache.getCache('allusers')) {
+            const getData = JSON.parse(cache.getCache('allusers'));
+            res.status(200).send(getData);
+            return;
+          }
+          res.status(500).send({ error: 'User result was invalid' });
+          return;
+        }
+        cache.setCache('allusers', JSON.stringify(results));
+        res.status(200).send(results);
+      })
+      .catch((error) => res.status(404).send(error));
+  };
+
   const getProjectMembers = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'getProjectMembers'))) {
       res.status(403).send('You are not authorized to view all users');
@@ -1171,12 +1203,15 @@ const userProfileController = function (UserProfile, Project) {
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
     let activeStatus = status;
+    let emailThreeWeeksSent = false;
     if (endDate && status) {
       const dateObject = new Date(endDate);
       dateObject.setHours(dateObject.getHours() + 7);
       const setEndDate = dateObject;
       if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
         activeStatus = false;
+      } else if (moment().isBefore(moment(endDate).subtract(3, 'weeks'))) {
+        emailThreeWeeksSent = true;
       }
     }
     if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -1224,13 +1259,14 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName')
+    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
       .then((user) => {
         user.set({
           isActive: activeStatus,
           reactivationDate: activationDate,
           endDate,
           isSet,
+          finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
         user
           .save()
@@ -1255,6 +1291,7 @@ const userProfileController = function (UserProfile, Project) {
               recipients,
               isSet,
               activationDate,
+              emailThreeWeeksSent,
             );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
@@ -1655,6 +1692,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
+    // console.log(userId, blueSquareId);
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1823,6 +1861,7 @@ const userProfileController = function (UserProfile, Project) {
     getAllTeamCode,
     getAllTeamCodeHelper,
     getUserByAutocomplete,
+    getUserProfileBasicInfo,
   };
 };
 
