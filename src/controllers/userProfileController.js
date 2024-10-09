@@ -603,7 +603,7 @@ const userProfileController = function (UserProfile, Project) {
         });
 
         if (req.body.missedHours !== undefined) {
-          record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
+          record.missedHours = req.body.role === 'Core Team' ? (req.body?.missedHours ?? 0) : 0;
         }
 
         if (req.body.teams !== undefined) {
@@ -1485,6 +1485,7 @@ const userProfileController = function (UserProfile, Project) {
       permissions: user.permissions,
       access: {
         canAccessBMPortal: false,
+        canAccessBiddingPortal: false,
       },
       expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
     };

@@ -54,6 +54,7 @@ const logincontroller = function () {
             permissions: user.permissions,
             access: {
               canAccessBMPortal: false,
+              canAccessBiddingPortal: false,
             },
             email: user.email,
             expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
