@@ -373,7 +373,8 @@ const userProfileController = function (UserProfile, Project) {
     up.isFirstTimelog = true;
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
-
+    up.teamCode = req.body.teamCode;
+    
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
