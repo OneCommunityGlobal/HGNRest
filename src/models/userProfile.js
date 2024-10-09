@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default () {
+    default() {
       return this.createdDate;
     },
   },
