@@ -1,5 +1,4 @@
 // emailController.js
-const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
@@ -14,8 +13,16 @@ const sendEmail = async (req, res) => {
 
     console.log('to', to);
 
-    emailSender(to, subject, html);
-    return res.status(200).send('Email sent successfully');
+    await emailSender(to, subject, html)
+      .then(result => {
+        console.log('Email sent successfully:', result);
+        res.status(200).send(`Email sent successfully to ${to}`);
+      })
+      .catch(error => {
+        console.error('Error sending email:', error);
+        res.status(500).send('Error sending email');
+      });
+
   } catch (error) {
     console.error('Error sending email:', error);
     return res.status(500).send('Error sending email');
