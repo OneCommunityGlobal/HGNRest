@@ -1686,37 +1686,82 @@ const userProfileController = function (UserProfile, Project) {
     });
   };
 
-  const deleteInfringements = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
-      res.status(403).send('You are not authorized to delete blue square');
-      return;
-    }
-    const { userId, blueSquareId } = req.params;
-    // console.log(userId, blueSquareId);
+  // const deleteInfringements = async function (req, res) {
+  //   if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+  //     res.status(403).send('You are not authorized to delete blue square');
+  //     return;
+  //   }
+  //   const { userId, blueSquareId } = req.params;
+  //   // console.log(userId, blueSquareId);
 
-    UserProfile.findById(userId, async (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
+  //   UserProfile.findById(userId, async (err, record) => {
+  //     if (err || !record) {
+  //       res.status(404).send('No valid records found');
+  //       return;
+  //     }
+
+  //     const originalinfringements = record?.infringements ?? [];
+
+  //     record.infringements = originalinfringements.filter(
+  //       (infringement) => !infringement._id.equals(blueSquareId),
+  //     );
+
+  //     record
+  //       .save()
+  //       .then((results) => {
+  //         userHelper.notifyInfringements(originalinfringements, results.infringements);
+  //         res.status(200).json({
+  //           _id: record._id,
+  //         });
+  //       })
+  //       .catch((error) => res.status(400).send(error));
+  //   });
+  // };
+
+  
+/*
+Used async/await consistently, removing the callback approach from findById.
+Simplified error handling by wrapping the entire block in a try/catch.
+Replaced redundant return statements with direct res responses for permission and record checks.
+Improved readability and structure by removing unnecessary comments and logs.
+
+*/
+
+  const deleteInfringements = async (req, res) => {
+    try {
+      // Check permissions
+      if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+        return res.status(403).send('You are not authorized to delete blue square');
       }
-
-      const originalinfringements = record?.infringements ?? [];
-
-      record.infringements = originalinfringements.filter(
-        (infringement) => !infringement._id.equals(blueSquareId),
+  
+      const { userId, blueSquareId } = req.params;
+      const record = await UserProfile.findById(userId).exec();
+  
+      // Check if the record exists
+      if (!record) {
+        return res.status(404).send('No valid records found');
+      }
+  
+      const originalInfringements = record.infringements || [];
+  
+      // Filter out the infringement to be deleted
+      record.infringements = originalInfringements.filter(
+        (infringement) => !infringement._id.equals(blueSquareId)
       );
-
-      record
-        .save()
-        .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
-          res.status(200).json({
-            _id: record._id,
-          });
-        })
-        .catch((error) => res.status(400).send(error));
-    });
+  
+      // Save the updated record
+      const updatedRecord = await record.save();
+  
+      // Notify about the updated infringements
+      userHelper.notifyInfringements(originalInfringements, updatedRecord.infringements);
+  
+      // Respond with success
+      res.status(200).json({ _id: updatedRecord._id });
+    } catch (error) {
+      res.status(400).send(error.message);
+    }
   };
+  
 
   const getProjectsByPerson = async function (req, res) {
     try {
