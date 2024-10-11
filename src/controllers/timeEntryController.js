@@ -1065,37 +1065,6 @@ const timeEntrycontroller = function (TimeEntry) {
 
   const getTimeEntriesForReports =async function (req, res) {
     const { users, fromDate, toDate } = req.body;
-
-    // TimeEntry.find(
-    //   {
-    //     personId: { $in: users },
-    //     dateOfWork: { $gte: fromDate, $lte: toDate },
-    //   },
-    //   ' -createdDateTime',
-    // )
-    //   .populate('projectId')
-
-    //   .then((results) => {
-    //     const data = [];
-
-    //     results.forEach((element) => {
-    //       const record = {};
-    //       record._id = element._id;
-    //       record.isTangible = element.isTangible;
-    //       record.personId = element.personId._id;
-    //       record.dateOfWork = element.dateOfWork;
-    //       [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-    //       record.projectId = element.projectId ? element.projectId._id : '';
-    //       record.projectName = element.projectId ? element.projectId.projectName : '';
-    //       data.push(record);
-    //     });
-
-    //     res.status(200).send(data);
-    //   })
-    //   .catch((error) => {
-    //     res.status(400).send(error);
-    //   });
-
     try {
       const results = await TimeEntry.find(
         {
@@ -1124,11 +1093,8 @@ const timeEntrycontroller = function (TimeEntry) {
         };
         return record;
       });
-  
-      console.log("Function complete");
       res.status(200).send(data);
     } catch (error) {
-      console.error("Error:", error);
       res.status(400).send(error);
     }
   };
