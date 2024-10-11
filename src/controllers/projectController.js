@@ -1,4 +1,3 @@
-
 /* eslint-disable quotes */
 /* eslint-disable arrow-parens */
 const mongoose = require('mongoose');
@@ -25,6 +24,19 @@ const projectController = function (Project) {
     }
   };
 
+  const getArchivedProjects = async function (req, res) {
+    try {
+      const archivedProjects = await Project.find(
+        { isArchived: true },
+        'projectName isActive category modifiedDatetime membersModifiedDatetime isArchived',
+      ).sort({ modifiedDatetime: -1 });
+      res.status(200).send(archivedProjects);
+    } catch (error) {
+      logger.logException(error);
+      res.status(404).send('Error fetching archived projects. Please try again.');
+    }
+  };
+
   const deleteProject = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'deleteProject'))) {
       res.status(403).send({ error: 'You are not authorized to delete projects.' });
@@ -33,21 +45,17 @@ const projectController = function (Project) {
     const { projectId } = req.params;
     Project.findById(projectId, (error, record) => {
       if (error || !record || record === null || record.length === 0) {
-
         res.status(400).send({ error: 'No valid records found' });
 
         return;
       }
       // find if project has any time entries associated with it
-
-
       timeentry.find({ projectId: record._id }, '_id').then((timeentries) => {
         if (timeentries.length > 0) {
           res.status(400).send({
             error:
               'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
           });
-
         } else {
           const removeprojectfromprofile = userProfile
             .updateMany({}, { $pull: { projects: record._id } })
@@ -56,11 +64,9 @@ const projectController = function (Project) {
 
           Promise.all([removeprojectfromprofile, removeproject])
             .then(
-
               res.status(200).send({
                 message: 'Project successfully deleted and user profiles updated.',
               }),
-
             )
             .catch((errors) => {
               res.status(400).send(errors);
@@ -73,7 +79,6 @@ const projectController = function (Project) {
   };
 
   const postProject = async function (req, res) {
-
     if (!(await hasPermission(req.body.requestor, 'postProject'))) {
       return res.status(401).send('You are not authorized to create new projects.');
     }
@@ -113,7 +118,7 @@ const projectController = function (Project) {
   };
 
   const putProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "editProject"))) {
+    if (!(await hasPermission(req.body.requestor, 'editProject'))) {
       if (!(await hasPermission(req.body.requestor, 'putProject'))) {
         res.status(403).send('You are not authorized to make changes in the projects.');
         return;
@@ -140,8 +145,8 @@ const projectController = function (Project) {
       targetProject.category = category;
       targetProject.isActive = isActive;
       targetProject.modifiedDatetime = Date.now();
+      targetProject.isArchived = isArchived;
       if (isArchived) {
-        targetProject.isArchived = isArchived;
         // deactivate wbs within target project
         await wbs.updateMany({ projectId }, { isActive: false }, { session });
         // deactivate tasks within affected wbs
@@ -159,6 +164,21 @@ const projectController = function (Project) {
         );
         // deactivate timeentry for affected tasks
         await timeentry.updateMany({ projectId }, { isActive: false }, { session });
+      } else {
+        // reactivate wbs within target project
+        await wbs.updateMany({ projectId }, { isActive: true }, { session });
+        // reactivate tasks within affected wbs
+        const activatedwbsIds = await wbs.find({ projectId }, '_id');
+        await task.updateMany({ wbsId: { $in: activatedwbsIds } }, { isActive: true }, { session });
+
+        // readd project from userprofiles.projects array
+        await userProfile.updateMany(
+          { projects: { $ne: projectId } },
+          { $addToSet: { projects: projectId } },
+          { session },
+        );
+        // activate timeentry for affected tasks
+        await timeentry.updateMany({ projectId }, { isActive: true }, { session });
       }
       await targetProject.save({ session });
       await session.commitTransaction();
@@ -213,7 +233,6 @@ const projectController = function (Project) {
       logger.logException(error);
       res.status(400).send('Error fetching projects. Please try again.');
     }
-
   };
 
   const assignProjectToUsers = async function (req, res) {
@@ -230,7 +249,6 @@ const projectController = function (Project) {
       !req.body.users ||
       req.body.users.length === 0
     ) {
-
       res.status(400).send('Invalid request');
       return;
     }
@@ -273,7 +291,7 @@ const projectController = function (Project) {
 
         Promise.all([assignPromise, unassignPromise])
           .then(() => {
-            res.status(200).send({ result: "Done" });
+            res.status(200).send({ result: 'Done' });
           })
           .catch((error) => {
             res.status(500).send({ error });
@@ -294,14 +312,14 @@ const projectController = function (Project) {
 
     const getProjMembers = await hasPermission(req.body.requestor, 'getProjectMembers');
 
-    // If a user has permission to post, edit, or suggest tasks, they also have the ability to assign resources to those tasks. 
+    // If a user has permission to post, edit, or suggest tasks, they also have the ability to assign resources to those tasks.
     // Therefore, the _id field must be included when retrieving the user profile for project members (resources).
     const postTask = await hasPermission(req.body.requestor, 'postTask');
     const updateTask = await hasPermission(req.body.requestor, 'updateTask');
     const suggestTask = await hasPermission(req.body.requestor, 'suggestTask');
 
-    const getId = (getProjMembers || postTask || updateTask || suggestTask);
-    
+    const getId = getProjMembers || postTask || updateTask || suggestTask;
+
     userProfile
       .find(
         { projects: projectId },
@@ -325,6 +343,7 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    getArchivedProjects,
   };
 };
 
