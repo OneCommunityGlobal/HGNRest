@@ -140,7 +140,8 @@ const warningsController = function (UserProfile) {
 
 //helper to get the team members admin emails
 async function getUserRoleByEmail(user) {
-  const recipients = ['onecommunityglobal@gmail.com'];
+  //replacement for jae's email
+  const recipients = ['test@test.com'];
   for (const teamId of user.teams) {
     const managementEmails = await userHelper.getTeamManagementEmail(teamId);
     if (Array.isArray(managementEmails) && managementEmails.length > 0) {
