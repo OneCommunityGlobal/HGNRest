@@ -1839,8 +1839,8 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
-    updateUserInformation
-    getUserProfileBasicInfo,
+    updateUserInformation,
+    getUserProfileBasicInfo
   };
 };
 
