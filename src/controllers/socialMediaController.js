@@ -5,15 +5,6 @@ const cheerio = require('cheerio');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const { TwitterApi } = require('twitter-api-v2');
 
-const TwitterClient = new TwitterApi({
-  appKey: process.env.REACT_APP_TWITTER_APP_KEY,
-  appSecret: process.env.REACT_APP_TWITTER_APP_SECRET,
-  accessToken: process.env.REACT_APP_TWITTER_ACCESS_TOKEN,
-  accessSecret: process.env.REACT_APP_TWITTER_ACCESS_SECRET,
-});
-
-// const TwitterClient = new TwitterApi(process.env.REACT_APP_TWITTER_TOKEN);
-
 function extractTextAndImgUrl(htmlString) {
   const $ = cheerio.load(htmlString);
 
@@ -56,6 +47,39 @@ async function getPinterestAccessToken(req, res) {
   }
 }
 
+async function getTwitterAccessToken(req, res) {
+  const twitterOAuth = new TwitterApi({
+    clientId: process.env.REACT_APP_TWITTER_CLIENT_ID,
+    clientSecret: process.env.REACT_APP_TWITTER_CLIENT_SECRET,
+  });
+
+  const { code, state, codeVerifier } = req.body;
+
+  if (!code || !state || !codeVerifier) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+
+  try {
+    twitterOAuth
+      .loginWithOAuth2({ code, codeVerifier, redirectUri: 'http://localhost:3000/announcements' })
+      .then(async ({ client: loggedClient, accessToken, expiresIn, scope }) => {
+        try {
+          const { data } = await loggedClient.v2.me();
+          console.log('User data:', data);
+          console.log('scope:', scope);
+          res.json({
+            access_token: accessToken,
+            expires_in: expiresIn,
+          });
+        } catch (error) {
+          console.error('API Error:', error);
+        }
+      });
+  } catch (error) {
+    console.error('Error exchanging code for token:', error);
+    res.status(500).json({ error: 'Failed to obtain access token' });
+  }
+}
 // TODO: IF scr is link?
 async function createPin(req, res) {
   const requestUrl = 'https://api-sandbox.pinterest.com/v5/pins';
@@ -121,8 +145,16 @@ async function createPin(req, res) {
 }
 
 async function createTweet(req, res) {
+  const TwitterClient = new TwitterApi({
+    appKey: process.env.REACT_APP_TWITTER_APP_KEY,
+    appSecret: process.env.REACT_APP_TWITTER_APP_SECRET,
+    accessToken: process.env.REACT_APP_TWITTER_ACCESS_TOKEN,
+    accessSecret: process.env.REACT_APP_TWITTER_ACCESS_SECRET,
+  });
+
   const rwClient = TwitterClient.readWrite;
   const { textContent, imgSrcs } = extractTextAndImgUrl(req.body.EmailContent);
+  console.log('Text content:', textContent);
 
   try {
     let mediaIds = [];
@@ -138,10 +170,11 @@ async function createTweet(req, res) {
       );
       console.log('Media uploaded, IDs:', mediaIds);
     }
+    console.log('Hello:');
 
     const tweet = await rwClient.v2.tweet({
       text: textContent,
-      media: { media_ids: mediaIds },
+      // media: { media_ids: mediaIds },
     });
 
     res.status(200).json({ success: true, tweet });
@@ -153,6 +186,7 @@ async function createTweet(req, res) {
 
 module.exports = {
   getPinterestAccessToken,
+  getTwitterAccessToken,
   createPin,
   createTweet,
 };
