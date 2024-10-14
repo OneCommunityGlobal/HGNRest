@@ -172,7 +172,6 @@ async function createTweet(req, res) {
 
   const rwClient = TwitterClient.readWrite;
   const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
-  console.log('Text content:', textContent);
 
   try {
     let mediaIds = [];
@@ -213,11 +212,14 @@ async function createTweet(req, res) {
       mediaIds = mediaIds.concat(base64MediaIds.filter((id) => id !== null));
       console.log('Base64 media uploaded, IDs:', mediaIds);
     }
-    // TODO: mediaIds.length === 0
-    const tweet = await rwClient.v2.tweet({
-      text: textContent,
-      media: { media_ids: mediaIds },
-    });
+
+    const tweetOptions = { text: textContent };
+
+    if (mediaIds && mediaIds.length > 0) {
+      tweetOptions.media = { media_ids: mediaIds };
+    }
+
+    const tweet = await rwClient.v2.tweet(tweetOptions);
 
     res.status(200).json({ success: true, tweet });
   } catch (error) {
