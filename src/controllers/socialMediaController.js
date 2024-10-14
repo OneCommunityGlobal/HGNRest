@@ -98,7 +98,7 @@ async function getTwitterAccessToken(req, res) {
     res.status(500).json({ error: 'Failed to obtain access token' });
   }
 }
-// TODO: IF scr is link?
+
 async function createPin(req, res) {
   const requestUrl = 'https://api-sandbox.pinterest.com/v5/pins';
   const authToken = req.body.Authorization;
