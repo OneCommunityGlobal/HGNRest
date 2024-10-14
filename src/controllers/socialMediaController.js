@@ -9,12 +9,30 @@ function extractTextAndImgUrl(htmlString) {
   const $ = cheerio.load(htmlString);
 
   const textContent = $('body').text().replace(/\+/g, '').trim();
+  const urlSrcs = [];
+  const base64Srcs = [];
 
-  const imgSrcs = $('img')
-    .map((i, img) => $(img).attr('src'))
-    .get();
+  $('img').each((i, img) => {
+    const src = $(img).attr('src');
+    if (src) {
+      if (src.startsWith('data:image')) {
+        base64Srcs.push(src);
+      } else {
+        urlSrcs.push(src);
+      }
+    }
+  });
 
-  return { textContent, imgSrcs };
+  return { textContent, urlSrcs, base64Srcs };
+}
+
+async function downloadImage(url) {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    mimeType: response.headers.get('content-type'),
+  };
 }
 
 async function getPinterestAccessToken(req, res) {
@@ -153,28 +171,52 @@ async function createTweet(req, res) {
   });
 
   const rwClient = TwitterClient.readWrite;
-  const { textContent, imgSrcs } = extractTextAndImgUrl(req.body.EmailContent);
+  const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
   console.log('Text content:', textContent);
 
   try {
     let mediaIds = [];
-    if (imgSrcs && imgSrcs.length > 0) {
-      console.log('Uploading media...');
-      mediaIds = await Promise.all(
-        imgSrcs.map(async (imgSrc) => {
-          const base64Data = imgSrc.replace(/^data:image\/\w+;base64,/, '');
-          const buffer = Buffer.from(base64Data, 'base64');
-          const mimeType = 'image/png';
-          return rwClient.v1.uploadMedia(buffer, { mimeType });
+    // src type is url
+    if (urlSrcs && urlSrcs.length > 0) {
+      console.log('Uploading URL media...');
+      const urlMediaIds = await Promise.all(
+        urlSrcs.map(async (imageUrl) => {
+          try {
+            const { buffer, mimeType } = await downloadImage(imageUrl);
+            return await rwClient.v1.uploadMedia(buffer, { mimeType });
+          } catch (error) {
+            console.error(`Error uploading URL image: ${imageUrl}`, error);
+            return null;
+          }
         }),
       );
-      console.log('Media uploaded, IDs:', mediaIds);
+      mediaIds = mediaIds.concat(urlMediaIds.filter((id) => id !== null));
+      console.log('URL media uploaded, IDs:', mediaIds);
     }
-    console.log('Hello:');
 
+    // src type is base64
+    if (base64Srcs && base64Srcs.length > 0) {
+      console.log('Uploading base64 media...');
+      const base64MediaIds = await Promise.all(
+        base64Srcs.map(async (imgSrc) => {
+          try {
+            const base64Data = imgSrc.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            const mimeType = imgSrc.split(';')[0].split(':')[1] || 'image/png';
+            return await rwClient.v1.uploadMedia(buffer, { mimeType });
+          } catch (error) {
+            console.error('Error uploading base64 image', error);
+            return null;
+          }
+        }),
+      );
+      mediaIds = mediaIds.concat(base64MediaIds.filter((id) => id !== null));
+      console.log('Base64 media uploaded, IDs:', mediaIds);
+    }
+    // TODO: mediaIds.length === 0
     const tweet = await rwClient.v2.tweet({
       text: textContent,
-      // media: { media_ids: mediaIds },
+      media: { media_ids: mediaIds },
     });
 
     res.status(200).json({ success: true, tweet });
