@@ -102,10 +102,17 @@ async function getTwitterAccessToken(req, res) {
 async function createPin(req, res) {
   const requestUrl = 'https://api-sandbox.pinterest.com/v5/pins';
   const authToken = req.body.Authorization;
-  const { textContent, imgSrcs } = extractTextAndImgUrl(req.body.EmailContent);
+  const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
 
-  if (imgSrcs.length === 0) {
+  if (urlSrcs.length === 0 && base64Srcs.length === 0) {
     return res.status(400).json({ message: 'No image found in the email content' });
+  }
+
+  if (urlSrcs.length > 0 && base64Srcs.length > 0) {
+    return res.status(400).json({
+      message:
+        'Both URL and base64 images found in the email content. Please choose only one type.',
+    });
   }
 
   try {
@@ -116,20 +123,37 @@ async function createPin(req, res) {
       board_id: '1074812336009724062',
     };
 
-    const mediaSource =
-      imgSrcs.length === 1
-        ? {
-            source_type: 'image_base64',
-            content_type: 'image/jpeg',
-            data: imgSrcs[0].replace(/^data:image\/\w+;base64,/, ''),
-          }
-        : {
-            source_type: 'multiple_image_base64',
-            items: imgSrcs.map((imgSrc) => ({
-              content_type: 'image/jpeg',
-              data: imgSrc.replace(/^data:image\/\w+;base64,/, ''),
-            })),
-          };
+    let mediaSource = {};
+
+    if (base64Srcs.length !== 0) {
+      mediaSource =
+        base64Srcs.length === 1
+          ? {
+              source_type: 'image_base64',
+              content_type: base64Srcs[0].split(';')[0].split(':')[1] || 'image/png',
+              data: base64Srcs[0].replace(/^data:image\/\w+;base64,/, ''),
+            }
+          : {
+              source_type: 'multiple_image_base64',
+              items: base64Srcs.map((imgSrc) => ({
+                content_type: imgSrc.split(';')[0].split(':')[1] || 'image/png',
+                data: imgSrc.replace(/^data:image\/\w+;base64,/, ''),
+              })),
+            };
+    }
+
+    if (urlSrcs.length !== 0) {
+      mediaSource =
+        urlSrcs.length === 1
+          ? {
+              source_type: 'image_url',
+              url: urlSrcs[0],
+            }
+          : {
+              source_type: 'multiple_image_urls',
+              items: urlSrcs.map((url) => ({ url })),
+            };
+    }
 
     const requestBody = JSON.stringify({
       ...baseRequestBody,
