@@ -38,7 +38,6 @@ async function ValidatePassword(req, res) {
     });
     return;
   }
-
   // Verify correct params in body
   if (!req.body.newpassword || !req.body.confirmnewpassword) {
     res.status(400).send({
@@ -46,11 +45,12 @@ async function ValidatePassword(req, res) {
     });
     return;
   }
+
+  const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
+  const canReset = await hasPermission(req.body.requestor, 'resetPassword');
+
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId !== requestor.requestorId && !canUpdate && !canReset) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -58,16 +58,12 @@ async function ValidatePassword(req, res) {
   }
 
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId === requestor.requestorId || !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
     return;
   }
-
   // Verify new and confirm new password are correct
   if (req.body.newpassword !== req.body.confirmnewpassword) {
     res.status(400).send({
@@ -1377,19 +1373,22 @@ const userProfileController = function (UserProfile, Project) {
 
   const resetPassword = async function (req, res) {
     try {
-      ValidatePassword(req);
+      const { userId } = req.params;
+      const { requestor } = req.body;
 
-      const requestor = await UserProfile.findById(req.body.requestor.requestorId)
-        .select('firstName lastName email role')
-        .exec();
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).send({
+          error: 'Bad Request',
+        });
+      }
 
-      if (!requestor) {
-        res.status(404).send({ error: 'Requestor not found' });
+      // Verify request is authorized by self or adminsitrator
+      if (!(await hasPermission(requestor, 'resetPassword'))) {
+        res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
-      const user = await UserProfile.findById(req.params.userId)
-
+      const user = await UserProfile.findById(userId)
         .select('firstName lastName email role')
         .exec();
 
