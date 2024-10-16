@@ -2,6 +2,7 @@
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
+const { hasPermission } = require('../utilities/permissions');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 
@@ -9,7 +10,9 @@ const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
 
 const sendEmail = async (req, res) => {
+  console.log("Check");
   const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
+  console.log("After has permission")
   if (!canSendEmail) {
     res.status(403).send('You are not authorized to send emails.');
     return;
