@@ -4,6 +4,7 @@ const { Schema } = mongoose;
 
 const title = new Schema({
   titleName: { type: String, required: true },
+  titleCode: { type: String, required: true },
   teamCode: { type: String, require: true },
   projectAssigned: {
     projectName: { type: String, required: true },
@@ -13,8 +14,7 @@ const title = new Schema({
   teamAssiged: {
     teamName: { type: String },
     _id: { type: String },
-   },
-  shortName: { type: String, require: true },
+  },
 
 });
 
