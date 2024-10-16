@@ -10,9 +10,7 @@ const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
 
 const sendEmail = async (req, res) => {
-  console.log("Check");
   const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
-  console.log("After has permission")
   if (!canSendEmail) {
     res.status(403).send('You are not authorized to send emails.');
     return;
