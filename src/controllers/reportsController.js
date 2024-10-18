@@ -20,10 +20,20 @@ const reportsController = function () {
    * In teams stats
    */
   const getVolunteerStatsData = async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
+
     if (!startDate || !endDate) {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
+
+    let isoComparisonStartDate;
+    let isoComparisonEndDate;
+
+    if (comparisonStartDate && comparisonEndDate) {
+      isoComparisonStartDate = new Date(comparisonStartDate);
+      isoComparisonEndDate = new Date(comparisonEndDate);
+    }
+
     const isoStartDate = new Date(startDate);
     const isoEndDate = new Date(endDate);
 
@@ -41,19 +51,58 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
+        volunteerTrends,
+        completedHours,
       ] = await Promise.all([
-        overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
-        overviewReportHelper.getTasksStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getWorkDistributionStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getVolunteerNumberStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getHoursStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalHoursWorked(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTasksStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getWorkDistributionStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getRoleDistributionStats(),
         overviewReportHelper.getTeamMembersCount(),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
         overviewReportHelper.getAnniversaries(startDate, endDate),
-        overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate),
-        overviewReportHelper.getTotalActiveTeamCount(),
+        overviewReportHelper.getTotalBadgesAwardedCount(
+          startDate,
+          endDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getMapLocations(),
+        overviewReportHelper.getVolunteerTrends(),
+        overviewReportHelper.getVolunteersCompletedHours(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -68,6 +117,8 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
+        volunteerTrends,
+        completedHours,
       });
     } catch (err) {
       console.log(err);

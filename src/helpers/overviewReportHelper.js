@@ -1,11 +1,280 @@
 /* eslint-disable no-plusplus */
 /* eslint-disable quotes */
+/* eslint-disable no-use-before-define */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable guard-for-in */
+const moment = require('moment');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
 const TimeEntries = require('../models/timeentry');
 const Task = require('../models/task');
+const Project = require('../models/project');
+
+function calculateGrowthPercentage(current, prev) {
+  const percentage = (current - prev) / prev;
+  return Math.round(percentage * 100) / 100;
+}
 
 const overviewReportHelper = function () {
+  /*
+   * Get volunteers completed assigned hours.
+   * aggregates the number of volunteers who met their weekly committed hours in the time periods provided
+   */
+  async function getVolunteersCompletedHours(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    if (comparisonStartDate && comparisonEndDate) {
+      const hoursStats = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $match: {
+                  isActive: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: 'timeEntries', // The collection to join
+                  localField: '_id', // Field from the userProfile collection
+                  foreignField: 'personId', // Field from the timeEntries collection
+                  as: 'timeEntries', // The array field that will contain the joined documents
+                },
+              },
+              {
+                $unwind: {
+                  path: '$timeEntries',
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $match: {
+                  $or: [
+                    { timeEntries: { $exists: false } },
+                    {
+                      'timeEntries.dateOfWork': {
+                        $gte: moment(startDate).format('YYYY-MM-DD'),
+                        $lte: moment(endDate).format('YYYY-MM-DD'),
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $group: {
+                  _id: '$_id',
+                  personId: { $first: '$_id' },
+                  totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+                  weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+                },
+              },
+              {
+                $project: {
+                  totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+                  weeklycommittedHours: 1, // make sure we include it in the end result
+                },
+              },
+              {
+                $project: {
+                  metCommitment: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+                },
+              },
+              {
+                $match: {
+                  metCommitment: true,
+                },
+              },
+              {
+                $count: 'metCommitment',
+              },
+            ],
+
+            comparison: [
+              {
+                $match: {
+                  isActive: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: 'timeEntries', // The collection to join
+                  localField: '_id', // Field from the userProfile collection
+                  foreignField: 'personId', // Field from the timeEntries collection
+                  as: 'timeEntries', // The array field that will contain the joined documents
+                },
+              },
+              {
+                $unwind: {
+                  path: '$timeEntries',
+                  preserveNullAndEmptyArrays: false,
+                },
+              },
+              {
+                $match: {
+                  $or: [
+                    // { timeEntries: { $exists: false } },
+                    {
+                      'timeEntries.dateOfWork': {
+                        $gte: moment(startDate).format('YYYY-MM-DD'),
+                        $lte: moment(endDate).format('YYYY-MM-DD'),
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $group: {
+                  _id: '$_id',
+                  personId: { $first: '$_id' },
+                  totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+                  weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+                },
+              },
+              {
+                $project: {
+                  totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+                  weeklycommittedHours: 1, // make sure we include it in the end result
+                },
+              },
+              {
+                $project: {
+                  metCommitment: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+                },
+              },
+              {
+                $match: {
+                  metCommitment: true,
+                },
+              },
+              {
+                $count: 'metCommitment',
+              },
+            ],
+          },
+        },
+      ]);
+
+      const data = {};
+      data.current = hoursStats[0]?.current[0]?.metCommitment || 0;
+      data.comparison = hoursStats[0]?.comparison[0]?.metCommitment || 0;
+      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
+
+      return data;
+    }
+
+    const hoursStats = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries', // The collection to join
+          localField: '_id', // Field from the userProfile collection
+          foreignField: 'personId', // Field from the timeEntries collection
+          as: 'timeEntries', // The array field that will contain the joined documents
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntries',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { timeEntries: { $exists: false } },
+            {
+              'timeEntries.dateOfWork': {
+                $gte: moment(startDate).format('YYYY-MM-DD'),
+                $lte: moment(endDate).format('YYYY-MM-DD'),
+              },
+            },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          personId: { $first: '$_id' },
+          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+          weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+        },
+      },
+      {
+        $project: {
+          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+          weeklycommittedHours: 1, // make sure we include it in the end result
+        },
+      },
+      {
+        $project: {
+          metCommitment: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+        },
+      },
+      {
+        $match: {
+          metCommitment: true,
+        },
+      },
+      {
+        $count: 'metCommitment',
+      },
+    ]);
+
+    const data = {};
+    data.current = hoursStats[0]?.metCommitment || 0;
+    return data;
+  }
+  /**
+   * Get volunteer trends by time.
+   * Gets the total number of volunteer hours worked per month
+   * For now it will be aggregated for the past year
+   */
+  async function getVolunteerTrends() {
+    const currentDate = moment();
+    const startDate = currentDate.clone().subtract(11, 'months').startOf('month').toDate();
+    const endDate = currentDate.clone().endOf('month').toDate();
+
+    return TimeEntries.aggregate([
+      {
+        $match: {
+          dateOfWork: {
+            $gte: moment(startDate).format('YYYY-MM-DD'),
+            $lte: moment(endDate).format('YYYY-MM-DD'),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: { $dateFromString: { dateString: '$dateOfWork' } } },
+            month: { $month: { $dateFromString: { dateString: '$dateOfWork' } } },
+          },
+          totalSecondsWorked: {
+            $sum: '$totalSeconds',
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          totalHours: {
+            $divide: ['$totalSecondsWorked', 3600],
+          },
+        },
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1 },
+      },
+    ]);
+  }
+
   /**
    * Get map location statistics
    * Group and count all volunteers  by their lattitude and longitude
@@ -34,17 +303,55 @@ const overviewReportHelper = function () {
   /**
    * Get the total number of active teams
    */
-  async function getTotalActiveTeamCount() {
-    return Team.aggregate([
+  async function getTotalActiveTeamCount(endDate, comparisonEndDate) {
+    if (comparisonEndDate) {
+      const res = await Team.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $match: {
+                  isActive: true,
+                  createdDatetime: { $lte: endDate },
+                },
+              },
+              {
+                $count: 'activeTeams',
+              },
+            ],
+            comparison: [
+              {
+                $match: {
+                  isActive: true,
+                  createdDatetime: { $lte: comparisonEndDate },
+                },
+              },
+              {
+                $count: 'activeTeams',
+              },
+            ],
+          },
+        },
+      ]);
+      const data = {};
+      data.current = res[0].current[0].activeTeams;
+      data.comparison = res[0].comparison[0].activeTeams;
+      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
+      return data;
+    }
+    const res = await Team.aggregate([
       {
         $match: {
           isActive: true,
+          createdDatetime: { $lte: endDate },
         },
       },
       {
         $count: 'activeTeams',
       },
     ]);
+
+    return { current: res[0].activeTeams };
   }
 
   /**
@@ -178,30 +485,33 @@ const overviewReportHelper = function () {
    * Food, Energy, Housing, Stewardship, Society, Economics and Other
    */
   async function getWorkDistributionStats(startDate, endDate) {
-    const distributionStats = TimeEntries.aggregate([
-      {
-        $match: {
-          dateOfWork: { $gte: startDate, $lte: endDate },
-        },
-      },
+    return Project.aggregate([
       {
         $lookup: {
-          from: 'projects',
-          localField: 'projectId',
-          foreignField: '_id',
-          as: 'project',
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'projectId',
+          as: 'times',
         },
       },
       {
         $unwind: {
-          path: '$project',
+          path: '$times',
           preserveNullAndEmptyArrays: true,
         },
       },
       {
+        $match: {
+          'times.dateOfWork': {
+            $gte: moment(startDate).format('YYYY-MM-DD'),
+            $lte: moment(endDate).format('YYYY-MM-DD'),
+          },
+        },
+      },
+      {
         $group: {
-          _id: '$project.category',
-          aggregatedSeconds: { $sum: '$totalSeconds' },
+          _id: '$category',
+          aggregatedSeconds: { $sum: '$times.totalSeconds' },
         },
       },
       {
@@ -211,11 +521,67 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-
-    return distributionStats;
   }
 
-  async function getTasksStats(startDate, endDate) {
+  async function getTasksStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    if (comparisonStartDate && comparisonEndDate) {
+      const taskStats = await Task.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $match: {
+                  modifiedDatetime: { $gte: startDate, $lte: endDate },
+                  status: { $in: ['Complete', 'Active'] },
+                },
+              },
+              {
+                $group: {
+                  _id: '$status',
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            comparison: [
+              {
+                $match: {
+                  modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate },
+                  status: { $in: ['Complete', 'Active'] },
+                },
+              },
+              {
+                $group: {
+                  _id: '$status',
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      console.log(taskStats[0]);
+      const data = { current: {}, comparison: {} };
+      for (const key in taskStats[0]) {
+        const active = taskStats[0][key].find((x) => x._id === 'Active');
+        data[key].active = active ? active.count : 0;
+
+        const complete = taskStats[0][key].find((x) => x._id === 'Complete');
+        data[key].complete = complete ? active.complete : 0;
+      }
+      console.log(data);
+
+      return {
+        active: {
+          current: data.current.active,
+          percentage: calculateGrowthPercentage(data.current.active, data.comparison.active),
+        },
+        complete: {
+          current: data.current.complete,
+          percentage: calculateGrowthPercentage(data.current.complete, data.comparison.complete),
+        },
+      };
+    }
     const taskStats = await Task.aggregate([
       {
         $match: {
@@ -231,14 +597,12 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    if (!taskStats.find((x) => x._id === 'Active')) {
-      taskStats.push({ _id: 'Active', count: 0 });
-    }
-    if (!taskStats.find((x) => x._id === 'Complete')) {
-      taskStats.push({ _id: 'Complete', count: 0 });
-    }
-
-    return taskStats;
+    const data = {};
+    const active = taskStats.find((x) => x._id === 'Active');
+    const complete = taskStats.find((x) => x._id === 'Complete');
+    data.active = { current: active?.count || 0 };
+    data.complete = { current: complete?.count || 0 };
+    return data;
   }
   /**
    * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
@@ -270,7 +634,12 @@ const overviewReportHelper = function () {
         $match: {
           $or: [
             { timeEntries: { $exists: false } },
-            { 'timeEntries.dateOfWork': { $gte: startDate, $lte: endDate } },
+            {
+              'timeEntries.dateOfWork': {
+                $gte: moment(startDate).format('YYYY-MM-DD'),
+                $lte: moment(endDate).format('YYYY-MM-DD'),
+              },
+            },
           ],
         },
       },
@@ -299,40 +668,101 @@ const overviewReportHelper = function () {
         },
       },
     ]);
+
     for (let i = 0; i < 5; i++) {
       if (!hoursStats.find((x) => x._id === i * 10)) {
         hoursStats.push({ _id: i * 10, count: 0 });
       }
     }
+
     return hoursStats;
   }
 
   /**
    * Aggregates total number of hours worked across all volunteers within the specified date range
    */
-  async function getTotalHoursWorked(startDate, endDate) {
-    console.log(startDate, endDate);
+  async function getTotalHoursWorked(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    if (!comparisonStartDate && !comparisonEndDate) {
+      const data = await TimeEntries.aggregate([
+        {
+          $match: {
+            dateOfWork: {
+              $gte: moment(startDate).format('YYYY-MM-DD'),
+              $lte: moment(endDate).format('YYYY-MM-DD'),
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSeconds: { $sum: '$totalSeconds' },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            totalHours: { $divide: ['$totalSeconds', 3600] },
+          },
+        },
+      ]);
+
+      return { current: data[0].totalHours };
+    }
     const data = await TimeEntries.aggregate([
       {
-        $match: {
-          dateOfWork: { $gte: startDate, $lte: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalSeconds: { $sum: '$totalSeconds' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalHours: { $divide: ['$totalSeconds', 3600] },
+        $facet: {
+          currentTotalHours: [
+            {
+              $match: {
+                dateOfWork: {
+                  $gte: moment(startDate).format('YYYY-MM-DD'),
+                  $lte: moment(endDate).format('YYYY-MM-DD'),
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalSeconds: { $sum: '$totalSeconds' },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                totalHours: { $divide: ['$totalSeconds', 3600] },
+              },
+            },
+          ],
+
+          comparisonTotalHours: [
+            {
+              $match: {
+                dateOfWork: {
+                  $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
+                  $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalSeconds: { $sum: '$totalSeconds' },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                totalHours: { $divide: ['$totalSeconds', 3600] },
+              },
+            },
+          ],
         },
       },
     ]);
 
-    return data;
+    const current = data[0].currentTotalHours[0].totalHours;
+    const comparison = data[0].comparisonTotalHours[0].totalHours;
+    return { current, comparison, percentage: calculateGrowthPercentage(current, comparison) };
   }
 
   /**
@@ -344,8 +774,129 @@ const overviewReportHelper = function () {
    * @param {string} startDate
    * @param {string} endDate
    */
-  const getVolunteerNumberStats = async (startDate, endDate) => {
-    const [data] = await UserProfile.aggregate([
+  const getVolunteerNumberStats = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
+    if (comparisonStartDate !== undefined && comparisonEndDate !== undefined) {
+      const [data] = await UserProfile.aggregate([
+        {
+          $facet: {
+            currentActiveVolunteers: [
+              {
+                $match: {
+                  createdDate: {
+                    $lte: endDate,
+                  },
+                  isActive: true,
+                },
+              },
+              { $count: 'activeVolunteersCount' },
+            ],
+
+            comparisonActiveVolunteers: [
+              {
+                $match: {
+                  createdDate: {
+                    $lte: comparisonEndDate,
+                  },
+                  isActive: true,
+                },
+              },
+              { $count: 'activeVolunteersCount' },
+            ],
+
+            currentNewVolunteers: [
+              {
+                $match: {
+                  createdDate: {
+                    $gte: startDate,
+                    $lte: endDate,
+                  },
+                },
+              },
+              { $count: 'newVolunteersCount' },
+            ],
+
+            comparisonNewVolunteers: [
+              {
+                $match: {
+                  createdDate: {
+                    $gte: comparisonStartDate,
+                    $lte: comparisonEndDate,
+                  },
+                },
+              },
+              { $count: 'newVolunteersCount' },
+            ],
+
+            currentDeactivatedVolunteers: [
+              {
+                $match: {
+                  $and: [
+                    { lastModifiedDate: { $gte: startDate } },
+                    { lastModifiedDate: { $lte: endDate } },
+                    { isActive: false },
+                  ],
+                },
+              },
+              { $count: 'deactivatedVolunteersCount' },
+            ],
+
+            comparisonDeactivatedVolunteers: [
+              {
+                $match: {
+                  $and: [
+                    { lastModifiedDate: { $gte: comparisonStartDate } },
+                    { lastModifiedDate: { $lte: comparisonEndDate } },
+                    { isActive: false },
+                  ],
+                },
+              },
+              { $count: 'deactivatedVolunteersCount' },
+            ],
+          },
+        },
+      ]);
+
+      const currentActiveVolunteers = data.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const comparisonActiveVolunteers =
+        data.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const newVolunteers = data.currentNewVolunteers[0]?.newVolunteersCount || 0;
+      const comparisonNewVolunteers = data.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
+      const currentDeactivatedVolunteers =
+        data.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+      const comparisonDeactivatedVolunteers =
+        data.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+
+      const res = {
+        activeVolunteers: {
+          count: currentActiveVolunteers,
+          percentage: calculateGrowthPercentage(
+            currentActiveVolunteers,
+            comparisonActiveVolunteers,
+          ),
+        },
+
+        newVolunteers: {
+          count: newVolunteers,
+          percentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
+        },
+
+        deactivatedVolunteers: {
+          count: currentDeactivatedVolunteers,
+          percentage: calculateGrowthPercentage(
+            currentDeactivatedVolunteers,
+            comparisonDeactivatedVolunteers,
+          ),
+        },
+      };
+
+      return res;
+    }
+    const data = await UserProfile.aggregate([
       {
         $facet: {
           activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
@@ -377,8 +928,17 @@ const overviewReportHelper = function () {
         },
       },
     ]);
+    const activeVolunteers = data[0].activeVolunteers[0]?.activeVolunteersCount || 0;
+    const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
+    const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
 
-    return data;
+    const transformedData = {
+      activeVolunteers: { count: activeVolunteers },
+      newVolunteers: { count: newVolunteers },
+      deactivatedVolunteers: { count: deactivatedVolunteers },
+    };
+
+    return transformedData;
   };
 
   /**
@@ -396,8 +956,59 @@ const overviewReportHelper = function () {
    * @param {*} endDate
    * @returns The total number of badges awarded between the two input dates.
    */
-  async function getTotalBadgesAwardedCount(startDate, endDate) {
-    return UserProfile.aggregate([
+  async function getTotalBadgesAwardedCount(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    if (comparisonStartDate && comparisonEndDate) {
+      const res = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              {
+                $unwind: '$badgeCollection',
+              },
+              {
+                $match: {
+                  'badgeCollection.earnedDate': {
+                    $gte: startDate,
+                    $lte: endDate,
+                  },
+                },
+              },
+              {
+                $count: 'badgeCollection',
+              },
+            ],
+            comparison: [
+              {
+                $unwind: '$badgeCollection',
+              },
+              {
+                $match: {
+                  'badgeCollection.earnedDate': {
+                    $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
+                    $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
+                  },
+                },
+              },
+              {
+                $count: 'badgeCollection',
+              },
+            ],
+          },
+        },
+      ]);
+
+      const data = {};
+      data.current = res[0].current[0].badgeCollection;
+      data.comparison = res[0].comparison[0].badgeCollection;
+      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
+      return data;
+    }
+    const res = await UserProfile.aggregate([
       {
         $unwind: '$badgeCollection',
       },
@@ -413,6 +1024,8 @@ const overviewReportHelper = function () {
         $count: 'badgeCollection',
       },
     ]);
+
+    return { current: res[0].badgeCollection };
   }
 
   /**
@@ -621,6 +1234,7 @@ const overviewReportHelper = function () {
   }
 
   return {
+    getVolunteerTrends,
     getMapLocations,
     getTotalActiveTeamCount,
     getAnniversaries,
@@ -639,6 +1253,7 @@ const overviewReportHelper = function () {
     getActiveInactiveUsersCount,
     getVolunteerHoursStats,
     getTaskAndProjectStats,
+    getVolunteersCompletedHours,
   };
 };
 
