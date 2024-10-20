@@ -1,13 +1,11 @@
 const { mockReq, mockRes, assertResMock } = require('../test');
 const emailController = require('./emailController');
 const jwt = require('jsonwebtoken');
-const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
-// const emailSender = require('../utilities/emailSender');
+
 
 jest.mock('jsonwebtoken');
 jest.mock('../models/userProfile');
-jest.mock('../models/emailSubcriptionList');
 jest.mock('../utilities/emailSender');
 
 
