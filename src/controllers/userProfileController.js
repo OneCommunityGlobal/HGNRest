@@ -1636,7 +1636,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1678,7 +1688,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1710,7 +1730,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
