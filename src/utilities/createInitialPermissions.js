@@ -125,12 +125,6 @@ const permissionsRoles = [
   {
     roleName: 'Manager',
     permissions: [
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'addInfringements',
-      'editInfringements',
-      'deleteInfringements',
       'getReporteesLimitRoles',
       'postTask',
       'updateTask',
@@ -157,15 +151,8 @@ const permissionsRoles = [
   {
     roleName: 'Mentor',
     permissions: [
-      'updateTask',
       'suggestTask',
       'putReviewStatus',
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'addInfringements',
-      'editInfringements',
-      'deleteInfringements',
       'getReporteesLimitRoles',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
