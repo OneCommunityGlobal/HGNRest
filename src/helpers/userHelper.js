@@ -2066,10 +2066,10 @@ const userHelper = function () {
     sendThreeWeeks,
     followup,
   ) {
-      let subject;
-      let emailBody;
-      recipients.push('onecommunityglobal@gmail.com');
-      recipients = recipients.toString();
+    let subject;
+    let emailBody;
+    recipients.push('onecommunityglobal@gmail.com');
+    recipients = recipients.toString();
     if (reactivationDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
       emailBody = `<p>Management, </p>
@@ -2094,7 +2094,6 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-
     } else if (endDate && isSet && followup) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
@@ -2106,8 +2105,7 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-  
-    } else if (endDate && isSet ) {
+    } else if (endDate && isSet) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
       
@@ -2118,8 +2116,7 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-  
-    } else if(endDate){
+    } else if (endDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       emailBody = `<p>Management, </p>
       
@@ -2130,10 +2127,9 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-     };
-  
     }
-   
+  };
+
   const deActivateUser = async () => {
     try {
       const emailReceivers = await userProfile.find(
@@ -2149,14 +2145,18 @@ const userHelper = function () {
         const user = users[i];
         const { endDate, finalEmailThreeWeeksSent } = user;
         endDate.setHours(endDate.getHours() + 7);
-        // notify reminder set final day before 2 weeks 
-       if(finalEmailThreeWeeksSent && moment().isBefore(moment(endDate).subtract(2, 'weeks')) && moment().isAfter(moment(endDate).subtract(3, 'weeks'))){
+        // notify reminder set final day before 2 weeks
+        if (
+          finalEmailThreeWeeksSent &&
+          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
+          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
+        ) {
           const id = user._id;
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-          const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);
