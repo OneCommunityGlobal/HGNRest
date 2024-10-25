@@ -337,11 +337,6 @@ const teamcontroller = function (Team) {
           },
         },
         { $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true } },
-        // {
-        //   $addFields: {
-        //     'members.userProfile': '$userProfile',
-        //   },
-        // },
         {
           $group: {
             _id: '$_id',  // Group by team ID
@@ -351,19 +346,6 @@ const teamcontroller = function (Team) {
           },
         },
       ])
-      // let data = await Team.aggregate([
-      //   {
-      //     $match: { _id: { $in: teamIds.map(team => mongoose.Types.ObjectId(team._id)) } } 
-      //   },
-      //   {
-      //     $project: {
-      //       _id: 1,            // teamId
-      //       teamName: 1,      // Include teamName
-      //       createdDatetime: 1, // Include createdDatetime
-      //       members: 1        // Include members array
-      //     }
-      //   }
-      // ]);
       cache.setCache(cacheKey,data)
       res.status(200).send(data);
     }catch(error){
