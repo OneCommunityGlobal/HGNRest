@@ -1323,8 +1323,8 @@ const overviewReportHelper = function () {
     });
 
     const taskAndProjectStats = {
-      taskHours: taskHours[0].totalHours.toFixed(2),
-      projectHours: projectHours[0].totalHours.toFixed(2),
+      taskHours: taskHours.length > 0 ? taskHours[0].totalHours.toFixed(2) : "0",
+      projectHours: projectHours.length > 0 ? projectHours[0].totalHours.toFixed(2) : "0",
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
