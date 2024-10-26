@@ -2,6 +2,7 @@
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
+const { hasPermission } = require('../utilities/permissions');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 
