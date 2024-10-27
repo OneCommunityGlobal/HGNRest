@@ -444,6 +444,7 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  // Todo: Keep updating projectHistory when user is updated
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const canEditProtectedAccount = await canRequestorUpdateUser(
@@ -628,6 +629,27 @@ const userProfileController = function (UserProfile, Project) {
 
             const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
             const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
+
+            // update the projects history
+            console.log('Updating history in userProfileController');
+            const changedProjectHistoryIds = Array.from(
+              new Set(oldProjects.concat(newProjects)),
+            ).map((id) => mongoose.Types.ObjectId(id));
+
+            // update the projects history -- array of objects with project_id, name, category from project schema
+            const changedProjectHistory = await Project.find(
+              { _id: { $in: changedProjectHistoryIds } },
+              { projectName: 1, category: 1 },
+            );
+
+            record.projectHistory = changedProjectHistory;
+            // console.log('changedProjectHistory', changedProjectHistory);
+
+            // changedProjectHistory = changedProjectHistory.map((project) => ({
+            //   project_id: project._id,
+            //   name: project.projectName,
+            //   category: project.category,
+            // }));
 
             const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
               mongoose.Types.ObjectId(id),
@@ -1827,20 +1849,20 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const updateUserInformation = async function (req,res){
+  const updateUserInformation = async function (req, res) {
     try {
-      const data=req.body;
-      data.map(async (e)=>  {
+      const data = req.body;
+      data.map(async (e) => {
         let result = await UserProfile.findById(e.user_id);
-        result[e.item]=e.value
-        let newdata=await result.save()
-      })
-      res.status(200).send({ message: 'Update successful'});
+        result[e.item] = e.value;
+        let newdata = await result.save();
+      });
+      res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error)
-      return res.status(500)
+      console.log(error);
+      return res.status(500);
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1871,7 +1893,7 @@ const userProfileController = function (UserProfile, Project) {
     getAllTeamCode,
     getAllTeamCodeHelper,
     updateUserInformation,
-    getUserProfileBasicInfo
+    getUserProfileBasicInfo,
   };
 };
 
