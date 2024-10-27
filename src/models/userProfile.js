@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default () {
+    default() {
       return this.createdDate;
     },
   },
@@ -86,6 +86,13 @@ const userProfileSchema = new Schema({
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
+  projectHistory: [
+    {
+      _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'project' },
+      projectName: String,
+      category: String,
+    },
+  ],
   badgeCollection: [
     {
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },

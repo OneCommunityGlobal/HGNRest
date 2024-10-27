@@ -641,8 +641,11 @@ const userProfileController = function (UserProfile, Project) {
               { _id: { $in: changedProjectHistoryIds } },
               { projectName: 1, category: 1 },
             );
-
-            record.projectHistory = changedProjectHistory;
+            record.projectHistory = changedProjectHistory.map((project) => ({
+              _id: project._id,
+              projectName: project.projectName,
+              category: project.category,
+            }));
             // console.log('changedProjectHistory', changedProjectHistory);
 
             // changedProjectHistory = changedProjectHistory.map((project) => ({
@@ -1864,6 +1867,17 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getProjectHistory = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const user = await UserProfile.findById(userId);
+      const projectHistory = [...user.projectHistory];
+      res.status(200).send(projectHistory);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1894,6 +1908,7 @@ const userProfileController = function (UserProfile, Project) {
     getAllTeamCodeHelper,
     updateUserInformation,
     getUserProfileBasicInfo,
+    getProjectHistory,
   };
 };
 
