@@ -1264,12 +1264,12 @@ const overviewReportHelper = function () {
    * @param {*} endDate
    */
   async function getTaskAndProjectStats(startDate, endDate) {
-    // 1. Total hours logged in tasks
+    // 1. Total hours logged in tasks that also belong to a project
     const taskHours = await TimeEntries.aggregate([
       {
         $match: {
           dateOfWork: { $gte: startDate, $lte: endDate },
-          taskId: { $exists: true },
+          taskId: { $exists: true, $type: 'objectId' },
         },
       },
       {
