@@ -11,8 +11,6 @@ const sendEmail = async (req, res) => {
   try {
     const { to, subject, html } = req.body;
 
-    console.log('to', to);
-
     await emailSender(to, subject, html)
       .then(result => {
         console.log('Email sent successfully:', result);

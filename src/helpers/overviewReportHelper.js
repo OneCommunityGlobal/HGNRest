@@ -76,7 +76,6 @@ const overviewReportHelper = function () {
           lastName: 1,
           email: 1,
           profilePic: 1,
-          createdDate:1,
         },
       },
     ]);
