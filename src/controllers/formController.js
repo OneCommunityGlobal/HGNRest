@@ -102,7 +102,7 @@ const formController = function (Form,formResponse) {
         
             // Check if the form exists
             const form = await Form.findOne({ formID });
-            if (!form) {
+            if (!form || form.length===0) {
               return res.status(404).json({ message: 'Form not found.' });
             }
         
@@ -147,7 +147,7 @@ const formController = function (Form,formResponse) {
             // check if userexists or not.
             let result=await userprofile.find({_id:submittedBy})
             if(result[0].isActive === false || result===undefined || result === null || result.length===0){
-                return res.status(400).json({message: 'Invlvalid User'});
+                return res.status(400).json({message: 'Invalid User'});
             }
             // Create a new form response
             const formResponses = new formResponse({
@@ -180,8 +180,18 @@ const formController = function (Form,formResponse) {
 
     const getFormFormat = async (req,res)=>{
         try{
-            const formID=req.params.id;
+            // const formID=req.params.id;
+            const {formID, userId}=req.body;
+            
             const result=await Form.find({formID})
+            if (!result || result.length===0) {
+              return res.status(404).json({ message: 'Form not found.' });
+            }
+
+            let user=await userprofile.find({_id:userId})
+            if(user[0].isActive === false || user===undefined || user === null || user.length===0){
+                return res.status(400).json({message: 'Invalid User'});
+            }
             return res.status(200).json({data:result})
         }catch(err){
             return res.status(404).json({data:err})

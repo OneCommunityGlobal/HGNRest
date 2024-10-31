@@ -22,7 +22,7 @@ const routes=function(Form,formResponse){
     formRouter.route('/form/status').get(controller.checkForResponse);
 
     // route to get format for a form
-    formRouter.route('/form/format/:id').get(controller.getFormFormat);
+    formRouter.route('/form/format').post(controller.getFormFormat);
     
     // route to get form data for a specific form
     formRouter.route('/form/:id').get(controller.getFormData);

@@ -187,7 +187,7 @@ describe('Form Routes', () => {
     });
   });
 
-  describe('GET /api/form/format/:id', () => {
+  describe('GET /api/form/format/', () => {
     it('should retrieve form format by ID', async () => {
       const form = await agent
         .post('/api/form/createform')
@@ -195,8 +195,12 @@ describe('Form Routes', () => {
         .send(reqBody);
       
       const res = await agent
-        .get(`/api/form/format/${form.body.formID}`)
+        .post(`/api/form/format`)
         .set('Authorization', token)
+        .send({
+          formID:form.body.formID,
+          userId:user._id
+        })
         .expect(200);
 
       expect(res.body).toHaveProperty('data');
