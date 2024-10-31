@@ -65,8 +65,9 @@ const formController = function (Form,formResponse) {
 
     const deleteFormFormat = async function(req,res){
         try {
-            const {formID}=req.body;
-            let result=await Form.deleteOne({ _id : formID});
+            // here id is the record Id of the form.
+            const {id}=req.body;
+            let result=await Form.deleteOne({ _id : id});
             // Check if the form was actually deleted
             if (result.deletedCount === 0) {
                 return res.status(400).json({ message: 'Error removing Form.' });
