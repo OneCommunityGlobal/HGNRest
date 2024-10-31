@@ -1,4 +1,3 @@
-// const Form=require('../models/forms')
 const userprofile=require('../models/userProfile');
 
 const formController = function (Form,formResponse) {
@@ -28,6 +27,7 @@ const formController = function (Form,formResponse) {
             return res.status(201).json({
                 message: 'Form created successfully',
                 formID: savedForm.formID,
+                id:savedForm._id,
                 formLink: "hostname"+formLink,
             });
             } catch (error) {
@@ -38,12 +38,14 @@ const formController = function (Form,formResponse) {
 
     const editFormFormat = async function(req,res){
         try{
-            const {formID, userId, formName,formQuestions }=req.body;
+            // here id is the recordId for the model Form
+            const {id, userId, formName,formQuestions }=req.body;
             // find if a form exists or not. if yes, then take the properties we want to update and then
             // check if that form exists or not and then user exists or not.
 
             // match by record _id
-            let form_temp=await Form.findById(formID)
+            let form_temp=await Form.findById(id)
+            
             if(form_temp===undefined || form_temp===null || form_temp.length===0){
                return res.status(400).json({message:"Invalid FormID"}) 
             }
@@ -53,7 +55,8 @@ const formController = function (Form,formResponse) {
                 return res.status(400).json({message:"Invalid userid"})
             }
 
-            let result=await Form.updateOne({_id:formID} , {$set : { formName : formName, questions : formQuestions }});
+            let result=await Form.updateOne({_id:id} , {$set : { formName : formName, questions : formQuestions }});
+
             return res.status(200).json({message:"Form Updated"})
         }catch(err){
             return res.status(404).json({message:err.message})
@@ -64,9 +67,13 @@ const formController = function (Form,formResponse) {
         try {
             const {formID}=req.body;
             let result=await Form.deleteOne({ _id : formID});
+            // Check if the form was actually deleted
+            if (result.deletedCount === 0) {
+                return res.status(400).json({ message: 'Error removing Form.' });
+            }
             return res.status(200).json({message:"Form Deleted Successfully"})
         }catch(error){
-            return res.status(404).json({message:"Error removing Form."})
+            return res.status(400).json({message:"Error removing Form."})
         }
     }
 
@@ -171,10 +178,10 @@ const formController = function (Form,formResponse) {
         }
     }
 
-    const getFormFormat = async ()=>{
+    const getFormFormat = async (req,res)=>{
         try{
-            const form=req.params.id;
-            const result=await Form.find({formId})
+            const formID=req.params.id;
+            const result=await Form.find({formID})
             return res.status(200).json({data:result})
         }catch(err){
             return res.status(404).json({data:err})
