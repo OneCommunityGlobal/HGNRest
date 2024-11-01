@@ -3,6 +3,7 @@
 const jwt = require('jsonwebtoken');
 const cheerio = require('cheerio');
 const emailSender = require('../utilities/emailSender');
+const { hasPermission } = require('../utilities/permissions');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
