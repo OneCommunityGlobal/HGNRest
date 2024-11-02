@@ -1778,7 +1778,7 @@ const userProfileController = function (UserProfile, Project) {
       var user=req.body
       const result=await UserProfile.updateOne({_id:user.user_id},
         {
-          $set: { profilePic : user.selectedImage.imgs[0].nitroLazySrc},
+          $set: { profilePic : user.nitro_src},
           $unset: { suggestedProfilePics: "" }
       })
       cache.removeCache(`user-${user.user_id}`);
