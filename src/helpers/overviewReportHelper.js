@@ -609,6 +609,76 @@ const overviewReportHelper = function () {
    * @param {*} startDate
    * @param {*} endDate
    */
+  // async function getHoursStats(startDate, endDate) {
+  //   const hoursStats = await UserProfile.aggregate([
+  //     {
+  //       $match: {
+  //         isActive: true,
+  //       },
+  //     },
+  //     {
+  //       $lookup: {
+  //         from: 'timeEntries', // The collection to join
+  //         localField: '_id', // Field from the userProfile collection
+  //         foreignField: 'personId', // Field from the timeEntries collection
+  //         as: 'timeEntries', // The array field that will contain the joined documents
+  //       },
+  //     },
+  //     {
+  //       $unwind: {
+  //         path: '$timeEntries',
+  //         preserveNullAndEmptyArrays: true, // Preserve users with no time entries
+  //       },
+  //     },
+  //     {
+  //       $match: {
+  //         $or: [
+  //           { timeEntries: { $exists: false } },
+  //           {
+  //             'timeEntries.dateOfWork': {
+  //               $gte: moment(startDate).format('YYYY-MM-DD'),
+  //               $lte: moment(endDate).format('YYYY-MM-DD'),
+  //             },
+  //           },
+  //         ],
+  //       },
+  //     },
+  //     {
+  //       $group: {
+  //         _id: '$_id',
+  //         personId: { $first: '$_id' },
+  //         totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+  //         weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+  //       },
+  //     },
+  //     {
+  //       $project: {
+  //         totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
+  //         weeklycommittedHours: 1, // make sure we include it in the end result
+  //       },
+  //     },
+  //     {
+  //       $bucket: {
+  //         groupBy: '$totalHours',
+  //         boundaries: [0, 10, 20, 30, 40],
+  //         default: 40,
+  //         output: {
+  //           count: { $sum: 1 },
+  //         },
+  //       },
+  //     },
+  //   ]);
+
+  //   for (let i = 0; i < 5; i++) {
+  //     if (!hoursStats.find((x) => x._id === i * 10)) {
+  //       hoursStats.push({ _id: i * 10, count: 0 });
+  //     }
+  //   }
+
+  //   return hoursStats;
+  // }
+
+  // Updated
   async function getHoursStats(startDate, endDate) {
     const hoursStats = await UserProfile.aggregate([
       {
@@ -660,7 +730,7 @@ const overviewReportHelper = function () {
       {
         $bucket: {
           groupBy: '$totalHours',
-          boundaries: [0, 10, 20, 30, 40],
+          boundaries: [10, 20, 30, 35, 40],
           default: 40,
           output: {
             count: { $sum: 1 },
@@ -668,16 +738,46 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-
-    for (let i = 0; i < 5; i++) {
-      if (!hoursStats.find((x) => x._id === i * 10)) {
-        hoursStats.push({ _id: i * 10, count: 0 });
+  
+    // Change category labels using if conditions
+    hoursStats.forEach((stat) => {
+      if (stat._id === 10) {
+        stat._id = '10-19.99';
+      } else if (stat._id === 20) {
+        stat._id = '20-29.99';
+      } else if (stat._id === 30) {
+        stat._id = '30-34.99';
+      } else if (stat._id === 35) {
+        stat._id = '35-39.99';
+      } else if (stat._id === 40) {
+        stat._id = '40+';
       }
+    });
+  
+    // Ensure each specific range label has a value, even if zero
+    if (!hoursStats.find((x) => x._id === '10-19.99')) {
+      hoursStats.push({ _id: '10-19.99', count: 0 });
     }
-
+    if (!hoursStats.find((x) => x._id === '20-29.99')) {
+      hoursStats.push({ _id: '20-29.99', count: 0 });
+    }
+    if (!hoursStats.find((x) => x._id === '30-34.99')) {
+      hoursStats.push({ _id: '30-34.99', count: 0 });
+    }
+    if (!hoursStats.find((x) => x._id === '35-39.99')) {
+      hoursStats.push({ _id: '35-39.99', count: 0 });
+    }
+    if (!hoursStats.find((x) => x._id === '40+')) {
+      hoursStats.push({ _id: '40+', count: 0 });
+    }
+  
+    // Sort the result to maintain consistent order (optional)
+    const order = ['10-19.99', '20-29.99', '30-34.99', '35-39.99', '40+'];
+    hoursStats.sort((a, b) => order.indexOf(a._id) - order.indexOf(b._id));
+  
     return hoursStats;
   }
-
+  
   /**
    * Aggregates total number of hours worked across all volunteers within the specified date range
    */
