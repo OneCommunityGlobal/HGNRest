@@ -5,8 +5,11 @@ const websockets = require('./websockets').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 
-const port = process.env.PORT || 4500;
+/// temporary code for testing this repo.
+const {getProfileImagesFromWebsite}=require('./helpers/userHelper')();
+getProfileImagesFromWebsite();
 
+const port = process.env.PORT || 4500;
 const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
