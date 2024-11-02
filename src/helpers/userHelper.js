@@ -659,7 +659,7 @@ const userHelper = function () {
         }
         // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
-        const coreTeamExtraHour = Math.max(0, oldInfringements.length - 5);
+        const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
         const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
 
@@ -706,7 +706,7 @@ const userHelper = function () {
                 .localeData()
                 .ordinal(
                   oldInfringements.length + 1,
-                )} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(
+                )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
                 2,
               )} hours.`;
             } else {
@@ -730,7 +730,7 @@ const userHelper = function () {
                 .localeData()
                 .ordinal(
                   oldInfringements.length + 1,
-                )} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(
+                )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
                 2,
               )} hours.`;
             } else {
@@ -959,29 +959,54 @@ const userHelper = function () {
           $project: {
             _id: 1,
             missedHours: {
-              $max: [
-                {
-                  $subtract: [
-                    {
-                      $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
-                    },
-                    {
-                      $divide: [
-                        {
-                          $sum: {
-                            $map: {
-                              input: '$timeEntries',
-                              in: '$$this.totalSeconds',
-                            },
+              $let: {
+                vars: {
+                  baseMissedHours: {
+                    $max: [
+                      {
+                        $subtract: [
+                          {
+                            $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
                           },
-                        },
-                        3600,
-                      ],
-                    },
+                          {
+                            $divide: [
+                              {
+                                $sum: {
+                                  $map: {
+                                    input: '$timeEntries',
+                                    in: '$$this.totalSeconds',
+                                  },
+                                },
+                              },
+                              3600,
+                            ],
+                          },
+                        ],
+                      },
+                      0,
+                    ],
+                  },
+                  infringementsAdjustment: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $gt: ['$infringements', null] },
+                          { $gt: [{ $size: '$infringements' }, 5] },
+                        ],
+                      },
+                      { $subtract: [{ $size: '$infringements' }, 5] },
+                      0,
+                    ],
+                  },
+                },
+                in: {
+                  $cond: [
+                    { $gt: ['$$baseMissedHours', 0] },
+                    { $add: ['$$baseMissedHours', '$$infringementsAdjustment'] },
+                    '$$baseMissedHours',
                   ],
                 },
-                0,
-              ],
+              },
             },
           },
         },
