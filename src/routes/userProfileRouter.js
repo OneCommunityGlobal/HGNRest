@@ -24,6 +24,7 @@ const routes = function (userProfile, project) {
     );
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);  
+  
   // Endpoint to retrieve basic user profile information
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
   userProfileRouter
