@@ -28,9 +28,9 @@ const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
-const puppeteer = require('puppeteer');
 const fs = require('fs');
 const cheerio = require('cheerio');
+const axios=require('axios');
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -2224,39 +2224,6 @@ const userHelper = function () {
     }
   };
 
-  function extractDataFromHtml(html) {
-    const $ = cheerio.load(html);
-    const results = [];
-
-    // Find all <p> elements
-    $('p').each((i, p) => {
-        const pData = { imgs: [], strongTexts: [] };
-
-        // Extract <img> attributes
-        $(p).find('img').each((i, img) => {
-            const src = $(img).attr('src') || '';
-            const alt = $(img).attr('alt') || '';
-            const title = $(img).attr('title') || '';
-            const nitroLazySrc = $(img).attr('nitro-lazy-src') || '';
-            pData.imgs.push({ src, alt, title, nitroLazySrc });
-        });
-
-        // Extract text from <strong> tags
-        $(p).find('strong').each((i, strong) => {
-            const text = $(strong).text().trim();  // Extract text, not HTML
-            if (text) {  // Check if text is not empty
-                pData.strongTexts.push(text);
-            }
-        });
-
-        if (pData.imgs.length || pData.strongTexts.length) {
-            results.push(pData);
-        }
-    });
-
-    return results;
-  }
-
   function searchForTermsInFields(data, term1, term2) {
     const lowerCaseTerm1 = term1.toLowerCase();
     const lowerCaseTerm2 = term2.toLowerCase();
@@ -2296,14 +2263,13 @@ const userHelper = function () {
         });
         return result ? data : null;
     }
-
     return [];
 }
 
 // Helper function to check if both terms are in the string
 function searchForBothTerms(data, term1, term2) {
     if (typeof data === 'object' && data !== null) {
-        const fieldsToCheck = ['strongTexts', 'alt', 'title', 'nitroLazySrc'];
+        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
         return Object.keys(data).some(key => {
             if (fieldsToCheck.includes(key)) {
                 const stringValue = String(data[key]).toLowerCase();
@@ -2318,7 +2284,7 @@ function searchForBothTerms(data, term1, term2) {
 // Helper function to check if only term2 is in the string
 function searchForTerm2(data, term2) {
     if (typeof data === 'object' && data !== null) {
-        const fieldsToCheck = ['strongTexts', 'alt', 'title', 'nitroLazySrc'];
+        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
         return Object.keys(data).some(key => {
             if (fieldsToCheck.includes(key)) {
                 const stringValue = String(data[key]).toLowerCase();
@@ -2333,71 +2299,39 @@ function searchForTerm2(data, term2) {
 
   const getProfileImagesFromWebsite= async () => {
     try {
-        // Launch a new browser instance in headless mode
-        const browser = await puppeteer.launch({ headless: true });
-        const page = await browser.newPage();
-        // Navigate to the website
-        await page.goto('https://www.onecommunityglobal.org/team', { waitUntil: 'networkidle2' });
-        // XPath for the specific element you want to target
-        const specificElementXPath = '//*[@id="page-119101"]';
-        // Wait for the specific element to be present on the page
-        await page.waitForXPath(specificElementXPath);
-        // Get the specific element using XPath
-        const [elementHandle] = await page.$x(specificElementXPath);
-
-        if (!elementHandle) {
-            console.error('Element not found');
-            await browser.close();
-            return;
-        }
-        // Extract HTML of the specific element
-        const html = await page.evaluate(el => el.innerHTML, elementHandle);
-        // Extract data from the HTML string
-        var data = extractDataFromHtml(html);
-        var newData = data.map(item => {
-            return {
-              ...item,
-              strongTexts: (() => {
-                const filteredTexts = Array.from(new Set(
-                  item.strongTexts
-                    .map(text => text.replace(/[-‐‑—–:]/g, ''))
-                    .filter(text => text.split(' ').length <= 2)
-                    .filter(text => text !== '')
-                ));
-                return filteredTexts.length === 1 ? [filteredTexts[0]] : filteredTexts.length === 2 ? [filteredTexts.join(' ')] : filteredTexts;
-              })()
-            };
-          });
-
-          newData.map((e)=>{
-                if(e.strongTexts.length==0){
-                    if(e.imgs.length!==0){
-                        if(e.imgs[0].title!==""){
-                            e.strongTexts.push(e.imgs[0].title.split(' ').slice(0, 2).join(' '));
-                        }else if(e.imgs.alt!==""){
-                            e.strongTexts.push(e.imgs[0].alt.split(' ').slice(0, 2).join(' '));
-                        }
-                    }
-                }
-            })
-        newData=newData.filter(item=>item.imgs.length!==0 && item.strongTexts.length!==0)
-        await browser.close();
-        var users=await userProfile.find({'isActive':true},"firstName lastName email profilePic suggestedProfilePics")    
-        users.map(async(u)=>{
-          if(u.profilePic==undefined || u.profilePic==null || u.profilePic==""){
-            let result=searchForTermsInFields(newData,u.firstName,u.lastName)
-              try {
-                if(result.length==1){
-                  await userProfile.updateOne({_id:u._id},{$set:{"profilePic":result[0].imgs[0].nitroLazySrc}});
-                }else if(result.length>1){
-                  await userProfile.updateOne({_id:u._id},{$set:{"suggestedProfilePics":result}});
-                }
-              } catch (error) {
-                console.log(error);
-              }
-            
+    // Fetch the webpage
+    const response = await axios.get("https://www.onecommunityglobal.org/team");
+    const htmlText = response.data;
+    // Load HTML into Cheerio
+    const $ = cheerio.load(htmlText);
+    // Select all <img> elements and extract properties
+    const imgData = [];
+    $('img').each((i, img) => {
+      imgData.push({
+        src: $(img).attr('src'),
+        alt: $(img).attr('alt'),
+        title: $(img).attr('title'),
+        nitro_src: $(img).attr('nitro-lazy-src')
+      });
+    });
+    var users=await userProfile.find({'isActive':true},"firstName lastName email profilePic suggestedProfilePics")    
+    users.map(async(u)=>{
+      if(u.profilePic==undefined || u.profilePic==null || u.profilePic==""){
+        var result=searchForTermsInFields(imgData,u.firstName,u.lastName)
+          try {
+            if(result.length==1){
+                await userProfile.updateOne({_id:u._id},
+                  {$set:{
+                    "profilePic":result[0].nitro_src
+                  }});
+            }else if(result.length>1){
+              await userProfile.updateOne({_id:u._id},{$set:{"suggestedProfilePics":result}});
+            }
+          } catch (error) {
+            console.log(error);
           }
-        })  
+      }
+    })  
     } catch (error) {
         console.error('An error occurred:', error);
     }
