@@ -5,10 +5,9 @@ const routes = function (Meeting) {
 
   const controller = require('../controllers/meetingController')(Meeting);
 
-  MeetingRouter.route('/meeting/new').post(controller.postMeeting);
-
+  MeetingRouter.route('/meetings/new').post(controller.postMeeting);
 
   return MeetingRouter;
-}
+};
 
 module.exports = routes;
