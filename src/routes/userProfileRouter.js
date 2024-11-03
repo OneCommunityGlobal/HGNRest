@@ -117,6 +117,7 @@ const routes = function (userProfile, project) {
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
 
   userProfileRouter.route('/userProfile/:userId/projectHistory/').get(controller.getProjectHistory);
+  userProfileRouter.route('/clearAllProjectHistory/').post(controller.postClearProjectHistory);
 
   return userProfileRouter;
 };

@@ -86,13 +86,7 @@ const userProfileSchema = new Schema({
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
-  projectHistory: [
-    {
-      _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'project' },
-      projectName: String,
-      category: String,
-    },
-  ],
+  projectHistory: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
