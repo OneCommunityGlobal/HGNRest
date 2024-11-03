@@ -6,6 +6,7 @@ const routes = function (Meeting) {
   const controller = require('../controllers/meetingController')(Meeting);
 
   MeetingRouter.route('/meetings/new').post(controller.postMeeting);
+  MeetingRouter.route('/meetings').get(controller.getMeetings);
 
   return MeetingRouter;
 };

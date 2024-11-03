@@ -1,11 +1,9 @@
 const mongoose = require('mongoose');
 
 const meetingSchema = new mongoose.Schema({
-  dateOfMeeting: { type: Date, required: true },
-  startHour: { type: Number, required: true },
-  startMinute: { type: Number, required: true },
-  startTimePeriod: { type: String, required: true },
+  dateTime: { type: Date, required: true },
   duration: { type: Number, required: true },
+  organizer: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true },
   participantList: [{ type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true }],
   location: { type: String},
   notes: { type: String },
