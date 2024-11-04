@@ -105,10 +105,10 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getTaskAndProjectStats(
-          isoStartDate,
-          isoEndDate,
-          // isoComparisonStartDate,
-          // isoComparisonEndDate,
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
         ),
       ]);
       res.status(200).send({
