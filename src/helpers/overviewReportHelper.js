@@ -1276,6 +1276,7 @@ const overviewReportHelper = function () {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
             taskId: { $exists: true, $type: 'objectId' },
+            isTangible: { $eq: true },
           },
         },
         {
@@ -1300,6 +1301,7 @@ const overviewReportHelper = function () {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
             projectId: { $exists: true },
+            isTangible: { $eq: true },
           },
         },
         {
