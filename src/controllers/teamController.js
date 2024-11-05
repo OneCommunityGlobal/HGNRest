@@ -232,8 +232,6 @@ const teamcontroller = function (Team) {
       });
   };
   const updateTeamVisibility = async (req, res) => {
-    console.log('==============>   9 ');
-
     const { visibility, teamId, userId } = req.body;
 
     try {

@@ -483,7 +483,6 @@ const userProfileController = function (UserProfile, Project) {
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
-        // console.log('originalRecord', originalRecord);
       }
       // validate userprofile pic
 
@@ -1615,7 +1614,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
 
-    // console.log("Updating User Visibility ", isVisible);
     cache.removeCache(`user-${userId}`);
     UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
       if (err) {
@@ -1636,7 +1634,8 @@ const userProfileController = function (UserProfile, Project) {
         message: 'User visibility updated successfully',
         isVisible,
       });
-
+    })}
+    
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
       res.status(403).send('You are not authorized to add blue square');
@@ -1750,7 +1749,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    // console.log(userId, blueSquareId);
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
