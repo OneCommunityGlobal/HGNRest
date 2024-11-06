@@ -5,6 +5,8 @@ const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
 
+const linkedinPostRoutes = require('./routes/linkedinPostRoutes'); // linkedinPostRoutes
+
 logger.init();
 
 // The request handler must be the first middleware on the app
@@ -17,6 +19,8 @@ require('./startup/routes')(app);
 
 // The error handler must be before any other error middleware and after all controllers
 app.use(Sentry.Handlers.errorHandler());
+
+app.use('/api', linkedinPostRoutes);
 
 // Make it the last middleware since it returns a response and do not call next()
 app.use(globalErrorHandler);
