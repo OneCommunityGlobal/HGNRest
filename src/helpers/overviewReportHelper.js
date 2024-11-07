@@ -1293,6 +1293,8 @@ const overviewReportHelper = function () {
       ]);
       return taskHours[0].totalHours;
     };
+    let taskHours = await getTaskHours(startDate, endDate);
+    taskHours = taskHours ? taskHours.toFixed(2) : 0;
 
     // Retrieves the total hours logged to projects for a given date range.
     const getProjectHours = async (start, end) => {
@@ -1318,20 +1320,82 @@ const overviewReportHelper = function () {
       ]);
       return projectHours[0].totalHours;
     };
+    let projectHours = await getProjectHours(startDate, endDate);
+    projectHours = projectHours ? projectHours.toFixed(2) : 0;
 
-    const taskHours = await getTaskHours(startDate, endDate);
-    const projectHours = await getProjectHours(startDate, endDate);
-
-    // Calculates comparison percentages for total task and project hours
-    let taskHoursPercentage;
-    let projectHoursPercentage;
+    // Calculates comparison percentages for task and project hours
+    let tasksComparisonPercentage;
+    let projectsComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate ) {
       const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
       const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
-
-      taskHoursPercentage = calculateGrowthPercentage(taskHours, comparisonTaskHours);
-      projectHoursPercentage = calculateGrowthPercentage(projectHours, comparisonProjectHours);
+      tasksComparisonPercentage = calculateGrowthPercentage(taskHours, comparisonTaskHours);
+      projectsComparisonPercentage = calculateGrowthPercentage(projectHours, comparisonProjectHours);
     };
+
+    // Calculates the number of weeks, rounded up, for a given time range.
+    function weeksBetweenDates(startDateStr, endDateStr) {
+      const start = new Date(startDateStr);
+      const end = new Date(endDateStr);
+      const timeDifferenceInMilliseconds = end - start;
+      const weeksDifference = timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24 * 7);
+      return Math.ceil(weeksDifference);
+    }
+    const numberOfWeeks = weeksBetweenDates(startDate, endDate);
+
+    // Retrieves the total committed hours that should have been completed for the given date range.
+    const getTotalCommittedHours = await UserProfile.aggregate([
+      { 
+        $match: {
+          weeklycommittedHoursHistory: { $exists: true}
+        }
+      },
+      {
+        $project: { 
+          weeklyCommittedHoursHistoryBeforeEndDate: {
+            $filter: {
+              input: "$weeklycommittedHoursHistory",
+              as: "history",
+              cond: {$lte: ["$$history.dateChanged", new Date(endDate)]}
+            }
+          }
+        },
+      },
+      {
+        $match : {
+          $expr: { $gt: [{$size: "$weeklyCommittedHoursHistoryBeforeEndDate"}, 1]}
+        }
+      },
+      {
+        $project: { 
+          committedHours: {
+            $let: {
+              vars: {
+                sortedHistory: {
+                  $sortArray: {
+                    input: "$weeklyCommittedHoursHistoryBeforeEndDate",
+                    sortBy: { dateChanged: -1}
+                  }
+                }
+              },
+              in: { $multiply: [{ $arrayElemAt: [ "$$sortedHistory.hours", 0] }, numberOfWeeks ] }
+            }
+          }
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalCommittedHours: { $sum: '$committedHours' },
+        },
+      },
+      {
+        $project: {
+          totalCommittedHours: { $round: ["$totalCommittedHours", 2] }
+        }
+      }
+    ]);
+    const totalCommittedHours = getTotalCommittedHours.length > 0 ? getTotalCommittedHours[0].totalCommittedHours : 0;
 
     // 3. Number of member with tasks assigned
     const membersWithTasks = await Task.distinct('resources.userID', {
@@ -1351,12 +1415,14 @@ const overviewReportHelper = function () {
 
     const taskAndProjectStats = {
       taskHours: {
-        count: taskHours ? taskHours.toFixed(2) : 0,
-        percentage: taskHoursPercentage,
+        count: taskHours,
+        submittedToCommittedHoursPercentage: (taskHours / totalCommittedHours).toFixed(2),
+        comparisonPercentage: tasksComparisonPercentage,
       },
       projectHours: {
-        count: projectHours ? projectHours.toFixed(2) : 0,
-        percentage: projectHoursPercentage,
+        count: projectHours,
+        submittedToCommittedHoursPercentage: (projectHours / totalCommittedHours).toFixed(2),
+        comparisonPercentage: projectsComparisonPercentage,
       },
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
