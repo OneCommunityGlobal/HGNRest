@@ -53,7 +53,9 @@ const permissionsRoles = [
       'changeUserRehireableStatus',
       'updatePassword',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
       'manageAdminLinks',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
@@ -150,7 +152,6 @@ const permissionsRoles = [
   {
     roleName: 'Mentor',
     permissions: [
-      'updateTask',
       'suggestTask',
       'putReviewStatus',
       'getReporteesLimitRoles',
@@ -213,6 +214,8 @@ const permissionsRoles = [
       'editTimeEntryToggleTangible',
       'deleteTimeEntry',
       'postTimeEntry',
+      'sendEmails',
+      'sendEmailToAll',
       'updatePassword',
       'getUserProfiles',
       'getProjectMembers',
@@ -221,7 +224,9 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
       'postWbs',
       'deleteWbs',
       'getAllInvInProjectWBS',
@@ -254,6 +259,8 @@ const permissionsRoles = [
 
       'changeUserRehireableStatus',
       'manageAdminLinks',
+
+      'editHeaderMessage',
     ],
   },
 ];
