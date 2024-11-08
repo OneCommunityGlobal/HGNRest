@@ -37,8 +37,8 @@ async function downloadImage(url) {
 
 async function getPinterestAccessToken(req, res) {
   const authCode = req.body.code;
-  const clientId = '1503261';
-  const clientSecret = '2644a99853f263bd5688935762a32135293b950b';
+  const clientId = process.env.REACT_APP_PINTEREST_CLIENT_ID;
+  const clientSecret = process.env.REACT_APP_PINTEREST_CLIENT_SECRET;
   const accessTokenUrl = 'https://api-sandbox.pinterest.com/v5/oauth/token';
 
   const authToken = btoa(`${clientId}:${clientSecret}`);
@@ -119,8 +119,8 @@ async function createPin(req, res) {
     const baseRequestBody = {
       title: 'Weekly Update',
       description: textContent,
-      dominant_color: '#6E7874',
-      board_id: '1074812336009724062',
+      dominant_color: '', // Hex color code
+      board_id: '', // Pinterest board ID
     };
 
     let mediaSource = {};
