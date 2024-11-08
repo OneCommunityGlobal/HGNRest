@@ -6,7 +6,6 @@ const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
 
 const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
