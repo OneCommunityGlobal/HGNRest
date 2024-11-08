@@ -8,134 +8,107 @@ const config = {
   clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
   redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
   refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
-  batchSize: 20,
-  batchDelay: 172800,
-  mailQueueInterval: process.env.MAIL_QUEUE_INTERVAL || 172800,
+  batchSize: 50,
+  concurrency: 3,
+  rateLimitDelay: 1000,
 };
 
-const closure = () => {
-  const queue = [];
+const OAuth2Client = new google.auth.OAuth2(
+  config.clientId,
+  config.clientSecret,
+  config.redirectUri,
+);
+OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
 
-  // Create the email envelope (transport)
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      type: 'OAuth2',
+// Create the email envelope (transport)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    type: 'OAuth2',
+    user: config.email,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+  },
+});
+
+const sendEmail = async (mailOptions) => {
+  try {
+    const { token } = await OAuth2Client.getAccessToken();
+    mailOptions.auth = {
       user: config.email,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-    },
-  });
-
-  const OAuth2Client = new google.auth.OAuth2(
-    config.clientId,
-    config.clientSecret,
-    config.redirectUri,
-  );
-  OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
-
-  const processQueue = async () => {
-    const delay = (ms) =>
-      new Promise((resolve) => {
-        setTimeout(resolve, ms);
-      });
-
-    const sendEmail = async (item) => {
-      const { recipient, subject, message, attachments, cc, bcc, replyTo, acknowledgingReceipt } =
-        item;
-
-      try {
-        const res = await OAuth2Client.getAccessToken();
-        const accessToken = res.token;
-
-        const mailOptions = {
-          from: config.email,
-          to: recipient,
-          cc,
-          bcc,
-          subject,
-          html: message,
-          attachments,
-          replyTo,
-          auth: {
-            user: config.email,
-            refreshToken: config.refreshToken,
-            accessToken,
-          },
-        };
-
-        const result = await transporter.sendMail(mailOptions);
-        if (typeof acknowledgingReceipt === 'function') {
-          acknowledgingReceipt(null, result);
-        }
-        if (process.env.NODE_ENV === 'local') {
-          logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
-        }
-      } catch (error) {
-        if (typeof acknowledgingReceipt === 'function') {
-          acknowledgingReceipt(error, null);
-        }
-        logger.logException(
-          error,
-          `Error sending email: from ${config.email} to ${recipient} subject ${subject}`,
-          `Extra Data: cc ${cc} bcc ${bcc}`,
-        );
-      }
+      refreshToken: config.refreshToken,
+      accessToken: token,
     };
-
-    const processBatch = async (batch) => {
-      await batch.reduce(async (previousPromise, item) => {
-        await previousPromise;
-        await sendEmail(item);
-        await delay(1000);
-      }, Promise.resolve());
-    };
-
-    const processAllBatches = async () => {
-      if (queue.length === 0) {
-        setTimeout(processQueue, config.mailQueueInterval);
-        return;
-      }
-
-      const batch = queue.splice(0, config.batchSize);
-      await processBatch(batch);
-
-      if (queue.length > 0) {
-        setTimeout(processAllBatches, config.batchDelay);
-      } else {
-        setTimeout(processQueue, config.mailQueueInterval);
-      }
-    };
-    processAllBatches();
-  };
-
-  processQueue();
-
-  const emailSender = function (
-    recipient,
-    subject,
-    message,
-    attachments = null,
-    cc = null,
-    bcc = null,
-    replyTo = null,
-    acknowledgingReceipt = null,
-  ) {
-    if (process.env.sendEmail) {
-      queue.push({
-        recipient,
-        subject,
-        message,
-        attachments,
-        cc,
-        bcc,
-        replyTo,
-        acknowledgingReceipt,
-      });
+    const result = await transporter.sendMail(mailOptions);
+    if (process.env.NODE_ENV === 'local') {
+      logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
     }
-  };
-
-  return emailSender;
+    return result;
+  } catch (error) {
+    logger.logException(error, `Error sending email: ${mailOptions.to}`);
+    throw error;
+  }
 };
 
-module.exports = closure();
+const queue = [];
+let isProcessing = false;
+
+const processQueue = async () => {
+  if (isProcessing || queue.length === 0) return;
+
+  isProcessing = true;
+  console.log('Processing email queue...');
+
+  const processBatch = async () => {
+    if (queue.length === 0) {
+      isProcessing = false;
+      return;
+    }
+
+    const batch = queue.shift();
+    try {
+      console.log('Sending email...');
+      await sendEmail(batch);
+    } catch (error) {
+      logger.logException(error, 'Failed to send email batch');
+    }
+
+    setTimeout(processBatch, config.rateLimitDelay);
+  };
+
+  const concurrentProcesses = Array(config.concurrency).fill().map(processBatch);
+
+  try {
+    await Promise.all(concurrentProcesses);
+  } finally {
+    isProcessing = false;
+  }
+};
+
+const emailSender = (
+  recipients,
+  subject,
+  message,
+  attachments = null,
+  cc = null,
+  replyTo = null,
+) => {
+  if (!process.env.sendEmail) return;
+  const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
+  for (let i = 0; i < recipients.length; i += config.batchSize) {
+    const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
+    queue.push({
+      from: config.email,
+      bcc: batchRecipients.join(','),
+      subject,
+      html: message,
+      attachments,
+      cc,
+      replyTo,
+    });
+  }
+  console.log('Emails queued:', queue.length);
+  setImmediate(processQueue);
+};
+
+module.exports = emailSender;
