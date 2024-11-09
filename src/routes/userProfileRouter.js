@@ -2,6 +2,7 @@ const { body } = require('express-validator');
 
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
+const logUserPermissionController = require('../controllers/logUserPermissionController')();
 
 const routes = function (userProfile, project) {
   const controller = require('../controllers/userProfileController')(userProfile, project);
@@ -115,6 +116,10 @@ const routes = function (userProfile, project) {
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
+
+  userProfileRouter.post('/logPermissionChanges', logUserPermissionController.logPermissionChanges);
+  userProfileRouter.get('/logPermissionChanges/:userId', logUserPermissionController.getPermissionChangeLogs);
+
 
   return userProfileRouter;
 };
