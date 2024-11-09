@@ -1720,7 +1720,11 @@ const userHelper = function () {
         let lastHr = -1;
         results.forEach((streak) => {
           streak.badges.every((bdge) => {
+            console.log(`Inside every: bdge.hrs = ${bdge.hrs}`);
             let badgeOfType;
+            console.log(`user.savedTangibleHrs: ${user.savedTangibleHrs}`);
+            console.log(`bdge.weeks: ${bdge.weeks}`);
+            console.log('\n');
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
@@ -1739,11 +1743,21 @@ const userHelper = function () {
                 }
               }
             }
+            // console.log(badgeCollection);
+
             // check if it is possible to earn this streak
-            if (user.savedTangibleHrs.length >= bdge.weeks) {
+            if (user.savedTangibleHrs.length === bdge.weeks) { // modified this so that it will only pass if the week exactly matches. Reason: bdge.weeks is 200 by default, setting it to >= passes and it iterates unnecessarily causing the data to change.
+            // if (user.savedTangibleHrs.length >= bdge.weeks) {// original
               let awardBadge = true;
               const endOfArr = user.savedTangibleHrs.length - 1;
               for (let i = endOfArr; i >= endOfArr - bdge.weeks + 1; i -= 1) {
+                // if (user.savedTangibleHrs[i] < totalHours) {// added
+                // console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
+                console.log(`total hrs in the loop:::::: ${totalhours}`);
+                console.log(`in the loop = bdge.hrs value::::: ${bdge.hrs}`);
+                console.log('\n');
+
+
                 if (user.savedTangibleHrs[i] < bdge.hrs) {
                   awardBadge = false;
                   return true;
@@ -1754,6 +1768,10 @@ const userHelper = function () {
                 higherBadge = true;
                 lastHr = bdge.hrs;
                 if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
+                  console.log(`Replacing badge ${badgeOfType._id} with ${bdge._id}`);
+                  console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
+                  console.log(`Badge hours value: ${badgeOfType.totalHrs} -> ${bdge.hrs}`);
+                  console.log('\n');
                   replaceBadge(
                     personId,
                     mongoose.Types.ObjectId(badgeOfType._id),
@@ -1762,9 +1780,24 @@ const userHelper = function () {
 
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
                 } else if (!badgeOfType) {
+                  console.log(`Adding new badge ${bdge._id}`);
+                  console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
+                  console.log(`Badge hours value: ${bdge.hrs}`);
+                  console.log('\n');
+                  
+                  const totalHours = user.savedTangibleHrs.slice(-bdge.weeks).reduce((a, b) => a + b, 0);
+                  console.log(`Total hours: ${totalHours}`);
                   addBadge(personId, mongoose.Types.ObjectId(bdge._id));
+                  console.log(`After addBadge: bdge.hrs = ${bdge.hrs}`);
+                  console.log(`After addBadge: totalHours = ${totalHours}`);   
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
+                  console.log(`After rem: bdge.hrs = ${bdge.hrs}`);
+                  console.log(`After rem: totalHours = ${totalHours}`); 
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
+                  console.log(`Updating badge ${badgeOfType._id} with new hours value`);
+                  console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
+                  console.log(`Badge hours value: ${badgeOfType.totalHrs} -> ${bdge.hrs}`);
+                  console.log('\n');
                   const lowerBound = badgeOfType.weeks;
                   let upperBound;
                   streak = 0;
