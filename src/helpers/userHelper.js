@@ -1548,16 +1548,15 @@ const userHelper = function () {
     return weeksData;
   };
 
-  const getMaxHrs = async (personId, user) => {
-    const weeksdata = await getAllWeeksData(personId, user);
-    return Math.max(...weeksdata);
-  };
-
   const updatePersonalMax = async (personId, user) => {
     try {
-      const MaxHrs = await getMaxHrs(personId, user);
-      user.personalBestMaxHrs = MaxHrs;
-      await user.save();
+      const weeksData = await getAllWeeksData(personId, user); // get `Time Entries` tangible hours
+      const savedHours = user.savedTangibleHrs; // get `savedTangibleHrs` tangible hours
+      
+      const MaxHrs = Math.max(...savedHours); // temp passing one of the arrays
+
+      user.personalBestMaxHrs = MaxHrs; // updates userProfile's personalBestMaxHrs with the max hours.
+      await user.save(); // this will update user.personalBestMaxHrs with the new max hours.
     } catch (error) {
       console.error(error);
     }
