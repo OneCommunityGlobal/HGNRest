@@ -1582,9 +1582,7 @@ const userHelper = function () {
       }
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
-      const currentDate = moment(moment().format('MM-DD-YYYY'), 'MM-DD-YYYY')
-        .tz('America/Los_Angeles')
-        .format('MMM-DD-YY');
+      const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY'); // fixed format
       if (
         user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
