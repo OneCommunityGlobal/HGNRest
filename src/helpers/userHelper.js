@@ -1548,12 +1548,20 @@ const userHelper = function () {
     return weeksData;
   };
 
+  function mergeArrays(array1, array2) {
+    // create a new array and merge array1 and array2
+    const tempArray = [...array1, ...array2];
+    return tempArray; // return new array
+  }
+
   const updatePersonalMax = async (personId, user) => {
     try {
       const weeksData = await getAllWeeksData(personId, user); // get `Time Entries` tangible hours
       const savedHours = user.savedTangibleHrs; // get `savedTangibleHrs` tangible hours
-      
-      const MaxHrs = Math.max(...savedHours); // temp passing one of the arrays
+      const result = mergeArrays(savedHours, weeksData);
+      console.log('merged arrays of tangible weeks: ', result); 
+
+      const MaxHrs = Math.max(...result);
 
       user.personalBestMaxHrs = MaxHrs; // updates userProfile's personalBestMaxHrs with the max hours.
       await user.save(); // this will update user.personalBestMaxHrs with the new max hours.
