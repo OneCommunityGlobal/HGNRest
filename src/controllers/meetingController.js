@@ -81,9 +81,9 @@ const meetingController = function (Meeting) {
     }
   };
 
-  const getMeetings = async function (req, res){
+  const getMeetings = async function (req, res) {
     try {
-      const {startTime, endTime } = req.query;
+      const { startTime, endTime } = req.query;
       const decodedStartTime = decodeURIComponent(startTime);
       const decodedEndTime = decodeURIComponent(endTime);
       console.log('decodedStartTime', decodedStartTime);
@@ -92,13 +92,13 @@ const meetingController = function (Meeting) {
       const meetings = await Meeting.aggregate([
         {
           $match: {
-            dateTime: { 
+            dateTime: {
               $gte: new Date(decodedStartTime),
               $lte: new Date(decodedEndTime),
             },
           },
         },
-        { $unwind: "$participantList" },
+        { $unwind: '$participantList' },
         {
           $project: {
             _id: 1,
@@ -107,7 +107,7 @@ const meetingController = function (Meeting) {
             location: 1,
             notes: 1,
             organizer: 1,
-            recipient: "$participantList",
+            recipient: '$participantList',
           },
         },
       ]);
@@ -117,11 +117,27 @@ const meetingController = function (Meeting) {
       console.error('Error fetching meetings:', error);
       res.status(500).json({ error: 'Failed to fetch meetings' });
     }
-  }
+  };
+
+  const markMeetingAsRead = async function (req, res) {
+    try {
+      const { meetingId } = req.params;
+      const result = await Meeting.updateOne({ _id: meetingId }, { $set: { isRead: true } });
+      console.log(result);
+      if (result.nModified === 0) {
+        return res.status(404).json({ error: 'Meeting not found or already marked as read' });
+      }
+      res.status(200).json({ message: 'Meeting marked as read successfully' });
+    } catch (error) {
+      console.error('Error marking meeting as read:', error);
+      res.status(500).json({ error: 'Failed to mark meeting as read' });
+    }
+  };
 
   return {
     postMeeting,
     getMeetings,
+    markMeetingAsRead,
   };
 };
 
