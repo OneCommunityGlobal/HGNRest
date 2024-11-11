@@ -231,11 +231,49 @@ const bmMaterialsController = function (BuildingMaterial) {
       res.json(err);
     }
   };
+
+  const bmupdatePurchaseStatus = async function (req, res) {
+    const { purchaseId, status, quantity } = req.body;
+    try {
+        const material = await BuildingMaterial.findOne({ 'purchaseRecord._id': purchaseId });
+          
+        if (!material) {
+            return res.status(404).send('Purchase not found');
+        }
+
+        const purchaseRecord = material.purchaseRecord.find(record => record._id.toString() === purchaseId);
+
+        if (!purchaseRecord) {
+            return res.status(404).send('Purchase record not found');
+        }
+
+        if (purchaseRecord.status !== 'Pending') {
+            return res.status(400).send(`Purchase status can only be updated from 'Pending'. Current status is '${purchaseRecord.status}'.`);
+        }
+        const updateObject = {
+          $set: { 'purchaseRecord.$.status': status },
+        };
+        if (status === 'Approved') {
+          updateObject.$inc = { 'stockBought': quantity };
+        }
+        const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
+          { 'purchaseRecord._id': purchaseId },
+          updateObject,
+          { new: true }
+        );
+        res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
+  };
+
+  
   return {
     bmMaterialsList,
     bmPostMaterialUpdateRecord,
     bmPostMaterialUpdateBulk,
     bmPurchaseMaterials,
+    bmupdatePurchaseStatus,
   };
 };
 
