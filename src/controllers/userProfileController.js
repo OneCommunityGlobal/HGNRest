@@ -444,6 +444,7 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  // Todo: Keep updating projectHistory when user is updated
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const canEditProtectedAccount = await canRequestorUpdateUser(
@@ -628,6 +629,51 @@ const userProfileController = function (UserProfile, Project) {
 
             const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
             const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
+
+            // update the projects history
+            console.log('Updating history in userProfileController');
+            const changedProjectHistoryIds = Array.from(
+              new Set(oldProjects.concat(newProjects)),
+            ).map((id) => mongoose.Types.ObjectId(id));
+            const existingProjectIds = new Set(record.projectHistory.map((id) => id.toString()));
+
+            // Filter new IDs to add only those not present in projectHistory
+            const newProjectIds = changedProjectHistoryIds.filter(
+              (id) => !existingProjectIds.has(id.toString()),
+            );
+
+            // Add new IDs to projectHistory
+            record.projectHistory.push(...newProjectIds);
+
+            // update the projects history -- array of objects with project_id, name, category from project schema
+            // const changedProjectHistory = await Project.find(
+            //   { _id: { $in: changedProjectHistoryIds } },
+            //   { projectName: 1, category: 1 },
+            // );
+            // await Promise.all(
+            //   changedProjectHistory.map(async (project) => {
+            //     if (!record.projectHistory.some((p) => p._id.equals(project._id))) {
+            //       record.projectHistory.push({
+            //         _id: project._id,
+            //         projectName: project.projectName,
+            //         category: project.category,
+            //       });
+            //     }
+            //   }),
+            // );
+
+            // record.projectHistory = changedProjectHistory.map((project) => ({
+            //   _id: project._id,
+            //   projectName: project.projectName,
+            //   category: project.category,
+            // }));
+            // console.log('changedProjectHistory', changedProjectHistory);
+
+            // changedProjectHistory = changedProjectHistory.map((project) => ({
+            //   project_id: project._id,
+            //   name: project.projectName,
+            //   category: project.category,
+            // }));
 
             const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
               mongoose.Types.ObjectId(id),
@@ -900,6 +946,15 @@ const userProfileController = function (UserProfile, Project) {
         },
         {
           path: 'projects',
+          select: '_id projectName category',
+          options: {
+            sort: {
+              projectName: 1,
+            },
+          },
+        },
+        {
+          path: 'projectHistory',
           select: '_id projectName category',
           options: {
             sort: {
@@ -1827,20 +1882,40 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const updateUserInformation = async function (req,res){
+  const updateUserInformation = async function (req, res) {
     try {
-      const data=req.body;
-      data.map(async (e)=>  {
-        let result = await UserProfile.findById(e.user_id);
-        result[e.item]=e.value
-        let newdata=await result.save()
-      })
-      res.status(200).send({ message: 'Update successful'});
+      const data = req.body;
+      data.map(async (e) => {
+        const result = await UserProfile.findById(e.user_id);
+        result[e.item] = e.value;
+        const newdata = await result.save();
+      });
+      res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error)
-      return res.status(500)
+      console.log(error);
+      return res.status(500);
     }
-  }
+  };
+
+  const getProjectHistory = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const user = await UserProfile.findById(userId);
+      const projectHistory = [...user.projectHistory];
+      res.status(200).send(projectHistory);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const postClearProjectHistory = async function (req, res) {
+    try {
+      const result = await UserProfile.updateMany({}, { $set: { projectHistory: [] } });
+      res.status(200).send({ message: 'Project history cleared for all users', result });
+    } catch (error) {
+      res.status(500).send({ message: 'Error clearing project history', error });
+    }
+  };
 
   return {
     postUserProfile,
@@ -1871,7 +1946,9 @@ const userProfileController = function (UserProfile, Project) {
     getAllTeamCode,
     getAllTeamCodeHelper,
     updateUserInformation,
-    getUserProfileBasicInfo
+    getUserProfileBasicInfo,
+    getProjectHistory,
+    postClearProjectHistory,
   };
 };
 
