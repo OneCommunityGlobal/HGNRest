@@ -1302,7 +1302,7 @@ const overviewReportHelper = function () {
       return taskHours[0].totalHours;
     };
     let taskHours = await getTaskHours(startDate, endDate);
-    taskHours = taskHours ? taskHours.toFixed(2) : 0;
+    taskHours = taskHours ? Number(taskHours.toFixed(2)) : 0;
 
     // 2. Retrieves the total hours logged to projects for a given date range.
     const getProjectHours = async (start, end) => {
@@ -1329,7 +1329,7 @@ const overviewReportHelper = function () {
       return projectHours[0].totalHours;
     };
     let projectHours = await getProjectHours(startDate, endDate);
-    projectHours = projectHours ? projectHours.toFixed(2) : 0;
+    projectHours = projectHours ? Number(projectHours.toFixed(2)) : 0;
 
     // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
@@ -1403,7 +1403,8 @@ const overviewReportHelper = function () {
         }
       }
     ]);
-    const totalCommittedHours = getTotalCommittedHours.length > 0 ? getTotalCommittedHours[0].totalCommittedHours : 0;
+    const totalCommittedHours = getTotalCommittedHours.length > 0 
+      ? Number(getTotalCommittedHours[0].totalCommittedHours) : 0;
 
     // 5. Number of member with tasks assigned
     const membersWithTasks = await Task.distinct('resources.userID', {
@@ -1424,12 +1425,12 @@ const overviewReportHelper = function () {
     const taskAndProjectStats = {
       taskHours: {
         count: taskHours,
-        submittedToCommittedHoursPercentage: (taskHours / totalCommittedHours).toFixed(2),
+        submittedToCommittedHoursPercentage: Number((taskHours / totalCommittedHours).toFixed(2)),
         comparisonPercentage: tasksComparisonPercentage,
       },
       projectHours: {
         count: projectHours,
-        submittedToCommittedHoursPercentage: (projectHours / totalCommittedHours).toFixed(2),
+        submittedToCommittedHoursPercentage: Number((projectHours / totalCommittedHours).toFixed(2)),
         comparisonPercentage: projectsComparisonPercentage,
       },
       membersWithTasks: membersWithTasks.length,
