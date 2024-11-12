@@ -1257,11 +1257,19 @@ const overviewReportHelper = function () {
   /**
    * 1. Total hours logged in tasks
    * 2. Total hours logged in projects
-   * 3. Number of member with tasks assigned
-   * 4. Number of member without tasks assigned
-   * 5. Number of tasks with due date within the date range
-   * @param {string} startDate - in format 'YYYY-MM-DD'.
-   * @param {string} endDate - in format 'YYYY-MM-DD'.
+   * 3. Comparison data for task and project hours
+   * 4. Percentage for submitted-to-committed hours for Tasks and Projects
+   * 
+   * (REVIEW: The remaining 3 pieces of data may be dead code; check for relevance)
+   * 5. Number of member with tasks assigned 
+   * 6. Number of member without tasks assigned 
+   * 7. Number of tasks with due date within the date range 
+   * 
+   * All parameters are in the format 'YYYY-MM-DD'
+   * @param {string} startDate
+   * @param {string} endDate 
+   * @param {string} comparisonStartDate 
+   * @param {string} comparisonEndDate 
    */
   async function getTaskAndProjectStats(
     startDate, 
@@ -1269,7 +1277,7 @@ const overviewReportHelper = function () {
     comparisonStartDate, 
     comparisonEndDate
   ) {
-    // Retrieves the total hours logged to tasks for a given date range.
+    // 1. Retrieves the total hours logged to tasks for a given date range.
     const getTaskHours = async (start, end) => {
       const taskHours = await TimeEntries.aggregate([
         {
@@ -1296,7 +1304,7 @@ const overviewReportHelper = function () {
     let taskHours = await getTaskHours(startDate, endDate);
     taskHours = taskHours ? taskHours.toFixed(2) : 0;
 
-    // Retrieves the total hours logged to projects for a given date range.
+    // 2. Retrieves the total hours logged to projects for a given date range.
     const getProjectHours = async (start, end) => {
       const projectHours = await TimeEntries.aggregate([
         {
@@ -1323,7 +1331,7 @@ const overviewReportHelper = function () {
     let projectHours = await getProjectHours(startDate, endDate);
     projectHours = projectHours ? projectHours.toFixed(2) : 0;
 
-    // Calculates comparison percentages for task and project hours
+    // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
     let projectsComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate ) {
@@ -1343,7 +1351,7 @@ const overviewReportHelper = function () {
     }
     const numberOfWeeks = weeksBetweenDates(startDate, endDate);
 
-    // Retrieves the total committed hours that should have been completed for the given date range.
+    // 4. Retrieves the total committed hours that should have been completed for the given date range.
     const getTotalCommittedHours = await UserProfile.aggregate([
       { 
         $match: {
@@ -1397,18 +1405,18 @@ const overviewReportHelper = function () {
     ]);
     const totalCommittedHours = getTotalCommittedHours.length > 0 ? getTotalCommittedHours[0].totalCommittedHours : 0;
 
-    // 3. Number of member with tasks assigned
+    // 5. Number of member with tasks assigned
     const membersWithTasks = await Task.distinct('resources.userID', {
       'resources.userID': { $exists: true },
       completedTask: { $ne: true },
     });
 
-    // 4. Number of member without tasks assigned
+    // 6. Number of member without tasks assigned
     const membersWithoutTasks = await UserProfile.countDocuments({
       _id: { $nin: membersWithTasks },
     });
 
-    // 5. Number of tasks with due date within the date range
+    // 7. Number of tasks with due date within the date range
     const tasksDueWithinDate = await Task.countDocuments({
       dueDatetime: { $gte: startDate, $lte: endDate },
     });
