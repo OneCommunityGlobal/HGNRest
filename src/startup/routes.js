@@ -79,6 +79,8 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
+const faqRouter = require('../routes/faqRouter')();
+
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 const roleRouter = require('../routes/roleRouter')(role);
@@ -156,6 +158,7 @@ module.exports = function (app) {
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
+  app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
   app.use('/api', titleRouter);
