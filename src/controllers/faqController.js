@@ -6,7 +6,7 @@ const faqController = function () {
         try {
             const results = await FAQ.find({
                 question: { $regex: searchQuery, $options: 'i' }
-            });
+            }).limit(5);
             res.status(200).send(results);
         } catch (error) {
             res.status(500).json({ message: 'Error searching FAQs', error });
@@ -38,23 +38,33 @@ const faqController = function () {
         const modifiedBy = req.user._id;
 
         try {
-            const updatedFAQ = await FAQ.findOneAndUpdate({ _id: id }, {
-                question,
-                answer,
-                modifiedBy,
-                updatedAt: new Date().toISOString()
-            }, { new: true });
-            if (!updatedFAQ) {
+            const originalFAQ = await FAQ.findById(id);
+            if (!originalFAQ) {
                 return res.status(404).json({ message: 'FAQ not found' });
             }
 
-            res.status(200).json({ message: 'FAQ updated successfully', updatedFAQ });
+            originalFAQ.changeHistory.push({
+                modifiedBy,
+                modifiedAt: new Date(),
+                previousQuestion: originalFAQ.question,
+                previousAnswer: originalFAQ.answer,
+            });
+
+            originalFAQ.question = question;
+            originalFAQ.answer = answer;
+            originalFAQ.modifiedBy = modifiedBy;
+            originalFAQ.updatedAt = new Date();
+
+            await originalFAQ.save();
+
+            res.status(200).json({ message: 'FAQ updated successfully', updatedFAQ: originalFAQ });
         } catch (error) {
             res.status(500).json({ message: 'Error updating FAQ', error });
         }
 
     };
 
+    const { sendEmail } = require('./emailController');
     const UnansweredFAQ = require('../models/unansweredFaqs');
 
     const logUnansweredFAQ = async function (req, res) {
@@ -74,6 +84,15 @@ const faqController = function () {
                 updatedAt: new Date().toISOString()
             });
             await newUnansweredFAQ.save();
+
+            const emailData = {
+                to: process.env.OWNER_EMAIL,
+                subject: 'New Unanswered FAQ Logged',
+                html: `<p>A new unanswered question has been logged:</p><p><strong>Question:</strong> ${question}</p><p>Please review and add an answer if necessary.</p>`,
+            };
+
+            await sendEmail({ body: emailData }, res);
+
             res.status(201).json({ message: 'Question logged successfully', newUnansweredFAQ });
         } catch (error) {
             res.status(500).json({ message: 'Error logging unanswered FAQ', error });

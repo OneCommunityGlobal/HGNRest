@@ -5,11 +5,16 @@ const userService = require('../services/userService');
 const Logger = require('../startup/logger');
 const { PROTECTED_EMAIL_ACCOUNT, ALLOWED_EMAIL_ACCOUNT } = require('./constants');
 
-const hasRolePermission = async (role, action) =>
-  Role.findOne({ roleName: role })
+const hasRolePermission = async (role, action) => {
+  if ((role === 'Admin' || role === 'Owner') && (action === 'faq_create' || action === 'faq_edit')) {
+    return true;
+  }
+  return Role.findOne({ roleName: role })
     .exec()
     .then(({ permissions }) => permissions.includes(action))
     .catch(false);
+}
+
 
 const hasIndividualPermission = async (userId, action) =>
   UserProfile.findById(userId)
@@ -21,6 +26,10 @@ const hasIndividualPermission = async (userId, action) =>
 const hasPermission = async (requestor, action) =>
   (await hasRolePermission(requestor.role, action)) ||
   hasIndividualPermission(requestor.requestorId, action);
+
+const hasFaqPermission = async (requestor, action) => {
+  return await hasPermission(requestor, action);
+};
 
 function getDistinct(arr1, arr2) {
   // Merge arrays and reduce to distinct elements
