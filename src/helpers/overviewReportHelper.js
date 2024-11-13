@@ -560,16 +560,14 @@ const overviewReportHelper = function () {
         },
       ]);
 
-      console.log(taskStats[0]);
       const data = { current: {}, comparison: {} };
       for (const key in taskStats[0]) {
         const active = taskStats[0][key].find((x) => x._id === 'Active');
         data[key].active = active ? active.count : 0;
 
         const complete = taskStats[0][key].find((x) => x._id === 'Complete');
-        data[key].complete = complete ? active.complete : 0;
+        data[key].complete = complete ? complete.count : 0;
       }
-      console.log(data);
 
       return {
         active: {
