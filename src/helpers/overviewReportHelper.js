@@ -1302,7 +1302,7 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-      return taskHours[0].totalHours;
+      return taskHours[0]?.totalHours;
     };
     let taskHours = await getTaskHours(startDate, endDate);
     taskHours = taskHours ? Number(taskHours.toFixed(2)) : 0;
@@ -1329,7 +1329,7 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-      return projectHours[0].totalHours;
+      return projectHours[0]?.totalHours;
     };
     let projectHours = await getProjectHours(startDate, endDate);
     projectHours = projectHours ? Number(projectHours.toFixed(2)) : 0;
