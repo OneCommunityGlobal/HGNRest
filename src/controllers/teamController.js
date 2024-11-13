@@ -223,10 +223,12 @@ const teamcontroller = function (Team) {
         },
       },
     ])
-      .then((result) => res.status(200).send(result))
+      .then((result) => {
+        res.status(200).send(result)
+      })
       .catch((error) => {
         Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
-        res.status(500).send(error);
+        return res.status(500).send(error);
       });
   };
   const updateTeamVisibility = async (req, res) => {
@@ -310,6 +312,47 @@ const teamcontroller = function (Team) {
       });
   };
 
+  const getAllTeamMembers = async function (req,res) {
+    try{
+      const teamIds = req.body;
+      const cacheKey='teamMembersCache'
+      if(cache.hasCache(cacheKey)){
+        let data=cache.getCache('teamMembersCache')
+        return res.status(200).send(data);
+      }
+      if (!Array.isArray(teamIds) || teamIds.length === 0 || !teamIds.every(team => mongoose.Types.ObjectId.isValid(team._id))) {
+        return res.status(400).send({ error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.' });
+      }
+      let data = await Team.aggregate([
+        { 
+          $match: { _id: { $in: teamIds.map(team => mongoose.Types.ObjectId(team._id)) } } 
+        },
+        { $unwind: '$members' },
+        {
+          $lookup: {
+            from: 'userProfiles',
+            localField: 'members.userId',
+            foreignField: '_id',
+            as: 'userProfile',
+          },
+        },
+        { $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$_id',  // Group by team ID
+            teamName: { $first: '$teamName' }, // Use $first to keep the team name
+            createdDatetime: { $first: '$createdDatetime' }, 
+            members: { $push: '$members' },  // Rebuild the members array
+          },
+        },
+      ])
+      cache.setCache(cacheKey,data)
+      res.status(200).send(data);
+    }catch(error){
+      console.log(error)
+      res.status(500).send({'message':"Fetching team members failed"});
+    }
+  }
   return {
     getAllTeams,
     getAllTeamCode,
@@ -320,6 +363,7 @@ const teamcontroller = function (Team) {
     assignTeamToUsers,
     getTeamMembership,
     updateTeamVisibility,
+    getAllTeamMembers
   };
 };
 
