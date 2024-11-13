@@ -11,6 +11,11 @@ const Task = require('../models/task');
 const Project = require('../models/project');
 
 function calculateGrowthPercentage(current, prev) {
+  // Handles undefined cases
+  if (prev === undefined || prev === null || prev === 0) {
+    return current === 0 ? 0 : 'No Comparison Data';
+  }
+
   const percentage = (current - prev) / prev;
   return Math.round(percentage * 100) / 100;
 }
