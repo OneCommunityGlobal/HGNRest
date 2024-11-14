@@ -55,5 +55,6 @@ router.post('/faqs', verifyToken, checkFaqPermission('manageFAQs'), faqControlle
 router.put('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.updateFAQ);
 router.delete('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.deleteFAQ);
 router.post('/faqs/log-unanswered', verifyToken, faqController.logUnansweredFAQ);
+router.get('/faqs/:id/history', verifyToken, checkFaqPermission('manageFAQs'), faqController.getFAQHistory);
 
 module.exports = router;

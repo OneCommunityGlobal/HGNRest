@@ -80,10 +80,17 @@ const faqController = function () {
                 answer,
                 createdBy,
                 createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                changeHistory: [{
+                    modifiedBy: createdBy,
+                    modifiedAt: new Date().toISOString(),
+                    previousQuestion: question,
+                    previousAnswer: answer,
+                }]
             });
+
             await newFAQ.save();
-            console.log("FAQ created and saved:", newFAQ);
+            console.log("FAQ created and saved with initial change history:", newFAQ);
             res.status(201).json({ message: 'FAQ created successfully', newFAQ });
         } catch (error) {
             console.error('Error creating FAQ:', error);
@@ -180,7 +187,23 @@ const faqController = function () {
         }
     };
 
-    return { searchFAQs, getTopFAQs, createFAQ, updateFAQ, deleteFAQ, logUnansweredFAQ };
+    const getFAQHistory = async function (req, res) {
+        try {
+            const { id } = req.params;
+            const faq = await FAQ.findById(id);
+
+            if (!faq) {
+                return res.status(404).json({ message: 'FAQ not found' });
+            }
+
+            res.status(200).json({ changeHistory: faq.changeHistory });
+        } catch (error) {
+            console.error('Error fetching FAQ history:', error);
+            res.status(500).json({ message: 'Error fetching FAQ history' });
+        }
+    };
+
+    return { searchFAQs, getTopFAQs, createFAQ, updateFAQ, deleteFAQ, logUnansweredFAQ, getFAQHistory };
 };
 
 module.exports = faqController;
