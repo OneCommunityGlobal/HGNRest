@@ -79,7 +79,7 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
-const faqRouter = require('../routes/faqRouter')();
+const faqRouter = require('../routes/faqRouter');
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);

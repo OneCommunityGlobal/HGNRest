@@ -90,6 +90,9 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+
+      'viewFAQs',
+      'manageFAQs',
     ],
   },
   {
@@ -120,6 +123,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'seeUsersInDashboard',
+      'viewFAQs',
     ],
   },
   {
@@ -146,6 +150,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'viewFAQs',
     ],
   },
   {
@@ -169,6 +174,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'viewFAQs',
     ],
   },
   {
@@ -259,6 +265,9 @@ const permissionsRoles = [
       'manageAdminLinks',
 
       'editHeaderMessage',
+
+      'viewFAQs',
+      'manageFAQs',
     ],
   },
 ];

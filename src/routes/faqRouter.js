@@ -1,21 +1,59 @@
+// HGNRest/src/routes/faqRouter.js
 const express = require('express');
+const jwt = require('jsonwebtoken');
+const moment = require('moment');
+const config = require('../config');
 const router = express.Router();
 const faqController = require('../controllers/faqController')();
-const { hasFaqPermission } = require('../utilities/permissions');
+const Role = require('../models/role');
 
-const checkFaqPermission = (action) => async (req, res, next) => {
-    const hasPermission = await hasFaqPermission(req.user, action);
+// Middleware to verify token and fetch permissions
+const verifyToken = async (req, res, next) => {
+    const token = req.headers['authorization'];
+    if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+    }
+    try {
+        const decoded = jwt.verify(token, config.JWT_SECRET);
+        if (!decoded || !decoded.expiryTimestamp || moment().isAfter(decoded.expiryTimestamp)) {
+            return res.status(401).json({ message: 'Token is invalid or expired' });
+        }
 
-    if (hasPermission) {
-        return next();
-    } else {
-        return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+        const role = await Role.findOne({ roleName: decoded.role });
+        const rolePermissions = role ? role.permissions : [];
+
+        const personalPermissions = [
+            ...(decoded.permissions?.frontPermissions || []),
+            ...(decoded.permissions?.backPermissions || [])
+        ];
+        const combinedPermissions = Array.from(new Set([...rolePermissions, ...personalPermissions]));
+
+        req.user = {
+            userid: decoded.userid,
+            role: decoded.role,
+            permissions: combinedPermissions,
+        };
+        next();
+    } catch (error) {
+        console.error('JWT verification failed:', error);
+        return res.status(401).json({ message: 'Invalid or expired token' });
     }
 };
 
-router.get('/search-faqs', faqController.searchFAQs);
-router.post('/add-faq', checkFaqPermission('faq_create'), faqController.createFAQ);
-router.put('/edit-faq/:id', checkFaqPermission('faq_edit'), faqController.updateFAQ);
-router.post('/log-unanswered', faqController.logUnansweredQuestion);
+// Permission check middleware
+const checkFaqPermission = (requiredPermission) => (req, res, next) => {
+    if (!req.user || !req.user.permissions.includes(requiredPermission)) {
+        return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+    }
+    next();
+};
+
+// Define routes with verifyToken and checkFaqPermission
+router.get('/faqs/search', verifyToken, faqController.searchFAQs);
+router.get('/faqs', verifyToken, faqController.getTopFAQs);
+router.post('/faqs', verifyToken, checkFaqPermission('manageFAQs'), faqController.createFAQ);
+router.put('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.updateFAQ);
+router.delete('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.deleteFAQ);
+router.post('/faqs/log-unanswered', verifyToken, faqController.logUnansweredFAQ);
 
 module.exports = router;
