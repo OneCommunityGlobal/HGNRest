@@ -32,39 +32,36 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   }
 
   const fetchToolTypes = async (req, res) => {
-    
     try {
-        ToolType
-        .find()
+      ToolType.find()
         .populate([
-              {
-                path: 'available',
-                select: '_id code project',
-                populate: {
-                  path: 'project',
-                  select: '_id name'
-                }
-              },
-              {
-                path: 'using',
-                select: '_id code project',
-                populate: {
-                  path: 'project',
-                  select: '_id name'
-                }
-              }
+          {
+            path: 'available',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name',
+            },
+          },
+          {
+            path: 'using',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name',
+            },
+          },
         ])
         .exec()
-        .then(result => {
+        .then((result) => {
           res.status(200).send(result);
         })
-        .catch(error => {
-          console.error("fetchToolTypes error: ", error);
+        .catch((error) => {
+          console.error('fetchToolTypes error: ', error);
           res.status(500).send(error);
         });
-     
     } catch (err) {
-      console.log("error: ", err)
+      console.log('error: ', err);
       res.json(err);
     }
   };
@@ -268,7 +265,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.status(500).send(error);
     }
   }
-
 
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;

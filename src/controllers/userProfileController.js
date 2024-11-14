@@ -1600,6 +1600,43 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const toggleInvisibility = async function (req, res) {
+    const { userId } = req.params;
+    const { isVisible } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({
+        error: 'Bad Request',
+      });
+      return;
+    }
+    if (!(await hasPermission(req.body.requestor, 'toggleInvisibility'))) {
+      res.status(403).send('You are not authorized to change user visibility');
+      return;
+    }
+
+    // console.log("Updating User Visibility ", isVisible);
+    cache.removeCache(`user-${userId}`);
+    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
+      if (err) {
+        return res.status(500).send(`Could not Find user with id ${userId}`);
+      }
+      // Check if there's a cache for all users and update it accordingly
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((users) => users._id === userId);
+        const userData = allUserData[userIdx];
+        userData.isVisible = isVisible;
+        allUserData.splice(userIdx, 1, userData);
+        cache.setCache('allusers', JSON.stringify(allUserData));
+      }
+
+      return res.status(200).send({
+        message: 'User visibility updated successfully',
+        isVisible,
+      });
+
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
       res.status(403).send('You are not authorized to add blue square');
@@ -1840,7 +1877,7 @@ const userProfileController = function (UserProfile, Project) {
       console.log(error)
       return res.status(500)
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1864,6 +1901,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    toggleInvisibility,
     addInfringements,
     editInfringements,
     deleteInfringements,
