@@ -1602,35 +1602,42 @@ const userHelper = function () {
   };
 
   // 'Most Hrs in Week'
-
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
-    if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
-      const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === 'Most Hrs in Week')
-        .map((object) => object.badge);
-      await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
-        userProfile
-          .aggregate([
-            { $match: { isActive: true } },
-            { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
-          ])
-          .then((userResults) => {
-            if (badgeOfType.length > 1) {
-              removeDupBadge(user._id, badgeOfType[0]._id);
-            }
+    try {
+      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {  
+        // Getting badge of type 'Most Hrs in Week'
+        const results = await badge.findOne({ type: 'Most Hrs in Week' });
+        if (!results) {
+          console.error('No badge found for type "Most Hrs in Week"');
+          return;
+        }
 
-            if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= userResults[0].maxHours) {
-              if (badgeOfType.length) {
-                increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType[0]._id));
-              } else {
-                addBadge(personId, mongoose.Types.ObjectId(results._id));
-              }
-            }
-          });
-      });
+        // Getting the max hours of all active users
+        const userResults = await userProfile.aggregate([
+          { $match: { isActive: true } },
+          { $group: { _id: null, maxHours: { $max: '$lastWeekTangibleHrs' } } },
+        ]);
+  
+        if (!userResults || userResults.length === 0) {
+          console.error('No user results found');
+          return;
+        }
+  
+        const maxHours = userResults[0].maxHours;
+  
+        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= maxHours) {
+          const existingBadge = badgeCollection.find((object) => object.badge.type === 'Most Hrs in Week');
+          if (existingBadge) {
+            await increaseBadgeCount(personId, mongoose.Types.ObjectId(existingBadge.badge._id));
+          } else {
+            await addBadge(personId, mongoose.Types.ObjectId(results._id));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkMostHrsWeek:', error);
     }
   };
-
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
@@ -2007,20 +2014,22 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      const users = await userProfile.find({ email: 'anoushka_vol@gmail.com'}).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
+        console.log('id:', _id);
+        console.log('Badge Collection:', badgeCollection);
         const personId = mongoose.Types.ObjectId(_id);
 
-        await updatePersonalMax(personId, user);
-        await checkPersonalMax(personId, user, badgeCollection);
+        // await updatePersonalMax(personId, user);
+        // await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
-        await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
-        await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        await checkXHrsForXWeeks(personId, user, badgeCollection);
-        await checkNoInfringementStreak(personId, user, badgeCollection);
+        // await checkMinHoursMultiple(personId, user, badgeCollection);
+        // await checkTotalHrsInCat(personId, user, badgeCollection);
+        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        // await checkXHrsForXWeeks(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
