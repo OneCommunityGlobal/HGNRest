@@ -64,7 +64,10 @@ const meetingController = function (Meeting) {
       meeting.dateTime = dateTimeISO;
       meeting.duration = req.body.duration;
       meeting.organizer = req.body.organizer;
-      meeting.participantList = req.body.participantList;
+      meeting.participantList = req.body.participantList.map((participant) => ({
+        participant,
+        notificationIsRead: false,
+      }));
       meeting.location = req.body.location;
       meeting.notes = req.body.notes;
 
@@ -104,10 +107,11 @@ const meetingController = function (Meeting) {
             _id: 1,
             dateTime: 1,
             duration: 1,
+            organizer: 1,
             location: 1,
             notes: 1,
-            organizer: 1,
-            recipient: '$participantList',
+            recipient: '$participantList.participant',
+            isRead: '$participantList.notificationIsRead',
           },
         },
       ]);
@@ -121,8 +125,12 @@ const meetingController = function (Meeting) {
 
   const markMeetingAsRead = async function (req, res) {
     try {
-      const { meetingId } = req.params;
-      const result = await Meeting.updateOne({ _id: meetingId }, { $set: { isRead: true } });
+      const { meetingId, recipient } = req.params;
+      console.log('req.params', meetingId, recipient);
+      const result = await Meeting.updateOne(
+        { _id: meetingId, 'participantList.participant': recipient },
+        { $set: { 'participantList.$.notificationIsRead': true } },
+      );
       console.log(result);
       if (result.nModified === 0) {
         return res.status(404).json({ error: 'Meeting not found or already marked as read' });

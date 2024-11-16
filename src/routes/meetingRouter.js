@@ -7,7 +7,9 @@ const routes = function (Meeting) {
 
   MeetingRouter.route('/meetings/new').post(controller.postMeeting);
   MeetingRouter.route('/meetings').get(controller.getMeetings);
-  MeetingRouter.route('/meetings/markRead/:meetingId').post(controller.markMeetingAsRead);
+  MeetingRouter.route('/meetings/markRead/:meetingId/:recipient').post(
+    controller.markMeetingAsRead,
+  );
 
   return MeetingRouter;
 };
