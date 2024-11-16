@@ -3,23 +3,36 @@ const Job = require('../models/jobs'); // Import the Job model
 // Controller to fetch all jobs with pagination, search, and filtering
 const getJobs = async (req, res) => {
   const { page = 1, limit = 18, search = '', category = '' } = req.query;
+
   try {
+    // Validate query parameters
+    const pageNumber = Math.max(1, parseInt(page, 10)); // Ensure page is at least 1
+    const limitNumber = Math.max(1, parseInt(limit, 10)); // Ensure limit is at least 1
+
     // Build query object
     const query = {};
     if (search) query.title = { $regex: search, $options: 'i' }; // Case-insensitive search
     if (category) query.category = category;
 
-    // Fetch jobs with pagination
-    const jobs = await Job.find(query)
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
-
+    // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
 
+    // Fetch paginated results
+    const jobs = await Job.find(query)
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber);
+
+    // Prepare response
     res.json({
       jobs,
-      totalPages: Math.ceil(totalJobs / limit),
-      currentPage: Number(page),
+      pagination: {
+        totalJobs,
+        totalPages: Math.ceil(totalJobs / limitNumber),
+        currentPage: pageNumber,
+        limit: limitNumber,
+        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
+        hasPreviousPage: pageNumber > 1,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });

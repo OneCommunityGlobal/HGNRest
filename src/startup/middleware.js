@@ -39,7 +39,7 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (req.originalUrl === '/api/jobs' && req.method === 'GET') {
+    if (req.originalUrl.startsWith('/api/jobs') && req.method === 'GET') {
       next();
       return;
     }
