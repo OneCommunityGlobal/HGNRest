@@ -52,7 +52,6 @@ const permissionsRoles = [
       'changeUserRehireableStatus',
       'updatePassword',
       'deleteUserProfile',
-      'infringementAuthorizer',
       'toggleInvisibility',
       'addInfringements',
       'editInfringements',
