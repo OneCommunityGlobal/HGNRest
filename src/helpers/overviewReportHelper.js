@@ -884,7 +884,7 @@ const overviewReportHelper = function () {
     comparisonEndDate,
   ) => {
     if (comparisonStartDate !== undefined && comparisonEndDate !== undefined) {
-      const [data] = await UserProfile.aggregate([
+      const [comparisonData] = await UserProfile.aggregate([
         {
           $facet: {
             currentActiveVolunteers: [
@@ -964,15 +964,53 @@ const overviewReportHelper = function () {
         },
       ]);
 
-      const currentActiveVolunteers = data.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const currentActiveVolunteers = comparisonData.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
       const comparisonActiveVolunteers =
-        data.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
-      const newVolunteers = data.currentNewVolunteers[0]?.newVolunteersCount || 0;
-      const comparisonNewVolunteers = data.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
+        comparisonData.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const newVolunteersCount = comparisonData.currentNewVolunteers[0]?.newVolunteersCount || 0;
+      const comparisonNewVolunteers = comparisonData.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
       const currentDeactivatedVolunteers =
-        data.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+       comparisonData.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
       const comparisonDeactivatedVolunteers =
-        data.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+        comparisonData.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+      const comparisonTotalVolunteers = currentActiveVolunteers + newVolunteersCount + currentDeactivatedVolunteers;
+
+      const data = await UserProfile.aggregate([
+        {
+          $facet: {
+            activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
+  
+            newVolunteers: [
+              {
+                $match: {
+                  createdDate: {
+                    $gte: startDate,
+                    $lte: endDate,
+                  },
+                },
+              },
+              { $count: 'newVolunteersCount' },
+            ],
+  
+            deactivatedVolunteers: [
+              {
+                $match: {
+                  $and: [
+                    { lastModifiedDate: { $gte: startDate } },
+                    { lastModifiedDate: { $lte: endDate } },
+                    { isActive: false },
+                  ],
+                },
+              },
+              { $count: 'deactivedVolunteersCount' },
+            ],
+          },
+        },
+      ]);
+      const activeVolunteers = data[0].activeVolunteers[0]?.activeVolunteersCount || 0;
+      const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
+      const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+      const currentTotalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
 
       const res = {
         activeVolunteers: {
@@ -982,12 +1020,10 @@ const overviewReportHelper = function () {
             comparisonActiveVolunteers,
           ),
         },
-
         newVolunteers: {
-          count: newVolunteers,
+          count: newVolunteersCount,
           percentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
         },
-
         deactivatedVolunteers: {
           count: currentDeactivatedVolunteers,
           percentage: calculateGrowthPercentage(
@@ -995,10 +1031,15 @@ const overviewReportHelper = function () {
             comparisonDeactivatedVolunteers,
           ),
         },
+        totalVolunteers: {
+          count: comparisonTotalVolunteers,
+          percentage: calculateGrowthPercentage(currentTotalVolunteers, comparisonTotalVolunteers),
+        }
       };
 
       return res;
     }
+
     const data = await UserProfile.aggregate([
       {
         $facet: {
@@ -1034,11 +1075,13 @@ const overviewReportHelper = function () {
     const activeVolunteers = data[0].activeVolunteers[0]?.activeVolunteersCount || 0;
     const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
     const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+    const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
 
     const transformedData = {
       activeVolunteers: { count: activeVolunteers },
       newVolunteers: { count: newVolunteers },
       deactivatedVolunteers: { count: deactivatedVolunteers },
+      totalVolunteers: { count: totalVolunteers }
     };
 
     return transformedData;
