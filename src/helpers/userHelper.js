@@ -1919,125 +1919,36 @@ const userHelper = function () {
       });
   };
 
-  // 'Total Hrs in Category'
-  // const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
-  //   console.log('Category Badge');
-  //   const hoursByCategory = user.hoursByCategory || {};
-  //   const categories = [
-  //     'food',
-  //     'energy',
-  //     'housing',
-  //     'education',
-  //     'society',
-  //     'economics',
-  //     'stewardship',
-  //   ];
-  //   // const categories = [
-  //   //   'Food',
-  //   //   'Energy',
-  //   //   'Housing',
-  //   //   'Education',
-  //   //   'Society',
-  //   //   'Economics',
-  //   //   'Stewardship',
-  //   // ];
-
-  //   const badgesOfType = badgeCollection
-  //     .filter((object) => object.badge.type === 'Total Hrs in Category')
-  //     .map((object) => object.badge);
-
-  //   categories.forEach(async (category) => {
-  //     const categoryHrs = Object.keys(hoursByCategory).find((elem) => elem === category);
-
-  //     let badgeOfType;
-  //     for (let i = 0; i < badgeCollection.length; i += 1) {
-  //       if (
-  //         badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
-  //         badgeCollection[i].badge?.category === category
-  //       ) {
-  //         if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-  //           removeDupBadge(personId, badgeOfType._id);
-  //           badgeOfType = badgeCollection[i].badge;
-  //         } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
-  //           removeDupBadge(personId, badgeCollection[i].badge._id);
-  //         } else if (!badgeOfType) {
-  //           badgeOfType = badgeCollection[i].badge;
-  //         }
-  //       }
-  //     }
-  //     const newCatg = category.charAt(0).toUpperCase() + category.slice(1); // Capitalize the first letter
-  //     await badge
-  //       .find({ type: 'Total Hrs in Category', category: newCatg })
-
-  //       .sort({ totalHrs: -1 })
-  //       .then((results) => {
-  //         if (!Array.isArray(results) || !results.length || !categoryHrs) {
-  //           return;
-  //         }
-
-  //         results.every((elem) => {
-  //           if (
-  //             hoursByCategory[categoryHrs] >= 100 &&
-  //             hoursByCategory[categoryHrs] >= elem.totalHrs
-  //           ) {
-  //             let theBadge;
-  //             for (let i = 0; i < badgesOfType.length; i += 1) {
-  //               if (badgesOfType[i]._id.toString() === elem._id.toString()) {
-  //                 theBadge = badgesOfType[i]._id;
-  //                 break;
-  //               }
-  //             }
-  //             if (theBadge) {
-  //               // increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
-  //               return false;
-  //             }
-  //             if (badgeOfType) {
-  //               if (
-  //                 badgeOfType._id.toString() !== elem._id.toString() &&
-  //                 badgeOfType.totalHrs < elem.totalHrs
-  //               ) {
-  //                 replaceBadge(
-  //                   personId,
-  //                   mongoose.Types.ObjectId(badgeOfType._id),
-  //                   mongoose.Types.ObjectId(elem._id),
-  //                 );
-  //               }
-  //               return false;
-  //             }
-  //             addBadge(personId, mongoose.Types.ObjectId(elem._id));
-  //             return false;
-  //           }
-  //           return true;
-  //         });
-  //       });
-  //   });
-  // };
+  const removeBadge = async function (personId, badgeId) {
+    userProfile.updateOne(
+      { _id: personId },
+      {
+        $pull: {
+          badgeCollection: { badge: badgeId },
+        },
+      },
+      (err) => {
+        if (err) {
+          throw new Error(err);
+        }
+      },
+    );
+  };
 
   const addBadgeCategory = async function (personId, newBadge, badgeCollection) {
-    console.log('adding new badge category --- ', newBadge.category);
+    // console.log('adding new badge category --- ', newBadge.category);
     // remove all badges of Type 'Total Hrs in Category' and category from the user
-
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (
-        badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
-        badgeCollection[i].badge?.category === newBadge.category
+        badgeCollection[i].type === 'Total Hrs in Category' &&
+        badgeCollection[i].category === newBadge.category
       ) {
-        removeDupBadge(personId, badgeCollection[i].badge._id);
+        removeBadge(personId, badgeCollection[i]._id);
+        // console.log(
+        //   `Badge removed category ${badgeCollection[i].category} and totalHrs ${badgeCollection[i].totalHrs}`,
+        // );
       }
     }
-
-    // try {
-    //   badgeCollection.forEach((badge) => {
-    //     if (
-    //       badge.badge.type === 'Total Hrs in Category' &&
-    //       badge.badge.category === newBadge.category
-    //     ) {
-    //       removeDupBadge(personId, badge._id);
-    //     }
-    //   });
-    // } catch (err) {
-    //   logger.logException(err);
-    // }
 
     // add the new badge
     addBadge(personId, newBadge._id);
@@ -2066,10 +1977,6 @@ const userHelper = function () {
       const categoryHrsKey = Object.keys(hoursByCategory).find(
         (elem) => elem === category.toLowerCase(),
       );
-      console.log(
-        `checing category --  ${category} with hours --  ${hoursByCategory[categoryHrsKey]}`,
-      );
-      // console.log('\nbadgesOfType ----- ', badgesOfType[0]);
 
       // all badges of type 'Total Hrs in Category' in descending order of totalHrs
       await badge
@@ -2078,29 +1985,19 @@ const userHelper = function () {
         .then((results) => {
           // loop results to check if user has earned the badge
 
-          // eslint-disable-next-line guard-for-in
           for (let i = 0; i < results.length; i += 1) {
             const badge = results[i];
-            // console.log(
-            //   'hoursByCategory[categoryHrsKey] >= badge.totalHrs --- ',
-            //   hoursByCategory[categoryHrsKey] >= badge.totalHrs,
-            // );
-            // console.log('category, badge hrs --- ', categoryHrsKey, badge.totalHrs);
-            // console.log('\n');
+
             if (hoursByCategory[categoryHrsKey] >= badge.totalHrs) {
-              console.log('if condition -- criteria met');
               // if condition -- criteria met
               const badgeIndex = badgesOfType.findIndex(
                 (badgeItem) => badgeItem._id.toString() === badge._id.toString(),
               );
               // user has not earned this badge
-              // check if user has earned any other badge of same type
               if (badgeIndex === -1) {
-                console.log('adding badge --- ', badge);
                 addBadgeCategory(personId, badge, badgesOfType);
-                console.log('Badge added');
-                break;
               }
+              break;
             }
           }
         });
