@@ -2006,11 +2006,11 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      // const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
-      // for testing do 1 user with id = 672f294cccc3cc90b8215e17
-      const users = await userProfile
-        .find({ _id: '672f294cccc3cc90b8215e17' })
-        .populate('badgeCollection.badge');
+      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      // for testing do 1 user with id = x
+      // const users = await userProfile
+      //   .find({ _id: 'x' })
+      //   .populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
