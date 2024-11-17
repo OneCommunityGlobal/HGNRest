@@ -6,14 +6,6 @@ const UserProfile = require('../models/userProfile');
 
 const meetingController = function (Meeting) {
   const postMeeting = async function (req, res) {
-    // console.log((!req.body.dateOfMeeting || !moment(req.body.dateOfMeeting).isValid()));
-    // console.log(req.body.startHour == null);
-    // console.log(req.body.startMinute == null);
-    // console.log((!req.body.startTimePeriod || !['AM', 'PM'].includes(req.body.startTimePeriod)));
-    // console.log(!req.body.duration);
-    // console.log(!req.body.participantList || req.body.participantList.length === 0);
-    // console.log((req.body.location && !['Zoom', 'Phone call', 'On-site'].includes(req.body.location)));
-
     const isInvalid =
       !req.body.dateOfMeeting ||
       !moment(req.body.dateOfMeeting).isValid() ||
