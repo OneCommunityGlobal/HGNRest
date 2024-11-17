@@ -122,7 +122,6 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'seeUsersInDashboard',
-      'scheduleMeetings',
     ],
   },
   {
@@ -173,7 +172,6 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
-      'scheduleMeetings',
     ],
   },
   {
