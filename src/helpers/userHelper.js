@@ -1920,16 +1920,142 @@ const userHelper = function () {
   };
 
   // 'Total Hrs in Category'
+  // const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
+  //   console.log('Category Badge');
+  //   const hoursByCategory = user.hoursByCategory || {};
+  //   const categories = [
+  //     'food',
+  //     'energy',
+  //     'housing',
+  //     'education',
+  //     'society',
+  //     'economics',
+  //     'stewardship',
+  //   ];
+  //   // const categories = [
+  //   //   'Food',
+  //   //   'Energy',
+  //   //   'Housing',
+  //   //   'Education',
+  //   //   'Society',
+  //   //   'Economics',
+  //   //   'Stewardship',
+  //   // ];
+
+  //   const badgesOfType = badgeCollection
+  //     .filter((object) => object.badge.type === 'Total Hrs in Category')
+  //     .map((object) => object.badge);
+
+  //   categories.forEach(async (category) => {
+  //     const categoryHrs = Object.keys(hoursByCategory).find((elem) => elem === category);
+
+  //     let badgeOfType;
+  //     for (let i = 0; i < badgeCollection.length; i += 1) {
+  //       if (
+  //         badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
+  //         badgeCollection[i].badge?.category === category
+  //       ) {
+  //         if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
+  //           removeDupBadge(personId, badgeOfType._id);
+  //           badgeOfType = badgeCollection[i].badge;
+  //         } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
+  //           removeDupBadge(personId, badgeCollection[i].badge._id);
+  //         } else if (!badgeOfType) {
+  //           badgeOfType = badgeCollection[i].badge;
+  //         }
+  //       }
+  //     }
+  //     const newCatg = category.charAt(0).toUpperCase() + category.slice(1); // Capitalize the first letter
+  //     await badge
+  //       .find({ type: 'Total Hrs in Category', category: newCatg })
+
+  //       .sort({ totalHrs: -1 })
+  //       .then((results) => {
+  //         if (!Array.isArray(results) || !results.length || !categoryHrs) {
+  //           return;
+  //         }
+
+  //         results.every((elem) => {
+  //           if (
+  //             hoursByCategory[categoryHrs] >= 100 &&
+  //             hoursByCategory[categoryHrs] >= elem.totalHrs
+  //           ) {
+  //             let theBadge;
+  //             for (let i = 0; i < badgesOfType.length; i += 1) {
+  //               if (badgesOfType[i]._id.toString() === elem._id.toString()) {
+  //                 theBadge = badgesOfType[i]._id;
+  //                 break;
+  //               }
+  //             }
+  //             if (theBadge) {
+  //               // increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
+  //               return false;
+  //             }
+  //             if (badgeOfType) {
+  //               if (
+  //                 badgeOfType._id.toString() !== elem._id.toString() &&
+  //                 badgeOfType.totalHrs < elem.totalHrs
+  //               ) {
+  //                 replaceBadge(
+  //                   personId,
+  //                   mongoose.Types.ObjectId(badgeOfType._id),
+  //                   mongoose.Types.ObjectId(elem._id),
+  //                 );
+  //               }
+  //               return false;
+  //             }
+  //             addBadge(personId, mongoose.Types.ObjectId(elem._id));
+  //             return false;
+  //           }
+  //           return true;
+  //         });
+  //       });
+  //   });
+  // };
+
+  const addBadgeCategory = async function (personId, newBadge, badgeCollection) {
+    console.log('adding new badge category --- ', newBadge.category);
+    // remove all badges of Type 'Total Hrs in Category' and category from the user
+
+    for (let i = 0; i < badgeCollection.length; i += 1) {
+      if (
+        badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
+        badgeCollection[i].badge?.category === newBadge.category
+      ) {
+        removeDupBadge(personId, badgeCollection[i].badge._id);
+      }
+    }
+
+    // try {
+    //   badgeCollection.forEach((badge) => {
+    //     if (
+    //       badge.badge.type === 'Total Hrs in Category' &&
+    //       badge.badge.category === newBadge.category
+    //     ) {
+    //       removeDupBadge(personId, badge._id);
+    //     }
+    //   });
+    // } catch (err) {
+    //   logger.logException(err);
+    // }
+
+    // add the new badge
+    addBadge(personId, newBadge._id);
+  };
+
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
+    console.log('Category Badge');
     const hoursByCategory = user.hoursByCategory || {};
+    // categories in badges are capitalized
+    // categories in user.hoursByCategory are not capitalized
     const categories = [
-      'food',
-      'energy',
-      'housing',
-      'education',
-      'society',
-      'economics',
-      'stewardship',
+      'Food',
+      'Energy',
+      'Housing',
+      'Education',
+      'Society',
+      'Economics',
+      'Stewardship',
     ];
 
     const badgesOfType = badgeCollection
@@ -1937,77 +2063,57 @@ const userHelper = function () {
       .map((object) => object.badge);
 
     categories.forEach(async (category) => {
-      const categoryHrs = Object.keys(hoursByCategory).find((elem) => elem === category);
+      const categoryHrsKey = Object.keys(hoursByCategory).find(
+        (elem) => elem === category.toLowerCase(),
+      );
+      console.log(
+        `checing category --  ${category} with hours --  ${hoursByCategory[categoryHrsKey]}`,
+      );
+      // console.log('\nbadgesOfType ----- ', badgesOfType[0]);
 
-      let badgeOfType;
-      for (let i = 0; i < badgeCollection.length; i += 1) {
-        if (
-          badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
-          badgeCollection[i].badge?.category === category
-        ) {
-          if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-            removeDupBadge(personId, badgeOfType._id);
-            badgeOfType = badgeCollection[i].badge;
-          } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
-            removeDupBadge(personId, badgeCollection[i].badge._id);
-          } else if (!badgeOfType) {
-            badgeOfType = badgeCollection[i].badge;
-          }
-        }
-      }
-
-      const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
-
+      // all badges of type 'Total Hrs in Category' in descending order of totalHrs
       await badge
-        .find({ type: 'Total Hrs in Category', category: newCatg })
-
+        .find({ type: 'Total Hrs in Category', category })
         .sort({ totalHrs: -1 })
         .then((results) => {
-          if (!Array.isArray(results) || !results.length || !categoryHrs) {
-            return;
-          }
+          // loop results to check if user has earned the badge
 
-          results.every((elem) => {
-            if (
-              hoursByCategory[categoryHrs] >= 100 &&
-              hoursByCategory[categoryHrs] >= elem.totalHrs
-            ) {
-              let theBadge;
-              for (let i = 0; i < badgesOfType.length; i += 1) {
-                if (badgesOfType[i]._id.toString() === elem._id.toString()) {
-                  theBadge = badgesOfType[i]._id;
-                  break;
-                }
+          // eslint-disable-next-line guard-for-in
+          for (let i = 0; i < results.length; i += 1) {
+            const badge = results[i];
+            // console.log(
+            //   'hoursByCategory[categoryHrsKey] >= badge.totalHrs --- ',
+            //   hoursByCategory[categoryHrsKey] >= badge.totalHrs,
+            // );
+            // console.log('category, badge hrs --- ', categoryHrsKey, badge.totalHrs);
+            // console.log('\n');
+            if (hoursByCategory[categoryHrsKey] >= badge.totalHrs) {
+              console.log('if condition -- criteria met');
+              // if condition -- criteria met
+              const badgeIndex = badgesOfType.findIndex(
+                (badgeItem) => badgeItem._id.toString() === badge._id.toString(),
+              );
+              // user has not earned this badge
+              // check if user has earned any other badge of same type
+              if (badgeIndex === -1) {
+                console.log('adding badge --- ', badge);
+                addBadgeCategory(personId, badge, badgesOfType);
+                console.log('Badge added');
+                break;
               }
-              if (theBadge) {
-                increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
-                return false;
-              }
-              if (badgeOfType) {
-                if (
-                  badgeOfType._id.toString() !== elem._id.toString() &&
-                  badgeOfType.totalHrs < elem.totalHrs
-                ) {
-                  replaceBadge(
-                    personId,
-                    mongoose.Types.ObjectId(badgeOfType._id),
-                    mongoose.Types.ObjectId(elem._id),
-                  );
-                }
-                return false;
-              }
-              addBadge(personId, mongoose.Types.ObjectId(elem._id));
-              return false;
             }
-            return true;
-          });
+          }
         });
     });
   };
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      // const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      // for testing do 1 user with id = 672f294cccc3cc90b8215e17
+      const users = await userProfile
+        .find({ _id: '672f294cccc3cc90b8215e17' })
+        .populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -2066,10 +2172,10 @@ const userHelper = function () {
     sendThreeWeeks,
     followup,
   ) {
-      let subject;
-      let emailBody;
-      recipients.push('onecommunityglobal@gmail.com');
-      recipients = recipients.toString();
+    let subject;
+    let emailBody;
+    recipients.push('onecommunityglobal@gmail.com');
+    recipients = recipients.toString();
     if (reactivationDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
       emailBody = `<p>Management, </p>
@@ -2094,7 +2200,6 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-
     } else if (endDate && isSet && followup) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
@@ -2106,8 +2211,7 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-  
-    } else if (endDate && isSet ) {
+    } else if (endDate && isSet) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
       
@@ -2118,8 +2222,7 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-  
-    } else if(endDate){
+    } else if (endDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       emailBody = `<p>Management, </p>
       
@@ -2130,10 +2233,9 @@ const userHelper = function () {
       
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-     };
-  
     }
-   
+  };
+
   const deActivateUser = async () => {
     try {
       const emailReceivers = await userProfile.find(
@@ -2149,14 +2251,18 @@ const userHelper = function () {
         const user = users[i];
         const { endDate, finalEmailThreeWeeksSent } = user;
         endDate.setHours(endDate.getHours() + 7);
-        // notify reminder set final day before 2 weeks 
-       if(finalEmailThreeWeeksSent && moment().isBefore(moment(endDate).subtract(2, 'weeks')) && moment().isAfter(moment(endDate).subtract(3, 'weeks'))){
+        // notify reminder set final day before 2 weeks
+        if (
+          finalEmailThreeWeeksSent &&
+          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
+          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
+        ) {
           const id = user._id;
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-          const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);
