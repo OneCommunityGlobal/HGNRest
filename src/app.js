@@ -5,7 +5,7 @@ const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
 
-const linkedinPostRoutes = require('./routes/linkedinPostRoutes'); // linkedinPostRoutes
+const linkedinPostRoutes = require('./routes/linkedinPostRoutes');
 
 logger.init();
 

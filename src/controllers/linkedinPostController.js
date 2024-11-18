@@ -1,9 +1,4 @@
-// controllers/linkedinPostController.js
 const https = require('https');
-require('dotenv').config();
-
-const ACCESS_TOKEN = process.env.LINKEDIN_ACCESS_TOKEN;
-const ORGANIZATION_URN = process.env.LINKEDIN_ORGANIZATION_URN;
 
 /**
  * Helper function to send HTTPS requests
@@ -38,22 +33,39 @@ const httpsRequest = (options, data = null) =>
   });
 
 /**
- * post to LinkedIn
+ * Post to LinkedIn
  */
 exports.postToLinkedIn = async (req, res) => {
-  const { content } = req.body;
+  // Token is directly hardcoded here
+  const ACCESS_TOKEN =
+    'AQWDqmoKwTgQUr8Cp_QbZhu5x3-gPWpCuQ1z54kDWUpKyRVMMOSiXXsDfDJ6EJcGZyB31AlfX6EAaevSUv3gc9dshY-oRGmMAE_1KGDFcNZy8ek6iD8OKwMBcS23hSHZ4ZxLf3oCQN4wDYCjTOYT8zLRNeEUBDGHtdKgxVGmY48E7us88jbcydplTcT0rvGygv_nyNIM4qGiV-1P8J_0SsdK3QcgTNMpAYX5cgoVH_dJkQhyHTFtTo32hAelch5tgxoCPJ7nFX81l53MU_9znutYi-S1wM446rdN7ZKeUaHBxBsggPRzQf2t00n9CLK-IkZpRNvtxsm_kPuu1rj2AsZuvrEwsQ';
+  console.log('Using LinkedIn Access Token:', ACCESS_TOKEN); // Ensure this log is here
+  const ORGANIZATION_URN = 'urn:li:organization:105518573';
+
+  const { content, media } = req.body;
 
   const postData = JSON.stringify({
     author: ORGANIZATION_URN,
     commentary: content,
     visibility: 'PUBLIC',
+    lifecycleState: 'PUBLISHED',
     distribution: {
       feedDistribution: 'MAIN_FEED',
       targetEntities: [],
       thirdPartyDistributionChannels: [],
     },
-    lifecycleState: 'PUBLISHED',
-    isReshareDisabledByAuthor: false,
+    content: media
+      ? {
+          media: [
+            {
+              status: 'READY',
+              description: { text: 'Uploaded media' },
+              media,
+              title: { text: 'Media Title' },
+            },
+          ],
+        }
+      : undefined,
   });
 
   const options = {
@@ -67,10 +79,13 @@ exports.postToLinkedIn = async (req, res) => {
     },
   };
 
+  console.log('Request Headers:', options.headers); // Log the headers
+
   try {
     const response = await httpsRequest(options, postData);
-    res.status(200).json(response);
+    res.status(200).json({ message: 'Post successful!', data: response });
   } catch (error) {
+    console.error('Error posting to LinkedIn:', error.message);
     res.status(500).json({ error: `Error posting to LinkedIn: ${error.message}` });
   }
 };
