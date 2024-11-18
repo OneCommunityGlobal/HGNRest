@@ -741,7 +741,7 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-  
+
     // Change category labels using if conditions
     hoursStats.forEach((stat) => {
       if (stat._id === 10) {
@@ -756,7 +756,7 @@ const overviewReportHelper = function () {
         stat._id = '40+';
       }
     });
-  
+
     // Ensure each specific range label has a value, even if zero
     if (!hoursStats.find((x) => x._id === '10-19.99')) {
       hoursStats.push({ _id: '10-19.99', count: 0 });
@@ -773,14 +773,14 @@ const overviewReportHelper = function () {
     if (!hoursStats.find((x) => x._id === '40+')) {
       hoursStats.push({ _id: '40+', count: 0 });
     }
-  
+
     // Sort the result to maintain consistent order (optional)
     const order = ['10-19.99', '20-29.99', '30-34.99', '35-39.99', '40+'];
     hoursStats.sort((a, b) => order.indexOf(a._id) - order.indexOf(b._id));
-  
+
     return hoursStats;
   }
-  
+
   /**
    * Aggregates total number of hours worked across all volunteers within the specified date range
    */
@@ -920,6 +920,7 @@ const overviewReportHelper = function () {
     const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
     const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
     const currentTotalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
+    console.log('currentTotalVolunteers', currentTotalVolunteers);
 
     // Run this pipeline if given comparison dates
     if (comparisonStartDate !== undefined && comparisonEndDate !== undefined) {
@@ -938,17 +939,17 @@ const overviewReportHelper = function () {
               { $count: 'activeVolunteersCount' },
             ],
 
-            comparisonActiveVolunteers: [
-              {
-                $match: {
-                  createdDate: {
-                    $lte: comparisonEndDate,
-                  },
-                  isActive: true,
-                },
-              },
-              { $count: 'activeVolunteersCount' },
-            ],
+            // comparisonActiveVolunteers: [
+            //   {
+            //     $match: {
+            //       createdDate: {
+            //         $lte: comparisonEndDate,
+            //       },
+            //       isActive: true,
+            //     },
+            //   },
+            //   { $count: 'activeVolunteersCount' },
+            // ],
 
             currentNewVolunteers: [
               {
@@ -962,17 +963,17 @@ const overviewReportHelper = function () {
               { $count: 'newVolunteersCount' },
             ],
 
-            comparisonNewVolunteers: [
-              {
-                $match: {
-                  createdDate: {
-                    $gte: comparisonStartDate,
-                    $lte: comparisonEndDate,
-                  },
-                },
-              },
-              { $count: 'newVolunteersCount' },
-            ],
+            // comparisonNewVolunteers: [
+            //   {
+            //     $match: {
+            //       createdDate: {
+            //         $gte: comparisonStartDate,
+            //         $lte: comparisonEndDate,
+            //       },
+            //     },
+            //   },
+            //   { $count: 'newVolunteersCount' },
+            // ],
 
             currentDeactivatedVolunteers: [
               {
@@ -987,66 +988,86 @@ const overviewReportHelper = function () {
               { $count: 'deactivatedVolunteersCount' },
             ],
 
-            comparisonDeactivatedVolunteers: [
-              {
-                $match: {
-                  $and: [
-                    { lastModifiedDate: { $gte: comparisonStartDate } },
-                    { lastModifiedDate: { $lte: comparisonEndDate } },
-                    { isActive: false },
-                  ],
-                },
-              },
-              { $count: 'deactivatedVolunteersCount' },
-            ],
+            // comparisonDeactivatedVolunteers: [
+            //   {
+            //     $match: {
+            //       $and: [
+            //         { lastModifiedDate: { $gte: comparisonStartDate } },
+            //         { lastModifiedDate: { $lte: comparisonEndDate } },
+            //         { isActive: false },
+            //       ],
+            //     },
+            //   },
+            //   { $count: 'deactivatedVolunteersCount' },
+            // ],
           },
         },
       ]);
 
-      const currentActiveVolunteers = comparisonData.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
-      const comparisonActiveVolunteers =
-        comparisonData.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
+      const currentActiveVolunteers =
+        comparisonData.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
+      // const comparisonActiveVolunteers =
+      //   comparisonData.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
       const newVolunteersCount = comparisonData.currentNewVolunteers[0]?.newVolunteersCount || 0;
-      const comparisonNewVolunteers = comparisonData.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
+      // const comparisonNewVolunteers =
+      //   comparisonData.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
       const currentDeactivatedVolunteers =
-       comparisonData.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
-      const comparisonDeactivatedVolunteers =
-        comparisonData.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
-      const comparisonTotalVolunteers = currentActiveVolunteers + newVolunteersCount + currentDeactivatedVolunteers;
+        comparisonData.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+      // const comparisonDeactivatedVolunteers =
+      //   comparisonData.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+      const comparisonTotalVolunteers =
+        currentActiveVolunteers + newVolunteersCount + currentDeactivatedVolunteers;
+
+      console.log('comparisonTotalVolunteers', comparisonTotalVolunteers);
 
       const res = {
         activeVolunteers: {
-          count: currentActiveVolunteers,
-          percentage: calculateGrowthPercentage(
-            currentActiveVolunteers,
-            comparisonActiveVolunteers,
-          ),
+          count: activeVolunteers,
+          // percentage: calculateGrowthPercentage(
+          //   currentActiveVolunteers,
+          //   comparisonActiveVolunteers,
+          // ),
+          percentage: ((activeVolunteers / currentTotalVolunteers) * 100).toFixed(2),
         },
         newVolunteers: {
-          count: newVolunteersCount,
-          percentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
+          count: newVolunteers,
+          // percentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
+          percentage: ((newVolunteers / currentTotalVolunteers) * 100).toFixed(2),
         },
         deactivatedVolunteers: {
-          count: currentDeactivatedVolunteers,
-          percentage: calculateGrowthPercentage(
-            currentDeactivatedVolunteers,
-            comparisonDeactivatedVolunteers,
-          ),
+          count: deactivatedVolunteers,
+          // percentage: calculateGrowthPercentage(
+          //   currentDeactivatedVolunteers,
+          //   comparisonDeactivatedVolunteers,
+          // ),
+          percentage: ((deactivatedVolunteers / currentTotalVolunteers) * 100).toFixed(2),
         },
         totalVolunteers: {
-          count: comparisonTotalVolunteers,
-          percentage: calculateGrowthPercentage(currentTotalVolunteers, comparisonTotalVolunteers),
-        }
+          count: currentTotalVolunteers,
+          comparisonPercentage: calculateGrowthPercentage(
+            currentTotalVolunteers,
+            comparisonTotalVolunteers,
+          ),
+        },
       };
 
       return res;
     }
 
     const transformedData = {
-      activeVolunteers: { count: activeVolunteers },
-      newVolunteers: { count: newVolunteers },
-      deactivatedVolunteers: { count: deactivatedVolunteers },
-      totalVolunteers: { count: currentTotalVolunteers }
+      activeVolunteers: {
+        count: activeVolunteers,
+        percentage: ((activeVolunteers / currentTotalVolunteers) * 100).toFixed(2),
+      },
+      newVolunteers: {
+        count: newVolunteers,
+        percentage: ((newVolunteers / currentTotalVolunteers) * 100).toFixed(2),
+      },
+      deactivatedVolunteers: {
+        count: deactivatedVolunteers,
+        percentage: ((deactivatedVolunteers / currentTotalVolunteers) * 100).toFixed(2),
+      },
+      totalVolunteers: { count: currentTotalVolunteers },
     };
 
     return transformedData;
@@ -1270,23 +1291,23 @@ const overviewReportHelper = function () {
    * 2. Total hours logged in projects
    * 3. Comparison data for task and project hours
    * 4. Percentage for submitted-to-committed hours for Tasks and Projects
-   * 
+   *
    * (REVIEW: The remaining 3 pieces of data may be dead code; check for relevance)
-   * 5. Number of member with tasks assigned 
-   * 6. Number of member without tasks assigned 
-   * 7. Number of tasks with due date within the date range 
-   * 
+   * 5. Number of member with tasks assigned
+   * 6. Number of member without tasks assigned
+   * 7. Number of tasks with due date within the date range
+   *
    * All parameters are in the format 'YYYY-MM-DD'
    * @param {string} startDate
-   * @param {string} endDate 
-   * @param {string} comparisonStartDate 
-   * @param {string} comparisonEndDate 
+   * @param {string} endDate
+   * @param {string} comparisonStartDate
+   * @param {string} comparisonEndDate
    */
   async function getTaskAndProjectStats(
-    startDate, 
-    endDate, 
-    comparisonStartDate, 
-    comparisonEndDate
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
   ) {
     // 1. Retrieves the total hours logged to tasks for a given date range.
     const getTaskHours = async (start, end) => {
@@ -1345,12 +1366,15 @@ const overviewReportHelper = function () {
     // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
     let projectsComparisonPercentage;
-    if (comparisonStartDate && comparisonEndDate ) {
+    if (comparisonStartDate && comparisonEndDate) {
       const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
       const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
       tasksComparisonPercentage = calculateGrowthPercentage(taskHours, comparisonTaskHours);
-      projectsComparisonPercentage = calculateGrowthPercentage(projectHours, comparisonProjectHours);
-    };
+      projectsComparisonPercentage = calculateGrowthPercentage(
+        projectHours,
+        comparisonProjectHours,
+      );
+    }
 
     // Calculates the number of weeks, rounded up, for a given time range.
     function weeksBetweenDates(startDateStr, endDateStr) {
@@ -1364,42 +1388,42 @@ const overviewReportHelper = function () {
 
     // 4. Retrieves the total committed hours that should have been completed for the given date range.
     const getTotalCommittedHours = await UserProfile.aggregate([
-      { 
-        $match: {
-          weeklycommittedHoursHistory: { $exists: true}
-        }
-      },
       {
-        $project: { 
-          weeklyCommittedHoursHistoryBeforeEndDate: {
-            $filter: {
-              input: "$weeklycommittedHoursHistory",
-              as: "history",
-              cond: {$lte: ["$$history.dateChanged", new Date(endDate)]}
-            }
-          }
+        $match: {
+          weeklycommittedHoursHistory: { $exists: true },
         },
       },
       {
-        $match : {
-          $expr: { $gt: [{$size: "$weeklyCommittedHoursHistoryBeforeEndDate"}, 1]}
-        }
+        $project: {
+          weeklyCommittedHoursHistoryBeforeEndDate: {
+            $filter: {
+              input: '$weeklycommittedHoursHistory',
+              as: 'history',
+              cond: { $lte: ['$$history.dateChanged', new Date(endDate)] },
+            },
+          },
+        },
       },
       {
-        $project: { 
+        $match: {
+          $expr: { $gt: [{ $size: '$weeklyCommittedHoursHistoryBeforeEndDate' }, 1] },
+        },
+      },
+      {
+        $project: {
           committedHours: {
             $let: {
               vars: {
                 sortedHistory: {
                   $sortArray: {
-                    input: "$weeklyCommittedHoursHistoryBeforeEndDate",
-                    sortBy: { dateChanged: -1}
-                  }
-                }
+                    input: '$weeklyCommittedHoursHistoryBeforeEndDate',
+                    sortBy: { dateChanged: -1 },
+                  },
+                },
               },
-              in: { $multiply: [{ $arrayElemAt: [ "$$sortedHistory.hours", 0] }, numberOfWeeks ] }
-            }
-          }
+              in: { $multiply: [{ $arrayElemAt: ['$$sortedHistory.hours', 0] }, numberOfWeeks] },
+            },
+          },
         },
       },
       {
@@ -1410,12 +1434,12 @@ const overviewReportHelper = function () {
       },
       {
         $project: {
-          totalCommittedHours: { $round: ["$totalCommittedHours", 2] }
-        }
-      }
+          totalCommittedHours: { $round: ['$totalCommittedHours', 2] },
+        },
+      },
     ]);
-    const totalCommittedHours = getTotalCommittedHours.length > 0 
-      ? Number(getTotalCommittedHours[0].totalCommittedHours) : 0;
+    const totalCommittedHours =
+      getTotalCommittedHours.length > 0 ? Number(getTotalCommittedHours[0].totalCommittedHours) : 0;
 
     // 5. Number of member with tasks assigned
     const membersWithTasks = await Task.distinct('resources.userID', {
@@ -1441,7 +1465,9 @@ const overviewReportHelper = function () {
       },
       projectHours: {
         count: projectHours,
-        submittedToCommittedHoursPercentage: Number((projectHours / totalCommittedHours).toFixed(2)),
+        submittedToCommittedHoursPercentage: Number(
+          (projectHours / totalCommittedHours).toFixed(2),
+        ),
         comparisonPercentage: projectsComparisonPercentage,
       },
       membersWithTasks: membersWithTasks.length,
