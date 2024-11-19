@@ -93,11 +93,9 @@ const warningsController = function (UserProfile) {
           return warning;
         }
       });
-      console.log('fitlered warnings', specialWarningsArray);
 
       const { completedData } = filterWarnings(specialWarningsObj, filteredWarnings);
 
-      // console.log('completedData', completedData);
       return res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
       console.log('error', error);
