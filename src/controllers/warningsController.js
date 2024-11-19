@@ -24,7 +24,10 @@ const emailTemplate = {
   },
 };
 async function getWarningDescriptions() {
-  currentWarningDescriptions = await currentWarnings.find({}, { warningTitle: 1, _id: 0 });
+  currentWarningDescriptions = await currentWarnings.find(
+    { activeWarning: true },
+    { warningTitle: 1, _id: 0, abbreviation: 1 },
+  );
 }
 
 const convertObjectToArray = (obj) => {
@@ -37,11 +40,10 @@ const convertObjectToArray = (obj) => {
 
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
-    currentWarningDescriptions = await currentWarnings.find({
-      activeWarning: true,
-    });
+    if (!currentWarningDescriptions) {
+      await getWarningDescriptions();
+    }
 
-    currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
     const { userId } = req.params;
 
     try {
@@ -58,13 +60,104 @@ const warningsController = function (UserProfile) {
     }
   };
 
-  const postWarningsToUserProfile = async function (req, res) {
+  // get all the current warnings as that helps with the sorting for the fianl process
+
+  //get users special warnings
+  //get all warnings the user has
+  //filter and return a list of all warnings that are special
+  //in the same format as the other warnings
+  //warnings [{title: 'warning title', abbreviation: 'warning abbreviation', warnings: [{userId, iconId, color, date, description}]}]
+  const getSpecialWarnings = async function (req, res, next) {
+    // if (!currentWarningDescriptions) {
+    //   await getWarningDescriptions();
+    // }
     try {
       const { userId } = req.params;
+      const specialWarningsObj = await currentWarnings
+        .find({
+          activeWarning: true,
+          isSpecial: true,
+        })
+        .select({ warningTitle: 1, abbreviation: 1 });
+      const specialWarningsArray = convertObjectToArray(specialWarningsObj);
 
+      const { warnings } = await UserProfile.findById(userId);
+
+      // look into why the filtering isnt working
+      //must get the filtered warnings taht are special
+      //i need the users' special warnings and the warnings that are special
+
+      const filteredWarnings = warnings.filter((warning) => {
+        if (specialWarningsArray.includes(warning.description)) {
+          return warning;
+        }
+      });
+
+      const { completedData } = filterWarnings(specialWarningsObj, filteredWarnings);
+
+      // console.log('completedData', completedData);
+      return res.status(201).send({ message: 'success', warnings: completedData });
+    } catch (error) {
+      console.log('error', error);
+    }
+  };
+  //post new warning via the user profile
+  //assiginng a new warning to a the user
+  // const postNewWarningToUserProfile = async function (req, res) {
+  //   try {
+  //     const { userId } = req.params;
+  //     const { iconId, color, date, description } = req.body;
+
+  //     // console.log('req.body', userId);
+  //     // console.log('typeoff', typeof userId);
+  //     const record = await UserProfile.findById(userId);
+  //     // const updatedWarnings = await UserProfile.findByIdAndUpdate(
+  //     //   {
+  //     //     _id: ObjectId(userId),
+  //     //   },
+  //     //   { $push: { warnings: { userId, iconId, color, date, description } } },
+  //     //   { new: true, upsert: true },
+  //     // );
+  //     // console.log('currentWarningDescriptions', currentWarningDescriptions);
+  //     // const { completedData, sendEmail, size } = filterWarnings(
+  //     //   currentWarningDescriptions,
+  //     //   updatedWarnings.warnings,
+  //     //   iconId,
+  //     //   color,
+  //     // );
+
+  //     // const adminEmails = await getUserRoleByEmail(record);
+  //     // if (sendEmail !== null) {
+  //     //   sendEmailToUser(
+  //     //     sendEmail,
+  //     //     description,
+  //     //     userAssignedWarning,
+  //     //     monitorData,
+  //     //     size,
+  //     //     adminEmails,
+  //     //   );
+  //     // }
+
+  //     // res.status(201).send({ message: 'success', warnings: completedData });
+
+  //     // if (!record) {
+  //     //   return res.status(400).send({ message: 'No valid records found' });
+  //     // }
+  //   } catch (error) {
+  //     console.log(error);
+  //   }
+  // };
+
+  const postWarningsToUserProfile = async function (req, res, next) {
+    if (!currentWarningDescriptions) {
+      await getWarningDescriptions();
+    }
+    try {
+      console.log('post called');
+      console.log('req.body', req.body);
+      const { userId } = req.params;
       const { iconId, color, date, description } = req.body;
       const { monitorData } = req.body;
-
       const record = await UserProfile.findById(userId);
       if (!record) {
         return res.status(400).send({ message: 'No valid records found' });
@@ -91,23 +184,26 @@ const warningsController = function (UserProfile) {
         color,
       );
 
-      const adminEmails = await getUserRoleByEmail(record);
-      if (sendEmail !== null) {
-        sendEmailToUser(
-          sendEmail,
-          description,
-          userAssignedWarning,
-          monitorData,
-          size,
-          adminEmails,
-        );
-      }
+      // const adminEmails = await getUserRoleByEmail(record);
+      // if (sendEmail !== null) {
+      //   sendEmailToUser(
+      //     sendEmail,
+      //     description,
+      //     userAssignedWarning,
+      //     monitorData,
+      //     size,
+      //     adminEmails,
+      //   );
+      // }
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
       res.status(400).send({ message: error.message || error });
     }
   };
+
+  //new post method add to the user profile
+  // and return the updated special warnings
 
   const deleteUsersWarnings = async (req, res) => {
     const { userId } = req.params;
@@ -133,6 +229,7 @@ const warningsController = function (UserProfile) {
 
   return {
     getWarningsByUserId,
+    getSpecialWarnings,
     postWarningsToUserProfile,
     deleteUsersWarnings,
   };
@@ -232,13 +329,13 @@ const sortByColorAndDate = (a, b) => {
   return colorComparison;
 };
 
-const filterWarnings = (currentWarningDescriptions, warnings, iconId = null, color = null) => {
+const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null, color = null) => {
   const warningsObject = {};
 
   let sendEmail = null;
   let size = null;
 
-  warnings.forEach((warning) => {
+  usersWarnings.forEach((warning) => {
     if (!warningsObject[warning.description]) {
       warningsObject[warning.description] = [];
     }
@@ -270,10 +367,11 @@ const filterWarnings = (currentWarningDescriptions, warnings, iconId = null, col
 
   const completedData = [];
 
-  for (const descrip of currentWarningDescriptions) {
+  for (const { warningTitle, abbreviation } of currentWarningDescriptions) {
     completedData.push({
-      title: descrip,
-      warnings: warns[descrip] ? warns[descrip] : [],
+      title: warningTitle,
+      warnings: warns[warningTitle] ? warns[warningTitle] : [],
+      abbreviation: abbreviation ? abbreviation : null,
     });
   }
   return { completedData, sendEmail, size };
