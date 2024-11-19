@@ -68,9 +68,10 @@ const warningsController = function (UserProfile) {
   //in the same format as the other warnings
   //warnings [{title: 'warning title', abbreviation: 'warning abbreviation', warnings: [{userId, iconId, color, date, description}]}]
   const getSpecialWarnings = async function (req, res, next) {
-    // if (!currentWarningDescriptions) {
-    //   await getWarningDescriptions();
-    // }
+    if (!currentWarningDescriptions) {
+      await getWarningDescriptions();
+    }
+
     try {
       const { userId } = req.params;
       const specialWarningsObj = await currentWarnings
@@ -92,6 +93,7 @@ const warningsController = function (UserProfile) {
           return warning;
         }
       });
+      console.log('fitlered warnings', specialWarningsArray);
 
       const { completedData } = filterWarnings(specialWarningsObj, filteredWarnings);
 
@@ -353,6 +355,7 @@ const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null
       size = warningsObject[warning.description].length;
     }
   });
+  console.log('warningsObject', warningsObject);
 
   const warns = Object.keys(warningsObject)
     .sort(sortKeysAlphabetically)
