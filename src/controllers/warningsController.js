@@ -153,8 +153,6 @@ const warningsController = function (UserProfile) {
       await getWarningDescriptions();
     }
     try {
-      console.log('post called');
-      console.log('req.body', req.body);
       const { userId } = req.params;
       const { iconId, color, date, description } = req.body;
       const { monitorData } = req.body;
@@ -353,7 +351,6 @@ const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null
       size = warningsObject[warning.description].length;
     }
   });
-  console.log('warningsObject', warningsObject);
 
   const warns = Object.keys(warningsObject)
     .sort(sortKeysAlphabetically)
