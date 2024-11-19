@@ -64,10 +64,10 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
       // Find out a list of protected email account ids and allowed email id
       allowedEmailAccountIds = query
         .filter(({ email }) => ALLOWED_EMAIL_ACCOUNT.includes(email))
-        .map(({ _id }) => _id);
+        .map(({ _id }) => _id.toString());
       protectedEmailAccountIds = query
         .filter(({ email }) => PROTECTED_EMAIL_ACCOUNT.includes(email))
-        .map(({ _id }) => _id);
+        .map(({ _id }) => _id.toString());
 
       serverCache.setCache('protectedEmailAccountIds', protectedEmailAccountIds);
       serverCache.setCache('allowedEmailAccountIds', allowedEmailAccountIds);
