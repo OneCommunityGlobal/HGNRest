@@ -2,7 +2,7 @@ const { body } = require('express-validator');
 
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
-const logUserPermissionController = require('../controllers/logUserPermissionController')();
+const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const routes = function (userProfile, project) {
   const controller = require('../controllers/userProfileController')(userProfile, project);
@@ -31,6 +31,7 @@ const routes = function (userProfile, project) {
     .route('/userProfile/:userId')
     .get(controller.getUserById)
     .put(
+      logUserPermissionChangeByAccount, // Middleware for logging permission changes
       body('firstName').customSanitizer((value) => {
         if (!value) throw new ValidationError('First Name is required');
         return value.trim();
