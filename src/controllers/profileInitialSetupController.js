@@ -172,13 +172,22 @@ const profileInitialSetupController = function (
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
-      const acknowledgment = await sendEmailWithAcknowledgment(
-        email,
-        'NEEDED: Complete your One Community profile setup',
-        sendLinkMessage(link),
-      );
+      // Send response immediately without waiting for email acknowledgment
+      res.status(200).send({ message: 'Token created successfully, email is being sent.' });
 
-      return res.status(200).send(acknowledgment);
+      // Asynchronously send the email acknowledgment
+      setImmediate(async () => {
+        try {
+          await sendEmailWithAcknowledgment(
+            email,
+            'NEEDED: Complete your One Community profile setup',
+            sendLinkMessage(link),
+          );
+        } catch (emailError) {
+          // Log email sending failure
+          LOGGER.logException(emailError, 'sendEmailWithAcknowledgment', JSON.stringify({ email, link }), null);
+        }
+      });
     } catch (error) {
       await session.abortTransaction();
       LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
