@@ -886,8 +886,10 @@ const overviewReportHelper = function () {
     const data = await UserProfile.aggregate([
       {
         $facet: {
-          activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
-
+          activeVolunteers: [
+            { $match: { isActive: true } }, 
+            { $count: 'activeVolunteersCount' }
+          ],
           newVolunteers: [
             {
               $match: {
@@ -899,7 +901,6 @@ const overviewReportHelper = function () {
             },
             { $count: 'newVolunteersCount' },
           ],
-
           deactivatedVolunteers: [
             {
               $match: {
@@ -920,10 +921,25 @@ const overviewReportHelper = function () {
     const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
     const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
     const currentTotalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
-    console.log('currentTotalVolunteers', currentTotalVolunteers);
 
-    // Run this pipeline if given comparison dates
-    if (comparisonStartDate !== undefined && comparisonEndDate !== undefined) {
+    const res = {
+      activeVolunteers: {
+        count: activeVolunteers,
+        percentageOutOfTotal: ((activeVolunteers / currentTotalVolunteers) * 100).toFixed(2),
+      },
+      newVolunteers: {
+        count: newVolunteers,
+        percentageOutOfTotal: ((newVolunteers / currentTotalVolunteers) * 100).toFixed(2),
+      },
+      deactivatedVolunteers: {
+        count: deactivatedVolunteers,
+        percentageOutOfTotal: ((deactivatedVolunteers / currentTotalVolunteers) * 100).toFixed(2),
+      },
+      totalVolunteers: { count: currentTotalVolunteers },
+    };
+
+    // Modifies response to include comparison percentage if given comparison dates
+    if (comparisonStartDate && comparisonEndDate) {
       const [comparisonData] = await UserProfile.aggregate([
         {
           $facet: {
@@ -1018,59 +1034,13 @@ const overviewReportHelper = function () {
       const comparisonTotalVolunteers =
         currentActiveVolunteers + newVolunteersCount + currentDeactivatedVolunteers;
 
-      console.log('comparisonTotalVolunteers', comparisonTotalVolunteers);
-
-      const res = {
-        activeVolunteers: {
-          count: activeVolunteers,
-          // percentage: calculateGrowthPercentage(
-          //   currentActiveVolunteers,
-          //   comparisonActiveVolunteers,
-          // ),
-          percentage: ((activeVolunteers / currentTotalVolunteers) * 100).toFixed(2),
-        },
-        newVolunteers: {
-          count: newVolunteers,
-          // percentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
-          percentage: ((newVolunteers / currentTotalVolunteers) * 100).toFixed(2),
-        },
-        deactivatedVolunteers: {
-          count: deactivatedVolunteers,
-          // percentage: calculateGrowthPercentage(
-          //   currentDeactivatedVolunteers,
-          //   comparisonDeactivatedVolunteers,
-          // ),
-          percentage: ((deactivatedVolunteers / currentTotalVolunteers) * 100).toFixed(2),
-        },
-        totalVolunteers: {
-          count: currentTotalVolunteers,
-          comparisonPercentage: calculateGrowthPercentage(
+      res.totalVolunteers.comparisonPercentage = calculateGrowthPercentage(
             currentTotalVolunteers,
             comparisonTotalVolunteers,
-          ),
-        },
-      };
-
-      return res;
+      );
     }
 
-    const transformedData = {
-      activeVolunteers: {
-        count: activeVolunteers,
-        percentage: ((activeVolunteers / currentTotalVolunteers) * 100).toFixed(2),
-      },
-      newVolunteers: {
-        count: newVolunteers,
-        percentage: ((newVolunteers / currentTotalVolunteers) * 100).toFixed(2),
-      },
-      deactivatedVolunteers: {
-        count: deactivatedVolunteers,
-        percentage: ((deactivatedVolunteers / currentTotalVolunteers) * 100).toFixed(2),
-      },
-      totalVolunteers: { count: currentTotalVolunteers },
-    };
-
-    return transformedData;
+    return res;
   };
 
   /**
