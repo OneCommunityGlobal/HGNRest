@@ -1,8 +1,11 @@
 const express = require('express');
 
-const router = express.Router();
-const linkedinPostController = require('../controllers/linkedinPostController');
+const routes = () => {
+  const controller = require('../controllers/linkedinPostController')();
+  const linkedinRouter = express.Router();
+  linkedinRouter.route('/postToLinkedIn').post(controller.postToLinkedin);
 
-router.post('/postToLinkedIn', linkedinPostController.postToLinkedIn);
+  return linkedinRouter;
+};
 
-module.exports = router;
+module.exports = routes;
