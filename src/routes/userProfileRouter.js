@@ -117,9 +117,9 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
 
-  userProfileRouter.post('/logPermissionChanges', logUserPermissionController.logPermissionChanges);
-  userProfileRouter.get('/logPermissionChanges/:userId', logUserPermissionController.getPermissionChangeLogs);
-
+  userProfileRouter
+    .route('/userProfile/autocomplete/:searchText')
+    .get(controller.getUserByAutocomplete);
 
   return userProfileRouter;
 };
