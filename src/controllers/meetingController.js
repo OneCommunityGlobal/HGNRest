@@ -134,10 +134,50 @@ const meetingController = function (Meeting) {
     }
   };
 
+  const getAllMeetingsByOrganizer = async function (req, res) {
+    try {
+      const { organizerId } = req.query;
+      if (!mongoose.Types.ObjectId.isValid(organizerId)) {
+        return res.status(400).json({ error: 'Invalid organizer userId' });
+      }
+      const userProfileExists = await UserProfile.exists({ _id: organizerId });
+      if (!userProfileExists) {
+        throw new Error('Organizer ID does not exist');
+      }
+
+      const currentTime = new Date();
+      const meetings = await Meeting.aggregate([
+        {
+          $match: {
+            dateTime: { $gt: currentTime },
+            organizer: mongoose.Types.ObjectId(organizerId),
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            dateTime: 1,
+            duration: 1,
+            organizer: 1,
+            location: 1,
+            notes: 1,
+            participantList: 1,
+          },
+        },
+      ]);
+
+      res.status(200).json(meetings);
+    } catch (error) {
+      console.error('Error fetching all upcoming meetings:', error);
+      res.status(500).json({ error: 'Failed to fetch all upcoming meetings' });
+    }
+  };
+
   return {
     postMeeting,
     getMeetings,
     markMeetingAsRead,
+    getAllMeetingsByOrganizer,
   };
 };
 

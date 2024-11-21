@@ -10,6 +10,7 @@ const routes = function (Meeting) {
   MeetingRouter.route('/meetings/markRead/:meetingId/:recipient').post(
     controller.markMeetingAsRead,
   );
+  MeetingRouter.route('/meetings/upcoming/:organizerId').get(controller.getAllMeetingsByOrganizer);
 
   return MeetingRouter;
 };
