@@ -14,6 +14,7 @@ const taskController = function (Task) {
     let query = {
       wbsId: { $in: [req.params.wbsId] },
       level: { $in: [level] },
+      isActive: { $ne: false },
     };
 
     const { mother } = req.params;
@@ -27,8 +28,9 @@ const taskController = function (Task) {
     }
 
     Task.find(query)
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+    
+      .then(((results)) => res.status(200).send(results))
+      .catch(((error)) => res.status(404).send(error));
   };
 
   const getWBSId = (req, res) => {
@@ -248,6 +250,7 @@ const taskController = function (Task) {
       $and: [
         { $or: [{ taskId: parentId1 }, { parentId1 }, { parentId1: null }] },
         { wbsId: { $in: [wbsId] } },
+        { isActive: { $ne: false } },
       ],
     }).then((tasks) => {
       tasks = [...new Set(tasks.map((item) => item))];
@@ -846,6 +849,54 @@ const taskController = function (Task) {
           res.status(200).send(resultsWithProjectsIds);
         });
       });
+      const tasks = await Task.aggregate()
+        .match({
+          resources: {
+            $elemMatch: {
+              userID: mongoose.Types.ObjectId(userId),
+              completedTask: {
+                $ne: true,
+              },
+            },
+          },
+          isActive: {
+            $ne: false,
+          },
+        })
+        .lookup({
+          from: 'wbs',
+          localField: 'wbsId',
+          foreignField: '_id',
+          as: 'wbs',
+        })
+        .unwind({
+          path: '$wbs',
+          includeArrayIndex: 'string',
+          preserveNullAndEmptyArrays: true,
+        })
+        .addFields({
+          wbsName: '$wbs.wbsName',
+          projectId: '$wbs.projectId',
+        })
+        .lookup({
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project',
+        })
+        .unwind({
+          path: '$project',
+          includeArrayIndex: 'string',
+          preserveNullAndEmptyArrays: true,
+        })
+        .addFields({
+          projectName: '$project.projectName',
+        })
+        .project({
+          wbs: 0,
+          project: 0,
+        });
+      res.status(200).send(tasks);
     } catch (error) {
       res.status(400).send(error);
     }
