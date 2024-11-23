@@ -457,8 +457,40 @@ const overviewReportHelper = function () {
         },
       },
     ]);
+    const totalMembers = data.totalMembers[0]?.count || 0;
+    const usersInTeam = data.inTeam[0]?.usersInTeam || 0;
+  
+    // Calculate usersNotInTeam
+    const usersNotInTeam = totalMembers - usersInTeam;
 
-    return data;
+    // Calculate percentage breakdown
+  const percentageInTeam = ((usersInTeam / totalMembers) * 100).toFixed(2);
+  const percentageNotInTeam = ((usersNotInTeam / totalMembers) * 100).toFixed(2);
+
+  // Add comparison data with percentage breakdown
+  const percentageBreakdown = [
+    {
+      category: "In Team",
+      percentage: `${percentageInTeam}%`,
+    },
+    {
+      category: "Not In Team",
+      percentage: `${percentageNotInTeam}%`,
+    },
+  ];
+
+  return {
+    totalMembers: data.totalMembers,
+    inTeam: data.inTeam,
+    notInTeam: [
+      {
+        usersNotInTeam,
+      },
+    ],
+    percentageBreakdown,
+  };
+  
+
   }
 
   /** aggregates role distribution statistics
