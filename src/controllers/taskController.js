@@ -28,9 +28,8 @@ const taskController = function (Task) {
     }
 
     Task.find(query)
-    
-      .then(((results)) => res.status(200).send(results))
-      .catch(((error)) => res.status(404).send(error));
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const getWBSId = (req, res) => {
@@ -829,26 +828,6 @@ const taskController = function (Task) {
   const getTasksByUserId = async (req, res) => {
     const { userId } = req.params;
     try {
-      Task.find(
-        {
-          'resources.userID': mongoose.Types.ObjectId(userId),
-        },
-        '-resources.profilePic',
-      ).then((results) => {
-        WBS.find({
-          _id: { $in: results.map((item) => item.wbsId) },
-        }).then((WBSs) => {
-          const resultsWithProjectsIds = results.map((item) => {
-            item.set(
-              'projectId',
-              WBSs?.find((wbs) => wbs._id.toString() === item.wbsId.toString())?.projectId,
-              { strict: false },
-            );
-            return item;
-          });
-          res.status(200).send(resultsWithProjectsIds);
-        });
-      });
       const tasks = await Task.aggregate()
         .match({
           resources: {
