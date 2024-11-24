@@ -1738,7 +1738,7 @@ const userHelper = function () {
           streak.badges.every((bdge) => {
             let badgeOfType;
 
-
+            console.log('Initial badgeOfType:', badgeOfType);
             // verifies that badge collection has the badge
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
@@ -1746,7 +1746,7 @@ const userHelper = function () {
                 badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-                  console.log(`Removing lower badge: ${badgeOfType.totalHrs}, awarding: ${badgeCollection[i].badge.totalHrs}`);
+                 // console.log(`Removing lower badge: ${badgeOfType.totalHrs}, awarding: ${badgeCollection[i].badge.totalHrs}`);
                   removeDupBadge(personId, badgeOfType._id);
                   badgeOfType = badgeCollection[i].badge;
                 } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
@@ -1757,6 +1757,11 @@ const userHelper = function () {
                 }
               }
             }
+            
+           // console.log('outside of the loop\n', badgeOfType); // undefined values
+           // console.log('\n');
+
+            
 
             // console.log(bdge.hrs);
             // check if it is possible to earn this streak
@@ -1782,17 +1787,15 @@ const userHelper = function () {
 
                 higherBadge = true;
                 lastHr = bdge.hrs;
-
+                /**
+                 * The problem with lower badges incrementing seems to be related to this if else condition
+                 * needs to be fixed as its flawed.
+                 * !badgeOfType should be called last because it immediately adds a badge even though one exists.
+                 */
                 console.log('bdge.hours saved value',lastHr);
                 if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
                   console.log('hit4\n', badgeOfType.totalHrs);
                   replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(bdge._id), );
-                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-
-                } else if (!badgeOfType) {
-                  console.log('hit5\n'); 
-
-                  addBadge(personId, mongoose.Types.ObjectId(bdge._id));
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
 
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
@@ -1890,7 +1893,15 @@ const userHelper = function () {
                     increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
                     removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
                   }
-                }
+                } else if(badgeOfType && badgeOfType.totalHrs > bdge.hrs) {
+                    console.log("existing badge has more hours");
+                } else if (!badgeOfType) { // moved this down because it should only be adding if the badge doesnt exist
+                  console.log('hit5\n'); 
+                  // console.log('test \n\n',badgeOfType); // undefined values are passing
+                  addBadge(personId, mongoose.Types.ObjectId(bdge._id));
+                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
+
+                } 
                 return false;
               }
             }
