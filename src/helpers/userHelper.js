@@ -1667,8 +1667,10 @@ const userHelper = function () {
   // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
     let higherBadge = false;
+    console.log('hit2');
+    
     // Check each Streak Greater than One to check if it works
-    await badge
+    const results = await badge
       .aggregate([
         { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1 } } },
         // Group by 'week' property and sorting groups in descending order by 'week', then sorting badges within groups by 'totalHrs' in descending order.
@@ -1716,88 +1718,86 @@ const userHelper = function () {
         },
         { $sort: { _id: -1 } }, // Add this $sort stage for the final sorting by _id
       ])
-      .then((results) => {
+      // .then((results) => {
+        // results is called below so no need to change anything further
+        // this would make it easier to adjust the logic below
+
+        // this fixes issue where 40 hours in a week would not assign right away but does not solve the
+        // issue where 30 hours in 4 weeks is assigned when it should not be.
+        if (user.savedTangibleHrs.length >= 2) {
+          const lastValue = user.savedTangibleHrs[user.savedTangibleHrs.length-1];
+          const prevValue = user.savedTangibleHrs[user.savedTangibleHrs.length-2];
+          if (lastValue !== prevValue) {
+            await checkXHrsInOneWeek(personId, user, badgeCollection);
+          }
+
+        }
+
         let lastHr = -1;
         results.forEach((streak) => {
           streak.badges.every((bdge) => {
-            console.log(`Inside every: bdge.hrs = ${bdge.hrs}`);
             let badgeOfType;
-            console.log(`user.savedTangibleHrs: ${user.savedTangibleHrs}`);
-            console.log(`bdge.weeks: ${bdge.weeks}`);
-            console.log('\n');
+
+
+            // verifies that badge collection has the badge
             for (let i = 0; i < badgeCollection.length; i += 1) {
               if (
                 badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
                 badgeCollection[i].badge?.weeks === bdge.weeks
               ) {
                 if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
+                  console.log(`Removing lower badge: ${badgeOfType.totalHrs}, awarding: ${badgeCollection[i].badge.totalHrs}`);
                   removeDupBadge(personId, badgeOfType._id);
                   badgeOfType = badgeCollection[i].badge;
-                } else if (
-                  badgeOfType &&
-                  badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
-                ) {
+                } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
                   removeDupBadge(personId, badgeCollection[i].badge._id);
-                } else if (!badgeOfType) {
+                }
+                else if (!badgeOfType) {
                   badgeOfType = badgeCollection[i].badge;
                 }
               }
             }
-            // console.log(badgeCollection);
 
+            // console.log(bdge.hrs);
             // check if it is possible to earn this streak
-            if (user.savedTangibleHrs.length === bdge.weeks) { // modified this so that it will only pass if the week exactly matches. Reason: bdge.weeks is 200 by default, setting it to >= passes and it iterates unnecessarily causing the data to change.
-            // if (user.savedTangibleHrs.length >= bdge.weeks) {// original
+            console.log('save: ', user.savedTangibleHrs.length, '>= weeks: ',  bdge.weeks);
+            if (user.savedTangibleHrs.length >= bdge.weeks) { 
               let awardBadge = true;
               const endOfArr = user.savedTangibleHrs.length - 1;
+              // this is just checking for lower hours bgd.hrs contains 30,40,50,60
               for (let i = endOfArr; i >= endOfArr - bdge.weeks + 1; i -= 1) {
-                // if (user.savedTangibleHrs[i] < totalHours) {// added
-                // console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
-                console.log(`total hrs in the loop:::::: ${totalhours}`);
-                console.log(`in the loop = bdge.hrs value::::: ${bdge.hrs}`);
-                console.log('\n');
-
-
                 if (user.savedTangibleHrs[i] < bdge.hrs) {
-                  awardBadge = false;
+                  // console.log('in if savedhrs: ', user.savedTangibleHrs[i], '< bdge.hrs: ', bdge.hrs);
+                  awardBadge = false; // if curr badge is lower than curr hours dont award the badge
                   return true;
+                } 
+                if (user.savedTangibleHrs[i] === bdge.hrs) { // curr hours is greater than or equal to badges  hours then award badge
+                  awardBadge = true; // test this to see if it actually works
                 }
               }
+
               // if all checks for award badge are green double check that we havent already awarded a higher streak for the same number of hours
-              if (awardBadge && bdge.hrs > lastHr) {
+              if (awardBadge && bdge.hrs > lastHr) { // if true and its > -1
+
+
                 higherBadge = true;
                 lastHr = bdge.hrs;
-                if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
-                  console.log(`Replacing badge ${badgeOfType._id} with ${bdge._id}`);
-                  console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
-                  console.log(`Badge hours value: ${badgeOfType.totalHrs} -> ${bdge.hrs}`);
-                  console.log('\n');
-                  replaceBadge(
-                    personId,
-                    mongoose.Types.ObjectId(badgeOfType._id),
-                    mongoose.Types.ObjectId(bdge._id),
-                  );
 
+                console.log('bdge.hours saved value',lastHr);
+                if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
+                  console.log('hit4\n', badgeOfType.totalHrs);
+                  replaceBadge(personId, mongoose.Types.ObjectId(badgeOfType._id), mongoose.Types.ObjectId(bdge._id), );
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
+
                 } else if (!badgeOfType) {
-                  console.log(`Adding new badge ${bdge._id}`);
-                  console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
-                  console.log(`Badge hours value: ${bdge.hrs}`);
-                  console.log('\n');
-                  
-                  const totalHours = user.savedTangibleHrs.slice(-bdge.weeks).reduce((a, b) => a + b, 0);
-                  console.log(`Total hours: ${totalHours}`);
+                  console.log('hit5\n'); 
+
                   addBadge(personId, mongoose.Types.ObjectId(bdge._id));
-                  console.log(`After addBadge: bdge.hrs = ${bdge.hrs}`);
-                  console.log(`After addBadge: totalHours = ${totalHours}`);   
                   removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-                  console.log(`After rem: bdge.hrs = ${bdge.hrs}`);
-                  console.log(`After rem: totalHours = ${totalHours}`); 
+
                 } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
-                  console.log(`Updating badge ${badgeOfType._id} with new hours value`);
-                  console.log(`User's saved tangible hours: ${user.savedTangibleHrs}`);
-                  console.log(`Badge hours value: ${badgeOfType.totalHrs} -> ${bdge.hrs}`);
-                  console.log('\n');
+                  console.log('hit6\n', badgeOfType.totalHrs);
+
                   const lowerBound = badgeOfType.weeks;
                   let upperBound;
                   streak = 0;
@@ -1855,15 +1855,37 @@ const userHelper = function () {
                       // Default case. Exiting function.
                       return;
                   }
-                  for (let i = endOfArr; i >= endOfArr - upperBound + 1; i -= 1) {
-                    if (user.savedTangibleHrs[i] >= bdge.hrs) {
+
+
+                  console.log('lower bound value: ', lowerBound);
+                  console.log('upper bound value: ', upperBound);
+                  for (let i = endOfArr; i >= endOfArr - upperBound + 1; i -= 1) {    
+                    if (i < 0) {
+                      break; // exit loop array does not have negative elements
+                    } 
+
+                    console.log('count of i: ', i);
+                    console.log( 'streak: ',user.savedTangibleHrs[i]);
+
+                    // I think that this should only increment streak if the two are equal, that way if the current is 40 hours it would only assign to the 40 hrs badge and not 30 hours
+                    // swapped >= for === for testing purposes.
+                    console.log('savedhrs: ', user.savedTangibleHrs[i], '=== bdge.hrs: ', bdge.hrs);
+
+                    if (user.savedTangibleHrs[i] === bdge.hrs) { // if 30 >= 20,30,40,60,80,...
+
+                      // console.log(' after save3: ', bdge.hrs);
+
                       streak += 1;
+                      console.log('hours of streak have increased.');
                     }
+
                   }
                   if (streak > lowerBound && streak < upperBound) {
+
                     higherBadge = false;
                     console.log('You are currently building an existing streak, no badge awarded.');
                   } else {
+
                     console.log('You are currently building a new streak, new badge awarded');
                     increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
                     removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
@@ -1875,7 +1897,7 @@ const userHelper = function () {
             return true;
           });
         });
-      });
+     // });
 
     // Handle Increasing the 1 week streak badges
     if (!higherBadge) await checkXHrsInOneWeek(personId, user, badgeCollection);
@@ -2040,20 +2062,22 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      // const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      const users = await userProfile.find({email: 'summittest22@test.com'}).populate('badgeCollection.badge');
+
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        await updatePersonalMax(personId, user);
-        await checkPersonalMax(personId, user, badgeCollection);
-        await checkMostHrsWeek(personId, user, badgeCollection);
-        await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
-        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        // await updatePersonalMax(personId, user);
+        // await checkPersonalMax(personId, user, badgeCollection);
+        // await checkMostHrsWeek(personId, user, badgeCollection);
+        // await checkMinHoursMultiple(personId, user, badgeCollection);
+        // await checkTotalHrsInCat(personId, user, badgeCollection);
+        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
         await checkXHrsForXWeeks(personId, user, badgeCollection);
-        await checkNoInfringementStreak(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
