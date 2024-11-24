@@ -8,6 +8,35 @@ const UserProfile = require('../models/userProfile');
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
   const reporthelper = reporthelperClosure();
+
+  /**
+   * Aggregates the trend data for volunteer count
+   * Parameters:
+   * timeFrame - 0, 1, 2, etc: 0 represents all time
+   * offset - *STRING* week/month
+   * customStartDate / customEndDate - *DATE OBJ || NULL* custom date ranges
+   */
+  const getVolunteerTrends = async (req, res) => {
+    const { timeFrame, offset, customStartDate, customEndDate } = req.query;
+
+    console.log(typeof timeFrame);
+    if (!timeFrame || !offset) {
+      return res.status(400).send({ msg: 'Please provide a timeframe and offset' });
+    }
+
+    try {
+      const data = await overviewReportHelper.getVolunteerTrends(
+        timeFrame,
+        offset,
+        customStartDate,
+        customEndDate,
+      );
+      res.status(200).send(data);
+    } catch (err) {
+      res.status(400).send(err);
+    }
+  };
+
   /**
    * Aggregates all the data needed for the volunteer stats page
    * # Active volunteers
@@ -51,7 +80,7 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
-        volunteerTrends,
+        // volunteerTrends,
         completedHours,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
@@ -96,7 +125,7 @@ const reportsController = function () {
         ),
         overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getMapLocations(),
-        overviewReportHelper.getVolunteerTrends(),
+        // overviewReportHelper.getVolunteerTrends(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
           isoEndDate,
@@ -117,7 +146,7 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
-        volunteerTrends,
+        // volunteerTrends,
         completedHours,
       });
     } catch (err) {
@@ -455,6 +484,7 @@ const reportsController = function () {
     getVolunteerRoleStats,
     getBlueSquareStats,
     getVolunteerStatsData,
+    getVolunteerTrends,
   };
 };
 
