@@ -3,6 +3,7 @@
 /* eslint-disable no-use-before-define */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable guard-for-in */
+/* eslint-disable no-unused-vars */
 const moment = require('moment');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
@@ -236,43 +237,128 @@ const overviewReportHelper = function () {
    * Gets the total number of volunteer hours worked per month
    * For now it will be aggregated for the past year
    */
-  async function getVolunteerTrends() {
+  async function getVolunteerTrends(timeFrame, offset, customStartDate, customEndDate) {
     const currentDate = moment();
-    const startDate = currentDate.clone().subtract(11, 'months').startOf('month').toDate();
-    const endDate = currentDate.clone().endOf('month').toDate();
+    let startDate;
+    let endDate;
 
-    return TimeEntries.aggregate([
+    console.log('in trends method');
+    switch (timeFrame) {
+      case '0':
+        // random placeholder to gaurentee we are at the earliest possible date
+        startDate = currentDate.clone().subtract(40, 'years').startOf('month').toDate();
+        endDate = currentDate.clone().endOf('month').toDate();
+        break;
+      case '1':
+        startDate = currentDate.clone().subtract(1, 'year').startOf('month').toDate();
+        endDate = currentDate.clone().endOf('month').toDate();
+        break;
+      case '2':
+        startDate = currentDate.clone().subtract(2, 'years').startOf('month').toDate();
+        endDate = currentDate.clone().endOf('month').toDate();
+        break;
+      case '5':
+        startDate = currentDate.clone().subtract(5, 'years').startOf('month').toDate();
+        endDate = currentDate.clone().endOf('month').toDate();
+        break;
+      case '10':
+        startDate = currentDate.clone().subtract(10, 'years').startOf('month').toDate();
+        endDate = currentDate.clone().endOf('month').toDate();
+        break;
+      default:
+        throw new Error('invalid timeFrame');
+    }
+
+    console.log('before query');
+    return UserProfile.aggregate([
       {
         $match: {
-          dateOfWork: {
-            $gte: moment(startDate).format('YYYY-MM-DD'),
-            $lte: moment(endDate).format('YYYY-MM-DD'),
+          isActive: true,
+          createdDate: { $lte: endDate },
+        },
+      },
+      {
+        $addFields: {
+          activeMonths: {
+            $map: {
+              input: {
+                $range: [
+                  0,
+                  { $add: [{ $subtract: [{ $year: endDate }, { $year: '$createdDate' }] }, 1] },
+                ],
+              },
+              as: 'yearOffset',
+              in: {
+                year: { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
+                months: {
+                  $cond: [
+                    {
+                      $eq: [
+                        { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
+                        { $year: new Date() },
+                      ],
+                    },
+                    { $range: [{ $month: '$createdDate' }, { $month: new Date() }] },
+                    { $range: [1, 13] },
+                  ],
+                },
+              },
+            },
           },
         },
       },
+      { $unwind: '$activeMonths' },
+      { $unwind: '$activeMonths.months' },
       {
         $group: {
           _id: {
-            year: { $year: { $dateFromString: { dateString: '$dateOfWork' } } },
-            month: { $month: { $dateFromString: { dateString: '$dateOfWork' } } },
+            year: '$activeMonths.year',
+            month: '$activeMonths.months',
           },
-          totalSecondsWorked: {
-            $sum: '$totalSeconds',
-          },
+          activeVolunteersCount: { $sum: 1 },
         },
       },
+      // Step 5: Sort results in chronological order.
       {
-        $project: {
-          _id: 1,
-          totalHours: {
-            $divide: ['$totalSecondsWorked', 3600],
-          },
+        $sort: {
+          '_id.year': 1,
+          '_id.month': 1,
         },
-      },
-      {
-        $sort: { '_id.year': 1, '_id.month': 1 },
       },
     ]);
+
+    // return TimeEntries.aggregate([
+    //   {
+    //     $match: {
+    //       dateOfWork: {
+    //         $gte: moment(startDate).format('YYYY-MM-DD'),
+    //         $lte: moment(endDate).format('YYYY-MM-DD'),
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $group: {
+    //       _id: {
+    //         year: { $year: { $dateFromString: { dateString: '$dateOfWork' } } },
+    //         month: { $month: { $dateFromString: { dateString: '$dateOfWork' } } },
+    //       },
+    //       totalSecondsWorked: {
+    //         $sum: '$totalSeconds',
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $project: {
+    //       _id: 1,
+    //       totalHours: {
+    //         $divide: ['$totalSecondsWorked', 3600],
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $sort: { '_id.year': 1, '_id.month': 1 },
+    //   },
+    // ]);
   }
 
   /**

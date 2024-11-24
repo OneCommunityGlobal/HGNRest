@@ -45,6 +45,7 @@ const closure = () => {
         subject,
         html: message,
         replyTo,
+
         auth: {
           user: CLIENT_EMAIL,
           refreshToken: REFRESH_TOKEN,
