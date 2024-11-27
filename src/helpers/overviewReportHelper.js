@@ -464,33 +464,19 @@ const overviewReportHelper = function () {
     const usersNotInTeam = totalMembers - usersInTeam;
 
     // Calculate percentage breakdown
-  const percentageInTeam = ((usersInTeam / totalMembers) * 100).toFixed(2);
-  const percentageNotInTeam = ((usersNotInTeam / totalMembers) * 100).toFixed(2);
+    const percentageOutOfTotalInTeam = Math.round((usersInTeam / totalMembers) * 100) / 100;
+    const percentageOutOfTotalNotInTeam =  Math.round((usersNotInTeam / totalMembers) * 100) / 100;
 
-  // Add comparison data with percentage breakdown
-  const percentageBreakdown = [
-    {
-      category: "In Team",
-      percentage: `${percentageInTeam}%`,
-    },
-    {
-      category: "Not In Team",
-      percentage: `${percentageNotInTeam}%`,
-    },
-  ];
-
-  return {
-    totalMembers: data.totalMembers,
-    inTeam: data.inTeam,
-    notInTeam: [
-      {
-        usersNotInTeam,
+    return {
+      inTeam: {
+        count: usersInTeam,
+        percentageOutOfTotal: percentageOutOfTotalInTeam
       },
-    ],
-    percentageBreakdown,
-  };
-  
-
+      notInTeam: {
+        count: usersNotInTeam,
+        percentageOutOfTotal: percentageOutOfTotalNotInTeam
+      },
+    };
   }
 
   /** aggregates role distribution statistics
