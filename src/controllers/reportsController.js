@@ -85,7 +85,9 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getRoleDistributionStats(),
-        overviewReportHelper.getTeamMembersCount(),
+        overviewReportHelper.getTeamMembersCount(
+          isoEndDate,
+        ),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
         overviewReportHelper.getAnniversaries(startDate, endDate),
         overviewReportHelper.getTotalBadgesAwardedCount(
