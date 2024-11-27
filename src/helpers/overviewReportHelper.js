@@ -417,30 +417,25 @@ const overviewReportHelper = function () {
   /**
    *  Get the number of members in team and not in team, with percentage
    */
-  async function getTeamMembersCount() {
+  async function getTeamMembersCount(
+    isoEndDate,
+  ) {
     const [data] = await UserProfile.aggregate([
       {
         $match: {
           isActive: true,
-        },
+          createdDate: {
+            $lte: isoEndDate,
+          },
+        }
       },
       {
         $facet: {
           totalMembers: [
             {
-              $group: {
-                _id: null,
-                count: { $sum: 1 },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                count: 1,
-              },
+              $count: 'count',
             },
           ],
-
           inTeam: [
             {
               $match: {
@@ -451,14 +446,14 @@ const overviewReportHelper = function () {
               },
             },
             {
-              $count: 'usersInTeam',
+              $count: 'count',
             },
           ],
         },
       },
     ]);
     const totalMembers = data.totalMembers[0]?.count || 0;
-    const usersInTeam = data.inTeam[0]?.usersInTeam || 0;
+    const usersInTeam = data.inTeam[0]?.count || 0;
   
     // Calculate usersNotInTeam
     const usersNotInTeam = totalMembers - usersInTeam;
