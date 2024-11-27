@@ -167,11 +167,22 @@ const warningsController = function (UserProfile) {
         email: record.email,
       };
 
+      //if monitorData is passed and has a userId, meaning was sent from userprofile
+      if (monitorData.userId) {
+        const monitor = await UserProfile.findById(monitorData.userId);
+        monitorData.firstName = monitor.firstName;
+        monitorData.lastName = monitor.lastName;
+        monitorData.email = monitor.email;
+        monitorData.userId = monitor._id;
+      }
+
       const updatedWarnings = await UserProfile.findByIdAndUpdate(
         {
           _id: userId,
         },
-        { $push: { warnings: { userId, iconId, color, date, description } } },
+        {
+          $push: { warnings: { userId, iconId, color, date, description } },
+        },
         { new: true, upsert: true },
       );
 
@@ -196,12 +207,10 @@ const warningsController = function (UserProfile) {
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
+      console.log('error', error);
       res.status(400).send({ message: error.message || error });
     }
   };
-
-  //new post method add to the user profile
-  // and return the updated special warnings
 
   const deleteUsersWarnings = async (req, res) => {
     const { userId } = req.params;
