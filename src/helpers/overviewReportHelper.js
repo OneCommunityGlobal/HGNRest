@@ -419,57 +419,82 @@ const overviewReportHelper = function () {
    */
   async function getTeamMembersCount(
     isoEndDate,
+    isoComparisonEndDate,
   ) {
-    const [data] = await UserProfile.aggregate([
-      {
-        $match: {
-          isActive: true,
-          createdDate: {
-            $lte: isoEndDate,
-          },
-        }
-      },
-      {
-        $facet: {
-          totalMembers: [
-            {
-              $count: 'count',
+    // Gets counts for total members and members in team within a given time range
+    const getData = async (endDate) => {
+      const [data] = await UserProfile.aggregate([
+        {
+          $match: {
+            isActive: true,
+            createdDate: {
+              $lte: endDate,
             },
-          ],
-          inTeam: [
-            {
-              $match: {
-                teams: {
-                  $exists: true,
-                  $ne: [],
+          }
+        },
+        {
+          $facet: {
+            totalMembers: [
+              {
+                $count: 'count',
+              },
+            ],
+            inTeam: [
+              {
+                $match: {
+                  teams: {
+                    $exists: true,
+                    $ne: [],
+                  },
                 },
               },
-            },
-            {
-              $count: 'count',
-            },
-          ],
+              {
+                $count: 'count',
+              },
+            ],
+          },
         },
-      },
-    ]);
-    const totalMembers = data.totalMembers[0]?.count || 0;
-    const usersInTeam = data.inTeam[0]?.count || 0;
-  
-    // Calculate usersNotInTeam
-    const usersNotInTeam = totalMembers - usersInTeam;
+      ]);
 
-    // Calculate percentage breakdown
-    const percentageOutOfTotalInTeam = Math.round((usersInTeam / totalMembers) * 100) / 100;
-    const percentageOutOfTotalNotInTeam =  Math.round((usersNotInTeam / totalMembers) * 100) / 100;
+      const totalMembers = data.totalMembers[0]?.count || 0;
+      const usersInTeam = data.inTeam[0]?.count || 0;
+      const usersNotInTeam = totalMembers - usersInTeam;
+
+      return {
+        totalMembers,
+        usersInTeam, 
+        usersNotInTeam,
+      }; 
+    };
+    
+    const { 
+      totalMembers: currentTotalMembers,
+      usersInTeam: currentUsersInTeam, 
+      usersNotInTeam: currentUsersNotInTeam
+    } = await getData(isoEndDate);
+  
+    // Calculate percentages out of total
+    const percentageOutOfTotalInTeam = Math.round((currentUsersInTeam / currentTotalMembers) * 100) / 100;
+    const percentageOutOfTotalNotInTeam =  Math.round((currentUsersNotInTeam / currentTotalMembers) * 100) / 100;
+
+    // Calculate comparison percentages
+    const { 
+      usersInTeam: comparisonUsersInTeam, 
+      usersNotInTeam: comparisonUsersNotInTeam
+    } = await getData(isoComparisonEndDate);
+    const comparisonPercentageInTeam = calculateGrowthPercentage(currentUsersInTeam, comparisonUsersInTeam);
+    const comparisonPercentageNotInTeam = calculateGrowthPercentage(currentUsersNotInTeam, comparisonUsersNotInTeam);
 
     return {
       inTeam: {
-        count: usersInTeam,
-        percentageOutOfTotal: percentageOutOfTotalInTeam
+        count: currentUsersInTeam,
+        percentageOutOfTotal: percentageOutOfTotalInTeam,
+        comparisonPercentage: comparisonPercentageInTeam,
       },
       notInTeam: {
-        count: usersNotInTeam,
-        percentageOutOfTotal: percentageOutOfTotalNotInTeam
+        count: currentUsersNotInTeam,
+        percentageOutOfTotal: percentageOutOfTotalNotInTeam,
+        comparisonPercentage: comparisonPercentageNotInTeam,
       },
     };
   }
