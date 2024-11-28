@@ -82,6 +82,7 @@ const reportsController = function () {
         userLocations,
         // volunteerTrends,
         completedHours,
+        taskAndProjectStats,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
           isoStartDate,
@@ -132,6 +133,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
+        overviewReportHelper.getTaskAndProjectStats(
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
+        ),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -148,6 +155,7 @@ const reportsController = function () {
         userLocations,
         // volunteerTrends,
         completedHours,
+        taskAndProjectStats,
       });
     } catch (err) {
       console.log(err);
