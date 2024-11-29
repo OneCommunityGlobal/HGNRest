@@ -39,6 +39,55 @@ const getJobs = async (req, res) => {
   }
 };
 
+// Controller to fetch job summaries with pagination, search, filtering, and sorting
+const getJobSummaries = async (req, res) => {
+  const { search = '', page = 1, limit = 18, category = '' } = req.query;
+
+  try {
+    // Validate pagination parameters
+    const pageNumber = Math.max(1, parseInt(page, 10)); // Page number should be at least 1
+    const limitNumber = Math.max(1, parseInt(limit, 10)); // Limit number of results per page
+    
+    // Construct the query object
+    const query = {};
+    if (search) query.title = { $regex: search, $options: 'i' }; // Search based on title (case-insensitive)
+    if (category) query.category = category; // Filter by category if provided
+
+    // Sorting logic based on multiple criteria
+    const sortCriteria = { 
+      title: 1,        // Sort by title alphabetically
+      datePosted: -1,  // If titles are the same, sort by datePosted (newest first)
+      featured: -1     // If title and datePosted are the same, prioritize featured jobs
+    };
+
+    // Fetch the total number of jobs matching the query for pagination
+    const totalJobs = await Job.countDocuments(query);
+
+    // Fetch job summaries (only the essential fields) for the current page
+    const jobs = await Job.find(query)
+      .select('title category location description datePosted featured') // Include fields as needed
+      .sort(sortCriteria) // Apply sorting logic
+      .skip((pageNumber - 1) * limitNumber) // Skip jobs based on the page number
+      .limit(limitNumber); // Limit the results per page
+
+    // Return the results along with pagination metadata
+    res.json({
+      jobs,
+      pagination: {
+        totalJobs,
+        totalPages: Math.ceil(totalJobs / limitNumber), // Calculate total number of pages
+        currentPage: pageNumber,
+        limit: limitNumber,
+        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
+        hasPreviousPage: pageNumber > 1,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch job summaries', details: error.message });
+  }
+};
+
+
 // Controller to fetch job details by ID
 const getJobById = async (req, res) => {
   const { id } = req.params;
@@ -107,6 +156,7 @@ const deleteJob = async (req, res) => {
   }
 };
 
+
 // Export controllers as a plain object
 module.exports = {
   getJobs,
@@ -114,4 +164,5 @@ module.exports = {
   createJob,
   updateJob,
   deleteJob,
+  getJobSummaries 
 };
