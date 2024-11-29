@@ -78,6 +78,7 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
   permissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
+const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -163,6 +164,7 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api/jobs', jobsRouter)
+  app.use('/api/job-notification-list/', jobNotificationListRouter)
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
