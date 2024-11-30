@@ -4,6 +4,7 @@ const config = require('../config');
 
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
+    console.log('Middleware invoked');
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
       return;
@@ -35,26 +36,37 @@ module.exports = function (app) {
       return;
     }
     const authToken = req.header(config.REQUEST_AUTHKEY);
+    console.log('Auth Token:', authToken);
+
+    if (!authToken) {
+      console.error('No auth token provided');
+      res.status(401).send('No auth token provided');
+      return;
+    }
 
     let payload = '';
 
     try {
       payload = jwt.verify(authToken, config.JWT_SECRET);
+      console.log('Payload:', payload);
     } catch (error) {
+      console.error('Token verification error:', error);
       res.status(401).send('Invalid token');
       return;
     }
 
     if (
-      !payload
-      || !payload.expiryTimestamp
-      || !payload.userid
-      || !payload.role
-      || moment().isAfter(payload.expiryTimestamp)
+      !payload ||
+      !payload.expiryTimestamp ||
+      !payload.userid ||
+      !payload.role
     ) {
-      res.status(401).send('Unauthorized request');
+      console.error('Invalid token payload:', payload);
+      res.status(401).send('Invalid token');
       return;
     }
+
+    console.log('Token is valid, user ID:', payload.userid);
 
     const requestor = {};
     requestor.requestorId = payload.userid;
