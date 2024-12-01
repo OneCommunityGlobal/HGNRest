@@ -81,8 +81,6 @@ const meetingController = function (Meeting) {
       const { startTime, endTime } = req.query;
       const decodedStartTime = decodeURIComponent(startTime);
       const decodedEndTime = decodeURIComponent(endTime);
-      console.log('decodedStartTime', decodedStartTime);
-      console.log('decodedEndTime', decodedEndTime);
 
       const meetings = await Meeting.aggregate([
         {
@@ -107,7 +105,6 @@ const meetingController = function (Meeting) {
           },
         },
       ]);
-      console.log('meetings', meetings);
       res.status(200).json(meetings);
     } catch (error) {
       console.error('Error fetching meetings:', error);
@@ -118,12 +115,10 @@ const meetingController = function (Meeting) {
   const markMeetingAsRead = async function (req, res) {
     try {
       const { meetingId, recipient } = req.params;
-      console.log('req.params', meetingId, recipient);
       const result = await Meeting.updateOne(
         { _id: meetingId, 'participantList.participant': recipient },
         { $set: { 'participantList.$.notificationIsRead': true } },
       );
-      console.log(result);
       if (result.nModified === 0) {
         return res.status(404).json({ error: 'Meeting not found or already marked as read' });
       }
