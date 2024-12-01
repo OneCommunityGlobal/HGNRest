@@ -1636,7 +1636,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1678,7 +1688,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1710,7 +1730,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1797,6 +1827,42 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getUserByAutocomplete = (req, res) => {
+    const { searchText } = req.params;
+
+    if (!searchText) {
+      return res.status(400).send({ message: 'Search text is required' });
+    }
+
+    const regex = new RegExp(searchText, 'i'); // Case-insensitive regex for partial matching
+
+    UserProfile.find(
+      {
+        $or: [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$firstName', ' ', '$lastName'] },
+                regex: searchText,
+                options: 'i',
+              },
+            },
+          },
+        ],
+      },
+      '_id firstName lastName', // Projection to limit fields returned
+    )
+      .limit(10) // Limit results for performance
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(() => {
+        res.status(500).send({ error: 'Internal Server Error' });
+      });
+  };
+
   const updateUserInformation = async function (req,res){
     try {
       const data=req.body;
@@ -1840,6 +1906,8 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    getUserByAutocomplete,
+    getUserProfileBasicInfo,
     updateUserInformation,
     getUserProfileBasicInfo
   };
