@@ -134,16 +134,20 @@ const profileInitialSetupController = function (
    * @param {*} res 
    */
   const getSetupToken = async (req, res) => {
+    console.log('getSetupToken function invoked');
     let { email } = req.body;
     const { baseUrl, weeklyCommittedHours } = req.body;
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().add(3, 'week');
+    console.log('Generated token:', token);
+    console.log('Expiration date:', expiration.toDate());
     // Wrap multiple db operations in a transaction
     const session = await startSession();
     session.startTransaction();
 
     try {
+      console.log('Checking for existing email:', email);
       const existingEmail = await userProfile
         .findOne({
           email,
@@ -151,11 +155,13 @@ const profileInitialSetupController = function (
         .session(session);
 
       if (existingEmail) {
+        console.log('Email already in use:', email);
         await session.abortTransaction();
         session.endSession();
         return res.status(400).send('email already in use');
       }
 
+      console.log('Deleting existing token for email:', email);
       await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
 
       const newToken = new ProfileInitialSetupToken({
@@ -169,6 +175,7 @@ const profileInitialSetupController = function (
       });
 
       const savedToken = await newToken.save({ session });
+      console.log('Token saved:', savedToken);
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
@@ -235,12 +242,18 @@ const profileInitialSetupController = function (
   - Sends the JWT as a response.
 */
   const setUpNewUser = async (req, res) => {
+    console.log('setUpNewUser function invoked');
+
     const { token } = req.body;
+    console.log('Token received:', token);
+
     const currentMoment = moment.now(); // use UTC for comparison
     try {
       const foundToken = await ProfileInitialSetupToken.findOne({ token });
+      console.log('Found token:', foundToken);
 
       if (!foundToken) {
+        console.error('Invalid token');
         res.status(400).send('Invalid token');
         return;
       }
@@ -250,6 +263,7 @@ const profileInitialSetupController = function (
       });
 
       if (existingEmail) {
+        console.error('Email already in use');
         return res.status(400).send('email already in use');
       }
       if (foundToken) {
@@ -352,6 +366,7 @@ const profileInitialSetupController = function (
           allUserCache.push(NewUserCache);
           cache.setCache('allusers', JSON.stringify(allUserCache));
         } else {
+          console.error('Token is expired');
           return res.status(400).send('Token is expired');
         }
       } else {
@@ -455,6 +470,7 @@ const profileInitialSetupController = function (
       allUserCache.push(NewUserCache);
       cache.setCache('allusers', JSON.stringify(allUserCache));
     } catch (error) {
+      console.error('Error:', error);
       LOGGER.logException(error);
       res.status(500).send(`Error: ${error}`);
     }
