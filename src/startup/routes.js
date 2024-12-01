@@ -45,6 +45,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryItem');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+const meeting = require('../models/meeting');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -96,6 +97,7 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
+const meetingRouter = require('../routes/meetingRouter')(meeting);
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -162,6 +164,7 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
+  app.use('/api', meetingRouter);
   app.use('/api/jobs', jobsRouter)
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
