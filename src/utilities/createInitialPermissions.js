@@ -256,7 +256,8 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
-      'manageAdminLinks',
+
+      'removeUserFromTask',
 
       'editHeaderMessage',
     ],
