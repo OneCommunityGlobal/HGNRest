@@ -1,10 +1,10 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
-const dotenv = require('dotenv');
-
-dotenv.config();
 const ProfileInitialSetupToken = require('../models/profileInitialSetupToken');
 const { hasPermission } = require('../utilities/permissions');
+
+const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
+const commonKey = process.env.TIMEZONE_COMMON_KEY;
 
 const performTimeZoneRequest = async (req, res, apiKey) => {
   const { location } = req.params;
@@ -17,6 +17,7 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
   try {
     const geocodeAPIEndpoint = 'https://api.opencagedata.com/geocode/v1/json';
     const url = `${geocodeAPIEndpoint}?key=${apiKey}&q=${location}&pretty=1&limit=1`;
+
     const response = await fetch(url);
     const data = await response.json();
 
@@ -52,17 +53,16 @@ const performTimeZoneRequest = async (req, res, apiKey) => {
 
 const timeZoneAPIController = function () {
   const getTimeZone = async (req, res) => {
-    const premiumKey = process.env.TIMEZONE_PREMIUM_KEY;
-    const commonKey = process.env.TIMEZONE_COMMON_KEY;
     const { requestor } = req.body;
+
     if (!requestor.role) {
       res.status(403).send('Unauthorized Request');
       return;
     }
+
     const userAPIKey = (await hasPermission(requestor, 'getTimeZoneAPIKey'))
       ? premiumKey
       : commonKey;
-
     if (!userAPIKey) {
       res.status(401).send('API Key Missing');
       return;
@@ -72,7 +72,6 @@ const timeZoneAPIController = function () {
   };
 
   const getTimeZoneProfileInitialSetup = async (req, res) => {
-    const commonKey = process.env.TIMEZONE_COMMON_KEY;
     const { token } = req.body;
     if (!token) {
       res.status(400).send('Missing token');

@@ -110,7 +110,7 @@ describe('logincontroller module', () => {
       expect(findOneSpy).toHaveBeenCalledWith({ email: mockReqModified.body.email });
 
       assertResMock(
-        404,
+        403,
         {
           message: 'Invalid password.',
         },

@@ -4,6 +4,7 @@ const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
 // const actionItem = require('../models/actionItem');
+const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
 const popup = require('../models/popupEditor');
@@ -54,7 +55,6 @@ const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
-const jobsRouter = require('../routes/jobsRouter');
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
@@ -162,7 +162,6 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
-  app.use('/api/jobs', jobsRouter)
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
