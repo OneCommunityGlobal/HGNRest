@@ -27,7 +27,6 @@ const userProfileSchema = new Schema({
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
-  finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
     type: String,
     required: true,

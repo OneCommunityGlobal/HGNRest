@@ -2,72 +2,57 @@ const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const logger = require('../startup/logger');
 
-const config = {
-  email: process.env.REACT_APP_EMAIL,
-  clientId: process.env.REACT_APP_EMAIL_CLIENT_ID,
-  clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
-  redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
-  refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
-  batchSize: 50,
-  concurrency: 3,
-  rateLimitDelay: 1000,
-};
+const closure = () => {
+  const queue = [];
 
-const OAuth2Client = new google.auth.OAuth2(
-  config.clientId,
-  config.clientSecret,
-  config.redirectUri,
-);
-OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
+  const CLIENT_EMAIL = process.env.REACT_APP_EMAIL;
+  const CLIENT_ID = process.env.REACT_APP_EMAIL_CLIENT_ID;
+  const CLIENT_SECRET = process.env.REACT_APP_EMAIL_CLIENT_SECRET;
+  const REDIRECT_URI = process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI;
+  const REFRESH_TOKEN = process.env.REACT_APP_EMAIL_REFRESH_TOKEN;
+  // Create the email envelope (transport)
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: CLIENT_EMAIL,
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+    },
+  });
 
-// Create the email envelope (transport)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    type: 'OAuth2',
-    user: config.email,
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-  },
-});
+  const OAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
-const sendEmail = async (mailOptions) => {
-  try {
-    const { token } = await OAuth2Client.getAccessToken();
-    mailOptions.auth = {
-      user: config.email,
-      refreshToken: config.refreshToken,
-      accessToken: token,
-    };
-    const result = await transporter.sendMail(mailOptions);
-    if (process.env.NODE_ENV === 'local') {
-      logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
-    }
-    return result;
-  } catch (error) {
-    logger.logException(error, `Error sending email: ${mailOptions.to}`);
-    throw error;
-  }
-};
+  OAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
-const queue = [];
-let isProcessing = false;
+  setInterval(async () => {
+    const nextItem = queue.shift();
 
-const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt, resolve, reject} = nextItem;
+    if (!nextItem) return;
 
-const processQueue = async () => {
-  if (isProcessing || queue.length === 0) re
+    const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt, resolve, reject} = nextItem;
 
-  isProcessing = true;
-  console.log('Processing email queue...');
+    try {
+      // Generate the accessToken on the fly
+      const res = await OAuth2Client.getAccessToken();
+      const ACCESSTOKEN = res.token;
 
-  const processBatch = async () => {
-    if (queue.length === 0) {
-      isProcessing = false;
-      return;
-    }
+      const mailOptions = {
+        from: CLIENT_EMAIL,
+        to: recipient,
+        cc,
+        bcc,
+        subject,
+        html: message,
+        replyTo,
+        auth: {
+          user: CLIENT_EMAIL,
+          refreshToken: REFRESH_TOKEN,
+          accessToken: ACCESSTOKEN,
+        },
+      };
 
-    const result = await transporter.sendMail(mailOptions);
+      const result = await transporter.sendMail(mailOptions);
       if (typeof acknowledgingReceipt === 'function') {
         acknowledgingReceipt(null, result);
       }
@@ -91,14 +76,8 @@ const processQueue = async () => {
         `Extra Data: cc ${cc} bcc ${bcc}`,
       );
       reject(error);
-    const batch = queue.shift();
-    try {
-      console.log('Sending email...');
-      await sendEmail(batch);
-    } catch (error) {
-      logger.logException(error, 'Failed to send email batch');
     }
-
+  }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
   const emailSender = function (
     recipient,
@@ -126,43 +105,9 @@ const processQueue = async () => {
         resolve('Email sending is disabled');
       }
     });
-    setTimeout(processBatch, config.rateLimitDelay);
-
   };
 
-  const concurrentProcesses = Array(config.concurrency).fill().map(processBatch);
-
-  try {
-    await Promise.all(concurrentProcesses);
-  } finally {
-    isProcessing = false;
-  }
+  return emailSender;
 };
 
-const emailSender = (
-  recipients,
-  subject,
-  message,
-  attachments = null,
-  cc = null,
-  replyTo = null,
-) => {
-  if (!process.env.sendEmail) return;
-  const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
-  for (let i = 0; i < recipients.length; i += config.batchSize) {
-    const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
-    queue.push({
-      from: config.email,
-      bcc: batchRecipients.join(','),
-      subject,
-      html: message,
-      attachments,
-      cc,
-      replyTo,
-    });
-  }
-  console.log('Emails queued:', queue.length);
-  setImmediate(processQueue);
-};
-
-module.exports = emailSender;
+module.exports = closure();
