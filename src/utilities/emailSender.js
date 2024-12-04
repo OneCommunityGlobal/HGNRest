@@ -84,7 +84,7 @@ const processQueue = async () => {
     } catch (error) {
       if (typeof acknowledgingReceipt === 'function') {
         acknowledgingReceipt(error, null);
-      };
+      }
       logger.logException(
         error,
         `Error sending email: from ${CLIENT_EMAIL} to ${recipient} subject ${subject}`,
