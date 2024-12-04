@@ -969,165 +969,95 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) => {
-    if (comparisonStartDate !== undefined && comparisonEndDate !== undefined) {
-      const [data] = await UserProfile.aggregate([
+    const getVolunteerData = async (isoStartDate, isoEndDate) => {
+      const data = await UserProfile.aggregate([
         {
           $facet: {
-            currentActiveVolunteers: [
+            activeVolunteers: [
+              { 
+                $match: { 
+                  isActive: true, 
+                  createdDate: { $lte: isoEndDate } 
+                } 
+              }, 
+              { $count: 'count' }
+            ],
+            newVolunteers: [
               {
                 $match: {
                   createdDate: {
-                    $lte: endDate,
-                  },
-                  isActive: true,
-                },
-              },
-              { $count: 'activeVolunteersCount' },
-            ],
-
-            comparisonActiveVolunteers: [
-              {
-                $match: {
-                  createdDate: {
-                    $lte: comparisonEndDate,
-                  },
-                  isActive: true,
-                },
-              },
-              { $count: 'activeVolunteersCount' },
-            ],
-
-            currentNewVolunteers: [
-              {
-                $match: {
-                  createdDate: {
-                    $gte: startDate,
-                    $lte: endDate,
+                    $gte: isoStartDate,
+                    $lte: isoEndDate,
                   },
                 },
               },
-              { $count: 'newVolunteersCount' },
+              { $count: 'count' },
             ],
-
-            comparisonNewVolunteers: [
-              {
-                $match: {
-                  createdDate: {
-                    $gte: comparisonStartDate,
-                    $lte: comparisonEndDate,
-                  },
-                },
-              },
-              { $count: 'newVolunteersCount' },
-            ],
-
-            currentDeactivatedVolunteers: [
+            deactivatedVolunteers: [
               {
                 $match: {
                   $and: [
-                    { lastModifiedDate: { $gte: startDate } },
-                    { lastModifiedDate: { $lte: endDate } },
+                    { lastModifiedDate: { $gte: isoStartDate } },
+                    { lastModifiedDate: { $lte: isoEndDate } },
                     { isActive: false },
                   ],
                 },
               },
-              { $count: 'deactivatedVolunteersCount' },
-            ],
-
-            comparisonDeactivatedVolunteers: [
-              {
-                $match: {
-                  $and: [
-                    { lastModifiedDate: { $gte: comparisonStartDate } },
-                    { lastModifiedDate: { $lte: comparisonEndDate } },
-                    { isActive: false },
-                  ],
-                },
-              },
-              { $count: 'deactivatedVolunteersCount' },
+              { $count: 'count' },
             ],
           },
         },
       ]);
 
-      const currentActiveVolunteers = data.currentActiveVolunteers[0]?.activeVolunteersCount || 0;
-      const comparisonActiveVolunteers =
-        data.comparisonActiveVolunteers[0]?.activeVolunteersCount || 0;
-      const newVolunteers = data.currentNewVolunteers[0]?.newVolunteersCount || 0;
-      const comparisonNewVolunteers = data.comparisonNewVolunteers[0]?.newVolunteersCount || 0;
-      const currentDeactivatedVolunteers =
-        data.currentDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
-      const comparisonDeactivatedVolunteers =
-        data.comparisonDeactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
+      const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
+      const newVolunteers = data[0].newVolunteers[0]?.count || 0;
+      const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
+      const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
 
-      const res = {
-        activeVolunteers: {
-          count: currentActiveVolunteers,
-          percentage: calculateGrowthPercentage(
-            currentActiveVolunteers,
-            comparisonActiveVolunteers,
-          ),
-        },
-
-        newVolunteers: {
-          count: newVolunteers,
-          percentage: calculateGrowthPercentage(newVolunteers, comparisonNewVolunteers),
-        },
-
-        deactivatedVolunteers: {
-          count: currentDeactivatedVolunteers,
-          percentage: calculateGrowthPercentage(
-            currentDeactivatedVolunteers,
-            comparisonDeactivatedVolunteers,
-          ),
-        },
+      return {
+        activeVolunteers,
+        newVolunteers,
+        deactivatedVolunteers,
+        totalVolunteers
       };
-
-      return res;
     }
-    const data = await UserProfile.aggregate([
-      {
-        $facet: {
-          activeVolunteers: [{ $match: { isActive: true } }, { $count: 'activeVolunteersCount' }],
 
-          newVolunteers: [
-            {
-              $match: {
-                createdDate: {
-                  $gte: startDate,
-                  $lte: endDate,
-                },
-              },
-            },
-            { $count: 'newVolunteersCount' },
-          ],
+    const {
+      activeVolunteers: currentActiveVolunteers,
+      newVolunteers: currentNewVolunteers,
+      deactivatedVolunteers: currentDeactivatedVolunteers,
+      totalVolunteers: currentTotalVolunteers
+    } = await getVolunteerData(startDate, endDate);
 
-          deactivatedVolunteers: [
-            {
-              $match: {
-                $and: [
-                  { lastModifiedDate: { $gte: startDate } },
-                  { lastModifiedDate: { $lte: endDate } },
-                  { isActive: false },
-                ],
-              },
-            },
-            { $count: 'deactivedVolunteersCount' },
-          ],
-        },
+    const res = {
+      activeVolunteers: {
+        count: currentActiveVolunteers,
+        percentageOutOfTotal:  Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
       },
-    ]);
-    const activeVolunteers = data[0].activeVolunteers[0]?.activeVolunteersCount || 0;
-    const newVolunteers = data[0].newVolunteers[0]?.newVolunteersCount || 0;
-    const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.deactivatedVolunteersCount || 0;
-
-    const transformedData = {
-      activeVolunteers: { count: activeVolunteers },
-      newVolunteers: { count: newVolunteers },
-      deactivatedVolunteers: { count: deactivatedVolunteers },
+      newVolunteers: {
+        count: currentNewVolunteers,
+        percentageOutOfTotal:  Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+      },
+      deactivatedVolunteers: {
+        count: currentDeactivatedVolunteers,
+        percentageOutOfTotal: Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
+      },
+      totalVolunteers: { count: currentTotalVolunteers },
     };
 
-    return transformedData;
+    // Modifies response to include comparison percentage if given comparison dates
+    if (comparisonStartDate && comparisonEndDate) {
+      const {
+        totalVolunteers: comparisonTotalVolunteers
+      } = await getVolunteerData(comparisonStartDate, comparisonEndDate);
+
+      res.totalVolunteers.comparisonPercentage = calculateGrowthPercentage(
+        currentTotalVolunteers,
+        comparisonTotalVolunteers,
+      );
+    }
+
+    return res;
   };
 
   /**
