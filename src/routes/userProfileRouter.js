@@ -23,9 +23,6 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
-  userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);  
-  // Endpoint to retrieve basic user profile information
-  userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
   userProfileRouter
     .route('/userProfile/:userId')
     .get(controller.getUserById)
@@ -104,13 +101,6 @@ const routes = function (userProfile, project) {
   userProfileRouter
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
-
-  userProfileRouter.route('/userProfile/:userId/addInfringement').post(controller.addInfringements);
-
-  userProfileRouter
-    .route('/userProfile/:userId/infringements/:blueSquareId')
-    .put(controller.editInfringements)
-    .delete(controller.deleteInfringements);
 
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 

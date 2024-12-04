@@ -112,15 +112,9 @@ const taskHelper = function () {
           );
 
           sharedTeamsResult.forEach((_myTeam) => {
-            let hasTeamVisibility = false;
             _myTeam.members.forEach((teamMember) => {
-              if (teamMember.userId.equals(userid) && teamMember.visible) hasTeamVisibility = true;
+              if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
             });
-            if (hasTeamVisibility) {
-              _myTeam.members.forEach((teamMember) => {
-                if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-              });
-            }
           });
 
           teamMembers = await userProfile

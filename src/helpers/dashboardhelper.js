@@ -203,7 +203,6 @@ const dashboardhelper = function () {
             timeOffFrom: 1,
             timeOffTill: 1,
             endDate: 1,
-            missedHours: 1,
           }
 
         );
@@ -221,7 +220,7 @@ const dashboardhelper = function () {
             timeOffFrom: 1,
             timeOffTill: 1,
             endDate: 1,
-            missedHours: 1,
+
           },
         );
       }
@@ -270,7 +269,6 @@ const dashboardhelper = function () {
               ? teamMember.weeklySummaries[0].summary !== ''
               : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
-          missedHours: (teamMember.missedHours ?? 0),
           totaltangibletime_hrs:
             (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds ?? 0) / 3600,
           totalintangibletime_hrs:
