@@ -4,7 +4,8 @@ const jobNotificationListControllers = require('../controllers/jobNotificationLi
 const router = express.Router();
 
 router.get('/', jobNotificationListControllers.isOwner, jobNotificationListControllers.getJobWatchList);
-router.post('/', jobNotificationListControllers.isOwner, jobNotificationListControllers.addEmailToCCList);
+router.post('/job', jobNotificationListControllers.isOwner, jobNotificationListControllers.addCCByJob);
+router.post('/category', jobNotificationListControllers.isOwner, jobNotificationListControllers.addCCByCategory);
 router.delete('/:id', jobNotificationListControllers.isOwner, jobNotificationListControllers.removeEmailFromCCList);
 
 module.exports = router;
