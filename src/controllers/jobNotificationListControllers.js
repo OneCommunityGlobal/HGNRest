@@ -48,7 +48,7 @@ const getJobWatchList = async (req, res) => {
         },
         { $sort: { datePosted: -1 } }, // Sort by most recent jobs
       ]);
-  
+
       res.status(200).json(jobsWithCC);
     } catch (err) {
       console.error(err); // Log error for debugging
@@ -56,32 +56,26 @@ const getJobWatchList = async (req, res) => {
     }
   };
 
-const addEmailToCCList = async (req, res) => {
-  const { email, jobId, category } = req.body;
+const addCCByJob = async (req, res) => {
+  const { email, jobId } = req.body;
 
-  if (!email || (!jobId && !category)) {
+  if (!email || !jobId) {
     return res.status(400).json({ error: 'Email, Job ID, and Category are required' });
   }
 
   try {
+    let job;
     if (jobId) {
-      const job = await jobs.findById(jobId);
+      job = await jobs.findById(jobId);
       if (!job) {
         return res.status(404).json({ error: 'Job not found' });
-      }
-    }
-
-    if (category) {
-      const categoryExists = await jobs.exists({ category });
-      if (!categoryExists) {
-        return res.status(404).json({ error: 'Category not found' });
       }
     }
 
     const ccEntry = new JobsNotificationList({
       email,
       jobId: jobId || null,
-      category: category || null,
+      category: job.category || null,
     });
 
     await ccEntry.save();
@@ -94,6 +88,52 @@ const addEmailToCCList = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+const addCCByCategory = async (req, res) => {
+    const { email, category } = req.body;
+  
+    // Validate input
+    if (!email || !category) {
+      return res.status(400).json({ error: 'Email and Category are required' });
+    }
+  
+    try {
+      // Check if the category exists
+      const categoryExists = await jobs.exists({ category });
+      if (!categoryExists) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
+  
+      // Find all jobs in the specified category
+      const jobArr = await jobs.find({ category });
+  
+      if (jobArr.length === 0) {
+        return res.status(404).json({ error: 'No jobs found in this category' });
+      }
+  
+      // Create bulk operations for all jobs in the category
+      const bulkOps = jobArr.map((job) => ({
+        updateOne: {
+          filter: { email, jobId: job._id, category: job.category },
+          update: { $setOnInsert: { email, jobId: job._id, category: job.category } },
+          upsert: true, // Perform upsert to avoid duplicates
+        },
+      }));
+  
+      // Execute bulkWrite operation
+      const result = await JobsNotificationList.bulkWrite(bulkOps);
+  
+      res.status(201).json({
+        message: 'Email added to CC list successfully',
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        upsertedCount: result.upsertedCount,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
 
 const removeEmailFromCCList = async (req, res) => {
     const { id } = req.params; // ID of the CC entry
@@ -113,6 +153,7 @@ const removeEmailFromCCList = async (req, res) => {
 module.exports = {
   isOwner,
   getJobWatchList,
-  addEmailToCCList,
+  addCCByJob,
+  addCCByCategory,
   removeEmailFromCCList
 };
