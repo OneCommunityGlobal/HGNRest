@@ -1,0 +1,5 @@
+# To populate questions data in database
+node seed.js
+
+# To start backend
+node server.js
