@@ -61,7 +61,7 @@
     "cors": "^2.8.4",
     "cron": "^1.8.2",
     "dotenv": "^5.0.1",
-    "express": "^4.17.1",
+    "express": "^4.21.2",
     "express-validator": "^7.0.1",
     "googleapis": "^100.0.0",
     "jsonwebtoken": "^9.0.0",
