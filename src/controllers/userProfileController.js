@@ -1758,28 +1758,28 @@ const userProfileController = function (UserProfile, Project) {
 
       const query = match[1]
         ? {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                $and: [
-                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-                ],
-              },
-            ],
-          }
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              $and: [
+                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+              ],
+            },
+          ],
+        }
         : {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-            ],
-          };
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+          ],
+        };
 
       const userProfile = await UserProfile.find(query);
 
