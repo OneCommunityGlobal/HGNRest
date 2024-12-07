@@ -9,12 +9,15 @@ const router = function (title) {
     .get(controller.getAllTitles)
     .post(controller.postTitle);
 
-  titleRouter.route('/title/:titleId')
-    .get(controller.getTitleById)
-    .put(controller.deleteTitleById);
+  titleRouter.route('/title/update')
+    .put(controller.updateTitle);
 
   titleRouter.route('/title/deleteAll')
     .get(controller.deleteAllTitles);
+
+  titleRouter.route('/title/:titleId')
+    .get(controller.getTitleById)
+    .put(controller.deleteTitleById);
 
   return titleRouter;
 };
