@@ -19,14 +19,6 @@ const routes = function (TimeEntry) {
 
   TimeEntryRouter.route('/TimeEntry/reports').post(controller.getTimeEntriesForReports);
 
-  TimeEntryRouter.route('/TimeEntry/reports/projects').post(
-    controller.getTimeEntriesForProjectReports,
-  );
-
-  TimeEntryRouter.route('/TimeEntry/reports/people').post(
-    controller.getTimeEntriesForPeopleReports,
-  );
-
   TimeEntryRouter.route('/TimeEntry/lostUsers').post(controller.getLostTimeEntriesForUserList);
 
   TimeEntryRouter.route('/TimeEntry/lostProjects').post(
@@ -40,10 +32,8 @@ const routes = function (TimeEntry) {
   );
 
   TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/tangible').post(
-    controller.startRecalculation,
+    controller.recalculateHoursByCategoryAllUsers,
   );
-
-  TimeEntryRouter.route('/TimeEntry/checkStatus/:taskId').get(controller.checkRecalculationStatus);
 
   TimeEntryRouter.route('/TimeEntry/recalculateHoursAllUsers/intangible').post(
     controller.recalculateIntangibleHrsAllUsers,

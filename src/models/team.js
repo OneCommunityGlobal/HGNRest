@@ -15,10 +15,9 @@ const team = new Schema({
   modifiedDatetime: { type: Date, default: Date.now() },
   members: [
     {
-      userId: { type: mongoose.SchemaTypes.ObjectId, required: true, index : true },
+      userId: { type: mongoose.SchemaTypes.ObjectId, required: true },
       addDateTime: { type: Date, default: Date.now(), ref: 'userProfile' },
       visible: { type : 'Boolean', default:true},
-      
     },
   ],
   // Deprecated field
@@ -35,6 +34,5 @@ const team = new Schema({
     },
   },
 });
-
 
 module.exports = mongoose.model('team', team, 'teams');
