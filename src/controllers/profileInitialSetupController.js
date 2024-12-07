@@ -134,36 +134,38 @@ const profileInitialSetupController = function (
    * @param {*} res 
    */
   const getSetupToken = async (req, res) => {
-    console.log('getSetupToken function invoked');
+    console.log('getSetupToken function invoked'); // Initial logging
+  
     let { email } = req.body;
     const { baseUrl, weeklyCommittedHours } = req.body;
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().add(3, 'week');
-    console.log('Generated token:', token);
-    console.log('Expiration date:', expiration.toDate());
+    console.log('Generated token:', token); // Log the generated token
+    console.log('Expiration date:', expiration.toDate()); // Log the expiration date
+  
     // Wrap multiple db operations in a transaction
-    const session = await startSession();
+    const session = await mongoose.startSession();
     session.startTransaction();
-
+  
     try {
-      console.log('Checking for existing email:', email);
+      console.log('Checking for existing email:', email); // Log the email being checked
       const existingEmail = await userProfile
         .findOne({
           email,
         })
         .session(session);
-
+  
       if (existingEmail) {
-        console.log('Email already in use:', email);
+        console.log('Email already in use:', email); // Log if email is already in use
         await session.abortTransaction();
         session.endSession();
         return res.status(400).send('email already in use');
       }
-
-      console.log('Deleting existing token for email:', email);
+  
+      console.log('Deleting existing token for email:', email); // Log the email for which token is being deleted
       await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
-
+  
       const newToken = new ProfileInitialSetupToken({
         token,
         email,
@@ -173,25 +175,30 @@ const profileInitialSetupController = function (
         isCancelled: false,
         createdDate: Date.now(),
       });
-
+  
+      console.log('Saving new token:', newToken); // Log the new token before saving
       const savedToken = await newToken.save({ session });
-      console.log('Token saved:', savedToken);
+      console.log('Token saved:', savedToken); // Log the saved token
+  
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
-
+      console.log('Transaction committed'); // Log transaction commit
+  
       const acknowledgment = await sendEmailWithAcknowledgment(
         email,
         'NEEDED: Complete your One Community profile setup',
         sendLinkMessage(link),
       );
-
+  
       return res.status(200).send(acknowledgment);
     } catch (error) {
       await session.abortTransaction();
+      console.error('Error during token generation:', error); // Log the error
       LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
       return res.status(400).send(`Error: ${error}`);
     } finally {
       session.endSession();
+      console.log('Session ended'); // Log session end
     }
   };
 
@@ -258,9 +265,11 @@ const profileInitialSetupController = function (
         return;
       }
 
+      console.log('Checking for existing email:', foundToken.email);
       const existingEmail = await userProfile.findOne({
         email: foundToken.email,
       });
+      console.log('Existing email:', existingEmail);
 
       if (existingEmail) {
         console.error('Email already in use');
@@ -268,15 +277,17 @@ const profileInitialSetupController = function (
       }
       if (foundToken) {
         const expirationMoment = moment(foundToken.expiration);
+        console.log('Expiration moment:', expirationMoment);
 
         if (expirationMoment.isAfter(currentMoment)) {
           const defaultProject = await Project.findOne({
             projectName: 'Orientation and Initial Setup',
           });
+          console.log('Default project:', defaultProject);
 
           const newUser = new userProfile();
           newUser.password = req.body.password;
-          newUser.role = 'Volunteer';
+          newUser.role = 'Administrator';
           newUser.firstName = req.body.firstName;
           newUser.lastName = req.body.lastName;
           newUser.jobTitle = req.body.jobTitle;
@@ -314,7 +325,10 @@ const profileInitialSetupController = function (
           newUser.isFirstTimelog = true;
           newUser.homeCountry = req.body.homeCountry || req.body.location;
 
+          console.log('New user object:', newUser);
+          
           const savedUser = await newUser.save();
+          console.log('Saved user:', savedUser);
 
           emailSender(
             process.env.MANAGER_EMAIL || 'jae@onecommunityglobal.org', // "jae@onecommunityglobal.org"
@@ -333,6 +347,7 @@ const profileInitialSetupController = function (
           };
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
+          console.log('Generated JWT token:', token);
 
           const locationData = {
             title: '',
