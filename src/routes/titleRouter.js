@@ -13,6 +13,8 @@ const router = function (title) {
     .get(controller.getTitleById)
     .put(controller.deleteTitleById);
 
+  titleRouter.route('/title/update').post(controller.updateTitle);
+
   titleRouter.route('/title/deleteAll')
     .get(controller.deleteAllTitles);
 
