@@ -213,6 +213,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
