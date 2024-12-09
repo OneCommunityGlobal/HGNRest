@@ -484,6 +484,30 @@ const reportsController = function () {
     }
   };
 
+  const getTeamsWithActiveMembers = async (req, res) => {
+    const { endDate, activeMembersMinimum } = req.query;
+
+    if (!endDate) {
+      return res.status(400).send({ msg: 'Please provide an end date' });
+    }
+    if (!activeMembersMinimum) {
+      return res.status(400).send({ msg: 'Please provide the number of minimum active members in the team (activeMembersMinimum query param)' });
+    }
+
+    const isoEndDate = new Date(endDate);
+
+    try {
+      const teamsWithActiveMembers = await overviewReportHelper.getTeamsWithActiveMembers(
+        isoEndDate,
+        Number(activeMembersMinimum)
+      );
+      res.status(200).send({ teamsWithActiveMembers });
+    } catch (err) {
+      console.log(err);
+      res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  }
+
   return {
     getVolunteerStats,
     getVolunteerHoursStats,
@@ -496,6 +520,7 @@ const reportsController = function () {
     getBlueSquareStats,
     getVolunteerStatsData,
     getVolunteerTrends,
+    getTeamsWithActiveMembers
   };
 };
 

@@ -1503,6 +1503,63 @@ const overviewReportHelper = function () {
     return taskAndProjectStats;
   }
 
+  /**
+   * Gets the total number of teams with a minimum number of active members
+   * within a given end date.
+   * @param {Date} isoEndDate 
+   * @param {Number} activeMembersMinimum 
+   */
+  async function getTeamsWithActiveMembers(isoEndDate, activeMembersMinimum) {
+    const result = await Team.aggregate([
+      {
+        $match: {
+          isActive: true,
+          createdDatetime: { $lte: isoEndDate }
+        }
+      },
+      {
+        $unwind: "$members" 
+      },
+      // Access user profile details
+      {
+        $lookup: {
+          from: "userProfiles", 
+          localField: "members.userId", 
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      // Filter for only active team members
+      {
+        $match: {
+          "userDetails": {
+            $elemMatch: { isActive: true }
+          }
+        }
+      },
+      // Group members in the same team back together and count its number of active members
+      {
+        $group: {
+          _id: "$_id",
+          activeMembersCount: { $sum: 1 }
+        }
+      },
+      // Filter for teams who have an active member count >= activeMembersNum
+      {
+        $match: {
+          activeMembersCount: { $gte: activeMembersMinimum }
+        }
+      },
+      {
+        $count: "totalTeams"
+      }
+    ]);
+
+    const totalTeams = result[0]?.totalTeams ? result[0].totalTeams : 0;
+
+    return { count: totalTeams }
+  }
+
   return {
     getVolunteerTrends,
     getMapLocations,
@@ -1524,6 +1581,7 @@ const overviewReportHelper = function () {
     getVolunteerHoursStats,
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
+    getTeamsWithActiveMembers
   };
 };
 
