@@ -1693,7 +1693,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    // console.log(userId, blueSquareId);
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1715,7 +1714,10 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
-        .catch((error) => res.status(400).send(error));
+        .catch((error) => {
+          console.log('error', error);
+          res.status(400).send(error);
+        });
     });
   };
 
@@ -1797,20 +1799,20 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const updateUserInformation = async function (req,res){
+  const updateUserInformation = async function (req, res) {
     try {
-      const data=req.body;
-      data.map(async (e)=>  {
+      const data = req.body;
+      data.map(async (e) => {
         let result = await UserProfile.findById(e.user_id);
-        result[e.item]=e.value
-        let newdata=await result.save()
-      })
-      res.status(200).send({ message: 'Update successful'});
+        result[e.item] = e.value;
+        let newdata = await result.save();
+      });
+      res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error)
-      return res.status(500)
+      console.log(error);
+      return res.status(500);
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1841,7 +1843,7 @@ const userProfileController = function (UserProfile, Project) {
     getAllTeamCode,
     getAllTeamCodeHelper,
     updateUserInformation,
-    getUserProfileBasicInfo
+    getUserProfileBasicInfo,
   };
 };
 

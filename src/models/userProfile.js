@@ -120,6 +120,8 @@ const userProfileSchema = new Schema({
           'Log Time as You Go',
           'Log Time to Action Items',
           'Intangible Time Log w/o Reason',
+          'Removed Blue Square for No Summary',
+          'Removed Blue Square for Hours Close Enough',
         ],
       },
       color: {
