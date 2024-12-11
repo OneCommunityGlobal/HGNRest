@@ -451,10 +451,12 @@ const userProfileController = function (UserProfile, Project) {
       userid,
     );
 
+    const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+        req.body.requestor.requestorId === userid ||
+        canToggleRequestBio)
     );
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
@@ -506,6 +508,14 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
+      if (
+        !canToggleRequestBio &&
+        (record.bioPosted !== req.body.bioPosted || record.bioPosted !== 'default')
+      ) {
+        res.status(403).send('You are not authorized to toggle request bio');
+        return;
+      }
+
       const originalinfringements = record.infringements ? record.infringements : [];
 
       const commonFields = [
@@ -538,6 +548,7 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
@@ -1876,7 +1887,7 @@ const userProfileController = function (UserProfile, Project) {
       console.log(error)
       return res.status(500)
     }
-  }
+  };
 
   return {
     postUserProfile,
