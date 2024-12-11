@@ -13,6 +13,9 @@ const routes = function (buildingMaterial) {
   materialsRouter.route('/updateMaterialRecordBulk')
     .post(controller.bmPostMaterialUpdateBulk);
 
+    materialsRouter.route('/updateMaterialStatus')
+    .post(controller.bmupdatePurchaseStatus);
+
   return materialsRouter;
 };
 
