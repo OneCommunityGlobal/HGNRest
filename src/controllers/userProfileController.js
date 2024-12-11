@@ -46,10 +46,14 @@ async function ValidatePassword(req, res) {
     });
     return;
   }
+
+  const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
+  const canReset = await hasPermission(req.body.requestor, 'resetPassword');
+
   // Verify request is authorized by self or adminsitrator
   if (
     userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
+    !canUpdate && !canReset
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -59,8 +63,7 @@ async function ValidatePassword(req, res) {
 
   // Verify request is authorized by self or adminsitrator
   if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
+    userId === requestor.requestorId && !canUpdate
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
@@ -487,14 +490,14 @@ const userProfileController = function (UserProfile, Project) {
       }
       // validate userprofile pic
 
-      if (req.body.profilePic) {
-        const results = userHelper.validateProfilePic(req.body.profilePic);
+      // if (req.body.profilePic) {
+      //   const results = userHelper.validateProfilePic(req.body.profilePic);
 
-        if (!results.result) {
-          res.status(400).json(results.errors);
-          return;
-        }
-      }
+      //   if (!results.result) {
+      //     res.status(400).json(results.errors);
+      //     return;
+      //   }
+      // }
 
       const canEditTeamCode =
         req.body.requestor.role === 'Owner' ||
@@ -1377,7 +1380,7 @@ const userProfileController = function (UserProfile, Project) {
 
   const resetPassword = async function (req, res) {
     try {
-      ValidatePassword(req);
+      await ValidatePassword(req);
 
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -1395,11 +1398,6 @@ const userProfileController = function (UserProfile, Project) {
 
       if (!user) {
         res.status(404).send({ error: 'User not found' });
-        return;
-      }
-
-      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
-        res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
