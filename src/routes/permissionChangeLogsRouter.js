@@ -1,7 +1,7 @@
 const express = require('express');
 
-const routes = function (permissionChangeLog) {
-  const controller = require('../controllers/permissionChangeLogsController')(permissionChangeLog);
+const routes = function (permissionChangeLog, userPermissionChangeLog) {
+  const controller = require('../controllers/permissionChangeLogsController')(permissionChangeLog, userPermissionChangeLog);
 
   const permissionChangeLogRouter = express.Router();
 
