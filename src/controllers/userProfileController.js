@@ -358,6 +358,7 @@ const userProfileController = function (UserProfile, Project) {
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
+    up.teamCode = req.body.teamCode;
     up.createdDate = req.body.createdDate;
     up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
@@ -676,7 +677,7 @@ const userProfileController = function (UserProfile, Project) {
         }
 
         if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
-          record.startDate = moment(req.body.startDate).toDate();
+          record.startDate = moment.tz(req.body.startDate, 'America/Los_Angeles').toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -699,7 +700,7 @@ const userProfileController = function (UserProfile, Project) {
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
-            record.endDate = moment(req.body.endDate).toDate();
+            record.endDate = moment.tz(req.body.endDate, 'America/Los_Angeles').toDate();
             if (isUserInCache) {
               userData.endDate = record.endDate.toISOString();
             }
@@ -1067,7 +1068,7 @@ const userProfileController = function (UserProfile, Project) {
     const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
     // if they're updating someone else's password, they need the 'updatePassword' permission.
-    if (!hasUpdatePasswordPermission) {
+    if (userId !== requestor.requestorId && !hasUpdatePasswordPermission) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -1635,7 +1636,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1677,7 +1688,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1708,18 +1729,42 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalInfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId)
       );
+// <<<<<<< vorugantisaivenkatesh--Improve-speed-and-function-of-deleting-multiple-blue-squares
   
-      // Save the updated record
-      const updatedRecord = await record.save();
+//       // Save the updated record
+//       const updatedRecord = await record.save();
   
-      // Notify about the updated infringements
-      userHelper.notifyInfringements(originalInfringements, updatedRecord.infringements);
+//       // Notify about the updated infringements
+//       userHelper.notifyInfringements(originalInfringements, updatedRecord.infringements);
   
-      // Respond with success
-      res.status(200).json({ _id: updatedRecord._id });
-    } catch (error) {
-      res.status(400).send(error.message);
-    }
+//       // Respond with success
+//       res.status(200).json({ _id: updatedRecord._id });
+//     } catch (error) {
+//       res.status(400).send(error.message);
+//     }
+// =======
+
+//       record
+//         .save()
+//         .then((results) => {
+//           userHelper.notifyInfringements(
+//             originalinfringements,
+//             results.infringements,
+//             results.firstName,
+//             results.lastName,
+//             results.email,
+//             results.role,
+//             results.startDate,
+//             results.jobTitle[0],
+//             results.weeklycommittedHours,
+//           );
+//           res.status(200).json({
+//             _id: record._id,
+//           });
+//         })
+//         .catch((error) => res.status(400).send(error));
+//     });
+// >>>>>>> development
   };
   
 
@@ -1732,28 +1777,28 @@ const userProfileController = function (UserProfile, Project) {
 
       const query = match[1]
         ? {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                $and: [
-                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-                ],
-              },
-            ],
-          }
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              $and: [
+                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+              ],
+            },
+          ],
+        }
         : {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-            ],
-          };
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+          ],
+        };
 
       const userProfile = await UserProfile.find(query);
 
@@ -1801,6 +1846,57 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getUserByAutocomplete = (req, res) => {
+    const { searchText } = req.params;
+
+    if (!searchText) {
+      return res.status(400).send({ message: 'Search text is required' });
+    }
+
+    const regex = new RegExp(searchText, 'i'); // Case-insensitive regex for partial matching
+
+    UserProfile.find(
+      {
+        $or: [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$firstName', ' ', '$lastName'] },
+                regex: searchText,
+                options: 'i',
+              },
+            },
+          },
+        ],
+      },
+      '_id firstName lastName', // Projection to limit fields returned
+    )
+      .limit(10) // Limit results for performance
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(() => {
+        res.status(500).send({ error: 'Internal Server Error' });
+      });
+  };
+
+  const updateUserInformation = async function (req,res){
+    try {
+      const data=req.body;
+      data.map(async (e)=>  {
+        const result = await UserProfile.findById(e.user_id);
+        result[e.item]=e.value
+        await result.save();
+      })
+      res.status(200).send({ message: 'Update successful'});
+    } catch (error) {
+      console.log(error)
+      return res.status(500)
+    }
+  }
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1829,7 +1925,9 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    getUserByAutocomplete,
     getUserProfileBasicInfo,
+    updateUserInformation,
   };
 };
 
