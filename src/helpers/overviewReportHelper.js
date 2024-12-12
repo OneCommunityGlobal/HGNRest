@@ -1559,6 +1559,68 @@ const overviewReportHelper = function () {
 
     return { count: totalTeams }
   }
+  async function getVolunteersOverAssignedTime(startDate, endDate) {
+    const volunteersOverAssignedTime = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true, // Only active users
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntries',
+        },
+      },
+      {
+        $unwind: {
+          path: '$timeEntries',
+          preserveNullAndEmptyArrays: false, // Exclude users with no time entries
+        },
+      },
+      {
+        $match: {
+          'timeEntries.dateOfWork': {
+            $gte: moment(startDate).format('YYYY-MM-DD'),
+            $lte: moment(endDate).format('YYYY-MM-DD'),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Total time in seconds
+          weeklycommittedHours: { $first: '$weeklycommittedHours' }, // Assigned weekly hours
+        },
+      },
+      {
+        $project: {
+          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert total time to hours
+          weeklycommittedHours: 1,
+          hoursOverCommitment: {
+            $subtract: [
+              { $divide: ['$totalSeconds', 3600] },
+              '$weeklycommittedHours',
+            ], // Calculate hours over commitment
+          },
+        },
+      },
+      {
+        $match: {
+          weeklycommittedHours: { $gte: 10 }, // Exclude volunteers with < 10 committed hours
+          hoursOverCommitment: { $gte: 1 }, // Include only volunteers over by 1 hour or more
+        },
+      },
+      {
+        $count: 'volunteersOverAssignedTime', // Count matching volunteers
+      },
+    ]);
+  
+    return volunteersOverAssignedTime[0]?.volunteersOverAssignedTime || 0;
+  }
+  
 
   return {
     getVolunteerTrends,
@@ -1581,7 +1643,9 @@ const overviewReportHelper = function () {
     getVolunteerHoursStats,
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
-    getTeamsWithActiveMembers
+    getTeamsWithActiveMembers,
+    getVolunteersOverAssignedTime,
+
   };
 };
 
