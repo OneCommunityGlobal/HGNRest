@@ -63,7 +63,7 @@ const logincontroller = function () {
 
           res.status(200).send({ token });
         } else {
-          res.status(404).send({
+          res.status(403).send({
             message: 'Invalid password.',
           });
         }

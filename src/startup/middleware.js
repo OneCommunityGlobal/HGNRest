@@ -10,8 +10,9 @@ module.exports = function (app) {
     }
 
     if (
-      (req.originalUrl === '/api/login' || req.originalUrl === '/api/forgotpassword') &&
-      req.method === 'POST'
+      (req.originalUrl === '/api/login'
+        || req.originalUrl === '/api/forgotpassword')
+      && req.method === 'POST'
     ) {
       next();
       return;
@@ -20,22 +21,12 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (
-      ((req.originalUrl === '/api/ProfileInitialSetup' ||
-        req.originalUrl === '/api/validateToken' ||
-        req.originalUrl === '/api/getTimeZoneAPIKeyByToken') &&
-        req.method === 'POST') ||
-      (req.originalUrl === '/api/getTotalCountryCount' && req.method === 'GET') ||
-      (req.originalUrl.includes('/api/timezone') && req.method === 'POST')
+    if (((req.originalUrl === '/api/ProfileInitialSetup' || req.originalUrl === '/api/validateToken' || req.originalUrl === '/api/getTimeZoneAPIKeyByToken') && req.method === 'POST') || (req.originalUrl === '/api/getTotalCountryCount' && req.method === 'GET') || (req.originalUrl.includes('/api/timezone') && req.method === 'POST')
     ) {
       next();
       return;
     }
-    if (
-      req.originalUrl === '/api/add-non-hgn-email-subscription' ||
-      req.originalUrl === '/api/confirm-non-hgn-email-subscription' ||
-      (req.originalUrl === '/api/remove-non-hgn-email-subscription' && req.method === 'POST')
-    ) {
+    if (req.originalUrl === '/api/add-non-hgn-email-subscription' || req.originalUrl === '/api/confirm-non-hgn-email-subscription' || req.originalUrl === '/api/remove-non-hgn-email-subscription' && req.method === 'POST') {
       next();
       return;
     }
@@ -53,12 +44,13 @@ module.exports = function (app) {
       res.status(401).send('Invalid token');
       return;
     }
+
     if (
-      !payload ||
-      !payload.expiryTimestamp ||
-      !payload.userid ||
-      !payload.role ||
-      moment().isAfter(payload.expiryTimestamp)
+      !payload
+      || !payload.expiryTimestamp
+      || !payload.userid
+      || !payload.role
+      || moment().isAfter(payload.expiryTimestamp)
     ) {
       res.status(401).send('Unauthorized request');
       return;
