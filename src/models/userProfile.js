@@ -106,6 +106,9 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+      manuallyAssigned: { type: Boolean, default: false },
+      manuallyAssignedBy: { type: String, default: '' },
+      editedBy: { type: String, default: '' },
     },
   ],
   warnings: [
