@@ -175,20 +175,16 @@ const dashboardhelper = function () {
           { members: 1 },
         );
 
-        console.log(teamsResult);
         teamsResult.forEach((_myTeam) => {
           let isUserVisible = false;
           _myTeam.members.forEach((teamMember) => {
             if (teamMember.userId.equals(userid) && teamMember.visible) isUserVisible = true;
           });
-          if(isUserVisible)
-          {
+          if (isUserVisible) {
             _myTeam.members.forEach((teamMember) => {
-               if (!teamMember.userId.equals(userid)) 
-                   teamMemberIds.push(teamMember.userId);
-          });
-        }
-
+              if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+            });
+          }
         });
 
         teamMembers = await userProfile.find(
@@ -204,8 +200,7 @@ const dashboardhelper = function () {
             timeOffTill: 1,
             endDate: 1,
             missedHours: 1,
-          }
-
+          },
         );
       } else {
         // 'Core Team', 'Owner' //All users
@@ -270,7 +265,7 @@ const dashboardhelper = function () {
               ? teamMember.weeklySummaries[0].summary !== ''
               : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
-          missedHours: (teamMember.missedHours ?? 0),
+          missedHours: teamMember.missedHours ?? 0,
           totaltangibletime_hrs:
             (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds ?? 0) / 3600,
           totalintangibletime_hrs:
