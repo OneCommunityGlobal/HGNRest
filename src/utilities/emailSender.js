@@ -30,7 +30,7 @@ const closure = () => {
 
     if (!nextItem) return;
 
-    const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt } = nextItem;
+    const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt, resolve, reject} = nextItem;
 
     try {
       // Generate the accessToken on the fly
@@ -65,6 +65,7 @@ const closure = () => {
       if (process.env.NODE_ENV === 'local') {
         logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
       }
+      resolve(result);
     } catch (error) {
       if (typeof acknowledgingReceipt === 'function') {
         acknowledgingReceipt(error, null);
@@ -74,6 +75,7 @@ const closure = () => {
         `Error sending email: from ${CLIENT_EMAIL} to ${recipient} subject ${subject}`,
         `Extra Data: cc ${cc} bcc ${bcc}`,
       );
+      reject(error);
     }
   }, process.env.MAIL_QUEUE_INTERVAL || 1000);
 
@@ -86,17 +88,23 @@ const closure = () => {
     replyTo = null,
     acknowledgingReceipt = null,
   ) {
-    if (process.env.sendEmail) {
-      queue.push({
-        recipient,
-        subject,
-        message,
-        cc,
-        bcc,
-        replyTo,
-        acknowledgingReceipt,
-      });
-    }
+    return new Promise((resolve, reject) => {
+      if (process.env.sendEmail) {
+        queue.push({
+          recipient,
+          subject,
+          message,
+          cc,
+          bcc,
+          replyTo,
+          acknowledgingReceipt,
+          resolve,
+          reject,
+        });
+      } else {
+        resolve('Email sending is disabled');
+      }
+    });
   };
 
   return emailSender;

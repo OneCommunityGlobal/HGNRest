@@ -1758,28 +1758,28 @@ const userProfileController = function (UserProfile, Project) {
 
       const query = match[1]
         ? {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                $and: [
-                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-                ],
-              },
-            ],
-          }
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              $and: [
+                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+              ],
+            },
+          ],
+        }
         : {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-            ],
-          };
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+          ],
+        };
 
       const userProfile = await UserProfile.find(query);
 
@@ -1827,13 +1827,49 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getUserByAutocomplete = (req, res) => {
+    const { searchText } = req.params;
+
+    if (!searchText) {
+      return res.status(400).send({ message: 'Search text is required' });
+    }
+
+    const regex = new RegExp(searchText, 'i'); // Case-insensitive regex for partial matching
+
+    UserProfile.find(
+      {
+        $or: [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$firstName', ' ', '$lastName'] },
+                regex: searchText,
+                options: 'i',
+              },
+            },
+          },
+        ],
+      },
+      '_id firstName lastName', // Projection to limit fields returned
+    )
+      .limit(10) // Limit results for performance
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(() => {
+        res.status(500).send({ error: 'Internal Server Error' });
+      });
+  };
+
   const updateUserInformation = async function (req,res){
     try {
       const data=req.body;
       data.map(async (e)=>  {
-        let result = await UserProfile.findById(e.user_id);
+        const result = await UserProfile.findById(e.user_id);
         result[e.item]=e.value
-        let newdata=await result.save()
+        await result.save();
       })
       res.status(200).send({ message: 'Update successful'});
     } catch (error) {
@@ -1870,8 +1906,9 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    getUserByAutocomplete,
+    getUserProfileBasicInfo,
     updateUserInformation,
-    getUserProfileBasicInfo
   };
 };
 
