@@ -523,26 +523,30 @@ const profileInitialSetupController = function (
    */
   const getSetupInvitation = (req, res) => {
     const { role } = req.body.requestor;
-
-    const { permissions } = req.body.requestor;
-    let user_permissions = ['getUserProfiles','postUserProfile','putUserProfile','changeUserStatus']
-    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') || (role === 'Mentor') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
-      try{
-      ProfileInitialSetupToken
-      .find({ isSetupCompleted: false })
-      .sort({ createdDate: -1 })
-      .exec((err, result) => {
-        // Handle the result
-        if (err) {
-          LOGGER.logException(err);
-          return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-        }
-          return res.status(200).send(result);
-      });
-    } catch (error) {
-      LOGGER.logException(error);
-      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-    }
+    if (role === 'Administrator' || role === 'Owner') {
+      try {
+        ProfileInitialSetupToken.find({ isSetupCompleted: false })
+          .sort({ createdDate: -1 })
+          .exec((err, result) => {
+            // Handle the result
+            if (err) {
+              LOGGER.logException(err);
+              return res
+                .status(500)
+                .send(
+                  'Internal Error: Please retry. If the problem persists, please contact the administrator',
+                );
+            }
+            return res.status(200).send(result);
+          });
+      } catch (error) {
+        LOGGER.logException(error);
+        return res
+          .status(500)
+          .send(
+            'Internal Error: Please retry. If the problem persists, please contact the administrator',
+          );
+      }
     } else {
       return res.status(403).send('You are not authorized to get setup history.');
     }

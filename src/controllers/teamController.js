@@ -110,15 +110,14 @@ const teamcontroller = function (Team) {
         return;
       }
 
-      // Removed the permission check as the permission check if done in earlier
-      // const canEditTeamCode =
-      //   req.body.requestor.role === 'Owner' ||
-      //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+      const canEditTeamCode =
+        req.body.requestor.role === 'Owner' ||
+        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      // if (!canEditTeamCode) {
-      //   res.status(403).send('You are not authorized to edit team code.');
-      //   return;
-      // }
+      if (!canEditTeamCode) {
+        res.status(403).send('You are not authorized to edit team code.');
+        return;
+      }
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
@@ -230,53 +229,52 @@ const teamcontroller = function (Team) {
       });
   };
   const updateTeamVisibility = async (req, res) => {
-    console.log('==============>   9 ');
+    console.log("==============>   9 ");
 
     const { visibility, teamId, userId } = req.body;
-
+  
     try {
       Team.findById(teamId, (error, team) => {
         if (error || team === null) {
           res.status(400).send('No valid records found');
           return;
         }
-
-        const memberIndex = team.members.findIndex((member) => member.userId.toString() === userId);
+  
+        const memberIndex = team.members.findIndex(member => member.userId.toString() === userId);
         if (memberIndex === -1) {
           res.status(400).send('Member not found in the team.');
           return;
         }
-
+  
         team.members[memberIndex].visible = visibility;
         team.modifiedDatetime = Date.now();
-
-        team
-          .save()
-          .then((updatedTeam) => {
-            // Additional operations after team.save()
+  
+        team.save()
+          .then(updatedTeam => {  
+            // Additional operations after team.save() 
             const assignlist = [];
             const unassignlist = [];
-            team.members.forEach((member) => {
+            team.members.forEach(member => {
               if (member.userId.toString() === userId) {
                 // Current user, no need to process further
                 return;
               }
-
+            
               if (visibility) {
                 assignlist.push(member.userId);
               } else {
-                console.log('Visiblity set to false so removing it');
+                console.log("Visiblity set to false so removing it");
                 unassignlist.push(member.userId);
               }
             });
-
+  
             const addTeamToUserProfile = userProfile
               .updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: teamId } })
               .exec();
             const removeTeamFromUserProfile = userProfile
               .updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: teamId } })
               .exec();
-
+  
             Promise.all([addTeamToUserProfile, removeTeamFromUserProfile])
               .then(() => {
                 res.status(200).send({ result: 'Done' });
@@ -285,17 +283,18 @@ const teamcontroller = function (Team) {
                 res.status(500).send({ error });
               });
           })
-          .catch((errors) => {
+          .catch(errors => {
             console.error('Error saving team:', errors);
             res.status(400).send(errors);
           });
+  
       });
     } catch (error) {
-      res.status(500).send(`Error updating team visibility: ${error.message}`);
+      res.status(500).send(`Error updating team visibility: ${  error.message}`);
     }
   };
 
-  /**
+    /**
    * Leaner version of the teamcontroller.getAllTeams
    * Remove redundant data: members, isActive, createdDatetime, modifiedDatetime.
    */
@@ -309,7 +308,7 @@ const teamcontroller = function (Team) {
         res.status(500).send('Fetch team code failed.');
       });
   };
-
+  
   return {
     getAllTeams,
     getAllTeamCode,
