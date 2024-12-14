@@ -31,6 +31,7 @@ const timeUtils = require('../utilities/timeUtils');
 const fs = require('fs');
 const cheerio = require('cheerio');
 const axios=require('axios');
+const sharp = require("sharp");
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -2321,6 +2322,29 @@ function searchForTerm2(data, term2) {
     return false;
 }
 
+async function imageUrlToPngBase64(url) {
+  try {
+      // Fetch the image as a buffer
+      const response = await axios.get(url, { responseType: "arraybuffer" });
+
+      if (response.status !== 200) {
+          throw new Error(`Failed to fetch the image: ${response.statusText}`);
+      }
+
+      const imageBuffer = Buffer.from(response.data);
+
+      // Convert the image to PNG format using sharp
+      const pngBuffer = await sharp(imageBuffer).png().toBuffer();
+
+      // Convert the PNG buffer to a base64 string
+      const base64Png = pngBuffer.toString("base64");
+
+      return `data:image/png;base64,${base64Png}`;;
+  } catch (error) {
+      console.error(`An error occurred: ${error.message}`);
+      return null;
+  }
+}
 
   const getProfileImagesFromWebsite= async () => {
     try {
@@ -2339,16 +2363,26 @@ function searchForTerm2(data, term2) {
         nitro_src: $(img).attr('nitro-lazy-src')
       });
     });
-    var users=await userProfile.find({'isActive':true},"firstName lastName email profilePic suggestedProfilePics")    
+    var users=await userProfile.find({'isActive':true},"firstName lastName email profilePic suggestedProfilePics") 
+    
     users.map(async(u)=>{
       if(u.profilePic==undefined || u.profilePic==null || u.profilePic==""){
         var result=searchForTermsInFields(imgData,u.firstName,u.lastName)
           try {
             if(result.length==1){
+              if(result[0].nitro_src!==undefined){
                 await userProfile.updateOne({_id:u._id},
                   {$set:{
                     "profilePic":result[0].nitro_src
                   }});
+              }else{
+                // when nitro is undefined, at that time src is a 403 link then I need to convert it into a base64 link.
+                let image=await imageUrlToPngBase64(result[0].src)
+                await userProfile.updateOne({_id:u._id},
+                  {$set:{
+                    "profilePic":image
+                  }});
+              }
             }else if(result.length>1){
               await userProfile.updateOne({_id:u._id},{$set:{"suggestedProfilePics":result}});
             }

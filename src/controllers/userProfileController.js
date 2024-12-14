@@ -1839,9 +1839,9 @@ const userProfileController = function (UserProfile, Project) {
   const updateProfileImageFromWebsite = async (req,res) =>{
     try{
       var user=req.body
-      const result=await UserProfile.updateOne({_id:user.user_id},
+      await UserProfile.updateOne({_id:user.user_id},
         {
-          $set: { profilePic : user.nitro_src},
+          $set: { profilePic : user.selectedImage.nitro_src},
           $unset: { suggestedProfilePics: "" }
       })
       cache.removeCache(`user-${user.user_id}`);
