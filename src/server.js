@@ -7,9 +7,6 @@ require('./cronjobs/userProfileJobs')();
 
 const port = process.env.PORT || 4500;
 
-const userHelper=require('./helpers/userHelper')();
-userHelper.getProfileImagesFromWebsite();
-
 const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
