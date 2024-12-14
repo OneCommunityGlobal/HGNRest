@@ -444,6 +444,38 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const toggleUserBioPosted = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const { bioPosted } = req.body;
+
+      // validate input
+      if (!bioPosted || !['posted', 'requested', 'default'].includes(bioPosted)) {
+        return res.status(400).json({ error: 'Invalid or missing bioPosted value.' });
+      }
+
+      const canEditProtectedAccount = await canRequestorUpdateUser(
+        req.body.requestor.requestorId,
+        userId,
+      );
+      const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
+
+      if (!canEditProtectedAccount && !canToggleRequestBio) {
+        return res.status(403).json({ error: 'Permission denied to toggle bio.' });
+      }
+
+      // Update bioPosted
+      const updatedUser = await userService.updateBioPostedStatus(userId, bioPosted);
+
+      return res.status(200).json({
+        message: `Bio status updated to "${bioPosted}" successfully.`,
+        user: updatedUser,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message || 'An unexpected error occurred.' });
+    }
+  };
+
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
     const canEditProtectedAccount = await canRequestorUpdateUser(
@@ -451,12 +483,10 @@ const userProfileController = function (UserProfile, Project) {
       userid,
     );
 
-    const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid ||
-        canToggleRequestBio)
+        req.body.requestor.requestorId === userid)
     );
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
@@ -508,14 +538,6 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
-      if (
-        !canToggleRequestBio &&
-        (record.bioPosted !== req.body.bioPosted || record.bioPosted !== 'default')
-      ) {
-        res.status(403).send('You are not authorized to toggle request bio');
-        return;
-      }
-
       const originalinfringements = record.infringements ? record.infringements : [];
 
       const commonFields = [
@@ -548,7 +570,6 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
@@ -1857,6 +1878,7 @@ const userProfileController = function (UserProfile, Project) {
     postUserProfile,
     getUserProfiles,
     putUserProfile,
+    toggleUserBioPosted,
     deleteUserProfile,
     getUserById,
     getreportees,
