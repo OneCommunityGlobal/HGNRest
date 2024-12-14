@@ -1622,6 +1622,95 @@ const overviewReportHelper = function () {
     return { count: volunteersOverAssignedTime[0]?.volunteersOverAssignedTime || 0 };
   }
 
+  async function getVolunteersCompletedAssignedHours(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate
+  ) {
+    // Helper function to get count of volunteers meeting their commitment.
+    const getCompletedHoursData = async (start, end) => {
+      const hoursStats = await UserProfile.aggregate([
+        {
+          $match: {
+            isActive: true,
+          },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: '_id',
+            foreignField: 'personId',
+            as: 'timeEntries',
+          },
+        },
+        {
+          $unwind: {
+            path: '$timeEntries',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $match: {
+            $or: [
+              { timeEntries: { $exists: false } },
+              {
+                'timeEntries.dateOfWork': {
+                  $gte: moment(start).format('YYYY-MM-DD'),
+                  $lte: moment(end).format('YYYY-MM-DD'),
+                },
+              },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: '$_id',
+            totalSeconds: { $sum: '$timeEntries.totalSeconds' },
+            weeklycommittedHours: { $first: '$weeklycommittedHours' },
+          },
+        },
+        {
+          $project: {
+            totalHours: { $divide: ['$totalSeconds', 3600] },
+            weeklycommittedHours: 1,
+          },
+        },
+        {
+          $match: {
+            $expr: { $gte: ['$totalHours', '$weeklycommittedHours'] },
+          },
+        },
+        {
+          $count: 'metCommitment',
+        },
+      ]);
+
+      return hoursStats[0]?.metCommitment || 0;
+    };
+
+    const currentCount = await getCompletedHoursData(startDate, endDate);
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparisonCount = await getCompletedHoursData(
+        comparisonStartDate,
+        comparisonEndDate
+      );
+      const comparisonPercentage = calculateGrowthPercentage(
+        currentCount,
+        comparisonCount
+      );
+
+      return {
+        current: currentCount,
+        comparison: comparisonCount,
+        comparisonPercentage,
+      };
+    }
+
+    return { current: currentCount };
+  }
+
   return {
     getVolunteerTrends,
     getMapLocations,
@@ -1645,7 +1734,7 @@ const overviewReportHelper = function () {
     getVolunteersCompletedHours,
     getTeamsWithActiveMembers,
     getVolunteersOverAssignedTime,
-
+    getVolunteersCompletedAssignedHours,
   };
 };
 
