@@ -53,10 +53,8 @@ const sendEmail = async (mailOptions) => {
 const queue = [];
 let isProcessing = false;
 
-const { recipient, subject, message, cc, bcc, replyTo, acknowledgingReceipt, resolve, reject} = nextItem;
-
 const processQueue = async () => {
-  if (isProcessing || queue.length === 0) re
+  if (isProcessing || queue.length === 0) return;
 
   isProcessing = true;
   console.log('Processing email queue...');
@@ -67,30 +65,6 @@ const processQueue = async () => {
       return;
     }
 
-    const result = await transporter.sendMail(mailOptions);
-      if (typeof acknowledgingReceipt === 'function') {
-        acknowledgingReceipt(null, result);
-      }
-      // Prevent logging email in production
-      // Why?
-      // 1. Could create a security risk
-      // 2. Could create heavy loads on the server if emails are sent to many people
-      // 3. Contain limited useful info:
-      //   result format : {"accepted":["emailAddr"],"rejected":[],"envelopeTime":209,"messageTime":566,"messageSize":317,"response":"250 2.0.0 OK  17***69 p11-2***322qvd.85 - gsmtp","envelope":{"from":"emailAddr", "to":"emailAddr"}}
-      if (process.env.NODE_ENV === 'local') {
-        logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
-      }
-      resolve(result);
-    } catch (error) {
-      if (typeof acknowledgingReceipt === 'function') {
-        acknowledgingReceipt(error, null);
-      }
-      logger.logException(
-        error,
-        `Error sending email: from ${CLIENT_EMAIL} to ${recipient} subject ${subject}`,
-        `Extra Data: cc ${cc} bcc ${bcc}`,
-      );
-      reject(error);
     const batch = queue.shift();
     try {
       console.log('Sending email...');
@@ -99,35 +73,7 @@ const processQueue = async () => {
       logger.logException(error, 'Failed to send email batch');
     }
 
-
-  const emailSender = function (
-    recipient,
-    subject,
-    message,
-    cc = null,
-    bcc = null,
-    replyTo = null,
-    acknowledgingReceipt = null,
-  ) {
-    return new Promise((resolve, reject) => {
-      if (process.env.sendEmail) {
-        queue.push({
-          recipient,
-          subject,
-          message,
-          cc,
-          bcc,
-          replyTo,
-          acknowledgingReceipt,
-          resolve,
-          reject,
-        });
-      } else {
-        resolve('Email sending is disabled');
-      }
-    });
     setTimeout(processBatch, config.rateLimitDelay);
-
   };
 
   const concurrentProcesses = Array(config.concurrency).fill().map(processBatch);
