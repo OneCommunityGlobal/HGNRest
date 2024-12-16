@@ -1623,10 +1623,10 @@ const overviewReportHelper = function () {
   }
 
   async function getVolunteersCompletedAssignedHours(
-    startDate,
-    endDate,
-    comparisonStartDate,
-    comparisonEndDate
+    isoStartDate,
+    isoEndDate,
+    isoComparisonStartDate,
+    isoComparisonEndDate
   ) {
     // Helper function to get count of volunteers meeting their commitment.
     const getCompletedHoursData = async (start, end) => {
@@ -1655,9 +1655,9 @@ const overviewReportHelper = function () {
             $or: [
               { timeEntries: { $exists: false } },
               {
-                'timeEntries.dateOfWork': {
-                  $gte: moment(start).format('YYYY-MM-DD'),
-                  $lte: moment(end).format('YYYY-MM-DD'),
+                'timeEntries.createdDateTime': {
+                  $gte: start,
+                  $lte: end,
                 },
               },
             ],
@@ -1689,12 +1689,12 @@ const overviewReportHelper = function () {
       return hoursStats[0]?.metCommitment || 0;
     };
 
-    const currentCount = await getCompletedHoursData(startDate, endDate);
+    const currentCount = await getCompletedHoursData(isoStartDate, isoEndDate);
 
-    if (comparisonStartDate && comparisonEndDate) {
+    if (isoComparisonStartDate && isoComparisonEndDate) {
       const comparisonCount = await getCompletedHoursData(
-        comparisonStartDate,
-        comparisonEndDate
+        isoComparisonStartDate,
+        isoComparisonEndDate
       );
       const comparisonPercentage = calculateGrowthPercentage(
         currentCount,
@@ -1702,13 +1702,12 @@ const overviewReportHelper = function () {
       );
 
       return {
-        current: currentCount,
-        comparison: comparisonCount,
+        count: currentCount,
         comparisonPercentage,
       };
     }
 
-    return { current: currentCount };
+    return { count: currentCount };
   }
 
   return {
