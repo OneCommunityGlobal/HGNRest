@@ -1493,26 +1493,7 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
-  // Search for user by first name
-  // const getUserBySingleName = (req, res) => {
-  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
-
-  //   // Searches for first or last name
-  //   UserProfile.find({
-  //     $or: [
-  //       { firstName: { $regex: pattern } },
-  //       { lastName: { $regex: pattern } },
-  //     ],
-  //   })
-  //     .select('firstName lastName')
-  //     .then((users) => {
-  //       if (users.length === 0) {
-  //         return res.status(404).send({ error: 'Users Not Found' });
-  //       }
-  //       res.status(200).send(users);
-  //     })
-  //     .catch((error) => res.status(500).send(error));
-  // };
+ 
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
@@ -1557,13 +1538,7 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(500).send(error));
   };
 
-  // function escapeRegExp(string) {
-  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // }
-  /**
-   * Authorizes user to be able to add Weekly Report Recipients
-   *
-   */
+ 
   const authorizeUser = async (req, res) => {
     try {
       let authorizedUser;
@@ -1707,66 +1682,47 @@ const userProfileController = function (UserProfile, Project) {
     });
   };
 
+  const deleteInfringements = async function (req, res) {
+    if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+      res.status(403).send('You are not authorized to delete blue square');
+      return;
+    }
+    const { userId, blueSquareId } = req.params;
+    // console.log(userId, blueSquareId);
 
-  const deleteInfringements = async (req, res) => {
-    try {
-      // Check permissions
-      if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
-        return res.status(403).send('You are not authorized to delete blue square');
+    UserProfile.findById(userId, async (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
       }
-  
-      const { userId, blueSquareId } = req.params;
-      const record = await UserProfile.findById(userId).exec();
-  
-      // Check if the record exists
-      if (!record) {
-        return res.status(404).send('No valid records found');
-      }
-  
-      const originalInfringements = record.infringements || [];
-  
-      // Filter out the infringement to be deleted
-      record.infringements = originalInfringements.filter(
-        (infringement) => !infringement._id.equals(blueSquareId)
+
+      const originalinfringements = record?.infringements ?? [];
+
+      record.infringements = originalinfringements.filter(
+        (infringement) => !infringement._id.equals(blueSquareId),
       );
-// <<<<<<< vorugantisaivenkatesh--Improve-speed-and-function-of-deleting-multiple-blue-squares
-  
-//       // Save the updated record
-//       const updatedRecord = await record.save();
-  
-//       // Notify about the updated infringements
-//       userHelper.notifyInfringements(originalInfringements, updatedRecord.infringements);
-  
-//       // Respond with success
-//       res.status(200).json({ _id: updatedRecord._id });
-//     } catch (error) {
-//       res.status(400).send(error.message);
-//     }
-// =======
 
-//       record
-//         .save()
-//         .then((results) => {
-//           userHelper.notifyInfringements(
-//             originalinfringements,
-//             results.infringements,
-//             results.firstName,
-//             results.lastName,
-//             results.email,
-//             results.role,
-//             results.startDate,
-//             results.jobTitle[0],
-//             results.weeklycommittedHours,
-//           );
-//           res.status(200).json({
-//             _id: record._id,
-//           });
-//         })
-//         .catch((error) => res.status(400).send(error));
-//     });
-// >>>>>>> development
+      record
+        .save()
+        .then((results) => {
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
+          res.status(200).json({
+            _id: record._id,
+          });
+        })
+        .catch((error) => res.status(400).send(error));
+    });
   };
-  
 
   const getProjectsByPerson = async function (req, res) {
     try {
