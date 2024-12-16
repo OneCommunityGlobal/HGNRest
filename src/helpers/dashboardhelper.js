@@ -203,6 +203,8 @@ const dashboardhelper = function () {
             timeOffFrom: 1,
             timeOffTill: 1,
             endDate: 1,
+            createdDate: 1,
+            trophyFollowedUp: 1,
           }
 
         );
@@ -220,7 +222,8 @@ const dashboardhelper = function () {
             timeOffFrom: 1,
             timeOffTill: 1,
             endDate: 1,
-
+            createdDate: 1,
+            trophyFollowedUp: 1,
           },
         );
       }
@@ -286,6 +289,8 @@ const dashboardhelper = function () {
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
           endDate: teamMember.endDate || null,
+          createdDate: teamMember.createdDate || null,
+          trophyFollowedUp: teamMember.trophyFollowedUp || false,
         };
         leaderBoardData.push(obj);
       });
@@ -601,6 +606,8 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
+          createdDate: user.createdDate,
+          trophyFollowedUp: user.trophyFollowedUp,
           hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,

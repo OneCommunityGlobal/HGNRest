@@ -1,3 +1,6 @@
+import userProfile from 'models/userProfile';
+import actionItem from 'models/actionItem';
+
 /* eslint-disable quotes */
 const path = require("path");
 const fs = require("fs/promises");
@@ -6,6 +9,7 @@ const dashboardHelperClosure = require("../helpers/dashboardhelper");
 const emailSender = require("../utilities/emailSender");
 const AIPrompt = require("../models/weeklySummaryAIPrompt");
 const User = require("../models/userProfile");
+
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
@@ -135,6 +139,26 @@ const dashboardcontroller = function () {
         }
       })
       .catch(error => res.status(400).send(error));
+  };
+
+  //6th month and yearly anniversaries
+  const postTrophyIcon = function (req, res) {
+    console.log("API called with params:", req.params);
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    userProfile.findById(userId, (err, record) => {
+      if (err || !record) {
+        res.status(404).send('No valid records found');
+        return;
+      }
+      record.trophyFollowedUp = req.params.trophyFollowedUp;
+
+      record.save()
+        .then((results) => {
+          res.status(200).send(results);
+        })
+        .catch((error) => res.status(404).send(error));
+    });
   };
 
   const orgData = function (req, res) {
@@ -330,6 +354,7 @@ const dashboardcontroller = function () {
     }
   };
 
+
   return {
     dashboarddata,
     getAIPrompt,
@@ -344,6 +369,7 @@ const dashboardcontroller = function () {
     sendMakeSuggestion,
     updateCopiedPrompt,
     getPromptCopiedDate,
+    postTrophyIcon,
   };
 };
 
