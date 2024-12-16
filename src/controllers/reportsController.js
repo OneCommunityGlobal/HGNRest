@@ -84,7 +84,7 @@ const reportsController = function () {
         completedHours,
         taskAndProjectStats,
         volunteersOverAssignedTime,
-        CompletedAssignedHours,
+        completedAssignedHours,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
           isoStartDate,
@@ -145,7 +145,7 @@ const reportsController = function () {
           comparisonEndDate,
         ),
         overviewReportHelper.getVolunteersOverAssignedTime(isoStartDate, isoEndDate),
-        overviewReportHelper.getVolunteersCompletedAssignedHours( // Call the new function
+        overviewReportHelper.getVolunteersCompletedAssignedHours(
           isoStartDate,
           isoEndDate,
           isoComparisonStartDate,
@@ -169,7 +169,7 @@ const reportsController = function () {
         completedHours,
         taskAndProjectStats,
         volunteersOverAssignedTime,
-        CompletedAssignedHours
+        completedAssignedHours
       });
     } catch (err) {
       console.log(err);
