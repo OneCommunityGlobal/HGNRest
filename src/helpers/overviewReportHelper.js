@@ -1559,7 +1559,8 @@ const overviewReportHelper = function () {
 
     return { count: totalTeams }
   }
-  async function getVolunteersOverAssignedTime(startDate, endDate) {
+
+  async function getVolunteersOverAssignedTime(isoStartDate, isoEndDate) {
     const volunteersOverAssignedTime = await UserProfile.aggregate([
       {
         $match: {
@@ -1582,9 +1583,9 @@ const overviewReportHelper = function () {
       },
       {
         $match: {
-          'timeEntries.dateOfWork': {
-            $gte: moment(startDate).format('YYYY-MM-DD'),
-            $lte: moment(endDate).format('YYYY-MM-DD'),
+          'timeEntries.createdDateTime': {
+            $gte: isoStartDate,
+            $lte: isoEndDate,
           },
         },
       },
@@ -1618,9 +1619,8 @@ const overviewReportHelper = function () {
       },
     ]);
   
-    return volunteersOverAssignedTime[0]?.volunteersOverAssignedTime || 0;
+    return { count: volunteersOverAssignedTime[0]?.volunteersOverAssignedTime || 0 };
   }
-  
 
   return {
     getVolunteerTrends,
