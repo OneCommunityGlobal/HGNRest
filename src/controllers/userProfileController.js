@@ -1493,26 +1493,7 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
-  // Search for user by first name
-  // const getUserBySingleName = (req, res) => {
-  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
-
-  //   // Searches for first or last name
-  //   UserProfile.find({
-  //     $or: [
-  //       { firstName: { $regex: pattern } },
-  //       { lastName: { $regex: pattern } },
-  //     ],
-  //   })
-  //     .select('firstName lastName')
-  //     .then((users) => {
-  //       if (users.length === 0) {
-  //         return res.status(404).send({ error: 'Users Not Found' });
-  //       }
-  //       res.status(200).send(users);
-  //     })
-  //     .catch((error) => res.status(500).send(error));
-  // };
+ 
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
@@ -1557,13 +1538,7 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(500).send(error));
   };
 
-  // function escapeRegExp(string) {
-  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // }
-  /**
-   * Authorizes user to be able to add Weekly Report Recipients
-   *
-   */
+ 
   const authorizeUser = async (req, res) => {
     try {
       let authorizedUser;
