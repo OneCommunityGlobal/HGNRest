@@ -446,35 +446,108 @@ const overviewReportHelper = function () {
   }
 
   /**
-   *  Get the users celebrating their anniversary between the two input dates.
-   * @param {*} startDate
-   * @param {*} endDate
-   * @returns  The number of users celebrating their anniversary between the two input dates.
+   *  Get the users celebrating their 6 month or 1 year anniversary within the given dates
+   * @param {Date} isoStartDate
+   * @param {Date} isoEndDate
    */
-  async function getAnniversaries(startDate, endDate) {
-    return UserProfile.aggregate([
-      {
-        $addFields: {
-          createdMonthDay: { $dateToString: { format: '%m-%d', date: '$createdDate' } },
+  async function getAnniversaries(
+    isoStartDate, 
+    isoEndDate,
+    isoComparisonStartDate,
+    isoComparisonEndDate
+  ) {
+    /**
+     * Gets start and end dates exactly X months ago
+     * @param {Date} startDate
+     * @param {Date} endDate
+     * @param {Number} timeDifferenceInMonths
+     * @returns {{ startDate: Date, endDate: Date }}
+     */
+    const getPastDates = (startDate, endDate, timeDifferenceInMonths) => {
+      const startDateCopy = new Date(startDate);
+      startDateCopy.setMonth(startDateCopy.getMonth() - timeDifferenceInMonths);
+
+      const endDateCopy = new Date(endDate);
+      endDateCopy.setMonth(endDateCopy.getMonth() - timeDifferenceInMonths);
+
+      return {
+        startDate: startDateCopy, 
+        endDate: endDateCopy
+      }
+    }
+
+     /**
+     * Gets list of users created within a given date range
+     * @param {Date} startDate
+     * @param {Date} endDate
+     * @returns {Array<Object>} Array of user objects
+     */
+     const getUsersCreated = async (startDate, endDate) => {
+      const users = await UserProfile.aggregate([
+        {
+          $match: {
+            createdDate:{
+              $gte: startDate,
+              $lte: endDate
+            },
+            isActive: true
+          }
         },
+        {
+          $project: {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            profilePic: { $ifNull: ["$profilePic", null]}
+          }
+        }
+      ]);
+      return users;
+    };
+
+    const dates6MonthsAgo = getPastDates(isoStartDate, isoEndDate, 6);
+    const dates1YearAgo = getPastDates(isoStartDate, isoEndDate, 12);
+
+    const anniversaries6Months = await getUsersCreated(dates6MonthsAgo.startDate, dates6MonthsAgo.endDate);
+    const anniversaries1Year = await getUsersCreated(dates1YearAgo.startDate, dates1YearAgo.endDate);
+
+    const response = {
+      "6Months": {
+        users: anniversaries6Months,
       },
-      {
-        $match: {
-          createdMonthDay: {
-            $gte: startDate.substring(5, 10),
-            $lte: endDate.substring(5, 10),
-          },
-          isActive: true,
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          firstName: 1,
-          lastName: 1,
-        },
-      },
-    ]);
+      "1Year": {
+        users: anniversaries1Year,
+      }
+    };
+
+    /**
+     * If comparison dates are included in request, 
+     * modify response to include comparison percentages
+     */
+    if (isoComparisonStartDate && isoComparisonEndDate) {
+      const comparisonDates6MonthsAgo = getPastDates(isoComparisonStartDate, isoComparisonEndDate, 6);
+      const comparisonDates1YearAgo = getPastDates(isoComparisonStartDate, isoComparisonEndDate, 12);
+
+      const comparisonAnniversaries6Months = await getUsersCreated(
+        comparisonDates6MonthsAgo.startDate, 
+        comparisonDates6MonthsAgo.endDate
+      );
+      const comparisonAnniversaries1Year = await getUsersCreated(
+        comparisonDates1YearAgo.startDate, 
+        comparisonDates1YearAgo.endDate
+      );
+
+      response["6Months"].comparisonPercentage = calculateGrowthPercentage(
+        anniversaries6Months.length, 
+        comparisonAnniversaries6Months.length
+      );
+      response["1Year"].comparisonPercentage = calculateGrowthPercentage(
+        anniversaries1Year.length, 
+        comparisonAnniversaries1Year.length
+      );
+    }
+
+    return response;
   }
 
   /**

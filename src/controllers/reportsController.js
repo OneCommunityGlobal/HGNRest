@@ -122,7 +122,12 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
-        overviewReportHelper.getAnniversaries(startDate, endDate),
+        overviewReportHelper.getAnniversaries(
+          isoStartDate, 
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate
+        ),
         overviewReportHelper.getTotalBadgesAwardedCount(
           startDate,
           endDate,
