@@ -27,21 +27,13 @@ async function getWarningDescriptions() {
   currentWarningDescriptions = await currentWarnings.find({}, { warningTitle: 1, _id: 0 });
 }
 
-const convertObjectToArray = (obj) => {
-  const arr = [];
-  for (const key of obj) {
-    arr.push(key.warningTitle);
-  }
-  return arr;
-};
-
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
     currentWarningDescriptions = await currentWarnings.find({
       activeWarning: true,
     });
 
-    currentWarningDescriptions = convertObjectToArray(currentWarningDescriptions);
+    currentWarningDescriptions = currentWarningDescriptions.map((a) => a.warningTitle);
     const { userId } = req.params;
 
     try {

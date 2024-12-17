@@ -34,7 +34,7 @@ const currentWarningsController = function (currentWarnings) {
       const warnings = await currentWarnings.find({});
 
       if (warnings.length === 0) {
-        return res.status(400).send({ message: 'no valid records' });
+        return res.status(400).send({ error: 'no valid records' });
       }
 
       const testWarning = checkIfSpecialCharacter(newWarning);
@@ -136,9 +136,7 @@ const currentWarningsController = function (currentWarnings) {
         },
       );
 
-      res.status(200).send({
-        message: 'warning description was successfully deleted and user profiles updated',
-      });
+      return res.status(200);
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
