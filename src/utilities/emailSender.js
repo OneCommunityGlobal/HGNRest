@@ -34,6 +34,7 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (mailOptions) => {
   try {
     const { token } = await OAuth2Client.getAccessToken();
+
     mailOptions.auth = {
       user: config.email,
       refreshToken: config.refreshToken,
@@ -45,6 +46,7 @@ const sendEmail = async (mailOptions) => {
     }
     return result;
   } catch (error) {
+    console.error('Error sending email:', error);
     logger.logException(error, `Error sending email: ${mailOptions.to}`);
     throw error;
   }
@@ -57,7 +59,6 @@ const processQueue = async () => {
   if (isProcessing || queue.length === 0) return;
 
   isProcessing = true;
-  console.log('Processing email queue...');
 
   const processBatch = async () => {
     if (queue.length === 0) {
@@ -67,12 +68,10 @@ const processQueue = async () => {
 
     const batch = queue.shift();
     try {
-      console.log('Sending email...');
       await sendEmail(batch);
     } catch (error) {
       logger.logException(error, 'Failed to send email batch');
     }
-
     setTimeout(processBatch, config.rateLimitDelay);
   };
 
@@ -94,21 +93,29 @@ const emailSender = (
   replyTo = null,
 ) => {
   if (!process.env.sendEmail) return;
-  const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
-  for (let i = 0; i < recipients.length; i += config.batchSize) {
-    const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
-    queue.push({
-      from: config.email,
-      bcc: batchRecipients.join(','),
-      subject,
-      html: message,
-      attachments,
-      cc,
-      replyTo,
+  return new Promise((resolve, reject) => {
+    const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
+    for (let i = 0; i < recipients.length; i += config.batchSize) {
+      const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
+      queue.push({
+        from: config.email,
+        bcc: batchRecipients.join(','),
+        subject,
+        html: message,
+        attachments,
+        cc,
+        replyTo,
+      });
+    }
+    setImmediate(async () => {
+      try {
+        await processQueue();
+        resolve('Emails processed successfully');
+      } catch (error) {
+        reject(error);
+      }
     });
-  }
-  console.log('Emails queued:', queue.length);
-  setImmediate(processQueue);
+  });
 };
 
 module.exports = emailSender;
