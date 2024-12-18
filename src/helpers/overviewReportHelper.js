@@ -1068,11 +1068,13 @@ const overviewReportHelper = function () {
   /**
    * returns the number of:
    * 1. Active volunteers
-   * 2. Volunteers that deactivated in the current week
-   * 3. New volunteers in the current week
-   *
-   * @param {string} startDate
-   * @param {string} endDate
+   * 2. New volunteers
+   * 3. Deactivated volunteers
+   * all within a given time range.
+   * @param {Date} startDate
+   * @param {Date} endDate
+   * @param {Date} comparisonStartDate
+   * @param {Date} comparisonEndDate
    */
   const getVolunteerNumberStats = async (
     startDate,
@@ -1119,35 +1121,36 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-
+  
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
       const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
-
+  
       return {
         activeVolunteers,
         newVolunteers,
         deactivatedVolunteers,
         totalVolunteers
       };
-    }
-
+    };
+  
+    // Get data for the current time range
     const {
       activeVolunteers: currentActiveVolunteers,
       newVolunteers: currentNewVolunteers,
       deactivatedVolunteers: currentDeactivatedVolunteers,
       totalVolunteers: currentTotalVolunteers
     } = await getVolunteerData(startDate, endDate);
-
+  
     const res = {
       activeVolunteers: {
         count: currentActiveVolunteers,
-        percentageOutOfTotal:  Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal: Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       newVolunteers: {
         count: currentNewVolunteers,
-        percentageOutOfTotal:  Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal: Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       deactivatedVolunteers: {
         count: currentDeactivatedVolunteers,
@@ -1155,21 +1158,38 @@ const overviewReportHelper = function () {
       },
       totalVolunteers: { count: currentTotalVolunteers },
     };
-
-    // Modifies response to include comparison percentage if given comparison dates
+  
+    // Add comparison percentage if comparison dates are provided
     if (comparisonStartDate && comparisonEndDate) {
       const {
+        activeVolunteers: comparisonActiveVolunteers,
+        newVolunteers: comparisonNewVolunteers,
+        deactivatedVolunteers: comparisonDeactivatedVolunteers,
         totalVolunteers: comparisonTotalVolunteers
       } = await getVolunteerData(comparisonStartDate, comparisonEndDate);
-
+  
+      // Add comparison percentage using calculateGrowthPercentage function
+      res.activeVolunteers.comparisonPercentage = calculateGrowthPercentage(
+        currentActiveVolunteers,
+        comparisonActiveVolunteers
+      );
+      res.newVolunteers.comparisonPercentage = calculateGrowthPercentage(
+        currentNewVolunteers,
+        comparisonNewVolunteers
+      );
+      res.deactivatedVolunteers.comparisonPercentage = calculateGrowthPercentage(
+        currentDeactivatedVolunteers,
+        comparisonDeactivatedVolunteers
+      );
       res.totalVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentTotalVolunteers,
-        comparisonTotalVolunteers,
+        comparisonTotalVolunteers
       );
     }
-
+  
     return res;
   };
+  
 
   /**
    *
