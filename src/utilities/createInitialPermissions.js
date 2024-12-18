@@ -153,7 +153,6 @@ const permissionsRoles = [
     permissions: [
       'suggestTask',
       'putReviewStatus',
-      'putUserProfile',
       'getReporteesLimitRoles',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -257,7 +256,8 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
-      'manageAdminLinks',
+
+      'removeUserFromTask',
 
       'editHeaderMessage',
     ],
