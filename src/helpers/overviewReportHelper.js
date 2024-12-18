@@ -1060,8 +1060,8 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    const current = data[0].currentTotalHours[0].totalHours;
-    const comparison = data[0].comparisonTotalHours[0].totalHours;
+    const current = data[0].currentTotalHours[0]?.totalHours || 0;
+    const comparison = data[0].comparisonTotalHours[0]?.totalHours || 0;
     return { current, comparison, percentage: calculateGrowthPercentage(current, comparison) };
   }
 
