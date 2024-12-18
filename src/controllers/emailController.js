@@ -70,18 +70,10 @@ const sendEmail = async (req, res) => {
       if (!subject) missingFields.push('Subject');
       if (!html) missingFields.push('HTML content');
       if (!to) missingFields.push('Recipient email');
-      console.log('missingFields', missingFields);
       return res
         .status(400)
         .send(`${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`);
     }
-
-    // Extract images and create attachments
-    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
-
-    // Log recipient for debugging
-    console.log('Recipient:', to);
-
 
     await emailSender(to, subject, html)
       .then(() => {
