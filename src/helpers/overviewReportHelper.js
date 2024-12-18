@@ -991,7 +991,17 @@ const overviewReportHelper = function () {
     const comparison = data[0].comparisonTotalHours[0].totalHours;
     return { current, comparison, percentage: calculateGrowthPercentage(current, comparison) };
   }
-
+/**
+   * returns the number of:
+   * 1. Active volunteers
+   * 2. Volunteers that deactivated in the current week
+   * 3. New volunteers in the current week
+   *
+   * @param {string} startDate
+   * @param {string} endDate
+   * @param {string} comparisonStartDate
+   * @param {string} comparisonEndDate
+   */
 
   const getVolunteerNumberStats = async (
     startDate,
