@@ -1,15 +1,87 @@
 // emailController.js
 const jwt = require('jsonwebtoken');
+const cheerio = require('cheerio');
 const emailSender = require('../utilities/emailSender');
+const { hasPermission } = require('../utilities/permissions');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 
 const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
 
+const handleContentToOC = (htmlContent) =>
+  `<!DOCTYPE html>
+    <html>
+      <head>
+      <meta charset="utf-8">
+      </head>
+      <body>
+        ${htmlContent}
+      </body>
+    </html>`;
+
+const handleContentToNonOC = (htmlContent, email) =>
+  `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body>
+          ${htmlContent}
+          <p> Thank you for subscribing to our email updates!</p>
+          <p> If you would like to unsubscribe, please click <a href="${frontEndUrl}/email-unsubscribe?email=${email}">here</a></p>
+        </body>
+      </html>`;
+
+function extractImagesAndCreateAttachments(html) {
+  const $ = cheerio.load(html);
+  const attachments = [];
+
+  $('img').each((i, img) => {
+    const src = $(img).attr('src');
+    if (src.startsWith('data:image')) {
+      const base64Data = src.split(',')[1];
+      const _cid = `image-${i}`;
+      attachments.push({
+        filename: `image-${i}.png`,
+        content: Buffer.from(base64Data, 'base64'),
+        cid: _cid,
+      });
+      $(img).attr('src', `cid:${_cid}`);
+    }
+  });
+  return {
+    html: $.html(),
+    attachments,
+  };
+}
+
 const sendEmail = async (req, res) => {
+  const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
+  if (!canSendEmail) {
+    res.status(403).send('You are not authorized to send emails.');
+    return;
+  }
   try {
     const { to, subject, html } = req.body;
+    // Validate required fields
+    if (!subject || !html || !to) {
+      const missingFields = [];
+      if (!subject) missingFields.push('Subject');
+      if (!html) missingFields.push('HTML content');
+      if (!to) missingFields.push('Recipient email');
+      console.log('missingFields', missingFields);
+      return res
+        .status(400)
+        .send(`${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`);
+    }
+
+    // Extract images and create attachments
+    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
+
+    // Log recipient for debugging
+    console.log('Recipient:', to);
+
 
     await emailSender(to, subject, html)
       .then(() => {
@@ -24,48 +96,48 @@ const sendEmail = async (req, res) => {
 };
 
 const sendEmailToAll = async (req, res) => {
+  const canSendEmailToAll = await hasPermission(req.body.requestor, 'sendEmailToAll');
+  if (!canSendEmailToAll) {
+    res.status(403).send('You are not authorized to send emails to all.');
+    return;
+  }
   try {
     const { subject, html } = req.body;
+    if (!subject || !html) {
+      return res.status(400).send('Subject and HTML content are required');
+    }
+
+    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
+
     const users = await userProfile.find({
-      firstName: 'Haoji',
+      firstName: '',
       email: { $ne: null },
       isActive: true,
       emailSubscriptions: true,
     });
-    let to = '';
-    const emailContent = ` <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-      </head>
+    if (users.length === 0) {
+      return res.status(404).send('No users found');
+    }
 
-
-      <body>
-        ${html}
-      </body>
-    </html>`;
-    users.forEach((user) => {
-      to += `${user.email},`;
-    });
-    emailSender(to, subject, emailContent);
-    const emailList = await EmailSubcriptionList.find({ email: { $ne: null } });
-    emailList.forEach((emailObject) => {
-      const { email } = emailObject;
-      const subscriptionEmailContent = ` <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-        </head>
-
-
-        <body>
-          ${html}
-          <p> Thank you for subscribing to our email updates!</p>
-          <p> If you would like to unsubscribe, please click <a href="${frontEndUrl}/email-unsubscribe?email=${email}">here</a></p>
-        </body>
-      </html>`;
-      emailSender(email, subject, subscriptionEmailContent);
-    });
+    const recipientEmails = users.map((user) => user.email);
+    console.log('# sendEmailToAll to', recipientEmails.join(','));
+    if (recipientEmails.length === 0) {
+      throw new Error('No recipients defined');
+    }
+    const emailContentToOCmembers = handleContentToOC(processedHtml);
+    await Promise.all(
+      recipientEmails.map((email) =>
+        emailSender(email, subject, emailContentToOCmembers, attachments),
+      ),
+    );
+    const emailSubscribers = await EmailSubcriptionList.find({ email: { $exists: true, $ne: '' } });
+    console.log('# sendEmailToAll emailSubscribers', emailSubscribers.length);
+    await Promise.all(
+      emailSubscribers.map(({ email }) => {
+        const emailContentToNonOCmembers = handleContentToNonOC(processedHtml, email);
+        return emailSender(email, subject, emailContentToNonOCmembers, attachments);
+      }),
+    );
     return res.status(200).send('Email sent successfully');
   } catch (error) {
     console.error('Error sending email:', error);
