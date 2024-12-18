@@ -420,7 +420,7 @@ const addEditHistory = async (
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        <hr style="border-top: 1px dashed #000;"/>      
+        <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
@@ -594,7 +594,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
       }
@@ -867,7 +867,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -940,7 +940,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.remove({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -1063,38 +1063,113 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const getTimeEntriesForReports = function (req, res) {
+  const getTimeEntriesForReports =async function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+    const cacheKey = `timeEntry_${fromDate}_${toDate}`;
+    const timeentryCache=cacheClosure();
+    const cacheData=timeentryCache.hasCache(cacheKey)
+    if(cacheData){
+      const data = timeentryCache.getCache(cacheKey);
+      return res.status(200).send(data);
+    }
+    try {
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        '-createdDateTime' // Exclude unnecessary fields
+      )
+        .lean() // Returns plain JavaScript objects, not Mongoose documents
+        .populate({
+          path: 'projectId',
+          select: '_id projectName', // Only return necessary fields from the project
+        })
+        .exec(); // Executes the query
+      const data = results.map(element => {
+        const record = {
+          _id: element._id,
+          isTangible: element.isTangible,
+          personId: element.personId,
+          dateOfWork: element.dateOfWork,
+          hours: formatSeconds(element.totalSeconds)[0],
+          minutes: formatSeconds(element.totalSeconds)[1],
+          projectId: element.projectId?._id || '',
+          projectName: element.projectId?.projectName || '',
+        };
+        return record;
+      });
+      timeentryCache.setCache(cacheKey,data);
+      return res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  };
+
+  const getTimeEntriesForProjectReports = function (req, res) {
     const { users, fromDate, toDate } = req.body;
 
+    // Fetch only necessary fields and avoid bringing the entire document
     TimeEntry.find(
       {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      'totalSeconds isTangible dateOfWork projectId',
     )
-      .populate('projectId')
-
+      .populate('projectId', 'projectName _id')
+      .lean() // lean() for better performance as we don't need Mongoose document methods
       .then((results) => {
-        const data = [];
+        const data = results.map((element) => {
+          const record = {
+            isTangible: element.isTangible,
+            dateOfWork: element.dateOfWork,
+            projectId: element.projectId ? element.projectId._id : '',
+            projectName: element.projectId ? element.projectId.projectName : '',
+          };
 
-        results.forEach((element) => {
-          const record = {};
-          record._id = element._id;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId._id;
-          record.dateOfWork = element.dateOfWork;
+          // Convert totalSeconds to hours and minutes
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId ? element.projectId.projectName : '';
-          data.push(record);
+
+          return record;
         });
 
         res.status(200).send(data);
       })
       .catch((error) => {
-        res.status(400).send(error);
+        res.status(400).send({ message: 'Error fetching time entries for project reports', error });
       });
+  };
+
+  const getTimeEntriesForPeopleReports = async function (req, res) {
+    try {
+      const { users, fromDate, toDate } = req.body;
+
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        'personId totalSeconds isTangible dateOfWork',
+      ).lean(); // Use lean() for better performance
+
+      const data = results
+        .map((entry) => {
+          const [hours, minutes] = formatSeconds(entry.totalSeconds);
+          return {
+            personId: entry.personId,
+            hours,
+            minutes,
+            isTangible: entry.isTangible,
+            dateOfWork: entry.dateOfWork,
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send({ message: 'Error fetching time entries for people reports', error });
+    }
   };
 
   /**
@@ -1209,7 +1284,12 @@ const timeEntrycontroller = function (TimeEntry) {
    */
   const getLostTimeEntriesForTeamList = function (req, res) {
     const { teams, fromDate, toDate } = req.body;
-
+    const lostteamentryCache=cacheClosure()
+    const cacheKey = `LostTeamEntry_${fromDate}_${toDate}`;
+    const cacheData=lostteamentryCache.getCache(cacheKey)
+    if(cacheData){
+      return res.status(200).send(cacheData)
+    }
     TimeEntry.find(
       {
         entryType: 'team',
@@ -1218,7 +1298,7 @@ const timeEntrycontroller = function (TimeEntry) {
         isActive: { $ne: false },
       },
       ' -createdDateTime',
-    )
+    ).lean()
       .populate('teamId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
@@ -1235,7 +1315,8 @@ const timeEntrycontroller = function (TimeEntry) {
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
           data.push(record);
         });
-        res.status(200).send(data);
+        lostteamentryCache.setCache(cacheKey,data);
+        return res.status(200).send(data);
       })
       .catch((error) => {
         res.status(400).send(error);
@@ -1488,6 +1569,8 @@ const timeEntrycontroller = function (TimeEntry) {
     backupIntangibleHrsAllUsers,
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
+    getTimeEntriesForProjectReports,
+    getTimeEntriesForPeopleReports,
     startRecalculation,
     checkRecalculationStatus,
   };
