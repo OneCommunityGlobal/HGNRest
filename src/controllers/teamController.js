@@ -3,6 +3,7 @@ const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
+const helper = require('../utilities/permissions');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -85,7 +86,7 @@ const teamcontroller = function (Team) {
   };
 
   const postTeam = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postTeam'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postTeam'))) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -101,27 +102,13 @@ const teamcontroller = function (Team) {
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    // Check if a team with the same name already exists
-    Team.findOne({ teamName: team.teamName })
-      .then((existingTeam) => {
-        if (existingTeam) {
-          // If a team with the same name exists, return an error
-          res.status(400).send({ error: 'A team with this name already exists' });
-        } else {
-          // If no team with the same name exists, save the new team
-          team
-            .save()
-            .then((results) => res.send(results).status(200))
-            .catch((error) => {
-              Logger.logException(error, null, `teamName: ${req.body.teamName}`);
-              res.send(error).status(404);
-            });
-        }
-      })
-      .catch((error) => {
+  try {
+        const result = await team.save();
+        res.status(200).send(result);
+    } catch (error) {
         Logger.logException(error, null, `teamName: ${req.body.teamName}`);
-        res.send(error).status(404);
-      });
+        res.status(500).send({ error: 'Internal server error' });
+    }
   };
 
   const deleteTeam = async function (req, res) {
@@ -148,10 +135,11 @@ const teamcontroller = function (Team) {
           Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send(errors);
         });
-    }).catch((error) => {
-      Logger.logException(error, null, `teamId: ${teamId}`);
-      res.status(400).send(error);
-    });
+    })
+    // .catch((error) => {
+    //   Logger.logException(error, null, `teamId: ${teamId}`);
+    //   res.status(400).send(error);
+    // });
   };
 
   const putTeam = async function (req, res) {
