@@ -185,6 +185,7 @@ const sendEmailToUser = (
       `${userAssignedWarning.email}`,
       subjectTitle,
       emailTemplate,
+      null,
       adminEmails.toString(),
       null,
     );
@@ -192,6 +193,7 @@ const sendEmailToUser = (
     emailSender(
       `${userAssignedWarning.email}`,
       `Blue Square issued for ${warningDescription}`,
+      null,
       emailTemplate,
       adminEmails.toString(),
       null,
