@@ -12,17 +12,13 @@ const sendEmail = async (req, res) => {
     const { to, subject, html } = req.body;
 
     await emailSender(to, subject, html)
-      .then(result => {
-        console.log('Email sent successfully:', result);
+      .then(() => {
         res.status(200).send(`Email sent successfully to ${to}`);
       })
-      .catch(error => {
-        console.error('Error sending email:', error);
+      .catch(() => {
         res.status(500).send('Error sending email');
       });
-
   } catch (error) {
-    console.error('Error sending email:', error);
     return res.status(500).send('Error sending email');
   }
 };
@@ -55,7 +51,7 @@ const sendEmailToAll = async (req, res) => {
     const emailList = await EmailSubcriptionList.find({ email: { $ne: null } });
     emailList.forEach((emailObject) => {
       const { email } = emailObject;
-    const emailContent = ` <!DOCTYPE html>
+      const subscriptionEmailContent = ` <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
@@ -68,7 +64,7 @@ const sendEmailToAll = async (req, res) => {
           <p> If you would like to unsubscribe, please click <a href="${frontEndUrl}/email-unsubscribe?email=${email}">here</a></p>
         </body>
       </html>`;
-      emailSender(email, subject, emailContent);
+      emailSender(email, subject, subscriptionEmailContent);
     });
     return res.status(200).send('Email sent successfully');
   } catch (error) {
@@ -107,13 +103,9 @@ const addNonHgnEmailSubscription = async (req, res) => {
     }
     const payload = { email };
 
-    const token = jwt.sign(
-      payload,
-      jwtSecret,
-      {
-        expiresIn: 360,
-      },
-    );
+    const token = jwt.sign(payload, jwtSecret, {
+      expiresIn: 360,
+    });
     const emailContent = ` <!DOCTYPE html>
     <html>
       <head>
