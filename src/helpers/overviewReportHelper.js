@@ -508,10 +508,7 @@ const overviewReportHelper = function () {
   /**
    *  Get the number of members in team and not in team, with percentage
    */
-  async function getTeamMembersCount(
-    isoEndDate,
-    isoComparisonEndDate,
-  ) {
+  async function getTeamMembersCount(isoEndDate, isoComparisonEndDate) {
     // Gets counts for total members and members in team within a given time range
     const getData = async (endDate) => {
       const [data] = await UserProfile.aggregate([
@@ -521,7 +518,7 @@ const overviewReportHelper = function () {
             createdDate: {
               $lte: endDate,
             },
-          }
+          },
         },
         {
           $facet: {
@@ -553,28 +550,34 @@ const overviewReportHelper = function () {
 
       return {
         totalMembers,
-        usersInTeam, 
+        usersInTeam,
         usersNotInTeam,
-      }; 
+      };
     };
-    
-    const { 
+
+    const {
       totalMembers: currentTotalMembers,
-      usersInTeam: currentUsersInTeam, 
-      usersNotInTeam: currentUsersNotInTeam
+      usersInTeam: currentUsersInTeam,
+      usersNotInTeam: currentUsersNotInTeam,
     } = await getData(isoEndDate);
-  
+
     // Calculate percentages out of total
-    const percentageOutOfTotalInTeam = Math.round((currentUsersInTeam / currentTotalMembers) * 100) / 100;
-    const percentageOutOfTotalNotInTeam =  Math.round((currentUsersNotInTeam / currentTotalMembers) * 100) / 100;
+    const percentageOutOfTotalInTeam =
+      Math.round((currentUsersInTeam / currentTotalMembers) * 100) / 100;
+    const percentageOutOfTotalNotInTeam =
+      Math.round((currentUsersNotInTeam / currentTotalMembers) * 100) / 100;
 
     // Calculate comparison percentages
-    const { 
-      usersInTeam: comparisonUsersInTeam, 
-      usersNotInTeam: comparisonUsersNotInTeam
-    } = await getData(isoComparisonEndDate);
-    const comparisonPercentageInTeam = calculateGrowthPercentage(currentUsersInTeam, comparisonUsersInTeam);
-    const comparisonPercentageNotInTeam = calculateGrowthPercentage(currentUsersNotInTeam, comparisonUsersNotInTeam);
+    const { usersInTeam: comparisonUsersInTeam, usersNotInTeam: comparisonUsersNotInTeam } =
+      await getData(isoComparisonEndDate);
+    const comparisonPercentageInTeam = calculateGrowthPercentage(
+      currentUsersInTeam,
+      comparisonUsersInTeam,
+    );
+    const comparisonPercentageNotInTeam = calculateGrowthPercentage(
+      currentUsersNotInTeam,
+      comparisonUsersNotInTeam,
+    );
 
     return {
       inTeam: {
@@ -1012,13 +1015,13 @@ const overviewReportHelper = function () {
         {
           $facet: {
             activeVolunteers: [
-              { 
-                $match: { 
-                  isActive: true, 
-                  createdDate: { $lte: isoEndDate } 
-                } 
-              }, 
-              { $count: 'count' }
+              {
+                $match: {
+                  isActive: true,
+                  createdDate: { $lte: isoEndDate },
+                },
+              },
+              { $count: 'count' },
             ],
             newVolunteers: [
               {
@@ -1056,38 +1059,42 @@ const overviewReportHelper = function () {
         activeVolunteers,
         newVolunteers,
         deactivatedVolunteers,
-        totalVolunteers
+        totalVolunteers,
       };
-    }
+    };
 
     const {
       activeVolunteers: currentActiveVolunteers,
       newVolunteers: currentNewVolunteers,
       deactivatedVolunteers: currentDeactivatedVolunteers,
-      totalVolunteers: currentTotalVolunteers
+      totalVolunteers: currentTotalVolunteers,
     } = await getVolunteerData(startDate, endDate);
 
     const res = {
       activeVolunteers: {
         count: currentActiveVolunteers,
-        percentageOutOfTotal:  Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal:
+          Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       newVolunteers: {
         count: currentNewVolunteers,
-        percentageOutOfTotal:  Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal:
+          Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       deactivatedVolunteers: {
         count: currentDeactivatedVolunteers,
-        percentageOutOfTotal: Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal:
+          Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       totalVolunteers: { count: currentTotalVolunteers },
     };
 
     // Modifies response to include comparison percentage if given comparison dates
     if (comparisonStartDate && comparisonEndDate) {
-      const {
-        totalVolunteers: comparisonTotalVolunteers
-      } = await getVolunteerData(comparisonStartDate, comparisonEndDate);
+      const { totalVolunteers: comparisonTotalVolunteers } = await getVolunteerData(
+        comparisonStartDate,
+        comparisonEndDate,
+      );
 
       res.totalVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentTotalVolunteers,
@@ -1506,58 +1513,103 @@ const overviewReportHelper = function () {
   /**
    * Gets the total number of teams with a minimum number of active members
    * within a given end date.
-   * @param {Date} isoEndDate 
-   * @param {Number} activeMembersMinimum 
+   * @param {Date} isoEndDate
+   * @param {Number} activeMembersMinimum
    */
   async function getTeamsWithActiveMembers(isoEndDate, activeMembersMinimum) {
     const result = await Team.aggregate([
       {
         $match: {
           isActive: true,
-          createdDatetime: { $lte: isoEndDate }
-        }
+          createdDatetime: { $lte: isoEndDate },
+        },
       },
       {
-        $unwind: "$members" 
+        $unwind: '$members',
       },
       // Access user profile details
       {
         $lookup: {
-          from: "userProfiles", 
-          localField: "members.userId", 
-          foreignField: "_id",
-          as: "userDetails"
-        }
+          from: 'userProfiles',
+          localField: 'members.userId',
+          foreignField: '_id',
+          as: 'userDetails',
+        },
       },
       // Filter for only active team members
       {
         $match: {
-          "userDetails": {
-            $elemMatch: { isActive: true }
-          }
-        }
+          userDetails: {
+            $elemMatch: { isActive: true },
+          },
+        },
       },
       // Group members in the same team back together and count its number of active members
       {
         $group: {
-          _id: "$_id",
-          activeMembersCount: { $sum: 1 }
-        }
+          _id: '$_id',
+          activeMembersCount: { $sum: 1 },
+        },
       },
       // Filter for teams who have an active member count >= activeMembersNum
       {
         $match: {
-          activeMembersCount: { $gte: activeMembersMinimum }
-        }
+          activeMembersCount: { $gte: activeMembersMinimum },
+        },
       },
       {
-        $count: "totalTeams"
-      }
+        $count: 'totalTeams',
+      },
     ]);
 
     const totalTeams = result[0]?.totalTeams ? result[0].totalTeams : 0;
 
-    return { count: totalTeams }
+    return { count: totalTeams };
+  }
+
+  async function getTotalSummariesSubmitted(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    console.log('startDate:', startDate);
+    console.log('endDate:', endDate);
+    console.log('comparisonStartDate:', comparisonStartDate);
+    console.log('comparisonEndDate:', comparisonEndDate);
+    const currentSummaries = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+          lastModifiedDate: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        },
+      },
+      { $group: { _id: null, totalSummaries: { $sum: '$weeklySummariesCount' } } },
+    ]);
+
+    let comparisonSummaries = [];
+    if (comparisonStartDate && comparisonEndDate) {
+      comparisonSummaries = await UserProfile.aggregate([
+        {
+          $match: {
+            isActive: true,
+            lastModifiedDate: {
+              $gte: new Date(comparisonStartDate),
+              $lte: new Date(comparisonEndDate),
+            },
+          },
+        },
+        { $group: { _id: null, totalSummaries: { $sum: '$weeklySummariesCount' } } },
+      ]);
+    }
+
+    const currentCount = currentSummaries[0]?.totalSummaries || 0;
+
+    const comparisonCount = comparisonSummaries[0]?.totalSummaries || 0;
+
+    const percentage = calculateGrowthPercentage(currentCount, comparisonCount);
+
+    return { current: currentCount, comparison: comparisonCount, percentage };
   }
 
   return {
@@ -1581,7 +1633,8 @@ const overviewReportHelper = function () {
     getVolunteerHoursStats,
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
-    getTeamsWithActiveMembers
+    getTeamsWithActiveMembers,
+    getTotalSummariesSubmitted,
   };
 };
 

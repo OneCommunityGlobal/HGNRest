@@ -83,6 +83,7 @@ const reportsController = function () {
         // volunteerTrends,
         completedHours,
         taskAndProjectStats,
+        totalSummariesSubmitted,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
           isoStartDate,
@@ -115,10 +116,7 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getRoleDistributionStats(),
-        overviewReportHelper.getTeamMembersCount(
-          isoEndDate,
-          isoComparisonEndDate,
-        ),
+        overviewReportHelper.getTeamMembersCount(isoEndDate, isoComparisonEndDate),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
         overviewReportHelper.getAnniversaries(startDate, endDate),
         overviewReportHelper.getTotalBadgesAwardedCount(
@@ -142,6 +140,12 @@ const reportsController = function () {
           comparisonStartDate,
           comparisonEndDate,
         ),
+        overviewReportHelper.getTotalSummariesSubmitted(
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
+        ),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -159,6 +163,7 @@ const reportsController = function () {
         // volunteerTrends,
         completedHours,
         taskAndProjectStats,
+        totalSummariesSubmitted,
       });
     } catch (err) {
       console.log(err);
@@ -491,7 +496,11 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide an end date' });
     }
     if (!activeMembersMinimum) {
-      return res.status(400).send({ msg: 'Please provide the number of minimum active members in the team (activeMembersMinimum query param)' });
+      return res
+        .status(400)
+        .send({
+          msg: 'Please provide the number of minimum active members in the team (activeMembersMinimum query param)',
+        });
     }
 
     const isoEndDate = new Date(endDate);
@@ -499,14 +508,14 @@ const reportsController = function () {
     try {
       const teamsWithActiveMembers = await overviewReportHelper.getTeamsWithActiveMembers(
         isoEndDate,
-        Number(activeMembersMinimum)
+        Number(activeMembersMinimum),
       );
       res.status(200).send({ teamsWithActiveMembers });
     } catch (err) {
       console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
-  }
+  };
 
   return {
     getVolunteerStats,
@@ -520,7 +529,7 @@ const reportsController = function () {
     getBlueSquareStats,
     getVolunteerStatsData,
     getVolunteerTrends,
-    getTeamsWithActiveMembers
+    getTeamsWithActiveMembers,
   };
 };
 
