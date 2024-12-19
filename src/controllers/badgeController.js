@@ -19,7 +19,7 @@ const badgeController = function (Badge) {
   // };
 
   const getAllBadges = async function (req, res) {
-    console.log(req.body.requestor);  // Retain logging from development branch for debugging
+    // console.log(req.body.requestor);  // Retain logging from development branch for debugging
 
     // Check if the user has any of the following permissions
     if (
@@ -29,7 +29,7 @@ const badgeController = function (Badge) {
       !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
-      console.log('in if statement');  // Retain logging from development branch for debugging
+      // console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -129,12 +129,10 @@ const badgeController = function (Badge) {
             const combinedEarnedDate = [...grouped[badge].earnedDate, ...item.earnedDate];
             const timestampArray = combinedEarnedDate.map((date) => new Date(date).getTime());
             timestampArray.sort((a, b) => a - b);
-            grouped[badge].earnedDate = timestampArray.map((timestamp) =>
-              new Date(timestamp)
+            grouped[badge].earnedDate = timestampArray.map((timestamp) => new Date(timestamp)
                 .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
                 .replace(/ /g, '-')
-                .replace(',', ''),
-            );
+                .replace(',', ''));
           }
         }
         if (existingBadges[badge]) {
