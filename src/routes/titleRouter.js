@@ -7,7 +7,7 @@ const router = function (title) {
   titleRouter.route('/title')
     .get(controller.getAllTitles)
     .post(controller.postTitle)
-    // .put(controller.putTitle);
+  // .put(controller.putTitle);
 
   titleRouter.route('/title/update').post(controller.updateTitle);
 

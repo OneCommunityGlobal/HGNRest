@@ -6,8 +6,66 @@ const Logger = require('../startup/logger');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
-    Team.find({})
-      .sort({ teamName: 1 })
+    Team.aggregate([
+      {
+        $unwind: '$members',
+      },
+      {
+        $lookup: {
+          from: 'userProfiles',
+          localField: 'members.userId',
+          foreignField: '_id',
+          as: 'userProfile',
+        },
+      },
+      {
+        $unwind: '$userProfile',
+      },
+      {
+        $match: {
+          isActive: true,  
+        }
+      },
+      {
+        $group: {
+          _id: {
+            teamId: '$_id',
+            teamCode: '$userProfile.teamCode',
+          },
+          count: { $sum: 1 },
+          teamName: { $first: '$teamName' },
+          members: {
+            $push: {
+              _id: '$userProfile._id',
+              name: '$userProfile.name',
+              email: '$userProfile.email',
+              teamCode: '$userProfile.teamCode',
+              addDateTime: '$members.addDateTime',
+            },
+          },
+          createdDatetime: { $first: '$createdDatetime' },
+          modifiedDatetime: { $first: '$modifiedDatetime' },
+          isActive: { $first: '$isActive' },
+        },
+      },
+      {
+        $sort: { count: -1 }, // Sort by the most frequent teamCode
+      },
+      {
+        $group: {
+          _id: '$_id.teamId',
+          teamCode: { $first: '$_id.teamCode' }, // Get the most frequent teamCode
+          teamName: { $first: '$teamName' },
+          members: { $first: '$members' },
+          createdDatetime: { $first: '$createdDatetime' },
+          modifiedDatetime: { $first: '$modifiedDatetime' },
+          isActive: { $first: '$isActive' },
+        },
+      },
+      {
+        $sort: { teamName: 1 }, // Sort teams by name
+      },
+    ])
       .then((results) => res.status(200).send(results))
       .catch((error) => {
         Logger.logException(error);

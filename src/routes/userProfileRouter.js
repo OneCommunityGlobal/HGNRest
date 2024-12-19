@@ -120,6 +120,10 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
 
+  userProfileRouter
+    .route('/userProfile/autocomplete/:searchText')
+    .get(controller.getUserByAutocomplete);
+
   return userProfileRouter;
 };
 
