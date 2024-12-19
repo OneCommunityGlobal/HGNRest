@@ -1,4 +1,3 @@
-const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfileController = require("./userProfileController");
@@ -6,10 +5,35 @@ const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 
 const controller = userProfileController(userProfile, project);
-const getAllTeamCodeHelper = controller.getAllTeamCodeHelper;
+const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
   const cache = cacheClosure();
+
+  // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
+  async function checkTeamCodeExists(teamCode) {
+    try {
+      if (cache.getCache('teamCodes')) {
+        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+        return teamCodes.includes(teamCode);
+      }
+      const teamCodes = await getAllTeamCodeHelper();
+      return teamCodes.includes(teamCode);
+    } catch (error) {
+      console.error('Error checking if team code exists:', error);
+      throw error;
+    }
+  }
+
+  async function checkProjectExists(projectID) {
+    try {
+      const proj = await Project.findOne({ _id: projectID }).exec();
+      return !!proj;
+    } catch (error) {
+      console.error('Error checking if project exists:', error);
+      throw error;
+    }
+  }
 
   const getAllTitles = function (req, res) {
     Title.find({})
@@ -37,7 +61,9 @@ const titlecontroller = function (Title) {
     const titleCodeRegex = /^[A-Za-z]+$/;
     if (!title.titleCode || !title.titleCode.trim()) {
       return res.status(400).send({ message: 'Title code cannot be empty.' });
-    } else if (!titleCodeRegex.test(title.titleCode)) {
+    }
+
+    if (!titleCodeRegex.test(title.titleCode)) {
       return res.status(400).send({ message: 'Title Code must contain only upper or lower case letters.' });
     }
 
@@ -172,30 +198,7 @@ const titlecontroller = function (Title) {
         res.status(500).send(error);
       });
   };
-  // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
-  async function checkTeamCodeExists(teamCode) {
-    try {
-      if (cache.getCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes.includes(teamCode);
-      }
-      const teamCodes = await getAllTeamCodeHelper();
-      return teamCodes.includes(teamCode);
-    } catch (error) {
-      console.error('Error checking if team code exists:', error);
-      throw error;
-    }
-  }
 
-  async function checkProjectExists(projectID) {
-    try {
-      const project = await Project.findOne({ _id: projectID }).exec();
-      return !!project;
-    } catch (error) {
-      console.error('Error checking if project exists:', error);
-      throw error;
-    }
-  }
 
 
 

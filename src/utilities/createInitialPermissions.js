@@ -259,7 +259,7 @@ const permissionsRoles = [
       'changeUserRehireableStatus',
       'toggleInvisibility',
       'manageAdminLinks',
-
+      'removeUserFromTask',
       'editHeaderMessage',
     ],
   },
