@@ -40,6 +40,17 @@ const inventoryController = function (Item, ItemType) {
       .catch((error) => res.status(404).send(error));
   };
 
+  //update the project’s inventoryModifiedDatetime
+  const updateProjectInventoryModifiedTime = function (projectId) {
+    return projects.findByIdAndUpdate(projectId, { inventoryModifiedDatetime: Date.now() })
+      .then((result) => {
+        return result;
+      })
+      .catch((err) => {
+        throw new Error('Failed to update project inventoryModifiedDatetime: ' + err.message);
+      });
+  };
+
   const postInvInProjectWBS = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
@@ -95,7 +106,15 @@ const inventoryController = function (Item, ItemType) {
 
         return inventoryItem
           .save()
-          .then((results) => res.status(201).send(results))
+          .then((results) => {
+          return updateProjectInventoryModifiedTime(req.params.projectId)
+            .then(() => {
+              res.status(201).send(results);
+            })
+            .catch((err) => {
+              res.status(500).send(err.message);
+            });
+        })
           .catch((errors) => res.status(500).send(errors));
       }
       return Item.findOneAndUpdate(
@@ -125,7 +144,13 @@ const inventoryController = function (Item, ItemType) {
           results._id,
           { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
           { new: true },
-        ).then((result) => res.status(201).send(result));
+        ).then((result) => {
+          updateProjectInventoryModifiedTime(req.params.projectId)
+          .then(() => {
+            res.status(201).send(result);
+          })
+          .catch((err) => res.status(500).send(err.message));
+      });
       });
     }
     return res
@@ -214,7 +239,16 @@ const inventoryController = function (Item, ItemType) {
 
         return inventoryItem
           .save()
-          .then((results) => res.status(201).send(results))
+          .then((results) => {
+            return updateProjectInventoryModifiedTime(req.params.projectId)
+              .then(() => {
+                res.status(201).send(results);
+              })
+              .catch((err) => {
+                // If project update fails, send error response
+                res.status(500).send(err.message);
+              });
+          })
           .catch((errors) => res.status(500).send(errors));
       }
       // if item does exist we will update it
@@ -243,9 +277,13 @@ const inventoryController = function (Item, ItemType) {
           results._id,
           { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
           { new: true },
-        )
-          .then((result) => res.status(201).send(result))
-          .catch((errors) => res.status(500).send(errors));
+        ).then((result) => {
+            updateProjectInventoryModifiedTime(req.params.projectId)
+              .then(() => {
+                res.status(201).send(result);
+              })
+              .catch((err) => res.status(500).send(err.message));
+          });
       });
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
@@ -693,13 +731,17 @@ const inventoryController = function (Item, ItemType) {
       created: Date.now(),
     };
 
-    return Item.findByIdAndUpdate(invId, data, (error, record) => {
-      if (error || record == null) {
-        res.status(400).send({ error: 'No Valid records found' });
-        return;
+    try {
+      const record = await Item.findByIdAndUpdate(invId, data, { new: true });
+      if (!record) {
+        return res.status(404).send({ error: 'No valid record found' });
       }
-      res.status(200).send({ message: 'Inventory successfully updated ' });
-    });
+      await updateProjectInventoryModifiedTime(req.params.projectId);
+
+      res.status(200).send({ message: 'Inventory successfully updated' });
+    } catch (error) {
+      res.status(500).send({ error: 'An internal error occurred' });
+    }
   };
 
   const getInvTypeById = async function (req, res) {
