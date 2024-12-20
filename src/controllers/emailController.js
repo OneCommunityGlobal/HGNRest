@@ -1,5 +1,4 @@
 // emailController.js
-// const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const cheerio = require('cheerio');
 const emailSender = require('../utilities/emailSender');
@@ -83,10 +82,18 @@ const sendEmail = async (req, res) => {
     // Log recipient for debugging
     console.log('Recipient:', to);
 
-    // Send email
-    emailSender(to, subject, handleContentToOC(processedHtml), attachments);
 
-    return res.status(200).send('Email sent successfully');
+    await emailSender(to, subject, html)
+      .then(result => {
+        console.log('Email sent successfully:', result);
+        res.status(200).send(`Email sent successfully to ${to}`);
+      })
+      .catch(error => {
+        console.error('Error sending email:', error);
+        res.status(500).send('Error sending email');
+      });
+
+
   } catch (error) {
     console.error('Error sending email:', error);
     return res.status(500).send('Error sending email');
