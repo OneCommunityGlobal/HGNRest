@@ -28,7 +28,7 @@ const logUserPermissionChangeByAccount = async (req) => {
     const logEntry = new UserPermissionChangeLog({
       logDateTime: dateTime,
       userId,
-      individualName: `${firstName} ${lastName}`,
+      individualName: `INDIVIDUAL: ${firstName} ${lastName}`,
       permissions: Permissions,
       permissionsAdded,
       permissionsRemoved,
