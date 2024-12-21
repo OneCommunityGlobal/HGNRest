@@ -4,8 +4,10 @@ const jobsController = require('../controllers/jobsController'); // Adjust the p
 const router = express.Router();
 
 // Define routes
+router.get('/suggestions', jobsController.getJobTitleSuggestions); 
+router.get('/reset-filters', jobsController.resetJobsFilters); 
+router.get('/summaries', jobsController.getJobSummaries); 
 router.get('/', jobsController.getJobs);
-router.get('/summaries', jobsController.getJobSummaries); // GET request to fetch job summaries
 router.get('/:id', jobsController.getJobById);
 router.post('/', jobsController.createJob);
 router.put('/:id', jobsController.updateJob);

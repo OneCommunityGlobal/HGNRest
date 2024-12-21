@@ -44,33 +44,29 @@ const getJobSummaries = async (req, res) => {
   const { search = '', page = 1, limit = 18, category = '' } = req.query;
 
   try {
-    // Validate pagination parameters
-    const pageNumber = Math.max(1, parseInt(page, 10)); // Page number should be at least 1
-    const limitNumber = Math.max(1, parseInt(limit, 10)); // Limit number of results per page
+    const pageNumber = Math.max(1, parseInt(page, 10)); 
+    const limitNumber = Math.max(1, parseInt(limit, 10)); 
     
     // Construct the query object
     const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' }; // Search based on title (case-insensitive)
-    if (category) query.category = category; // Filter by category if provided
+    if (search) query.title = { $regex: search, $options: 'i' };
+    if (category) query.category = category; 
 
-    // Sorting logic based on multiple criteria
+    // Sorting logic
     const sortCriteria = { 
-      title: 1,        // Sort by title alphabetically
-      datePosted: -1,  // If titles are the same, sort by datePosted (newest first)
-      featured: -1     // If title and datePosted are the same, prioritize featured jobs
+      title: 1,        
+      datePosted: -1,  
+      featured: -1     
     };
 
     // Fetch the total number of jobs matching the query for pagination
     const totalJobs = await Job.countDocuments(query);
-
-    // Fetch job summaries (only the essential fields) for the current page
     const jobs = await Job.find(query)
-      .select('title category location description datePosted featured') // Include fields as needed
-      .sort(sortCriteria) // Apply sorting logic
-      .skip((pageNumber - 1) * limitNumber) // Skip jobs based on the page number
-      .limit(limitNumber); // Limit the results per page
+      .select('title category location description datePosted featured') 
+      .sort(sortCriteria) 
+      .skip((pageNumber - 1) * limitNumber) 
+      .limit(limitNumber); 
 
-    // Return the results along with pagination metadata
     res.json({
       jobs,
       pagination: {
@@ -87,6 +83,57 @@ const getJobSummaries = async (req, res) => {
   }
 };
 
+// Controller to fetch job title suggestions for a dropdown
+const getJobTitleSuggestions = async (req, res) => {
+  const { query = '' } = req.query;
+
+  try {
+    const suggestions = await Job.find({ title: { $regex: query, $options: 'i' } })
+      .distinct('title'); 
+
+    res.json({ suggestions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch job title suggestions', details: error.message });
+  }
+};
+
+const resetJobsFilters = async (req, res) => {
+  const { page = 1, limit = 18 } = req.query;
+
+  try {
+    // Validate pagination parameters
+    const pageNumber = Math.max(1, parseInt(page, 10));
+    const limitNumber = Math.max(1, parseInt(limit, 10));
+
+     // Sorting logic
+    const sortCriteria = { 
+      title: 1,        
+      datePosted: -1,  
+      featured: -1   
+    };
+    // Fetch all jobs without filtering
+    const totalJobs = await Job.countDocuments({});
+    const jobs = await Job.find({})
+      .sort(sortCriteria)
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber);
+
+    // Respond with all jobs and pagination metadata
+    res.json({
+      jobs,
+      pagination: {
+        totalJobs,
+        totalPages: Math.ceil(totalJobs / limitNumber),
+        currentPage: pageNumber,
+        limit: limitNumber,
+        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
+        hasPreviousPage: pageNumber > 1,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset filters or reload jobs', details: error.message });
+  }
+};
 
 // Controller to fetch job details by ID
 const getJobById = async (req, res) => {
@@ -160,9 +207,11 @@ const deleteJob = async (req, res) => {
 // Export controllers as a plain object
 module.exports = {
   getJobs,
+  getJobTitleSuggestions,
   getJobById,
   createJob,
   updateJob,
   deleteJob,
-  getJobSummaries 
+  getJobSummaries,
+  resetJobsFilters
 };
