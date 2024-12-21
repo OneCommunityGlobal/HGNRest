@@ -216,6 +216,7 @@ const permissionsRoles = [
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
