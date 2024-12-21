@@ -291,12 +291,21 @@ const projectController = function (Project) {
       res.status(400).send('Invalid request');
       return;
     }
-    const getId = await hasPermission(req.body.requestor, 'getProjectMembers');
 
+    const getProjMembers = await hasPermission(req.body.requestor, 'getProjectMembers');
+
+    // If a user has permission to post, edit, or suggest tasks, they also have the ability to assign resources to those tasks. 
+    // Therefore, the _id field must be included when retrieving the user profile for project members (resources).
+    const postTask = await hasPermission(req.body.requestor, 'postTask');
+    const updateTask = await hasPermission(req.body.requestor, 'updateTask');
+    const suggestTask = await hasPermission(req.body.requestor, 'suggestTask');
+
+    const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
+    
     userProfile
       .find(
         { projects: projectId },
-        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: canGetId },
       )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
