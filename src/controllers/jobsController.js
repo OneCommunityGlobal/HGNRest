@@ -152,8 +152,7 @@ const getJobById = async (req, res) => {
 
 // Controller to create a new job
 const createJob = async (req, res) => {
-  const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } =
-    req.body;
+  const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } = req.body;
 
   try {
     const newJob = new Job({
@@ -203,6 +202,19 @@ const deleteJob = async (req, res) => {
   }
 };
 
+const getCategories = async (req, res) => {
+  try {
+    const categories = await Job.distinct('category', {});
+
+    // Sort categories alphabetically
+    categories.sort((a, b) => a.localeCompare(b));
+
+    res.status(200).json({ categories });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ message: 'Failed to fetch categories' });
+  }
+};
 
 // Export controllers as a plain object
 module.exports = {
@@ -214,4 +226,5 @@ module.exports = {
   deleteJob,
   getJobSummaries,
   resetJobsFilters
+  getCategories
 };

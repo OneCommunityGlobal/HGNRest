@@ -15,6 +15,8 @@ const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
+const currentWarnings = require('../models/currentWarnings');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -48,6 +50,7 @@ const followUp = require('../models/followUp');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
+const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
 const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
@@ -158,11 +161,12 @@ module.exports = function (app) {
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
+  app.use('/api', currentWarningsRouter);
   app.use('/api', titleRouter);
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
-  app.use('/api/jobs', jobsRouter)
+  app.use('/api/jobs', jobsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
