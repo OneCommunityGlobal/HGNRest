@@ -225,6 +225,6 @@ module.exports = {
   updateJob,
   deleteJob,
   getJobSummaries,
-  resetJobsFilters
+  resetJobsFilters,
   getCategories
 };
