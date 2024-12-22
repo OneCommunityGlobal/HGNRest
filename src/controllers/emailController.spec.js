@@ -1,6 +1,6 @@
+const jwt = require('jsonwebtoken');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const emailController = require('./emailController');
-const jwt = require('jsonwebtoken');
 const userProfile = require('../models/userProfile');
 
 
