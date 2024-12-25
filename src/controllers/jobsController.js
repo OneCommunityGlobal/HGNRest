@@ -135,6 +135,19 @@ const resetJobsFilters = async (req, res) => {
   }
 };
 
+const getCategories = async (req, res) => {
+  try {
+    const categories = await Job.distinct('category', {});
+
+    // Sort categories alphabetically
+    categories.sort((a, b) => a.localeCompare(b));
+
+    res.status(200).json({ categories });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ message: 'Failed to fetch categories' });
+  }
+};
 // Controller to fetch job details by ID
 const getJobById = async (req, res) => {
   const { id } = req.params;
@@ -202,19 +215,7 @@ const deleteJob = async (req, res) => {
   }
 };
 
-const getCategories = async (req, res) => {
-  try {
-    const categories = await Job.distinct('category', {});
 
-    // Sort categories alphabetically
-    categories.sort((a, b) => a.localeCompare(b));
-
-    res.status(200).json({ categories });
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    res.status(500).json({ message: 'Failed to fetch categories' });
-  }
-};
 
 // Export controllers as a plain object
 module.exports = {
