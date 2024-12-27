@@ -175,7 +175,7 @@ const userProfileController = function (UserProfile, Project) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -190,8 +190,13 @@ const userProfileController = function (UserProfile, Project) {
           res.status(500).send({ error: 'User result was invalid' });
           return;
         }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
+        const transformedResults = results.map(user => ({
+          ...user.toObject(),
+          jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
+        }));
+        console.log(transformedResults);
+        cache.setCache('allusers', JSON.stringify(transformedResults));
+        res.status(200).send(transformedResults);
       })
       .catch((error) => res.status(404).send(error));
   };
