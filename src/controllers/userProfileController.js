@@ -722,7 +722,6 @@ const userProfileController = function (UserProfile, Project) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         updatedDiff = record.modifiedPaths();
       }
-      console.log(`jobTitle: ${record.jobTitle}`);
       record
         .save()
         .then((results) => {
