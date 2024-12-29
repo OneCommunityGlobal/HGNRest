@@ -17,6 +17,7 @@ const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
+const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -696,6 +697,7 @@ const userProfileController = function (UserProfile, Project) {
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
+          await logUserPermissionChangeByAccount(req);
         }
 
         if (req.body.endDate !== undefined) {

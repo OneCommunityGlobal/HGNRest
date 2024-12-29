@@ -26,6 +26,7 @@ const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
+const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
@@ -78,7 +79,7 @@ const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')
   mapLocations,
 );
 const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
-  permissionChangeLog,
+  permissionChangeLog, userPermissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
