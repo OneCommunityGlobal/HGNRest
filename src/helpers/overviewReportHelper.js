@@ -237,38 +237,57 @@ const overviewReportHelper = function () {
     data.current = hoursStats[0]?.metCommitment || 0;
     return data;
   }
+
   /**
    * Get volunteer trends by time.
    * Gets the total number of volunteer hours worked per month
    * For now it will be aggregated for the past year
+   *
+   * @param {Number} timeFrame - must be 1, 2, 3, 5, or 10
+   * representing the number of years to cover or 0 to represent all-time.
    */
   async function getVolunteerTrends(timeFrame, offset, customStartDate, customEndDate) {
     const currentDate = moment();
     let startDate;
-    let endDate;
+    const endDate = currentDate.clone().endOf('month').toDate();
 
-    console.log('in trends method');
     switch (timeFrame) {
-      case '0':
-        // random placeholder to gaurentee we are at the earliest possible date
-        startDate = currentDate.clone().subtract(40, 'years').startOf('month').toDate();
-        endDate = currentDate.clone().endOf('month').toDate();
+      case '0': {
+        // 'All-time' option
+        // use the date the oldest user was created
+        const [oldestVolunteer] = await UserProfile.aggregate([
+          {
+            $sort: { createdDate: 1 },
+          },
+          {
+            $limit: 1,
+          },
+          {
+            $project: { createdDate: 1 },
+          },
+        ]);
+        startDate = oldestVolunteer.createdDate;
         break;
+      }
       case '1':
-        startDate = currentDate.clone().subtract(1, 'year').startOf('month').toDate();
-        endDate = currentDate.clone().endOf('month').toDate();
+        // 'This year' option
+        startDate = currentDate.clone().startOf('year').toDate();
         break;
       case '2':
+        // 'Last 2 years' option
         startDate = currentDate.clone().subtract(2, 'years').startOf('month').toDate();
-        endDate = currentDate.clone().endOf('month').toDate();
+        break;
+      case '3':
+        // 'Last 3 years' option
+        startDate = currentDate.clone().subtract(3, 'years').startOf('month').toDate();
         break;
       case '5':
+        // 'Last 5 years' option
         startDate = currentDate.clone().subtract(5, 'years').startOf('month').toDate();
-        endDate = currentDate.clone().endOf('month').toDate();
         break;
       case '10':
+        // 'Last 10 years' option
         startDate = currentDate.clone().subtract(10, 'years').startOf('month').toDate();
-        endDate = currentDate.clone().endOf('month').toDate();
         break;
       default:
         throw new Error('invalid timeFrame');

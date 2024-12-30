@@ -19,9 +19,12 @@ const reportsController = function () {
   const getVolunteerTrends = async (req, res) => {
     const { timeFrame, offset, customStartDate, customEndDate } = req.query;
 
-    console.log(typeof timeFrame);
     if (!timeFrame || !offset) {
       return res.status(400).send({ msg: 'Please provide a timeframe and offset' });
+    }
+
+    if (![0, 1, 2, 3, 5, 10].includes(+timeFrame)) {
+      return res.status(400).send({ msg: 'Invalid timeFrame' });
     }
 
     try {
@@ -80,7 +83,6 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
-        // volunteerTrends,
         completedHours,
         taskAndProjectStats,
         volunteersOverAssignedTime,
@@ -136,7 +138,6 @@ const reportsController = function () {
         ),
         overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getMapLocations(),
-        // overviewReportHelper.getVolunteerTrends(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
           isoEndDate,
@@ -170,7 +171,6 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
-        // volunteerTrends,
         completedHours,
         taskAndProjectStats,
         volunteersOverAssignedTime,
