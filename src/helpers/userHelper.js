@@ -1521,7 +1521,7 @@ const userHelper = function () {
       });
   };
 
-  const getAllWeeksData = async (personId, user) => { // gets me time entries weeks values
+  const getAllWeeksData = async (personId, user) => { // gets time entries values (week)
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
     const currentDate = moment().tz('America/Los_Angeles');
