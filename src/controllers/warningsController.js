@@ -60,13 +60,6 @@ const warningsController = function (UserProfile) {
     }
   };
 
-  // get all the current warnings as that helps with the sorting for the fianl process
-
-  //get users special warnings
-  //get all warnings the user has
-  //filter and return a list of all warnings that are special
-  //in the same format as the other warnings
-  //warnings [{title: 'warning title', abbreviation: 'warning abbreviation', warnings: [{userId, iconId, color, date, description}]}]
   const getSpecialWarnings = async function (req, res, next) {
     if (!currentWarningDescriptions) {
       await getWarningDescriptions();
@@ -84,10 +77,6 @@ const warningsController = function (UserProfile) {
 
       const { warnings } = await UserProfile.findById(userId);
 
-      // look into why the filtering isnt working
-      //must get the filtered warnings taht are special
-      //i need the users' special warnings and the warnings that are special
-
       const filteredWarnings = warnings.filter((warning) => {
         if (specialWarningsArray.includes(warning.description)) {
           return warning;
@@ -101,52 +90,6 @@ const warningsController = function (UserProfile) {
       console.log('error', error);
     }
   };
-  //post new warning via the user profile
-  //assiginng a new warning to a the user
-  // const postNewWarningToUserProfile = async function (req, res) {
-  //   try {
-  //     const { userId } = req.params;
-  //     const { iconId, color, date, description } = req.body;
-
-  //     // console.log('req.body', userId);
-  //     // console.log('typeoff', typeof userId);
-  //     const record = await UserProfile.findById(userId);
-  //     // const updatedWarnings = await UserProfile.findByIdAndUpdate(
-  //     //   {
-  //     //     _id: ObjectId(userId),
-  //     //   },
-  //     //   { $push: { warnings: { userId, iconId, color, date, description } } },
-  //     //   { new: true, upsert: true },
-  //     // );
-  //     // console.log('currentWarningDescriptions', currentWarningDescriptions);
-  //     // const { completedData, sendEmail, size } = filterWarnings(
-  //     //   currentWarningDescriptions,
-  //     //   updatedWarnings.warnings,
-  //     //   iconId,
-  //     //   color,
-  //     // );
-
-  //     // const adminEmails = await getUserRoleByEmail(record);
-  //     // if (sendEmail !== null) {
-  //     //   sendEmailToUser(
-  //     //     sendEmail,
-  //     //     description,
-  //     //     userAssignedWarning,
-  //     //     monitorData,
-  //     //     size,
-  //     //     adminEmails,
-  //     //   );
-  //     // }
-
-  //     // res.status(201).send({ message: 'success', warnings: completedData });
-
-  //     // if (!record) {
-  //     //   return res.status(400).send({ message: 'No valid records found' });
-  //     // }
-  //   } catch (error) {
-  //     console.log(error);
-  //   }
-  // };
 
   const postWarningsToUserProfile = async function (req, res, next) {
     if (!currentWarningDescriptions) {
@@ -157,6 +100,7 @@ const warningsController = function (UserProfile) {
       const { iconId, color, date, description } = req.body;
       const { monitorData } = req.body;
       const record = await UserProfile.findById(userId);
+
       if (!record) {
         return res.status(400).send({ message: 'No valid records found' });
       }
@@ -193,17 +137,17 @@ const warningsController = function (UserProfile) {
         color,
       );
 
-      // const adminEmails = await getUserRoleByEmail(record);
-      // if (sendEmail !== null) {
-      //   sendEmailToUser(
-      //     sendEmail,
-      //     description,
-      //     userAssignedWarning,
-      //     monitorData,
-      //     size,
-      //     adminEmails,
-      //   );
-      // }
+      const adminEmails = await getUserRoleByEmail(record);
+      if (sendEmail !== null) {
+        sendEmailToUser(
+          sendEmail,
+          description,
+          userAssignedWarning,
+          monitorData,
+          size,
+          adminEmails,
+        );
+      }
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
