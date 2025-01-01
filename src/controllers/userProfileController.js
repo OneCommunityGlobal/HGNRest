@@ -455,7 +455,7 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+        req.body.requestor.requestorId === userid || await hasPermission(req.body.requestor, 'editTeamCode'))
     );
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
@@ -487,19 +487,19 @@ const userProfileController = function (UserProfile, Project) {
       }
       // validate userprofile pic
 
-      if (req.body.profilePic) {
-        const results = userHelper.validateProfilePic(req.body.profilePic);
+      // if (req.body.profilePic) {
+      //   const results = userHelper.validateProfilePic(req.body.profilePic);
 
-        if (!results.result) {
-          res.status(400).json(results.errors);
-          return;
-        }
-      }
+      //   if (!results.result) {
+      //     res.status(400).json(results.errors);
+      //     return;
+      //   }
+      // }
 
       const canEditTeamCode =
         req.body.requestor.role === 'Owner' ||
         req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+        await hasPermission(req.body.requestor, 'editTeamCode');
 
       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');
