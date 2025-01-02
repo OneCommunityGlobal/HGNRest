@@ -70,32 +70,19 @@ const sendEmail = async (req, res) => {
       if (!subject) missingFields.push('Subject');
       if (!html) missingFields.push('HTML content');
       if (!to) missingFields.push('Recipient email');
-      console.log('missingFields', missingFields);
       return res
         .status(400)
         .send(`${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`);
     }
 
-    // Extract images and create attachments
-    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
-
-    // Log recipient for debugging
-    console.log('Recipient:', to);
-
-
     await emailSender(to, subject, html)
-      .then(result => {
-        console.log('Email sent successfully:', result);
+      .then(() => {
         res.status(200).send(`Email sent successfully to ${to}`);
       })
-      .catch(error => {
-        console.error('Error sending email:', error);
+      .catch(() => {
         res.status(500).send('Error sending email');
       });
-
-
   } catch (error) {
-    console.error('Error sending email:', error);
     return res.status(500).send('Error sending email');
   }
 };
@@ -129,14 +116,12 @@ const sendEmailToAll = async (req, res) => {
     if (recipientEmails.length === 0) {
       throw new Error('No recipients defined');
     }
-
     const emailContentToOCmembers = handleContentToOC(processedHtml);
     await Promise.all(
       recipientEmails.map((email) =>
         emailSender(email, subject, emailContentToOCmembers, attachments),
       ),
     );
-
     const emailSubscribers = await EmailSubcriptionList.find({ email: { $exists: true, $ne: '' } });
     console.log('# sendEmailToAll emailSubscribers', emailSubscribers.length);
     await Promise.all(
@@ -145,7 +130,6 @@ const sendEmailToAll = async (req, res) => {
         return emailSender(email, subject, emailContentToNonOCmembers, attachments);
       }),
     );
-
     return res.status(200).send('Email sent successfully');
   } catch (error) {
     console.error('Error sending email:', error);
