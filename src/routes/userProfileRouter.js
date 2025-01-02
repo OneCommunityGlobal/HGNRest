@@ -5,6 +5,7 @@ const { ValidationError } = require('../utilities/errorHandling/customError');
 
 const routes = function (userProfile, project) {
   const controller = require('../controllers/userProfileController')(userProfile, project);
+  // console.log('Controller:', controller);
 
   const userProfileRouter = express.Router();
 
@@ -101,6 +102,13 @@ const routes = function (userProfile, project) {
     .post(controller.authorizeUser);
 
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
+
+  userProfileRouter
+    .route('/userProfile/:userId/weekly-summary')
+    .post(
+      body('summary').notEmpty().withMessage('Summary is required'),
+      controller.submitCurrentWeekSummaryCount,
+    );
 
   return userProfileRouter;
 };

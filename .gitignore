@@ -25,3 +25,4 @@ testem.log
 
 # OS specific
 .DS_Store
+.codegpt

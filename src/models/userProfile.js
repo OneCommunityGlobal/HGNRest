@@ -173,7 +173,14 @@ const userProfileSchema = new Schema({
       uploadDate: { type: Date },
     },
   ],
-  weeklySummariesCount: { type: Number, default: 0 },
+  // weeklySummariesCount: { type: Number, default: 0 },
+  weeklySummariesCount: [
+    {
+      weekStartDate: { type: Date, required: true },
+      summariesSubmittedThisWeek: { type: Number, required: true },
+    },
+  ],
+
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
   resetPwd: { type: String },

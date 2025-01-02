@@ -10,6 +10,7 @@ const UserProfile = require('../models/userProfile');
 const TimeEntries = require('../models/timeentry');
 const Task = require('../models/task');
 const Project = require('../models/project');
+const mongoose = require('mongoose');
 
 function calculateGrowthPercentage(current, prev) {
   // Handles undefined cases
@@ -1573,10 +1574,6 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) {
-    console.log('startDate:', startDate);
-    console.log('endDate:', endDate);
-    console.log('comparisonStartDate:', comparisonStartDate);
-    console.log('comparisonEndDate:', comparisonEndDate);
     const currentSummaries = await UserProfile.aggregate([
       {
         $match: {
@@ -1612,6 +1609,90 @@ const overviewReportHelper = function () {
     return { current: currentCount, comparison: comparisonCount, percentage };
   }
 
+  const updateSummaryWithComparison = async (
+    startDate,
+    endDate,
+    summary,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
+    // 验证是否传入了日期
+    if (!startDate || !endDate) {
+      throw new Error('Start date and end date are required');
+    }
+
+    // 获取当前时间范围内的数据
+    const currentSummaries = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+          lastModifiedDate: {
+            $gte: new Date(startDate), // 直接使用标准化的日期
+            $lte: new Date(endDate),
+          },
+        },
+      },
+      { $unwind: '$weeklySummariesCount' },
+      {
+        $match: {
+          'weeklySummariesCount.weekStartDate': {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSummaries: { $sum: '$weeklySummariesCount.summariesSubmittedThisWeek' },
+        },
+      },
+    ]);
+
+    const currentCount = currentSummaries[0]?.totalSummaries || 0;
+
+    // 获取对比时间范围内的数据
+    let comparisonCount = 0;
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparisonSummaries = await UserProfile.aggregate([
+        {
+          $match: {
+            isActive: true,
+            lastModifiedDate: {
+              $gte: new Date(comparisonStartDate),
+              $lte: new Date(comparisonEndDate),
+            },
+          },
+        },
+        { $unwind: '$weeklySummariesCount' },
+        {
+          $match: {
+            'weeklySummariesCount.weekStartDate': {
+              $gte: new Date(comparisonStartDate),
+              $lte: new Date(comparisonEndDate),
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSummaries: { $sum: '$weeklySummariesCount.summariesSubmittedThisWeek' },
+          },
+        },
+      ]);
+      comparisonCount = comparisonSummaries[0]?.totalSummaries || 0;
+    }
+
+    // 计算增长百分比
+    const percentage = calculateGrowthPercentage(currentCount, comparisonCount);
+
+    return {
+      current: currentCount,
+      comparison: comparisonCount,
+      percentage: percentage,
+    };
+  };
+
   return {
     getVolunteerTrends,
     getMapLocations,
@@ -1635,6 +1716,7 @@ const overviewReportHelper = function () {
     getVolunteersCompletedHours,
     getTeamsWithActiveMembers,
     getTotalSummariesSubmitted,
+    updateSummaryWithComparison,
   };
 };
 

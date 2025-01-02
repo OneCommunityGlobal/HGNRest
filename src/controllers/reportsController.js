@@ -84,6 +84,7 @@ const reportsController = function () {
         completedHours,
         taskAndProjectStats,
         totalSummariesSubmitted,
+        updateSummaryWithComparison,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
           isoStartDate,
@@ -146,6 +147,12 @@ const reportsController = function () {
           comparisonStartDate,
           comparisonEndDate,
         ),
+        overviewReportHelper.updateSummaryWithComparison(
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
+        ),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -164,6 +171,7 @@ const reportsController = function () {
         completedHours,
         taskAndProjectStats,
         totalSummariesSubmitted,
+        updateSummaryWithComparison,
       });
     } catch (err) {
       console.log(err);
@@ -496,11 +504,9 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide an end date' });
     }
     if (!activeMembersMinimum) {
-      return res
-        .status(400)
-        .send({
-          msg: 'Please provide the number of minimum active members in the team (activeMembersMinimum query param)',
-        });
+      return res.status(400).send({
+        msg: 'Please provide the number of minimum active members in the team (activeMembersMinimum query param)',
+      });
     }
 
     const isoEndDate = new Date(endDate);

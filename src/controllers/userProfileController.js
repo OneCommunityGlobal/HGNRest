@@ -24,6 +24,7 @@ const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
+const { updateSummaryWithComparison } = require('../helpers/overviewReportHelper');
 
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
@@ -1536,6 +1537,73 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const submitCurrentWeekSummaryCount = async (req, res) => {
+    // 从 req.query 获取参数
+    const { summary, startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
+
+    // 打印日志，确保参数正确解析
+    console.log('Summary:', summary);
+    console.log('Start Date:', startDate);
+    console.log('End Date:', endDate);
+    console.log('Comparison Start Date:', comparisonStartDate);
+    console.log('Comparison End Date:', comparisonEndDate);
+
+    // 检查是否提供了 summary
+    if (!summary) {
+      return res.status(400).send({ error: 'Summary is required' });
+    }
+
+    // 日期解析和标准化
+    const parseAndValidateDate = (dateString, fieldName) => {
+      const parsedDate = moment(
+        dateString,
+        ['YYYY-MM-DD', 'YYYY-M-D', 'YYYY/MM/DD', 'YYYY/M/D'],
+        true,
+      );
+      if (!parsedDate.isValid()) {
+        throw new Error(`Invalid date format for ${fieldName}: ${dateString}`);
+      }
+      return parsedDate.format('YYYY-MM-DD'); // 返回标准化的日期格式
+    };
+
+    let standardizedStartDate,
+      standardizedEndDate,
+      standardizedComparisonStartDate,
+      standardizedComparisonEndDate;
+
+    try {
+      // 标准化输入日期
+      standardizedStartDate = parseAndValidateDate(startDate, 'startDate');
+      standardizedEndDate = parseAndValidateDate(endDate, 'endDate');
+      standardizedComparisonStartDate = comparisonStartDate
+        ? parseAndValidateDate(comparisonStartDate, 'comparisonStartDate')
+        : null;
+      standardizedComparisonEndDate = comparisonEndDate
+        ? parseAndValidateDate(comparisonEndDate, 'comparisonEndDate')
+        : null;
+    } catch (error) {
+      return res.status(400).send({ error: error.message });
+    }
+
+    try {
+      // 调用主业务逻辑
+      const result = await updateSummaryWithComparison(
+        standardizedStartDate,
+        standardizedEndDate,
+        summary,
+        standardizedComparisonStartDate,
+        standardizedComparisonEndDate,
+      );
+
+      // 成功返回结果
+      console.log('Result returned:', result);
+      res.status(200).send(result);
+    } catch (error) {
+      console.error('Error occurred:', error);
+      res.status(500).send({ error: error.message });
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1558,6 +1626,7 @@ const userProfileController = function (UserProfile, Project) {
     changeUserRehireableStatus,
     authorizeUser,
     getProjectsByPerson,
+    submitCurrentWeekSummaryCount,
   };
 };
 
