@@ -15,6 +15,8 @@ const title = new Schema({
     teamName: { type: String },
     _id: { type: String },
   },
+  shortName: { type: String, require: true },
+  order: {type: Number, default: 0},
 
 });
 
