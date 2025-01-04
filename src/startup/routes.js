@@ -110,6 +110,7 @@ const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(bui
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
+const eventRouter = require('../routes/eventRouter')();
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
   invTypeBase,
   materialType,
@@ -179,4 +180,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('api', bmIssueRouter);
+  app.use('/api', eventRouter);
 };
