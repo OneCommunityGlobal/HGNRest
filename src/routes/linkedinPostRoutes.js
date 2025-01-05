@@ -19,9 +19,15 @@ const routes = () => {
   linkedinRouter.route('/postToLinkedIn').post(
     upload.array('media', 9), // Handle up to 9 media files
     (req, res, next) => {
+      // Parse scheduleTime if it exists
+      if (req.body.scheduleTime) {
+        req.body.scheduleTime = new Date(req.body.scheduleTime);
+      }
+
       // Log received data for debugging
       console.log('Received request:', {
         body: req.body,
+        scheduleTime: req.body.scheduleTime,
         files: req.files?.map((f) => ({
           name: f.originalname,
           type: f.mimetype,
@@ -32,6 +38,8 @@ const routes = () => {
     },
     controller.postToLinkedin,
   );
+
+  linkedinRouter.route('/scheduledPosts').get(controller.getScheduledPosts);
 
   return linkedinRouter;
 };
