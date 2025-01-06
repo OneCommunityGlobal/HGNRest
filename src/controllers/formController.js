@@ -147,7 +147,7 @@ const formController = function (Form,formResponse) {
             }
             // check if userexists or not.
             let result=await userprofile.find({_id:submittedBy})
-            if(result[0].isActive === false || result===undefined || result === null || result.length===0){
+            if(result===undefined || result === null || result.length===0 || result[0].isActive === false ){
                 return res.status(400).json({message: 'Invalid User'});
             }
             // Create a new form response
