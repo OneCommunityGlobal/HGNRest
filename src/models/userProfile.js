@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default () {
+    default() {
       return this.createdDate;
     },
   },
@@ -132,6 +132,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
+      iconId: { type: String, required: true },
     },
   ],
   location: {
