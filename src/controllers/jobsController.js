@@ -62,7 +62,7 @@ const getJobSummaries = async (req, res) => {
     // Fetch the total number of jobs matching the query for pagination
     const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
-      .select('title category location description datePosted featured') 
+      .select('title category location description datePosted featured jobDetailsLink') 
       .sort(sortCriteria) 
       .skip((pageNumber - 1) * limitNumber) 
       .limit(limitNumber); 
