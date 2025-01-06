@@ -3,9 +3,9 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 /**
- * This schema represents a team in the system. 
- * 
- * Deprecated field: teamCode. Team code is no longer associated with a team. 
+ * This schema represents a team in the system.
+ *
+ * Deprecated field: teamCode. Team code is no longer associated with a team.
  * Team code is used as a text string identifier in the user profile data model.
  */
 const team = new Schema({
@@ -15,9 +15,10 @@ const team = new Schema({
   modifiedDatetime: { type: Date, default: Date.now() },
   members: [
     {
-      userId: { type: mongoose.SchemaTypes.ObjectId, required: true },
+      userId: { type: mongoose.SchemaTypes.ObjectId, required: true, index : true },
       addDateTime: { type: Date, default: Date.now(), ref: 'userProfile' },
       visible: { type : 'Boolean', default:true},
+
     },
   ],
   // Deprecated field
@@ -34,5 +35,6 @@ const team = new Schema({
     },
   },
 });
+
 
 module.exports = mongoose.model('team', team, 'teams');
