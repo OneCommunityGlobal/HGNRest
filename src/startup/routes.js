@@ -4,7 +4,6 @@ const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
 // const actionItem = require('../models/actionItem');
-const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
 const popup = require('../models/popupEditor');
@@ -16,6 +15,8 @@ const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
+const currentWarnings = require('../models/currentWarnings');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -25,6 +26,7 @@ const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
+const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
@@ -49,12 +51,14 @@ const followUp = require('../models/followUp');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
+const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
 const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
+const jobsRouter = require('../routes/jobsRouter');
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
@@ -75,7 +79,7 @@ const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')
   mapLocations,
 );
 const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
-  permissionChangeLog,
+  permissionChangeLog, userPermissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
@@ -160,11 +164,13 @@ module.exports = function (app) {
   app.use('/api', isEmailExistsRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
+  app.use('/api', currentWarningsRouter);
   app.use('/api', titleRouter);
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api',formRouter);
+  app.use('/api/jobs', jobsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
