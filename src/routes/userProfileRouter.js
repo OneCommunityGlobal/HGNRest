@@ -74,6 +74,10 @@ const routes = function (userProfile, project) {
     .patch(controller.changeUserRehireableStatus);
 
   userProfileRouter
+    .route('/userProfile/:userId/toggleInvisibility')
+    .patch(controller.toggleInvisibility);
+
+  userProfileRouter
     .route('/userProfile/singleName/:singleName')
     .get(controller.getUserBySingleName);
 
@@ -118,7 +122,11 @@ const routes = function (userProfile, project) {
   
   userProfileRouter.route('/userProfile/profileImage/remove').put(controller.removeProfileImage);
   userProfileRouter.route('/userProfile/profileImage/imagefromwebsite').put(controller.updateProfileImageFromWebsite);
-  
+
+  userProfileRouter
+    .route('/userProfile/autocomplete/:searchText')
+    .get(controller.getUserByAutocomplete);
+
   return userProfileRouter;
 };
 
