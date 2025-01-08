@@ -169,7 +169,8 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const getUserProfiles = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
+    if (!(await checkPermission(req, 'getUserProfiles') ||
+          await checkPermission(req, 'pauseResumeUser'))) {
       forbidden(res, 'You are not authorized to view all users');
       return;
     }
@@ -1229,7 +1230,9 @@ const userProfileController = function (UserProfile, Project) {
     );
 
     if (
-      !((await hasPermission(req.body.requestor, 'changeUserStatus')) && canEditProtectedAccount)
+      !((await hasPermission(req.body.requestor, 'changeUserStatus') 
+      || await hasPermission(req.body.requestor, 'pauseResumeUser')) 
+      && canEditProtectedAccount)
     ) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
         logger.logInfo(
