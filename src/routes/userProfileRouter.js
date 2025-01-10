@@ -74,6 +74,10 @@ const routes = function (userProfile, project) {
     .patch(controller.changeUserRehireableStatus);
 
   userProfileRouter
+    .route('/userProfile/:userId/toggleInvisibility')
+    .patch(controller.toggleInvisibility);
+
+  userProfileRouter
     .route('/userProfile/singleName/:singleName')
     .get(controller.getUserBySingleName);
 
