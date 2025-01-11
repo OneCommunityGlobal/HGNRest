@@ -293,96 +293,38 @@ const overviewReportHelper = function () {
         throw new Error('invalid timeFrame');
     }
 
-    console.log('before query');
-    return UserProfile.aggregate([
+    return TimeEntries.aggregate([
       {
         $match: {
-          isActive: true,
-          createdDate: { $lte: endDate },
+          createdDateTime: { $gte: startDate, $lte: endDate },
         },
       },
       {
-        $addFields: {
-          activeMonths: {
-            $map: {
-              input: {
-                $range: [
-                  0,
-                  { $add: [{ $subtract: [{ $year: endDate }, { $year: '$createdDate' }] }, 1] },
-                ],
-              },
-              as: 'yearOffset',
-              in: {
-                year: { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
-                months: {
-                  $cond: [
-                    {
-                      $eq: [
-                        { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
-                        { $year: new Date() },
-                      ],
-                    },
-                    { $range: [{ $month: '$createdDate' }, { $month: new Date() }] },
-                    { $range: [1, 13] },
-                  ],
-                },
-              },
-            },
-          },
+        $project: {
+          createdYear: { $year: '$createdDateTime' },
+          createdWeek: { $week: '$createdDateTime' },
+          totalSeconds: 1,
         },
       },
-      { $unwind: '$activeMonths' },
-      { $unwind: '$activeMonths.months' },
       {
         $group: {
           _id: {
-            year: '$activeMonths.year',
-            month: '$activeMonths.months',
+            year: '$createdYear',
+            week: '$createdWeek',
           },
-          activeVolunteersCount: { $sum: 1 },
+          totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
         },
       },
-      // Step 5: Sort results in chronological order.
       {
-        $sort: {
-          '_id.year': 1,
-          '_id.month': 1,
+        $project: {
+          _id: 1,
+          totalHours: { $round: ['$totalHours', 2] },
         },
+      },
+      {
+        $sort: { '_id.year': 1, '_id.week': 1 },
       },
     ]);
-
-    // return TimeEntries.aggregate([
-    //   {
-    //     $match: {
-    //       dateOfWork: {
-    //         $gte: moment(startDate).format('YYYY-MM-DD'),
-    //         $lte: moment(endDate).format('YYYY-MM-DD'),
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $group: {
-    //       _id: {
-    //         year: { $year: { $dateFromString: { dateString: '$dateOfWork' } } },
-    //         month: { $month: { $dateFromString: { dateString: '$dateOfWork' } } },
-    //       },
-    //       totalSecondsWorked: {
-    //         $sum: '$totalSeconds',
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $project: {
-    //       _id: 1,
-    //       totalHours: {
-    //         $divide: ['$totalSecondsWorked', 3600],
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $sort: { '_id.year': 1, '_id.month': 1 },
-    //   },
-    // ]);
   }
 
   /**
