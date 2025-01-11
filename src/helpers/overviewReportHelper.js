@@ -293,38 +293,76 @@ const overviewReportHelper = function () {
         throw new Error('invalid timeFrame');
     }
 
-    return TimeEntries.aggregate([
-      {
-        $match: {
-          createdDateTime: { $gte: startDate, $lte: endDate },
-        },
-      },
-      {
-        $project: {
-          createdYear: { $year: '$createdDateTime' },
-          createdWeek: { $week: '$createdDateTime' },
-          totalSeconds: 1,
-        },
-      },
-      {
-        $group: {
-          _id: {
-            year: '$createdYear',
-            week: '$createdWeek',
+    let data;
+    if (offset === 'week') {
+      data = TimeEntries.aggregate([
+        {
+          $match: {
+            createdDateTime: { $gte: startDate, $lte: endDate },
           },
-          totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
         },
-      },
-      {
-        $project: {
-          _id: 1,
-          totalHours: { $round: ['$totalHours', 2] },
+        {
+          $project: {
+            createdYear: { $year: '$createdDateTime' },
+            createdWeek: { $week: '$createdDateTime' },
+            totalSeconds: 1,
+          },
         },
-      },
-      {
-        $sort: { '_id.year': 1, '_id.week': 1 },
-      },
-    ]);
+        {
+          $group: {
+            _id: {
+              year: '$createdYear',
+              week: '$createdWeek',
+            },
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            totalHours: { $round: ['$totalHours', 2] },
+          },
+        },
+        {
+          $sort: { '_id.year': 1, '_id.week': 1 },
+        },
+      ]);
+    } else if (offset === 'month') {
+      data = TimeEntries.aggregate([
+        {
+          $match: {
+            createdDateTime: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $project: {
+            createdYear: { $year: '$createdDateTime' },
+            createdMonth: { $month: '$createdDateTime' },
+            totalSeconds: 1,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: '$createdYear',
+              month: '$createdMonth',
+            },
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            totalHours: { $round: ['$totalHours', 2] },
+          },
+        },
+        {
+          $sort: { '_id.year': 1, '_id.month': 1 },
+        },
+      ]);
+    }
+
+    return data;
   }
 
   /**

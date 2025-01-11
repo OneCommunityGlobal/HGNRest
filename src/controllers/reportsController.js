@@ -27,6 +27,10 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Invalid timeFrame' });
     }
 
+    if (!['week', 'month'].includes(offset)) {
+      return res.status(400).send({ msg: 'Offset param must either be `week` or `month`' });
+    }
+
     try {
       const data = await overviewReportHelper.getVolunteerTrends(
         timeFrame,
