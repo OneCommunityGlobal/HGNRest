@@ -27,6 +27,7 @@ const userProfileSchema = new Schema({
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
+  finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
     type: String,
     required: true,
@@ -127,6 +128,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
+      iconId: { type: String, required: true },
     },
   ],
   location: {
@@ -230,6 +232,7 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
+  badgeCount: { type: Number, default: 0 },
   teamCode: {
     type: String,
     default: '',
@@ -269,5 +272,8 @@ userProfileSchema.pre('save', function (next) {
     })
     .catch((error) => next(error));
 });
+
+userProfileSchema.index({ teamCode: 1 });
+userProfileSchema.index({ email: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
