@@ -456,10 +456,10 @@ const overviewReportHelper = function () {
    * @param {Date} isoEndDate
    */
   async function getAnniversaries(
-    isoStartDate, 
+    isoStartDate,
     isoEndDate,
     isoComparisonStartDate,
-    isoComparisonEndDate
+    isoComparisonEndDate,
   ) {
     /**
      * Gets start and end dates exactly X months ago
@@ -476,36 +476,36 @@ const overviewReportHelper = function () {
       endDateCopy.setMonth(endDateCopy.getMonth() - timeDifferenceInMonths);
 
       return {
-        startDate: startDateCopy, 
-        endDate: endDateCopy
-      }
-    }
+        startDate: startDateCopy,
+        endDate: endDateCopy,
+      };
+    };
 
-     /**
+    /**
      * Gets list of users created within a given date range
      * @param {Date} startDate
      * @param {Date} endDate
      * @returns {Array<Object>} Array of user objects
      */
-     const getUsersCreated = async (startDate, endDate) => {
+    const getUsersCreated = async (startDate, endDate) => {
       const users = await UserProfile.aggregate([
         {
           $match: {
-            createdDate:{
+            createdDate: {
               $gte: startDate,
-              $lte: endDate
+              $lte: endDate,
             },
-            isActive: true
-          }
+            isActive: true,
+          },
         },
         {
           $project: {
             _id: 1,
             firstName: 1,
             lastName: 1,
-            profilePic: { $ifNull: ["$profilePic", null]}
-          }
-        }
+            profilePic: { $ifNull: ['$profilePic', null] },
+          },
+        },
       ]);
       return users;
     };
@@ -513,42 +513,56 @@ const overviewReportHelper = function () {
     const dates6MonthsAgo = getPastDates(isoStartDate, isoEndDate, 6);
     const dates1YearAgo = getPastDates(isoStartDate, isoEndDate, 12);
 
-    const anniversaries6Months = await getUsersCreated(dates6MonthsAgo.startDate, dates6MonthsAgo.endDate);
-    const anniversaries1Year = await getUsersCreated(dates1YearAgo.startDate, dates1YearAgo.endDate);
+    const anniversaries6Months = await getUsersCreated(
+      dates6MonthsAgo.startDate,
+      dates6MonthsAgo.endDate,
+    );
+    const anniversaries1Year = await getUsersCreated(
+      dates1YearAgo.startDate,
+      dates1YearAgo.endDate,
+    );
 
     const response = {
-      "6Months": {
+      '6Months': {
         users: anniversaries6Months,
       },
-      "1Year": {
+      '1Year': {
         users: anniversaries1Year,
-      }
+      },
     };
 
     /**
-     * If comparison dates are included in request, 
+     * If comparison dates are included in request,
      * modify response to include comparison percentages
      */
     if (isoComparisonStartDate && isoComparisonEndDate) {
-      const comparisonDates6MonthsAgo = getPastDates(isoComparisonStartDate, isoComparisonEndDate, 6);
-      const comparisonDates1YearAgo = getPastDates(isoComparisonStartDate, isoComparisonEndDate, 12);
+      const comparisonDates6MonthsAgo = getPastDates(
+        isoComparisonStartDate,
+        isoComparisonEndDate,
+        6,
+      );
+      const comparisonDates1YearAgo = getPastDates(
+        isoComparisonStartDate,
+        isoComparisonEndDate,
+        12,
+      );
 
       const comparisonAnniversaries6Months = await getUsersCreated(
-        comparisonDates6MonthsAgo.startDate, 
-        comparisonDates6MonthsAgo.endDate
+        comparisonDates6MonthsAgo.startDate,
+        comparisonDates6MonthsAgo.endDate,
       );
       const comparisonAnniversaries1Year = await getUsersCreated(
-        comparisonDates1YearAgo.startDate, 
-        comparisonDates1YearAgo.endDate
+        comparisonDates1YearAgo.startDate,
+        comparisonDates1YearAgo.endDate,
       );
 
-      response["6Months"].comparisonPercentage = calculateGrowthPercentage(
-        anniversaries6Months.length, 
-        comparisonAnniversaries6Months.length
+      response['6Months'].comparisonPercentage = calculateGrowthPercentage(
+        anniversaries6Months.length,
+        comparisonAnniversaries6Months.length,
       );
-      response["1Year"].comparisonPercentage = calculateGrowthPercentage(
-        anniversaries1Year.length, 
-        comparisonAnniversaries1Year.length
+      response['1Year'].comparisonPercentage = calculateGrowthPercentage(
+        anniversaries1Year.length,
+        comparisonAnniversaries1Year.length,
       );
     }
 
@@ -586,10 +600,7 @@ const overviewReportHelper = function () {
   /**
    *  Get the number of members in team and not in team, with percentage
    */
-  async function getTeamMembersCount(
-    isoEndDate,
-    isoComparisonEndDate,
-  ) {
+  async function getTeamMembersCount(isoEndDate, isoComparisonEndDate) {
     // Gets counts for total members and members in team within a given time range
     const getData = async (endDate) => {
       const [data] = await UserProfile.aggregate([
@@ -599,7 +610,7 @@ const overviewReportHelper = function () {
             createdDate: {
               $lte: endDate,
             },
-          }
+          },
         },
         {
           $facet: {
@@ -631,28 +642,34 @@ const overviewReportHelper = function () {
 
       return {
         totalMembers,
-        usersInTeam, 
+        usersInTeam,
         usersNotInTeam,
-      }; 
+      };
     };
-    
-    const { 
+
+    const {
       totalMembers: currentTotalMembers,
-      usersInTeam: currentUsersInTeam, 
-      usersNotInTeam: currentUsersNotInTeam
+      usersInTeam: currentUsersInTeam,
+      usersNotInTeam: currentUsersNotInTeam,
     } = await getData(isoEndDate);
-  
+
     // Calculate percentages out of total
-    const percentageOutOfTotalInTeam = Math.round((currentUsersInTeam / currentTotalMembers) * 100) / 100;
-    const percentageOutOfTotalNotInTeam =  Math.round((currentUsersNotInTeam / currentTotalMembers) * 100) / 100;
+    const percentageOutOfTotalInTeam =
+      Math.round((currentUsersInTeam / currentTotalMembers) * 100) / 100;
+    const percentageOutOfTotalNotInTeam =
+      Math.round((currentUsersNotInTeam / currentTotalMembers) * 100) / 100;
 
     // Calculate comparison percentages
-    const { 
-      usersInTeam: comparisonUsersInTeam, 
-      usersNotInTeam: comparisonUsersNotInTeam
-    } = await getData(isoComparisonEndDate);
-    const comparisonPercentageInTeam = calculateGrowthPercentage(currentUsersInTeam, comparisonUsersInTeam);
-    const comparisonPercentageNotInTeam = calculateGrowthPercentage(currentUsersNotInTeam, comparisonUsersNotInTeam);
+    const { usersInTeam: comparisonUsersInTeam, usersNotInTeam: comparisonUsersNotInTeam } =
+      await getData(isoComparisonEndDate);
+    const comparisonPercentageInTeam = calculateGrowthPercentage(
+      currentUsersInTeam,
+      comparisonUsersInTeam,
+    );
+    const comparisonPercentageNotInTeam = calculateGrowthPercentage(
+      currentUsersNotInTeam,
+      comparisonUsersNotInTeam,
+    );
 
     return {
       inTeam: {
@@ -1092,13 +1109,13 @@ const overviewReportHelper = function () {
         {
           $facet: {
             activeVolunteers: [
-              { 
-                $match: { 
-                  isActive: true, 
-                  createdDate: { $lte: isoEndDate } 
-                } 
-              }, 
-              { $count: 'count' }
+              {
+                $match: {
+                  isActive: true,
+                  createdDate: { $lte: isoEndDate },
+                },
+              },
+              { $count: 'count' },
             ],
             newVolunteers: [
               {
@@ -1126,75 +1143,77 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-  
+
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
       const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
-  
+
       return {
         activeVolunteers,
         newVolunteers,
         deactivatedVolunteers,
-        totalVolunteers
+        totalVolunteers,
       };
     };
-  
+
     // Get data for the current time range
     const {
       activeVolunteers: currentActiveVolunteers,
       newVolunteers: currentNewVolunteers,
       deactivatedVolunteers: currentDeactivatedVolunteers,
-      totalVolunteers: currentTotalVolunteers
+      totalVolunteers: currentTotalVolunteers,
     } = await getVolunteerData(startDate, endDate);
-  
+
     const res = {
       activeVolunteers: {
         count: currentActiveVolunteers,
-        percentageOutOfTotal: Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal:
+          Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       newVolunteers: {
         count: currentNewVolunteers,
-        percentageOutOfTotal: Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal:
+          Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       deactivatedVolunteers: {
         count: currentDeactivatedVolunteers,
-        percentageOutOfTotal: Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
+        percentageOutOfTotal:
+          Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       totalVolunteers: { count: currentTotalVolunteers },
     };
-  
+
     // Add comparison percentage if comparison dates are provided
     if (comparisonStartDate && comparisonEndDate) {
       const {
         activeVolunteers: comparisonActiveVolunteers,
         newVolunteers: comparisonNewVolunteers,
         deactivatedVolunteers: comparisonDeactivatedVolunteers,
-        totalVolunteers: comparisonTotalVolunteers
+        totalVolunteers: comparisonTotalVolunteers,
       } = await getVolunteerData(comparisonStartDate, comparisonEndDate);
-  
+
       // Add comparison percentage using calculateGrowthPercentage function
       res.activeVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentActiveVolunteers,
-        comparisonActiveVolunteers
+        comparisonActiveVolunteers,
       );
       res.newVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentNewVolunteers,
-        comparisonNewVolunteers
+        comparisonNewVolunteers,
       );
       res.deactivatedVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentDeactivatedVolunteers,
-        comparisonDeactivatedVolunteers
+        comparisonDeactivatedVolunteers,
       );
       res.totalVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentTotalVolunteers,
-        comparisonTotalVolunteers
+        comparisonTotalVolunteers,
       );
     }
-  
+
     return res;
   };
-  
 
   /**
    *
@@ -1604,58 +1623,58 @@ const overviewReportHelper = function () {
   /**
    * Gets the total number of teams with a minimum number of active members
    * within a given end date.
-   * @param {Date} isoEndDate 
-   * @param {Number} activeMembersMinimum 
+   * @param {Date} isoEndDate
+   * @param {Number} activeMembersMinimum
    */
   async function getTeamsWithActiveMembers(isoEndDate, activeMembersMinimum) {
     const result = await Team.aggregate([
       {
         $match: {
           isActive: true,
-          createdDatetime: { $lte: isoEndDate }
-        }
+          createdDatetime: { $lte: isoEndDate },
+        },
       },
       {
-        $unwind: "$members" 
+        $unwind: '$members',
       },
       // Access user profile details
       {
         $lookup: {
-          from: "userProfiles", 
-          localField: "members.userId", 
-          foreignField: "_id",
-          as: "userDetails"
-        }
+          from: 'userProfiles',
+          localField: 'members.userId',
+          foreignField: '_id',
+          as: 'userDetails',
+        },
       },
       // Filter for only active team members
       {
         $match: {
-          "userDetails": {
-            $elemMatch: { isActive: true }
-          }
-        }
+          userDetails: {
+            $elemMatch: { isActive: true },
+          },
+        },
       },
       // Group members in the same team back together and count its number of active members
       {
         $group: {
-          _id: "$_id",
-          activeMembersCount: { $sum: 1 }
-        }
+          _id: '$_id',
+          activeMembersCount: { $sum: 1 },
+        },
       },
       // Filter for teams who have an active member count >= activeMembersNum
       {
         $match: {
-          activeMembersCount: { $gte: activeMembersMinimum }
-        }
+          activeMembersCount: { $gte: activeMembersMinimum },
+        },
       },
       {
-        $count: "totalTeams"
-      }
+        $count: 'totalTeams',
+      },
     ]);
 
     const totalTeams = result[0]?.totalTeams ? result[0].totalTeams : 0;
 
-    return { count: totalTeams }
+    return { count: totalTeams };
   }
 
   async function getVolunteersOverAssignedTime(isoStartDate, isoEndDate) {
@@ -1699,10 +1718,7 @@ const overviewReportHelper = function () {
           totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert total time to hours
           weeklycommittedHours: 1,
           hoursOverCommitment: {
-            $subtract: [
-              { $divide: ['$totalSeconds', 3600] },
-              '$weeklycommittedHours',
-            ], // Calculate hours over commitment
+            $subtract: [{ $divide: ['$totalSeconds', 3600] }, '$weeklycommittedHours'], // Calculate hours over commitment
           },
         },
       },
@@ -1716,7 +1732,7 @@ const overviewReportHelper = function () {
         $count: 'volunteersOverAssignedTime', // Count matching volunteers
       },
     ]);
-  
+
     return { count: volunteersOverAssignedTime[0]?.volunteersOverAssignedTime || 0 };
   }
 
@@ -1724,7 +1740,7 @@ const overviewReportHelper = function () {
     isoStartDate,
     isoEndDate,
     isoComparisonStartDate,
-    isoComparisonEndDate
+    isoComparisonEndDate,
   ) {
     // Helper function to get count of volunteers meeting their commitment.
     const getCompletedHoursData = async (start, end) => {
@@ -1792,12 +1808,9 @@ const overviewReportHelper = function () {
     if (isoComparisonStartDate && isoComparisonEndDate) {
       const comparisonCount = await getCompletedHoursData(
         isoComparisonStartDate,
-        isoComparisonEndDate
+        isoComparisonEndDate,
       );
-      const comparisonPercentage = calculateGrowthPercentage(
-        currentCount,
-        comparisonCount
-      );
+      const comparisonPercentage = calculateGrowthPercentage(currentCount, comparisonCount);
 
       return {
         count: currentCount,
