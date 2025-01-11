@@ -14,7 +14,7 @@ const reportsController = function () {
    * Parameters:
    * timeFrame - 0, 1, 2, etc: 0 represents all time
    * offset - *STRING* week/month
-   * customStartDate / customEndDate - *DATE OBJ || NULL* custom date ranges
+   * customStartDate / customEndDate - *DATE STRING as "YYYY-MM-DD" || NULL* custom date ranges, overrides timeFrame parameter
    */
   const getVolunteerTrends = async (req, res) => {
     const { timeFrame, offset, customStartDate, customEndDate } = req.query;
