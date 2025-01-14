@@ -1202,7 +1202,7 @@ const userProfileController = function (UserProfile, Project) {
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
     const status = req.body.status === 'Active';
-    const activationDate = req.body.reactivationDate;
+    // const activationDate = req.body.reactivationDate;
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
     let activeStatus = status;
@@ -1230,9 +1230,7 @@ const userProfileController = function (UserProfile, Project) {
     );
 
     if (
-      !((await hasPermission(req.body.requestor, 'changeUserStatus') 
-      || await hasPermission(req.body.requestor, 'pauseResumeUser')) 
-      && canEditProtectedAccount)
+      !((await hasPermission(req.body.requestor, 'changeUserStatus')) && canEditProtectedAccount)
     ) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
         logger.logInfo(
@@ -1268,7 +1266,7 @@ const userProfileController = function (UserProfile, Project) {
       .then((user) => {
         user.set({
           isActive: activeStatus,
-          reactivationDate: activationDate,
+          // reactivationDate: activationDate,
           endDate,
           isSet,
           finalEmailThreeWeeksSent: emailThreeWeeksSent,
@@ -1295,7 +1293,8 @@ const userProfileController = function (UserProfile, Project) {
               user.email,
               recipients,
               isSet,
-              activationDate,
+              // activationDate,
+              null,
               emailThreeWeeksSent,
             );
             auditIfProtectedAccountUpdated(
@@ -1316,6 +1315,78 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => {
         res.status(500).send(error);
       });
+  };
+
+  const pauseResumeUser = async function (req, res) {
+    const { userId } = req.params;
+    const activationDate = req.body.reactivationDate;
+    const status = req.body.status === 'Active';
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({
+        error: 'Bad Request',
+      });
+      return;
+    }
+
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (
+      !((await hasPermission(req.body.requestor, 'pauseResumeUser')) && canEditProtectedAccount)
+    ) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+        logger.logInfo(
+          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+        );
+      }
+      res.status(403).send('You are not authorized to change user status');
+      return;
+    }
+
+    cache.removeCache(`user-${userId}`);
+
+    UserProfile.findById(userId, 'isActive')
+    .then((user) => {
+      user.set({
+        isActive: status,
+        reactivationDate: activationDate,
+      });
+
+      user
+        .save()
+        .then(() => {
+          const isUserInCache = cache.hasCache('allusers');
+          if (isUserInCache) {
+            const allUserData = JSON.parse(cache.getCache('allusers'));
+            const userIdx = allUserData.findIndex((users) => users._id === userId);
+            const userData = allUserData[userIdx];
+            userData.isActive = user.isActive;
+            allUserData.splice(userIdx, 1, userData);
+            cache.setCache('allusers', JSON.stringify(allUserData));
+          }
+
+          auditIfProtectedAccountUpdated(
+            req.body.requestor.requestorId,
+            user.email,
+            null,
+            null,
+            'UserStatusUpdate',
+          );
+
+          res.status(200).send({
+            message: 'status updated',
+          });
+        })
+        .catch((error) => {
+          res.status(500).send(error);
+        });
+    })
+    .catch((error) => {
+      res.status(500).send(error);
+    });
   };
 
   const changeUserRehireableStatus = async function (req, res) {
@@ -1907,6 +1978,7 @@ const userProfileController = function (UserProfile, Project) {
     getTeamMembersofUser,
     getProjectMembers,
     changeUserStatus,
+    pauseResumeUser,
     resetPassword,
     getUserByName,
     getAllUsersWithFacebookLink,
