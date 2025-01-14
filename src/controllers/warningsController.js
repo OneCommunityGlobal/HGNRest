@@ -91,6 +91,41 @@ const warningsController = function (UserProfile) {
     }
   };
 
+  const postNewWarningsByUserId = async function (req, res, next) {
+    console.log('backend called', req.body);
+    if (!currentWarningDescriptions) {
+      await getWarningDescriptions();
+    }
+    try {
+      const { userId } = req.params;
+      const { warningsArray, monitorData } = req.body;
+      const record = await UserProfile.findById(userId);
+
+      if (!record) {
+        return res.status(400).send({ message: 'No valid records found' });
+      }
+
+      const updatedWarnings = await UserProfile.findByIdAndUpdate(
+        {
+          _id: userId,
+        },
+        {
+          $push: { warnings: { $each: warningsArray } },
+        },
+        { new: true, upsert: true },
+      );
+
+      const { completedData, sendEmail, size } = filterWarnings(
+        currentWarningDescriptions,
+        updatedWarnings.warnings,
+      );
+      res.status(201).send({ message: 'success', warnings: completedData });
+    } catch (err) {
+      console.log(err);
+      res.status(400).send({ message: err.message || err });
+    }
+  };
+
   const postWarningsToUserProfile = async function (req, res, next) {
     if (!currentWarningDescriptions) {
       await getWarningDescriptions();
@@ -150,6 +185,7 @@ const warningsController = function (UserProfile) {
       }
 
       res.status(201).send({ message: 'success', warnings: completedData });
+      // res.status(201).send({ message: 'success', warnings: [] });
     } catch (error) {
       console.log('error', error);
       res.status(400).send({ message: error.message || error });
@@ -183,6 +219,7 @@ const warningsController = function (UserProfile) {
     getSpecialWarnings,
     postWarningsToUserProfile,
     deleteUsersWarnings,
+    postNewWarningsByUserId,
   };
 };
 

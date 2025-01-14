@@ -13,6 +13,8 @@ const routes = function (userProfile) {
 
   warningRouter.route('/warnings/:userId/special').get(controller.getSpecialWarnings);
 
+  warningRouter.route('/warnings/:userId/new').post(controller.postNewWarningsByUserId);
+
   return warningRouter;
 };
 module.exports = routes;
