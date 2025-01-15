@@ -92,7 +92,6 @@ const warningsController = function (UserProfile) {
   };
 
   const postNewWarningsByUserId = async function (req, res, next) {
-    console.log('backend called', req.body);
     if (!currentWarningDescriptions) {
       await getWarningDescriptions();
     }
