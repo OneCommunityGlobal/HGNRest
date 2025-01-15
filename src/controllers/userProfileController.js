@@ -1348,7 +1348,7 @@ const userProfileController = function (UserProfile, Project) {
 
     cache.removeCache(`user-${userId}`);
 
-    UserProfile.findById(userId, 'isActive')
+    UserProfile.findById(userId, 'isActive email firstName lastName')
     .then((user) => {
       user.set({
         isActive: status,
