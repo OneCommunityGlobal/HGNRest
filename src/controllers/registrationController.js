@@ -58,7 +58,7 @@ const registrationController = function () {
     const cancelRegistration = async function (req, res) {
   
       try {
-        const { registrationId, cancellationReason } = req.body;
+        const { registrationId } = req.body;
         const userId = req.body.requestor.requestorId;
   
         if (!mongoose.Types.ObjectId.isValid(registrationId)) {
@@ -80,7 +80,6 @@ const registrationController = function () {
   
         registration.status = 'cancelled';
         registration.cancellationDate = new Date();
-        registration.cancellationReason = cancellationReason;
   
         await registration.save();
   

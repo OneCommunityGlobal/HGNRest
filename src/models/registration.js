@@ -27,9 +27,6 @@ const registrationSchema = new Schema({
     cancellationDate: {
       type: Date
     },
-    cancellationReason: {
-      type: String
-    }
   }, { timestamps: true });
   
   module.exports = mongoose.model('Registration', registrationSchema);
