@@ -100,6 +100,12 @@ const warningsController = function (UserProfile) {
       const { warningsArray, monitorData } = req.body;
       const record = await UserProfile.findById(userId);
 
+      const userAssignedWarning = {
+        firstName: record.firstName,
+        lastName: record.lastName,
+        email: record.email,
+      };
+
       if (!record) {
         return res.status(400).send({ message: 'No valid records found' });
       }
@@ -118,6 +124,20 @@ const warningsController = function (UserProfile) {
         currentWarningDescriptions,
         updatedWarnings.warnings,
       );
+
+      console.log('sendemail', sendEmail);
+      const adminEmails = await getUserRoleByEmail(record);
+      if (sendEmail !== null) {
+        sendEmailToUser(
+          sendEmail,
+          'test description',
+          userAssignedWarning,
+          monitorData,
+          size,
+          adminEmails,
+        );
+      }
+
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (err) {
       console.log(err);
@@ -256,21 +276,41 @@ const sendEmailToUser = (
   const subjectTitle = ordinal + ' Warning';
 
   const currentUserName = `${userAssignedWarning.firstName} ${userAssignedWarning.lastName}`;
-  const emailTemplate =
-    sendEmail === 'issue warning'
-      ? `<p>Hello ${currentUserName},</p>
+  let emailTemplate = null;
+
+  if (sendEmail === 'issue warning') {
+    emailTemplate = `<p>Hello ${currentUserName},</p>
          <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
          <p>Moving forward, please ensure this issue is resolved. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
          <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them using this email if you have any questions.</p>
          <p>With Gratitude,</p>
-         <p>One Community</p>`
-      : `<p>Hello ${currentUserName},</p>
+         <p>One Community</p>`;
+  } else if (sendEmail === 'issue blue square') {
+    emailTemplate = `<p>Hello ${currentUserName},</p>
          <p>A blue square has been issued because this is the ${ordinal} time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>.</p>
          <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
          <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
          <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
          <p>With Gratitude,</p>
          <p>One Community</p>`;
+  } else if (sendEmail === 'issue both warnings') {
+    emailTemplate = `<p>Hello ${currentUserName},</p>
+         this is a etst!`;
+  }
+  // sendEmail === 'issue warning'
+  //   ? `<p>Hello ${currentUserName},</p>
+  //        <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
+  //        <p>Moving forward, please ensure this issue is resolved. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
+  //        <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them using this email if you have any questions.</p>
+  //        <p>With Gratitude,</p>
+  //        <p>One Community</p>`
+  //   : `<p>Hello ${currentUserName},</p>
+  //        <p>A blue square has been issued because this is the ${ordinal} time the Admin team has requested the same thing from you. Specifically, <strong>${warningDescription}</strong>.</p>
+  //        <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
+  //        <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
+  //        <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
+  //        <p>With Gratitude,</p>
+  //        <p>One Community</p>`;
 
   if (sendEmail === 'issue warning') {
     emailSender(
@@ -281,6 +321,14 @@ const sendEmailToUser = (
       null,
     );
   } else if (sendEmail === 'issue blue square') {
+    emailSender(
+      `${userAssignedWarning.email}`,
+      `Blue Square issued for ${warningDescription}`,
+      emailTemplate,
+      adminEmails.toString(),
+      null,
+    );
+  } else if (sendEmail === 'issue both warnings') {
     emailSender(
       `${userAssignedWarning.email}`,
       `Blue Square issued for ${warningDescription}`,
@@ -328,16 +376,23 @@ const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null
     }
     warningsObject[warning.description].push(warning);
 
-    if (
-      warningsObject[warning.description].length >= 3 &&
-      warning.iconId === iconId &&
-      color === 'yellow'
-    ) {
-      sendEmail = 'issue warning';
-      size = warningsObject[warning.description].length;
-    } else if (warning.iconId === iconId && color === 'red') {
-      sendEmail = 'issue blue square';
-      size = warningsObject[warning.description].length;
+    if (!color && !iconId) {
+      if (!sendEmail && warningsObject[warning.description].length >= 3) {
+        sendEmail = 'issue both warnings';
+        size = warningsObject[warning.description].length;
+      }
+    } else {
+      if (
+        warningsObject[warning.description].length >= 3 &&
+        warning.iconId === iconId &&
+        color === 'yellow'
+      ) {
+        sendEmail = 'issue warning';
+        size = warningsObject[warning.description].length;
+      } else if (warning.iconId === iconId && color === 'red') {
+        sendEmail = 'issue blue square';
+        size = warningsObject[warning.description].length;
+      }
     }
   });
 
