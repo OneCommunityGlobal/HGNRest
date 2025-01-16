@@ -32,7 +32,4 @@ const registrationSchema = new Schema({
     }
   }, { timestamps: true });
   
- // Add index to improve query performance
- // registrationSchema.index({ userId: 1, eventId: 1 }, { unique: true });
-  
   module.exports = mongoose.model('Registration', registrationSchema);
