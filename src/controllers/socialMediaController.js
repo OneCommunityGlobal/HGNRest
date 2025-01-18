@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const { TwitterApi } = require('twitter-api-v2');
+const ScheduledPost = require('../models/scheduledPostSchema');
 
 function extractTextAndImgUrl(htmlString) {
   const $ = cheerio.load(htmlString);
@@ -36,6 +37,7 @@ async function downloadImage(url) {
 }
 
 async function getTwitterAccessToken(req, res) {
+  console.log('gTAT');
   const twitterOAuth = new TwitterApi({
     clientId: process.env.REACT_APP_TWITTER_CLIENT_ID,
     clientSecret: process.env.REACT_APP_TWITTER_CLIENT_SECRET,
@@ -49,7 +51,7 @@ async function getTwitterAccessToken(req, res) {
 
   try {
     twitterOAuth
-      .loginWithOAuth2({ code, codeVerifier, redirectUri: 'http://localhost:3000/announcements' })
+      .loginWithOAuth2({ code, codeVerifier, redirectUri: 'http://localhost:4500/announcements' })
       .then(async ({ client: loggedClient, accessToken, expiresIn, scope }) => {
         try {
           const { data } = await loggedClient.v2.me();
@@ -69,7 +71,37 @@ async function getTwitterAccessToken(req, res) {
   }
 }
 
+async function scheduleTweet(req, res) {
+  console.log('scheduleTweet call');
+  const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
+  const scheduledTime = req.body.ScheduleDate;
+
+  if (!scheduledTime) {
+    return res.status(400).json({ error: 'Missing required parameter: scheduledTime' });
+  }
+  const platform = 'twitter';
+  const newScheduledTweet = new ScheduledPost({
+    textContent,
+    urlSrcs,
+    base64Srcs,
+    scheduledTime,
+    platform,
+  });
+
+  newScheduledTweet
+    .save()
+    .then((scheduledTweet) => {
+      console.log('scheduledTweet saved:', scheduledTweet);
+      res.status(200).json({ success: true, scheduledTweet });
+    })
+    .catch((error) => {
+      console.error('[Backend] Database error: ', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    });
+}
+
 async function createTweet(req, res) {
+  console.log('createTweet call');
   const TwitterClient = new TwitterApi({
     appKey: process.env.REACT_APP_TWITTER_APP_KEY,
     appSecret: process.env.REACT_APP_TWITTER_APP_SECRET,
@@ -138,4 +170,5 @@ async function createTweet(req, res) {
 module.exports = {
   getTwitterAccessToken,
   createTweet,
+  scheduleTweet,
 };
