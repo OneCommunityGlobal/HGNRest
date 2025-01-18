@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const scheduledPostSchema = new mongoose.Schema({
   textContent: {
     type: String,
-    required: true,
+    required: false,
   },
   urlSrcs: {
     type: [String],

@@ -6,6 +6,7 @@ const websockets = require('./websockets').default;
 
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+require('./cronjobs/socialPostScheduler')();
 
 const port = process.env.PORT || 4500;
 

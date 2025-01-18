@@ -36,6 +36,54 @@ async function downloadImage(url) {
   };
 }
 
+async function postToTwitter(content, image) {
+  console.log('create Scheduled Tweet call');
+  const TwitterClient = new TwitterApi({
+    appKey: process.env.REACT_APP_TWITTER_APP_KEY,
+    appSecret: process.env.REACT_APP_TWITTER_APP_SECRET,
+    accessToken: process.env.REACT_APP_TWITTER_ACCESS_TOKEN,
+    accessSecret: process.env.REACT_APP_TWITTER_ACCESS_SECRET,
+  });
+
+  const rwClient = TwitterClient.readWrite;
+  const textContent = content;
+  const base64Srcs = image;
+
+  try {
+    let mediaIds = [];
+    // src type is base64
+    if (base64Srcs && base64Srcs.length > 0) {
+      console.log('Uploading base64 media...');
+      const base64MediaIds = await Promise.all(
+        base64Srcs.map(async (imgSrc) => {
+          try {
+            const base64Data = imgSrc.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            const mimeType = imgSrc.split(';')[0].split(':')[1] || 'image/png';
+            return await rwClient.v1.uploadMedia(buffer, { mimeType });
+          } catch (error) {
+            console.error('Error uploading base64 image', error);
+            return null;
+          }
+        }),
+      );
+      mediaIds = mediaIds.concat(base64MediaIds.filter((id) => id !== null));
+      console.log('Base64 media uploaded, IDs:', mediaIds);
+    }
+
+    const tweetOptions = { text: textContent };
+
+    if (mediaIds && mediaIds.length > 0) {
+      tweetOptions.media = { media_ids: mediaIds };
+    }
+
+    const tweet = await rwClient.v2.tweet(tweetOptions);
+    console.log('Tweet posted successfully:', tweet);
+  } catch (error) {
+    console.error('[Backend] Network or other error: ', error);
+  }
+}
+
 async function getTwitterAccessToken(req, res) {
   console.log('gTAT');
   const twitterOAuth = new TwitterApi({
@@ -171,4 +219,5 @@ module.exports = {
   getTwitterAccessToken,
   createTweet,
   scheduleTweet,
+  postToTwitter,
 };
