@@ -17,6 +17,7 @@ const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
+const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -483,7 +484,6 @@ const userProfileController = function (UserProfile, Project) {
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
-        // console.log('originalRecord', originalRecord);
       }
       // validate userprofile pic
 
@@ -696,6 +696,7 @@ const userProfileController = function (UserProfile, Project) {
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
+          await logUserPermissionChangeByAccount(req);
         }
 
         if (req.body.endDate !== undefined) {
@@ -1493,26 +1494,7 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
-  // Search for user by first name
-  // const getUserBySingleName = (req, res) => {
-  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
-
-  //   // Searches for first or last name
-  //   UserProfile.find({
-  //     $or: [
-  //       { firstName: { $regex: pattern } },
-  //       { lastName: { $regex: pattern } },
-  //     ],
-  //   })
-  //     .select('firstName lastName')
-  //     .then((users) => {
-  //       if (users.length === 0) {
-  //         return res.status(404).send({ error: 'Users Not Found' });
-  //       }
-  //       res.status(200).send(users);
-  //     })
-  //     .catch((error) => res.status(500).send(error));
-  // };
+ 
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
@@ -1557,13 +1539,7 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(500).send(error));
   };
 
-  // function escapeRegExp(string) {
-  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // }
-  /**
-   * Authorizes user to be able to add Weekly Report Recipients
-   *
-   */
+ 
   const authorizeUser = async (req, res) => {
     try {
       let authorizedUser;
@@ -1600,6 +1576,43 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const toggleInvisibility = async function (req, res) {
+    const { userId } = req.params;
+    const { isVisible } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({
+        error: 'Bad Request',
+      });
+      return;
+    }
+    if (!(await hasPermission(req.body.requestor, 'toggleInvisibility'))) {
+      res.status(403).send('You are not authorized to change user visibility');
+      return;
+    }
+
+    cache.removeCache(`user-${userId}`);
+    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
+      if (err) {
+        return res.status(500).send(`Could not Find user with id ${userId}`);
+      }
+      // Check if there's a cache for all users and update it accordingly
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((users) => users._id === userId);
+        const userData = allUserData[userIdx];
+        userData.isVisible = isVisible;
+        allUserData.splice(userIdx, 1, userData);
+        cache.setCache('allusers', JSON.stringify(allUserData));
+      }
+
+      return res.status(200).send({
+        message: 'User visibility updated successfully',
+        isVisible,
+      });
+    })}
+    
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
       res.status(403).send('You are not authorized to add blue square');
@@ -1713,7 +1726,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    // console.log(userId, blueSquareId);
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1876,7 +1888,7 @@ const userProfileController = function (UserProfile, Project) {
       console.log(error)
       return res.status(500)
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1900,6 +1912,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    toggleInvisibility,
     addInfringements,
     editInfringements,
     deleteInfringements,

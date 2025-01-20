@@ -1602,35 +1602,44 @@ const userHelper = function () {
   };
 
   // 'Most Hrs in Week'
-
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
-    if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
-      const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === 'Most Hrs in Week')
-        .map((object) => object.badge);
-      await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
-        userProfile
-          .aggregate([
-            { $match: { isActive: true } },
-            { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
-          ])
-          .then((userResults) => {
-            if (badgeOfType.length > 1) {
-              removeDupBadge(user._id, badgeOfType[0]._id);
-            }
+    try {
+      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {  
+        // Getting badge of type 'Most Hrs in Week'
+        const results = await badge.findOne({ type: 'Most Hrs in Week' });
+        if (!results) {
+          console.error('No badge found for type "Most Hrs in Week"');
+          return;
+        }
 
-            if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= userResults[0].maxHours) {
-              if (badgeOfType.length) {
-                increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType[0]._id));
-              } else {
-                addBadge(personId, mongoose.Types.ObjectId(results._id));
-              }
-            }
-          });
-      });
+        // Getting the max hours of all active users
+        const userResults = await userProfile.aggregate([
+          { $match: { isActive: true } },
+          { $group: { _id: null, maxHours: { $max: '$lastWeekTangibleHrs' } } },
+        ]);
+  
+        if (!userResults || userResults.length === 0) {
+          console.error('No user results found');
+          return;
+        }
+  
+        const maxHours = userResults[0].maxHours;
+  
+        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= maxHours) {
+          const existingBadge = badgeCollection.find((object) => object.badge.type === 'Most Hrs in Week');
+          if (existingBadge) {
+            // console.log('Increasing badge count');
+            await increaseBadgeCount(personId, mongoose.Types.ObjectId(existingBadge.badge._id));
+          } else {
+            // console.log('Adding badge');
+            await addBadge(personId, mongoose.Types.ObjectId(results._id));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkMostHrsWeek:', error);
     }
   };
-
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
@@ -2007,7 +2016,7 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -2066,10 +2075,10 @@ const userHelper = function () {
     sendThreeWeeks,
     followup,
   ) {
-      let subject;
-      let emailBody;
-      recipients.push('onecommunityglobal@gmail.com');
-      recipients = recipients.toString();
+    let subject;
+    let emailBody;
+    recipients.push('onecommunityglobal@gmail.com');
+    recipients = recipients.toString();
     if (reactivationDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
       emailBody = `<p>Management, </p>
@@ -2094,7 +2103,6 @@ const userHelper = function () {
 
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-
     } else if (endDate && isSet && followup) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
@@ -2106,8 +2114,7 @@ const userHelper = function () {
 
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-
-    } else if (endDate && isSet ) {
+    } else if (endDate && isSet) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
@@ -2118,8 +2125,7 @@ const userHelper = function () {
 
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-
-    } else if(endDate){
+    } else if (endDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
@@ -2130,9 +2136,8 @@ const userHelper = function () {
 
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
-     };
-
     }
+  };
 
   const deActivateUser = async () => {
     try {
@@ -2150,13 +2155,17 @@ const userHelper = function () {
         const { endDate, finalEmailThreeWeeksSent } = user;
         endDate.setHours(endDate.getHours() + 7);
         // notify reminder set final day before 2 weeks
-       if(finalEmailThreeWeeksSent && moment().isBefore(moment(endDate).subtract(2, 'weeks')) && moment().isAfter(moment(endDate).subtract(3, 'weeks'))){
+        if (
+          finalEmailThreeWeeksSent &&
+          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
+          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
+        ) {
           const id = user._id;
           const person = await userProfile.findById(id);
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-          const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);

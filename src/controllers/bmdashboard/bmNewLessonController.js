@@ -122,8 +122,6 @@ const bmNewLessonController = function (BuildingNewLesson) {
               allowedRoles: 'All'
             });
           }
-          console.log("tag created");
-          // Get updated tags list
           const tags = await BuildingNewLesson.getAllTags();
           return res.status(201).json(tags);
       
