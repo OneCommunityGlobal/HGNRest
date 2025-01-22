@@ -97,7 +97,7 @@ const warningsController = function (UserProfile) {
     }
     try {
       const { userId } = req.params;
-      const { warningsArray, monitorData } = req.body;
+      const { warningsArray, monitorData, issueBlueSquare } = req.body;
       const record = await UserProfile.findById(userId);
 
       const userAssignedWarning = {
@@ -120,25 +120,27 @@ const warningsController = function (UserProfile) {
         { new: true, upsert: true },
       );
 
+      //the two warnings are now posted.
+      //i will group them as usual using filter and set sendemail to send the email
+      //issueBlueSquare flag will tell me which email I'll be sending
+      //i need the size of each one as well
+      //can return it via an array or object?
+      // issue blue square -> size
+      //issue warning ->
       const { completedData, sendEmail, size } = filterWarnings(
         currentWarningDescriptions,
         updatedWarnings.warnings,
+        null,
+        null,
+        issueBlueSquare,
       );
 
-      console.log('sendemail', sendEmail);
       const adminEmails = await getUserRoleByEmail(record);
       if (sendEmail !== null) {
-        sendEmailToUser(
-          sendEmail,
-          'test description',
-          userAssignedWarning,
-          monitorData,
-          size,
-          adminEmails,
-        );
+        sendEmailToUser(sendEmail, '', userAssignedWarning, monitorData, size, adminEmails);
       }
 
-      res.status(201).send({ message: 'success', warnings: completedData });
+      res.status(201).send({ message: 'success', warnings: [] });
     } catch (err) {
       console.log(err);
       res.status(400).send({ message: err.message || err });
@@ -272,7 +274,14 @@ const sendEmailToUser = (
   size,
   adminEmails,
 ) => {
-  const ordinal = getOrdinal(size);
+  let ordinal = null;
+  let mostWarnings = null;
+  if (typeof size === 'object') {
+    mostWarnings = Math.max(...Object.values(size));
+    ordinal = getOrdinal(mostWarnings);
+  } else {
+    getOrdinal(size);
+  }
 
   const currentUserName = `${userAssignedWarning.firstName} ${userAssignedWarning.lastName}`;
   let emailTemplate = null;
@@ -292,9 +301,14 @@ const sendEmailToUser = (
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
     <p>One Community</p>`;
-  } else if (sendEmail === 'issue both warnings') {
+  } else if (sendEmail === 'issue two warnings blue square') {
     emailTemplate = `<p>Hello ${currentUserName},</p>
-         this is a etst!`;
+    <p>A blue square has been issued because this is the ${ordinal} time the Admin team has requested the same thing from you. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
+    <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
+    <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
+    <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`;
   }
 
   if (sendEmail === 'issue warning') {
@@ -313,14 +327,15 @@ const sendEmailToUser = (
       adminEmails.toString(),
       null,
     );
-  } else if (sendEmail === 'issue both warnings') {
+  } else if (sendEmail === 'issue two warnings blue square') {
     emailSender(
       `${userAssignedWarning.email}`,
-      `Blue Square issued for ${warningDescription}`,
+      `IMPORTANT: You have been issued a blue square`,
       emailTemplate,
       adminEmails.toString(),
       null,
     );
+  } else if (sendEmail === 'issue both ') {
   }
 };
 
@@ -349,7 +364,13 @@ const sortByColorAndDate = (a, b) => {
   return colorComparison;
 };
 
-const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null, color = null) => {
+const filterWarnings = (
+  currentWarningDescriptions,
+  usersWarnings,
+  iconId = null,
+  color = null,
+  issueBlueSquare = null,
+) => {
   const warningsObject = {};
 
   let sendEmail = null;
@@ -362,9 +383,10 @@ const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null
     warningsObject[warning.description].push(warning);
 
     if (!color && !iconId) {
-      if (!sendEmail && warningsObject[warning.description].length >= 3) {
-        sendEmail = 'issue both warnings';
-        size = warningsObject[warning.description].length;
+      if (!sendEmail && issueBlueSquare) {
+        sendEmail = 'issue two warnings blue square';
+      } else if (!sendEmail && !issueBlueSquare) {
+        sendEmail = 'issue two warnings';
       }
     } else {
       if (
@@ -381,6 +403,14 @@ const filterWarnings = (currentWarningDescriptions, usersWarnings, iconId = null
     }
   });
 
+  if (issueBlueSquare !== null) {
+    size = {
+      'Removed Blue Square for No Summary':
+        warningsObject['Removed Blue Square for No Summary'].length,
+      'Removed Blue Square for Hours Close Enough':
+        warningsObject['Removed Blue Square for Hours Close Enough'].length,
+    };
+  }
   const warns = Object.keys(warningsObject)
     .sort(sortKeysAlphabetically)
     .reduce((acc, cur) => {
