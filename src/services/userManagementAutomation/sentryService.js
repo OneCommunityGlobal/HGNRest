@@ -1,84 +1,66 @@
-const axios = require('axios');
-const { sentryConfig } =  require('../../constants/automationConstants');
+const { request } = require('gaxios');  // Use gaxios instead of axios
+require('dotenv').config();
 
+const sentryApiToken = process.env.SENTRY_API_TOKEN;  // Sentry API Token from .env file
+const organizationSlug = process.env.SENTRY_ORG_SLUG;  // Organization slug from .env file
 
-// Destructure sentry config (token and organization slug) from serviceConfig
-const { sentryApiToken, organizationSlug } = sentryConfig;
+const headers = {
+  'Authorization': `Bearer ${sentryApiToken}`,
+  'Content-Type': 'application/json',
+};
 
-// Sentry API base URL
-const SENTRY_API_URL = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
+// Function to get all members of the organization
+async function getMembers() {
+  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
 
-class SentryService {
-  // Get members from the organization and find the user to remove by email
-  static async getMembers(userEmailToRemove) {
-    const url = SENTRY_API_URL;
-
-    const headers = {
-      'Authorization': `Bearer ${sentryApiToken}`,
-      'Content-Type': 'application/json',
-    };
-
-    try {
-      const response = await axios.get(url, { headers });
-      console.log('Organization Members:', response.data);
-
-      // Find the user to remove based on their email
-      const userToRemove = response.data.find(member => member.email === userEmailToRemove);
-
-      if (userToRemove) {
-        console.log(`Found user: ${userToRemove.email}. Removing...`);
-        await this.removeUser(userToRemove.id);  // Call removeUser() with the user ID
-      } else {
-        console.log(`User with email ${userEmailToRemove} not found.`);
-      }
-    } catch (error) {
-      console.error('Error fetching organization members:', error.response ? error.response.data : error.message);
-      throw new Error('Failed to fetch organization members from Sentry');
-    }
-  }
-
-  // Remove a user from the Sentry organization by user ID
-  static async removeUser(userId) {
-    const url = `${SENTRY_API_URL}${userId}/`;
-
-    const headers = {
-      'Authorization': `Bearer ${sentryApiToken}`,
-      'Content-Type': 'application/json',
-    };
-
-    try {
-      const response = await axios.delete(url, { headers });
-      console.log(`Successfully removed user with ID ${userId} from the organization.`);
-      return response.data;
-    } catch (error) {
-      console.error('Error removing user:', error.response ? error.response.data : error.message);
-      throw new Error('Failed to remove user from Sentry');
-    }
-  }
-
-  // Invite a user to the Sentry organization by their email
-  static async inviteUser(email, role = 'member') {
-    const url = SENTRY_API_URL;
-
-    const headers = {
-      'Authorization': `Bearer ${sentryApiToken}`,
-      'Content-Type': 'application/json',
-    };
-
-    const data = {
-      email: email,
-      role: role,  // Can be 'admin' or 'member'
-    };
-
-    try {
-      const response = await axios.post(url, data, { headers });
-      console.log('Invite sent:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error sending invite:', error.response ? error.response.data : error.message);
-      throw new Error('Failed to send invite to Sentry');
-    }
+  try {
+    const response = await request({ url, headers });
+    return response.data;  // Return the list of members
+  } catch (error) {
+    throw new Error('Error fetching organization members: ' + error.message);
   }
 }
 
-module.exports = SentryService;
+// Function to invite a user to the Sentry organization
+async function inviteUser(email, role = 'member') {
+  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
+
+  const data = {
+    email,
+    role,  // Default to 'member', can also be 'admin'
+  };
+
+  try {
+    const response = await request({
+      url,
+      method: 'POST',
+      headers,
+      data,
+    });
+    return response.data;  // Return the invitation details
+  } catch (error) {
+    throw new Error('Error sending invitation: ' + error.message);
+  }
+}
+
+// Function to remove a user from the Sentry organization by user ID
+async function removeUser(userId) {
+  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/${userId}/`;
+
+  try {
+    const response = await request({
+      url,
+      method: 'DELETE',
+      headers,
+    });
+    return `Successfully removed user with ID ${userId} from the organization.`;
+  } catch (error) {
+    throw new Error('Error removing user: ' + error.message);
+  }
+}
+
+module.exports = {
+  getMembers,
+  inviteUser,
+  removeUser,
+};

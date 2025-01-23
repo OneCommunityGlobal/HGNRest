@@ -1,68 +1,54 @@
 const { Dropbox } = require('dropbox');
 const fetch = require('isomorphic-fetch');
-const { dropboxConfig } = require('../../constants/automationConstants');
+require('dotenv').config();
 
-// Initialize Dropbox client with access token
-const dbx = new Dropbox({ accessToken: dropboxConfig.accessToken, fetch: fetch });
+// Initialize Dropbox client
+const dbx = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN, fetch: fetch });
 
-class DropboxService {
-  // Create a new folder in Dropbox
-  static async createFolder(folderName) {
-    try {
-      const response = await dbx.filesCreateFolderV2({ path: `/${folderName}` });
-      console.log(`Folder "${folderName}" created successfully!`);
-      return response;
-    } catch (error) {
-      console.error('Error creating folder:', error);
-      throw error;
-    }
-  }
+// Function to create a folder and a "Week 1" subfolder inside it
+async function createFolderWithSubfolder(parentFolderName) {
+  try {
+    // Create the parent folder
+    const parentFolderResponse = await dbx.filesCreateFolderV2({ path: `/${parentFolderName}` });
+    console.log(`Parent folder "${parentFolderName}" created successfully!`);
+    
+    // Create the "Week 1" subfolder inside the parent folder
+    const week1FolderPath = `${parentFolderResponse.result.metadata.path_display}/Week 1`;
+    const subfolderResponse = await dbx.filesCreateFolderV2({ path: week1FolderPath });
+    console.log(`Subfolder "Week 1" created inside "${parentFolderName}"`);
 
-  // Create a subfolder inside an existing folder
-  static async createSubfolder(parentFolderPath, subfolderName) {
-    try {
-      const response = await dbx.filesCreateFolderV2({ path: `${parentFolderPath}/${subfolderName}` });
-      console.log(`Subfolder "${subfolderName}" created inside "${parentFolderPath}"`);
-      return response;
-    } catch (error) {
-      console.error('Error creating subfolder:', error);
-      throw error;
-    }
-  }
-
-  // Invite a user to a folder with specific permissions
-  static async inviteUserToFolder(folderPath, email) {
-    try {
-      const inviteResponse = await dbx.sharingAddFolderMember({
-        shared_folder_id: folderPath,
-        members: [
-          {
-            email: email,
-            access_level: 'editor', // Define access level (can be 'viewer' or 'editor')
-          },
-        ],
-        quiet: false,
-      });
-
-      console.log(`User ${email} invited as an editor to folder ${folderPath}`);
-      return inviteResponse;
-    } catch (error) {
-      console.error('Error inviting user:', error);
-      throw error;
-    }
-  }
-
-  // Delete a folder from Dropbox
-  static async deleteFolder(folderPath) {
-    try {
-      const response = await dbx.filesDeleteV2({ path: folderPath });
-      console.log(`Folder ${folderPath} deleted successfully.`);
-      return response;
-    } catch (error) {
-      console.error('Error deleting folder:', error);
-      throw error;
-    }
+    return { parentFolderResponse, subfolderResponse };
+  } catch (error) {
+    throw new Error(`Error creating folder and subfolder: ${error.message}`);
   }
 }
 
-module.exports = DropboxService;
+// Function to invite a user to a Dropbox folder
+async function inviteUserToFolder(folderPath, email) {
+  try {
+    const inviteResponse = await dbx.sharingAddFolderMember({
+      shared_folder_id: folderPath,
+      members: [{ email: email, access_level: 'editor' }],
+      quiet: false,
+    });
+    return inviteResponse;
+  } catch (error) {
+    throw new Error(`Error inviting user: ${error.message}`);
+  }
+}
+
+// Function to delete a folder
+async function deleteFolder(folderPath) {
+  try {
+    const response = await dbx.filesDeleteV2({ path: folderPath });
+    return response;
+  } catch (error) {
+    throw new Error(`Error deleting folder: ${error.message}`);
+  }
+}
+
+module.exports = {
+  createFolderWithSubfolder,
+  inviteUserToFolder,
+  deleteFolder,
+};

@@ -129,6 +129,15 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+
+
+// Automations
+
+const dropboxRouter = require('../routes/automation/dropboxRouter');
+const githubRouter = require('../routes/automation/githubRouter');
+const sentryRouter = require('../routes/automation/sentryRouter');
+const slackRouter = require('../routes/automation/slackRouter')
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -179,4 +188,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('api', bmIssueRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
 };

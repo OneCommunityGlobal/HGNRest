@@ -1,0 +1,23 @@
+const slackService = require('../../services/userManagementAutomation/slackService'); // Import the Slack service
+
+// Controller function to invite a user
+async function inviteUser(req, res) {
+  const { email } = req.body;
+
+  // Validate email input
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    // Call the Slack service to send the invitation email
+    await slackService.sendSlackInvite(email);
+    return res.status(201).json({ message: 'Invitation sent successfully to ' + email });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+module.exports = {
+  inviteUser,
+};
