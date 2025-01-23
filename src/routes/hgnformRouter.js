@@ -1,5 +1,4 @@
 const express = require("express");
-const Question = require("../models/hgnform");
 const hgnFormRouter = express.Router();
 const controller=require('../controllers/hgnFormController')();
 
