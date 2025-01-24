@@ -4,25 +4,19 @@ const router = function (title) {
   const controller = require('../controllers/titleController')(title);
   const titleRouter = express.Router();
 
-  titleRouter.route('/title/order')
-    .put(controller.updateTitlesOrder);
-
-  titleRouter.route('/title/sorted')
-    .get(controller.getAllTitles);
-
-  titleRouter.route('/title/deleteAll')
-    .get(controller.deleteAllTitles);
-
-  titleRouter.route('/title/update')
-    .post(controller.updateTitle);
-
   titleRouter.route('/title')
     .get(controller.getAllTitles)
-    .post(controller.postTitle);
+    .post(controller.postTitle)
+  // .put(controller.putTitle);
+
+  titleRouter.route('/title/update').post(controller.updateTitle);
 
   titleRouter.route('/title/:titleId')
     .get(controller.getTitleById)
     .put(controller.deleteTitleById);
+
+  titleRouter.route('/title/deleteAll')
+    .get(controller.deleteAllTitles);
 
   return titleRouter;
 };

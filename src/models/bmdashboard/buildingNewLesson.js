@@ -21,10 +21,4 @@ const buildingNewLesson = new Schema({
     ],
 });
 
-buildingNewLesson.statics.getAllTags = async function() {
-    const lessons = await this.find({}, 'tags');
-    const allTags = lessons.reduce((acc, lesson) => [...acc, ...lesson.tags], []);
-    return [...new Set(allTags)].sort();
-};
-
 module.exports = mongoose.model('buildingNewLesson', buildingNewLesson, 'buildingNewLessons');
