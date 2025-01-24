@@ -881,13 +881,11 @@ const userProfileController = function (UserProfile, Project) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
-
     // if (cache.getCache(`user-${userid}`)) {
     //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
     //   res.status(200).send(getData);
     //   return;
     // }
-
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
@@ -1838,6 +1836,33 @@ const userProfileController = function (UserProfile, Project) {
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
   };
+  
+  const removeProfileImage = async (req,res) =>{
+    try{
+      var user_id=req.body.user_id
+      await UserProfile.updateOne({_id:user_id},{$unset:{profilePic:""}})
+      cache.removeCache(`user-${user_id}`);
+      return res.status(200).send({message:'Image Removed'})
+    }catch(err){
+      console.log(err)
+      return res.status(404).send({message:"Error Removing Image"})
+    }
+  }
+  const updateProfileImageFromWebsite = async (req,res) =>{
+    try{
+      var user=req.body
+      await UserProfile.updateOne({_id:user.user_id},
+        {
+          $set: { profilePic : user.selectedImage},
+          $unset: { suggestedProfilePics: "" }
+      })
+      cache.removeCache(`user-${user.user_id}`);
+      return res.status(200).send({message:"Profile Updated"})
+    }catch(err){
+      console.log(err)
+      return res.status(404).send({message:"Profile Update Failed"})
+    }
+  }
 
   const getUserByAutocomplete = (req, res) => {
     const { searchText } = req.params;
@@ -1919,6 +1944,8 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    removeProfileImage,
+    updateProfileImageFromWebsite,
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
