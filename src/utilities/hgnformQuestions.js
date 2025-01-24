@@ -1,4 +1,4 @@
-export const formquestions = [
+const formquestions = [
   { title: "user_info", text: "Name", page: "1" },
   { title: "user_info", text: "Email", page: "1" },
   { title: "user_info", text: "GitHub", page: "1" },
@@ -42,3 +42,5 @@ export const formquestions = [
   { title: "followup", text: "Is there anything else you think we've missed and/or that you suggest we should add here?", page: "5" },
   { title: "followup", text: "Is there anything else you'd like to share with us?", page: "5" },
 ];
+
+module.exports = formquestions;
