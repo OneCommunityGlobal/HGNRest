@@ -32,6 +32,7 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const axios=require('axios');
 const sharp = require("sharp");
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -2346,55 +2347,77 @@ async function imageUrlToPngBase64(url) {
   }
 }
 
-  const getProfileImagesFromWebsite= async () => {
+const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
+  let attempts = 0;
+  while (attempts < maxRetries) {
     try {
-    // Fetch the webpage
-    const response = await axios.get("https://www.onecommunityglobal.org/team");
-    const htmlText = response.data;
+      const response = await axios.get(url);
+      return response.data; // Return data if the request succeeds
+    } catch (error) {
+      attempts++;
+      console.error(`Attempt ${attempts} failed: ${error.message}`);
+      if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
+      console.log(`Retrying in ${delayTime / 1000} seconds...`);
+      await delay(delayTime); // Wait for 5 minutes
+    }
+  }
+};
+
+const getProfileImagesFromWebsite = async () => {
+  try {
+    // Fetch the webpage with retry logic
+    const htmlText = await fetchWithRetry("https://www.onecommunityglobal.org/team");
     // Load HTML into Cheerio
     const $ = cheerio.load(htmlText);
-    // Select all <img> elements and extract properties
     const imgData = [];
     $('img').each((i, img) => {
       imgData.push({
         src: $(img).attr('src'),
         alt: $(img).attr('alt'),
         title: $(img).attr('title'),
-        nitro_src: $(img).attr('nitro-lazy-src')
+        nitro_src: $(img).attr('nitro-lazy-src'),
       });
     });
-    var users=await userProfile.find({'isActive':true},"firstName lastName email profilePic suggestedProfilePics") 
-    
-    users.map(async(u)=>{
-      if(u.profilePic==undefined || u.profilePic==null || u.profilePic==""){
-        var result=searchForTermsInFields(imgData,u.firstName,u.lastName)
+
+    const users = await userProfile.find(
+      { isActive: true },
+      "firstName lastName email profilePic suggestedProfilePics"
+    );
+
+    await Promise.all(
+      users.map(async (u) => {
+        if (!u.profilePic) {
+          const result = searchForTermsInFields(imgData, u.firstName, u.lastName);
           try {
-            if(result.length==1){
-              if(result[0].nitro_src!==undefined){
-                await userProfile.updateOne({_id:u._id},
-                  {$set:{
-                    "profilePic":result[0].nitro_src
-                  }});
-              }else{
-                // when nitro is undefined, at that time src is a 403 link then I need to convert it into a base64 link.
-                let image=await imageUrlToPngBase64(result[0].src)
-                await userProfile.updateOne({_id:u._id},
-                  {$set:{
-                    "profilePic":image
-                  }});
+            if (result.length === 1) {
+              if (result[0].nitro_src !== undefined) {
+                await userProfile.updateOne(
+                  { _id: u._id },
+                  { $set: { profilePic: result[0].nitro_src } }
+                );
+              } else {
+                const image = await imageUrlToPngBase64(result[0].src);
+                await userProfile.updateOne(
+                  { _id: u._id },
+                  { $set: { profilePic: image } }
+                );
               }
-            }else if(result.length>1){
-              await userProfile.updateOne({_id:u._id},{$set:{"suggestedProfilePics":result}});
+            } else if (result.length > 1) {
+              await userProfile.updateOne(
+                { _id: u._id },
+                { $set: { suggestedProfilePics: result } }
+              );
             }
           } catch (error) {
-            console.log(error);
+            console.error(`Error updating user ${u._id}:`, error);
           }
-      }
-    })  
-    } catch (error) {
-        console.error('An error occurred:', error);
-    }
+        }
+      })
+    );
+  } catch (error) {
+    console.error("Failed to fetch profile images:", error);
   }
+};
 
   return {
     changeBadgeCount,
