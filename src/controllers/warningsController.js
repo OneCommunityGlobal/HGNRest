@@ -309,6 +309,15 @@ const sendEmailToUser = (
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
     <p>One Community</p>`;
+  } else if (sendEmail === 'issue two warnings') {
+    emailTemplate = `<p>Hello ${currentUserName},</p>
+    <p>This is the ${ordinal} time the Admin team has taken the same actions due to you not following our company’s protocols. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
+    <p>Please carefully review the previous communications you’ve received about this to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions, the Admin team is here to assist.</p>
+    <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
+    <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and will likely result in a blue square being issued if it happens again.</p>
+    <p>The Admin member who issued this warning is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`;
   }
 
   if (sendEmail === 'issue warning') {
@@ -335,7 +344,14 @@ const sendEmailToUser = (
       adminEmails.toString(),
       null,
     );
-  } else if (sendEmail === 'issue both ') {
+  } else if (sendEmail === 'issue two warnings') {
+    emailSender(
+      `${userAssignedWarning.email}`,
+      `IMPORTANT: Please read this email and take note so you don’t get a blue square`,
+      emailTemplate,
+      adminEmails.toString(),
+      null,
+    );
   }
 };
 
