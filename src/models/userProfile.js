@@ -12,6 +12,8 @@ const SALT_ROUNDS = 10;
 const today = new Date();
 
 const userProfileSchema = new Schema({
+  // Updated filed
+  summarySubmissionDates: [{ type: Date }],
   password: {
     type: String,
     required: true,
