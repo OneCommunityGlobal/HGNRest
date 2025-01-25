@@ -11,7 +11,7 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        console.log('Running Cron Jobs');
+        await userhelper.getProfileImagesFromWebsite();
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
@@ -36,7 +36,7 @@ const userProfileJobs = () => {
     false,
     'America/Los_Angeles',
   );
-
+  
   allUserProfileJobs.start();
   dailyUserDeactivateJobs.start();
 };
