@@ -121,17 +121,25 @@ async function getTwitterAccessToken(req, res) {
 
 async function scheduleTweet(req, res) {
   console.log('scheduleTweet call');
+  console.log('Request body:', req.body);
   const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
-  const scheduledTime = req.body.ScheduleDate;
+  const scheduledDate = req.body.ScheduleDate;
+  const scheduledTime = req.body.ScheduleTime;
+  console.log('scheduledDate', scheduledDate);
+  console.log('scheduledTime', scheduledTime);
 
-  if (!scheduledTime) {
-    return res.status(400).json({ error: 'Missing required parameter: scheduledTime' });
+  if (!scheduledDate || !scheduledTime) {
+    return res
+      .status(400)
+      .json({ error: 'Missing required parameters: scheduledDate or scheduledTime' });
   }
+
   const platform = 'twitter';
   const newScheduledTweet = new ScheduledPost({
     textContent,
     urlSrcs,
     base64Srcs,
+    scheduledDate,
     scheduledTime,
     platform,
   });

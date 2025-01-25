@@ -13,8 +13,12 @@ const scheduledPostSchema = new mongoose.Schema({
     type: [String],
     required: false,
   },
+  scheduledDate: {
+    type: String, // mm/dd/yyyy
+    required: true,
+  },
   scheduledTime: {
-    type: Date,
+    type: String, // hr:min AM/PM
     required: true,
   },
   platform: {
