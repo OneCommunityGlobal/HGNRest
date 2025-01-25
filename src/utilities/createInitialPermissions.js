@@ -87,6 +87,7 @@ const permissionsRoles = [
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
@@ -252,6 +253,7 @@ const permissionsRoles = [
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
