@@ -1015,6 +1015,54 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  
+  /**
+   * Get total hours for a specified period for multiple users at once
+   */
+  const getUsersTotalHoursForSpecifiedPeriod = async function (req, res) {
+    const { userIds, fromDate, toDate } = req.body;
+
+    if (
+      !fromDate ||
+      !toDate ||
+      !userIds ||
+      !moment(fromDate).isValid() ||
+      !moment(toDate).isValid()
+    ) {
+      return res.status(400).send({ error: 'Invalid request' });
+    }
+
+    const startDate = moment(fromDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const endDate = moment(toDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+    try {
+      // g total hours
+      const userHoursSummary = await TimeEntry.aggregate([
+        {
+          $match: {
+            entryType: { $in: ['default', 'person', null] },
+            personId: { $in:  userIds.map(id => mongoose.Types.ObjectId(id)) },
+            dateOfWork: { $gte: startDate, $lte: endDate }
+          }
+        },
+        {
+          $group: {
+            _id: '$personId',
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } }
+          }
+        }
+      ]);
+      const result = userHoursSummary.map(entry => ({
+        userId: entry._id,
+        totalHours: Math.round(entry.totalHours * 10) / 10 //round
+      }));
+      res.status(200).send(result);
+    } catch (error) {
+      logger.logException(error); // Log exception using consistent logger
+      res.status(400).send({ error: 'Failed to calculate total hours', details: error.message });
+    }
+  };
+
   /**
    * Get time entries for a specified period for a list of users
    */
@@ -1560,6 +1608,7 @@ const timeEntrycontroller = function (TimeEntry) {
     editTimeEntry,
     deleteTimeEntry,
     getTimeEntriesForSpecifiedPeriod,
+    getUsersTotalHoursForSpecifiedPeriod,
     getTimeEntriesForUsersList,
     getTimeEntriesForSpecifiedProject,
     getLostTimeEntriesForUserList,
