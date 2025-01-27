@@ -1822,10 +1822,15 @@ const overviewReportHelper = function () {
     return { count: currentCount };
   }
 
-  const getTotalSummariesSubmitted = async (startDate, endDate, comparisonStartDate, comparisonEndDate) => {
+  const getTotalSummariesSubmitted = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
     // Helper function to count summaries submitted within a date range
-    const getSummariesCount = async (start, end) => {
-      return await UserProfile.aggregate([
+    const getSummariesCount = async (start, end) =>
+      UserProfile.aggregate([
         {
           $match: {
             summarySubmissionDates: {
@@ -1861,27 +1866,26 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-    };
-  
+
     // Get summaries count for the current date range
     const currentSummaries = await getSummariesCount(startDate, endDate);
     const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
-  
+
     // If comparison dates are provided, calculate the comparison percentage
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
       const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
-      const comparisonPercentage = calculateGrowthPercentage(totalCurrentSummaries, totalComparisonSummaries);
-  
+      const comparisonPercentage = calculateGrowthPercentage(
+        totalCurrentSummaries,
+        totalComparisonSummaries,
+      );
+
       return { count: totalCurrentSummaries, comparisonPercentage };
     }
-  
+
     // If no comparison dates, return only the count
     return { count: totalCurrentSummaries };
   };
-  
-  
-  
 
   return {
     getVolunteerTrends,
