@@ -10,6 +10,7 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
+        await userhelper.getProfileImagesFromWebsite();
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
@@ -18,17 +19,6 @@ const userProfileJobs = () => {
       }
       await userhelper.awardNewBadges();
       await userhelper.reActivateUser();
-    },
-    null,
-    false,
-    'America/Los_Angeles',
-  );
-
-  // Job to run every day, 1 minute past midnight to deactivate the user
-  const dailyUserDeactivateJobs = new CronJob(
-    '1 0 * * *', // Every day, 1 minute past midnight
-    async () => {
-      await userhelper.deActivateUser();
     },
     null,
     false,
@@ -47,10 +37,22 @@ const userProfileJobs = () => {
       null,
       false,
       'America/Los_Angeles', 
-  )
-
+  );
+  // Job to run every day, 1 minute past midnight to deactivate the user
+  const dailyUserDeactivateJobs = new CronJob(
+    '1 0 * * *', // Every day, 1 minute past midnight
+    async () => {
+      await userhelper.deActivateUser();
+    },
+    null,
+    false,
+    'America/Los_Angeles',
+  );
+  
   allUserProfileJobs.start();
   summaryNotSubmittedJobs.start();
   dailyUserDeactivateJobs.start();
+  
 };
+
 module.exports = userProfileJobs;

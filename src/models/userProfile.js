@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
   startDate: {
     type: Date,
     required: true,
-    default () {
+    default() {
       return this.createdDate;
     },
   },
@@ -101,6 +101,10 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics:{
+    type:[mongoose.Schema.Types.Mixed],
+    default:[]
+  },
   infringements: [
     {
       date: { type: String, required: true },
@@ -128,6 +132,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
+      iconId: { type: String, required: false },
     },
   ],
   location: {

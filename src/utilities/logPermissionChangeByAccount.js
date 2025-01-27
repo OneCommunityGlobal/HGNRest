@@ -24,6 +24,10 @@ const changedPermissionsLogger = async (req, res, next) => {
          permissionsAdded = permissions;
        }
 
+       if (permissionsAdded.length === 0 && permissionsRemoved.length === 0) {
+        return next(); // No changes, proceed without saving a log
+      }
+
        const logEntry = new PermissionChangeLog({
          logDateTime: dateTime,
          roleId,
