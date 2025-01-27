@@ -1822,6 +1822,67 @@ const overviewReportHelper = function () {
     return { count: currentCount };
   }
 
+  const getTotalSummariesSubmitted = async (startDate, endDate, comparisonStartDate, comparisonEndDate) => {
+    // Helper function to count summaries submitted within a date range
+    const getSummariesCount = async (start, end) => {
+      return await UserProfile.aggregate([
+        {
+          $match: {
+            summarySubmissionDates: {
+              $elemMatch: {
+                $gte: new Date(start),
+                $lte: new Date(end),
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            totalSummaries: {
+              $size: {
+                $filter: {
+                  input: '$summarySubmissionDates',
+                  as: 'date',
+                  cond: {
+                    $and: [
+                      { $gte: ['$$date', new Date(start)] },
+                      { $lte: ['$$date', new Date(end)] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSummaries: { $sum: '$totalSummaries' },
+          },
+        },
+      ]);
+    };
+  
+    // Get summaries count for the current date range
+    const currentSummaries = await getSummariesCount(startDate, endDate);
+    const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
+  
+    // If comparison dates are provided, calculate the comparison percentage
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
+      const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
+      const comparisonPercentage = calculateGrowthPercentage(totalCurrentSummaries, totalComparisonSummaries);
+  
+      return { count: totalCurrentSummaries, comparisonPercentage };
+    }
+  
+    // If no comparison dates, return only the count
+    return { count: totalCurrentSummaries };
+  };
+  
+  
+  
+
   return {
     getVolunteerTrends,
     getMapLocations,
@@ -1846,6 +1907,7 @@ const overviewReportHelper = function () {
     getTeamsWithActiveMembers,
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
+    getTotalSummariesSubmitted,
   };
 };
 
