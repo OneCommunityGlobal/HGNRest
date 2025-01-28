@@ -19,6 +19,10 @@ const registrationController = function () {
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
           return res.status(400).send({ error: 'Invalid event ID format' });
         }
+
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+          return res.status(400).send({ error: 'Invalid user ID format' });
+        }
   
         // check for existing registration
         const existingRegistration = await Registration.findOne({
@@ -63,6 +67,10 @@ const registrationController = function () {
   
         if (!mongoose.Types.ObjectId.isValid(registrationId)) {
           return res.status(400).send({ error: 'Invalid registration ID format' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+          return res.status(400).send({ error: 'Invalid user ID format' });
         }
   
         const registration = await Registration.findOne({
