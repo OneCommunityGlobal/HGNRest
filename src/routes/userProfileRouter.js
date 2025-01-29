@@ -67,6 +67,8 @@ const routes = function (userProfile, project) {
     .delete(controller.deleteUserProfile)
     .patch(controller.changeUserStatus);
 
+  userProfileRouter.route('/userProfile/:userId/pause').patch(controller.pauseResumeUser);
+
   userProfileRouter.route('/userProfile/name/:name').get(controller.getUserByName);
 
   userProfileRouter
