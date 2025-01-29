@@ -15,10 +15,6 @@ const registrationController = function () {
       try {
         const { eventId } = req.body;
         const userId = req.body.requestor.requestorId;
-  
-        if (!mongoose.Types.ObjectId.isValid(eventId)) {
-          return res.status(400).send({ error: 'Invalid event ID format' });
-        }
 
         if (!mongoose.Types.ObjectId.isValid(userId)) {
           return res.status(400).send({ error: 'Invalid user ID format' });
@@ -64,10 +60,6 @@ const registrationController = function () {
       try {
         const { registrationId } = req.body;
         const userId = req.body.requestor.requestorId;
-  
-        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
-          return res.status(400).send({ error: 'Invalid registration ID format' });
-        }
 
         if (!mongoose.Types.ObjectId.isValid(userId)) {
           return res.status(400).send({ error: 'Invalid user ID format' });
