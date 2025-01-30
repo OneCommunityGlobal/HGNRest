@@ -10,7 +10,10 @@ const formController = function (Form,formResponse) {
             if (!formName || !questions || questions.length === 0) {
                 return res.status(400).json({ message: 'Form name and questions are required.' });
             }
-        
+            
+            // check if form already exists or not
+            let form_temp=await Form.find({formName:formName})
+            if(form_temp.length>0){return res.status(400).json({message:"Form already exists with that name"})}
             // Create a new form with the provided structure
             const newForm = new Form({
                 formName,
@@ -36,32 +39,90 @@ const formController = function (Form,formResponse) {
             }
     }
 
-    const editFormFormat = async function(req,res){
-        try{
-            // here id is the recordId for the model Form
-            const {id, userId, formName,formQuestions }=req.body;
-            // find if a form exists or not. if yes, then take the properties we want to update and then
-            // check if that form exists or not and then user exists or not.
-
-            // match by record _id
-            let form_temp=await Form.findById(id)
-            
-            if(form_temp===undefined || form_temp===null || form_temp.length===0){
-               return res.status(400).json({message:"Invalid FormID"}) 
+    const editFormFormat = async function (req, res) {
+        try {
+            const { id, userId, formName, formQuestions } = req.body;
+    
+            // Fetch the existing form
+            const existingForm = await Form.findById(id);
+            if (!existingForm) {
+                return res.status(400).json({ message: "Invalid Form ID" });
             }
-
-            let user_temp=await userprofile.findById(userId)
-            if(user_temp.isActive ===false || user_temp===undefined || user_temp === null){
-                return res.status(400).json({message:"Invalid userid"})
+    
+            // Check if user exists and is active
+            const user_temp = await userprofile.findById(userId);
+            if (!user_temp || user_temp.isActive === false) {
+                return res.status(400).json({ message: "Invalid or inactive user ID" });
             }
-
-            let result=await Form.updateOne({_id:id} , {$set : { formName : formName, questions : formQuestions }});
-
-            return res.status(200).json({message:"Form Updated"})
-        }catch(err){
-            return res.status(404).json({message:err.message})
+    
+            let updateData = {};
+    
+            // Check if the form name is actually changing
+            if (formName && formName !== existingForm.formName) {
+                updateData.formName = formName;
+            }
+    
+            // Validate and compare formQuestions before updating
+            if (formQuestions) {
+                if (!Array.isArray(formQuestions) || formQuestions.length === 0) {
+                    return res.status(400).json({ message: "Questions must be a non-empty array" });
+                }
+    
+                let isDifferent = false;
+                let newQuestions = [];
+    
+                for (let question of formQuestions) {
+                    if (!question.label || typeof question.label !== "string") {
+                        return res.status(400).json({ message: "Each question must have a valid 'label' of type string" });
+                    }
+    
+                    if (!question.type || typeof question.type !== "string") {
+                        return res.status(400).json({ message: "Each question must have a valid 'type' of type string" });
+                    }
+    
+                    if (["radio", "checkbox"].includes(question.type)) {
+                        if (!Array.isArray(question.options) || question.options.length === 0) {
+                            return res.status(400).json({ message: `Question of type '${question.type}' must have a non-empty options array` });
+                        }
+    
+                        for (let option of question.options) {
+                            if (typeof option !== "string" || option.trim() === "") {
+                                return res.status(400).json({ message: "Each option must be a valid non-empty string" });
+                            }
+                        }
+                    }
+    
+                    // Check if this question already exists in the database
+                    let existingQuestion = existingForm.questions.find(q => q.label === question.label);
+    
+                    if (!existingQuestion || JSON.stringify(existingQuestion.options) !== JSON.stringify(question.options)) {
+                        isDifferent = true; // Mark as different if any question changes
+                    }
+    
+                    newQuestions.push(question);
+                }
+    
+                // Only update if something actually changed
+                if (isDifferent) {
+                    updateData.questions = newQuestions;
+                }
+            }
+    
+            // If there's nothing to update, return early
+            if (Object.keys(updateData).length === 0) {
+                return res.status(200).json({ message: "No changes detected" });
+            }
+    
+            // Update the form
+            await Form.updateOne({ _id: id }, { $set: updateData });
+    
+            return res.status(200).json({ message: "Form Updated Successfully" });
+    
+        } catch (err) {
+            console.error("Error updating form:", err);
+            return res.status(500).json({ message: "Internal Server Error", error: err.message });
         }
-    }
+    };  
 
     const deleteFormFormat = async function(req,res){
         try {
@@ -94,8 +155,7 @@ const formController = function (Form,formResponse) {
 
     const getFormData =async function (req,res) {
         try {
-            const  formID  = req.params.id;
-            
+            const  formID  = req.query.formID;
             // Check if formID is provided
             if (!formID) {
               return res.status(400).json({ message: 'Form ID is required.' });
@@ -127,48 +187,111 @@ const formController = function (Form,formResponse) {
             return res.status(500).json({ message: 'Server error, could not fetch form responses.' });
           }
     }
-    const addDataToForm =async function (req,res) {
+   
+    const addDataToForm = async function (req, res) {
         try {
             const { formID, responses, submittedBy } = req.body;
-            // here we also need to send which user made that so 
-            // Check if the formID and responses are provided
+    
+            // Ensure all required fields are present
             if (!formID || !responses || responses.length === 0) {
-              return res.status(400).json({ message: 'Form ID and responses are required.' });
+                return res.status(400).json({ message: 'Form ID and responses are required.' });
             }
-            // condition to check that a user is linked to the form when submitted.
-            if(!submittedBy){
-                return res.status(400).json({message:'User id is required to submit this form.'})
+            if (!submittedBy) {
+                return res.status(400).json({ message: 'User ID is required to submit this form.' });
             }
-            
+    
             // Check if the form exists
             const form = await Form.findOne({ formID });
             if (!form) {
-              return res.status(404).json({ message: 'Form not found.' });
+                return res.status(404).json({ message: 'Form not found.' });
             }
-            // check if userexists or not.
-            let result=await userprofile.find({_id:submittedBy})
-            if(result===undefined || result === null || result.length===0 || result[0].isActive === false ){
-                return res.status(400).json({message: 'Invalid User'});
+    
+            // Check if user exists and is active
+            const user = await userprofile.findById(submittedBy);
+            if (!user || user.isActive === false) {
+                return res.status(400).json({ message: 'Invalid or inactive user.' });
             }
-            // Create a new form response
-            const formResponses = new formResponse({
-              formID,
-              responses,
-              submittedBy: submittedBy || 'Anonymous',
+    
+            // Validate responses against the form questions
+            if (!Array.isArray(responses)) {
+                return res.status(400).json({ message: 'Responses must be an array.' });
+            }
+    
+            const formQuestions = form.questions;
+            if (responses.length !== formQuestions.length) {
+                return res.status(400).json({ message: 'Number of responses does not match the number of form questions.' });
+            }
+    
+            const validatedResponses = [];
+    
+            for (let i = 0; i < responses.length; i++) {
+                const question = formQuestions[i];
+                const response = responses[i];
+    
+                // Ensure response has the required label and value
+                if (!response.questionLabel || response.answer === undefined) {
+                    return res.status(400).json({ message: `Response for question "${question.label}" is incomplete.` });
+                }
+    
+                // Ensure response label matches the expected question label
+                if (response.questionLabel !== question.label) {
+                    return res.status(400).json({ message: `Invalid question label: Expected "${question.label}", got "${response.questionLabel}".` });
+                }
+    
+                // Validate response based on question type
+                if (question.type === 'radio') {
+                    if (typeof response.answer !== 'string') {
+                        return res.status(400).json({ message: `Response for "${question.label}" must be a single string value.` });
+                    }
+                    if (!question.options.includes(response.answer)) {
+                        return res.status(400).json({ message: `Invalid response for "${question.label}". Expected one of: ${question.options.join(', ')}` });
+                    }
+                } else if (question.type === 'checkbox') {
+                    if (!Array.isArray(response.answer)) {
+                        return res.status(400).json({ message: `Response for "${question.label}" must be an array of selected options.` });
+                    }
+                    if (response.answer.length === 0) {
+                        return res.status(400).json({ message: `At least one option must be selected for "${question.label}".` });
+                    }
+                    const invalidOptions = response.answer.filter(option => !question.options.includes(option));
+                    if (invalidOptions.length > 0) {
+                        return res.status(400).json({ message: `Invalid options selected for "${question.label}": ${invalidOptions.join(', ')}` });
+                    }
+                } else if (question.type === 'text') {
+                    if (typeof response.answer !== 'string' || response.answer.trim() === '') {
+                        return res.status(400).json({ message: `Response for "${question.label}" must be a non-empty text string.` });
+                    }
+                } else {
+                    return res.status(400).json({ message: `Invalid question type: "${question.type}"` });
+                }
+    
+                // Push the validated response into the validatedResponses array
+                validatedResponses.push({
+                    questionLabel: response.questionLabel,
+                    answer: response.answer,
+                });
+            }
+    
+            // Create and save the valid response
+            const formResp = new formResponse({
+                formID,
+                responses: validatedResponses,
+                submittedBy,
             });
-        
-            // Save the response in the database
-            const savedResponse = await formResponses.save();
-        
+    
+            const savedResponse = await formResp.save();
+    
             return res.status(201).json({
-              message: 'Form response submitted successfully',
-              responseID: savedResponse._id,
+                message: 'Form response submitted successfully',
+                responseID: savedResponse._id,
             });
-          } catch (error) {
+    
+        } catch (error) {
             console.error('Error submitting form response:', error);
             return res.status(500).json({ message: 'Server error, could not submit form response.' });
-          }
-    }
+        }
+    };
+    
 
     const getAllForms = async (req,res)=>{
         try{
@@ -183,8 +306,10 @@ const formController = function (Form,formResponse) {
         try{
             // const formID=req.params.id;
             const {formID, userId}=req.body;
-            
+            console.log(formID)
+            console.log(userId);
             const result=await Form.find({formID})
+            console.log(result)
             if (!result || result.length===0) {
               return res.status(404).json({ message: 'Form not found.' });
             }
