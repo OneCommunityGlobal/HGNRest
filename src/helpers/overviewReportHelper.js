@@ -571,31 +571,77 @@ const overviewReportHelper = function () {
   }
 
   /**
-   * Get the number of Blue Square infringements between the two input dates.
-   * @param {*} startDate
-   * @param {*} endDate
-   * @returns
+   * Get the data for Blue Square infringements between the two input dates.
+   * @param {Date} isoStartDate
+   * @param {Date} isoEndDate
+   * @param {Date} isoComparisonStartDate
+   * @param {Date} isoComparisonEndDate
    */
-  async function getBlueSquareStats(startDate, endDate) {
-    return UserProfile.aggregate([
+  async function getBlueSquareStats(
+    isoStartDate,
+    isoEndDate,
+    isoComparisonStartDate,
+    isoComparisonEndDate,
+  ) {
+    const data = await UserProfile.aggregate([
       {
-        $unwind: '$infringements',
+        $unwind: {
+          path: '$infringementsNew',
+        },
       },
       {
         $match: {
-          'infringements.date': {
-            $gte: startDate,
-            $lte: endDate,
+          'infringementsNew.createdDate': {
+            $gte: isoStartDate,
+            $lte: isoEndDate,
           },
         },
       },
       {
         $group: {
-          _id: '$infringements.description',
+          _id: '$infringementsNew.reason',
           count: { $sum: 1 },
         },
       },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              {
+                $in: [
+                  '$_id',
+                  ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
+                ],
+              },
+              '$_id',
+              'other',
+            ],
+          },
+          count: {
+            $sum: '$count',
+          },
+        },
+      },
     ]);
+
+    const totalInfringements = data.reduce((total, item) => {
+      const currTotal = total + item.count;
+      return currTotal;
+    }, 0);
+
+    const formatData = data.reduce((accum, item) => {
+      accum[item._id] = {
+        count: item.count,
+        percentageOutOfTotal: Math.round((item.count / totalInfringements) * 100) / 100,
+      };
+      return accum;
+    }, {});
+
+    formatData.totalBlueSquares = {
+      count: totalInfringements,
+    };
+
+    return formatData;
   }
 
   /**
