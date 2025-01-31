@@ -583,63 +583,80 @@ const overviewReportHelper = function () {
     isoComparisonStartDate,
     isoComparisonEndDate,
   ) {
-    const data = await UserProfile.aggregate([
-      {
-        $unwind: {
-          path: '$infringementsNew',
-        },
-      },
-      {
-        $match: {
-          'infringementsNew.createdDate': {
-            $gte: isoStartDate,
-            $lte: isoEndDate,
+    const getData = async (startDate, endDate) =>
+      UserProfile.aggregate([
+        {
+          $unwind: {
+            path: '$infringementsNew',
           },
         },
-      },
-      {
-        $group: {
-          _id: '$infringementsNew.reason',
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $cond: [
-              {
-                $in: [
-                  '$_id',
-                  ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
-                ],
-              },
-              '$_id',
-              'other',
-            ],
-          },
-          count: {
-            $sum: '$count',
+        {
+          $match: {
+            'infringementsNew.createdDate': {
+              $gte: startDate,
+              $lte: endDate,
+            },
           },
         },
-      },
-    ]);
+        {
+          $group: {
+            _id: '$infringementsNew.reason',
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $cond: [
+                {
+                  $in: [
+                    '$_id',
+                    ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
+                  ],
+                },
+                '$_id',
+                'other',
+              ],
+            },
+            count: {
+              $sum: '$count',
+            },
+          },
+        },
+      ]);
 
-    const totalInfringements = data.reduce((total, item) => {
+    const currData = await getData(isoStartDate, isoEndDate);
+
+    const currTotalInfringements = currData.reduce((total, item) => {
       const currTotal = total + item.count;
       return currTotal;
     }, 0);
 
-    const formatData = data.reduce((accum, item) => {
+    const formatData = currData.reduce((accum, item) => {
       accum[item._id] = {
         count: item.count,
-        percentageOutOfTotal: Math.round((item.count / totalInfringements) * 100) / 100,
+        percentageOutOfTotal: Math.round((item.count / currTotalInfringements) * 100) / 100,
       };
       return accum;
     }, {});
 
     formatData.totalBlueSquares = {
-      count: totalInfringements,
+      count: currTotalInfringements,
     };
+
+    if (isoComparisonStartDate && isoComparisonEndDate) {
+      const comparisonData = await getData(isoComparisonStartDate, isoComparisonEndDate);
+
+      const comparisonTotalInfringements = comparisonData.reduce((total, item) => {
+        const currTotal = total + item.count;
+        return currTotal;
+      }, 0);
+
+      formatData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
+        currTotalInfringements,
+        comparisonTotalInfringements,
+      );
+    }
 
     return formatData;
   }
