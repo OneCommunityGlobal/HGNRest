@@ -4,7 +4,6 @@ import emailSender from '../../utilities/emailSender'; // Import your existing e
 // Service function to send a Slack invite email
 const sendSlackInvite = async (recipientEmail) => {
   const slackWorkspaceUrl = process.env.SLACK_WORKSPACE_URL; // Slack workspace invite URL from environment variable
-
   if (!slackWorkspaceUrl) {
     throw new Error('Slack workspace URL is not set in the environment variables');
   }

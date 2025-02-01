@@ -3,10 +3,18 @@ const slackService = require('../../services/userManagementAutomation/slackServi
 // Controller function to invite a user
 async function inviteUser(req, res) {
   const { email } = req.body;
-
+  const { requestor } = req.body;
   // Validate email input
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
+  }
+
+  if (
+    requestor.requestorId !== userId &&
+    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+  ) {
+    res.status(403).send({ error: 'Unauthorized request' });
+    return;
   }
 
   try {
