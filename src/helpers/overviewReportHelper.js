@@ -632,7 +632,7 @@ const overviewReportHelper = function () {
       return currTotal;
     }, 0);
 
-    const formatData = currData.reduce((accum, item) => {
+    const formattedData = currData.reduce((accum, item) => {
       accum[item._id] = {
         count: item.count,
         percentageOutOfTotal: Math.round((item.count / currTotalInfringements) * 100) / 100,
@@ -640,7 +640,21 @@ const overviewReportHelper = function () {
       return accum;
     }, {});
 
-    formatData.totalBlueSquares = {
+    // fill missing fields
+    const reasons = [
+      'missingHours',
+      'missingSummary',
+      'missingHoursAndSummary',
+      'vacationTime',
+      'other',
+    ];
+    reasons.forEach((reason) => {
+      if (!formattedData[reason]) {
+        formattedData[reason] = { count: 0, percentageOutOfTotal: 0 };
+      }
+    });
+
+    formattedData.totalBlueSquares = {
       count: currTotalInfringements,
     };
 
@@ -652,13 +666,13 @@ const overviewReportHelper = function () {
         return currTotal;
       }, 0);
 
-      formatData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
+      formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
         currTotalInfringements,
         comparisonTotalInfringements,
       );
     }
 
-    return formatData;
+    return formattedData;
   }
 
   /**
