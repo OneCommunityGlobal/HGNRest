@@ -153,8 +153,9 @@ const warningsController = function (UserProfile) {
     }
     try {
       const { userId } = req.params;
-      const { iconId, color, date, description } = req.body;
-      const { monitorData } = req.body;
+      const { warningsArray, issueBlueSquare, monitorData, iconId, color, date, description } =
+        req.body;
+
       const record = await UserProfile.findById(userId);
 
       if (!record) {
@@ -176,28 +177,28 @@ const warningsController = function (UserProfile) {
         monitorData.userId = monitor._id;
       }
 
-      const updatedWarnings = await UserProfile.findByIdAndUpdate(
-        {
-          _id: userId,
-        },
-        {
-          $push: { warnings: { userId, iconId, color, date, description } },
-        },
-        { new: true, upsert: true },
-      );
+      const updateData = warningsArray
+        ? { $push: { warnings: { $each: warningsArray } } }
+        : { $push: { warnings: { userId, iconId, color, date, description } } };
+
+      const updatedWarnings = await UserProfile.findByIdAndUpdate({ _id: userId }, updateData, {
+        new: true,
+        upsert: true,
+      });
 
       const { completedData, sendEmail, size } = filterWarnings(
         currentWarningDescriptions,
         updatedWarnings.warnings,
-        iconId,
-        color,
+        iconId || null,
+        color || null,
+        issueBlueSquare,
       );
 
       const adminEmails = await getUserRoleByEmail(record);
       if (sendEmail !== null) {
         sendEmailToUser(
           sendEmail,
-          description,
+          description || null,
           userAssignedWarning,
           monitorData,
           size,
@@ -206,7 +207,6 @@ const warningsController = function (UserProfile) {
       }
 
       res.status(201).send({ message: 'success', warnings: completedData });
-      // res.status(201).send({ message: 'success', warnings: [] });
     } catch (error) {
       console.log('error', error);
       res.status(400).send({ message: error.message || error });
