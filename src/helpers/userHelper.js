@@ -1647,9 +1647,7 @@ const userHelper = function () {
   };
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
-    console.log("Entered checkXHrsInOneWeek function.");
-    
-    // Set lastWeek value
+        // Set lastWeek value
     const lastWeek = user.savedTangibleHrs[user.savedTangibleHrs.length-1];
       
     const badgesOfType = [];
@@ -1678,10 +1676,8 @@ const userHelper = function () {
             }
   
             if (theBadge) {
-              console.log(`Badge already exists in user's collection. Incrementing count for badge: ${badgeName}`);
               increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
             } else {
-              console.log(`Adding new badge to user's collection: ${badgeName}`);
               addBadge(personId, mongoose.Types.ObjectId(elem._id));
             }
             return false; // Exit the loop early
@@ -1694,12 +1690,9 @@ const userHelper = function () {
       });
   };
   
-  
-
-  // 'X Hours for X Week Streak',
+    // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
-    console.log("Entered checkXHrsForXWeeks function.");
-  
+    
     try {
       // Call checkXHrsInOneWeek for handling the 1-week streak badge
       if (user.savedTangibleHrs.length === 0) {
@@ -1708,12 +1701,9 @@ const userHelper = function () {
       }
   
       // Calculate the ending streak for longer streaks
-      console.log("Calculating the ending streak from savedTangibleHrs.");
       const savedTangibleHrs = user.savedTangibleHrs;
       const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
       let streak = 0;
-  
-      console.log("Array of tangible hours: ", savedTangibleHrs);
   
       // Calculate streak for longer weeks
       for (let i = savedTangibleHrs.length - 1; i >= 0; i--) {
@@ -1724,7 +1714,6 @@ const userHelper = function () {
         }
       }
   
-      console.log(`Ending streak found: ${currentMaxHours} hours for ${streak} weeks.`);
       if (streak === 0) {
         console.log("No valid streak found.");
         return;
@@ -1755,7 +1744,6 @@ const userHelper = function () {
           }
   
           if (badgeInCollection) {
-            console.log("Badge already present in badgeCollection, incrementing badge count...", badge.badgeName);
             await increaseBadgeCount(personId, badge._id);
             return;
           } else {
@@ -1775,12 +1763,10 @@ const userHelper = function () {
                     },
                   }
                 );
-                console.log(`Replaced badge with ${badge.badgeName}`);
                 return;
               }
             }
   
-            console.log("Adding new badge to badge collection...", badge.badgeName);
             await addBadge(personId, badge._id);
             return;
           }
@@ -1793,11 +1779,6 @@ const userHelper = function () {
     }
   };
   
-
-// const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-// };
-
-
   // 'Lead a team of X+'
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
