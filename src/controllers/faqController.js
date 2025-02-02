@@ -167,7 +167,7 @@ const logUnansweredFAQ = async function (req, res) {
         });
         await newUnansweredFAQ.save();
 
-        const ownerEmail = process.env.OWNER_EMAIL || 'oliviahaoyue1217@gmail.com';
+        const ownerEmail = process.env.OWNER_EMAIL || 'jae@onecommunityglobal.org';
 
         const emailMessage = `
             <p>A new unanswered question has been logged:</p>
@@ -178,33 +178,13 @@ const logUnansweredFAQ = async function (req, res) {
         console.log("Queuing email for owner:", ownerEmail);
 
         emailSender(
-            ownerEmail, // recipients
-            'New Unanswered FAQ Logged', // subject
-            emailMessage, // message (HTML format)
-            null, // attachments
-            null, // cc
-            null // replyTo
+            ownerEmail,
+            'New Unanswered FAQ Logged',
+            emailMessage,
+            null,
+            null,
+            null
         );
-        // const emailData = {
-        //     to: ownerEmail,
-        //     subject: 'New Unanswered FAQ Logged',
-        //     html: `<p>A new unanswered question has been logged:</p>
-        //        <p><strong>Question:</strong> ${question}</p>
-        //        <p>Please review and add an answer if necessary.</p>`,
-        // };
-        // await emailSender(emailData.to, emailData.subject, emailData.html);
-        // console.log("Logging unanswered FAQ:", question);
-        // console.log("Sending email to:", ownerEmail);
-        // console.log("Email Data:", emailData);
-        // const emailDataTest = {
-        //     to: "testemail@123.com",
-        //     subject: "Test Email from logUnansweredFAQ",
-        //     html: `<p>This is a test email to check if email sending is working.</p>`,
-        // };
-
-        // await emailSender(emailDataTest.to, emailDataTest.subject, emailDataTest.html);
-        // console.log("Test email sent to:", emailDataTest.to);
-        // console.log("Email Data:", emailDataTest);
 
         console.log("Email queued for sending.");
 
