@@ -1,13 +1,12 @@
-// HGNRest/src/routes/faqRouter.js
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 const router = express.Router();
-const faqController = require('../controllers/faqController')();
+const faqController = require('../controllers/faqController');
 const Role = require('../models/role');
+const UnansweredFAQ = require('../models/unansweredFaqs');
 
-// Middleware to verify token and fetch permissions
 const verifyToken = async (req, res, next) => {
     const token = req.headers['authorization'];
     if (!token) {
@@ -50,11 +49,12 @@ const checkFaqPermission = (requiredPermission) => (req, res, next) => {
 
 // Define routes with verifyToken and checkFaqPermission
 router.get('/faqs/search', verifyToken, faqController.searchFAQs);
-router.get('/faqs', verifyToken, faqController.getTopFAQs);
+router.get('/faqs', verifyToken, faqController.getAllFAQs);
 router.post('/faqs', verifyToken, checkFaqPermission('manageFAQs'), faqController.createFAQ);
 router.put('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.updateFAQ);
 router.delete('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.deleteFAQ);
 router.post('/faqs/log-unanswered', verifyToken, faqController.logUnansweredFAQ);
 router.get('/faqs/:id/history', verifyToken, checkFaqPermission('manageFAQs'), faqController.getFAQHistory);
-
+router.get('/faqs/unanswered', verifyToken, faqController.getUnansweredFAQs);
+router.delete('/faqs/unanswered/:id', verifyToken, faqController.deleteUnansweredFAQ);
 module.exports = router;
