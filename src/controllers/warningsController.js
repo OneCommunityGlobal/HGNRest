@@ -91,62 +91,6 @@ const warningsController = function (UserProfile) {
     }
   };
 
-  const postNewWarningsByUserId = async function (req, res, next) {
-    if (!currentWarningDescriptions) {
-      await getWarningDescriptions();
-    }
-    try {
-      const { userId } = req.params;
-      const { warningsArray, monitorData, issueBlueSquare } = req.body;
-      const record = await UserProfile.findById(userId);
-
-      const userAssignedWarning = {
-        firstName: record.firstName,
-        lastName: record.lastName,
-        email: record.email,
-      };
-
-      if (!record) {
-        return res.status(400).send({ message: 'No valid records found' });
-      }
-
-      const updatedWarnings = await UserProfile.findByIdAndUpdate(
-        {
-          _id: userId,
-        },
-        {
-          $push: { warnings: { $each: warningsArray } },
-        },
-        { new: true, upsert: true },
-      );
-
-      //the two warnings are now posted.
-      //i will group them as usual using filter and set sendemail to send the email
-      //issueBlueSquare flag will tell me which email I'll be sending
-      //i need the size of each one as well
-      //can return it via an array or object?
-      // issue blue square -> size
-      //issue warning ->
-      const { completedData, sendEmail, size } = filterWarnings(
-        currentWarningDescriptions,
-        updatedWarnings.warnings,
-        null,
-        null,
-        issueBlueSquare,
-      );
-
-      const adminEmails = await getUserRoleByEmail(record);
-      if (sendEmail !== null) {
-        sendEmailToUser(sendEmail, '', userAssignedWarning, monitorData, size, adminEmails);
-      }
-
-      res.status(201).send({ message: 'success', warnings: [] });
-    } catch (err) {
-      console.log(err);
-      res.status(400).send({ message: err.message || err });
-    }
-  };
-
   const postWarningsToUserProfile = async function (req, res, next) {
     if (!currentWarningDescriptions) {
       await getWarningDescriptions();
@@ -240,7 +184,6 @@ const warningsController = function (UserProfile) {
     getSpecialWarnings,
     postWarningsToUserProfile,
     deleteUsersWarnings,
-    postNewWarningsByUserId,
   };
 };
 
