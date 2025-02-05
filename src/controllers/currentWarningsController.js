@@ -19,7 +19,7 @@ const currentWarningsController = function (currentWarnings) {
       const response = await currentWarnings.find({});
 
       if (response.length === 0) {
-        return res.status(400).send({ message: 'no valid records' });
+        return res.status(400).send({ message: 'no valid records', response: response });
       }
       return res.status(200).send({ currentWarningDescriptions: response });
     } catch (error) {
