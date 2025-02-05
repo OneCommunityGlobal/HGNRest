@@ -2271,21 +2271,24 @@ const userHelper = function () {
     if (Array.isArray(data)) {
         data.forEach(item => {
             const bothTermsFound = searchForBothTerms(item, lowerCaseTerm1, lowerCaseTerm2);
-            const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
+            // const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
 
             if (bothTermsFound) {
                 bothTermsMatches.push(item); // If both terms are found, store the item
-            } else if (term2OnlyFound) {
-                term2Matches.push(item); // If only term2 is found, store the item
-            }
+            } 
+            // else if (term2OnlyFound) {
+            //     term2Matches.push(item); // If only term2 is found, store the item
+            // }
         });
 
         // If matches for both terms are found, return them, else return term2 matches
         if (bothTermsMatches.length > 0) {
             return bothTermsMatches;
-        } else if (term2Matches.length > 0) {
-            return term2Matches;
-        } else {
+        }
+        //  else if (term2Matches.length > 0) {
+        //     return term2Matches;
+        // } 
+        else {
             return [];  // No match found, return empty array
         }
     }
@@ -2376,7 +2379,7 @@ const getProfileImagesFromWebsite = async () => {
   try {
     // Fetch the webpage with retry logic
     const htmlText = await fetchWithRetry("https://www.onecommunityglobal.org/team");
-    // Load HTML into Cheerio
+    // // Load HTML into Cheerio
     const $ = cheerio.load(htmlText);
     const imgData = [];
     $('img').each((i, img) => {
@@ -2387,10 +2390,9 @@ const getProfileImagesFromWebsite = async () => {
         nitro_src: $(img).attr('nitro-lazy-src'),
       });
     });
-
     const users = await userProfile.find(
-      { isActive: true },
-      "firstName lastName email profilePic suggestedProfilePics"
+      { isActive: true, bioPosted: 'posted' },
+      "firstName lastName email profilePic suggestedProfilePics bioPosted"
     );
 
     await Promise.all(
