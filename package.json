@@ -80,6 +80,7 @@
     "sanitize-html": "^2.13.0",
     "sharp": "^0.33.5",
     "supertest": "^6.3.4",
+    "twitter-api-v2": "^1.17.2",
     "uuid": "^3.4.0",
     "ws": "^8.17.1"
   },
