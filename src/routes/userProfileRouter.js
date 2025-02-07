@@ -8,6 +8,8 @@ const routes = function (userProfile, project) {
 
   const userProfileRouter = express.Router();
 
+  userProfileRouter.route('/userProfile/name/:userId').get(controller.getUserName);
+
   userProfileRouter
     .route('/userProfile')
     .get(controller.getUserProfiles)
@@ -23,7 +25,7 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
-  userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);  
+  userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
   // Endpoint to retrieve basic user profile information
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
   userProfileRouter
@@ -92,8 +94,6 @@ const routes = function (userProfile, project) {
   userProfileRouter.route('/userProfile/:userId/updatePassword').patch(controller.updatepassword);
 
   userProfileRouter.route('/userProfile/:userId/resetPassword').patch(controller.resetPassword);
-
-  userProfileRouter.route('/userProfile/name/:userId').get(controller.getUserName);
 
   userProfileRouter.route('/userProfile/project/:projectId').get(controller.getProjectMembers);
 

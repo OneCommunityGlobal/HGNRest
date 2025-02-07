@@ -1827,20 +1827,20 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const updateUserInformation = async function (req,res){
+  const updateUserInformation = async function (req, res) {
     try {
-      const data=req.body;
-      data.map(async (e)=>  {
+      const data = req.body;
+      data.map(async (e) => {
         let result = await UserProfile.findById(e.user_id);
-        result[e.item]=e.value
-        let newdata=await result.save()
-      })
-      res.status(200).send({ message: 'Update successful'});
+        result[e.item] = e.value;
+        let newdata = await result.save();
+      });
+      res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error)
-      return res.status(500)
+      console.log(error);
+      return res.status(500);
     }
-  }
+  };
 
   return {
     postUserProfile,
@@ -1871,7 +1871,7 @@ const userProfileController = function (UserProfile, Project) {
     getAllTeamCode,
     getAllTeamCodeHelper,
     updateUserInformation,
-    getUserProfileBasicInfo
+    getUserProfileBasicInfo,
   };
 };
 
