@@ -37,6 +37,10 @@ const userProfileSchema = new Schema({
   permissions: {
     frontPermissions: [String],
     backPermissions: [String],
+    removedDefaultPermissions: {
+      front: [String],  // Default permissions removed for this user
+      back: [String]
+    }
   },
   firstName: {
     type: String,
