@@ -28,6 +28,11 @@ const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
+const fs = require('fs');
+const cheerio = require('cheerio');
+const axios=require('axios');
+const sharp = require("sharp");
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -1070,7 +1075,8 @@ const userHelper = function () {
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        if (moment().isSameOrAfter(moment(user.reactivationDate))) {
+        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate))
+        if (canActivate) { // Use '!' to invert the boolean value for testing
           await userProfile.findByIdAndUpdate(
             user._id,
             {
@@ -2255,6 +2261,174 @@ const userHelper = function () {
     }
   };
 
+  function searchForTermsInFields(data, term1, term2) {
+    const lowerCaseTerm1 = term1.toLowerCase();
+    const lowerCaseTerm2 = term2.toLowerCase();
+
+    let bothTermsMatches = [];
+    let term2Matches = [];
+
+    // Check if the current data is an array
+    if (Array.isArray(data)) {
+        data.forEach(item => {
+            const bothTermsFound = searchForBothTerms(item, lowerCaseTerm1, lowerCaseTerm2);
+            const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
+
+            if (bothTermsFound) {
+                bothTermsMatches.push(item); // If both terms are found, store the item
+            } else if (term2OnlyFound) {
+                term2Matches.push(item); // If only term2 is found, store the item
+            }
+        });
+
+        // If matches for both terms are found, return them, else return term2 matches
+        if (bothTermsMatches.length > 0) {
+            return bothTermsMatches;
+        } else if (term2Matches.length > 0) {
+            return term2Matches;
+        } else {
+            return [];  // No match found, return empty array
+        }
+    }
+
+    // Recursion case for nested objects
+    if (typeof data === 'object' && data !== null) {
+        const result = Object.keys(data).some(key => {
+            if (typeof data[key] === 'object') {
+                return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+            }
+        });
+        return result ? data : null;
+    }
+    return [];
+}
+
+// Helper function to check if both terms are in the string
+function searchForBothTerms(data, term1, term2) {
+    if (typeof data === 'object' && data !== null) {
+        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
+        return Object.keys(data).some(key => {
+            if (fieldsToCheck.includes(key)) {
+                const stringValue = String(data[key]).toLowerCase();
+                return stringValue.includes(term1) && stringValue.includes(term2); // Check if both terms are in the string
+            }
+            return false;
+        });
+    }
+    return false;
+}
+
+// Helper function to check if only term2 is in the string
+function searchForTerm2(data, term2) {
+    if (typeof data === 'object' && data !== null) {
+        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
+        return Object.keys(data).some(key => {
+            if (fieldsToCheck.includes(key)) {
+                const stringValue = String(data[key]).toLowerCase();
+                return stringValue.includes(term2); // Check if only term2 is in the string
+            }
+            return false;
+        });
+    }
+    return false;
+}
+
+async function imageUrlToPngBase64(url) {
+  try {
+      // Fetch the image as a buffer
+      const response = await axios.get(url, { responseType: "arraybuffer" });
+
+      if (response.status !== 200) {
+          throw new Error(`Failed to fetch the image: ${response.statusText}`);
+      }
+
+      const imageBuffer = Buffer.from(response.data);
+
+      // Convert the image to PNG format using sharp
+      const pngBuffer = await sharp(imageBuffer).png().toBuffer();
+
+      // Convert the PNG buffer to a base64 string
+      const base64Png = pngBuffer.toString("base64");
+
+      return `data:image/png;base64,${base64Png}`;;
+  } catch (error) {
+      console.error(`An error occurred: ${error.message}`);
+      return null;
+  }
+}
+
+const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
+  let attempts = 0;
+  while (attempts < maxRetries) {
+    try {
+      const response = await axios.get(url);
+      return response.data; // Return data if the request succeeds
+    } catch (error) {
+      attempts++;
+      console.error(`Attempt ${attempts} failed: ${error.message}`);
+      if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
+      console.log(`Retrying in ${delayTime / 1000} seconds...`);
+      await delay(delayTime); // Wait for 5 minutes
+    }
+  }
+};
+
+const getProfileImagesFromWebsite = async () => {
+  try {
+    // Fetch the webpage with retry logic
+    const htmlText = await fetchWithRetry("https://www.onecommunityglobal.org/team");
+    // Load HTML into Cheerio
+    const $ = cheerio.load(htmlText);
+    const imgData = [];
+    $('img').each((i, img) => {
+      imgData.push({
+        src: $(img).attr('src'),
+        alt: $(img).attr('alt'),
+        title: $(img).attr('title'),
+        nitro_src: $(img).attr('nitro-lazy-src'),
+      });
+    });
+
+    const users = await userProfile.find(
+      { isActive: true },
+      "firstName lastName email profilePic suggestedProfilePics"
+    );
+
+    await Promise.all(
+      users.map(async (u) => {
+        if (!u.profilePic) {
+          const result = searchForTermsInFields(imgData, u.firstName, u.lastName);
+          try {
+            if (result.length === 1) {
+              if (result[0].nitro_src !== undefined) {
+                await userProfile.updateOne(
+                  { _id: u._id },
+                  { $set: { profilePic: result[0].nitro_src } }
+                );
+              } else {
+                const image = await imageUrlToPngBase64(result[0].src);
+                await userProfile.updateOne(
+                  { _id: u._id },
+                  { $set: { profilePic: image } }
+                );
+              }
+            } else if (result.length > 1) {
+              await userProfile.updateOne(
+                { _id: u._id },
+                { $set: { suggestedProfilePics: result } }
+              );
+            }
+          } catch (error) {
+            console.error(`Error updating user ${u._id}:`, error);
+          }
+        }
+      })
+    );
+  } catch (error) {
+    console.error("Failed to fetch profile images:", error);
+  }
+};
+
   return {
     changeBadgeCount,
     getUserName,
@@ -2275,6 +2449,7 @@ const userHelper = function () {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
+    getProfileImagesFromWebsite
   };
 };
 
