@@ -32,6 +32,7 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const axios=require('axios');
 const sharp = require("sharp");
+const Team=require('../models/team');
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
@@ -51,6 +52,41 @@ const userHelper = function () {
       _id: 0,
     });
   };
+
+  const getTeamMembersForBadge = async function (user) {
+
+      try{
+        const results = await Team.aggregate([
+          { $unwind: "$members" }, // Deconstructs the 'members' array to get each member as a separate document
+          {
+              $lookup: {
+                  from: "userProfiles", // Joining with 'userProfiles' collection
+                  localField: "members.userId",
+                  foreignField: "_id",
+                  as: "userProfile",
+              },
+          },
+          { $unwind: { path: "$userProfile", preserveNullAndEmptyArrays: true } }, // Preserves members even if they have no profile
+          {
+              $project: {
+                  team_id: "$_id", // Keeping team ID
+                  _id: "$members.userId", // Member ID
+                  role: "$userProfile.role", // Role from user profile
+                  firstName: "$userProfile.firstName", // First name from user profile
+                  lastName: "$userProfile.lastName", // Last name from user profile
+                  fullName:"$userProfile.fullName",
+                  addDateTime: "$members.addDateTime", // Date they joined the team
+                  teamName: "$teamName", // Team name
+              },
+          },
+      ]);
+      return results;      
+      }catch(error){
+        console.log(error);
+        return error;
+      }
+  };
+  
 
   const getTeamManagementEmail = function (teamId) {
     const parsedTeamId = mongoose.Types.ObjectId(teamId);
@@ -1284,7 +1320,7 @@ const userHelper = function () {
   };
 
   const removeDupBadge = async function (personId, badgeId) {
-    userProfile.findByIdAndUpdate(
+    await userProfile.findByIdAndUpdate(
       personId,
       {
         $pull: {
@@ -1868,47 +1904,46 @@ const userHelper = function () {
     const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
     const approvedRoles = ['Mentor', 'Manager'];
     if (!approvedRoles.includes(user.role)) return;
-
+  
+    let results=await getTeamMembersForBadge({_id: user.teamId,})
     let teamMembers;
-    await getTeamMembers({
-      _id: personId,
-    }).then((results) => {
-      if (results) {
-        teamMembers = results.myteam;
-      } else {
-        teamMembers = [];
-      }
-    });
 
+    if(results){
+      teamMembers=results;
+    }else{
+      teamMembers=[];
+    }
+    
     const objIds = {};
 
     teamMembers = teamMembers.filter((member) => {
       if (leaderRoles.includes(member.role)) return false;
       if (objIds[member._id]) return false;
       objIds[member._id] = true;
-
       return true;
     });
+    console.log("Badge of Types");
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
         if (badgeOfType && badgeOfType.people <= badgeCollection[i].badge.people) {
-          removeDupBadge(personId, badgeOfType._id);
+          await removeDupBadge(personId, badgeOfType._id);
           badgeOfType = badgeCollection[i].badge;
         } else if (badgeOfType && badgeOfType.people > badgeCollection[i].badge.people) {
-          removeDupBadge(personId, badgeCollection[i].badge._id);
+          await removeDupBadge(personId, badgeCollection[i].badge._id);
         } else if (!badgeOfType) {
           badgeOfType = badgeCollection[i].badge;
         }
       }
     }
-    await badge
+    badge
       .find({ type: 'Lead a team of X+' })
       .sort({ people: -1 })
       .then((results) => {
         if (!Array.isArray(results) || !results.length) {
           return;
         }
+        
         results.every((bg) => {
           if (teamMembers && teamMembers.length >= bg.people) {
             if (badgeOfType) {
@@ -1924,9 +1959,11 @@ const userHelper = function () {
                 );
               }
               return false;
+            }else{
+
+              addBadge(personId, mongoose.Types.ObjectId(bg._id));
+              return false;
             }
-            addBadge(personId, mongoose.Types.ObjectId(bg._id));
-            return false;
           }
           return true;
         });
@@ -2019,9 +2056,97 @@ const userHelper = function () {
     });
   };
 
+  const getAllTeamMembers = async () => {
+    try {
+        console.log("Started the get Team Members");
+
+        let results = await Team.aggregate([
+            { $unwind: '$members' },
+            {
+                $lookup: {
+                    from: 'userProfiles',
+                    localField: 'members.userId',
+                    foreignField: '_id',
+                    as: 'userProfile',
+                },
+            },
+            { $unwind: '$userProfile' },
+            // Lookup to join badges inside badgeCollection
+            {
+                $lookup: {
+                    from: 'badges', // The collection name where Badge documents are stored
+                    localField: 'userProfile.badgeCollection.badge', // Reference in userProfiles
+                    foreignField: '_id', // The _id field in badge collection
+                    as: 'badgeDetails',
+                },
+            },
+
+            // Reshape the badgeCollection to include full badge details inside "badge"
+            {
+                $addFields: {
+                    'userProfile.badgeCollection': {
+                        $map: {
+                            input: '$userProfile.badgeCollection',
+                            as: 'badgeItem',
+                            in: {
+                                $mergeObjects: [
+                                    '$$badgeItem', // Keep all original badgeCollection fields
+                                    {
+                                        badge: {
+                                            $arrayElemAt: [
+                                                {
+                                                    $filter: {
+                                                        input: '$badgeDetails',
+                                                        as: 'badge',
+                                                        cond: { $eq: ['$$badge._id', '$$badgeItem.badge'] },
+                                                    },
+                                                },
+                                                0, // Select the first match if available
+                                            ],
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+
+            {
+                $replaceRoot: {
+                    newRoot: {
+                        team_id: '$_id', // Adding the team ID with key "team_id"
+                        _id: '$userProfile._id',
+                        role: '$userProfile.role',
+                        addDateTime: '$members.addDateTime',
+                        badgeCollection: '$userProfile.badgeCollection',
+                    },
+                },
+            },
+        ]);
+
+        return results;
+    } catch (error) {
+        console.error("Error fetching team members:", error);
+        throw error;
+    }
+};
+
   const awardNewBadges = async () => {
     try {
+      let allTeams=await getAllTeamMembers();
+      // getAllTeams
+      for(let i=0;i<allTeams.length;i++){
+        const user = allTeams[i];
+        const { _id, badgeCollection } = user;
+        const personId = mongoose.Types.ObjectId(_id);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        if (cache.hasCache(`user-${_id}`)) {
+          cache.removeCache(`user-${_id}`);
+        }
+      }
       const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
+     
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -2032,7 +2157,7 @@ const userHelper = function () {
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
         await checkTotalHrsInCat(personId, user, badgeCollection);
-        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
@@ -2041,7 +2166,8 @@ const userHelper = function () {
         }
       }
     } catch (err) {
-      logger.logException(err);
+      console.log(err)
+      // logger.logException(err);
     }
   };
 

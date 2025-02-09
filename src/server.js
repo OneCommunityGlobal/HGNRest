@@ -7,11 +7,16 @@ require('./cronjobs/userProfileJobs')();
 
 const port = process.env.PORT || 4500;
 
+
 const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
 (async () => {
   await websockets(server);
 })();
+
+const {awardNewBadges}= require('./helpers/userHelper.js')();
+awardNewBadges()
+
 
 module.exports = server;
