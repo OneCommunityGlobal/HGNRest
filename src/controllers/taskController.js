@@ -691,6 +691,10 @@ const taskController = function (Task) {
       return;
     }
 
+    if(req.body.hoursBest>0 && req.body.hoursWorst>0 && req.body.hoursMost>0 && req.body.hoursLogged>0 && req.body.estimatedHours>0){
+      return res.status(400).send({ error: 'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0' });
+    }
+
     const { taskId } = req.params;
     // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
     Task.findById(taskId).then((currentTask) => {
@@ -708,7 +712,6 @@ const taskController = function (Task) {
         });
       });
     });
-
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
       { ...req.body, modifiedDatetime: Date.now() },
