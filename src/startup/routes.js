@@ -130,6 +130,9 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+//commnunity portal
+const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -181,4 +184,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
+  //community portal
+  app.use('/api/cp', cpNoShowRouter);
 };
