@@ -130,7 +130,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-const eventRouter = require('../routes/eventRouter')(event);
+const eventRouter = require('../routes/eventRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
