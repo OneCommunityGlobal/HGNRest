@@ -1560,8 +1560,8 @@ const userHelper = function () {
       const savedHours = user.savedTangibleHrs; 
       const result = mergeArrays(savedHours, weeksData);
       const MaxHrs = Math.max(...result);
-      user.personalBestMaxHrs = MaxHrs; // updates userProfile's personalBestMaxHrs with the max hours.
-      await user.save(); // this will update user.personalBestMaxHrs with the new max hours.
+      user.personalBestMaxHrs = MaxHrs; // update database with the max hours.
+      await user.save(); // update user.personalBestMaxHrs with the new max hours.
       
     } catch (error) {
       console.error(error);
@@ -1573,35 +1573,44 @@ const userHelper = function () {
     let badgeOfType;
     const duplicateBadges = [];
 
+    // verify that "personal max" badge exists in badgeCollection
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'Personal Max') {
-        if (!badgeOfType) {
-          badgeOfType = badgeCollection[i];
-        } else {
-          duplicateBadges.push(badgeCollection[i]);
+        badgeOfType = badgeCollection;
+        break;
+      }
+    }
+    // add badge when badgeCollection is empty
+    if (!badgeOfType) {
+      const result = await badge.findOne({ type: 'Personal Max'});
+      if (result) {
+        addBadge(personId, mongoose.Types.ObjectId(result._id), user.personalBestMaxHrs);
+        badgeOfType = {
+          badge: result,
+          earnedDate: []
+        };
+        if (!badgeOfType.earnedDate.includes(currentDate)) {
+          increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
         }
       }
-      // eslint-disable-next-line no-restricted-syntax
-      for (const b of duplicateBadges) {
-        await removeDupBadge(personId, b._id);
-      }
+    }
+    // check the badge collection for duplicates
+    for (const b of duplicateBadges) {
+      await removeDupBadge(personId, b._id);
     }
 
     await updatePersonalMax(personId, user);
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
-      const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY'); // fixed format
+      const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
       if (
         user.lastWeekTangibleHrs &&
+        user.savedTangibleHrs[user.savedTangibleHrs.length-1] === user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
         !badgeOfType.earnedDate.includes(currentDate)
       ) {
         if (badgeOfType) {
           increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
-          // Update the earnedDate array with the new date
-          badgeOfType.earnedDate.unshift(moment().format('MMM-DD-YYYY')); 
-        } else {
-          addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
-        }
+        } 
       }
     });
   };
@@ -2015,7 +2024,6 @@ const userHelper = function () {
   const awardNewBadges = async () => {
     try {
       const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
-
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
