@@ -6,26 +6,26 @@ const routes = function () {
   console.log(controller);
 
   // Route for getting no shows data by period (e.g., year, month)
-  noShowRouter.route('/no-shows/data')
+  noShowRouter.route('/data')
     .get(controller.getNoShowsData);
 
   // Route for getting no shows by location
-  noShowRouter.route('/no-shows/location')
+  noShowRouter.route('/location')
     .get(controller.getNoShowsByLocation);
 
   // Route for getting no shows by age group
-  noShowRouter.route('/no-shows/age-group')
+  noShowRouter.route('/age-group')
     .get(controller.getNoShowsByAgeGroup);
 
   // Route for getting no shows by gender (example)
-  noShowRouter.route('/no-shows/proportions')
+  noShowRouter.route('/proportions')
     .get(controller.getNoShowProportions);
 
-  noShowRouter.route('/no-shows/unique-eventTypes')
+  noShowRouter.route('/unique-eventTypes')
     .get(controller.getUniqueEventTypes);
 
   // Route for getting attendance by day
-  noShowRouter.route('/attendance/by-day')
+  noShowRouter.route('/by-day')
     .get(controller.getAttendanceByDay);
 
   return noShowRouter;

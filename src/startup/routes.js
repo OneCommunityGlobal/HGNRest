@@ -185,5 +185,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
   //community portal
-  app.use('/api/cp', cpNoShowRouter);
+  app.use('/api/communityportal/reports/participation', cpNoShowRouter);
 };
