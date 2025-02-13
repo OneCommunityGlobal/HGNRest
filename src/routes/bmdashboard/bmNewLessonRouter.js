@@ -14,7 +14,14 @@ const routes = function (buildingNewLesson) {
     NewLessonRouter.route('/lessons/new')
         .post(controller.bmPostLessonList);
     NewLessonRouter.route('/lesson/:lessonId/like')
-  .put(controller.likeLesson);
+        .put(controller.likeLesson);
+    NewLessonRouter.route('/tags')
+        .get(controller.getLessonTags)
+        .post(controller.addNewTag);
+    NewLessonRouter.route('/tags/:tag')
+        .delete(controller.deleteTag);
+
+
     return NewLessonRouter;
 };
 module.exports = routes;
