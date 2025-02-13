@@ -8,7 +8,10 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
-        $unwind: '$members',
+        $unwind: {
+          path: '$members',
+          preserveNullAndEmptyArrays: true, // Ensures teams with empty members arrays are retained
+        },
       },
       {
         $lookup: {
@@ -19,7 +22,10 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $unwind: '$userProfile',
+        $unwind: {
+          path: '$userProfile',
+          preserveNullAndEmptyArrays: true, // Ensures that if no userProfile is found, the document is not removed
+        },
       },
       {
         $match: {
@@ -32,7 +38,7 @@ const teamcontroller = function (Team) {
             teamId: '$_id',
             teamCode: '$userProfile.teamCode',
           },
-          count: { $sum: 1 },
+          count: { $sum: { $cond: [{ $ifNull: ['$members', false] }, 1, 0] } }, // Count only if members exist
           teamName: { $first: '$teamName' },
           members: {
             $push: {
@@ -71,7 +77,8 @@ const teamcontroller = function (Team) {
         Logger.logException(error);
         res.status(404).send(error);
       });
-  };
+};
+
 
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
