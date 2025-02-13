@@ -74,12 +74,14 @@ const bmMaterialsController = function (BuildingMaterial) {
           itemType: matTypeId,
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
+          stockBought: quantity,
         };
         BuildingMaterial.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
+      doc.stockBought += quantity;
       BuildingMaterial.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } }
