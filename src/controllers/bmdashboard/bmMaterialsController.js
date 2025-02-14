@@ -17,14 +17,14 @@ const bmMaterialsController = function (BuildingMaterial) {
             path: "updateRecord",
             populate: {
               path: "createdBy",
-              select: "_id firstName lastName",
+              select: "_id firstName lastName email",
             },
           },
           {
             path: "purchaseRecord",
             populate: {
               path: "requestedBy",
-              select: "_id firstName lastName",
+              select: "_id firstName lastName email",
             },
           },
         ])
