@@ -984,10 +984,11 @@ const timeEntrycontroller = function (TimeEntry) {
         dateOfWork: { $gte: fromdate, $lte: todate },
         // include the time entries for the archived projects
       })
-      .populate('projectId')
       .populate('taskId')
       .populate('wbsId')
       .sort('-lastModifiedDateTime');
+
+      timeEntries.forEach((timeEntry) => {console.log(timeEntry)})
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
