@@ -71,9 +71,111 @@ const badgeController = function (Badge) {
    * Updated By: Abi
    * Function added:
    * - Refactored method to utilize async await syntax to make the code more testable.
+   * 
+   * Updated Date: 08/31/2024
+   * Updated By: Vijay Anand
+   * Function added:
+   * - Refactored method to handle assigning badge one or multiple badges to one or multiple users at once.
+   * - Refactored method to handle update badges report for a user ID.
    */
 
   const assignBadges = async function (req, res) {
+    if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
+      res.status(403).send('You are not authorized to assign badges.');
+      return;
+    }
+  
+    let userIds, badgeCollection;
+  
+    if (req.params.userId) {
+      // Single user update case
+      userIds = [req.params.userId];
+      badgeCollection = req.body.badgeCollection;
+    } else {
+      // Multi-user assign case
+      userIds = req.body.userIds;
+      console.log("userIDs:", userIds);
+      badgeCollection = req.body.selectedBadges.map(badgeId => ({
+        badge: badgeId.replace('assign-badge-', ''),
+        count: 1,
+        lastModified: Date.now(),
+        earnedDate: [new Date().toISOString()],
+      }));
+      console.log("badgeCollections", badgeCollection);
+    }
+  
+    if (!Array.isArray(userIds) || userIds.length === 0 || !Array.isArray(badgeCollection) || badgeCollection.length === 0) {
+      res.status(400).send('Invalid input. Both userIds and badgeCollection must be non-empty arrays.');
+      return;
+    }
+  
+    try {
+      const results = await Promise.all(
+        userIds.map(async (userId) => {
+          const userToBeAssigned = mongoose.Types.ObjectId(userId);
+          const record = await UserProfile.findById(userToBeAssigned);
+  
+          if (!record) {
+            return { userId, error: 'User not found' };
+          }
+  
+          let totalNewBadges = 0;
+          const existingBadges = {};
+          if (record.badgeCollection && Array.isArray(record.badgeCollection)) {
+            record.badgeCollection.forEach(badgeItem => {
+              existingBadges[badgeItem.badge.toString()] = badgeItem;
+            });
+          }
+  
+          // Merge existing badges with new ones
+          badgeCollection.forEach(badge => {
+            const existingBadge = existingBadges[badge.badge.toString()];
+            if (existingBadge) {
+              // Update the existing badge
+              existingBadge.count += badge.count;
+              existingBadge.lastModified = Date.now();
+              existingBadge.earnedDate = [
+                ...existingBadge.earnedDate,
+                ...(badge.earnedDate || [new Date().toISOString()]),
+              ];
+            } else {
+              // Add the new badge
+              existingBadges[badge.badge.toString()] = {
+                badge: mongoose.Types.ObjectId(badge.badge),
+                count: badge.count,
+                lastModified: Date.now(),
+                earnedDate: badge.earnedDate || [new Date().toISOString()],
+              };
+              totalNewBadges += badge.count;
+            }
+          });
+  
+          // Convert the merged badges back to an array
+          record.badgeCollection = Object.values(existingBadges);
+          record.badgeCount += totalNewBadges;
+  
+          if (cache.hasCache(`user-${userToBeAssigned}`)) {
+            cache.removeCache(`user-${userToBeAssigned}`);
+          }
+  
+          await record.save();
+          return { userId, success: true };
+        })
+      );
+  
+      const errors = results.filter(result => result.error);
+      if (errors.length > 0) {
+        res.status(207).send({ message: 'Some users were not assigned badges', errors });
+      } else {
+        res.status(200).send({ message: 'Badges assigned successfully to all users' });
+      }
+    } catch (err) {
+      res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
+    }
+  };
+  
+
+  const assignBadgesToSingleUser = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
@@ -346,6 +448,7 @@ const badgeController = function (Badge) {
     // awardBadgesTest,
     getAllBadges,
     assignBadges,
+    assignBadgesToSingleUser,
     postBadge,
     deleteBadge,
     putBadge,
