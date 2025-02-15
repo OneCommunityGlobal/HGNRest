@@ -13,5 +13,7 @@ const myTeamSchema = new Schema({
     }],
 
 });
-
+// Add index on the 'myteam._id' field to optimize lookups on team members
+myTeamSchema.index({ 'myteam._id': 1 });
+myTeamSchema.index({ 'myteam.role': 1 });
 module.exports = mongoose.model('myTeam', myTeamSchema, 'myTeam');
