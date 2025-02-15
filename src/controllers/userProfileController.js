@@ -728,6 +728,9 @@ const userProfileController = function (UserProfile, Project) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         updatedDiff = record.modifiedPaths();
       }
+      if (req.body.role === 'Administrator') {
+        record.permissions.frontPermissions.push('updateTask');
+      }
       record
         .save()
         .then((results) => {
