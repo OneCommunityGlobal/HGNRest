@@ -1494,7 +1494,7 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
- 
+
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
@@ -1539,7 +1539,7 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(500).send(error));
   };
 
- 
+
   const authorizeUser = async (req, res) => {
     try {
       let authorizedUser;
@@ -1611,8 +1611,9 @@ const userProfileController = function (UserProfile, Project) {
         message: 'User visibility updated successfully',
         isVisible,
       });
-    })}
-    
+    })
+  }
+
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
       res.status(403).send('You are not authorized to add blue square');
@@ -1814,10 +1815,6 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllTeamCodeHelper = async function () {
     try {
-      if (cache.hasCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes;
-      }
       const distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null },
       });
@@ -1875,15 +1872,15 @@ const userProfileController = function (UserProfile, Project) {
       });
   };
 
-  const updateUserInformation = async function (req,res){
+  const updateUserInformation = async function (req, res) {
     try {
-      const data=req.body;
-      data.map(async (e)=>  {
+      const data = req.body;
+      data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item]=e.value
+        result[e.item] = e.value
         await result.save();
       })
-      res.status(200).send({ message: 'Update successful'});
+      res.status(200).send({ message: 'Update successful' });
     } catch (error) {
       console.log(error)
       return res.status(500)
