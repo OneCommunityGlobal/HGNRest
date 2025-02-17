@@ -1,7 +1,7 @@
 /* eslint-disable */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-
+const helper = require('../utilities/permissions');
 const currentWarningsController = function (currentWarnings) {
   const checkForDuplicates = (currentWarning, warnings) => {
     const duplicateFound = warnings.some(
@@ -28,6 +28,16 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const postNewWarningDescription = async (req, res) => {
+    const userRole = req.body?.requestor?.role;
+    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
+    if (!isPrivilegedUser &&
+      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) 
+      
+    ) {
+     console.log('Preetham add a new WarningTracker'); 
+      res.status(403).send('You are not authorized to add a new WarningTracker.');
+      return;
+    }
     try {
       const { newWarning, activeWarning, isPermanent } = req.body;
 
@@ -99,6 +109,16 @@ const currentWarningsController = function (currentWarnings) {
     }
   };
   const updateWarningDescription = async (req, res) => {
+    const userRole = req.body?.requestor?.role;
+    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
+    if (!isPrivilegedUser &&
+      !(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
+      !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker'))
+    ) {
+     console.log('Preetham reactivateWarningTracker or deactivate'); 
+      res.status(403).send('You are not authorized to reactivate a WarningTracker or deactivate warning tracker.');
+      return;
+    }
     try {
       const { warningDescriptionId } = req.params;
 
@@ -115,6 +135,15 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const deleteWarningDescription = async (req, res) => {
+    const userRole = req.body?.requestor?.role;
+    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator'; 
+    if (!isPrivilegedUser &&
+      !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker')) 
+    ) {
+     console.log('Preetham delete a WarningTracker'); 
+      res.status(403).send('You are not authorized to delete a WarningTracker.');
+      return;
+    }
     try {
       const { warningDescriptionId } = req.params;
       const documentToDelete = await currentWarnings.findById(warningDescriptionId);
