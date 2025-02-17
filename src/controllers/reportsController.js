@@ -8,6 +8,42 @@ const UserProfile = require('../models/userProfile');
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
   const reporthelper = reporthelperClosure();
+
+  /**
+   * Aggregates the trend data for volunteer count
+   * Parameters:
+   * timeFrame - 0, 1, 2, etc: 0 represents all time
+   * offset - *STRING* week/month
+   * customStartDate / customEndDate - *DATE STRING as "YYYY-MM-DD" || NULL* custom date ranges, overrides timeFrame parameter
+   */
+  const getVolunteerTrends = async (req, res) => {
+    const { timeFrame, offset, customStartDate, customEndDate } = req.query;
+
+    if (!timeFrame || !offset) {
+      return res.status(400).send({ msg: 'Please provide a timeframe and offset' });
+    }
+
+    if (![0, 1, 2, 3, 5, 10].includes(+timeFrame)) {
+      return res.status(400).send({ msg: 'Invalid timeFrame' });
+    }
+
+    if (!['week', 'month'].includes(offset)) {
+      return res.status(400).send({ msg: 'Offset param must either be `week` or `month`' });
+    }
+
+    try {
+      const data = await overviewReportHelper.getVolunteerTrends(
+        timeFrame,
+        offset,
+        customStartDate,
+        customEndDate,
+      );
+      res.status(200).send(data);
+    } catch (err) {
+      res.status(400).send(err);
+    }
+  };
+
   /**
    * Aggregates all the data needed for the volunteer stats page
    * # Active volunteers
@@ -20,10 +56,20 @@ const reportsController = function () {
    * In teams stats
    */
   const getVolunteerStatsData = async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
+
     if (!startDate || !endDate) {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
+
+    let isoComparisonStartDate;
+    let isoComparisonEndDate;
+
+    if (comparisonStartDate && comparisonEndDate) {
+      isoComparisonStartDate = new Date(comparisonStartDate);
+      isoComparisonEndDate = new Date(comparisonEndDate);
+    }
+
     const isoStartDate = new Date(startDate);
     const isoEndDate = new Date(endDate);
 
@@ -41,19 +87,84 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
+        completedHours,
+        taskAndProjectStats,
+        volunteersOverAssignedTime,
+        completedAssignedHours,
+        totalSummariesSubmitted,
       ] = await Promise.all([
-        overviewReportHelper.getVolunteerNumberStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getHoursStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
-        overviewReportHelper.getTasksStats(isoStartDate, isoEndDate),
-        overviewReportHelper.getWorkDistributionStats(isoStartDate, isoEndDate),
+        overviewReportHelper.getVolunteerNumberStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getHoursStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalHoursWorked(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTasksStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getWorkDistributionStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getRoleDistributionStats(),
-        overviewReportHelper.getTeamMembersCount(),
+        overviewReportHelper.getTeamMembersCount(isoEndDate, isoComparisonEndDate),
         // overviewReportHelper.getBlueSquareStats(startDate, endDate),
-        overviewReportHelper.getAnniversaries(startDate, endDate),
-        overviewReportHelper.getTotalBadgesAwardedCount(startDate, endDate),
-        overviewReportHelper.getTotalActiveTeamCount(),
+        overviewReportHelper.getAnniversaries(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalBadgesAwardedCount(
+          startDate,
+          endDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getMapLocations(),
+        overviewReportHelper.getVolunteersCompletedHours(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTaskAndProjectStats(
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
+        ),
+        overviewReportHelper.getVolunteersOverAssignedTime(isoStartDate, isoEndDate),
+        overviewReportHelper.getVolunteersCompletedAssignedHours(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getTotalSummariesSubmitted(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -68,6 +179,11 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
+        completedHours,
+        taskAndProjectStats,
+        volunteersOverAssignedTime,
+        completedAssignedHours,
+        totalSummariesSubmitted,
       });
     } catch (err) {
       console.log(err);
@@ -393,6 +509,32 @@ const reportsController = function () {
     }
   };
 
+  const getTeamsWithActiveMembers = async (req, res) => {
+    const { endDate, activeMembersMinimum } = req.query;
+
+    if (!endDate) {
+      return res.status(400).send({ msg: 'Please provide an end date' });
+    }
+    if (!activeMembersMinimum) {
+      return res.status(400).send({
+        msg: 'Please provide the number of minimum active members in the team (activeMembersMinimum query param)',
+      });
+    }
+
+    const isoEndDate = new Date(endDate);
+
+    try {
+      const teamsWithActiveMembers = await overviewReportHelper.getTeamsWithActiveMembers(
+        isoEndDate,
+        Number(activeMembersMinimum),
+      );
+      res.status(200).send({ teamsWithActiveMembers });
+    } catch (err) {
+      console.log(err);
+      res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
   return {
     getVolunteerStats,
     getVolunteerHoursStats,
@@ -404,6 +546,8 @@ const reportsController = function () {
     getVolunteerRoleStats,
     getBlueSquareStats,
     getVolunteerStatsData,
+    getVolunteerTrends,
+    getTeamsWithActiveMembers,
   };
 };
 
