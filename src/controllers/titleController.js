@@ -13,10 +13,6 @@ const titlecontroller = function (Title) {
   // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
   async function checkTeamCodeExists(teamCode) {
     try {
-      if (cache.getCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes.includes(teamCode);
-      }
       const teamCodes = await getAllTeamCodeHelper();
       return teamCodes.includes(teamCode);
     } catch (error) {
