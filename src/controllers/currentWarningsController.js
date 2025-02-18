@@ -34,7 +34,6 @@ const currentWarningsController = function (currentWarnings) {
       !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) 
       
     ) {
-     console.log('Preetham add a new WarningTracker'); 
       res.status(403).send('You are not authorized to add a new WarningTracker.');
       return;
     }
@@ -115,7 +114,6 @@ const currentWarningsController = function (currentWarnings) {
       !(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
       !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker'))
     ) {
-     console.log('Preetham reactivateWarningTracker or deactivate'); 
       res.status(403).send('You are not authorized to reactivate a WarningTracker or deactivate warning tracker.');
       return;
     }
@@ -140,7 +138,6 @@ const currentWarningsController = function (currentWarnings) {
     if (!isPrivilegedUser &&
       !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker')) 
     ) {
-     console.log('Preetham delete a WarningTracker'); 
       res.status(403).send('You are not authorized to delete a WarningTracker.');
       return;
     }
