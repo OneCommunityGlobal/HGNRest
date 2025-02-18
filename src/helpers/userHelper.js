@@ -30,8 +30,8 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const fs = require('fs');
 const cheerio = require('cheerio');
-const axios=require('axios');
-const sharp = require("sharp");
+const axios = require('axios');
+const sharp = require('sharp');
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
@@ -110,7 +110,7 @@ const userHelper = function () {
     }
 
     const imageType = picParts[0].split('/')[1].split(';')[0];
-    if (imageType !== 'jpeg' && imageType !== 'png') {
+    if (imageType !== 'jpeg' && imageType !== 'png' && imageType !== 'svg+xml') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
@@ -1075,8 +1075,9 @@ const userHelper = function () {
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate))
-        if (canActivate) { // Use '!' to invert the boolean value for testing
+        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
+        if (canActivate) {
+          // Use '!' to invert the boolean value for testing
           await userProfile.findByIdAndUpdate(
             user._id,
             {
@@ -1610,7 +1611,7 @@ const userHelper = function () {
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
     try {
-      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {  
+      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
         // Getting badge of type 'Most Hrs in Week'
         const results = await badge.findOne({ type: 'Most Hrs in Week' });
         if (!results) {
@@ -1623,16 +1624,18 @@ const userHelper = function () {
           { $match: { isActive: true } },
           { $group: { _id: null, maxHours: { $max: '$lastWeekTangibleHrs' } } },
         ]);
-  
+
         if (!userResults || userResults.length === 0) {
           console.error('No user results found');
           return;
         }
-  
+
         const maxHours = userResults[0].maxHours;
-  
+
         if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= maxHours) {
-          const existingBadge = badgeCollection.find((object) => object.badge.type === 'Most Hrs in Week');
+          const existingBadge = badgeCollection.find(
+            (object) => object.badge.type === 'Most Hrs in Week',
+          );
           if (existingBadge) {
             // console.log('Increasing badge count');
             await increaseBadgeCount(personId, mongoose.Types.ObjectId(existingBadge.badge._id));
@@ -2022,7 +2025,7 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
+      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -2292,49 +2295,59 @@ const userHelper = function () {
         else {
             return [];  // No match found, return empty array
         }
+      });
+
+      // If matches for both terms are found, return them, else return term2 matches
+      if (bothTermsMatches.length > 0) {
+        return bothTermsMatches;
+      } else if (term2Matches.length > 0) {
+        return term2Matches;
+      } else {
+        return []; // No match found, return empty array
+      }
     }
 
     // Recursion case for nested objects
     if (typeof data === 'object' && data !== null) {
-        const result = Object.keys(data).some(key => {
-            if (typeof data[key] === 'object') {
-                return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
-            }
-        });
-        return result ? data : null;
+      const result = Object.keys(data).some((key) => {
+        if (typeof data[key] === 'object') {
+          return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+        }
+      });
+      return result ? data : null;
     }
     return [];
-}
+  }
 
-// Helper function to check if both terms are in the string
-function searchForBothTerms(data, term1, term2) {
+  // Helper function to check if both terms are in the string
+  function searchForBothTerms(data, term1, term2) {
     if (typeof data === 'object' && data !== null) {
-        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
-        return Object.keys(data).some(key => {
-            if (fieldsToCheck.includes(key)) {
-                const stringValue = String(data[key]).toLowerCase();
-                return stringValue.includes(term1) && stringValue.includes(term2); // Check if both terms are in the string
-            }
-            return false;
-        });
+      const fieldsToCheck = ['src', 'alt', 'title', 'nitro_src'];
+      return Object.keys(data).some((key) => {
+        if (fieldsToCheck.includes(key)) {
+          const stringValue = String(data[key]).toLowerCase();
+          return stringValue.includes(term1) && stringValue.includes(term2); // Check if both terms are in the string
+        }
+        return false;
+      });
     }
     return false;
-}
+  }
 
-// Helper function to check if only term2 is in the string
-function searchForTerm2(data, term2) {
+  // Helper function to check if only term2 is in the string
+  function searchForTerm2(data, term2) {
     if (typeof data === 'object' && data !== null) {
-        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
-        return Object.keys(data).some(key => {
-            if (fieldsToCheck.includes(key)) {
-                const stringValue = String(data[key]).toLowerCase();
-                return stringValue.includes(term2); // Check if only term2 is in the string
-            }
-            return false;
-        });
+      const fieldsToCheck = ['src', 'alt', 'title', 'nitro_src'];
+      return Object.keys(data).some((key) => {
+        if (fieldsToCheck.includes(key)) {
+          const stringValue = String(data[key]).toLowerCase();
+          return stringValue.includes(term2); // Check if only term2 is in the string
+        }
+        return false;
+      });
     }
     return false;
-}
+  }
 
 async function imageUrlToPngBase64(url) {
   try {
@@ -2375,8 +2388,7 @@ const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
       // console.log(`Retrying in ${delayTime / 1000} seconds...`);
       await delay(delayTime); // Wait for 5 minutes
     }
-  }
-};
+  };
 
 const getProfileImagesFromWebsite = async () => {
   try {
@@ -2461,7 +2473,7 @@ const getProfileImagesFromWebsite = async () => {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
-    getProfileImagesFromWebsite
+    getProfileImagesFromWebsite,
   };
 };
 
