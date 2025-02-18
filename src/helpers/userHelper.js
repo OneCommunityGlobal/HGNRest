@@ -2272,21 +2272,24 @@ const userHelper = function () {
     if (Array.isArray(data)) {
         data.forEach(item => {
             const bothTermsFound = searchForBothTerms(item, lowerCaseTerm1, lowerCaseTerm2);
-            const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
+            // const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
 
             if (bothTermsFound) {
                 bothTermsMatches.push(item); // If both terms are found, store the item
-            } else if (term2OnlyFound) {
-                term2Matches.push(item); // If only term2 is found, store the item
-            }
+            } 
+            // else if (term2OnlyFound) {
+            //     term2Matches.push(item); // If only term2 is found, store the item
+            // }
         });
 
         // If matches for both terms are found, return them, else return term2 matches
         if (bothTermsMatches.length > 0) {
             return bothTermsMatches;
-        } else if (term2Matches.length > 0) {
-            return term2Matches;
-        } else {
+        }
+        //  else if (term2Matches.length > 0) {
+        //     return term2Matches;
+        // } 
+        else {
             return [];  // No match found, return empty array
         }
     }
@@ -2335,27 +2338,29 @@ function searchForTerm2(data, term2) {
 
 async function imageUrlToPngBase64(url) {
   try {
-      // Fetch the image as a buffer
-      const response = await axios.get(url, { responseType: "arraybuffer" });
+    // Fetch the image as a buffer
+    const response = await axios.get(url, { responseType: "arraybuffer" });
+    
+    if (response.status !== 200) {
+    throw new Error(`Failed to fetch the image: ${response.statusText}`);
+  }
+  
+  const imageBuffer = Buffer.from(response.data);
+  // Compress and resize the image using sharp
+  const pngBuffer = await sharp(imageBuffer)
+    // .resize(1000, 1000) // Resize to given dimensions
+    // .png({ quality: 100 }) // Compress PNG with quality 80 (lower = more compression)
+    .toBuffer();
 
-      if (response.status !== 200) {
-          throw new Error(`Failed to fetch the image: ${response.statusText}`);
-      }
-
-      const imageBuffer = Buffer.from(response.data);
-
-      // Convert the image to PNG format using sharp
-      const pngBuffer = await sharp(imageBuffer).png().toBuffer();
-
-      // Convert the PNG buffer to a base64 string
-      const base64Png = pngBuffer.toString("base64");
-
-      return `data:image/png;base64,${base64Png}`;;
+  // Convert the PNG buffer to a base64 string
+    const base64Png = pngBuffer.toString("base64");
+  
+    return `data:image/png;base64,${base64Png}`;;
   } catch (error) {
       console.error(`An error occurred: ${error.message}`);
       return null;
+    }
   }
-}
 
 const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
   let attempts = 0;
@@ -2365,9 +2370,9 @@ const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
       return response.data; // Return data if the request succeeds
     } catch (error) {
       attempts++;
-      console.error(`Attempt ${attempts} failed: ${error.message}`);
+      // console.error(`Attempt ${attempts} failed: ${error.message}`);
       if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
-      console.log(`Retrying in ${delayTime / 1000} seconds...`);
+      // console.log(`Retrying in ${delayTime / 1000} seconds...`);
       await delay(delayTime); // Wait for 5 minutes
     }
   }
@@ -2382,52 +2387,59 @@ const getProfileImagesFromWebsite = async () => {
     const imgData = [];
     $('img').each((i, img) => {
       imgData.push({
-        src: $(img).attr('src'),
-        alt: $(img).attr('alt'),
-        title: $(img).attr('title'),
-        nitro_src: $(img).attr('nitro-lazy-src'),
+      src: $(img).attr('src'),
+      alt: $(img).attr('alt'),
+      title: $(img).attr('title'),
+      nitro_src: $(img).attr('nitro-lazy-src'),
+      data_src: $(img).attr('data-src'),
       });
     });
-
     const users = await userProfile.find(
       { isActive: true },
       "firstName lastName email profilePic suggestedProfilePics"
     );
-
+    
     await Promise.all(
-      users.map(async (u) => {
-        if (!u.profilePic) {
-          const result = searchForTermsInFields(imgData, u.firstName, u.lastName);
-          try {
-            if (result.length === 1) {
-              if (result[0].nitro_src !== undefined) {
-                await userProfile.updateOne(
-                  { _id: u._id },
-                  { $set: { profilePic: result[0].nitro_src } }
-                );
-              } else {
-                const image = await imageUrlToPngBase64(result[0].src);
-                await userProfile.updateOne(
-                  { _id: u._id },
-                  { $set: { profilePic: image } }
-                );
-              }
-            } else if (result.length > 1) {
-              await userProfile.updateOne(
-                { _id: u._id },
-                { $set: { suggestedProfilePics: result } }
-              );
-            }
-          } catch (error) {
-            console.error(`Error updating user ${u._id}:`, error);
+    users.map(async (u) => {
+      if (!u.profilePic) {
+        var result = searchForTermsInFields(imgData, u.firstName, u.lastName);
+        try {
+        if (result.length === 1) {
+          if (result[0].nitro_src !== undefined && result[0].nitro_src !== null) {
+            await userProfile.updateOne(
+              { _id: u._id },
+              { $set: { profilePic: result[0].nitro_src } }
+            );
+          } else {
+            const images = result[0].src.startsWith('http')?result[0].src:result[0].data_src;
+            const image = await imageUrlToPngBase64(images);
+            await userProfile.updateOne(
+              { _id: u._id },
+              { $set: { profilePic: image } }
+            );
           }
+        } 
+        // else if (result.length > 1) {
+        //     if(!result[0].src.startsWith('http')){
+        //       for(let i=0; i<result.length; i++){
+        //         result[i].data_src=await imageUrlToPngBase64(result[i].data_src);
+        //       }
+        //     }
+        //     await userProfile.updateOne(
+        //       { _id: u._id },
+        //       { $set: { suggestedProfilePics: result } }
+        //     );
+        // }
+        } catch (error) {
+        console.error(`Error updating user ${u._id}:`, error);
         }
-      })
+      }
+    })
     );
-  } catch (error) {
+    } catch (error) {
     console.error("Failed to fetch profile images:", error);
-  }
-};
+    }
+  };
 
   return {
     changeBadgeCount,
