@@ -36,7 +36,6 @@ const warningsController = function (UserProfile) {
       !isPrivilegedUser &&!(await helper.hasPermission(req.body.requestor, 'viewTrackingOverview')) 
           
         ) {
-         console.log('Preetham view tracking overview'); 
           res.status(403).send('You are not authorized to view Tracking Overview.');
           return;
         }
@@ -68,8 +67,7 @@ const warningsController = function (UserProfile) {
       !isPrivilegedUser &&
       !(await helper.hasPermission(req.body.requestor, 'issueTrackingWarnings')) &&
       !(await helper.hasPermission(req.body.requestor, 'issueBlueSquare'))  
-    ) {
-     console.log('Preetham issueBlueSquare'); 
+    ) { 
       res.status(403).send('You are not authorized to issueBlueSquare or a Warning.');
       return;
     }
@@ -131,7 +129,6 @@ const warningsController = function (UserProfile) {
       !(await helper.hasPermission(req.body.requestor, 'deleteWarning')) 
       
     ) {
-     console.log('Preetham deleteWarning'); 
       res.status(403).send('You are not authorized to delete a Warning.');
       return;
     }
