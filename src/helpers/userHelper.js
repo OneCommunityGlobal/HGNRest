@@ -1261,6 +1261,23 @@ const userHelper = function () {
     );
   };
 
+  const decreaseBadgeCount = async function (personId, badgeId) {
+    try {
+        const result = await userProfile.updateOne(
+            { _id: personId, 'badgeCollection.badge': badgeId,},
+            {
+                $inc: { 'badgeCollection.$.count': -1 },
+                $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
+            }
+        );
+      
+    } catch (error) {
+        console.error("Error decrementing badge count:", error);
+    }
+};
+
+  
+
   const addBadge = async function (personId, badgeId, count = 1, featured = false) {
     userProfile.findByIdAndUpdate(
       personId,
@@ -1691,93 +1708,120 @@ const userHelper = function () {
   };
   
     // 'X Hours for X Week Streak',
-  const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
-    
-    try {
-      // Call checkXHrsInOneWeek for handling the 1-week streak badge
+const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
+  try {
+      
       if (user.savedTangibleHrs.length === 0) {
-        console.log("No tangible hours available.");
-        return;
+          console.log("No tangible hours available.");
+          return;
       }
-  
-      // Calculate the ending streak for longer streaks
+
+    
       const savedTangibleHrs = user.savedTangibleHrs;
       const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
       let streak = 0;
-  
-      // Calculate streak for longer weeks
+
+      console.log("Current max hours:", currentMaxHours);
+
+   
       for (let i = savedTangibleHrs.length - 1; i >= 0; i--) {
-        if (savedTangibleHrs[i] === currentMaxHours) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-  
-      if (streak === 0) {
-        console.log("No valid streak found.");
-        return;
-      }
-  
-      if (streak === 1) {
-        await checkXHrsInOneWeek(personId, user, badgeCollection);
-        return;
-      }
-  
-      // Search for matching badges in the badge collection
-      const allBadges = await badge.find({
-        badgeName: `${currentMaxHours} HOURS ${streak}-WEEK STREAK`,
-      });
-  
-      if (allBadges.length > 0) {
-        // If matching badges are found, check if they exist in badgeCollection
-        for (let i = 0; i < allBadges.length; i++) {
-          const badge = allBadges[i];
-          let badgeInCollection = null;
-  
-          // Search for badge in badgeCollection
-          for (let j = 0; j < badgeCollection.length; j++) {
-            if (badgeCollection[j].badge.badgeName === badge.badgeName) {
-              badgeInCollection = badgeCollection[j];
-              break;
-            }
-          }
-  
-          if (badgeInCollection) {
-            await increaseBadgeCount(personId, badge._id);
-            return;
+          if (savedTangibleHrs[i] === currentMaxHours) {
+              streak++;
           } else {
-            for (let j = badgeCollection.length - 1; j >= 0; j--) {
-              if (
-                badgeCollection[j].badge.totalHrs === currentMaxHours &&
-                badgeCollection[j].badge.weeks < streak
-              ) {
-                await userProfile.updateOne(
-                  { _id: personId, "badgeCollection.badge": badgeCollection[j].badge._id },
-                  {
-                    $set: {
-                      "badgeCollection.$.badge": badge._id,
-                      "badgeCollection.$.lastModified": Date.now().toString(),
-                      "badgeCollection.$.count": 1,
-                      "badgeCollection.$.earnedDate": [earnedDateBadge()],
-                    },
-                  }
-                );
-                return;
-              }
-            }
-  
-            await addBadge(personId, badge._id);
-            return;
+              break;
           }
-        }
-      } else {
-        console.log("No matching badges found in badges.");
       }
-    } catch (error) {
+
+      console.log("Calculated streak:", streak);
+
+      if (streak === 0) {
+          console.log("No valid streak found.");
+          return;
+      }
+
+      if (streak === 1) {
+          console.log("Checking X hours in one week since streak is 1.");
+          await checkXHrsInOneWeek(personId, user, badgeCollection);
+          return;
+      }
+
+      console.log(`Searching for badge: ${currentMaxHours} HOURS ${streak}-WEEK STREAK`);
+
+      // Fetch matching badges
+      const allBadges = await badge.find({
+          badgeName: `${currentMaxHours} HOURS ${streak}-WEEK STREAK`,
+      });
+
+      if (allBadges.length === 0) {
+          console.log("No matching badges found in badge collection.");
+          return;
+      }
+
+      console.log("Matching badges found:", allBadges.length);
+      const newBadge = allBadges[0]; 
+
+   
+      let badgeInCollection = null;
+      for (let i = 0; i < badgeCollection.length; i++) {
+          if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
+              badgeInCollection = badgeCollection[i];
+              break;
+          }
+      }
+
+      if (badgeInCollection) {
+          console.log(`Badge already exists: ${newBadge.badgeName}, increasing count.`);
+          await increaseBadgeCount(personId, newBadge._id);
+          return;
+      }
+
+      console.log("Badge not found, checking downgrade/replacement possibility.");
+
+      // Loop through badgeCollection to find and handle replacements or downgrades
+      for (let j = badgeCollection.length - 1; j >= 0; j--) {
+          let lastBadge = badgeCollection[j];
+
+          if (lastBadge.badge.totalHrs === currentMaxHours) {
+              // Check if the badge is eligible for downgrade or replacement
+              if (lastBadge.badge.weeks <streak && lastBadge.count > 1) {
+                  console.log(`Decreasing badge count for: ${lastBadge.badge.badgeName}`);
+                  await decreaseBadgeCount(personId, lastBadge.badge._id);
+
+                  // Directly add the new badge after decrementing (no rechecking)
+                  console.log(`Adding new badge: ${newBadge.badgeName}`);
+                  await addBadge(personId, newBadge._id);
+                  return;
+              }
+
+              if (lastBadge.badge.weeks < streak) {
+                  console.log(`Replacing lower streak badge: ${lastBadge.badge.badgeName} with ${newBadge.badgeName}`);
+                  await userProfile.updateOne(
+                      { _id: personId, "badgeCollection.badge": lastBadge.badge._id },
+                      {
+                          $set: {
+                              "badgeCollection.$.badge": newBadge._id,
+                              "badgeCollection.$.lastModified": Date.now().toString(),
+                              "badgeCollection.$.count": 1,
+                              "badgeCollection.$.earnedDate": [earnedDateBadge()],
+                          },
+                      }
+                  );
+                  return;
+              }
+          }
+      }
+
+      console.log(`Adding new badge: ${newBadge.badgeName}`);
+      await addBadge(personId, newBadge._id);
+
+  } catch (error) {
       console.error("Error in checkXHrsForXWeeks function:", error);
-    }
-  };
+  }
+};
+
+
+  
+  
   
   // 'Lead a team of X+'
 
