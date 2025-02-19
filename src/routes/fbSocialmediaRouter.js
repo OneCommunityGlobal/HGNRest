@@ -1,13 +1,14 @@
 const express = require('express');
-const { createFbPost } = require('../controllers/facebookSocialMediaController');
+//const { facebookController } = require('../controllers/facebookSocialMediaController');
 
 const routes = function () {
-    const socialMediaRouter = express.Router();
+    const controller = require('../controllers/facebookSocialMediaController')()
+    const facebookRouter = express.Router();
  
     
-    socialMediaRouter.route('/createFbPost').post(createFbPost);
+    facebookRouter.route('/createFbPost').post(controller.createFbPost);
  
-    return socialMediaRouter;
+    return facebookRouter;
   };
  
   module.exports = routes;
