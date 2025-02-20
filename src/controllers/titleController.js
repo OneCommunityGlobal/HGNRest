@@ -49,6 +49,7 @@ const titlecontroller = function (Title) {
   const postTitle = async function (req, res) {
     const title = new Title();
     title.titleName = req.body.titleName;
+    title.titleCode = req.body.titleCode;
     title.teamCode = req.body.teamCode;
     title.projectAssigned = req.body.projectAssigned;
     title.mediaFolder = req.body.mediaFolder;
@@ -168,6 +169,7 @@ const titlecontroller = function (Title) {
       }
 
       const teamCodeExists = await checkTeamCodeExists(req.body.teamCode);
+
       if (!teamCodeExists) {
         res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
         return;
@@ -186,17 +188,26 @@ const titlecontroller = function (Title) {
         return;
       }
       const result = await Title.findById(filter);
+      const oldTeamCode = result.teamCode;
       result.titleName = req.body.titleName;
+      result.titleCode = req.body.titleCode;
       result.teamCode = req.body.teamCode;
       result.projectAssigned = req.body.projectAssigned;
       result.mediaFolder = req.body.mediaFolder;
       result.teamAssiged = req.body.teamAssiged;
-      const updatedTitle = await result.save();
-      res.status(200).send({ message: 'Update successful', updatedTitle });
+      await result.save();
 
+      await userProfile.updateMany(
+        { teamCode: oldTeamCode },
+        { $set: { teamCode: req.body.teamCode } }
+      );
+
+      cache.removeCache('teamCodes');
+
+      res.status(200).send({ message: "Update successful", updatedTitle: result });
     } catch (error) {
       console.log(error);
-      res.status(500).send({ message: 'An error occurred', error });
+      res.status(500).send({ message: 'An error occurred', error: error.message || error });
     }
 
   };
