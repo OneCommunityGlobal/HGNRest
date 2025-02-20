@@ -1818,9 +1818,12 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllTeamCodeHelper = async function () {
     try {
-      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
+      let distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null },
       });
+
+      distinctTeamCodes = distinctTeamCodes.filter(code => code && code.trim() !== '');
+
       try {
         cache.removeCache('teamCodes');
         cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
