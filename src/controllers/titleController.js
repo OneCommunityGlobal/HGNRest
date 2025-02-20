@@ -1,21 +1,43 @@
-const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfileController = require("./userProfileController");
 const userProfile = require('../models/userProfile');
-const project = require('../models/project');
 
-const controller = userProfileController(userProfile, project);
-const getAllTeamCodeHelper = controller.getAllTeamCodeHelper;
+const controller = userProfileController(userProfile, Project);
+const {getAllTeamCodeHelper} = controller;
 
 const titlecontroller = function (Title) {
   const cache = cacheClosure();
+  // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
+  async function checkTeamCodeExists(teamCode) {
+    try {
+      if (cache.getCache('teamCodes')) {
+        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+        return teamCodes.includes(teamCode);
+      }
+      const teamCodes = await getAllTeamCodeHelper();
+      return teamCodes.includes(teamCode);
+    } catch (error) {
+      console.error('Error checking if team code exists:', error);
+      throw error;
+    }
+  }
+
+  async function checkProjectExists(projectID) {
+    try {
+      const project = await Project.findOne({ _id: projectID }).exec();
+      return !!project;
+    } catch (error) {
+      console.error('Error checking if project exists:', error);
+      throw error;
+    }
+  }
 
     const getAllTitles = function (req, res) {
       Title.find({}).sort('order')
         .then((results) => res.status(200).send(results))
         .catch((error) => res.status(404).send(error));
-  };
+    };
 
     const getTitleById = function (req, res) {
       const { titleId } = req.params;
@@ -28,10 +50,20 @@ const titlecontroller = function (Title) {
     const postTitle = async function (req, res) {
       const title = new Title();
       title.titleName = req.body.titleName;
+      title.titleCode = req.body.titleCode;
       title.teamCode = req.body.teamCode;
       title.projectAssigned = req.body.projectAssigned;
       title.mediaFolder = req.body.mediaFolder;
       title.teamAssiged = req.body.teamAssiged;
+
+      const titleCodeRegex = /^(?=.*[A-Za-z])[A-Za-z0-9!@#$%^&*()_+[\]{};':"\\|,.<>/? -]+$/;
+      if (!title.titleCode || !title.titleCode.trim()) {
+        return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+      }
+
+      if (!titleCodeRegex.test(title.titleCode)) {
+        return res.status(400).send({ message: 'Title Code must contain only upper or lower case letters.' });
+      }
 
       // valid title name
       if (!title.titleName.trim()) {
@@ -125,6 +157,16 @@ const titlecontroller = function (Title) {
           res.status(400).send({ message: 'Title cannot be empty.' });
           return;
         }
+
+        if (!req.body.titleCode.trim()) {
+          res.status(400).send({ message: 'Title code cannot be empty.' });
+          return;
+        }
+  
+        const titleCodeRegex = /^(?=.*[A-Za-z])[A-Za-z0-9!@#$%^&*()_+[\]{};':"\\|,.<>/? -]+$/;
+        if (!titleCodeRegex.test(req.body.titleCode)) {
+          return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+        }
         
         //  if media is empty
         if (!req.body.mediaFolder.trim()) {
@@ -201,30 +243,6 @@ const titlecontroller = function (Title) {
             res.status(500).send(error);
         });
     };
-    // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
-    async function checkTeamCodeExists(teamCode) {
-      try {
-        if (cache.getCache('teamCodes')) {
-          const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-          return teamCodes.includes(teamCode);
-        }
-        const teamCodes = await getAllTeamCodeHelper();
-        return teamCodes.includes(teamCode);
-      } catch (error) {
-        console.error('Error checking if team code exists:', error);
-        throw error;
-      }
-    }
-
-    async function checkProjectExists(projectID) {
-      try {
-        const project = await Project.findOne({ _id: projectID }).exec();
-        return !!project;
-      } catch (error) {
-        console.error('Error checking if project exists:', error);
-        throw error;
-      }
-    }
 
    
 
