@@ -30,10 +30,8 @@ async function getWarningDescriptions() {
 
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
-    const userRole = req.body?.requestor?.role;
-    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
-     if (
-      !isPrivilegedUser &&!(await helper.hasPermission(req.body.requestor, 'viewTrackingOverview')) 
+
+     if (!(await helper.hasPermission(req.body.requestor, 'viewTrackingOverview')) 
           
         ) {
           res.status(403).send('You are not authorized to view Tracking Overview.');
@@ -61,10 +59,7 @@ const warningsController = function (UserProfile) {
   };
 
   const postWarningsToUserProfile = async function (req, res) {
-    const userRole = req.body?.requestor?.role;
-    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
     if (
-      !isPrivilegedUser &&
       !(await helper.hasPermission(req.body.requestor, 'issueTrackingWarnings')) &&
       !(await helper.hasPermission(req.body.requestor, 'issueBlueSquare'))  
     ) { 
@@ -122,10 +117,7 @@ const warningsController = function (UserProfile) {
   };
 
   const deleteUsersWarnings = async (req, res) => {
-    const userRole = req.body?.requestor?.role;
-    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
     if (
-      !isPrivilegedUser &&
       !(await helper.hasPermission(req.body.requestor, 'deleteWarning')) 
       
     ) {
