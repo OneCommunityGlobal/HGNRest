@@ -4,6 +4,7 @@ const userProfile = require('../models/userProfile');
 const currentWarnings = require('../models/currentWarnings');
 const emailSender = require('../utilities/emailSender');
 const userHelper = require('../helpers/userHelper')();
+const helper = require('../utilities/permissions');
 let currentWarningDescriptions = null;
 let currentUserName = null;
 const emailTemplate = {
@@ -29,6 +30,13 @@ async function getWarningDescriptions() {
 
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
+
+     if (!(await helper.hasPermission(req.body.requestor, 'viewTrackingOverview')) 
+          
+        ) {
+          res.status(403).send('You are not authorized to view Tracking Overview.');
+          return;
+        }
     currentWarningDescriptions = await currentWarnings.find({
       activeWarning: true,
     });
@@ -51,6 +59,13 @@ const warningsController = function (UserProfile) {
   };
 
   const postWarningsToUserProfile = async function (req, res) {
+    if (
+      !(await helper.hasPermission(req.body.requestor, 'issueTrackingWarnings')) &&
+      !(await helper.hasPermission(req.body.requestor, 'issueBlueSquare'))  
+    ) { 
+      res.status(403).send('You are not authorized to issueBlueSquare or a Warning.');
+      return;
+    }
     try {
       const { userId } = req.params;
 
@@ -102,6 +117,13 @@ const warningsController = function (UserProfile) {
   };
 
   const deleteUsersWarnings = async (req, res) => {
+    if (
+      !(await helper.hasPermission(req.body.requestor, 'deleteWarning')) 
+      
+    ) {
+      res.status(403).send('You are not authorized to delete a Warning.');
+      return;
+    }
     const { userId } = req.params;
     const { warningId } = req.body;
 
