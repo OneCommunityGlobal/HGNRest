@@ -89,6 +89,7 @@ const largeItemBase = mongoose.model('largeItemBase', largeItemBaseSchema, 'buil
 
 const buildingMaterial = smallItemBase.discriminator('material_item', new mongoose.Schema({
   stockUsed: { type: Number, default: 0 }, // stock that has been used up and cannot be reused
+  stockHold: { type: Number, default: 0 },
   stockWasted: { type: Number, default: 0 }, // ruined or destroyed stock
 }));
 
