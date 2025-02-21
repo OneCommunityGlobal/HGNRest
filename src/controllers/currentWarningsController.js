@@ -28,10 +28,7 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const postNewWarningDescription = async (req, res) => {
-    const userRole = req.body?.requestor?.role;
-    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
-    if (!isPrivilegedUser &&
-      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) 
+    if (!(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) 
       
     ) {
       res.status(403).send('You are not authorized to add a new WarningTracker.');
@@ -108,10 +105,7 @@ const currentWarningsController = function (currentWarnings) {
     }
   };
   const updateWarningDescription = async (req, res) => {
-    const userRole = req.body?.requestor?.role;
-    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator';
-    if (!isPrivilegedUser &&
-      !(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
+    if (!(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
       !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker'))
     ) {
       res.status(403).send('You are not authorized to reactivate a WarningTracker or deactivate warning tracker.');
@@ -133,10 +127,7 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const deleteWarningDescription = async (req, res) => {
-    const userRole = req.body?.requestor?.role;
-    const isPrivilegedUser = userRole === 'Owner' || userRole === 'Administrator'; 
-    if (!isPrivilegedUser &&
-      !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker')) 
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker')) 
     ) {
       res.status(403).send('You are not authorized to delete a WarningTracker.');
       return;
