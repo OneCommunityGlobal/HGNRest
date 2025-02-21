@@ -209,6 +209,7 @@ const titlecontroller = function (Title) {
         const result = await Title.findById(filter);
         result.titleName = req.body.titleName;
         result.teamCode = req.body.teamCode;
+        result.titleCode = req.body.titleCode;
         result.projectAssigned = req.body.projectAssigned;
         result.mediaFolder = req.body.mediaFolder;
         result.teamAssiged = req.body.teamAssiged;
