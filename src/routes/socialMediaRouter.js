@@ -4,7 +4,7 @@ const { getPinterestAccessToken, createPin } = require('../controllers/socialMed
 
   const socialMediaRouter = express.Router();
 
-  // socialMediaRouter.route('/getPinterestAccessToken').post(getPinterestAccessToken);
+  //social media routes
   socialMediaRouter.route('/pinterest/auth').post(getPinterestAccessToken);
   socialMediaRouter.route('/pinterest/createPin').post(createPin);
 
