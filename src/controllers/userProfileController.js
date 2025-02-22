@@ -663,6 +663,7 @@ const userProfileController = function (UserProfile, Project) {
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
+          console.log('Updated permissions:', record.permissions);
         }
 
         if (req.body.endDate !== undefined) {
@@ -682,6 +683,8 @@ const userProfileController = function (UserProfile, Project) {
           userData.email = record.email;
           userData.isActive = record.isActive;
           userData.startDate = record.startDate.toISOString();
+          userData.permissions = record.permissions; // Ensure permissions are updated in the cache
+          console.log('Updated userData.permissions:', userData.permissions);
         }
       }
 
@@ -703,9 +706,11 @@ const userProfileController = function (UserProfile, Project) {
             results.jobTitle[0],
             results.weeklycommittedHours,
           );
-          res.status(200).json({
+          /* res.status(200).json({
             _id: record._id,
-          });
+          }); */
+          res.status(200).json(results); // Return the full updated user profile
+          console.log('Saved record permissions:', results.permissions);
 
           // update alluser cache if we have cache
           if (isUserInCache) {
@@ -923,6 +928,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const updateOneProperty = async function (req, res) {
+    console.log('updateOneProperty called');
     const { userId } = req.params;
     const { key, value } = req.body;
 
