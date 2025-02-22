@@ -413,6 +413,9 @@ const userProfileController = function (UserProfile, Project) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
+    console.log('Starting putUserProfile'); // Log at the beginning of the function
+    console.log('req.body.permissions at start:', req.body.permissions); // Log the permissions from the request body at the start
+    
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userid,
@@ -658,10 +661,15 @@ const userProfileController = function (UserProfile, Project) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
+        console.log('req.body.permissions before if:', req.body.permissions); // Log the permissions from the request body before the if condition
+        const hasPermissionToUpdatePermissions = await hasPermission(req.body.requestor, 'putUserProfilePermissions');
+        console.log('hasPermissionToUpdatePermissions:', hasPermissionToUpdatePermissions); // Log the result of the permission check
+
         if (
           req.body.permissions !== undefined &&
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
+          console.log('Updating permissions:', req.body.permissions);
           record.permissions = req.body.permissions;
           console.log('Updated permissions:', record.permissions);
         }
@@ -928,7 +936,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const updateOneProperty = async function (req, res) {
-    console.log('updateOneProperty called');
+    // console.log('updateOneProperty called');
     const { userId } = req.params;
     const { key, value } = req.body;
 
