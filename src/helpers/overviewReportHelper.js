@@ -242,133 +242,178 @@ const overviewReportHelper = function () {
    * Get volunteer trends by time.
    * Gets the total number of volunteer hours worked per month
    * For now it will be aggregated for the past year
-   *
-   * @param {Number} timeFrame - must be 1, 2, 3, 5, or 10
-   * representing the number of years to cover or 0 to represent all-time.
    */
   async function getVolunteerTrends(timeFrame, offset, customStartDate, customEndDate) {
     const currentDate = moment();
     let startDate;
     let endDate;
+    console.log(customStartDate);
+    console.log(customEndDate);
 
-    if (!customStartDate && !customEndDate) {
+    if (customStartDate && customEndDate) {
+      // logic to handle custom start date
+      startDate = moment(customStartDate).toDate();
+      endDate = moment(customEndDate).toDate();
+      console.log(startDate);
+      console.log(endDate);
+    } else {
       switch (timeFrame) {
-        case '0': {
-          // 'All-time' option
-          // use the date the oldest user was created
-          const [oldestVolunteer] = await UserProfile.aggregate([
-            {
-              $sort: { createdDate: 1 },
-            },
-            {
-              $limit: 1,
-            },
-            {
-              $project: { createdDate: 1 },
-            },
-          ]);
-          startDate = oldestVolunteer.createdDate;
+        case '0':
+          // random placeholder to gaurentee we are at the earliest possible date
+          startDate = currentDate.clone().subtract(40, 'years').startOf('month').toDate();
+          endDate = currentDate.clone().endOf('month').toDate();
           break;
-        }
         case '1':
-          // 'This year' option
-          startDate = currentDate.clone().startOf('year').toDate();
+          startDate = currentDate.clone().subtract(1, 'year').startOf('month').toDate();
+          endDate = currentDate.clone().endOf('month').subtract(1, 'days').toDate();
+          console.log(startDate, endDate);
           break;
         case '2':
-          // 'Last 2 years' option
           startDate = currentDate.clone().subtract(2, 'years').startOf('month').toDate();
-          break;
-        case '3':
-          // 'Last 3 years' option
-          startDate = currentDate.clone().subtract(3, 'years').startOf('month').toDate();
+          endDate = currentDate.clone().endOf('month').subtract(1, 'days').toDate();
           break;
         case '5':
-          // 'Last 5 years' option
           startDate = currentDate.clone().subtract(5, 'years').startOf('month').toDate();
+          endDate = currentDate.clone().endOf('month').subtract(1, 'days').toDate();
           break;
         case '10':
-          // 'Last 10 years' option
           startDate = currentDate.clone().subtract(10, 'years').startOf('month').toDate();
+          endDate = currentDate.clone().endOf('month').subtract(1, 'days').toDate();
           break;
         default:
-          throw new Error('invalid timeFrame');
+          throw new Error('invalid time frame');
       }
-      endDate = currentDate.clone().endOf('month').toDate();
-    } else {
-      startDate = new Date(customStartDate);
-      endDate = new Date(customEndDate);
     }
 
-    let data;
     if (offset === 'week') {
-      data = TimeEntries.aggregate([
+      // modify query to handle week grouping
+      return UserProfile.aggregate([
         {
           $match: {
-            createdDateTime: { $gte: startDate, $lte: endDate },
+            isActive: true,
+            createdDate: { $gte: startDate, $lte: endDate },
           },
         },
         {
-          $project: {
-            createdYear: { $year: '$createdDateTime' },
-            createdWeek: { $week: '$createdDateTime' },
-            totalSeconds: 1,
+          $addFields: {
+            activeWeeks: {
+              $map: {
+                input: {
+                  $range: [
+                    0,
+                    {
+                      $add: [
+                        { $dateDiff: { startDate: '$createdDate', endDate, unit: 'week' } },
+                        1,
+                      ],
+                    },
+                  ],
+                },
+                as: 'weekOffset',
+                in: {
+                  year: {
+                    $isoWeekYear: {
+                      $dateAdd: { startDate: '$createdDate', unit: 'week', amount: '$$weekOffset' },
+                    },
+                  },
+                  week: {
+                    $isoWeek: {
+                      $dateAdd: { startDate: '$createdDate', unit: 'week', amount: '$$weekOffset' },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
+        { $unwind: '$activeWeeks' },
         {
           $group: {
             _id: {
-              year: '$createdYear',
-              week: '$createdWeek',
+              year: '$activeWeeks.year',
+              week: '$activeWeeks.week',
             },
-            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
+            activeVolunteersCount: { $sum: 1 },
           },
         },
         {
-          $project: {
-            _id: 1,
-            totalHours: { $round: ['$totalHours', 2] },
+          $sort: {
+            '_id.year': 1,
+            '_id.week': 1,
           },
-        },
-        {
-          $sort: { '_id.year': 1, '_id.week': 1 },
-        },
-      ]);
-    } else if (offset === 'month') {
-      data = TimeEntries.aggregate([
-        {
-          $match: {
-            createdDateTime: { $gte: startDate, $lte: endDate },
-          },
-        },
-        {
-          $project: {
-            createdYear: { $year: '$createdDateTime' },
-            createdMonth: { $month: '$createdDateTime' },
-            totalSeconds: 1,
-          },
-        },
-        {
-          $group: {
-            _id: {
-              year: '$createdYear',
-              month: '$createdMonth',
-            },
-            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            totalHours: { $round: ['$totalHours', 2] },
-          },
-        },
-        {
-          $sort: { '_id.year': 1, '_id.month': 1 },
         },
       ]);
     }
-
-    return data;
+    if (offset === 'month') {
+      return UserProfile.aggregate([
+        {
+          $match: {
+            isActive: true,
+            createdDate: { $gte: startDate, $lt: endDate },
+          },
+        },
+        {
+          $addFields: {
+            activeMonths: {
+              $map: {
+                input: {
+                  $range: [
+                    0,
+                    { $add: [{ $subtract: [{ $year: endDate }, { $year: '$createdDate' }] }, 1] },
+                  ],
+                },
+                as: 'yearOffset',
+                in: {
+                  year: { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
+                  months: {
+                    $cond: [
+                      {
+                        $eq: [
+                          { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
+                          { $year: endDate },
+                        ],
+                      },
+                      { $range: [1, { $add: [{ $month: endDate }, 1] }] },
+                      {
+                        $cond: [
+                          {
+                            $eq: [
+                              { $add: [{ $year: '$createdDate' }, '$$yearOffset'] },
+                              { $year: '$createdDate' },
+                            ],
+                          },
+                          { $range: [{ $month: '$createdDate' }, 13] },
+                          { $range: [1, 13] },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        { $unwind: '$activeMonths' },
+        { $unwind: '$activeMonths.months' },
+        {
+          $group: {
+            _id: {
+              year: '$activeMonths.year',
+              month: '$activeMonths.months',
+            },
+            activeVolunteersCount: { $sum: 1 },
+          },
+        },
+        {
+          $sort: {
+            '_id.year': 1,
+            '_id.month': 1,
+          },
+        },
+      ]);
+    }
+    // throw error message: unrecognized offset
+    throw new Error('unrecognized offset');
   }
 
   /**
@@ -1822,10 +1867,16 @@ const overviewReportHelper = function () {
     return { count: currentCount };
   }
 
-  const getTotalSummariesSubmitted = async (startDate, endDate, comparisonStartDate, comparisonEndDate) => {
+  const getTotalSummariesSubmitted = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
     // Helper function to count summaries submitted within a date range
-    const getSummariesCount = async (start, end) => {
-      return await UserProfile.aggregate([
+    const getSummariesCount = async (start, end) =>
+      /* eslint-disable no-return-await */
+      await UserProfile.aggregate([
         {
           $match: {
             summarySubmissionDates: {
@@ -1861,27 +1912,25 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-    };
-  
     // Get summaries count for the current date range
     const currentSummaries = await getSummariesCount(startDate, endDate);
     const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
-  
+
     // If comparison dates are provided, calculate the comparison percentage
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
       const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
-      const comparisonPercentage = calculateGrowthPercentage(totalCurrentSummaries, totalComparisonSummaries);
-  
+      const comparisonPercentage = calculateGrowthPercentage(
+        totalCurrentSummaries,
+        totalComparisonSummaries,
+      );
+
       return { count: totalCurrentSummaries, comparisonPercentage };
     }
-  
+
     // If no comparison dates, return only the count
     return { count: totalCurrentSummaries };
   };
-  
-  
-  
 
   return {
     getVolunteerTrends,

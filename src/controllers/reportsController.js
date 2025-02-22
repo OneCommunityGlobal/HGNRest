@@ -14,21 +14,17 @@ const reportsController = function () {
    * Parameters:
    * timeFrame - 0, 1, 2, etc: 0 represents all time
    * offset - *STRING* week/month
-   * customStartDate / customEndDate - *DATE STRING as "YYYY-MM-DD" || NULL* custom date ranges, overrides timeFrame parameter
+   * customStartDate / customEndDate - *DATE OBJ || NULL* custom date ranges
    */
   const getVolunteerTrends = async (req, res) => {
     const { timeFrame, offset, customStartDate, customEndDate } = req.query;
 
-    if (!timeFrame || !offset) {
-      return res.status(400).send({ msg: 'Please provide a timeframe and offset' });
+    console.log(customStartDate, customEndDate);
+    if (!offset) {
+      return res.status(400).send({ msg: 'Please provide a offset' });
     }
-
-    if (![0, 1, 2, 3, 5, 10].includes(+timeFrame)) {
-      return res.status(400).send({ msg: 'Invalid timeFrame' });
-    }
-
-    if (!['week', 'month'].includes(offset)) {
-      return res.status(400).send({ msg: 'Offset param must either be `week` or `month`' });
+    if (!timeFrame && !customStartDate && !customEndDate) {
+      return res.status(400).send({ msg: 'Please provide a time frame' });
     }
 
     try {
