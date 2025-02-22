@@ -11,9 +11,13 @@ const getJobs = async (req, res) => {
 
     // Build query object
     const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' }; // Case-insensitive search
+    if (search) {
+      query.$or = [
+      {title: { $regex: search, $options: 'i' }}, // Case-insensitive search
+      { description: { $regex: search, $options: 'i' } }
+      ];
+    }
     if (category) query.category = category;
-
     // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
 
@@ -46,10 +50,14 @@ const getJobSummaries = async (req, res) => {
   try {
     const pageNumber = Math.max(1, parseInt(page, 10)); 
     const limitNumber = Math.max(1, parseInt(limit, 10)); 
-    
     // Construct the query object
     const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' };
+    if (search) {
+      query.$or = [
+      {title: { $regex: search, $options: 'i' }}, // Case-insensitive search
+      { description: { $regex: search, $options: 'i' } }
+      ];
+    }
     if (category) query.category = category; 
 
     // Sorting logic
@@ -62,7 +70,7 @@ const getJobSummaries = async (req, res) => {
     // Fetch the total number of jobs matching the query for pagination
     const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
-      .select('title category location description datePosted featured') 
+      .select('title category location description datePosted featured jobDetailsLink') // add jobDetailsLink
       .sort(sortCriteria) 
       .skip((pageNumber - 1) * limitNumber) 
       .limit(limitNumber); 
