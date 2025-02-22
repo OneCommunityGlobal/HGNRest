@@ -44,6 +44,50 @@ async function getPinterestAccessToken(req, res) {
   }
 }
 
+async function createPin(req, res) {
+  let accessToken = "";
+
+  if (process.env.PINTEREST_SANDBOX_API) {
+    accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
+  } else {
+    if (!fs.existsSync("access_token.txt")) {
+      await getPinterestAccessToken();
+    }
+    let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
+    let tokenObject = JSON.parse(tokenData);
+    const expireTime = new Date(tokenObject.expireTime);
+    if (new Date() > expireTime) {
+      await getPinterestAccessToken();
+    }
+    tokenData = await fs.readFileSync('access_token.txt', 'utf8');
+    tokenObject = JSON.parse(tokenData);
+    accessToken = tokenObject.accessToken;
+  }
+
+  const { board_id, title, description, media_source } = req.body;
+  const postData = { board_id: board_id, description: description, title: title, media_source: media_source };
+  const createPinHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+
+  try {
+    let requestUrl = ""
+    if (process.env.PINTEREST_SANDBOX_API) {
+      requestUrl = 'https://api-sandbox.pinterest.com/v5/pins'
+    } else {
+      requestUrl = 'https://api.pinterest.com/v5/pins'
+    }
+    // const response = await axios.post('https://api.pinterest.com/v5/pins', postData, {
+    const response = await axios.post(requestUrl, postData, {
+      headers: createPinHeaders,
+      responseType: 'json'
+    });
+    res.status(200).json(response.data);
+  } catch (error) {
+    console.error('Error creating Pinterest pin:', error);
+    res.status(500).json({ error: 'Failed to create Pinterest pin' });
+  }
+
+}
+
 module.exports = {
   getPinterestAccessToken,
   createPin
