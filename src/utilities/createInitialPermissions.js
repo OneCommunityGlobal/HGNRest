@@ -52,6 +52,7 @@ const permissionsRoles = [
       'changeUserRehireableStatus',
       'updatePassword',
       'deleteUserProfile',
+      'toggleInvisibility',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
@@ -86,6 +87,7 @@ const permissionsRoles = [
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
@@ -251,13 +253,15 @@ const permissionsRoles = [
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
+      'toggleInvisibility',
       'manageAdminLinks',
-
+      'removeUserFromTask',
       'editHeaderMessage',
     ],
   },
