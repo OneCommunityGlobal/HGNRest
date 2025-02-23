@@ -1528,7 +1528,7 @@ const userHelper = function () {
       });
   };
 
-  const getAllWeeksData = async (personId, user) => {
+  const getAllWeeksData = async (personId, user) => { // gets time entries values (week)
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
     const currentDate = moment().tz('America/Los_Angeles');
@@ -1555,16 +1555,20 @@ const userHelper = function () {
     return weeksData;
   };
 
-  const getMaxHrs = async (personId, user) => {
-    const weeksdata = await getAllWeeksData(personId, user);
-    return Math.max(...weeksdata);
-  };
+  function mergeHours(array1, array2) { 
+    const tempHours = [...array1, ...array2];
+    return tempHours;
+  }
 
-  const updatePersonalMax = async (personId, user) => {
+  const updatePersonalMax = async (personId, user) => { // 
     try {
-      const MaxHrs = await getMaxHrs(personId, user);
-      user.personalBestMaxHrs = MaxHrs;
-      await user.save();
+      const weeksData = await getAllWeeksData(personId, user);
+      const savedHours = user.savedTangibleHrs; 
+      const result = mergeHours(savedHours, weeksData);
+      const MaxHrs = Math.max(...result);
+      user.personalBestMaxHrs = MaxHrs; 
+      await user.save(); 
+      
     } catch (error) {
       console.error(error);
     }
@@ -1575,6 +1579,7 @@ const userHelper = function () {
     let badgeOfType;
     const duplicateBadges = [];
 
+    // verify that "personal max" badge exists in badgeCollection
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'Personal Max') {
         if (!badgeOfType) {
@@ -1582,28 +1587,37 @@ const userHelper = function () {
         } else {
           duplicateBadges.push(badgeCollection[i]);
         }
-      }
-      // eslint-disable-next-line no-restricted-syntax
-      for (const b of duplicateBadges) {
-        await removeDupBadge(personId, b._id);
+        badgeOfType = badgeCollection;
+        break;
       }
     }
+    // check the badge collection for duplicates
+    for (const b of duplicateBadges) {
+      await removeDupBadge(personId, b._id);
+    }
+
+    // add badge when badgeCollection is empty
+    if (!badgeOfType) {
+      await badge.findOne({ type: 'Personal Max' }).then((results) => {
+        const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
+        if (results) {
+          addBadge(personId, mongoose.Types.ObjectId(results._id), );
+        }
+      });
+    }
+
+    await updatePersonalMax(personId, user);
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
-      const currentDate = moment(moment().format('MM-DD-YYYY'), 'MM-DD-YYYY')
-        .tz('America/Los_Angeles')
-        .format('MMM-DD-YY');
+      const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
       if (
         user.lastWeekTangibleHrs &&
+        user.savedTangibleHrs[user.savedTangibleHrs.length-1] === user.lastWeekTangibleHrs &&
         user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
         !badgeOfType.earnedDate.includes(currentDate)
       ) {
         if (badgeOfType) {
-          increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
-          // Update the earnedDate array with the new date
-          badgeOfType.earnedDate.unshift(moment().format('MMM-DD-YYYY'));
-        } else {
-          addBadge(personId, mongoose.Types.ObjectId(results._id), user.personalBestMaxHrs);
-        }
+         increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
+        } 
       }
     });
   };
@@ -1649,6 +1663,9 @@ const userHelper = function () {
       console.error('Error in checkMostHrsWeek:', error);
     }
   };
+
+  
+
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
@@ -2031,7 +2048,6 @@ const userHelper = function () {
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        await updatePersonalMax(personId, user);
         await checkPersonalMax(personId, user, badgeCollection);
         await checkMostHrsWeek(personId, user, badgeCollection);
         await checkMinHoursMultiple(personId, user, badgeCollection);
