@@ -3,23 +3,18 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 
 const currentWarningsController = function (currentWarnings) {
-  const checkForDuplicates = (currentWarning, warnings) => {
-    const duplicateFound = warnings.some(
-      (warning) => warning.warningTitle.toLowerCase() === currentWarning,
-    );
-
-    return duplicateFound;
-  };
+  const normalizeWarningTitle = (warningTitle /*: string */) => warningTitle.toLowerCase().trim();
 
   const checkIfSpecialCharacter = (warning) => {
     return !/^[a-zA-Z][a-zA-Z0-9]*(?: [a-zA-Z0-9]+)*$/.test(warning);
   };
+
   const getCurrentWarnings = async (req, res) => {
     try {
       const response = await currentWarnings.find({});
 
       if (response.length === 0) {
-        return res.status(400).send({ message: 'no valid records', response: response });
+        return res.status(400).send({ message: 'No records', response: response });
       }
       return res.status(200).send({ currentWarningDescriptions: response });
     } catch (error) {
@@ -30,33 +25,34 @@ const currentWarningsController = function (currentWarnings) {
   const postNewWarningDescription = async (req, res) => {
     try {
       const { newWarning, activeWarning, isPermanent } = req.body;
+      const newWarningTitle = normalizeWarningTitle(newWarning);
 
-      const warnings = await currentWarnings.find({});
-
-      if (warnings.length === 0) {
-        return res.status(400).send({ error: 'no valid records' });
-      }
-
-      const testWarning = checkIfSpecialCharacter(newWarning);
-      if (testWarning) {
-        return res.status(200).send({
-          error: 'Warning cannot have special characters as the first letter',
+      // Validate first
+      if (checkIfSpecialCharacter(newWarningTitle)) {
+        return res.status(400).send({
+          error: 'Warnings cannot have special characters as the first letter',
         });
       }
 
-      if (checkForDuplicates(newWarning, warnings)) {
-        return res.status(200).send({ error: 'warning already exists' });
+      // DB check
+      const warning = await currentWarnings.exists({
+        warningTitle: newWarningTitle,
+      });
+
+      if (warning) {
+        return res.status(400).send({
+          error: 'Warning already exists, please try a different name',
+        });
       }
 
       const newWarningDescription = new currentWarnings();
-      newWarningDescription.warningTitle = newWarning;
+      newWarningDescription.warningTitle = newWarningTitle;
       newWarningDescription.activeWarning = activeWarning;
       newWarningDescription.isPermanent = isPermanent;
 
-      warnings.push(newWarningDescription);
       await newWarningDescription.save();
 
-      return res.status(201).send({ newWarnings: warnings });
+      return res.status(201).send({ newWarnings: await currentWarnings.find({}) });
     } catch (error) {
       return res.status(401).send({ message: error.message });
     }
@@ -65,34 +61,30 @@ const currentWarningsController = function (currentWarnings) {
   const editWarningDescription = async (req, res) => {
     try {
       const { editedWarning } = req.body;
+      const newWarningTitle = normalizeWarningTitle(editedWarning.warningTitle);
 
-      const id = editedWarning._id;
-
-      const warnings = await currentWarnings.find({});
-
-      if (warnings.length === 0) {
-        return res.status(400).send({ message: 'no valid records' });
-      }
-
-      const lowerCaseWarning = editedWarning.warningTitle.toLowerCase();
-      const testWarning = checkIfSpecialCharacter(lowerCaseWarning);
-
-      if (testWarning) {
-        return res.status(200).send({
+      // Check client input first
+      if (checkIfSpecialCharacter(newWarningTitle)) {
+        return res.status(400).send({
           error: 'Warning cannot have special characters as the first letter',
         });
       }
 
-      if (checkForDuplicates(lowerCaseWarning, warnings)) {
-        return res.status(200).send({ error: 'warning already exists try a different name' });
+      // Check if the new warning title already exists
+      if (await currentWarnings.exists({ warningTitle: newWarningTitle })) {
+        return res.status(400).send({ error: 'Warning already exists, please try a different name' });
       }
 
-      await currentWarnings.findOneAndUpdate(
-        { _id: id },
-        [{ $set: { warningTitle: lowerCaseWarning.trim() } }],
-        { new: true },
-      );
+      // Fetch the warning to be edited
+      const warning = await currentWarnings.findOne({ _id: editedWarning._id });
 
+      if (!warning) {
+        return res.status(400).send({ message: 'Warning not found.' });
+      }
+
+      warning.warningTitle = newWarningTitle;
+
+      await warning.save();
       res.status(201).send({ message: 'warning description was updated' });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
