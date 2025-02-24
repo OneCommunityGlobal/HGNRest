@@ -1,7 +1,7 @@
 /* eslint-disable */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-
+const helper = require('../utilities/permissions');
 const currentWarningsController = function (currentWarnings) {
   const checkForDuplicates = (currentWarning, warnings) => {
     const duplicateFound = warnings.some(
@@ -28,6 +28,12 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const postNewWarningDescription = async (req, res) => {
+    if (!(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) 
+      
+    ) {
+      res.status(403).send('You are not authorized to add a new WarningTracker.');
+      return;
+    }
     try {
       const { newWarning, activeWarning, isPermanent } = req.body;
 
@@ -99,6 +105,12 @@ const currentWarningsController = function (currentWarnings) {
     }
   };
   const updateWarningDescription = async (req, res) => {
+    if (!(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
+      !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker'))
+    ) {
+      res.status(403).send('You are not authorized to reactivate a WarningTracker or deactivate warning tracker.');
+      return;
+    }
     try {
       const { warningDescriptionId } = req.params;
 
@@ -115,6 +127,11 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const deleteWarningDescription = async (req, res) => {
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker')) 
+    ) {
+      res.status(403).send('You are not authorized to delete a WarningTracker.');
+      return;
+    }
     try {
       const { warningDescriptionId } = req.params;
       const documentToDelete = await currentWarnings.findById(warningDescriptionId);
