@@ -78,11 +78,11 @@ const facebookController = function(){
       });
     }**/
 
-    try {
+    /**try {
       const baseRequestBody = {
         message: textContent,
       };
-      console.log("baseRequest", baseRequestBody);
+      console.log("baseRequest", baseRequestBody);**/
 
       //let mediaSource = {};
 
@@ -116,7 +116,7 @@ const facebookController = function(){
               };
       }**/
 
-      const requestBody = JSON.stringify({
+      /**const requestBody = JSON.stringify({
         ...baseRequestBody,
         //media_source: mediaSource,
       });
@@ -135,9 +135,9 @@ const facebookController = function(){
       const statusCode = response.status;
       //const responseData = await response.json();
       let responseData;
-
       try {
         responseData = await response.json();
+        
       } catch (error) {
         console.error('Error parsing JSON:', error);
         return res.status(500).json({ error: 'Failed to parse Facebook response' });
@@ -154,7 +154,40 @@ const facebookController = function(){
     } catch (error) {
       console.error('[Backend] Network or other error: ', error);
       res.status(500).json({ success: false, error: 'Internal server error' });
-    }
+    }**/
+      try {
+        const baseRequestBody = {
+          message: textContent,
+        };
+  
+        console.log("baserequestbody", baseRequestBody);
+  
+        // Sending request using axios
+        const response = await axios.post(requestUrl, baseRequestBody, {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+  
+        const statusCode = response.status;
+        const responseData = response.data;
+  
+        // Handling the response
+        if (statusCode >= 200 && statusCode < 300) {
+          res.status(200).json(responseData);
+        } else {
+          console.error('[Backend] Error creating Pin: ', responseData.message);
+          res.status(statusCode).json({
+            message: responseData.message || 'Unexpected error',
+          });
+        }
+      } catch (error) {
+        // Catching errors in the try block
+        console.error('[Backend] Network or other error: ', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+      }
+
   }
   return {createFbPost}
 
