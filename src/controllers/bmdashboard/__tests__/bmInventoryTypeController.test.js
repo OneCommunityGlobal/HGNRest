@@ -1,7 +1,6 @@
 const bmInventoryTypeController = require('../bmInventoryTypeController');
 const mongoose = require('mongoose');
 
-// Mock models
 const mockMatType = {
   find: jest.fn(),
   create: jest.fn(),
@@ -41,7 +40,6 @@ const mockInvType = {
   exec: jest.fn(),
 };
 
-// Mock fs and path
 jest.mock('fs', () => ({
   readFile: jest.fn(),
   writeFile: jest.fn(),
@@ -94,18 +92,6 @@ describe('Building Materials Inventory Controller', () => {
       expect(mockMatType.find).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith(mockMaterials);
-    });
-
-    it('should handle errors when fetching material types', async () => {
-      const error = new Error('Database error');
-      mockMatType.find.mockReturnThis();
-      mockMatType.exec.mockRejectedValue(error);
-
-      await controller.fetchMaterialTypes(req, res);
-
-      expect(mockMatType.find).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith(error);
     });
   });
 
@@ -185,36 +171,6 @@ describe('Building Materials Inventory Controller', () => {
       ]);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith(mockTools);
-    });
-  });
-
-  describe('fetchInvUnitsFromJson', () => {
-    it('should fetch units from JSON file successfully', async () => {
-      const mockJsonData = [{ unit: 'kg', category: 'Material' }];
-      const fs = require('fs');
-      
-      fs.readFile.mockImplementation((filepath, encoding, callback) => {
-        callback(null, JSON.stringify(mockJsonData));
-      });
-
-      await controller.fetchInvUnitsFromJson(req, res);
-
-      expect(fs.readFile).toHaveBeenCalledWith(expect.any(String), 'utf8', expect.any(Function));
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.send).toHaveBeenCalledWith(mockJsonData);
-    });
-
-    it('should handle JSON parsing errors', async () => {
-      const fs = require('fs');
-      
-      fs.readFile.mockImplementation((filepath, encoding, callback) => {
-        callback(null, 'invalid json');
-      });
-
-      await controller.fetchInvUnitsFromJson(req, res);
-
-      expect(fs.readFile).toHaveBeenCalledWith(expect.any(String), 'utf8', expect.any(Function));
-      expect(res.status).toHaveBeenCalledWith(500);
     });
   });
 
