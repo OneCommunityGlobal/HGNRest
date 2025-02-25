@@ -2,6 +2,12 @@ const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 const axios =  require("axios");
 const facebookController = function(){
+  async function extractText(htmlString){
+    const $ = cheerio.load(htmlString);
+    const textContent = $('body').text().replace(/\+/g, '').trim();
+    console.log("textContent", textContent);
+    return textContent;
+    }
   async function extractTextAndImgUrl(htmlString) {
       const $ = cheerio.load(htmlString);
       //const { data:htmlString } = await axios.get(htmlString);
@@ -52,14 +58,16 @@ const facebookController = function(){
 
   async function createFbPost(req,res){
     console.log('calling backend')
-    return res.status(200).json({
+    /**return res.status(200).json({
       message: 'send from the backend'
-    })
-    /**const requestUrl = "https://graph.facebook.com/515563784975867/feed";
+    })**/
+    const requestUrl = "https://graph.facebook.com/515563784975867/feed";
     const authToken ="EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT";
-    const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
+    //const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
+    const textContent = await extractText(req.body.EmailContent);
+    console.log("textin func", textContent);
 
-    if (urlSrcs.length === 0 && base64Srcs.length === 0) {
+    /**if (urlSrcs.length === 0 && base64Srcs.length === 0) {
       return res.status(400).json({ message: 'No image found in the email content' });
     }
 
@@ -68,16 +76,17 @@ const facebookController = function(){
         message:
           'Both URL and base64 images found in the email content. Please choose only one type.',
       });
-    }
+    }**/
 
     try {
       const baseRequestBody = {
         message: textContent,
       };
+      console.log("baseRequest", baseRequestBody);
 
-      let mediaSource = {};
+      //let mediaSource = {};
 
-      if (base64Srcs.length !== 0) {
+      /**if (base64Srcs.length !== 0) {
         mediaSource =
           base64Srcs.length === 1
             ? {
@@ -105,12 +114,13 @@ const facebookController = function(){
                 source_type: 'multiple_image_urls',
                 items: urlSrcs.map((url) => ({ url })),
               };
-      }
+      }**/
 
       const requestBody = JSON.stringify({
         ...baseRequestBody,
-        media_source: mediaSource,
+        //media_source: mediaSource,
       });
+      console.log("requestbody", requestBody);
 
       const response = await fetch(requestUrl, {
         method: 'POST',
@@ -120,6 +130,7 @@ const facebookController = function(){
         },
         body: requestBody,
       });
+
 
       const statusCode = response.status;
       //const responseData = await response.json();
@@ -143,7 +154,7 @@ const facebookController = function(){
     } catch (error) {
       console.error('[Backend] Network or other error: ', error);
       res.status(500).json({ success: false, error: 'Internal server error' });
-    }*/
+    }
   }
   return {createFbPost}
 
