@@ -9,13 +9,11 @@ async function inviteUser(req, res) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
+  if (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+    {
     res.status(403).send({ error: 'Unauthorized request' });
     return;
-  }
+    }
 
   try {
     // Call the Slack service to send the invitation email

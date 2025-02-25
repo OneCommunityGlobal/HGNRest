@@ -3,13 +3,11 @@ const githubService = require('../../services/userManagementAutomation/githubSer
 async function inviteUser(req, res) {
   const { username } = req.body;
   const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
+  if ( requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+    {
     res.status(403).send({ error: 'Unauthorized request' });
     return;
-  }
+    }
 
   if (!username) {
     return res.status(400).json({ error: 'Username is required' });
@@ -26,13 +24,11 @@ async function inviteUser(req, res) {
 async function removeUser(req, res) {
   const { username } = req.body;
   const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
+  if (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+    {
     res.status(403).send({ error: 'Unauthorized request' });
     return;
-  }
+    }
 
   if (!username) {
     return res.status(400).json({ error: 'Username is required' });

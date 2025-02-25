@@ -24,14 +24,30 @@ async function createFolderWithSubfolder(parentFolderName) {
 }
 
 // Function to invite a user to a Dropbox folder
-async function inviteUserToFolder(folderPath, email) {
+async function inviteUserToFolder(folderPath, email, userProfileId) {
   try {
+    // Create shared link for the folder
+    const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
+      path: folderPath,
+    });
+
+    // Extract the link from the response
+    const folderLink = sharedLinkResponse.url;
+
+    // Find the user profile by userProfileId and update the mediaUrl field
+    const updatedUserProfile = await mongoose.model('userProfile').findByIdAndUpdate(
+      userProfileId, 
+      { $set: { mediaUrl: folderLink } }, 
+      { new: true }  // Return the updated document
+    );
+
     const inviteResponse = await dbx.sharingAddFolderMember({
       shared_folder_id: folderPath,
       members: [{ email: email, access_level: 'editor' }],
       quiet: false,
     });
-    return inviteResponse;
+
+    return { updatedUserProfile, inviteResponse };
   } catch (error) {
     throw new Error(`Error inviting user: ${error.message}`);
   }
