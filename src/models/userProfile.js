@@ -12,6 +12,8 @@ const SALT_ROUNDS = 10;
 const today = new Date();
 
 const userProfileSchema = new Schema({
+  // Updated filed
+  summarySubmissionDates: [{ type: Date }],
   password: {
     type: String,
     required: true,
@@ -27,6 +29,7 @@ const userProfileSchema = new Schema({
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
+  finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
     type: String,
     required: true,
@@ -101,6 +104,10 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics:{
+    type:[mongoose.Schema.Types.Mixed],
+    default:[]
+  },
   infringements: [
     {
       date: { type: String, required: true },
@@ -128,6 +135,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
+      iconId: { type: String, required: false },
     },
   ],
   location: {

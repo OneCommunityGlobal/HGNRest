@@ -17,6 +17,7 @@ const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
+const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -175,8 +176,45 @@ const userProfileController = function (UserProfile, Project) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate',
     )
+      .sort({
+        lastName: 1,
+      })
+      .then((results) => {
+        if (!results) {
+          if (cache.getCache('allusers')) {
+            const getData = JSON.parse(cache.getCache('allusers'));
+            res.status(200).send(getData);
+            return;
+          }
+          res.status(500).send({ error: 'User result was invalid' });
+          return;
+        }
+        const transformedResults = results.map(user => ({
+          ...user.toObject(),
+          jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
+        }));
+        console.log(transformedResults);
+        cache.setCache('allusers', JSON.stringify(transformedResults));
+        res.status(200).send(transformedResults);
+      })
+      .catch((error) => res.status(404).send(error));
+  };
+
+  /**
+   * Controller function to retrieve basic user profile information.
+   * This endpoint checks if the user has the necessary permissions to access user profiles.
+   * If authorized, it queries the database to fetch only the required fields:
+   * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
+   */
+  const getUserProfileBasicInfo = async function (req, res) {
+    if (!(await checkPermission(req, 'getUserProfiles'))) {
+      forbidden(res, 'You are not authorized to view all users');
+      return;
+    }
+
+    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
       .sort({
         lastName: 1,
       })
@@ -326,6 +364,7 @@ const userProfileController = function (UserProfile, Project) {
     up.adminLinks = req.body.adminLinks;
     up.teams = Array.from(new Set(req.body.teams));
     up.projects = Array.from(new Set(req.body.projects));
+    up.teamCode = req.body.teamCode;
     up.createdDate = req.body.createdDate;
     up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
@@ -450,7 +489,6 @@ const userProfileController = function (UserProfile, Project) {
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
-        // console.log('originalRecord', originalRecord);
       }
       // validate userprofile pic
 
@@ -644,7 +682,7 @@ const userProfileController = function (UserProfile, Project) {
         }
 
         if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
-          record.startDate = moment(req.body.startDate).toDate();
+          record.startDate = moment.tz(req.body.startDate, 'America/Los_Angeles').toDate();
           // Make sure weeklycommittedHoursHistory isn't empty
           if (record.weeklycommittedHoursHistory.length === 0) {
             const newEntry = {
@@ -663,11 +701,12 @@ const userProfileController = function (UserProfile, Project) {
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
           record.permissions = req.body.permissions;
+          await logUserPermissionChangeByAccount(req);
         }
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
-            record.endDate = moment(req.body.endDate).toDate();
+            record.endDate = moment.tz(req.body.endDate, 'America/Los_Angeles').toDate();
             if (isUserInCache) {
               userData.endDate = record.endDate.toISOString();
             }
@@ -847,13 +886,11 @@ const userProfileController = function (UserProfile, Project) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
-
     // if (cache.getCache(`user-${userid}`)) {
     //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
     //   res.status(200).send(getData);
     //   return;
     // }
-
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
@@ -888,9 +925,9 @@ const userProfileController = function (UserProfile, Project) {
           options: {
             sort: {
               date: -1, // Sort by date descending if needed
-              },
             },
           },
+        },
       ])
       .exec()
       .then((results) => {
@@ -1035,7 +1072,7 @@ const userProfileController = function (UserProfile, Project) {
     const hasUpdatePasswordPermission = await hasPermission(requestor, 'updatePassword');
 
     // if they're updating someone else's password, they need the 'updatePassword' permission.
-    if (!hasUpdatePasswordPermission) {
+    if (userId !== requestor.requestorId && !hasUpdatePasswordPermission) {
       return res.status(403).send({
         error: "You are unauthorized to update this user's password",
       });
@@ -1171,12 +1208,15 @@ const userProfileController = function (UserProfile, Project) {
     const { endDate } = req.body;
     const isSet = req.body.isSet === 'FinalDay';
     let activeStatus = status;
+    let emailThreeWeeksSent = false;
     if (endDate && status) {
       const dateObject = new Date(endDate);
       dateObject.setHours(dateObject.getHours() + 7);
       const setEndDate = dateObject;
       if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
         activeStatus = false;
+      } else if (moment().isBefore(moment(endDate).subtract(3, 'weeks'))) {
+        emailThreeWeeksSent = true;
       }
     }
     if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -1224,13 +1264,14 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName')
+    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
       .then((user) => {
         user.set({
           isActive: activeStatus,
           reactivationDate: activationDate,
           endDate,
           isSet,
+          finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
         user
           .save()
@@ -1255,6 +1296,7 @@ const userProfileController = function (UserProfile, Project) {
               recipients,
               isSet,
               activationDate,
+              emailThreeWeeksSent,
             );
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
@@ -1455,26 +1497,7 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
-  // Search for user by first name
-  // const getUserBySingleName = (req, res) => {
-  //   const pattern = new RegExp(`^${ req.params.singleName}`, 'i');
 
-  //   // Searches for first or last name
-  //   UserProfile.find({
-  //     $or: [
-  //       { firstName: { $regex: pattern } },
-  //       { lastName: { $regex: pattern } },
-  //     ],
-  //   })
-  //     .select('firstName lastName')
-  //     .then((users) => {
-  //       if (users.length === 0) {
-  //         return res.status(404).send({ error: 'Users Not Found' });
-  //       }
-  //       res.status(200).send(users);
-  //     })
-  //     .catch((error) => res.status(500).send(error));
-  // };
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
@@ -1519,13 +1542,7 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(500).send(error));
   };
 
-  // function escapeRegExp(string) {
-  //   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // }
-  /**
-   * Authorizes user to be able to add Weekly Report Recipients
-   *
-   */
+
   const authorizeUser = async (req, res) => {
     try {
       let authorizedUser;
@@ -1561,6 +1578,44 @@ const userProfileController = function (UserProfile, Project) {
       res.status(500).send(err);
     }
   };
+
+  const toggleInvisibility = async function (req, res) {
+    const { userId } = req.params;
+    const { isVisible } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).send({
+        error: 'Bad Request',
+      });
+      return;
+    }
+    if (!(await hasPermission(req.body.requestor, 'toggleInvisibility'))) {
+      res.status(403).send('You are not authorized to change user visibility');
+      return;
+    }
+
+    cache.removeCache(`user-${userId}`);
+    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
+      if (err) {
+        return res.status(500).send(`Could not Find user with id ${userId}`);
+      }
+      // Check if there's a cache for all users and update it accordingly
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((users) => users._id === userId);
+        const userData = allUserData[userIdx];
+        userData.isVisible = isVisible;
+        allUserData.splice(userIdx, 1, userData);
+        cache.setCache('allusers', JSON.stringify(allUserData));
+      }
+
+      return res.status(200).send({
+        message: 'User visibility updated successfully',
+        isVisible,
+      });
+    })
+  }
 
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
@@ -1598,7 +1653,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1640,7 +1705,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1671,7 +1746,17 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then((results) => {
-          userHelper.notifyInfringements(originalinfringements, results.infringements);
+          userHelper.notifyInfringements(
+            originalinfringements,
+            results.infringements,
+            results.firstName,
+            results.lastName,
+            results.email,
+            results.role,
+            results.startDate,
+            results.jobTitle[0],
+            results.weeklycommittedHours,
+          );
           res.status(200).json({
             _id: record._id,
           });
@@ -1689,28 +1774,28 @@ const userProfileController = function (UserProfile, Project) {
 
       const query = match[1]
         ? {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                $and: [
-                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-                ],
-              },
-            ],
-          }
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              $and: [
+                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+              ],
+            },
+          ],
+        }
         : {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-            ],
-          };
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+          ],
+        };
 
       const userProfile = await UserProfile.find(query);
 
@@ -1733,14 +1818,19 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllTeamCodeHelper = async function () {
     try {
-      if (cache.hasCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes;
-      }
-      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
+      let distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null },
       });
-      cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+
+      distinctTeamCodes = distinctTeamCodes.filter(code => code && code.trim() !== '');
+
+      try {
+        cache.removeCache('teamCodes');
+        cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+      } catch (error) {
+        console.error("Error caching team codes:", error);
+      }
+
       return distinctTeamCodes;
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
@@ -1756,7 +1846,84 @@ const userProfileController = function (UserProfile, Project) {
         .status(500)
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
+  };
 
+  const removeProfileImage = async (req, res) => {
+    try {
+      var user_id = req.body.user_id
+      await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: "" } })
+      cache.removeCache(`user-${user_id}`);
+      return res.status(200).send({ message: 'Image Removed' })
+    } catch (err) {
+      console.log(err)
+      return res.status(404).send({ message: "Error Removing Image" })
+    }
+  }
+  const updateProfileImageFromWebsite = async (req, res) => {
+    try {
+      var user = req.body
+      await UserProfile.updateOne({ _id: user.user_id },
+        {
+          $set: { profilePic: user.selectedImage },
+          $unset: { suggestedProfilePics: "" }
+        })
+      cache.removeCache(`user-${user.user_id}`);
+      return res.status(200).send({ message: "Profile Updated" })
+    } catch (err) {
+      console.log(err)
+      return res.status(404).send({ message: "Profile Update Failed" })
+    }
+  }
+
+  const getUserByAutocomplete = (req, res) => {
+    const { searchText } = req.params;
+
+    if (!searchText) {
+      return res.status(400).send({ message: 'Search text is required' });
+    }
+
+    const regex = new RegExp(searchText, 'i'); // Case-insensitive regex for partial matching
+
+    UserProfile.find(
+      {
+        $or: [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$firstName', ' ', '$lastName'] },
+                regex: searchText,
+                options: 'i',
+              },
+            },
+          },
+        ],
+      },
+      '_id firstName lastName', // Projection to limit fields returned
+    )
+      .limit(10) // Limit results for performance
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch(() => {
+        res.status(500).send({ error: 'Internal Server Error' });
+      });
+  };
+
+  const updateUserInformation = async function (req, res) {
+    try {
+      const data = req.body;
+      data.map(async (e) => {
+        const result = await UserProfile.findById(e.user_id);
+        result[e.item] = e.value
+        await result.save();
+      })
+      res.status(200).send({ message: 'Update successful' });
+    } catch (error) {
+      console.log(error)
+      return res.status(500)
+    }
   };
 
   return {
@@ -1781,12 +1948,18 @@ const userProfileController = function (UserProfile, Project) {
     getUserByFullName,
     changeUserRehireableStatus,
     authorizeUser,
+    toggleInvisibility,
     addInfringements,
     editInfringements,
     deleteInfringements,
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    removeProfileImage,
+    updateProfileImageFromWebsite,
+    getUserByAutocomplete,
+    getUserProfileBasicInfo,
+    updateUserInformation,
   };
 };
 

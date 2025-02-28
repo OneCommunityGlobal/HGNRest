@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../startup/logger');
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
@@ -419,7 +420,7 @@ const addEditHistory = async (
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        <hr style="border-top: 1px dashed #000;"/>      
+        <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
@@ -593,7 +594,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
       }
@@ -866,7 +867,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -939,7 +940,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.remove({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -982,7 +983,8 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
         // include the time entries for the archived projects
-      }).sort('-lastModifiedDateTime');
+      })
+      .sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
@@ -1062,38 +1064,113 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const getTimeEntriesForReports = function (req, res) {
+  const getTimeEntriesForReports =async function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+    const cacheKey = `timeEntry_${fromDate}_${toDate}`;
+    const timeentryCache=cacheClosure();
+    const cacheData=timeentryCache.hasCache(cacheKey)
+    if(cacheData){
+      const data = timeentryCache.getCache(cacheKey);
+      return res.status(200).send(data);
+    }
+    try {
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        '-createdDateTime' // Exclude unnecessary fields
+      )
+        .lean() // Returns plain JavaScript objects, not Mongoose documents
+        .populate({
+          path: 'projectId',
+          select: '_id projectName', // Only return necessary fields from the project
+        })
+        .exec(); // Executes the query
+      const data = results.map(element => {
+        const record = {
+          _id: element._id,
+          isTangible: element.isTangible,
+          personId: element.personId,
+          dateOfWork: element.dateOfWork,
+          hours: formatSeconds(element.totalSeconds)[0],
+          minutes: formatSeconds(element.totalSeconds)[1],
+          projectId: element.projectId?._id || '',
+          projectName: element.projectId?.projectName || '',
+        };
+        return record;
+      });
+      timeentryCache.setCache(cacheKey,data);
+      return res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  };
+
+  const getTimeEntriesForProjectReports = function (req, res) {
     const { users, fromDate, toDate } = req.body;
 
+    // Fetch only necessary fields and avoid bringing the entire document
     TimeEntry.find(
       {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      'totalSeconds isTangible dateOfWork projectId',
     )
-      .populate('projectId')
-
+      .populate('projectId', 'projectName _id')
+      .lean() // lean() for better performance as we don't need Mongoose document methods
       .then((results) => {
-        const data = [];
+        const data = results.map((element) => {
+          const record = {
+            isTangible: element.isTangible,
+            dateOfWork: element.dateOfWork,
+            projectId: element.projectId ? element.projectId._id : '',
+            projectName: element.projectId ? element.projectId.projectName : '',
+          };
 
-        results.forEach((element) => {
-          const record = {};
-          record._id = element._id;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId._id;
-          record.dateOfWork = element.dateOfWork;
+          // Convert totalSeconds to hours and minutes
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId ? element.projectId.projectName : '';
-          data.push(record);
+
+          return record;
         });
 
         res.status(200).send(data);
       })
       .catch((error) => {
-        res.status(400).send(error);
+        res.status(400).send({ message: 'Error fetching time entries for project reports', error });
       });
+  };
+
+  const getTimeEntriesForPeopleReports = async function (req, res) {
+    try {
+      const { users, fromDate, toDate } = req.body;
+
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        'personId totalSeconds isTangible dateOfWork',
+      ).lean(); // Use lean() for better performance
+
+      const data = results
+        .map((entry) => {
+          const [hours, minutes] = formatSeconds(entry.totalSeconds);
+          return {
+            personId: entry.personId,
+            hours,
+            minutes,
+            isTangible: entry.isTangible,
+            dateOfWork: entry.dateOfWork,
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send({ message: 'Error fetching time entries for people reports', error });
+    }
   };
 
   /**
@@ -1208,7 +1285,12 @@ const timeEntrycontroller = function (TimeEntry) {
    */
   const getLostTimeEntriesForTeamList = function (req, res) {
     const { teams, fromDate, toDate } = req.body;
-
+    const lostteamentryCache=cacheClosure()
+    const cacheKey = `LostTeamEntry_${fromDate}_${toDate}`;
+    const cacheData=lostteamentryCache.getCache(cacheKey)
+    if(cacheData){
+      return res.status(200).send(cacheData)
+    }
     TimeEntry.find(
       {
         entryType: 'team',
@@ -1217,7 +1299,7 @@ const timeEntrycontroller = function (TimeEntry) {
         isActive: { $ne: false },
       },
       ' -createdDateTime',
-    )
+    ).lean()
       .populate('teamId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
@@ -1234,7 +1316,8 @@ const timeEntrycontroller = function (TimeEntry) {
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
           data.push(record);
         });
-        res.status(200).send(data);
+        lostteamentryCache.setCache(cacheKey,data);
+        return res.status(200).send(data);
       })
       .catch((error) => {
         res.status(400).send(error);
@@ -1367,21 +1450,16 @@ const timeEntrycontroller = function (TimeEntry) {
     return newTotalIntangibleHrs;
   };
 
+  const recalculationTaskQueue = [];
+
   /**
-   * recalculate the hoursByCatefory for all users and update the field
+   * recalculate the hoursByCategory for all users and update the field
    */
-  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+  const recalculateHoursByCategoryAllUsers = async function (taskId) {
     const session = await mongoose.startSession();
     session.startTransaction();
-    let keepAliveInterval;
 
     try {
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Transfer-Encoding', 'chunked');
-      keepAliveInterval = setInterval(() => {
-        res.write('Processing... keep connection alive\n');
-      }, 150 * 1000); // interval of 150 seconds
-
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1392,19 +1470,57 @@ const timeEntrycontroller = function (TimeEntry) {
       await Promise.all(recalculationPromises);
 
       await session.commitTransaction();
-      clearInterval(keepAliveInterval);
-      res.write('finished the recalculation for hoursByCategory for all users\n');
-      return res.end();
+
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Completed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
     } catch (err) {
       await session.abortTransaction();
-      if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
       }
+
       logger.logException(err);
-      res.write(`error: ${err.toString()}\n`);
-      return res.end();
     } finally {
       session.endSession();
+    }
+  };
+
+  const startRecalculation = async function (req, res) {
+    const taskId = uuidv4();
+    recalculationTaskQueue.push({
+      taskId,
+      status: 'In progress',
+      startTime: new Date().toISOString(),
+      completionTime: null,
+    });
+    if (recalculationTaskQueue.length > 10) {
+      recalculationTaskQueue.shift();
+    }
+
+    res.status(200).send({
+      message: 'The recalculation task started in the background',
+      taskId,
+    });
+
+    setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0);
+  };
+
+  const checkRecalculationStatus = async function (req, res) {
+    const { taskId } = req.params;
+    const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+    if (recalculationTask) {
+      res.status(200).send({
+        status: recalculationTask.status,
+        startTime: recalculationTask.startTime,
+        completionTime: recalculationTask.completionTime,
+      });
+    } else {
+      res.status(404).send({ message: 'Task not found' });
     }
   };
 
@@ -1452,9 +1568,12 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForTeamList,
     backupHoursByCategoryAllUsers,
     backupIntangibleHrsAllUsers,
-    recalculateHoursByCategoryAllUsers,
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
+    getTimeEntriesForProjectReports,
+    getTimeEntriesForPeopleReports,
+    startRecalculation,
+    checkRecalculationStatus,
   };
 };
 
