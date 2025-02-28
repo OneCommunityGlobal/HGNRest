@@ -1,5 +1,6 @@
 const bmIssueController = require('../bmIssueController');
 
+// Mocking the BuildingIssue Model
 const mockBuildingIssue = {
     find: jest.fn(),
     create: jest.fn(),
@@ -50,6 +51,38 @@ describe('Building Issue Controller', () => {
             await controller.bmGetIssue(req, res);
 
             expect(mockBuildingIssue.find).toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.send).toHaveBeenCalledWith(error);
+        });
+    });
+
+    describe('bmPostIssue', () => {
+        it('should create a new issue successfully', async () => {
+            const mockNewIssue = { _id: '123', name: 'New Issue' };
+            req.body = mockNewIssue;
+
+            mockBuildingIssue.create.mockReturnValue({
+                then: jest.fn((resolve) => resolve(mockNewIssue)),
+                catch: jest.fn(),
+            });
+
+            await controller.bmPostIssue(req, res);
+
+            expect(mockBuildingIssue.create).toHaveBeenCalledWith(mockNewIssue);
+            expect(res.status).toHaveBeenCalledWith(201);
+            expect(res.send).toHaveBeenCalledWith(mockNewIssue);
+        });
+
+        it('should handle errors when creating a new issue', async () => {
+            const error = new Error('Creation error');
+            mockBuildingIssue.create.mockReturnValue({
+                then: jest.fn().mockImplementation(() => Promise.reject(error)),
+                catch: jest.fn((reject) => reject(error)),
+            });
+
+            await controller.bmPostIssue(req, res);
+
+            expect(mockBuildingIssue.create).toHaveBeenCalledWith(req.body);
             expect(res.status).toHaveBeenCalledWith(500);
             expect(res.send).toHaveBeenCalledWith(error);
         });
