@@ -79,7 +79,8 @@ const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')
   mapLocations,
 );
 const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
-  permissionChangeLog, userPermissionChangeLog,
+  permissionChangeLog,
+  userPermissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
@@ -129,6 +130,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   blueSquareEmailAssignment,
   userProfile,
 );
+
+const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -181,4 +184,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
+  app.use('/api/lb', bidTermsRouter);
 };
