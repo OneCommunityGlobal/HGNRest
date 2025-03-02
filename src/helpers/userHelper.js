@@ -1528,14 +1528,13 @@ const userHelper = function () {
       });
   };
 
-  const getAllWeeksData = async (personId, user) => { // gets time entries values (week)
+  const getAllWeeksData = async (personId, user) => {
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
     const currentDate = moment().tz('America/Los_Angeles');
     const startDate = moment(user.createdDate).tz('America/Los_Angeles');
     const numWeeks = Math.ceil(currentDate.diff(startDate, 'days') / 7);
 
-    // iterate through weeks to get hours of each week
     for (let week = 1; week <= numWeeks; week += 1) {
       const pdtstart = startDate
         .clone()
@@ -1596,7 +1595,6 @@ const userHelper = function () {
       await removeDupBadge(personId, b._id);
     }
 
-    // add badge when badgeCollection is empty
     if (!badgeOfType) {
       addBadge(personId, mongoose.Types.ObjectId(badgeOfType.badge._id), );
     }
