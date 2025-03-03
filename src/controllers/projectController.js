@@ -323,7 +323,6 @@ const projectController = function (Project) {
   const searchProjectMembers = async function (req, res) {
     const { projectId, query } = req.params;
     
-    console.log("search projectmem", projectId, query);
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).send('Invalid project ID');
     }
@@ -350,10 +349,8 @@ const projectController = function (Project) {
       .select(`firstName lastName isActive ${canGetId ? '_id' : ''}`)
       .sort({ firstName: 1, lastName: 1 })
       .limit(30);
-      console.log("search results", results)
       res.status(200).send(results);
     } catch (error) {
-      console.error("Error searching project members:", error);
       res.status(500).send(error);
     }
   };
