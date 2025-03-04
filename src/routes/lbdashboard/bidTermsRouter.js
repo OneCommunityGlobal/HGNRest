@@ -4,6 +4,13 @@ const bidTermsController = require('../../controllers/lbdashboard/bidTermsContro
 
 const bidTermsRouter = express.Router();
 
-bidTermsRouter.route('/bidTerms').get(bidTermsController.getBidTerms);
+bidTermsRouter
+  .route('/bidTerms')
+  .get(bidTermsController.getBidTerms)
+  .post(bidTermsController.postBidTerms);
+
+bidTermsRouter.route('/bidTerms/:id').delete(bidTermsController.deleteBidTerms);
+
+bidTermsRouter.route('/bidTerms/inactive/:id').put(bidTermsController.inactiveBidTerms);
 
 module.exports = bidTermsRouter;
