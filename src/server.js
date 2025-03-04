@@ -1,5 +1,5 @@
 /* eslint-disable quotes */
-require('dotenv').load();
+require('dotenv').config();
 const { app, logger } = require('./app');
 const websockets = require('./websockets').default;
 require('./startup/db')();
@@ -11,7 +11,9 @@ const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
 (async () => {
+ 
   await websockets(server);
+
 })();
 
 module.exports = server;
