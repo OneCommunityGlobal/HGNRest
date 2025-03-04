@@ -100,6 +100,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: false,
       },
+      viewed: { type: Boolean, default: false },
     },
   ],
   profilePic: { type: String },
