@@ -4,7 +4,6 @@ const bmLoginController = require('../bmLoginController');
 const userprofile = require('../../../models/userProfile');
 const config = require('../../../config');
 
-// Mock the modules
 jest.mock('jsonwebtoken');
 jest.mock('bcryptjs');
 jest.mock('../../../models/userProfile');
@@ -28,10 +27,8 @@ describe('bmLoginController', () => {
       json: jest.fn(),
     };
 
-    // Clear all mocks before each test
     jest.clearAllMocks();
 
-    // Setup the mock implementations
     jwt.verify = jest.fn();
     bcrypt.compare = jest.fn();
     jwt.sign = jest.fn();
@@ -74,5 +71,35 @@ describe('bmLoginController', () => {
 
     expect(res.status).toHaveBeenCalledWith(422);
     expect(res.json).toHaveBeenCalledWith({ label: 'email', message: 'Email must match current login. Please try again.' });
+  });
+
+  it('should return 422 if password does not match', async () => {
+    const mockUser = { _id: '12345', email: 'test@example.com', password: 'hashedPassword' };
+
+    jwt.verify.mockReturnValue({ userid: '12345' });
+    userprofile.findOne.mockResolvedValue(mockUser);
+    bcrypt.compare.mockResolvedValue(false);
+
+    await bmLogin(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(res.json).toHaveBeenCalledWith({ label: 'password', message: 'Password must match current login. Please try again.' });
+  });
+
+  it('should return an error if token is invalid', async () => {
+    const error = new Error('Invalid token');
+    jwt.verify.mockImplementation(() => { throw error; });
+
+    await bmLogin(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(error);
+  });
+
+  it('should return an error if user is not found', async () => {
+    jwt.verify.mockReturnValue({ userid: '12345' });
+    userprofile.findOne.mockResolvedValue(null);
+
+    await bmLogin(req, res);
+    expect(res.json).toHaveBeenCalled();
   });
 });
