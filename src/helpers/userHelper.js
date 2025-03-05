@@ -2437,7 +2437,7 @@ const userHelper = function () {
         });
       });
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true, bioPosted: "posted" },
         'firstName lastName email profilePic suggestedProfilePics',
       );
 
