@@ -112,6 +112,7 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+      reasons: {type: [String], default: []},
     },
   ],
   warnings: [
