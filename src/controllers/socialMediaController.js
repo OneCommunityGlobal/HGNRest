@@ -86,6 +86,9 @@ async function postToTwitter(content, image) {
 
 async function getTwitterAccessToken(req, res) {
   console.log('gTAT');
+  console.log('Twitter Client ID:', process.env.REACT_APP_TWITTER_CLIENT_ID);
+  console.log('Twitter Client Secret:', process.env.REACT_APP_TWITTER_CLIENT_SECRET);
+
   const twitterOAuth = new TwitterApi({
     clientId: process.env.REACT_APP_TWITTER_CLIENT_ID,
     clientSecret: process.env.REACT_APP_TWITTER_CLIENT_SECRET,
@@ -142,6 +145,7 @@ async function scheduleTweet(req, res) {
     scheduledDate,
     scheduledTime,
     platform,
+    status: 'scheduled',
   });
 
   newScheduledTweet
@@ -216,9 +220,84 @@ async function createTweet(req, res) {
 
     const tweet = await rwClient.v2.tweet(tweetOptions);
 
+    const newTweet = new ScheduledPost({
+      textContent,
+      urlSrcs,
+      base64Srcs,
+      scheduledDate: new Date().toLocaleDateString(),
+      scheduledTime: new Date().toLocaleTimeString(),
+      platform: 'twitter',
+      status: 'posted',
+    });
+
+    await newTweet.save();
+
     res.status(200).json({ success: true, tweet });
   } catch (error) {
     console.error('[Backend] Network or other error: ', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+async function getPosts(req, res) {
+  console.log('getPosts call');
+  try {
+    const posts = await ScheduledPost.find({}).select(
+      'textContent urlSrcs scheduledDate scheduledTime platform createdAt base64Srcs',
+    );
+    res.status(200).json({ success: true, posts });
+  } catch (error) {
+    console.error('[Backend] Database error: ', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+async function deletePosts(req, res) {
+  console.log('Request URL:', req.originalUrl);
+  console.log('Request Method:', req.method);
+  console.log('deletePosts call');
+  const { _id } = req.body;
+
+  if (!_id) {
+    return res.status(400).json({ error: 'Missing required parameter: postId' });
+  }
+
+  try {
+    const deletedPost = await ScheduledPost.findOneAndDelete({ _id });
+
+    if (!deletedPost) {
+      return res.status(404).json({ error: 'Post not found or already deleted' });
+    }
+
+    res.status(200).json({ success: true, message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('[Backend] Database error: ', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+async function updatePosts(req, res) {
+  console.log('updatePosts call');
+  const { _id, textContent, urlSrcs, scheduledDate, scheduledTime, platform } = req.body;
+
+  if (!_id) {
+    return res.status(400).json({ error: 'Missing required parameter: _id' });
+  }
+
+  try {
+    const updatedPost = await ScheduledPost.findOneAndUpdate(
+      { _id },
+      { textContent, urlSrcs, scheduledDate, scheduledTime, platform },
+      { new: true },
+    );
+
+    if (!updatedPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    res.status(200).json({ success: true, updatedPost });
+  } catch (error) {
+    console.error('[Backend] Database error: ', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -228,4 +307,7 @@ module.exports = {
   createTweet,
   scheduleTweet,
   postToTwitter,
+  getPosts,
+  deletePosts,
+  updatePosts,
 };

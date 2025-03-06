@@ -5,7 +5,8 @@ const socialMediaController = require('../controllers/socialMediaController');
 
 const socialPostScheduler = () => {
   const checkScheduledPosts = new CronJob(
-    '*/1 * * * *', // Run every minute for testing
+    // '*/1 * * * *', // Run every minute for testing
+    '0 0 * * *', // Run once daily at midnight
     async () => {
       console.log('cron job started');
       const now = moment().tz('America/Chicago').format('YYYY-MM-DD HH:mm'); // right now i kept timezone as america/chicago,will change later.

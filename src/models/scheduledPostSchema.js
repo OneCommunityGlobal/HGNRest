@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 
 const scheduledPostSchema = new mongoose.Schema({
+  postId: {
+    type: String,
+    default: uuidv4, // Generate a UUID for each post
+    unique: true,
+  },
   textContent: {
     type: String,
     required: false,
@@ -25,6 +31,24 @@ const scheduledPostSchema = new mongoose.Schema({
     type: String,
     enum: ['twitter'],
     required: true,
+  },
+  status: {
+    type: String,
+    enum: ['scheduled', 'posted'],
+    default: 'scheduled',
+  },
+  createdBy: {
+    type: String,
+    required: false,
+  },
+  updatedBy: {
+    type: String,
+    required: false,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+    required: false,
   },
   createdAt: {
     type: Date,
