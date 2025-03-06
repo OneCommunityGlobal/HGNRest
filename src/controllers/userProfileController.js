@@ -1638,12 +1638,8 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
-      if (!Array.isArray(req.body.blueSquare.reasons) || req.body.blueSquare.reasons.length === 0) {
-        res.status(400).send('Invalid Data: Reasons must be a non-empty array');
-        return;
-    }
-      req.body.blueSquare.reasons = req.body.blueSquare.reasons || [];
 
+      req.body.blueSquare.reasons = ['other'];
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
