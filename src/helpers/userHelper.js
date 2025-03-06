@@ -1217,7 +1217,7 @@ const userHelper = function () {
           lastName,
           {
             ...element,
-            reasonsText: element.reasons?.length ? element.reasons.join(', ') : 'No specific reasons provided',
+            reasonsText: element.reasons,
           },
           totalInfringements,
           undefined,
