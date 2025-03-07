@@ -125,6 +125,10 @@ const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(bui
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
+const lbmessageRouter = require('../routes/lbdashboard/messagesRouter')();
+const lbnotificationRouter = require('../routes/lbdashboard/notificationRouter')();
+const lbuserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')();
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
@@ -181,4 +185,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
+  // lb dashboard
+  app.use('/api/lb',lbmessageRouter);
+  app.use('/api/lb',lbnotificationRouter);
+  app.use('/api/lb',lbuserPrefRouter);
 };
