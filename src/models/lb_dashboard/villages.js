@@ -5,6 +5,12 @@ const villageSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  regionId: {
+    type: String,
+    required: true,
+    enum: ['C', '1', '2', '3', '4', '5', '6', '7'],
+    unique: true
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -15,26 +21,31 @@ const villageSchema = new mongoose.Schema({
   },
   listingLink: {
     type: String,
-    required: true,
+    required: false,
   },
   descriptionLink: {
     type: String,
-    required: true,
+    required: false,
   },
   imageLink: {
     type: String,
-    required: true
+    required: false
   },
   
   mapCoordinates: {
-    shapeType:{
-        type: String,
-        enum: ['rect','circke','poly']
+    shapeType: {
+      type: String,
+      enum: ['rect', 'circle', 'poly']
     },
     coordinates: String
-}
+  },
+  properties: [{
+    name: String,
+    description: String,
+    link: String
+  }]
 });
 
-const Village = mongoose.model('Village',villageSchema);
+const Village = mongoose.model('Village', villageSchema);
 
 module.exports = Village;
