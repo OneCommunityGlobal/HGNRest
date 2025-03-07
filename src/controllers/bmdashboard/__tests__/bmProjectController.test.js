@@ -1,5 +1,3 @@
-// File: src/controllers/bmdashboard/__tests__/bmProjectController.test.js
-// Mock mongoose before importing modules
 jest.mock('mongoose', () => ({
   Types: {
     ObjectId: jest.fn().mockImplementation((id) => id),
