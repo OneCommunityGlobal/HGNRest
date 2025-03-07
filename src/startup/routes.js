@@ -49,6 +49,7 @@ const {
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
+const imgurPostRouter = require('../routes/imgurPostRouter')();
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
@@ -131,6 +132,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 );
 
 module.exports = function (app) {
+  app.use('/api', imgurPostRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
