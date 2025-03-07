@@ -196,4 +196,71 @@ describe('bmMaterialsController', () => {
     });
   });
 
+  describe('bmPostMaterialUpdateRecord', () => {
+    it('should update material stock and add update record', async () => {
+      mockUpdateOne.mockReturnValue({
+        then: function(callback) {
+          callback({ nModified: 1 });
+          return { catch: jest.fn() };
+        }
+      });
+
+      const material = {
+        _id: 'material123',
+        stockAvailable: 100,
+        stockUsed: 20,
+        stockWasted: 10,
+      };
+      
+      const req = {
+        body: {
+          material,
+          quantityUsed: 5,
+          quantityWasted: 2,
+          date: '2023-01-01',
+          requestor: { requestorId: 'user123' },
+          QtyUsedLogUnit: 'unit',
+          QtyWastedLogUnit: 'unit',
+        }
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateRecord(req, res);
+
+      expect(mockUpdateOne).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalled();
+    });
+
+    it('should reject if stock quantities exceed available', async () => {
+      const material = {
+        _id: 'material123',
+        stockAvailable: 10,
+        stockUsed: 5,
+        stockWasted: 2,
+      };
+      
+      const req = {
+        body: {
+          material,
+          quantityUsed: 15,  // More than available
+          quantityWasted: 0,
+          QtyUsedLogUnit: 'unit',
+          QtyWastedLogUnit: 'unit',
+        }
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateRecord(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith(expect.stringContaining("exceeds the total stock available"));
+    });
+  });
 });
