@@ -5,9 +5,9 @@ const FormData = require('form-data');
 const fs = require('fs');
 
 const facebookController = function(){
+
   async function extractTextAndImgUrl(htmlString) {
     const $ = cheerio.load(htmlString);
-
     const textContent = $('body').text().replace(/\+/g, '').trim();
     const urlSrcs = [];
     const base64Srcs = [];
@@ -34,69 +34,112 @@ const facebookController = function(){
         mimeType: response.headers.get('content-type'),
       };
     }
-    
-    /**const getFacebookAccessToken =  async() =>{
-      const response = await fetch("https://graph.facebook.com/oauth/access_token?client_id=${app_id}&client_secret=${app_secret}&grant_type=client_credentials");
-      const data: {access_token: string} = await response.json();
-      if(!response.ok){
-        throw new Error ("App access token failed");
+
+    async function getPagesManagedByUser(authToken) {
+      try {
+        const response = await axios.get('https://graph.facebook.com/v15.0/me/accounts', {
+          headers: {
+            Authorization: `Bearer ${authToken}`,  
+          },
+        });
+  
+        const pages = response.data.data;  
+        const pageDetails = pages.map(page => {
+          return {
+            id: page.id,  
+            access_token: page.access_token  
+          };
+        });
+  
+        return pageDetails;  
+      } catch (error) {
+        console.error('[Backend] Error fetching pages:', error);
+        throw error;
       }
-      return data.access_token
-
-    };**/
-
-  async function createFbPost(req,res){
-    console.log('calling backend')
-    const authToken ="EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT";
-    const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.EmailContent);
-    let requestUrl = "https://graph.facebook.com/v15.0/515563784975867/feed"; // Default is text-only post
-
-
-    if (urlSrcs.length > 0 || base64Srcs.length > 0) {
-      requestUrl = "https://graph.facebook.com/v15.0/515563784975867/photos";
     }
-    let form = new FormData();
-    form.append('message', textContent);    
 
-   if (base64Srcs.length > 0) {
-      base64Srcs.forEach(base64Image => {
-      const buffer = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-      form.append('source', buffer, {
-        filename: 'image.jpg',  // Adjust according to image format
-        contentType: 'image/jpeg',  // Adjust according to image format
-      });
-    });
-   }
-     try {
+
+    async function postToPageFeed(pageId, pageAccessToken, message) {
+      try {
         const response = await axios.post(
-          requestUrl,
-          form,
+          `https://graph.facebook.com/v15.0/${pageId}/feed`,
+          {
+            message: message,  
+          },
           {
             headers: {
-              ...form.getHeaders(),
-              Authorization: `Bearer ${authToken}`,
+              Authorization: `Bearer ${pageAccessToken}`,  
             },
           }
         );
-
-  
-        const statusCode = response.status;
-        const responseData = response.data;
-  
-        // Handling the response
-        if (statusCode >= 200 && statusCode < 300) {
-          res.status(200).json(responseData);
-        } else {
-          console.error('[Backend] Error creating Pin: ', responseData.message);
-          res.status(statusCode).json({
-            message: responseData.message || 'Unexpected error',
-          });
-        }
+        return response.data;
       } catch (error) {
-        // Catching errors in the try block
-        console.error('[Backend] Network or other error: ', error);
-        res.status(500).json({ success: false, error: 'Internal server error' });
+        console.error('Error posting to page feed:', error);
+        throw error;  
       }
+    }
+
+    async function postImgToPageFeed(pageId, pageAccessToken, message, base64Srcs) {
+      const requestUrl = `https://graph.facebook.com/v15.0/${pageId}/photos`;
+      let form = new FormData();
+      form.append('message', message);
+  
+      if (base64Srcs.length > 0) {
+        base64Srcs.forEach(base64Image => {
+          const buffer = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          form.append('source', buffer, {
+            filename: 'image.jpg',
+            contentType: 'image/jpeg',
+          });
+        });
+      }
+  
+      try {
+        const response = await axios.post(requestUrl, form, {
+          headers: {
+            ...form.getHeaders(),
+            Authorization: `Bearer ${pageAccessToken}`,
+          },
+        });
+  
+        return response.data;
+      } catch (error) {
+        console.error('Error posting to page feed:', error);
+        throw error;
+      }
+    }
+
+
+
+  async function createFbPost(req,res){
+    console.log('calling backend')
+    
+    const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
+    console.log("email content",req.body.accessToken);
+    const authToken = req.body.accessToken;
+    const pages = await getPagesManagedByUser(authToken);
+    if (pages.length === 0) {
+      return res.status(400).json({ error: 'No pages found for this user' });
+    }
+    const page = pages[0];  // In this case, we are posting to the first page the user manages
+      const pageId = page.id;
+      const pageAccessToken = page.access_token;
+      console.log("pageId",pageId);
+      console.log("pageAccessToken",pageAccessToken)
+      let postResponse;
+    try {
+       if (base64Srcs.length > 0) { 
+        const postResponse = await postImgToPageFeed(pageId, pageAccessToken, textContent, base64Srcs); 
+      }
+       else {
+      const postResponse = await postToPageFeed(pageId, pageAccessToken, textContent);
+      }
+      res.status(200).json(postResponse);  
+      console.log("postResponse",postResponse);
+    } catch (error) {
+      console.error('[Backend] Error creating Facebook post:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
 
   }
   return {createFbPost}
