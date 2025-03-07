@@ -82,7 +82,7 @@ const reportsController = function () {
         workDistributionStats,
         roleDistributionStats,
         usersInTeamStats,
-        // blueSquareStats,
+        blueSquareStats,
         anniversaryStats,
         totalBadgesAwarded,
         totalActiveTeams,
@@ -91,6 +91,7 @@ const reportsController = function () {
         taskAndProjectStats,
         volunteersOverAssignedTime,
         completedAssignedHours,
+        totalSummariesSubmitted,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
           isoStartDate,
@@ -124,7 +125,12 @@ const reportsController = function () {
         ),
         overviewReportHelper.getRoleDistributionStats(),
         overviewReportHelper.getTeamMembersCount(isoEndDate, isoComparisonEndDate),
-        // overviewReportHelper.getBlueSquareStats(startDate, endDate),
+        overviewReportHelper.getBlueSquareStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getAnniversaries(
           isoStartDate,
           isoEndDate,
@@ -158,6 +164,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
+        overviewReportHelper.getTotalSummariesSubmitted(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
       ]);
       res.status(200).send({
         volunteerNumberStats,
@@ -167,7 +179,7 @@ const reportsController = function () {
         workDistributionStats,
         roleDistributionStats,
         usersInTeamStats,
-        // blueSquareStats,
+        blueSquareStats,
         anniversaryStats,
         totalBadgesAwarded,
         totalActiveTeams,
@@ -176,6 +188,7 @@ const reportsController = function () {
         taskAndProjectStats,
         volunteersOverAssignedTime,
         completedAssignedHours,
+        totalSummariesSubmitted,
       });
     } catch (err) {
       console.log(err);
