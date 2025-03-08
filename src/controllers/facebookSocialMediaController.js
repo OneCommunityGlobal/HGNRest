@@ -36,8 +36,9 @@ const facebookController = function(){
     }
 
     async function getPagesManagedByUser(authToken) {
+      const requestUrl = `https://graph.facebook.com/v15.0/me/accounts`
       try {
-        const response = await axios.get('https://graph.facebook.com/v15.0/me/accounts', {
+        const response = await axios.get(requestUrl, {
           headers: {
             Authorization: `Bearer ${authToken}`,  
           },
@@ -60,9 +61,10 @@ const facebookController = function(){
 
 
     async function postToPageFeed(pageId, pageAccessToken, message) {
+      const requestUrl = `https://graph.facebook.com/v15.0/${pageId}/feed`
       try {
         const response = await axios.post(
-          `https://graph.facebook.com/v15.0/${pageId}/feed`,
+          requestUrl,
           {
             message: message,  
           },
@@ -112,30 +114,26 @@ const facebookController = function(){
 
 
   async function createFbPost(req,res){
-    console.log('calling backend')
     
     const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
-    console.log("email content",req.body.accessToken);
     const authToken = req.body.accessToken;
     const pages = await getPagesManagedByUser(authToken);
     if (pages.length === 0) {
       return res.status(400).json({ error: 'No pages found for this user' });
     }
-    const page = pages[0];  // In this case, we are posting to the first page the user manages
+    // Asumming user has access to only one page.
+      const page = pages[0];  // In this case, we are posting to the first page the user manages
       const pageId = page.id;
       const pageAccessToken = page.access_token;
-      console.log("pageId",pageId);
-      console.log("pageAccessToken",pageAccessToken)
       let postResponse;
     try {
        if (base64Srcs.length > 0) { 
         const postResponse = await postImgToPageFeed(pageId, pageAccessToken, textContent, base64Srcs); 
       }
        else {
-      const postResponse = await postToPageFeed(pageId, pageAccessToken, textContent);
+        const postResponse = await postToPageFeed(pageId, pageAccessToken, textContent);
       }
       res.status(200).json(postResponse);  
-      console.log("postResponse",postResponse);
     } catch (error) {
       console.error('[Backend] Error creating Facebook post:', error);
       res.status(500).json({ error: 'Internal server error' });
