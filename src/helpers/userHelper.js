@@ -1594,7 +1594,7 @@ const userHelper = function () {
     for (const b of duplicateBadges) {
       await removeDupBadge(personId, b._id);
     }
-    // add badge for new users
+
     if (!badgeOfType) {
       addBadge(personId, mongoose.Types.ObjectId(badgeOfType.badge._id), );
     }
