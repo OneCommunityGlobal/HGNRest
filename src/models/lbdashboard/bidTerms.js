@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const bidTermsSchema = new Schema({
-  content: { type: String, required: true },
+  paymentTerms: { type: String, required: true },
   cancellationPolicy: { type: String, required: true },
   isActive: { type: Boolean, default: true },
   createdDatetime: { type: Date },

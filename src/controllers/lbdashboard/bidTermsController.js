@@ -1,20 +1,12 @@
 const bidTermsController = function (BidTerms) {
   const postBidTerms = async (req, res) => {
     try {
-      if (req.body.content === null || req.body.content === undefined) {
-        return res.status(405).json({ error: 'invalid content' });
+      if (!req.body.paymentTerms) {
+        return res.status(405).json({ error: 'paymentTerms should have a value' });
       }
 
-      if (req.body.content === '') {
-        return res.status(405).json({ error: 'content cannot be empty' });
-      }
-
-      if (req.body.cancellationPolicy === null || req.body.cancellationPolicy === undefined) {
-        return res.status(405).json({ error: 'invalid cancellationPolicy' });
-      }
-
-      if (req.body.cancellationPolicy === '') {
-        return res.status(405).json({ error: 'cancellationPolicy cannot be empty' });
+      if (!req.body.cancellationPolicy) {
+        return res.status(405).json({ error: 'cancellationPolicy should have a value' });
       }
 
       const newBidTerms = new BidTerms(req.body);
@@ -58,10 +50,10 @@ const bidTermsController = function (BidTerms) {
   const getBidTerms = async (req, res) => {
     try {
       BidTerms.findOne({ isActive: { $ne: false } })
-        .select('content cancellationPolicy -_id')
+        .select('paymentTerms cancellationPolicy -_id')
         .then((results) => {
           if (results === null) {
-            return res.status(200).send('no record in Bidterms');
+            return res.status(200).send('no record in BidTerms');
           }
 
           return res.status(200).send(results);
