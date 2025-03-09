@@ -57,7 +57,7 @@ const searchFAQs = async function (req, res) {
 
 const getAllFAQs = async function (req, res) {
     try {
-        const faqs = await FAQ.find().sort({ updatedAt: -1 });
+        const faqs = await FAQ.find().sort({ createdAt: 1 });
         res.status(200).json(faqs);
     } catch (error) {
         console.error('Error fetching top FAQs:', error);
@@ -167,7 +167,7 @@ const logUnansweredFAQ = async function (req, res) {
         });
         await newUnansweredFAQ.save();
 
-        const ownerEmail = process.env.OWNER_EMAIL || 'jae@onecommunityglobal.org';
+        const ownerEmail = process.env.OWNER_EMAIL;
 
         const emailMessage = `
             <p>A new unanswered question has been logged:</p>
@@ -177,14 +177,19 @@ const logUnansweredFAQ = async function (req, res) {
 
         console.log("Queuing email for owner:", ownerEmail);
 
-        emailSender(
-            ownerEmail,
-            'New Unanswered FAQ Logged',
-            emailMessage,
-            null,
-            null,
-            null
-        );
+        try {
+            emailSender(
+                ownerEmail,
+                'New Unanswered FAQ Logged',
+                emailMessage,
+                null,
+                null,
+                null
+            );
+            console.log("Email successfully sent.");
+        } catch (error) {
+            console.error("Error sending email:", error);
+        }
 
         console.log("Email queued for sending.");
 
