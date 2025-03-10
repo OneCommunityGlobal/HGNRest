@@ -1,5 +1,6 @@
 const express = require('express');
 const Sentry = require('@sentry/node');
+const compression = require('compression'); // Import compression
 
 const app = express();
 const logger = require('./startup/logger');
@@ -9,6 +10,13 @@ logger.init();
 
 // The request handler must be the first middleware on the app
 app.use(Sentry.Handlers.requestHandler());
+
+// Gzip compression - start
+app.use(compression({
+  level: 6,        // Compression level (0 = no compression, 9 = max compression)
+  threshold: 0, // Compress responses larger than 1KB
+}))
+// Gzip compression - end
 
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
