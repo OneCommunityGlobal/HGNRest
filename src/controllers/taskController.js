@@ -685,7 +685,8 @@ const taskController = function (Task) {
   const updateTask = async (req, res) => {
     if (
       !(await hasPermission(req.body.requestor, 'updateTask')) &&
-      !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
+      !(await hasPermission(req.body.requestor, 'removeUserFromTask')) && 
+      !(await hasPermission(req.body.requestor, 'deleteTask'))
     ) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
