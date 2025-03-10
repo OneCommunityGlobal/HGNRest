@@ -420,7 +420,7 @@ const addEditHistory = async (
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        <hr style="border-top: 1px dashed #000;"/>      
+        <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
@@ -983,7 +983,8 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
         // include the time entries for the archived projects
-      }).sort('-lastModifiedDateTime');
+      })
+      .sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
@@ -1069,8 +1070,8 @@ const timeEntrycontroller = function (TimeEntry) {
     const timeentryCache=cacheClosure();
     const cacheData=timeentryCache.hasCache(cacheKey)
     if(cacheData){
-      let data=timeentryCache.getCache(cacheKey);
-      return res.status(200).send(data); 
+      const data = timeentryCache.getCache(cacheKey);
+      return res.status(200).send(data);
     }
     try {
       const results = await TimeEntry.find(
@@ -1285,7 +1286,7 @@ const timeEntrycontroller = function (TimeEntry) {
   const getLostTimeEntriesForTeamList = function (req, res) {
     const { teams, fromDate, toDate } = req.body;
     const lostteamentryCache=cacheClosure()
-    const cacheKey='LostTeamEntry'+`_${fromDate}`+`_${toDate}`;
+    const cacheKey = `LostTeamEntry_${fromDate}_${toDate}`;
     const cacheData=lostteamentryCache.getCache(cacheKey)
     if(cacheData){
       return res.status(200).send(cacheData)

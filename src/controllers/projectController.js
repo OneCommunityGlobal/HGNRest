@@ -300,12 +300,12 @@ const projectController = function (Project) {
     const updateTask = await hasPermission(req.body.requestor, 'updateTask');
     const suggestTask = await hasPermission(req.body.requestor, 'suggestTask');
 
-    const getId = (getProjMembers || postTask || updateTask || suggestTask);
+    const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
     
     userProfile
       .find(
         { projects: projectId },
-        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: canGetId },
       )
       .sort({ firstName: 1, lastName: 1 })
       .then((results) => {

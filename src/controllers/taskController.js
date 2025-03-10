@@ -683,9 +683,16 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    if (!(await hasPermission(req.body.requestor, 'updateTask'))) {
+    if (
+      !(await hasPermission(req.body.requestor, 'updateTask')) &&
+      !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
+    ) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
+    }
+
+    if(req.body.hoursBest>0 && req.body.hoursWorst>0 && req.body.hoursMost>0 && req.body.hoursLogged>0 && req.body.estimatedHours>0){
+      return res.status(400).send({ error: 'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0' });
     }
 
     const { taskId } = req.params;
@@ -705,7 +712,6 @@ const taskController = function (Task) {
         });
       });
     });
-
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
       { ...req.body, modifiedDatetime: Date.now() },
