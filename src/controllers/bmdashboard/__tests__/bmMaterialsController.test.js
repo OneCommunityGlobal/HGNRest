@@ -263,4 +263,91 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith(expect.stringContaining("exceeds the total stock available"));
     });
   });
+
+  describe('bmupdatePurchaseStatus', () => {
+    it('should update purchase status to Approved and increase stock', async () => {
+      const mockMaterial = {
+        purchaseRecord: [
+          { _id: 'purchase123', status: 'Pending' }
+        ]
+      };
+      
+      mockFindOne.mockResolvedValue(mockMaterial);
+      mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
+
+      const req = {
+        body: {
+          purchaseId: 'purchase123',
+          status: 'Approved',
+          quantity: 30
+        }
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(mockFindOne).toHaveBeenCalledWith({ 'purchaseRecord._id': 'purchase123' });
+      expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+        { 'purchaseRecord._id': 'purchase123' },
+        {
+          $set: { 'purchaseRecord.$.status': 'Approved' },
+          $inc: { 'stockBought': 30 }
+        },
+        { new: true }
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
+    });
+
+    it('should return 404 if purchase not found', async () => {
+      mockFindOne.mockResolvedValue(null);
+
+      const req = {
+        body: {
+          purchaseId: 'nonexistent',
+          status: 'Approved',
+          quantity: 30
+        }
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.send).toHaveBeenCalledWith('Purchase not found');
+    });
+
+    it('should reject if purchase is not in Pending status', async () => {
+      const mockMaterial = {
+        purchaseRecord: [
+          { _id: 'purchase123', status: 'Rejected' }
+        ]
+      };
+      
+      mockFindOne.mockResolvedValue(mockMaterial);
+
+      const req = {
+        body: {
+          purchaseId: 'purchase123',
+          status: 'Approved',
+          quantity: 30
+        }
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.send).toHaveBeenCalledWith(expect.stringContaining("can only be updated from 'Pending'"));
+    });
+  });
 });
