@@ -12,6 +12,8 @@ const SALT_ROUNDS = 10;
 const today = new Date();
 
 const userProfileSchema = new Schema({
+  // Updated filed
+  summarySubmissionDates: [{ type: Date }],
   password: {
     type: String,
     required: true,
@@ -27,6 +29,7 @@ const userProfileSchema = new Schema({
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
+  finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
     type: String,
     required: true,
@@ -100,6 +103,10 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics:{
+    type:[mongoose.Schema.Types.Mixed],
+    default:[]
+  },
   infringements: [
     {
       date: { type: String, required: true },
@@ -112,14 +119,7 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: {
         type: String,
-        required: true,
-        enum: [
-          'Better Descriptions',
-          'Log Time to Tasks',
-          'Log Time as You Go',
-          'Log Time to Action Items',
-          'Intangible Time Log w/o Reason',
-        ],
+        required: true
       },
       color: {
         type: String,
@@ -127,9 +127,19 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
+      iconId: { type: String, required: false },
     },
   ],
   location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+  },
+  homeCountry: {
     userProvided: { type: String, default: '' },
     coords: {
       lat: { type: Number, default: '' },
@@ -221,6 +231,7 @@ const userProfileSchema = new Schema({
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
+  badgeCount: { type: Number, default: 0 },
   teamCode: {
     type: String,
     default: '',
@@ -260,5 +271,8 @@ userProfileSchema.pre('save', function (next) {
     })
     .catch((error) => next(error));
 });
+
+userProfileSchema.index({ teamCode: 1 });
+userProfileSchema.index({ email: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

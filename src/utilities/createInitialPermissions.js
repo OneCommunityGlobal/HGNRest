@@ -10,6 +10,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
       'totalValidWeeklySummaries',
+      'requestBio',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -52,11 +53,23 @@ const permissionsRoles = [
       'changeUserRehireableStatus',
       'updatePassword',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'toggleInvisibility',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
       'manageAdminLinks',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'updateSummaryRequirements',
+      // Tracking Management
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -84,6 +97,7 @@ const permissionsRoles = [
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
@@ -149,7 +163,6 @@ const permissionsRoles = [
   {
     roleName: 'Mentor',
     permissions: [
-      'updateTask',
       'suggestTask',
       'putReviewStatus',
       'getReporteesLimitRoles',
@@ -182,6 +195,14 @@ const permissionsRoles = [
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'changeUserStatus',
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       'seeBadges',
       'assignBadges',
       'createBadges',
@@ -212,6 +233,8 @@ const permissionsRoles = [
       'editTimeEntryToggleTangible',
       'deleteTimeEntry',
       'postTimeEntry',
+      'sendEmails',
+      'sendEmailToAll',
       'updatePassword',
       'getUserProfiles',
       'getProjectMembers',
@@ -220,7 +243,9 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
       'postWbs',
       'deleteWbs',
       'getAllInvInProjectWBS',
@@ -242,16 +267,21 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'requestBio',
 
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
+      'toggleInvisibility',
       'manageAdminLinks',
+      'removeUserFromTask',
+      'editHeaderMessage',
     ],
   },
 ];

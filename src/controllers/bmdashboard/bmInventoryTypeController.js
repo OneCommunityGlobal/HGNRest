@@ -268,7 +268,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
-
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;
     let SelectedType = InvType;
