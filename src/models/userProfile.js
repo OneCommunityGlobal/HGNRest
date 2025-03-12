@@ -119,14 +119,7 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: {
         type: String,
-        required: true,
-        enum: [
-          'Better Descriptions',
-          'Log Time to Tasks',
-          'Log Time as You Go',
-          'Log Time to Action Items',
-          'Intangible Time Log w/o Reason',
-        ],
+        required: true
       },
       color: {
         type: String,
