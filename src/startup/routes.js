@@ -131,6 +131,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+const collaborationRouter=require('../routes/collaborationRouter');
+
 const fbSocialMediaRouter = require('../routes/fbSocialmediaRouter')();
 
 module.exports = function (app) {
@@ -171,8 +173,9 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
-  app.use('/api/jobs', jobsRouter)
-  app.use('/api/job-notification-list/', jobNotificationListRouter)
+  app.use('/api', collaborationRouter);
+  app.use('/api/jobs', jobsRouter);
+  app.use('/api/job-notification-list/', jobNotificationListRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
