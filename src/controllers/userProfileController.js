@@ -195,7 +195,6 @@ const userProfileController = function (UserProfile, Project) {
           ...user.toObject(),
           jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
         }));
-        console.log(transformedResults);
         cache.setCache('allusers', JSON.stringify(transformedResults));
         res.status(200).send(transformedResults);
       })
