@@ -145,20 +145,23 @@ const dashboardcontroller = function () {
   const postTrophyIcon = function (req, res) {
     console.log("API called with params:", req.params);
     const userId = mongoose.Types.ObjectId(req.params.userId);
+    const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
 
-    userProfile.findById(userId, (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
-      }
-      record.trophyFollowedUp = req.params.trophyFollowedUp;
-
-      record.save()
-        .then((results) => {
-          res.status(200).send(results);
-        })
-        .catch((error) => res.status(404).send(error));
-    });
+    userProfile.findByIdAndUpdate(
+      userId,
+      { trophyFollowedUp },
+      { new: true }
+    )
+      .then((updatedRecord) => {
+        if (!updatedRecord) {
+          return res.status(404).send('No valid records found');
+        }
+        res.status(200).send(updatedRecord);
+      })
+      .catch((error) => {
+        console.error("Error updating trophy icon:", error);
+        res.status(500).send(error);
+      });
   };
 
   const orgData = function (req, res) {

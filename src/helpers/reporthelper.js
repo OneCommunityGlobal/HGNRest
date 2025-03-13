@@ -86,6 +86,7 @@ const reporthelper = function () {
           adminLinks: 1,
           bioPosted: 1,
           toggleTrophyIcon: 1,
+          startDate: 1,
           badgeCollection: {
             $filter: {
               input: "$badgeCollection",

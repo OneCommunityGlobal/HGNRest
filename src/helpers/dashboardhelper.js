@@ -205,6 +205,7 @@ const dashboardhelper = function () {
             endDate: 1,
             createdDate: 1,
             trophyFollowedUp: 1,
+            startDate: 1,
           }
 
         );
@@ -224,6 +225,7 @@ const dashboardhelper = function () {
             endDate: 1,
             createdDate: 1,
             trophyFollowedUp: 1,
+            startDate: 1,
           },
         );
       }
@@ -291,6 +293,7 @@ const dashboardhelper = function () {
           endDate: teamMember.endDate || null,
           createdDate: teamMember.createdDate || null,
           trophyFollowedUp: teamMember.trophyFollowedUp || false,
+          startDate: teamMember.startDate || null,
         };
         leaderBoardData.push(obj);
       });
