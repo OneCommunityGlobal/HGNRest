@@ -4,7 +4,7 @@ const multer = require('multer');
 const upload = multer();
 
 const routes = () => {
-    // console.log("imgurPostRouter is loaded");
+    console.log("imgurPostRouter is loaded");
 
     const imgurPostController = require('../controllers/imgurPostController');
     const imgurRouter = express.Router();
@@ -16,12 +16,18 @@ const routes = () => {
     // })
 
     imgurRouter.route('/postToImgur').post(
-        upload.single('image'),
+        upload.array('image'),
+        // upload.single('image'),
         (req, res, next) => {
-            // console.log('Received request to post to Imgur:', {
-            //     body: req.body,
-            //     image: req.file,
-            // });
+            console.log('Received request to post to Imgur:', {
+                body: req.body,
+                scheduleTime: req.body.scheduleTime,
+                files: req.files?.map((file) => ({
+                    originalname: file.originalname,
+                    mimetype: file.mimetype,
+                    size: file.size,
+                })),
+            });
             next();
         },
         imgurPostController.postToImgur,
