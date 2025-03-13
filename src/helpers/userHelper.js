@@ -1276,8 +1276,6 @@ const userHelper = function () {
     }
 };
 
-  
-
   const addBadge = async function (personId, badgeId, count = 1, featured = false) {
     userProfile.findByIdAndUpdate(
       personId,
@@ -1675,11 +1673,11 @@ const userHelper = function () {
     }
 
     await badge
-      .find({ type: 'X Hours for X Week Streak', weeks: 1 }) // Default week = 1
+      .find({ type: 'X Hours for X Week Streak', weeks: 1 }) 
       .sort({ totalHrs: -1 })
       .then((results) => {
         results.every((elem) => {
-          const badgeName = `${elem.totalHrs} Hours in 1 Week`; // Corrected badgeName format
+          const badgeName = `${elem.totalHrs} Hours in 1 Week`; 
            
           if (elem.totalHrs=== lastWeek) {
             console.log(`User qualifies for badge: ${badgeName}`);
@@ -1708,121 +1706,139 @@ const userHelper = function () {
   };
   
     // 'X Hours for X Week Streak',
-const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
-  try {
-      
-      if (user.savedTangibleHrs.length === 0) {
-          console.log("No tangible hours available.");
-          return;
-      }
+  const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
+    try {
+        if (user.savedTangibleHrs.length === 0) {
+            console.log("No tangible hours available.");
+            return;
+        }
 
-    
-      const savedTangibleHrs = user.savedTangibleHrs;
-      const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
-      let streak = 0;
+        const savedTangibleHrs = user.savedTangibleHrs;
+        const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
+        let streak = 0;
 
-      console.log("Current max hours:", currentMaxHours);
+        console.log("Current max hours:", currentMaxHours);
 
-   
-      for (let i = savedTangibleHrs.length - 1; i >= 0; i--) {
-          if (savedTangibleHrs[i] === currentMaxHours) {
-              streak++;
-          } else {
-              break;
-          }
-      }
+        for (let i = savedTangibleHrs.length - 1; i >= 0; i--) {
+            if (savedTangibleHrs[i] === currentMaxHours) {
+                streak++;
+            } else {
+                break;
+            }
+        }
 
-      console.log("Calculated streak:", streak);
+        console.log("Calculated streak:", streak);
 
-      if (streak === 0) {
-          console.log("No valid streak found.");
-          return;
-      }
+        if (streak === 0) {
+            console.log("No valid streak found.");
+            return;
+        }
 
-      if (streak === 1) {
-          console.log("Checking X hours in one week since streak is 1.");
-          await checkXHrsInOneWeek(personId, user, badgeCollection);
-          return;
-      }
+        if (streak === 1) {
+            console.log("Checking X hours in one week since streak is 1.");
+            await checkXHrsInOneWeek(personId, user, badgeCollection);
+            return;
+        }
 
-      console.log(`Searching for badge: ${currentMaxHours} HOURS ${streak}-WEEK STREAK`);
+        console.log(`Searching for badge: ${currentMaxHours} HOURS ${streak}-WEEK STREAK`);
 
-      // Fetch matching badges
-      const allBadges = await badge.find({
-          badgeName: `${currentMaxHours} HOURS ${streak}-WEEK STREAK`,
-      });
+        // Fetch matching badges
+        const allBadges = await badge.find({
+            badgeName: {
+                $in: [
+                    `${currentMaxHours} HOURS ${streak}-WEEK STREAK`,
+                    `${currentMaxHours}-Hours Streak ${streak} Weeks in a Row`,
+                    `${currentMaxHours} Hours Streak ${streak}-WEEk STREAK`,
+                    `${currentMaxHours} Hours Streak ${streak}-WEEK STREAK`
+                ]
+            }
+        });
 
-      if (allBadges.length === 0) {
-          console.log("No matching badges found in badge collection.");
-          return;
-      }
+        if (allBadges.length === 0) {
+            console.log("No matching badges found in badge collection.");
+            return;
+        }
 
-      console.log("Matching badges found:", allBadges.length);
-      const newBadge = allBadges[0]; 
+        console.log("Matching badges found:", allBadges[0].badgeName);
+        const newBadge = allBadges[0];
 
-   
-      let badgeInCollection = null;
-      for (let i = 0; i < badgeCollection.length; i++) {
-          if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
-              badgeInCollection = badgeCollection[i];
-              break;
-          }
-      }
+        // Ensure badgeCollection is not null or undefined before iterating
+        if (!badgeCollection || !Array.isArray(badgeCollection)) {
+            console.log("Invalid badgeCollection data.");
+            return;
+        }
 
-      if (badgeInCollection) {
-          console.log(`Badge already exists: ${newBadge.badgeName}, increasing count.`);
-          await increaseBadgeCount(personId, newBadge._id);
-          return;
-      }
+        //console.log("Badge Collection:", JSON.stringify(badgeCollection, null, 2));
 
-      console.log("Badge not found, checking downgrade/replacement possibility.");
+        let badgeInCollection = null;
+        for (let i = 0; i < badgeCollection.length; i++) {
+            if (!badgeCollection[i] || !badgeCollection[i].badge) continue; // Skip invalid entries
 
-      // Loop through badgeCollection to find and handle replacements or downgrades
-      for (let j = badgeCollection.length - 1; j >= 0; j--) {
-          let lastBadge = badgeCollection[j];
+            console.log("Testing::", badgeCollection[i].badge.badgeName === newBadge.badgeName);
 
-          if (lastBadge.badge.totalHrs === currentMaxHours) {
-              // Check if the badge is eligible for downgrade or replacement
-              if (lastBadge.badge.weeks <streak && lastBadge.count > 1) {
-                  console.log(`Decreasing badge count for: ${lastBadge.badge.badgeName}`);
-                  await decreaseBadgeCount(personId, lastBadge.badge._id);
+            if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
+                badgeInCollection = badgeCollection[i];
+                break;
+            }
+        }
 
-                  // Directly add the new badge after decrementing (no rechecking)
-                  console.log(`Adding new badge: ${newBadge.badgeName}`);
-                  await addBadge(personId, newBadge._id);
-                  return;
-              }
+        if (badgeInCollection) {
+            console.log(`Badge already exists: ${newBadge.badgeName}, increasing count.`);
+            await increaseBadgeCount(personId, newBadge._id);
+            return;
+        }
 
-              if (lastBadge.badge.weeks < streak) {
-                  console.log(`Replacing lower streak badge: ${lastBadge.badge.badgeName} with ${newBadge.badgeName}`);
-                  await userProfile.updateOne(
-                      { _id: personId, "badgeCollection.badge": lastBadge.badge._id },
-                      {
-                          $set: {
-                              "badgeCollection.$.badge": newBadge._id,
-                              "badgeCollection.$.lastModified": Date.now().toString(),
-                              "badgeCollection.$.count": 1,
-                              "badgeCollection.$.earnedDate": [earnedDateBadge()],
-                          },
-                      }
-                  );
-                  return;
-              }
-          }
-      }
+        console.log("Badge not found, checking downgrade/replacement possibility.");
 
-      console.log(`Adding new badge: ${newBadge.badgeName}`);
-      await addBadge(personId, newBadge._id);
+        // Loop through badgeCollection to find and handle replacements or downgrades
+        for (let j = badgeCollection.length - 1; j >= 0; j--) {
+            let lastBadge = badgeCollection[j];
 
-  } catch (error) {
-      console.error("Error in checkXHrsForXWeeks function:", error);
-  }
-};
+            // Ensure lastBadge and its badge property exist
+            if (!lastBadge || !lastBadge.badge) {
+                //console.log("Skipping null or invalid badge entry in badgeCollection:", lastBadge);
+                continue;
+            }
 
+            console.log("lastBadge.badge.totalHrs ::", lastBadge.badge.totalHrs === currentMaxHours);
 
-  
-  
-  
+            if (lastBadge.badge.totalHrs === currentMaxHours) {
+                // Check if the badge is eligible for downgrade or replacement
+                if (lastBadge.badge.weeks < streak && lastBadge.count > 1) {
+                    console.log(`Decreasing badge count for: ${lastBadge.badge.badgeName}`);
+                    await decreaseBadgeCount(personId, lastBadge.badge._id);
+
+                    console.log(`Adding new badge: ${newBadge.badgeName}`);
+                    await addBadge(personId, newBadge._id);
+                    return;
+                }
+
+                if (lastBadge.badge.weeks < streak) {
+                    console.log(`Replacing lower streak badge: ${lastBadge.badge.badgeName} with ${newBadge.badgeName}`);
+                    await userProfile.updateOne(
+                        { _id: personId, "badgeCollection.badge": lastBadge.badge._id },
+                        {
+                            $set: {
+                                "badgeCollection.$.badge": newBadge._id,
+                                "badgeCollection.$.lastModified": Date.now().toString(),
+                                "badgeCollection.$.count": 1,
+                                "badgeCollection.$.earnedDate": [earnedDateBadge()],
+                            },
+                        }
+                    );
+                    return;
+                }
+            }
+        }
+
+        console.log(`Adding new badge: ${newBadge.badgeName}`);
+        await addBadge(personId, newBadge._id);
+
+    } catch (error) {
+        console.error("Error in checkXHrsForXWeeks function:", error);
+    }
+  };
+ 
   // 'Lead a team of X+'
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
@@ -1982,23 +1998,22 @@ const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
 
   const awardNewBadges = async () => {
     try {
-      //const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
-      console.log("awardNewBadge working")
-      const users = await userProfile.find({ email: 'humera.administer@gmail.com' }).populate('badgeCollection.badge');
+      const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
+      //const users = await userProfile.find({ email: 'humera.administer@gmail.com' }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        // await updatePersonalMax(personId, user);
-        // await checkPersonalMax(personId, user, badgeCollection);
-        // await checkMostHrsWeek(personId, user, badgeCollection);
-        // await checkMinHoursMultiple(personId, user, badgeCollection);
-        // await checkTotalHrsInCat(personId, user, badgeCollection);
-        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
-         await checkXHrsForXWeeks(personId, user, badgeCollection);
-        // await checkNoInfringementStreak(personId, user, badgeCollection);
-        // remove cache after badge asssignment.
+        await updatePersonalMax(personId, user);
+        await checkPersonalMax(personId, user, badgeCollection);
+        await checkMostHrsWeek(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkXHrsForXWeeks(personId, user, badgeCollection);
+        await checkNoInfringementStreak(personId, user, badgeCollection);
+        //remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
         }
