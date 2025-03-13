@@ -175,7 +175,6 @@ const dashboardhelper = function () {
           { members: 1 },
         );
 
-        console.log(teamsResult);
         teamsResult.forEach((_myTeam) => {
           let isUserVisible = false;
           _myTeam.members.forEach((teamMember) => {
