@@ -6,6 +6,7 @@ const villagesController = () => {
     // Validation middleware
     const validateVillage = [
         body('name')
+            .optional()
             .trim()
             .notEmpty()
             .withMessage('Village name is required')
@@ -13,6 +14,7 @@ const villagesController = () => {
             .withMessage('Village name must be between 2 and 100 characters'),
         
         body('regionId')
+            .optional()
             .trim()
             .notEmpty()
             .withMessage('Region ID is required')
@@ -121,8 +123,9 @@ const villagesController = () => {
     }
 
     // Update a village
-    const updateVillage = async(req,res)=>{
+    const updateVillage = async(req, res) => {
         // Validate input
+        console.log('Update request body:', req.body);
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ 
@@ -130,21 +133,26 @@ const villagesController = () => {
                 errors: errors.array() 
             });
         }
-
-        try{
-            const village = await Village.findByIdAndUpdate(
+    
+        try {
+            await Village.findByIdAndUpdate(
                 req.params.id,
                 req.body,
                 { new: true, runValidators: true }
             );
-            if (!village) {
+            
+            // Fetch the updated document
+            const updatedVillage = await Village.findById(req.params.id);
+            
+            if (!updatedVillage) {
                 return res.status(404).json({ message: 'Village not found' });
             }
-            res.json(village);
-        }catch(error){
-            res.status(400).json({message:error.message});
+            res.json(updatedVillage);
+        } catch(error) {
+            res.status(400).json({message: error.message});
         }
-    }   
+        console.log('Updated village:', village);
+    }
     
     // Delete a village
     const deleteVillage = async(req,res)=>{
