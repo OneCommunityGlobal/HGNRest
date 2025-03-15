@@ -3,7 +3,9 @@ const axios = require('axios');
 require ('dotenv').config();
 const FormData = require('form-data');
 const schedule = require('node-schedule');
+const { v4: uuidv4 } = require('uuid');
 
+const scheduledPosts = new Map();
 
 const getImgurAccessToken = async () => {
     const {IMGUR_CLIENT_ID, IMGUR_CLIENT_SECRET, IMGUR_REFRESH_TOKEN, IMGUR_REDIRECT_URI} = process.env;
@@ -34,12 +36,12 @@ const getImgurAccessToken = async () => {
 
 
 
-const uploadImageToImgur = async (file, title, description, ACCESS_TOKEN) => {
+const uploadImageToImgur = async (file, ACCESS_TOKEN) => {
     const formData = new FormData();
     formData.append('image', file.buffer, file.originalname);
     formData.append('type', 'file');
-    formData.append('title', title);
-    formData.append('description', description);
+    formData.append('title', `${file.originalname}`);
+    formData.append('description', `${file.description}`);
 
     try {
         const response = await axios.post('https://api.imgur.com/3/image', formData, {
@@ -49,7 +51,7 @@ const uploadImageToImgur = async (file, title, description, ACCESS_TOKEN) => {
             },
         });
 
-        // console.log('Upload response:', response.data);
+        console.log('Upload images to imgur response:', response.data);
         return response.data.data.id;
     } catch (e) {
         console.error('Error uploading image to Imgur:', e.response?.data || e.message);
@@ -70,30 +72,55 @@ const deleteImageFromImgur = async (imageHash, ACCESS_TOKEN) => {
     }
 };
 
-const uploadImagesToAlbum = async (imageHashes, title, description, ACCESS_TOKEN) => {
+const deleteAlbumFromImgur = async (albumHash, ACCESS_TOKEN) => {
+    try {
+        const response = await axios.delete(`https://api.imgur.com/3/album/${albumHash}`, {
+            headers: {
+                Authorization: `Bearer ${ACCESS_TOKEN}`,
+            },
+        });
+        console.log('Delete response:', response.data);
+    } catch (e) {
+        console.error('Error deleting album from Imgur:', e.response?.data || e.message);
+    }
+}
+
+const createImgurAlbum = async(title, description, ACCESS_TOKEN) => {
+    try {
+        const response = await axios.post('https://api.imgur.com/3/album', {
+            title,
+            description,
+            privacy: 'hidden',
+        }, {
+            headers: {
+                Authorization: `Bearer ${ACCESS_TOKEN}`,
+            },
+        });
+
+        console.log('Create album response:', response.data);
+        return response.data.data.id;
+    } catch (e) {
+        console.error('Error creating album on Imgur:', e.response?.data || e.message);
+        throw new Error('Error creating album on Imgur');
+    }
+}
+
+const uploadImagesToAlbum = async (imageHashes, albumHash, ACCESS_TOKEN) => {
     
     const formData = new FormData();
     imageHashes.forEach((imageHash) => {
-        formData.append('ids[]', imageHash);
+        formData.append('ids', imageHash);
     })
-    formData.append('title', title);
-    formData.append('description', description);
-    formData.append('cover', imageHashes[0]);
-
-    console.log('FormData before sending to Imgur:', {
-        ids: imageHashes,
-        title,
-        description,
-        cover: imageHashes[0],
-    });
 
     try {
-        const response = await axios.post('https://api.imgur.com/3/album', formData, {
+        const response = await axios.post(`https://api.imgur.com/3/album/${albumHash}/add`, formData, {
             headers: {
                 Authorization: `Bearer ${ACCESS_TOKEN}`,
                 'Content-Type': 'multipart/form-data',
             },
-        });
+        })
+
+        console.log('Upload images to album response:', response.data);
         return response.data;
     } catch (e) {
         console.error('Error uploading images to album:', e.response?.data || e.message);
@@ -103,33 +130,33 @@ const uploadImagesToAlbum = async (imageHashes, title, description, ACCESS_TOKEN
         throw new Error('Error uploading images to album');
     }
 }
-// const postImagesToGallery = async (imageHashes, title) => {
-//     const tags = "autopost,bot,imgur";
-//     const formData = new FormData();
-//     formData.append('title', title || 'test title');
-//     formData.append('topic', 'No Topic');
-//     formData.append('terms', 1);
-//     formData.append('tags', tags);
 
-//     try {
-//         const response = await axios.post(`https://api.imgur.com/3/gallery/image/${imageHash}`, formData, {
-//             headers: {
-//                 Authorization: `Bearer ${ACCESS_TOKEN}`,
-//             },
-//         });
-//         return response.data;
-//     } catch (e) {
-//         console.error('Error posting to Imgur:', e.response?.data || e.message);
-//         await deleteImageFromImgur(imageHash, ACCESS_TOKEN);
-//         throw new Error('Error posting to Imgur');
-//     }
-// };
+const postAlbumToGallery = async (albumHash, title, tags, topic, ACCESS_TOKEN) => {
+    try {
+        const response = await axios.post(`https://api.imgur.com/3/gallery/album/${albumHash}`, {
+            title,
+            topic,
+            terms: 1,
+            tags,
+        }, {
+            headers: {
+                Authorization: `Bearer ${ACCESS_TOKEN}`,
+            },
+        });
 
-const getImageHashes = async (title, description, tags, files, ACCESS_TOKEN) => {
+        console.log('Post album to gallery response:', response.data);
+        return response.data;
+    } catch (e) {
+        console.error('Error posting album to gallery:', e.response?.data || e.message);
+        throw new Error('Error posting album to gallery');
+    }
+}
+
+const getImageHashes = async (files, ACCESS_TOKEN) => {
 
     const imageHashes = await Promise.all(files.map(async (file) => {
         try {
-            const imageHash = await uploadImageToImgur(file, title, description, ACCESS_TOKEN);
+            const imageHash = await uploadImageToImgur(file, ACCESS_TOKEN);
             return imageHash;
         } catch (e) {
             console.error('Error getting image hashes:', e.response?.data || e.message);
@@ -137,26 +164,46 @@ const getImageHashes = async (title, description, tags, files, ACCESS_TOKEN) => 
         }
     }));
 
-    console.log('imageHashes:', imageHashes);
+    console.log('getImageHashes:', imageHashes);
 
     return imageHashes.filter((imageHash) => imageHash !== null);
 
 }
 
+const publishToImgur = async (title, files, description, tags, topic) => {
+
+    const ACCESS_TOKEN = await getImgurAccessToken();
+    try {
+        // get image hashes by uploading images to Imgur
+        const imageHashes = await getImageHashes(files, ACCESS_TOKEN);
+
+        // create imgur album
+        const albumHash = await createImgurAlbum(title, 'weekly report', ACCESS_TOKEN);
+
+        // upload images to imgur album with image hashes
+        await uploadImagesToAlbum(imageHashes, albumHash, ACCESS_TOKEN);
+
+        // post album to gallery
+        const result = await postAlbumToGallery(albumHash, title, tags, topic, ACCESS_TOKEN);
+
+        console.log('Successfully posted to Imgur');
+        // res.status(200).json({
+        //     success: true,
+        //     message: 'Successfully posted to Imgur',
+        //     data: result,
+        // });
+    } catch (e) {
+        console.error('Error posting to Imgur:', e.response?.data || e.message);
+        throw new Error('Error posting to Imgur');
+    }
+}
+
 const postToImgur = async (req, res) => {
     try {
-        console.log('Posting to Imgur with body:', {
-            body: req.body,
-            scheduleTime: req.body.scheduleTime,
-            files: req.files?.map((file) => ({
-                originalname: file.originalname,
-                mimetype: file.mimetype,
-                size: file.size,
-            })),
-        });
 
-        const { title, description, tags } = req.body;
-        // const {files} = req.files;
+        const { title, description, tags, topic, scheduleTime } = req.body;
+
+        console.log('Received request to post to Imgur:', req.body);
 
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({
@@ -171,21 +218,69 @@ const postToImgur = async (req, res) => {
                 message: 'Missing title',
             });
         }
-        const ACCESS_TOKEN = await getImgurAccessToken();
-        // console.log('calling publishToImgur with file, title, and description:', file, title, description);
 
-        // get image hashes by uploading images to Imgur
-        const imageHashes = await getImageHashes(title, description, tags, req.files, ACCESS_TOKEN);
-        // upload images to imgur album with image hashes
-        const result = await uploadImagesToAlbum(imageHashes, title, description, ACCESS_TOKEN);
+        if (!description || description.length !== req.files.length) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing description',
+            });
+        }
 
+        if (scheduleTime) {
+            console.log('scheduling post for:', new Date(scheduleTime));
+            const scheduledDateTime = new Date(scheduleTime);
+
+            if (scheduledDateTime <= new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid schedule time',
+                });
+            }
+
+            const jobId = `imgur-post-${Date.now()}`;
+            const job = schedule.scheduleJob(scheduledDateTime, async () => {
+                try {
+                    console.log('executing scheduled job:', jobId);
+                    await publishToImgur(title, req.files, description, tags, topic);
+                    console.log('Successfully posted to Imgur using scheduled job:', jobId);
+                    scheduledPosts.delete(jobId);
+                } catch (e) {
+                    console.error('Error posting to Imgur using scheduled job:', e.response?.data || e.message);
+                }
+            })
+
+            scheduledPosts.set(jobId, {
+                job,
+                title,
+                files: req.files?.map((file, index) => ({
+                    originalname: file.originalname,
+                    description: description[index],
+                })),
+                tags,
+                topic,
+                scheduleTime: scheduledDateTime,
+            });
+
+            console.log('Successfully scheduled post');
+
+            return res.status(200).json({
+                success: true,
+                message: 'Successfully scheduled post',
+                jobId,
+                scheduledTime: scheduledDateTime,
+            });
+        } 
+        
+
+        console.log('publishing immediately');
+        await publishToImgur(title, req.files, description, tags, topic);
 
         console.log('Successfully posted to Imgur');
         res.status(200).json({
             success: true,
             message: 'Successfully posted to Imgur',
-            data: result,
         });
+
     } catch (e) {
         console.error('Error posting to Imgur:', e);
         res.status(e.response?.status || 500).json({
@@ -194,8 +289,44 @@ const postToImgur = async (req, res) => {
             error: e.response?.data || e.message,
         });
     }
-};
+}
+
+
+// const deleteScheduledPost = (jobId) => {
+//     console.log('Deleting scheduled post:', jobId);
+//     scheduledPosts.delete(jobId);
+// }
+
+const getScheduledPosts = (req, res) => {
+    try {
+        const scheduledPostsInfo = Array.from(scheduledPosts.entries()).map(([jobId, data]) => ({
+            jobId,
+            title: data.title,
+            tags: data.tags,
+            topic: data.topic,
+            files: data.files || [],
+            description: data.description,
+            scheduleTime: data.scheduleTime,
+        }));
+
+        res.status(200).json({
+            success: true,
+            message: 'Successfully fetched scheduled posts',
+            scheduledPosts: scheduledPostsInfo,
+        });
+        
+    } catch (e) {
+        console.error('Error getting scheduled posts:', e);
+        res.status(e.response?.status || 500).json({
+            success: false,
+            message: e.response?.data?.message || 'Failed to get scheduled posts',
+            error: e.response?.data || e.message,
+        });
+    }
+}
 
 module.exports = {
     postToImgur,
+    getScheduledPosts,
+    // deleteScheduledPost,
 };
