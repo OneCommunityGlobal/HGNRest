@@ -42,6 +42,7 @@ const action = {
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
   HEARTBEAT: 'ping',
+  GET_DATE: 'GET_DATE'
 };
 
 const MAX_HOURS = 5;
@@ -210,6 +211,9 @@ const handleMessage = async (msg, clients, userId) => {
       break;
     case action.STOP_TIMER:
       stopTimer(client);
+      break;
+    case action.GET_DATE:
+      resp = { date: new Date().toISOString() }
       break;
     default:
       resp = {
