@@ -52,8 +52,6 @@ const insertDefaultFAQs = async () => {
             if (!existingFAQ) {
                 await FAQ.create(faq);
                 console.log(`Inserted FAQ: ${faq.question}`);
-            } else {
-                console.log(`FAQ already exists: ${faq.question}`);
             }
         }
     } catch (error) {
