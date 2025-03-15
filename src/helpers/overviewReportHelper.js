@@ -7,10 +7,11 @@
 const moment = require('moment');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
+const WeeklySummaryFilters = require('../models/weeklySummaryFilters');
 const TimeEntries = require('../models/timeentry');
 const Task = require('../models/task');
 const Project = require('../models/project');
-
+const mongoose = require('mongoose');
 function calculateGrowthPercentage(current, prev) {
   // Handles undefined cases
   if (prev === undefined || prev === null || prev === 0) {
@@ -1964,6 +1965,84 @@ const overviewReportHelper = function () {
     return { count: totalCurrentSummaries };
   };
 
+  const weeklySummaryFiltersOperations = (req) => {
+    let { recordId, filters: filterData } = req.body; // ✅ Extract once
+    recordId = mongoose.Types.ObjectId(recordId);
+    console.log(recordId)
+    return {
+        updateRecord: async () => {
+            const updatedRecord = await WeeklySummaryFilters.findOneAndUpdate(
+                { _id: recordId },  
+                { $set: filterData },  
+                { new: true, upsert: true }  
+            );
+            return { message: "Filter saved", updatedRecord };
+        },
+
+        createRecord: async () => {
+            const summaryFilters = new WeeklySummaryFilters(filterData);
+            await summaryFilters.save();
+            return { message: "Filter saved" };
+        },
+        deleteRecord: async () => {
+          const deletedRecord = await WeeklySummaryFilters.findOneAndDelete({ _id: recordId });
+
+          if (!deletedRecord) {
+              return { message: "No record found for the given recordId" };
+          }
+
+          return { message: "Record deleted successfully", deletedRecord };
+      }
+    };
+};
+
+
+  const postFiltersIntoUserProfiles = async (req) => {
+    /** Getting the user id from FE and trying to find that record in Mongo and updating it with filters data from request */
+      try{
+        let dataOperations = weeklySummaryFiltersOperations(req);
+        if(req.body.flow){
+          switch(req.body.flow){
+            case 'Save':
+              return dataOperations.createRecord();
+            
+            case 'Update':
+              return dataOperations.updateRecord();
+
+            case 'Delete':
+              return dataOperations.deleteRecord()
+
+            default:
+              return {message: 'Invalid flow. '}
+          }
+        }else{
+          return {msg: 'flow should be present'}
+        }
+        
+      }   catch (e){
+        console.log(e)
+          return {error: e}
+      }
+    
+  }
+  
+  const getWeeklySummaryFilters = async () => {
+    try {
+        const records = await WeeklySummaryFilters.find({}); // Await the query
+
+        if (!records || records.length === 0) {
+            return { msg: 'No filters found' }; // Handle empty result properly
+        }
+
+        return { records };
+    } catch (err) {
+        console.error("Error fetching filters:", err);
+        return { msg: 'Internal Server Error' };
+    }
+};
+
+
+
   return {
     getVolunteerTrends,
     getMapLocations,
@@ -1989,6 +2068,8 @@ const overviewReportHelper = function () {
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
     getTotalSummariesSubmitted,
+    postFiltersIntoUserProfiles,
+    getWeeklySummaryFilters
   };
 };
 
