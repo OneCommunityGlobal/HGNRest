@@ -1,5 +1,5 @@
 const Question = require("../models/hgnform");
-const {formquestions}=require('../utilities/hgnformQuestions')
+const formquestions=require('../utilities/hgnformQuestions')
 
 const checkAndPopulateCollection=async () =>{
     try {
@@ -92,7 +92,6 @@ const hgnFormController = function (){
         createQuestion,
         updateQuestion,
         deleteQuestion,
-        
     };
 }
 module.exports = hgnFormController;
