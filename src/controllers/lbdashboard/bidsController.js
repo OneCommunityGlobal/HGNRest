@@ -36,11 +36,6 @@ const bidsController = function (Bids) {
       console.error('get PayPalAccessToken Error:', error.response?.data || error.message);
     }
   }
-  /*
-async function paypalProcess() {
-}
-paypalProcess();
-*/
   const postBids = async (req, res) => {
     try {
       const { listingId, requestor, termsAgreed, startDate, endDate, price } = req.body;
@@ -225,8 +220,9 @@ paypalProcess();
         .json({ success: false, error: error.response?.data?.details[0]?.description });
     }
     /*
+    try {
       // Call PayPal API to process payment tokens
-      const response = await axios.post(
+      const setupTokenResponse = await axios.post(
         `${process.env.BASE_URL}/v3/vault/setup-tokens`,
         paymentCardToken,
         {
@@ -247,12 +243,9 @@ paypalProcess();
         .json({ success: false, error: error.response?.data?.details[0]?.description });
     } */
   };
-  const authorisePayment = async (req, res) => {
-    // const paymentCardToken = getPaymentCardToken();
+  const checkoutOrders = async (req, res) => {
     const accessToken = await getPayPalAccessToken();
-    console.log(accessToken);
-    console.log(req.body.setupToken.id);
-    console.log('before checkout/orders');
+
     try {
       const orderPayment = await axios.post(
         `${process.env.BASE_URL}/v2/checkout/orders`,
@@ -270,8 +263,12 @@ paypalProcess();
           payment_source: {
             // token:
             card: {
-              id: req.body.setupToken.id,
+              id: req.id,
               type: 'SETUP_TOKEN',
+              name: req.payment_source.card.name,
+              last_digits: req.payment_source.card.last_digits,
+              brand: req.payment_source.card.brand,
+              expiry: req.payment_source.card.expiry,
             },
           },
         },
@@ -282,44 +279,52 @@ paypalProcess();
           },
         },
       );
-      //      res.status(200).json({ success: false, data: orderPayment.data });
-      console.log(orderPayment.data.status);
-      try {
-        console.log('before authorizePyment');
-        const authorizePyment = await axios.post(
-          `${process.env.BASE_URL}/v2/checkout/orders/${orderPayment.data.id}/authorize`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
-
-        console.log(authorizePyment.data);
-        return res.status(201).json(authorizePyment.data);
-      } catch (error) {
-        console.log('error');
-        console.error(
-          'Authorise Pyment Error:',
-          error.response?.data?.details?.description || error.message,
-        );
-        res
-          .status(500)
-          .json({ success: false, error: error.response?.data?.details[0]?.description });
-      }
+      console.log(orderPayment.data);
+      return orderPayment.data;
     } catch (error) {
       console.log('error');
-      console.log(error.response?.data);
+      console.log(error);
     }
-    /*  console.log('before checkoutnow post');
+  };
+  const paymentAuthorisation = async (req, res) => {
+    console.log('inside paymentAuthorisation');
+    console.log(req.id);
+    const accessToken = await getPayPalAccessToken();
+
+    try {
+      console.log('before authorizePyment');
+      const authorizePyment = await axios.post(
+        `${process.env.BASE_URL}/v2/checkout/orders/${req.id}/authorize`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log(authorizePyment.data);
+      return authorizePyment.data;
+    } catch (error) {
+      console.log('error');
+      console.error(
+        'Authorise Pyment Error:',
+        error.response?.data?.details?.description || error.message,
+      );
+      return error.response?.data?.details[0]?.description;
+    }
+  };
+  const checkoutNowPost = async (req, res) => {
+    const accessToken = await getPayPalAccessToken();
+
+    try {
+      console.log('before checkoutnow post');
       // href: 'https://www.sandbox.paypal.com/checkoutnow?token=8TS64434HU813854C',
       // rel: 'approve',
       // method: 'GET'
       const checkoutNowPayment = await axios.get(
-        `${process.env.BASE_URL}/checkoutnow?token=${orderPayment.data.id}`,
-
+        `${process.env.BASE_URL}/checkoutnow?token=${req.id}`,
         {},
         {
           headers: {
@@ -330,20 +335,31 @@ paypalProcess();
       );
 
       console.log('Order Manually Approved:', checkoutNowPayment);
-*/
-    /* const approvalUrl = orderPayment.data.links.find((link) => link.rel === 'approve').href;
-      console.log('Redirect user to:', approvalUrl);
-      */
-    /* console.log('before confirmPaymentSource post');
+    } catch (error) {
+      console.log('error');
+      console.error(
+        'checkoutnowPost:',
+        error.response?.data?.details?.description || error.message,
+      );
+      return error.response?.data;
+    }
+  };
+  const confirmPaymentSource = async (req, res) => {
+    const accessToken = await getPayPalAccessToken();
+
+    console.log('before confirmPaymentSource post');
+    console.log(req.id);
+
     try {
       // https://api-m.sandbox.paypal.com/v2/checkout/orders/{id}/confirm-payment-source
-      const confirmPaymentSource = await axios.post(
-        `${process.env.BASE_URL}/v2/checkout/orders/${orderPayment.data.id}/confirm-payment-source`,
+      const confirmPymtSource = await axios.post(
+        `${process.env.BASE_URL}/v2/checkout/orders/${req.id}/confirm-payment-source`,
         {
           payment_source: {
             token: {
-              id: req.body.setupToken.id,
-              type: 'SETUP_TOKEN',
+              id: req.id,
+              // type: 'SETUP_TOKEN',
+              // type: 'PAYMENT_TOKEN',
             },
           },
         },
@@ -354,23 +370,31 @@ paypalProcess();
           },
         },
       );
-      console.log('Order Manually Approved:', confirmPaymentSource.data);
+      console.log('Order Manually Approved:', confirmPymtSource.data);
+      return confirmPymtSource.data;
     } catch (error) {
       console.log('error');
-      console.log(error.response?.data);
-    } */
-
-    /* catch (error) {
-      // console.log(error);
-      console.log('error');
-      console.log(error.response?.data);
-
-      console.error(
-        'Authorise Payment Error:',
-        error.response?.data?.details?.description || error.message,
-      );
-      res.status(500).json({ success: false, error: error.response });
-    } */
+      console.log(error.response.data);
+    }
+  };
+  const authorisePayment = async (req, res) => {
+    // const paymentCardToken = getPaymentCardToken();
+    const accessToken = await getPayPalAccessToken();
+    console.log(accessToken);
+    console.log(req.body.data.id);
+    console.log('before checkout/orders');
+    //      res.status(200).json({ success: false, data: orderPayment.data });
+    const createOrders = await checkoutOrders(req.body.data);
+    console.log(createOrders);
+    console.log('before paymentAuthorisation');
+    const pymntAuthorisation = await paymentAuthorisation(createOrders);
+    console.log(pymntAuthorisation);
+    console.log('before checkoutnowPost');
+    const checkoutnowPost = await checkoutNowPost(createOrders);
+    console.log(checkoutnowPost);
+    console.log('before confirmPymentSource');
+    const confirmPymentSource = await confirmPaymentSource(createOrders);
+    console.log(confirmPymentSource);
   };
   return { getBids, postBids, getPaymentCardToken, authorisePayment };
 };
