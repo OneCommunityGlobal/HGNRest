@@ -13,9 +13,8 @@ const bidsController = function (Bids) {
   // 7. endDate > startDate  done
   // 8. price > 0  done
   // 9. price = periodOfRenting * listingPrice not done
-  const BASE_URL = 'https://api-m.sandbox.paypal.com'; // Use live URL in production
-
   //  Generate PayPal Access Token
+
   async function getPayPalAccessToken() {
     try {
       const auth = Buffer.from(
@@ -23,7 +22,7 @@ const bidsController = function (Bids) {
       ).toString('base64');
 
       const response = await axios.post(
-        `${BASE_URL}/v1/oauth2/token`,
+        `${process.env.BASE_URL}/v1/oauth2/token`,
         'grant_type=client_credentials',
         {
           headers: {
@@ -93,6 +92,7 @@ paypalProcess();
   };
 
   const getBids = async (req, res) => {
+    console.log('getBids');
     try {
       console.log('inside getBids');
       Bids.findOne({ isActive: { $ne: false } })
@@ -109,85 +109,270 @@ paypalProcess();
       console.log('error occurred');
     }
   };
+  const valid = require('card-validator');
 
   const getPaymentCardToken = async (req, res) => {
-    const { cardNumber, expMonth, expYear, cvv, amt } = req.body.card;
-    console.log(cardNumber, expMonth, expYear, cvv, amt);
+    console.log('getPaymentCardToken');
+    console.log(req.query.includeCardholderName);
+    const { includeCardholderName } = req.query;
+    console.log(includeCardholderName);
+    console.log(req.body.requestor);
+
+    // console.log(name);
+    const { cardNumber, expiry, cvv, amt } = req.body.card;
+    console.log(cardNumber, expiry, cvv, amt);
     console.log('before calling getPayPal');
+
+    console.log('before cardNumber validation');
+    const cardNumberValidation = valid.number(cardNumber);
+    console.log(cardNumberValidation);
+
+    if (cardNumberValidation.card) {
+      console.log(cardNumberValidation.card.type); // 'visa'
+    }
+    if (!cardNumberValidation.isValid) {
+      return res.status(401).json({ error: 'Invalid CardNumber' });
+    }
+
+    console.log('before expiry date validation');
+
+    if (!expiry || typeof expiry !== 'string') {
+      return res.status(401).json({ error: 'Expiry Date is required and must be a string' });
+    }
+
+    // Validate format mm/dd/YYYY
+    const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
+    if (!dateRegex.test(expiry)) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)' });
+    }
+
+    console.log('before valid.expirationDate');
+    const [expmm, , expyy] = expiry.split('/');
+    console.log(`${expmm} - ${expyy}`);
+    const expDate = `${expmm}/${expyy}`; // api expected format mm/yyyy
+    console.log(expDate);
+    const expDateValidation = valid.expirationDate(expDate);
+    // `${expmm} / ${expyy}`);
+
+    console.log(expDateValidation);
+
+    if (!expDateValidation.isValid) {
+      return res.status(401).json({ error: 'Invalid expiration date' });
+    }
+    const { name } = req.query.includeCardholderName === 'Y' && req.body;
+    console.log(includeCardholderName);
+    if (includeCardholderName === 'Y') {
+      console.log('includeCardholderName');
+
+      console.log(includeCardholderName);
+
+      console.log('before cardName validation');
+      console.log(name);
+      const cardholderNameValidation = valid.cardholderName(name);
+      console.log(cardholderNameValidation);
+
+      if (!cardholderNameValidation.isValid) {
+        return res.status(401).json({ error: 'Invalid cardholder name' });
+      }
+    }
+    console.log('before cvv validation');
+
+    const cvvValidation = valid.cvv(cvv);
+    console.log(cvvValidation);
+    if (!cvvValidation.isValid) {
+      return res.status(401).json({ error: 'Invalid cvv' });
+    }
+
+    console.log('before getPayPalAccessToken');
     const accessToken = await getPayPalAccessToken();
     console.log(accessToken);
-    //  Process Direct Card Payment
-    /* try {
-      const paymentData = {
-        intent: 'sale',
-        payer: {
-          payment_method: 'paypal',
-        },
-        transactions: [
-          {
-            amount: {
-              total: '5000',
-              currency: 'USD',
-            },
-            description: 'Test PayPal Payment',
-          },
-        ],
-        redirect_urls: {
-          return_url: 'https://example.com/return',
-          cancel_url: 'https://example.com/cancel',
-        },
-      };
-
-      // Call PayPal API to process payment
-      const response = await axios.post(`${BASE_URL}/v1/payments/payment`, paymentData, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      res.json({ success: true, data: response.data });
-    } catch (error) {
-      console.error('PayPal Payment Error:', error.response?.data || error.message);
-      res.status(500).json({ success: false, error: error.message });
-    }
-*/
+    console.log(expDate);
     try {
-      const paymentGetCardToken = {
-        intent: 'sale',
+      const paymentCardToken = {
+        // intent: 'sale',
         payment_source: {
           card: {
             number: cardNumber,
-            expiry: '2027-02',
-            security_code: '563',
-            name: 'Some Name',
-            billing_address: {
-              address_line_1: '21 N First Street',
-              address_line_2: '1.3.160',
-              admin_area_1: 'CA',
-              admin_area_2: 'San Jose',
-              postal_code: '95131',
-              country_code: 'US',
-            },
+            expiry: `${expyy}-${expmm}`, // yyyy-mm API expected format
+            security_code: cvv,
+            name: includeCardholderName === 'Y' ? name : null,
           },
         },
       };
+      console.log(paymentCardToken);
 
       // Call PayPal API to process payment tokens
-      const response = await axios.post(`${BASE_URL}/v3/vault/setup-tokens`, paymentGetCardToken, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+      const paymentTokensResponse = await axios.post(
+        `${process.env.BASE_URL}/v3/vault/payment-tokens`,
+        paymentCardToken,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
         },
-      });
-
-      res.json({ success: true, data: response.data });
+      );
+      return res.json({ success: true, data: paymentTokensResponse.data });
     } catch (error) {
-      console.error('PayPal Payment Token Error:', error.response?.data || error.message);
-      res.status(500).json({ success: false, error: error.message });
+      console.error(
+        'PayPal Payment Token Error:',
+        error.response?.data?.details?.description || error.message,
+      );
+      res
+        .status(500)
+        .json({ success: false, error: error.response?.data?.details[0]?.description });
     }
+    /*
+      // Call PayPal API to process payment tokens
+      const response = await axios.post(
+        `${process.env.BASE_URL}/v3/vault/setup-tokens`,
+        paymentCardToken,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      return res.json({ success: true, data: response.data });
+    } catch (error) {
+      console.error(
+        'PayPal Payment Token Error:',
+        error.response?.data?.details?.description || error.message,
+      );
+      res
+        .status(500)
+        .json({ success: false, error: error.response?.data?.details[0]?.description });
+    } */
   };
-  return { getBids, postBids, getPaymentCardToken };
+  const authorisePayment = async (req, res) => {
+    // const paymentCardToken = getPaymentCardToken();
+    const accessToken = await getPayPalAccessToken();
+    console.log(accessToken);
+    console.log(req.body.setupToken.id);
+    console.log('before checkout/orders');
+    try {
+      const orderPayment = await axios.post(
+        `${process.env.BASE_URL}/v2/checkout/orders`,
+        {
+          intent: 'AUTHORIZE', // 'CAPTURE',
+          purchase_units: [
+            {
+              reference_id: 'someValue',
+              amount: {
+                currency_code: 'USD',
+                value: 70,
+              },
+            },
+          ],
+          payment_source: {
+            // token:
+            card: {
+              id: req.body.setupToken.id,
+              type: 'SETUP_TOKEN',
+            },
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      //      res.status(200).json({ success: false, data: orderPayment.data });
+      console.log(orderPayment.data.status);
+      try {
+        console.log('before authorizePyment');
+        const authorizePyment = await axios.post(
+          `${process.env.BASE_URL}/v2/checkout/orders/${orderPayment.data.id}/authorize`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        console.log(authorizePyment.data);
+        return res.status(201).json(authorizePyment.data);
+      } catch (error) {
+        console.log('error');
+        console.error(
+          'Authorise Pyment Error:',
+          error.response?.data?.details?.description || error.message,
+        );
+        res
+          .status(500)
+          .json({ success: false, error: error.response?.data?.details[0]?.description });
+      }
+    } catch (error) {
+      console.log('error');
+      console.log(error.response?.data);
+    }
+    /*  console.log('before checkoutnow post');
+      // href: 'https://www.sandbox.paypal.com/checkoutnow?token=8TS64434HU813854C',
+      // rel: 'approve',
+      // method: 'GET'
+      const checkoutNowPayment = await axios.get(
+        `${process.env.BASE_URL}/checkoutnow?token=${orderPayment.data.id}`,
+
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Order Manually Approved:', checkoutNowPayment);
+*/
+    /* const approvalUrl = orderPayment.data.links.find((link) => link.rel === 'approve').href;
+      console.log('Redirect user to:', approvalUrl);
+      */
+    /* console.log('before confirmPaymentSource post');
+    try {
+      // https://api-m.sandbox.paypal.com/v2/checkout/orders/{id}/confirm-payment-source
+      const confirmPaymentSource = await axios.post(
+        `${process.env.BASE_URL}/v2/checkout/orders/${orderPayment.data.id}/confirm-payment-source`,
+        {
+          payment_source: {
+            token: {
+              id: req.body.setupToken.id,
+              type: 'SETUP_TOKEN',
+            },
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      console.log('Order Manually Approved:', confirmPaymentSource.data);
+    } catch (error) {
+      console.log('error');
+      console.log(error.response?.data);
+    } */
+
+    /* catch (error) {
+      // console.log(error);
+      console.log('error');
+      console.log(error.response?.data);
+
+      console.error(
+        'Authorise Payment Error:',
+        error.response?.data?.details?.description || error.message,
+      );
+      res.status(500).json({ success: false, error: error.response });
+    } */
+  };
+  return { getBids, postBids, getPaymentCardToken, authorisePayment };
 };
 
 module.exports = bidsController;
