@@ -281,8 +281,13 @@ const bmMaterialsController = function (BuildingMaterial) {
         project: mongoose.Types.ObjectId(projectId),
       };
 
-      if (materialType && mongoose.Types.ObjectId.isValid(materialType)) {
-        query.itemType = mongoose.Types.ObjectId(materialType);
+      if (materialType) {
+        if (mongoose.Types.ObjectId.isValid(materialType)){
+          query.itemType = mongoose.Types.ObjectId(materialType);
+        }
+        else {
+          return res.status(400).json({ error: 'Invalid materialId' });
+        }
       }
 
       const materials = await BuildingMaterial.find(query);
