@@ -14,7 +14,6 @@ const generalSchema = new mongoose.Schema({
   location: { type: String },
   manager: { type: String },
   combined_frontend_backend: { type: String },
-  combined_skills: { type: String },
   mern_skills: { type: String },
   leadership_skills: { type: String },
   leadership_experience: { type: String },
