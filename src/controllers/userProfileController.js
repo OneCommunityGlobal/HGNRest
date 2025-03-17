@@ -176,7 +176,7 @@ const userProfileController = function (UserProfile, Project) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours email permissions isActive reactivationDate startDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate',
     )
       .sort({
         lastName: 1,
@@ -191,8 +191,12 @@ const userProfileController = function (UserProfile, Project) {
           res.status(500).send({ error: 'User result was invalid' });
           return;
         }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
+        const transformedResults = results.map(user => ({
+          ...user.toObject(),
+          jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
+        }));
+        cache.setCache('allusers', JSON.stringify(transformedResults));
+        res.status(200).send(transformedResults);
       })
       .catch((error) => res.status(404).send(error));
   };
@@ -442,6 +446,38 @@ const userProfileController = function (UserProfile, Project) {
       });
     } catch (error) {
       res.status(501).send(error);
+    }
+  };
+
+  const toggleUserBioPosted = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const { bioPosted } = req.body;
+
+      // validate input
+      if (!bioPosted || !['posted', 'requested', 'default'].includes(bioPosted)) {
+        return res.status(400).json({ error: 'Invalid or missing bioPosted value.' });
+      }
+
+      const canEditProtectedAccount = await canRequestorUpdateUser(
+        req.body.requestor.requestorId,
+        userId,
+      );
+      const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
+
+      if (!canEditProtectedAccount && !canToggleRequestBio) {
+        return res.status(403).json({ error: 'Permission denied to toggle bio.' });
+      }
+
+      // Update bioPosted
+      const updatedUser = await userService.updateBioPostedStatus(userId, bioPosted);
+
+      return res.status(200).json({
+        message: `Bio status updated to "${bioPosted}" successfully.`,
+        user: updatedUser,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message || 'An unexpected error occurred.' });
     }
   };
 
@@ -881,13 +917,11 @@ const userProfileController = function (UserProfile, Project) {
 
   const getUserById = function (req, res) {
     const userid = req.params.userId;
-
     // if (cache.getCache(`user-${userid}`)) {
     //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
     //   res.status(200).send(getData);
     //   return;
     // }
-
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
@@ -1494,7 +1528,7 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
- 
+
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
@@ -1539,7 +1573,7 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(500).send(error));
   };
 
- 
+
   const authorizeUser = async (req, res) => {
     try {
       let authorizedUser;
@@ -1611,8 +1645,9 @@ const userProfileController = function (UserProfile, Project) {
         message: 'User visibility updated successfully',
         isVisible,
       });
-    })}
-    
+    })
+  }
+
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
       res.status(403).send('You are not authorized to add blue square');
@@ -1814,14 +1849,19 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllTeamCodeHelper = async function () {
     try {
-      if (cache.hasCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes;
-      }
-      const distinctTeamCodes = await UserProfile.distinct('teamCode', {
+      let distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null },
       });
-      cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+
+      distinctTeamCodes = distinctTeamCodes.filter(code => code && code.trim() !== '');
+
+      try {
+        cache.removeCache('teamCodes');
+        cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
+      } catch (error) {
+        console.error("Error caching team codes:", error);
+      }
+
       return distinctTeamCodes;
     } catch (error) {
       throw new Error('Encountered an error to get all team codes, please try again!');
@@ -1838,6 +1878,33 @@ const userProfileController = function (UserProfile, Project) {
         .send({ message: 'Encountered an error to get all team codes, please try again!' });
     }
   };
+
+  const removeProfileImage = async (req, res) => {
+    try {
+      var user_id = req.body.user_id
+      await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: "" } })
+      cache.removeCache(`user-${user_id}`);
+      return res.status(200).send({ message: 'Image Removed' })
+    } catch (err) {
+      console.log(err)
+      return res.status(404).send({ message: "Error Removing Image" })
+    }
+  }
+  const updateProfileImageFromWebsite = async (req, res) => {
+    try {
+      var user = req.body
+      await UserProfile.updateOne({ _id: user.user_id },
+        {
+          $set: { profilePic: user.selectedImage },
+          $unset: { suggestedProfilePics: "" }
+        })
+      cache.removeCache(`user-${user.user_id}`);
+      return res.status(200).send({ message: "Profile Updated" })
+    } catch (err) {
+      console.log(err)
+      return res.status(404).send({ message: "Profile Update Failed" })
+    }
+  }
 
   const getUserByAutocomplete = (req, res) => {
     const { searchText } = req.params;
@@ -1875,15 +1942,15 @@ const userProfileController = function (UserProfile, Project) {
       });
   };
 
-  const updateUserInformation = async function (req,res){
+  const updateUserInformation = async function (req, res) {
     try {
-      const data=req.body;
-      data.map(async (e)=>  {
+      const data = req.body;
+      data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item]=e.value
+        result[e.item] = e.value
         await result.save();
       })
-      res.status(200).send({ message: 'Update successful'});
+      res.status(200).send({ message: 'Update successful' });
     } catch (error) {
       console.log(error)
       return res.status(500)
@@ -1894,6 +1961,7 @@ const userProfileController = function (UserProfile, Project) {
     postUserProfile,
     getUserProfiles,
     putUserProfile,
+    toggleUserBioPosted,
     deleteUserProfile,
     getUserById,
     getreportees,
@@ -1919,6 +1987,8 @@ const userProfileController = function (UserProfile, Project) {
     getProjectsByPerson,
     getAllTeamCode,
     getAllTeamCodeHelper,
+    removeProfileImage,
+    updateProfileImageFromWebsite,
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
