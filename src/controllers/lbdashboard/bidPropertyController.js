@@ -5,7 +5,7 @@ const bidPropertyController = (BidProperty) => {
     try {
       const PropId = req.params.id;
 
-      const property = await Listing.findById(listingId)
+      const property = await Listing.findById(PropId)
         .select('images description amenities price')
         .exec();
 

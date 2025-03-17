@@ -130,6 +130,12 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+//lbdashboard_bidoverview
+
+const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
+const userBidRouter = require('../routes/lbdashboard/userBidRouter')(bidoverview_Bid, bidoverview_User);
+
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -181,4 +187,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
+
+  //lb dashboard
+  app.use('/api/lb', bidPropertyRouter)
+  app.use('api/lb', userBidRouter)
 };
