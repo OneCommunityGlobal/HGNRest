@@ -1778,8 +1778,7 @@ const userHelper = function () {
         for (let i = 0; i < badgeCollection.length; i++) {
             if (!badgeCollection[i] || !badgeCollection[i].badge) continue; // Skip invalid entries
 
-            console.log("Testing::", badgeCollection[i].badge.badgeName === newBadge.badgeName);
-
+        
             if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
                 badgeInCollection = badgeCollection[i];
                 break;
@@ -1798,9 +1797,8 @@ const userHelper = function () {
         for (let j = badgeCollection.length - 1; j >= 0; j--) {
             let lastBadge = badgeCollection[j];
 
-            // Ensure lastBadge and its badge property exist
+            
             if (!lastBadge || !lastBadge.badge) {
-                //console.log("Skipping null or invalid badge entry in badgeCollection:", lastBadge);
                 continue;
             }
 
@@ -2002,9 +2000,9 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
+      //const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
       console.log("awardNewBadge working")
-      //const users = await userProfile.find({ email: 'humera.administer@gmail.com' }).populate('badgeCollection.badge');
+      const users = await userProfile.find({ email: 'humera.administer@gmail.com' }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
