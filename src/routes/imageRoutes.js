@@ -8,9 +8,9 @@ const route = function () {
   const storageAccountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
   const sasToken = process.env.AZURE_SAS_TOKEN;
   const blobServiceClient = new BlobServiceClient(
-    `https://${storageAccountName}.blob.core.windows.net${sasToken}`
+    `https://${storageAccountName}.blob.core.windows.net?${sasToken}`
   );
-  const containerName = 'email-images';
+  const containerName = 'weekly-progress-images';
 
   imageRouter.post('/upload-image', async (req, res) => {
     try {
