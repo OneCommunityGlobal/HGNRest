@@ -909,20 +909,24 @@ const userHelper = function () {
 
   const missedSummaryTemplate = (firstname) => {
     return (
-    `  <p>Dear ${firstname},</p>
+    `<div style="font-family: Arial, sans-serif;">
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Dear ${firstname},</p>
 
-    <p>When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for “Last Week”.</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
 
-    <p>Reply to this email once you’ve done this, so I know to review what you’ve submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I’ll remove this blue square.</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">Reply to this email once you've done this, so I know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I'll remove this blue square.</p>
 
-    <p>With Gratitude,</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">With Gratitude,</p>
 
-    <p>Jae Sabol</p>
-    <p>310.755.4693</p>
-    <p>Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></p>
-    <p>Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></p>
-    <p>Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></p>
-    <p>Timezone: Los Angeles, CA - Pacific Time</p>`
+      <div style="margin: 0; padding: 0; margin-top: 10px;">
+        <p style="margin: 0; padding: 0; line-height: 1;">Jae Sabol</p>
+        <p style="margin: 0; padding: 0; line-height: 1;">310.755.4693</p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Timezone: Los Angeles, CA - Pacific Time</p>
+      </div>
+    </div>`
     )
   }
   // function to send emails to those users who have completed hours but not submitted their summary
@@ -930,23 +934,26 @@ const userHelper = function () {
       try{
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklycommittedHours weeklySummaries missedHours role email firstName',
       );
+      
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+      
       for (let i = 0; i < users.length; i += 1) {
+        if(users[i].role!=='Core Team'){
         const user = users[i];
-        const person = await userProfile.findById(user._id);
+        // const person = await userProfile.findById(user._id);
         const personId = mongoose.Types.ObjectId(user._id);
         let hasWeeklySummary = false;
 
         if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-          const { summary } = user.weeklySummaries[0];
-          if (summary) {
+          const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
+          const { summary } = relevantSummary;
+          if (summary && summary.trim().length > 0) {
             hasWeeklySummary = true;
           }
         }
@@ -955,7 +962,6 @@ const userHelper = function () {
           pdtStartOfLastWeek,
           pdtEndOfLastWeek,
         );
-
         const { timeSpent_hrs: timeSpent } = results[0];
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
@@ -970,19 +976,19 @@ const userHelper = function () {
           endingDate: { $gte: utcEndMoment },
         });
         const hasTimeOffRequest = requestsForTimeOff.length > 0;
+      
         // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
         if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
             emailSender(
-             person.email,
+             users[i].email,
             'Re: New Infringement Assigned',
-            missedSummaryTemplate(person.firstName),
+            missedSummaryTemplate(users[i].firstName),
             null,
             'jae@onecommunityglobal.org',
             'jae@onecommunityglobal.org',
-            null,
           );
         }
-      }
+        }}
     }catch(err){
       console.log(err)
     }
