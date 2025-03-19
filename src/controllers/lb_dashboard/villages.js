@@ -123,9 +123,8 @@ const villagesController = () => {
     }
 
     // Update a village
-    const updateVillage = async(req, res) => {
+    const updateVillage = async(req,res)=>{
         // Validate input
-        console.log('Update request body:', req.body);
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ 
@@ -133,25 +132,27 @@ const villagesController = () => {
                 errors: errors.array() 
             });
         }
-    
-        try {
-            await Village.findByIdAndUpdate(
-                req.params.id,
-                req.body,
-                { new: true, runValidators: true }
-            );
-            
-            // Fetch the updated document
-            const updatedVillage = await Village.findById(req.params.id);
-            
-            if (!updatedVillage) {
+
+        try{
+            const village = await Village.findById(req.params.id);
+            if (!village) {
                 return res.status(404).json({ message: 'Village not found' });
             }
+
+            // Update fields explicitly
+            if (req.body.name !== undefined) village.name = req.body.name;
+            if (req.body.regionId !== undefined) village.regionId = req.body.regionId;
+            if (req.body.listingLink !== undefined) village.listingLink = req.body.listingLink;
+            if (req.body.descriptionLink !== undefined) village.descriptionLink = req.body.descriptionLink;
+            if (req.body.imageLink !== undefined) village.imageLink = req.body.imageLink;
+            if (req.body.mapCoordinates !== undefined) village.mapCoordinates = req.body.mapCoordinates;
+            if (req.body.properties !== undefined) village.properties = req.body.properties;
+
+            const updatedVillage = await village.save();
             res.json(updatedVillage);
-        } catch(error) {
-            res.status(400).json({message: error.message});
+        }catch(error){
+            res.status(400).json({message:error.message});
         }
-        console.log('Updated village:', village);
     }
     
     // Delete a village
