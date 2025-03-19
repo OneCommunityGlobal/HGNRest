@@ -5,7 +5,7 @@ const moment = require('moment');
 const config = require('../config');
 const Role = require('../models/role');
 const UserProfile = require('../models/userProfile');
-const emailSenderSMTP = require('../utilities/emailSenderSMTP');
+const emailSender = require('../utilities/emailSender');
 
 const verifyToken = async (req) => {
     console.log("Verifying token...");
@@ -178,7 +178,7 @@ const logUnansweredFAQ = async function (req, res) {
         console.log("Queuing email for owner:", ownerEmail);
 
         try {
-            emailSenderSMTP(
+            emailSender(
                 ownerEmail,
                 'New Unanswered FAQ Logged',
                 emailMessage,
