@@ -167,7 +167,23 @@ const logUnansweredFAQ = async function (req, res) {
         });
         await newUnansweredFAQ.save();
 
-        const ownerEmail = process.env.OWNER_EMAIL;
+        let ownerEmails = []
+
+        if (process.env.TEST_MODE === 'true') {
+            ownerEmails = [process.env.TEST_OWNER_EMAIL];
+            console.log("Test mode enabled. Using test owner email:", ownerEmails);
+        } else {
+            const owners = await UserProfile.find({ role: 'owner' }).select('email');
+            ownerEmails = owners.map((owner) => owner.email);
+
+            if (ownerEmails.length === 0) {
+                console.warn("No owner emails found in the database.");
+                return res.status(500).json({ message: 'No owner emails found' });
+            }
+            console.log("Sending email to owners:", ownerEmails);
+        }
+
+
 
         const emailMessage = `
             <p>A new unanswered question has been logged:</p>
@@ -175,16 +191,11 @@ const logUnansweredFAQ = async function (req, res) {
             <p>Please review and add an answer if necessary.</p>
         `;
 
-        console.log("Queuing email for owner:", ownerEmail);
-
         try {
             emailSender(
-                ownerEmail,
+                ownerEmails,
                 'New Unanswered FAQ Logged',
-                emailMessage,
-                null,
-                null,
-                null
+                emailMessage
             );
             console.log("Email successfully sent.");
         } catch (error) {
