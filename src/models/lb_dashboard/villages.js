@@ -23,11 +23,10 @@ const villageSchema = new mongoose.Schema({
     default: Date.now,
     select: true
   },
-  listingLink: {
-    type: String,
-    required: false,
-    select: true
-  },
+  listingLinks: [{
+    name: String,
+    url: String
+  }],
   descriptionLink: {
     type: String,
     required: false,
