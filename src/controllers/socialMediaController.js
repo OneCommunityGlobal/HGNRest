@@ -245,6 +245,7 @@ async function getPosts(req, res) {
     const posts = await ScheduledPost.find({}).select(
       'textContent urlSrcs scheduledDate scheduledTime platform createdAt base64Srcs',
     );
+    console.log(posts);
     res.status(200).json({ success: true, posts });
   } catch (error) {
     console.error('[Backend] Database error: ', error);
