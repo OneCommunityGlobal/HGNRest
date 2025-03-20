@@ -2,7 +2,10 @@
 const express = require('express');
 const { BlobServiceClient } = require('@azure/storage-blob');
 
-const route = function () {
+const { AbortController } = require('abort-controller');
+global.AbortController = AbortController;
+
+const routes = function () {
   const imageRouter = express.Router();
 
   const storageAccountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
@@ -12,13 +15,14 @@ const route = function () {
   );
   const containerName = 'weekly-progress-images';
 
-  imageRouter.post('/upload-image', async (req, res) => {
+  imageRouter.route('/upload-image').post(async (req, res) => {
     try {
-      if (!req.files || !req.files.file) {
+      if (!req.files || !req.files.image) {
+        console.log('req.files:', req.files);
         return res.status(400).json({ success: false, error: 'No file uploaded' });
       }
 
-      const file = req.files.file;
+      const file = req.files.image;
       const containerClient = blobServiceClient.getContainerClient(containerName);
 
       const timestamp = Date.now();
@@ -42,4 +46,4 @@ const route = function () {
   return imageRouter;
 };
 
-module.exports = route;
+module.exports = routes;
