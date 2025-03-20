@@ -16,7 +16,7 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
-const village = require('../models/lb_dashboard/villages');
+const village = require('../models/lbdashboard/villages');
 
 // Title
 const title = require('../models/title');

@@ -1,5 +1,5 @@
 const { body, validationResult } = require('express-validator');
-const Village = require('../../models/lb_dashboard/villages');
+const Village = require('../../models/lbdashboard/villages');
 
 const villagesController = () => {
     
