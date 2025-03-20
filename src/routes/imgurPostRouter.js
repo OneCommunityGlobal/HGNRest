@@ -9,6 +9,7 @@ const routes = () => {
     const imgurPostController = require('../controllers/imgurPostController');
     const imgurRouter = express.Router();
 
+    imgurPostController.reloadScheduledPosts();
     // console.log('received request: ', {
     //     body: imgurRouter.body,
     //     headers: imgurRouter.headers,
