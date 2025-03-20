@@ -1,7 +1,7 @@
 const express = require('express');
 
 const villageRouter = express.Router();
-const villagesController = require('../../controllers/lb_dashboard/villages');
+const villagesController = require('../../controllers/lbdashboard/villages');
 
 const controller = villagesController();
 
