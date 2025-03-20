@@ -613,8 +613,6 @@ const userProfileController = function (UserProfile, Project) {
         record.adminLinks = req.body.adminLinks;
       }
 
-      // update
-      console.log(record.permissions);
       if (req.body.isAcknowledged !== undefined && record.permissions) {
         record.permissions.isAcknowledged = req.body.isAcknowledged;
       }
