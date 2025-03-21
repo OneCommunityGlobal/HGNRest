@@ -1008,91 +1008,119 @@ const userHelper = function () {
         .subtract(1, 'week')
         .format('YYYY-MM-DD');
 
-      const missedHours = await userProfile.aggregate([
-        {
-          $match: {
-            role: 'Core Team',
-            isActive: true,
+      const missedHours = await userProfile.aggregate(
+        [
+          {
+            $match: {
+              role: 'Core Team',
+              isActive: true,
+              email: "ttertitsa@gmail.com",
+            },
           },
-        },
-        {
-          $lookup: {
-            from: 'timeEntries',
-            localField: '_id',
-            foreignField: 'personId',
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$isTangible', true] },
-                      { $gte: ['$dateOfWork', startOfLastWeek] },
-                      { $lte: ['$dateOfWork', endOfLastWeek] },
-                    ],
+          {
+            $lookup: {
+              from: 'timeEntries',
+              localField: '_id',
+              foreignField: 'personId',
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$isTangible', true] },
+                        { $gte: ['$dateOfWork', startOfLastWeek] },
+                        { $lte: ['$dateOfWork', endOfLastWeek] },
+                      ],
+                    },
                   },
                 },
-              },
-            ],
-            as: 'timeEntries',
+              ],
+              as: 'timeEntries',
+            },
           },
-        },
-        {
-          $project: {
-            _id: 1,
-            missedHours: {
-              $let: {
-                vars: {
-                  baseMissedHours: {
-                    $max: [
-                      {
-                        $subtract: [
-                          {
-                            $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
-                          },
-                          {
-                            $divide: [
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: '$timeEntries',
-                                    in: '$$this.totalSeconds',
+          {
+            $project: {
+              _id: 1,
+              missedHours: {
+                $let: {
+                  vars: {
+                    baseMissedHours: {
+                      $max: [
+                        {
+                          $subtract: [
+                            {
+                              $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
+                            },
+                            {
+                              $divide: [
+                                {
+                                  $sum: {
+                                    $map: {
+                                      input: '$timeEntries',
+                                      in: '$$this.totalSeconds',
+                                    },
                                   },
                                 },
-                              },
-                              3600,
-                            ],
-                          },
-                        ],
+                                3600,
+                              ],
+                            },
+                          ],
+                        },
+                        0,
+                      ],
+                    },
+                    infringementsAdjustment: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gt: ['$infringements', null] },
+                            { $gt: [{ $size: '$infringements' }, 5] },
+                          ],
+                        },
+                        { $subtract: [{ $size: '$infringements' }, 5] },
+                        0,
+                      ],
+                    },
+                    hasWeeklySummary: {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $isArray: '$weeklySummaries' },
+                            { $gt: [{ $size: '$weeklySummaries' }, 0] },
+                            {
+                              $gt: [
+                                { $strLenCP: { $ifNull: [{ $arrayElemAt: ['$weeklySummaries.summary', 0] }, ''] } },
+                                0,
+                              ],
+                            },
+                          ],
+                        },
+                        then: true,
+                        else: false,
                       },
-                      0,
-                    ],
+                    },
                   },
-                  infringementsAdjustment: {
+                  in: {
                     $cond: [
-                      {
-                        $and: [
-                          { $gt: ['$infringements', null] },
-                          { $gt: [{ $size: '$infringements' }, 5] },
-                        ],
+                      { 
+                        $or: [
+                          { $gt: ['$$baseMissedHours', 0] }, 
+                          { $eq: ['$$hasWeeklySummary', false] }
+                        ] 
                       },
-                      { $subtract: [{ $size: '$infringements' }, 5] },
-                      0,
+                      { $add: ['$$baseMissedHours', '$$infringementsAdjustment'] },
+                      '$$baseMissedHours',
                     ],
                   },
-                },
-                in: {
-                  $cond: [
-                    { $gt: ['$$baseMissedHours', 0] },
-                    { $add: ['$$baseMissedHours', '$$infringementsAdjustment'] },
-                    '$$baseMissedHours',
-                  ],
                 },
               },
             },
           },
-        },
-      ]);
+        ]
+        
 
+      );
+      console.log(missedHours);
       const bulkOps = [];
 
       missedHours.forEach((obj) => {
