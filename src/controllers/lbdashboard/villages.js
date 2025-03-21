@@ -21,17 +21,21 @@ const villagesController = () => {
             .isIn(['C', '1', '2', '3', '4', '5', '6', '7'])
             .withMessage('Invalid region ID'),
         
-        body('listingLink')
+        body('listingLinks.*.name')
             .optional()
             .trim()
-            .isURL()
-            .withMessage('Listing link must be a valid URL'),
+            .notEmpty()
+            .withMessage('Listing name cannot be empty'),
         
-        body('descriptionLink')
+        body('listingLinks.*.url')
             .optional()
             .trim()
             .isURL()
-            .withMessage('Description link must be a valid URL'),
+            .withMessage('Listing URL must be a valid URL'),
+        
+        body('description')
+            .optional()
+            .trim(),
         
         body('imageLink')
             .optional()
@@ -39,15 +43,17 @@ const villagesController = () => {
             .isURL()
             .withMessage('Image link must be a valid URL'),
         
-        body('mapCoordinates.shapeType')
+        body('position.left')
             .optional()
-            .isIn(['rect', 'circle', 'poly'])
-            .withMessage('Shape type must be one of: rect, circle, poly'),
+            .trim()
+            .matches(/^\d+(\.\d+)?%$/)
+            .withMessage('Left position must be a percentage value (e.g., "100%" or "49.75%")'),
         
-        body('mapCoordinates.coordinates')
+        body('position.top')
             .optional()
-            .notEmpty()
-            .withMessage('Coordinates cannot be empty if provided'),
+            .trim()
+            .matches(/^\d+(\.\d+)?%$/)
+            .withMessage('Top position must be a percentage value (e.g., "100%" or "48%")'),
             
         body('properties.*.name')
             .optional()
@@ -142,10 +148,10 @@ const villagesController = () => {
             // Update fields explicitly
             if (req.body.name !== undefined) village.name = req.body.name;
             if (req.body.regionId !== undefined) village.regionId = req.body.regionId;
-            if (req.body.listingLink !== undefined) village.listingLink = req.body.listingLink;
-            if (req.body.descriptionLink !== undefined) village.descriptionLink = req.body.descriptionLink;
+            if (req.body.listingLinks !== undefined) village.listingLinks = req.body.listingLinks;
+            if (req.body.description !== undefined) village.description = req.body.description;
             if (req.body.imageLink !== undefined) village.imageLink = req.body.imageLink;
-            if (req.body.mapCoordinates !== undefined) village.mapCoordinates = req.body.mapCoordinates;
+            if (req.body.position !== undefined) village.position = req.body.position;
             if (req.body.properties !== undefined) village.properties = req.body.properties;
 
             const updatedVillage = await village.save();
