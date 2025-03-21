@@ -30,8 +30,8 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const fs = require('fs');
 const cheerio = require('cheerio');
-const axios=require('axios');
-const sharp = require("sharp");
+const axios = require('axios');
+const sharp = require('sharp');
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
@@ -110,7 +110,7 @@ const userHelper = function () {
     }
 
     const imageType = picParts[0].split('/')[1].split(';')[0];
-    if (imageType !== 'jpeg' && imageType !== 'png') {
+    if (imageType !== 'jpeg' && imageType !== 'png' && imageType !== 'svg+xml') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
@@ -1075,8 +1075,9 @@ const userHelper = function () {
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate))
-        if (canActivate) { // Use '!' to invert the boolean value for testing
+        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
+        if (canActivate) {
+          // Use '!' to invert the boolean value for testing
           await userProfile.findByIdAndUpdate(
             user._id,
             {
@@ -1610,7 +1611,7 @@ const userHelper = function () {
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
     try {
-      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {  
+      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
         // Getting badge of type 'Most Hrs in Week'
         const results = await badge.findOne({ type: 'Most Hrs in Week' });
         if (!results) {
@@ -1623,16 +1624,18 @@ const userHelper = function () {
           { $match: { isActive: true } },
           { $group: { _id: null, maxHours: { $max: '$lastWeekTangibleHrs' } } },
         ]);
-  
+
         if (!userResults || userResults.length === 0) {
           console.error('No user results found');
           return;
         }
-  
+
         const maxHours = userResults[0].maxHours;
-  
+
         if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= maxHours) {
-          const existingBadge = badgeCollection.find((object) => object.badge.type === 'Most Hrs in Week');
+          const existingBadge = badgeCollection.find(
+            (object) => object.badge.type === 'Most Hrs in Week',
+          );
           if (existingBadge) {
             // console.log('Increasing badge count');
             await increaseBadgeCount(personId, mongoose.Types.ObjectId(existingBadge.badge._id));
@@ -2022,7 +2025,7 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
+      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -2270,164 +2273,214 @@ const userHelper = function () {
 
     // Check if the current data is an array
     if (Array.isArray(data)) {
-        data.forEach(item => {
-            const bothTermsFound = searchForBothTerms(item, lowerCaseTerm1, lowerCaseTerm2);
-            const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
+      data.forEach((item) => {
+        const bothTermsFound = searchForBothTerms(item, lowerCaseTerm1, lowerCaseTerm2);
+        // const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
 
-            if (bothTermsFound) {
-                bothTermsMatches.push(item); // If both terms are found, store the item
-            } else if (term2OnlyFound) {
-                term2Matches.push(item); // If only term2 is found, store the item
-            }
-        });
-
-        // If matches for both terms are found, return them, else return term2 matches
-        if (bothTermsMatches.length > 0) {
-            return bothTermsMatches;
-        } else if (term2Matches.length > 0) {
-            return term2Matches;
-        } else {
-            return [];  // No match found, return empty array
+        if (bothTermsFound) {
+          bothTermsMatches.push(item); // If both terms are found, store the item
         }
+        // else if (term2OnlyFound) {
+        //     term2Matches.push(item); // If only term2 is found, store the item
+        // }
+      });
+
+      // If matches for both terms are found, return them, else return term2 matches
+      if (bothTermsMatches.length > 0) {
+        return bothTermsMatches;
+      }
+      //  else if (term2Matches.length > 0) {
+      //     return term2Matches;
+      // }
+      else {
+        return []; // No match found, return empty array
+      }
     }
 
     // Recursion case for nested objects
     if (typeof data === 'object' && data !== null) {
-        const result = Object.keys(data).some(key => {
-            if (typeof data[key] === 'object') {
-                return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
-            }
-        });
-        return result ? data : null;
+      const result = Object.keys(data).some((key) => {
+        if (typeof data[key] === 'object') {
+          return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+        }
+      });
+      return result ? data : null;
     }
     return [];
-}
+  }
 
-// Helper function to check if both terms are in the string
-function searchForBothTerms(data, term1, term2) {
+  // Helper function to check if both terms are in the string
+  function searchForBothTerms(data, term1, term2) {
     if (typeof data === 'object' && data !== null) {
-        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
-        return Object.keys(data).some(key => {
-            if (fieldsToCheck.includes(key)) {
-                const stringValue = String(data[key]).toLowerCase();
-                return stringValue.includes(term1) && stringValue.includes(term2); // Check if both terms are in the string
-            }
-            return false;
-        });
+      const fieldsToCheck = ['src', 'alt', 'title', 'nitro_src'];
+      return Object.keys(data).some((key) => {
+        if (fieldsToCheck.includes(key)) {
+          const stringValue = String(data[key]).toLowerCase();
+          return stringValue.includes(term1) && stringValue.includes(term2); // Check if both terms are in the string
+        }
+        return false;
+      });
     }
     return false;
-}
+  }
 
-// Helper function to check if only term2 is in the string
-function searchForTerm2(data, term2) {
+  // Helper function to check if only term2 is in the string
+  function searchForTerm2(data, term2) {
     if (typeof data === 'object' && data !== null) {
-        const fieldsToCheck = ['src', 'alt', 'title','nitro_src'];
-        return Object.keys(data).some(key => {
-            if (fieldsToCheck.includes(key)) {
-                const stringValue = String(data[key]).toLowerCase();
-                return stringValue.includes(term2); // Check if only term2 is in the string
-            }
-            return false;
-        });
+      const fieldsToCheck = ['src', 'alt', 'title', 'nitro_src'];
+      return Object.keys(data).some((key) => {
+        if (fieldsToCheck.includes(key)) {
+          const stringValue = String(data[key]).toLowerCase();
+          return stringValue.includes(term2); // Check if only term2 is in the string
+        }
+        return false;
+      });
     }
     return false;
-}
+  }
 
-async function imageUrlToPngBase64(url) {
-  try {
+  // async function imageUrlToPngBase64(url) {
+  //   try {
+  //     // Fetch the image as a buffer
+  //     const response = await axios.get(url, { responseType: 'arraybuffer' });
+
+  //     if (response.status !== 200) {
+  //       throw new Error(`Failed to fetch the image: ${response.statusText}`);
+  //     }
+
+  //     const imageBuffer = Buffer.from(response.data);
+  //     // Compress and resize the image using sharp
+  //     const pngBuffer = await sharp(imageBuffer)
+  //       // .resize(1000, 1000) // Resize to given dimensions
+  //       // .png({ quality: 100 }) // Compress PNG with quality 80 (lower = more compression)
+  //       .toBuffer();
+
+  //     // Convert the PNG buffer to a base64 string
+  //     const base64Png = pngBuffer.toString('base64');
+
+  //     return `data:image/png;base64,${base64Png}`;
+  //   } catch (error) {
+  //     console.error(`An error occurred: ${error.message}`);
+  //     return null;
+  //   }
+  // }
+  async function imageUrlToPngBase64(url, maxSizeKB = 45) {
+    try {
       // Fetch the image as a buffer
       const response = await axios.get(url, { responseType: "arraybuffer" });
-
+  
       if (response.status !== 200) {
-          throw new Error(`Failed to fetch the image: ${response.statusText}`);
+        throw new Error(`Failed to fetch the image: ${response.statusText}`);
       }
-
-      const imageBuffer = Buffer.from(response.data);
-
-      // Convert the image to PNG format using sharp
-      const pngBuffer = await sharp(imageBuffer).png().toBuffer();
-
-      // Convert the PNG buffer to a base64 string
-      const base64Png = pngBuffer.toString("base64");
-
-      return `data:image/png;base64,${base64Png}`;;
-  } catch (error) {
+  
+      let imageBuffer = Buffer.from(response.data);
+  
+      let quality = 100; // Start with max quality
+      let width = 1200; // Start with a reasonable large width
+      let pngBuffer = await sharp(imageBuffer).resize({ width }).png({ quality }).toBuffer();
+      let imageSizeKB = pngBuffer.length / 1024; // Convert bytes to KB
+  
+      // Try to optimize while keeping best quality
+      while (imageSizeKB > maxSizeKB) {
+        if (quality > 10) {
+          quality -= 5; // Reduce quality gradually
+        } else {
+          width = Math.max(100, Math.round(width * 0.9)); // Reduce width gradually
+        }
+  
+        pngBuffer = await sharp(imageBuffer)
+          .resize({ width }) // Adjust width
+          .png({ quality }) // Adjust quality
+          .toBuffer();
+  
+        imageSizeKB = pngBuffer.length / 1024;
+      }
+  
+      // Convert to Base64 and return
+      return `data:image/png;base64,${pngBuffer.toString("base64")}`;
+    } catch (error) {
       console.error(`An error occurred: ${error.message}`);
       return null;
-  }
-}
-
-const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
-  let attempts = 0;
-  while (attempts < maxRetries) {
-    try {
-      const response = await axios.get(url);
-      return response.data; // Return data if the request succeeds
-    } catch (error) {
-      attempts++;
-      console.error(`Attempt ${attempts} failed: ${error.message}`);
-      if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
-      console.log(`Retrying in ${delayTime / 1000} seconds...`);
-      await delay(delayTime); // Wait for 5 minutes
     }
   }
-};
 
-const getProfileImagesFromWebsite = async () => {
-  try {
-    // Fetch the webpage with retry logic
-    const htmlText = await fetchWithRetry("https://www.onecommunityglobal.org/team");
-    // Load HTML into Cheerio
-    const $ = cheerio.load(htmlText);
-    const imgData = [];
-    $('img').each((i, img) => {
-      imgData.push({
-        src: $(img).attr('src'),
-        alt: $(img).attr('alt'),
-        title: $(img).attr('title'),
-        nitro_src: $(img).attr('nitro-lazy-src'),
+  const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
+    let attempts = 0;
+    while (attempts < maxRetries) {
+      try {
+        const response = await axios.get(url);
+        return response.data; // Return data if the request succeeds
+      } catch (error) {
+        attempts++;
+        // console.error(`Attempt ${attempts} failed: ${error.message}`);
+        if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
+        // console.log(`Retrying in ${delayTime / 1000} seconds...`);
+        await delay(delayTime); // Wait for 5 minutes
+      }
+    }
+  };
+
+  const getProfileImagesFromWebsite = async () => {
+    try {
+      // Fetch the webpage with retry logic
+      const htmlText = await fetchWithRetry('https://www.onecommunityglobal.org/team');
+      // Load HTML into Cheerio
+      const $ = cheerio.load(htmlText);
+      const imgData = [];
+      $('img').each((i, img) => {
+        imgData.push({
+          src: $(img).attr('src'),
+          alt: $(img).attr('alt'),
+          title: $(img).attr('title'),
+          nitro_src: $(img).attr('nitro-lazy-src'),
+          data_src: $(img).attr('data-src'),
+        });
       });
-    });
+      const users = await userProfile.find(
+        { isActive: true, bioPosted: "posted" },
+        'firstName lastName email profilePic suggestedProfilePics',
+      );
 
-    const users = await userProfile.find(
-      { isActive: true },
-      "firstName lastName email profilePic suggestedProfilePics"
-    );
-
-    await Promise.all(
-      users.map(async (u) => {
-        if (!u.profilePic) {
-          const result = searchForTermsInFields(imgData, u.firstName, u.lastName);
-          try {
-            if (result.length === 1) {
-              if (result[0].nitro_src !== undefined) {
-                await userProfile.updateOne(
-                  { _id: u._id },
-                  { $set: { profilePic: result[0].nitro_src } }
-                );
-              } else {
-                const image = await imageUrlToPngBase64(result[0].src);
-                await userProfile.updateOne(
-                  { _id: u._id },
-                  { $set: { profilePic: image } }
-                );
+      await Promise.all(
+        users.map(async (u) => {
+          if (!u.profilePic) {
+            var result = searchForTermsInFields(imgData, u.firstName, u.lastName);
+            try {
+              if (result.length === 1) {
+                if (result[0].nitro_src !== undefined && result[0].nitro_src !== null) {
+                  await userProfile.updateOne(
+                    { _id: u._id },
+                    { $set: { profilePic: result[0].nitro_src } },
+                  );
+                } else {
+                  const images = result[0].src.startsWith('http')
+                    ? result[0].src
+                    : result[0].data_src;
+                  const image = await imageUrlToPngBase64(images);
+                  await userProfile.updateOne({ _id: u._id }, { $set: { profilePic: image } });
+                }
               }
-            } else if (result.length > 1) {
-              await userProfile.updateOne(
-                { _id: u._id },
-                { $set: { suggestedProfilePics: result } }
-              );
+              // else if (result.length > 1) {
+              //     if(!result[0].src.startsWith('http')){
+              //       for(let i=0; i<result.length; i++){
+              //         result[i].data_src=await imageUrlToPngBase64(result[i].data_src);
+              //       }
+              //     }
+              //     await userProfile.updateOne(
+              //       { _id: u._id },
+              //       { $set: { suggestedProfilePics: result } }
+              //     );
+              // }
+            } catch (error) {
+              console.error(`Error updating user ${u._id}:`, error);
             }
-          } catch (error) {
-            console.error(`Error updating user ${u._id}:`, error);
           }
-        }
-      })
-    );
-  } catch (error) {
-    console.error("Failed to fetch profile images:", error);
-  }
-};
+        }),
+      );
+    } catch (error) {
+      console.error('Failed to fetch profile images:', error);
+    }
+  };
 
   return {
     changeBadgeCount,
@@ -2449,7 +2502,7 @@ const getProfileImagesFromWebsite = async () => {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
-    getProfileImagesFromWebsite
+    getProfileImagesFromWebsite,
   };
 };
 
