@@ -27,7 +27,7 @@ const villageSchema = new mongoose.Schema({
     name: String,
     url: String
   }],
-  descriptionLink: {
+  description: {
     type: String,
     required: false,
     select: true
@@ -37,23 +37,17 @@ const villageSchema = new mongoose.Schema({
     required: false,
     select: true
   },
-  
-  mapCoordinates: {
-    type: {
-      shapeType: {
-        type: String,
-        enum: ['rect', 'circle', 'poly'],
-        required: false,
-        select: true
-      },
-      coordinates: {
-        type: String,
-        required: false,
-        select: true
-      }
+  position: {
+    top: {
+      type: String,
+      required: false,
+      select: true
     },
-    required: false,
-    select: true
+    left: {
+      type: String,
+      required: false,
+      select: true
+    }
   },
   properties: [{
     name: String,
