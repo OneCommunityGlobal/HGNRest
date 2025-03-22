@@ -20,7 +20,8 @@ const currentWarnings = require('../models/currentWarnings');
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
-
+const hgnformRouter=require('../routes/hgnformRouter');
+const hgnFormResponseRouter=require('../routes/hgnFormResponseRouter');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
@@ -173,6 +174,8 @@ module.exports = function (app) {
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', collaborationRouter);
   app.use('/api/jobs', jobsRouter);
+  app.use('/api/questions', hgnformRouter);
+  app.use('/api/hgnform',hgnFormResponseRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
