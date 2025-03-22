@@ -52,6 +52,7 @@ const routes = () => {
     );
 
     imgurRouter.route('/scheduledPosts').get(imgurPostController.getScheduledPosts);
+    imgurRouter.route('/scheduledPosts/:jobId').delete(imgurPostController.deleteScheduledPost);
 
     // imgurRouter.route('/deleteScheduledPost/:jobId').delete(imgurPostController.deleteScheduledPost);
 

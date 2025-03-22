@@ -86,6 +86,46 @@ const deleteAlbumFromImgur = async (albumHash, ACCESS_TOKEN) => {
     }
 }
 
+const deleteScheduledPost = async (req, res) => {
+    console.log('Received request to delete scheduled post:', req.params);
+    try {
+        const { jobId } = req.params;
+        const post = await ImgurScheduledPost.findOne({ jobId });
+
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                message: 'Scheduled post not found',
+            });
+        }
+
+        console.log('found post:', post);
+
+        // delete images from imgur
+        post.files.forEach(async (file) => {
+            await deleteImageFromImgur(file.imageHash);
+        });
+        
+        console.log('deleted images from imgur');
+        
+        await ImgurScheduledPost.deleteOne({ jobId });
+
+        res.status(200).json({
+            success: true,
+            message: 'Successfully deleted scheduled post',
+            jobId,
+        });
+    } catch (e) {
+        console.error('Error deleting scheduled post:', e);
+        res.status(e.response?.status || 500).json({
+            success: false,
+            message: e.response?.data?.message || 'Failed to delete scheduled post',
+            error: e.response?.data || e.message,
+        });
+    }
+}
+
+
 const createImgurAlbum = async(title, description) => {
     const ACCESS_TOKEN = await getImgurAccessToken();
     try {
@@ -368,5 +408,5 @@ module.exports = {
     postToImgur,
     getScheduledPosts,
     reloadScheduledPosts,
-    // deleteScheduledPost,
+    deleteScheduledPost,
 };
