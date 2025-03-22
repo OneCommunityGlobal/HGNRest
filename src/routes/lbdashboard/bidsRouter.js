@@ -5,11 +5,14 @@ const bidsController = require('../../controllers/lbdashboard/bidsController')(B
 const bidsRouter = express.Router();
 console.log('bidsRouter');
 bidsRouter.route('/bids').get(bidsController.getBids).post(bidsController.postBids);
-// .get(bidsController.getPaymentCardToken);
-
-// bidsRouter.route('/bids/getPaymentCardToken/').get(bidsController.getPaymentCardToken);
 bidsRouter.route('/getPaymentCardToken/').get(bidsController.getPaymentCardToken);
 
-bidsRouter.route('/authorisePayment/').get(bidsController.authorisePayment);
+bidsRouter.route('/getPayPalAccessToken/').get(bidsController.getPayPalAccessToken);
+bidsRouter.route('/createOrderWithCard').get(bidsController.createOrderWithCard);
+
+bidsRouter.route('/createOrder').get(bidsController.createOrder);
+bidsRouter.route('/postPaymentWithCard/').get(bidsController.postPaymentWithCard);
+bidsRouter.route('/orderAuthorize/').get(bidsController.orderAuthorize);
+bidsRouter.route('/orderCapture/').get(bidsController.orderCapture);
 
 module.exports = bidsRouter;
