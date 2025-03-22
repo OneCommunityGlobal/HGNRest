@@ -1,9 +1,8 @@
 const express = require('express');
 
-const routes = function (MaterialCostHistory, DashboardMetrics, BuildingProject, BuildingMaterial) {
+const routes = function (DashboardMetrics, BuildingProject, BuildingMaterial) {
   const dashboardRouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmDashboardPrototypeController')(
-    MaterialCostHistory,
     DashboardMetrics,
     BuildingProject,
     BuildingMaterial

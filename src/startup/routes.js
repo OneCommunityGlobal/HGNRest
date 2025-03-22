@@ -121,7 +121,6 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   equipmentType,
 );
 const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
-  null, 
   dashboardMetrics,
   buildingProject,
   buildingMaterial
