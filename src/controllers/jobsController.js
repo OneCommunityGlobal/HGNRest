@@ -1,28 +1,42 @@
 const Job = require('../models/jobs'); // Import the Job model
 
-// Controller to fetch all jobs with pagination, search, and filtering
-const getJobs = async (req, res) => {
+const paginationForJobs = async (req, res, isSummary) => {
   const { page = 1, limit = 18, search = '', category = '' } = req.query;
-
   try {
-    // Validate query parameters
-    const pageNumber = Math.max(1, parseInt(page, 10)); // Ensure page is at least 1
-    const limitNumber = Math.max(1, parseInt(limit, 10)); // Ensure limit is at least 1
+    const pageNumber = Math.max(1, parseInt(page, 10));
+    const limitNumber = Math.max(1, parseInt(limit, 10));
 
-    // Build query object
     const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' }; // Case-insensitive search
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
     if (category) query.category = category;
-
-    // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
 
-    // Fetch paginated results
-    const jobs = await Job.find(query)
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+    let sortCriteria;
+    let jobs;
 
-    // Prepare response
+    if (isSummary) {
+      sortCriteria = {
+        title: 1,
+        datePosted: -1,
+        featured: -1,
+      };
+
+      jobs = await Job.find(query)
+        .select('title category location description datePosted featured jobDetailsLink')
+        .sort(sortCriteria)
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber);
+    } else {
+      jobs = await Job.find(query)
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber);
+    }
+
     res.json({
       jobs,
       pagination: {
@@ -35,65 +49,30 @@ const getJobs = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch Jobs/Summaries', details: error.message });
   }
 };
+
+// Controller to fetch all jobs with pagination, search, and filtering
+const getJobs = (req, res) => paginationForJobs(req, res, false);
 
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
-const getJobSummaries = async (req, res) => {
-  const { search = '', page = 1, limit = 18, category = '' } = req.query;
-
-  try {
-    const pageNumber = Math.max(1, parseInt(page, 10)); 
-    const limitNumber = Math.max(1, parseInt(limit, 10)); 
-    
-    // Construct the query object
-    const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' };
-    if (category) query.category = category; 
-
-    // Sorting logic
-    const sortCriteria = { 
-      title: 1,        
-      datePosted: -1,  
-      featured: -1     
-    };
-
-    // Fetch the total number of jobs matching the query for pagination
-    const totalJobs = await Job.countDocuments(query);
-    const jobs = await Job.find(query)
-      .select('title category location description datePosted featured') 
-      .sort(sortCriteria) 
-      .skip((pageNumber - 1) * limitNumber) 
-      .limit(limitNumber); 
-
-    res.json({
-      jobs,
-      pagination: {
-        totalJobs,
-        totalPages: Math.ceil(totalJobs / limitNumber), // Calculate total number of pages
-        currentPage: pageNumber,
-        limit: limitNumber,
-        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
-        hasPreviousPage: pageNumber > 1,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch job summaries', details: error.message });
-  }
-};
+const getJobSummaries = (req, res) => paginationForJobs(req, res, true);
 
 // Controller to fetch job title suggestions for a dropdown
 const getJobTitleSuggestions = async (req, res) => {
   const { query = '' } = req.query;
 
   try {
-    const suggestions = await Job.find({ title: { $regex: query, $options: 'i' } })
-      .distinct('title'); 
+    const suggestions = await Job.find({ title: { $regex: query, $options: 'i' } }).distinct(
+      'title',
+    );
 
     res.json({ suggestions });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch job title suggestions', details: error.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to fetch job title suggestions', details: error.message });
   }
 };
 
@@ -105,11 +84,11 @@ const resetJobsFilters = async (req, res) => {
     const pageNumber = Math.max(1, parseInt(page, 10));
     const limitNumber = Math.max(1, parseInt(limit, 10));
 
-     // Sorting logic
-    const sortCriteria = { 
-      title: 1,        
-      datePosted: -1,  
-      featured: -1   
+    // Sorting logic
+    const sortCriteria = {
+      title: 1,
+      datePosted: -1,
+      featured: -1,
     };
     // Fetch all jobs without filtering
     const totalJobs = await Job.countDocuments({});
@@ -131,7 +110,9 @@ const resetJobsFilters = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to reset filters or reload jobs', details: error.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to reset filters or reload jobs', details: error.message });
   }
 };
 
@@ -215,8 +196,6 @@ const deleteJob = async (req, res) => {
   }
 };
 
-
-
 // Export controllers as a plain object
 module.exports = {
   getJobs,
@@ -227,5 +206,5 @@ module.exports = {
   deleteJob,
   getJobSummaries,
   resetJobsFilters,
-  getCategories
+  getCategories,
 };
