@@ -3,31 +3,51 @@ const { sendNotification } = require("./lbnotificationController.js");
 
 exports.sendMessage = async (req, res) => {
     try {
-        const { receiver, content } = req.body;
-        const newMessage = new Message({ sender: req.user.id, receiver, content });
+        const { receiver, content,sender } = req.body;
+        const newMessage = new Message({ sender, receiver, content });
 
-        await newMessage.save();
-        
+        let result=await newMessage.save();
+        if(result._id)
+            await Message.findByIdAndUpdate(result._id,{ status: "sent" });
         // Send notification immediately (no Redis queue)
-        sendNotification(receiver, `New message from ${req.user.name}: ${content}`);
-
+        // sendNotification(receiver, `New message from ${req.user.name}: ${content}`);
         res.status(201).json({ message: "Message sent successfully", data: newMessage });
     } catch (error) {
+        console.log(error)
         res.status(500).json({ error: "Error sending message" });
     }
 };
 
+// exports.getMessages = async (req, res) => {
+//     try {
+//         const { userId } = req.params;
+//         console.log(userId)
+//         const messages = await Message.find({
+//             $or: [{receiver: userId }, {sender: userId}]
+//         }).sort({ timestamp: 1 });
+//         console.log(messages)
+//         res.json({ messages });
+//     } catch (error) {
+//         res.status(500).json({ error: "Error fetching messages" });
+//     }
+// };
+
 exports.getMessages = async (req, res) => {
     try {
-        const { userId } = req.params;
-        const messages = await Message.find({
-            $or: [{ sender: req.user.id, receiver: userId }, { sender: userId, receiver: req.user.id }]
-        }).sort({ timestamp: 1 });
-        res.json({ messages });
+      const { userId } = req.params;
+      const messages = await Message.find({
+        $or: [{ receiver: userId }, { sender: userId }]
+      })
+        .sort({ timestamp: 1 })
+        .populate('sender', 'firstName lastName role')   // only include these fields
+        .populate('receiver', 'firstName lastName role');
+      res.json({ messages });
     } catch (error) {
-        res.status(500).json({ error: "Error fetching messages" });
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ error: "Error fetching messages" });
     }
-};
+  };
+  
 
 exports.updateMessageStatus = async (req, res) => {
     try {

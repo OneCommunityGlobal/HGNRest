@@ -3,7 +3,7 @@ const { sendMessage, getMessages, updateMessageStatus } = require("../../control
 
 const router = express.Router();
 
-router.post("/send", sendMessage);z
+router.post("/send", sendMessage);
 router.get("/:userId", getMessages);
 router.patch("/:messageId/status", updateMessageStatus);
 
