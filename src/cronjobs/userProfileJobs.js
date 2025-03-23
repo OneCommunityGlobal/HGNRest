@@ -12,6 +12,7 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
+        await userhelper.getProfileImagesFromWebsite();
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
@@ -23,7 +24,6 @@ const userProfileJobs = () => {
         await badgeController.updateBadgeUsers();
       }
       await userhelper.awardNewBadges();
-      await userhelper.reActivateUser();
     },
     null,
     false,
@@ -32,15 +32,16 @@ const userProfileJobs = () => {
 
   // Job to run every day, 1 minute past midnight to deactivate the user
   const dailyUserDeactivateJobs = new CronJob(
+    // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * *', // Every day, 1 minute past midnight
     async () => {
       await userhelper.deActivateUser();
+      await userhelper.reActivateUser();
     },
     null,
     false,
     'America/Los_Angeles',
   );
-
   allUserProfileJobs.start();
   dailyUserDeactivateJobs.start();
 };

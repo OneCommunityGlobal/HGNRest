@@ -133,7 +133,7 @@ const badgeController = function (Badge) {
   // };
 
   const getAllBadges = async function (req, res) {
-    console.log(req.body.requestor);
+    // console.log(req.body.requestor);  // Retain logging from development branch for debugging
 
     // Check permissions
     if (
@@ -144,6 +144,7 @@ const badgeController = function (Badge) {
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
       console.log('User not authorized');
+      // console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
