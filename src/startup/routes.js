@@ -18,6 +18,8 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const registration = require('../models/registration');
 
+const village = require('../models/lbdashboard/wishlists');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -122,6 +124,8 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   equipmentType,
 );
 
+const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
+
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
@@ -194,4 +198,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
   app.use('/api', registrationRouter);
+  app.use('/api/lbdashboard/wishlists', lbWishlistsRouter);
 };
