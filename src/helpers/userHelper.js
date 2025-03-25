@@ -989,7 +989,7 @@ const userHelper = function () {
           );
         }
         }}
-    }catch(err){
+    }catch(err){ 
       console.log(err)
     }
   };
