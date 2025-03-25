@@ -742,7 +742,6 @@ const userHelper = function () {
                 'dddd M-D-YYYY',
               )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
             }
-            
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
               'dddd M-D-YYYY',
@@ -815,6 +814,7 @@ const userHelper = function () {
             } else {
               emailsBCCs = null;
             }
+
             emailSender(
               status.email,
               'New Infringement Assigned',
@@ -827,6 +827,7 @@ const userHelper = function () {
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
+
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,
             pdtStartOfLastWeek,
@@ -900,6 +901,7 @@ const userHelper = function () {
       const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
         const user = inactiveUsers[i];
+
         await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
       }
     } catch (err) {
@@ -2587,8 +2589,8 @@ const userHelper = function () {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
-    completeHoursAndMissedSummary,
     getProfileImagesFromWebsite,
+    completeHoursAndMissedSummary
   };
 };
 
