@@ -23,9 +23,8 @@ const userProfileJobs = () => {
     false,
     'America/Los_Angeles',
   );
-  //  completeHoursButMissedSummaryCronJob.
   const summaryNotSubmittedJobs=new CronJob(
-    // '* * * * *',
+  //  completeHoursButMissedSummaryCronJob.
     '0 4 * * 0', // Every Sunday at 4AM
     async () => {
       const SUNDAY = 0;
@@ -51,6 +50,7 @@ const userProfileJobs = () => {
     'America/Los_Angeles',
   );
   allUserProfileJobs.start();
+  summaryNotSubmittedJobs.start();
   dailyUserDeactivateJobs.start();
 };
 module.exports = userProfileJobs;

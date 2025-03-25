@@ -946,15 +946,15 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
       
       for (let i = 0; i < users.length; i += 1) {
-        if(users[i].role!=='Core Team'){
+        if(users[i].role!=='Core Team' && users[i]._id == "665524c257ca141fe8921b41"){
         const user = users[i];
-        // const person = await userProfile.findById(user._id);
         const personId = mongoose.Types.ObjectId(user._id);
         let hasWeeklySummary = false;
 
         if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
           const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
-          const { summary } = relevantSummary;
+          const summary = relevantSummary?.summary;
+
           if (summary && summary.trim().length > 0) {
             hasWeeklySummary = true;
           }
