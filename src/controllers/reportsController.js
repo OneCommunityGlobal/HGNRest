@@ -556,42 +556,31 @@ const reportsController = function () {
     }
   };
   const puppeteerLogic = async () => {
-    // get login details from env
     const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
     if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
       logger.logError('Puppeteer email or password not found in environment variables');
     }
-    // launch puppeteer
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     const page = await browser.newPage();
-    // navigate to the login page
     await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
     await page.setViewport({
       width: 1920,
       height: 1080,
       deviceScaleFactor: 1.5,
     });
-    // enter email and password
     await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
     await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
-    // click the login button
-    // 'button' is a CSS selector.
-    await page.click('button[type="submit"]', { delay: 100 });
-    // wait for navigation to complete
+    // await page.click('button[type="submit"]', { delay: 100 });
+    await page.click('.btn.btn-primary', { delay: 100 });
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    // go to /totalorgsummary
     await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
-
-    // click on all toggle elements
     const elements = await page.$$('.accordian-trigger');
 
     console.log('elements', elements);
 
-    // Looping through and interacting with each element
     // eslint-disable-next-line no-restricted-syntax
     for (const element of elements) {
       await element.click();
@@ -643,6 +632,7 @@ const reportsController = function () {
       console.log(err);
       res.status(500).send({ msg: 'Error occured while sending email. Please try again!' });
     }
+    res.status(200).send({ msg: 'Email sent successfully' });
   };
 
   return {

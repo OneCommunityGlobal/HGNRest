@@ -2468,8 +2468,8 @@ const userHelper = function () {
     await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
     await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
     // click the login button
-    // 'button' is a CSS selector.
-    await page.click('button[type="submit"]', { delay: 100 });
+    // await page.click('button[type="submit"]', { delay: 100 });
+    await page.click('.btn.btn-primary', { delay: 100 });
     // wait for navigation to complete
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
 
