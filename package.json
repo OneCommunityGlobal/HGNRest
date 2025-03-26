@@ -61,7 +61,7 @@
     "babel-plugin-module-resolver": "^5.0.0",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.18.3",
-    "cheerio": "^1.0.0-rc.12",
+    "cheerio": "^1.0.0-rc.10",
     "cors": "^2.8.4",
     "cron": "^1.8.2",
     "dotenv": "^5.0.1",
@@ -83,7 +83,7 @@
     "sanitize-html": "^2.13.0",
     "sharp": "^0.28.3",
     "supertest": "^6.3.4",
-    "undici": "^5.23.0",
+    "undici": "^5.29.0",
     "uuid": "^3.4.0",
     "ws": "^8.17.1"
   },
