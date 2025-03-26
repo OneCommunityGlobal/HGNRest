@@ -10,6 +10,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
       'totalValidWeeklySummaries',
+      'requestBio',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -60,6 +61,15 @@ const permissionsRoles = [
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'updateSummaryRequirements',
+      // Tracking Management
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -185,6 +195,14 @@ const permissionsRoles = [
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'changeUserStatus',
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       'seeBadges',
       'assignBadges',
       'createBadges',
@@ -249,6 +267,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'requestBio',
 
       // Title
       'seeQSC',

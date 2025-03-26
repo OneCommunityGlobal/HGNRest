@@ -195,7 +195,6 @@ const userProfileController = function (UserProfile, Project) {
           ...user.toObject(),
           jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
         }));
-        console.log(transformedResults);
         cache.setCache('allusers', JSON.stringify(transformedResults));
         res.status(200).send(transformedResults);
       })
@@ -447,6 +446,38 @@ const userProfileController = function (UserProfile, Project) {
       });
     } catch (error) {
       res.status(501).send(error);
+    }
+  };
+
+  const toggleUserBioPosted = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const { bioPosted } = req.body;
+
+      // validate input
+      if (!bioPosted || !['posted', 'requested', 'default'].includes(bioPosted)) {
+        return res.status(400).json({ error: 'Invalid or missing bioPosted value.' });
+      }
+
+      const canEditProtectedAccount = await canRequestorUpdateUser(
+        req.body.requestor.requestorId,
+        userId,
+      );
+      const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
+
+      if (!canEditProtectedAccount && !canToggleRequestBio) {
+        return res.status(403).json({ error: 'Permission denied to toggle bio.' });
+      }
+
+      // Update bioPosted
+      const updatedUser = await userService.updateBioPostedStatus(userId, bioPosted);
+
+      return res.status(200).json({
+        message: `Bio status updated to "${bioPosted}" successfully.`,
+        user: updatedUser,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message || 'An unexpected error occurred.' });
     }
   };
 
@@ -1930,6 +1961,7 @@ const userProfileController = function (UserProfile, Project) {
     postUserProfile,
     getUserProfiles,
     putUserProfile,
+    toggleUserBioPosted,
     deleteUserProfile,
     getUserById,
     getreportees,
