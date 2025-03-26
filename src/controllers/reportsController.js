@@ -586,7 +586,7 @@ const reportsController = function () {
       await element.click();
       await page.waitForTimeout(1000); // wait for the animation to complete
     }
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(50000);
     // take a screenshot of the page
     // await page.setViewport({ width: 1920, height: 1080 });
     await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });

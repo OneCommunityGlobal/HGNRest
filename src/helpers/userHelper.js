@@ -2369,19 +2369,19 @@ const userHelper = function () {
   async function imageUrlToPngBase64(url, maxSizeKB = 45) {
     try {
       // Fetch the image as a buffer
-      const response = await axios.get(url, { responseType: "arraybuffer" });
-  
+      const response = await axios.get(url, { responseType: 'arraybuffer' });
+
       if (response.status !== 200) {
         throw new Error(`Failed to fetch the image: ${response.statusText}`);
       }
-  
+
       let imageBuffer = Buffer.from(response.data);
-  
+
       let quality = 100; // Start with max quality
       let width = 1200; // Start with a reasonable large width
       let pngBuffer = await sharp(imageBuffer).resize({ width }).png({ quality }).toBuffer();
       let imageSizeKB = pngBuffer.length / 1024; // Convert bytes to KB
-  
+
       // Try to optimize while keeping best quality
       while (imageSizeKB > maxSizeKB) {
         if (quality > 10) {
@@ -2389,17 +2389,17 @@ const userHelper = function () {
         } else {
           width = Math.max(100, Math.round(width * 0.9)); // Reduce width gradually
         }
-  
+
         pngBuffer = await sharp(imageBuffer)
           .resize({ width }) // Adjust width
           .png({ quality }) // Adjust quality
           .toBuffer();
-  
+
         imageSizeKB = pngBuffer.length / 1024;
       }
-  
+
       // Convert to Base64 and return
-      return `data:image/png;base64,${pngBuffer.toString("base64")}`;
+      return `data:image/png;base64,${pngBuffer.toString('base64')}`;
     } catch (error) {
       console.error(`An error occurred: ${error.message}`);
       return null;
@@ -2439,7 +2439,7 @@ const userHelper = function () {
         });
       });
       const users = await userProfile.find(
-        { isActive: true, bioPosted: "posted" },
+        { isActive: true, bioPosted: 'posted' },
         'firstName lastName email profilePic suggestedProfilePics',
       );
 
@@ -2525,7 +2525,7 @@ const userHelper = function () {
       await element.click();
       await page.waitForTimeout(1000); // wait for the animation to complete
     }
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(50000);
     // take a screenshot of the page
     // await page.setViewport({ width: 1920, height: 1080 });
     await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
