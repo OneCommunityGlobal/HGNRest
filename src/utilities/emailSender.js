@@ -92,6 +92,8 @@ const emailSender = (
   cc = null,
   replyTo = null,
 ) => {
+  console.log('sendEmail:', process.env.sendEmail);
+  // Check if email sending is enabled
   if (!process.env.sendEmail) return;
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];

@@ -9,7 +9,9 @@
 /* eslint-disable no-use-before-define */
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
+const path = require('path');
 
+const puppeteer = require('puppeteer');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -2443,6 +2445,95 @@ const userHelper = function () {
     }
   };
 
+  const puppeteerLogic = async () => {
+    // get login details from env
+    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
+    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
+      logger.logError('Puppeteer email or password not found in environment variables');
+    }
+    // launch puppeteer
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    const page = await browser.newPage();
+    // navigate to the login page
+    await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1.5,
+    });
+    // enter email and password
+    await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
+    await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
+    // click the login button
+    // 'button' is a CSS selector.
+    await page.click('button[type="submit"]', { delay: 100 });
+    // wait for navigation to complete
+    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+
+    // go to /totalorgsummary
+    await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
+
+    // click on all toggle elements
+    const elements = await page.$$('.accordian-trigger');
+
+    console.log('elements', elements);
+
+    // Looping through and interacting with each element
+    for (const element of elements) {
+      await element.click();
+      await page.waitForTimeout(1000); // wait for the animation to complete
+    }
+    await page.waitForTimeout(5000);
+    // take a screenshot of the page
+    // await page.setViewport({ width: 1920, height: 1080 });
+    await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
+
+    // close the browser
+    await browser.close();
+  };
+
+  // Weekly Company Summary Email
+  const weeklyCompanySummaryEmail = async () => {
+    console.log('Weekly Company Summary Email');
+    const adminList = await userProfile.find({ jobTitle: 'Administrator' });
+    const recipients = adminList.map((admin) => admin.email);
+    // const recipients = ['email1@mail.com'];
+    const subject = 'Weekly Company Summary';
+    const message = `<p>Hi Team,</p>
+      <p>Here is the weekly summary of the company.</p>
+      <p>Please refe to the attachment for this weeks Summary Dashboard"
+      <p>Best regards,</p>
+      <p>One Community</p>`;
+
+    // generate screenshot
+    await puppeteerLogic().then((result) => {
+      console.log('Puppeteer logic completed');
+      // create an attachment object
+      const attachment = {
+        filename: 'weeklyCompanySummary.png',
+        content: fs.readFileSync('./weeklyCompanySummary.png'),
+        contentType: 'image/png',
+      };
+      emailSender(
+        recipients,
+        subject,
+        message,
+        attachment,
+        recipients,
+        'onecommunity@gmail.com',
+      ).then((result) => {
+        console.log('Email Sender Job Done...', result);
+        // delete the image
+        fs.unlink('./weeklyCompanySummary.png', (err) => {
+          if (err) throw err;
+          console.log('./weeklyCompanySummary.png was deleted');
+        });
+      });
+    });
+  };
   return {
     changeBadgeCount,
     getUserName,
@@ -2464,6 +2555,7 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
+    weeklyCompanySummaryEmail,
   };
 };
 

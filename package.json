@@ -76,6 +76,7 @@
     "node-cache": "^5.1.2",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.4.16",
+    "puppeteer": "^13.7.0",
     "redis": "^4.2.0",
     "sanitize-html": "^2.13.0",
     "sharp": "^0.33.5",
