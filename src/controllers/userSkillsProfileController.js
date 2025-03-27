@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { ValidationError } = require('../utilities/errorHandling/customError');
+const { hasPermission } = require('../utilities/permissions');
 
 /**
  * Controller for user skills profile operations
@@ -15,6 +16,16 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
    */
   const getUserSkillsProfile = async (req, res, next) => {
     try {
+      // Check if user has permission to view user profiles
+      const hasAccess = await hasPermission(req.body.requestor, 'getUserProfiles');
+
+      // If not authorized and trying to view someone else's profile
+      if (!hasAccess && req.body.requestor.requestorId !== req.params.userId) {
+        return res
+          .status(403)
+          .json({ error: 'You do not have permission to view this user profile' });
+      }
+
       const { userId } = req.params;
 
       // Validate user ID format
