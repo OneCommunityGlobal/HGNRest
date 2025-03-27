@@ -47,26 +47,4 @@ const bmTimeLog = new Schema({
   timestamps: true 
 });
 
-// Virtual to calculate current session duration
-bmTimeLog.virtual('currentSessionDuration').get(function() {
-  if (this.status === 'ongoing' && this.currentIntervalStarted) {
-    return Date.now() - this.currentIntervalStarted.getTime();
-  }
-  return 0;
-});
-
-// Method to calculate total elapsed time
-bmTimeLog.methods.calculateTotalElapsedTime = function() {
-  let totalTime = this.intervals.reduce((total, interval) => {
-    return total + (interval.duration || 0);
-  }, 0);
-
-  // Add current session duration if still ongoing
-  if (this.status === 'ongoing' && this.currentIntervalStarted) {
-    totalTime += (Date.now() - this.currentIntervalStarted.getTime());
-  }
-
-  return totalTime;
-};
-
 module.exports = mongoose.model('bmTimelog', bmTimeLog);
