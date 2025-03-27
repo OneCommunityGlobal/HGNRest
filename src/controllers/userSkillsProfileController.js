@@ -22,21 +22,31 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         throw new ValidationError('Invalid user ID format');
       }
 
-      // Get user profile - use default values if not found
-      const userProfile = (await UserProfile.findById(userId).lean()) || {
-        _id: userId,
-        firstName: 'Unknown',
-        lastName: 'User',
-        email: 'unknown@example.com',
-        isActive: false,
-        teams: [],
-        jobTitle: [],
-        contactSettings: {
-          isEmailPublic: false,
-          isPhonePublic: false,
-          preferredContact: 'email',
-        },
-      };
+      // Get user profile with populated teams - only retrieve needed fields
+      let userProfile = await UserProfile.findById(userId)
+        .populate({
+          path: 'teams',
+          select: '_id name role',
+        })
+        .lean();
+
+      // Use default values if not found
+      if (!userProfile) {
+        userProfile = {
+          _id: userId,
+          firstName: 'Unknown',
+          lastName: 'User',
+          email: 'unknown@example.com',
+          isActive: false,
+          teams: [],
+          jobTitle: [],
+          contactSettings: {
+            isEmailPublic: false,
+            isPhonePublic: false,
+            preferredContact: 'email',
+          },
+        };
+      }
 
       // Get skills data - use default values if not found
       const formResponses = await HgnFormResponses.findOne({ user_id: userId })
@@ -54,6 +64,26 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         preferredContact: userProfile.contactSettings?.preferredContact || 'email',
       };
 
+      // Extract team details - handle both populated and non-populated teams
+      const teamDetails =
+        userProfile.teams?.map((team) => {
+          // If teams were populated successfully
+          if (team.team && typeof team.team === 'object') {
+            return {
+              id: team.team._id,
+              name: team.team.name,
+              role: team.role || 'Member',
+              description: team.team.description || null,
+            };
+          }
+          // Fallback if population didn't work (or using default values)
+          return {
+            id: team._id || 'unknown',
+            name: team.name || 'Unknown Team',
+            role: team.role || 'Member',
+          };
+        }) || [];
+
       // Build response with available data or placeholders
       const result = {
         userId: userProfile._id,
@@ -66,17 +96,14 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         contactInfo,
         jobTitle: userProfile.jobTitle || [],
 
-        // Separate team info from social handles
-        teamInfo: {
-          teamName: userProfile.teams?.map((team) => team._id) || [],
-          // Add any other team-specific info here if needed
-        },
+        // Use the extracted team details
 
-        // New field for social handles
+        teams: teamDetails,
+
+        // Social handles
         socialHandles: {
           slack: formResponses?.userInfo?.slack || 'Not provided',
           github: formResponses?.userInfo?.github || 'Not provided',
-          // Add any other social handles that might be available
         },
 
         skillInfo: {
