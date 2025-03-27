@@ -31,15 +31,15 @@ const routes = function (HgnFormResponses, UserProfile) {
   });
 
   // // Get comprehensive user profile with skills data
-  // userSkillsProfileRouter.route('/skills/profile/:userId').get(controller.getUserSkillsProfile);
+  userSkillsProfileRouter.route('/skills/profile/:userId').get(controller.getUserSkillsProfile);
 
   // // Get all team members with their skills
-  // userSkillsProfileRouter
-  //   .route('/skills/team-profiles/:teamName')
-  //   .get(controller.getTeamMembersSkillsProfiles);
+  userSkillsProfileRouter
+    .route('/skills/team-profiles/:teamName')
+    .get(controller.getTeamMembersSkillsProfiles);
 
   // // Find users by skill criteria
-  // userSkillsProfileRouter.route('/skills/find-by-skills').get(controller.findUsersBySkills);
+  userSkillsProfileRouter.route('/skills/find-by-skills').get(controller.findUsersBySkills);
 
   return userSkillsProfileRouter;
 };

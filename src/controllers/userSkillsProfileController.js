@@ -17,12 +17,12 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
   const getUserSkillsProfile = async (req, res, next) => {
     try {
       // Simplified response for testing
-      return res.status(200).json({
-        message: 'User skills profile endpoint working',
-        requestedUserId: req.params.userId,
-        timestamp: new Date().toISOString(),
-        authenticated: true,
-      });
+      // return res.status(200).json({
+      //   message: 'User skills profile endpoint working',
+      //   requestedUserId: req.params.userId,
+      //   timestamp: new Date().toISOString(),
+      //   authenticated: true,
+      // });
 
       // Original complex logic commented out for now
 
