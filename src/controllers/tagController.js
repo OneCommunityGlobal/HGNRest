@@ -56,7 +56,7 @@ const tagController = function () {
             frequency: 1
           }
         },
-        { $sort: { frequency: -1 } },
+        { $sort: { frequency: -1, tagName: 1 } },
         { $limit: limitNumber }
       ]);
       
@@ -145,35 +145,38 @@ const tagController = function () {
    */
   const upsertTag = async function (req, res) {
     try {
-      const { tagName, projectId } = req.body;
-
-      if (!tagName || !projectId) {
-        return res.status(400).json({ error: 'Tag name and project ID are required' });
+      const { tagId, tagName, projectId } = req.body;
+  
+      if (!tagName || !projectId || !tagId) {
+        return res.status(400).json({ 
+          error: 'Tag ID, tag name, and project ID are all required' 
+        });
       }
-
+  
       // Verify project exists
       const project = await Project.findById(projectId);
       if (!project) {
         return res.status(400).json({ error: 'Invalid project' });
       }
-
+  
       // Find and update or create if not exists
       const now = new Date();
       const result = await Tag.findOneAndUpdate(
-        { tagName, projectId },
+        { tagId, projectId },
         { 
+          tagName,
           $inc: { frequency: 1 },
           $setOnInsert: { createdAt: now }
         },
         { new: true, upsert: true }
       );
-
+  
       // Invalidate related cache entries
       cache.removeCache(`frequent_tags:${projectId}*`);
       cache.removeCache(`frequent_tags:all*`);
       cache.removeCache(`tags_project:${projectId}*`);
       cache.removeCache(`tag_suggestions:*${projectId}*`);
-
+  
       res.status(200).json(result);
     } catch (error) {
       logger.logException(error);
@@ -183,7 +186,6 @@ const tagController = function () {
       });
     }
   };
-
   /**
    * Get tag suggestions (for autocomplete)
    */
@@ -208,10 +210,11 @@ const tagController = function () {
       }
 
       const suggestions = await Tag.find(queryObj)
-        .distinct('tagName')
-        .limit(10);
+      .distinct('tagName');
 
-      const response = { suggestions };
+      const limitedSuggestions = suggestions.slice(0, 10);
+
+      const response = { limitedSuggestions };
       
       // Cache the response with a shorter TTL for suggestions
       cache.setCache(cacheKey, response);
@@ -234,11 +237,16 @@ const tagController = function () {
     try {
       const { tagId } = req.params;
       
-      if (!mongoose.Types.ObjectId.isValid(tagId)) {
-        return res.status(400).json({ error: 'Invalid tag ID format' });
+      // Try to find by MongoDB ObjectId first
+      let tag = null;
+      if (mongoose.Types.ObjectId.isValid(tagId)) {
+        tag = await Tag.findById(tagId);
       }
-
-      const tag = await Tag.findById(tagId);
+      
+      // If not found by ObjectId, try to find by custom tagId
+      if (!tag) {
+        tag = await Tag.findOne({ tagId });
+      }
       
       if (!tag) {
         return res.status(404).json({ error: 'Tag not found' });
@@ -261,11 +269,16 @@ const tagController = function () {
     try {
       const { tagId } = req.params;
       
-      if (!mongoose.Types.ObjectId.isValid(tagId)) {
-        return res.status(400).json({ error: 'Invalid tag ID format' });
+      // Try to find by MongoDB ObjectId first
+      let tag = null;
+      if (mongoose.Types.ObjectId.isValid(tagId)) {
+        tag = await Tag.findById(tagId);
       }
-
-      const tag = await Tag.findById(tagId);
+      
+      // If not found by ObjectId, try to find by custom tagId
+      if (!tag) {
+        tag = await Tag.findOne({ tagId });
+      }
       
       if (!tag) {
         return res.status(404).json({ error: 'Tag not found' });
