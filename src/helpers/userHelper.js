@@ -992,7 +992,7 @@ const userHelper = function () {
           if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
               emailSender(
               users[i].email,
-              'Re: New Infringement Assigned',
+              'Weekly Summary Missing',
               missedSummaryTemplate(users[i].firstName),
               null,
               'jae@onecommunityglobal.org',
