@@ -1,5 +1,6 @@
 const axios = require('axios');
 const fs = require('fs');
+const cheerio = require('cheerio');
 
 // const auth = `https://api.pinterest.com/oauth/?response_type=code&redirect_uri=${process.env.PINTEREST_REDIRECT_URI}&client_id=${process.env.PINTEREST_CLIENT_ID}&scope=${scopes.join(',')}`;
 
@@ -15,14 +16,11 @@ async function getPinterestAccessToken(req, res) {
 
   //make a post request to Pinterest API to get access token
   try {
-    console.log("getPinterestAccessToken....");
     const response = await axios.post(`${OAUTH_URL}/token`, postData, {
       headers: authHeaders,
       responseType: 'json'
     });
 
-    console.log("response.data.......");
-    console.log(response.data);
     const { access_token, expires_in } = response.data;
     const current = new Date();
     const expireTime = current.setSeconds(current.getSeconds() + expires_in)
@@ -35,7 +33,7 @@ async function getPinterestAccessToken(req, res) {
       fs.writeFileSync('access_token.txt', JSON.stringify(jsonToken));
     }
     catch (err) {
-      console.log("Error writing access token to file");
+      console.error("Error writing access token to file");
     }
     res.status(200).json({ access_token });
   } catch (error) {
@@ -63,9 +61,42 @@ async function createPin(req, res) {
     tokenObject = JSON.parse(tokenData);
     accessToken = tokenObject.accessToken;
   }
+  let source_type;
+  let hasBase64Image = false;
+  let hasUrlImage = false;
+  const emailContent = req.body.emailContent;
+  const $ = cheerio.load(emailContent);
+  let media_source;
+  let media_source_items = $('img').map((i, img) => {
+    const imgSrc = $(img).attr('src');
+    if (imgSrc.startsWith('data:')) {
+      hasBase64Image = true;
+      const content_type = imgSrc.split(';')[0].split(':')[1];
+      const data = imgSrc.split(',')[1];
+      return { content_type, data };
+    } else {
+      hasUrlImage = true;
+      return { url: imgSrc };
+    }
+  }).toArray();
+  if (hasBase64Image) {
+    media_source_items = media_source_items.filter((source) => source.content_type);
+    source_type = media_source_items.length > 1 ? 'multiple_image_base64' : 'image_base64';
+    media_source = media_source_items.length > 1 ?
+      { source_type, items: media_source_items } :
+      { source_type, ...(media_source_items[0]) };
+  } else {
+    media_source_items = media_source_items.filter((source) => source.url);
+    source_type = media_source_items.length > 1 ? 'multiple_image_urls' : 'image_url';
+    media_source = media_source_items.length > 1 ?
+      { source_type, items: media_source_items } :
+      { source_type, ...(media_source_items[0]) };
+  }
+  const description = $.text();
+  const board_id = '1110841133028920431'; // TODO: get board id from Pinterest API
+  const title = 'Weekly progress'; // TODO: get a proper title
 
-  const { board_id, title, description, media_source } = req.body;
-  const postData = { board_id: board_id, description: description, title: title, media_source: media_source };
+  const postData = { board_id: board_id, description, title, media_source };
   const createPinHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
   try {
@@ -82,8 +113,12 @@ async function createPin(req, res) {
     });
     res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error creating Pinterest pin:', error);
-    res.status(500).json({ error: 'Failed to create Pinterest pin' });
+    console.error('Error creating Pinterest pin:', error.response.data);
+    if (error.response) {
+      res.status(error.response.status).json({ error: error.response.data.message });
+    } else {
+      res.status(500).json({ error: 'Failed to create Pinterest pin' });
+    }
   }
 
 }
