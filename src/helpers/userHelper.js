@@ -935,7 +935,7 @@ const userHelper = function () {
   const completeHoursAndMissedSummary= async () => {
       try{
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true, weeklySummaryOption: "Required"  },
         '_id weeklycommittedHours weeklySummaries missedHours role email firstName',
       );
       
@@ -946,50 +946,59 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
       
       for (let i = 0; i < users.length; i += 1) {
-        if(users[i].role!=='Core Team' && users[i]._id == "665524c257ca141fe8921b41"){
-        const user = users[i];
-        const personId = mongoose.Types.ObjectId(user._id);
-        let hasWeeklySummary = false;
+        const allowedEmails = [
+          "jae@onecommunityglobal.org", //Summary turned off Owner
+          "onecommunityhospitality@gmail.com", //Summary turned off Admin
+          "one.community@me.com", //Manager, did hours but no summary
+          "jatinagrawal0801@gmail.com", //Volunteer, did hours but no summary
+          "ttertitsa1@gmail.com", //Volunteer did hours with summary
+          "osorare@yahoo.com", //Core Team, did hours with summary
+        ];
 
-        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-          const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
-          const summary = relevantSummary?.summary;
+        if(allowedEmails.includes(users[i].email)){
+          const user = users[i];
+          const personId = mongoose.Types.ObjectId(user._id);
+          let hasWeeklySummary = false;
 
-          if (summary && summary.trim().length > 0) {
-            hasWeeklySummary = true;
+          if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+            const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
+            const summary = relevantSummary?.summary;
+
+            if (summary && summary.trim().length > 0) {
+              hasWeeklySummary = true;
+            }
           }
-        }
-        const results = await dashboardHelper.laborthisweek(
-          personId,
-          pdtStartOfLastWeek,
-          pdtEndOfLastWeek,
-        );
-        const { timeSpent_hrs: timeSpent } = results[0];
-
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        const timeNotMet = timeSpent < weeklycommittedHours;
-
-        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
-
-        const requestsForTimeOff = await timeOffRequest.find({
-          requestFor: personId,
-          startingDate: { $lte: utcStartMoment },
-          endingDate: { $gte: utcEndMoment },
-        });
-        const hasTimeOffRequest = requestsForTimeOff.length > 0;
-      
-        // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
-        if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
-            emailSender(
-             users[i].email,
-            'Re: New Infringement Assigned',
-            missedSummaryTemplate(users[i].firstName),
-            null,
-            'jae@onecommunityglobal.org',
-            'jae@onecommunityglobal.org',
+          const results = await dashboardHelper.laborthisweek(
+            personId,
+            pdtStartOfLastWeek,
+            pdtEndOfLastWeek,
           );
-        }
+          const { timeSpent_hrs: timeSpent } = results[0];
+
+          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+          const timeNotMet = timeSpent < weeklycommittedHours;
+
+          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+        
+          // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
+          if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
+              emailSender(
+              users[i].email,
+              'Re: New Infringement Assigned',
+              missedSummaryTemplate(users[i].firstName),
+              null,
+              'jae@onecommunityglobal.org',
+              'jae@onecommunityglobal.org',
+            );
+          }
         }}
     }catch(err){ 
       console.log(err)
