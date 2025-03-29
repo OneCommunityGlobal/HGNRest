@@ -10,23 +10,10 @@ const routes = () => {
     const imgurRouter = express.Router();
 
     imgurPostController.reloadScheduledPosts();
-    console.log('received request: ', {
-        body: imgurRouter.body,
-        headers: imgurRouter.headers,
-        method: imgurRouter.method,
-    })
 
     imgurRouter.route('/postToImgur').post(
         upload.array('image'),
         (req, res, next) => {
-            console.log('Received request to post to Imgur:', {
-                body: req.body,
-                scheduleTime: req.body.scheduleTime,
-                files: req.files?.map((file, index) => ({
-                    originalname: file.originalname,
-                    description: req.body.description[index],
-                })),
-            });
 
             if (req.body.scheduleTime) {
                 const scheduledDateTime = new Date(req.body.scheduleTime);
@@ -41,7 +28,6 @@ const routes = () => {
                 delete req.body.scheduleTime;
             }
 
-            console.log('Updated request body:', req.body);
 
             req.files.forEach((file, index) => {
                 file.description = req.body.description[index];
@@ -55,7 +41,6 @@ const routes = () => {
     imgurRouter.route('/scheduledPosts/:jobId').delete(imgurPostController.deleteScheduledPost);
     // imgurRouter.route('/auth/imgur/callback').post(imgurPostController.authImgur);
 
-    // imgurRouter.route('/deleteScheduledPost/:jobId').delete(imgurPostController.deleteScheduledPost);
 
     return imgurRouter;
 }
