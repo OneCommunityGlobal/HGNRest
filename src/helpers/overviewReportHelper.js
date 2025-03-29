@@ -571,31 +571,108 @@ const overviewReportHelper = function () {
   }
 
   /**
-   * Get the number of Blue Square infringements between the two input dates.
-   * @param {*} startDate
-   * @param {*} endDate
-   * @returns
+   * Get the data for Blue Square infringements between the two input dates.
+   * @param {Date} isoStartDate
+   * @param {Date} isoEndDate
+   * @param {Date} isoComparisonStartDate
+   * @param {Date} isoComparisonEndDate
    */
-  async function getBlueSquareStats(startDate, endDate) {
-    return UserProfile.aggregate([
-      {
-        $unwind: '$infringements',
-      },
-      {
-        $match: {
-          'infringements.date': {
-            $gte: startDate,
-            $lte: endDate,
+  async function getBlueSquareStats(
+    isoStartDate,
+    isoEndDate,
+    isoComparisonStartDate,
+    isoComparisonEndDate,
+  ) {
+    const getData = async (startDate, endDate) =>
+      UserProfile.aggregate([
+        {
+          $unwind: {
+            path: '$infringementsNew',
           },
         },
-      },
-      {
-        $group: {
-          _id: '$infringements.description',
-          count: { $sum: 1 },
+        {
+          $match: {
+            'infringementsNew.createdDate': {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
         },
-      },
-    ]);
+        {
+          $group: {
+            _id: '$infringementsNew.reason',
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $cond: [
+                {
+                  $in: [
+                    '$_id',
+                    ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
+                  ],
+                },
+                '$_id',
+                'other',
+              ],
+            },
+            count: {
+              $sum: '$count',
+            },
+          },
+        },
+      ]);
+
+    const currData = await getData(isoStartDate, isoEndDate);
+
+    const currTotalInfringements = currData.reduce((total, item) => {
+      const currTotal = total + item.count;
+      return currTotal;
+    }, 0);
+
+    const formattedData = currData.reduce((accum, item) => {
+      accum[item._id] = {
+        count: item.count,
+        percentageOutOfTotal: Math.round((item.count / currTotalInfringements) * 100) / 100,
+      };
+      return accum;
+    }, {});
+
+    // fill missing fields
+    const reasons = [
+      'missingHours',
+      'missingSummary',
+      'missingHoursAndSummary',
+      'vacationTime',
+      'other',
+    ];
+    reasons.forEach((reason) => {
+      if (!formattedData[reason]) {
+        formattedData[reason] = { count: 0, percentageOutOfTotal: 0 };
+      }
+    });
+
+    formattedData.totalBlueSquares = {
+      count: currTotalInfringements,
+    };
+
+    if (isoComparisonStartDate && isoComparisonEndDate) {
+      const comparisonData = await getData(isoComparisonStartDate, isoComparisonEndDate);
+
+      const comparisonTotalInfringements = comparisonData.reduce((total, item) => {
+        const currTotal = total + item.count;
+        return currTotal;
+      }, 0);
+
+      formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
+        currTotalInfringements,
+        comparisonTotalInfringements,
+      );
+    }
+
+    return formattedData;
   }
 
   /**
@@ -1822,10 +1899,15 @@ const overviewReportHelper = function () {
     return { count: currentCount };
   }
 
-  const getTotalSummariesSubmitted = async (startDate, endDate, comparisonStartDate, comparisonEndDate) => {
+  const getTotalSummariesSubmitted = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
     // Helper function to count summaries submitted within a date range
-    const getSummariesCount = async (start, end) => {
-      return await UserProfile.aggregate([
+    const getSummariesCount = async (start, end) =>
+      UserProfile.aggregate([
         {
           $match: {
             summarySubmissionDates: {
@@ -1861,27 +1943,26 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-    };
-  
+
     // Get summaries count for the current date range
     const currentSummaries = await getSummariesCount(startDate, endDate);
     const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
-  
+
     // If comparison dates are provided, calculate the comparison percentage
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
       const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
-      const comparisonPercentage = calculateGrowthPercentage(totalCurrentSummaries, totalComparisonSummaries);
-  
+      const comparisonPercentage = calculateGrowthPercentage(
+        totalCurrentSummaries,
+        totalComparisonSummaries,
+      );
+
       return { count: totalCurrentSummaries, comparisonPercentage };
     }
-  
+
     // If no comparison dates, return only the count
     return { count: totalCurrentSummaries };
   };
-  
-  
-  
 
   return {
     getVolunteerTrends,
