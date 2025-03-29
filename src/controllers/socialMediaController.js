@@ -54,6 +54,7 @@ async function createPin(req, res) {
     let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
     let tokenObject = JSON.parse(tokenData);
     const expireTime = new Date(tokenObject.expireTime);
+    // get new token if current token expired
     if (new Date() > expireTime) {
       await getPinterestAccessToken();
     }
@@ -70,9 +71,11 @@ async function createPin(req, res) {
   let media_source_items = $('img').map((i, img) => {
     const imgSrc = $(img).attr('src');
     if (imgSrc.startsWith('data:')) {
+      //process base64 format image data
       hasBase64Image = true;
-      const content_type = imgSrc.split(';')[0].split(':')[1];
-      const data = imgSrc.split(',')[1];
+      // base64 format: data:image/png;base64,<base64 part>
+      const content_type = imgSrc.split(';')[0].split(':')[1].trim();
+      const data = imgSrc.split(',')[1].trim();
       return { content_type, data };
     } else {
       hasUrlImage = true;
@@ -80,13 +83,17 @@ async function createPin(req, res) {
     }
   }).toArray();
   if (hasBase64Image) {
+    //filter base64 image source
     media_source_items = media_source_items.filter((source) => source.content_type);
+    //Pinterest restriction: there must be two images to use multiple_xxx source type
     source_type = media_source_items.length > 1 ? 'multiple_image_base64' : 'image_base64';
     media_source = media_source_items.length > 1 ?
       { source_type, items: media_source_items } :
       { source_type, ...(media_source_items[0]) };
   } else {
+    //filter url image source
     media_source_items = media_source_items.filter((source) => source.url);
+    //Pinterest restriction: there must be two images to use multiple_xxx source type
     source_type = media_source_items.length > 1 ? 'multiple_image_urls' : 'image_url';
     media_source = media_source_items.length > 1 ?
       { source_type, items: media_source_items } :
