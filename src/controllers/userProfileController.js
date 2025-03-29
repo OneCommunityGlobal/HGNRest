@@ -445,7 +445,7 @@ const userProfileController = function (UserProfile, Project) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(501).send(error);
+      res.status(400).send(error);
     }
   };
 
