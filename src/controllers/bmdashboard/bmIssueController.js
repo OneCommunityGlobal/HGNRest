@@ -16,7 +16,6 @@ const bmIssueController = function (BuildingIssue) {
     const bmGetIssueChart = async (req, res) => {
         try {
             const { issueType, year } = req.query;
-            const s;
             let matchQuery = {}; // Initialize an empty match query object
             let groupFields = {}; // Initialize group fields
     
