@@ -10,11 +10,11 @@ const routes = () => {
     const imgurRouter = express.Router();
 
     imgurPostController.reloadScheduledPosts();
-    // console.log('received request: ', {
-    //     body: imgurRouter.body,
-    //     headers: imgurRouter.headers,
-    //     method: imgurRouter.method,
-    // })
+    console.log('received request: ', {
+        body: imgurRouter.body,
+        headers: imgurRouter.headers,
+        method: imgurRouter.method,
+    })
 
     imgurRouter.route('/postToImgur').post(
         upload.array('image'),
@@ -53,6 +53,7 @@ const routes = () => {
 
     imgurRouter.route('/scheduledPosts').get(imgurPostController.getScheduledPosts);
     imgurRouter.route('/scheduledPosts/:jobId').delete(imgurPostController.deleteScheduledPost);
+    // imgurRouter.route('/auth/imgur/callback').post(imgurPostController.authImgur);
 
     // imgurRouter.route('/deleteScheduledPost/:jobId').delete(imgurPostController.deleteScheduledPost);
 

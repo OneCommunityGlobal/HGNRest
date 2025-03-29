@@ -1,11 +1,36 @@
 // const fs = require('fs');
+const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 require ('dotenv').config();
 const FormData = require('form-data');
 const schedule = require('node-schedule');
 const ImgurScheduledPost = require('../models/imgurPosts');
 
+
 // const scheduledPosts = new Map();
+
+// const authImgur = async (req, res) => {
+//     console.log('Received request to authenticate with Imgur:');
+//     const { code } = req.body;
+
+//     if (!code) {
+//         console.error('Authorization code is missing');
+//         return res.status(400).json({
+//             success: false,
+//             message: 'Authorization code is missing',
+//         });
+//     }
+//     console.log('Query Parameters:', req.query); // Logs the query parameters (e.g., `code` and `state`)
+//     console.log('Request Body:', req.body); // Logs the request body (if any)
+
+//     res.status(200).json({
+//         success: true,
+//         message: 'Imgur callback received',
+//         query: req.query,
+//         body: req.body,
+//     });
+// };
 
 const getImgurAccessToken = async () => {
     const {IMGUR_CLIENT_ID, IMGUR_CLIENT_SECRET, IMGUR_REFRESH_TOKEN, IMGUR_REDIRECT_URI} = process.env;
@@ -195,14 +220,11 @@ const postAlbumToGallery = async (albumHash, title, tags, topic) => {
     }
 }
 
-const getImageHashes = async (files, scheduledDateTime='N/A') => {
+const getImageHashes = async (files) => {
     const ACCESS_TOKEN = await getImgurAccessToken();
     
     const imageHashes = await Promise.all(files.map(async (file) => {
         try {
-            if (scheduledDateTime !== 'N/A') {
-                file.description = `(${scheduledDateTime})-${file.description} `;
-            }
             const imageHash = await uploadImageToImgur(file, ACCESS_TOKEN);
             return imageHash;
         } catch (e) {
@@ -243,6 +265,18 @@ const publishToImgur = async (title, imageHashes, description, tags, topic) => {
     }
 }
 
+const updateEnvFile = (key, value) => {
+    const envPath = path.resolve(__dirname, '../../.env'); 
+    const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+    console.log('envContent:', envContent);
+    console.log('key:', key);
+    console.log('value:', value);
+    const newEnvContent = envContent.includes(`${key}=`)
+        ? envContent.replace(new RegExp(`${key}=.*`), `${key}=${value}`)
+        : `${envContent}\n${key}=${value}`;
+    fs.writeFileSync(envPath, newEnvContent, 'utf8');
+}
+
 const postToImgur = async (req, res) => {
     
     try {
@@ -252,7 +286,7 @@ const postToImgur = async (req, res) => {
         console.log('Received request to post to Imgur:', req.body);
         console.log('Received files:', req.files);
 
-        if (!req.files || req.files.length === 0) {
+        if (!req.files) {
             return res.status(400).json({
                 success: false,
                 message: 'Missing image',
@@ -266,17 +300,33 @@ const postToImgur = async (req, res) => {
             });
         }
 
-        if (!description || description.length !== req.files.length) {
+        let descriptions;
+        if (Array.isArray(description)) {
+            descriptions = description;
+        } else if (description) {
+            descriptions = [description];
+        } else {
+            descriptions = [];
+        }
+        
+        if (descriptions.length !== req.files.length) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing description',
+                message: 'The number of descriptions does not match the number of uploaded files',
             });
         }
-
         
-
         if (scheduleTime) {
-            const { IMGUR_SCHEDULED_POSTS_ALBUM_HASH } = process.env;
+            let { IMGUR_SCHEDULED_POSTS_ALBUM_HASH } = process.env;
+
+            if (!IMGUR_SCHEDULED_POSTS_ALBUM_HASH || IMGUR_SCHEDULED_POSTS_ALBUM_HASH === undefined) {
+                const scheduledPostsAlbumHash = await createImgurAlbum('Scheduled Posts', 'Scheduled posts album');
+                updateEnvFile('IMGUR_SCHEDULED_POSTS_ALBUM_HASH', scheduledPostsAlbumHash);
+                IMGUR_SCHEDULED_POSTS_ALBUM_HASH = scheduledPostsAlbumHash;
+                require('dotenv').config();
+            }
+            
+            console.log('IMGUR_SCHEDULED_POSTS_ALBUM_HASH after the thing:', IMGUR_SCHEDULED_POSTS_ALBUM_HASH);
             console.log('scheduling post for:', new Date(scheduleTime));
             const scheduledDateTime = new Date(scheduleTime);
             
@@ -288,7 +338,7 @@ const postToImgur = async (req, res) => {
             }
 
             // upload images to scheduled posts album in imgur
-            const imageHashes = await getImageHashes(req.files, scheduledDateTime);
+            const imageHashes = await getImageHashes(req.files);
 
             await uploadImagesToAlbum(imageHashes, IMGUR_SCHEDULED_POSTS_ALBUM_HASH);
 
@@ -409,4 +459,5 @@ module.exports = {
     getScheduledPosts,
     reloadScheduledPosts,
     deleteScheduledPost,
+    // authImgur,
 };
