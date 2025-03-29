@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 const { hasPermission } = require('../utilities/permissions');
+const Logger = require('../startup/logger');
 
 /**
  * Controller for user skills profile operations
@@ -19,8 +20,21 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       // Check if user has permission to view user profiles
       const hasAccess = await hasPermission(req.body.requestor, 'getUserProfiles');
 
+      // Log access attempt for tracking
+      Logger.logInfo(`User skills profile access attempt`, {
+        requestorId: req.body.requestor.requestorId,
+        targetUserId: req.params.userId,
+        hasAccess,
+        timestamp: new Date().toISOString(),
+      });
+
       // If not authorized and trying to view someone else's profile
       if (!hasAccess && req.body.requestor.requestorId !== req.params.userId) {
+        Logger.logInfo(`Unauthorized access attempt to user skills profile`, {
+          requestorId: req.body.requestor.requestorId,
+          targetUserId: req.params.userId,
+          timestamp: new Date().toISOString(),
+        });
         return res
           .status(403)
           .json({ error: 'You do not have permission to view this user profile' });
@@ -57,6 +71,13 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
             preferredContact: 'email',
           },
         };
+
+        // Log when using placeholder data
+        Logger.logInfo(`Using placeholder data for user profile`, {
+          requestorId: req.body.requestor.requestorId,
+          targetUserId: userId,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       // Get skills data - use default values if not found
@@ -67,6 +88,15 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       // Flag if we're using real or placeholder data
       const isProfilePlaceholder = !(await UserProfile.findById(userId));
       const isSkillsPlaceholder = !formResponses;
+
+      if (isSkillsPlaceholder) {
+        // Log when using placeholder skills data
+        Logger.logInfo(`Using placeholder skills data`, {
+          requestorId: req.body.requestor.requestorId,
+          targetUserId: userId,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       // Build contact information, respecting privacy settings
       const contactInfo = {
@@ -145,8 +175,23 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         isPlaceholder: isProfilePlaceholder || isSkillsPlaceholder,
       };
 
+      // Log successful profile retrieval
+      Logger.logInfo(`User skills profile successfully retrieved`, {
+        requestorId: req.body.requestor.requestorId,
+        targetUserId: userId,
+        isProfilePlaceholder,
+        isSkillsPlaceholder,
+        timestamp: new Date().toISOString(),
+      });
+
       return res.status(200).json(result);
     } catch (error) {
+      // Log exceptions with transaction name and relevant data
+      Logger.logException(error, 'getUserSkillsProfile', {
+        requestorId: req.body.requestor?.requestorId,
+        targetUserId: req.params?.userId,
+        timestamp: new Date().toISOString(),
+      });
       next(error);
     }
   };

@@ -179,7 +179,6 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', collaborationRouter);
-  console.log('Mounting userSkillsProfileRouter at /api');
   app.use('/api', userSkillsProfileRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
