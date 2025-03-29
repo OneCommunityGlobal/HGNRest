@@ -1684,8 +1684,7 @@ const userHelper = function () {
           const badgeName = `${elem.totalHrs} Hours in 1 Week`; 
            
           if (elem.totalHrs=== lastWeek) {
-            console.log(`User qualifies for badge: ${badgeName}`);
-  
+         
             let theBadge = null;
             for (let i = 0; i < badgesOfType.length; i += 1) {
               if (badgesOfType[i]._id.toString() === elem._id.toString()) {
@@ -1721,8 +1720,6 @@ const userHelper = function () {
         const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
         let streak = 0;
 
-        console.log("Current max hours:", currentMaxHours);
-
         for (let i = savedTangibleHrs.length - 1; i >= 0; i--) {
             if (savedTangibleHrs[i] === currentMaxHours) {
                 streak++;
@@ -1739,12 +1736,9 @@ const userHelper = function () {
         }
 
         if (streak === 1) {
-            console.log("Checking X hours in one week since streak is 1.");
             await checkXHrsInOneWeek(personId, user, badgeCollection);
             return;
         }
-
-        console.log(`Searching for badge: ${currentMaxHours} HOURS ${streak}-WEEK STREAK`);
 
         // Fetch matching badges
         const allBadges = await badge.find({
@@ -1759,20 +1753,14 @@ const userHelper = function () {
         });
 
         if (allBadges.length === 0) {
-            console.log("No matching badges found in badge collection.");
             return;
         }
 
-        console.log("Matching badges found:", allBadges[0].badgeName);
         const newBadge = allBadges[0];
 
-        // Ensure badgeCollection is not null or undefined before iterating
         if (!badgeCollection || !Array.isArray(badgeCollection)) {
-            console.log("Invalid badgeCollection data.");
             return;
         }
-
-        //console.log("Badge Collection:", JSON.stringify(badgeCollection, null, 2));
 
         let badgeInCollection = null;
         for (let i = 0; i < badgeCollection.length; i++) {
@@ -1791,7 +1779,6 @@ const userHelper = function () {
             return;
         }
 
-        console.log("Badge not found, checking downgrade/replacement possibility.");
 
         // Loop through badgeCollection to find and handle replacements or downgrades
         for (let j = badgeCollection.length - 1; j >= 0; j--) {
@@ -1807,7 +1794,6 @@ const userHelper = function () {
             if (lastBadge.badge.totalHrs === currentMaxHours) {
                 // Check if the badge is eligible for downgrade or replacement
                 if (lastBadge.badge.weeks < streak && lastBadge.count > 1) {
-                    console.log(`Decreasing badge count for: ${lastBadge.badge.badgeName}`);
                     await decreaseBadgeCount(personId, lastBadge.badge._id);
 
                     console.log(`Adding new badge: ${newBadge.badgeName}`);
@@ -1816,7 +1802,6 @@ const userHelper = function () {
                 }
 
                 if (lastBadge.badge.weeks < streak) {
-                    console.log(`Replacing lower streak badge: ${lastBadge.badge.badgeName} with ${newBadge.badgeName}`);
                     await userProfile.updateOne(
                         { _id: personId, "badgeCollection.badge": lastBadge.badge._id },
                         {
@@ -1833,7 +1818,6 @@ const userHelper = function () {
             }
         }
 
-        console.log(`Adding new badge: ${newBadge.badgeName}`);
         await addBadge(personId, newBadge._id);
 
     } catch (error) {
@@ -2000,9 +1984,8 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      //const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
+      const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
       console.log("awardNewBadge working")
-      const users = await userProfile.find({ email: 'humera.administer@gmail.com' }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
