@@ -7,10 +7,9 @@ const bidSchema = new Schema({
   listingId: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'listings' }],
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
-  price: { type: mongoose.SchemaTypes.Decimal128, required: true },
+  bidPrice: { type: mongoose.SchemaTypes.Decimal128, required: true },
   termsAgreed: { type: Boolean, required: true, default: false },
-  /* price needs to be changed to bidPrice: { type: mongoose.SchemaTypes.Decimal128, required: true },
-    status: { type:String, required:true, default:"Bid Received"}
+  /* status: { type:String, required:true, default:"Bid Received"}
     "Bid won", "Payment processing Started", "Payment Error"
     "Payment Completed",
     Highest Bidder → The bid is currently the highest.

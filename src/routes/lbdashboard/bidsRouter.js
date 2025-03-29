@@ -11,7 +11,10 @@ bidsRouter.route('/getPayPalAccessToken/').get(bidsController.getPayPalAccessTok
 bidsRouter.route('/createOrderWithCard').get(bidsController.createOrderWithCard);
 
 bidsRouter.route('/createOrder').get(bidsController.createOrder);
-bidsRouter.route('/postPaymentWithCard/').get(bidsController.postPaymentWithCard);
+// bidsRouter.route('/postPaymentWithCard/').get(bidsController.postPaymentWithCard);
+bidsRouter.route('/bidAndPay/').post(bidsController.postBidsAndPay);
+// bidsRouter.route('/postBidsAndPay/').get(bidsController.postBidsAndPay);
+
 bidsRouter.route('/orderAuthorize/').get(bidsController.orderAuthorize);
 bidsRouter.route('/orderCapture/').get(bidsController.orderCapture);
 
