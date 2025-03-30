@@ -1,8 +1,10 @@
 const express = require("express");
-const { updatePreferences } = require("../../controllers/lbdashboard/lbuserPrefController");
+const { updatePreferences, getUserPreferences } = require("../../controllers/lbdashboard/lbuserPrefController");
 
 const router = express.Router();
 
-router.patch("/:userId", updatePreferences);
+router
+.put("/notification/:userId", updatePreferences)
+.get("/notification/:userId", getUserPreferences);
 
 module.exports = router;
