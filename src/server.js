@@ -1,9 +1,7 @@
 /* eslint-disable quotes */
 require('dotenv').load();
-
 const { app, logger } = require('./app');
 const websockets = require('./websockets').default;
-
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/socialPostScheduler')();
