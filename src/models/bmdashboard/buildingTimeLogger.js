@@ -30,7 +30,10 @@ const bmTimeLog = new Schema({
     type: String,
     required: true
   },
-  intervals: [bmTimeLogInterval],
+    intervals: {
+    type: [bmTimeLogInterval],
+    default: [] 
+  },
   totalElapsedTime: {
     type: Number, // Total elapsed time in milliseconds
     default: 0

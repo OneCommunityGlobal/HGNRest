@@ -3,49 +3,61 @@ const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');
 
 const bmTimeLoggerController = function (bmTimeLog) {
-  // Start or Resume Time Log
+  // Start Time Log
   const startTimeLog = async (req, res) => {
     try {
       const { projectId, memberId } = req.params;
       const { task } = req.body;
-
-      const updatedTimeLog = await bmTimeLog.findOneAndUpdate(
-        {
+      
+      const now = new Date();
+      
+      // Check if there's already an ongoing time log for this project and member
+      const existingTimeLog = await bmTimeLog.findOne({
+        project: projectId,
+        member: memberId,
+        status: { $in: ['ongoing', 'paused'] }
+      });
+      
+      let timeLog;
+      
+      if (existingTimeLog) {
+        // If existing time log is paused, resume it
+        if (existingTimeLog.status === 'paused') {
+          // Ensure intervals is an array before updating
+          if (existingTimeLog.intervals === null) {
+            existingTimeLog.intervals = [];
+          }
+          
+          timeLog = await bmTimeLog.findByIdAndUpdate(
+            existingTimeLog._id,
+            {
+              $set: {
+                status: 'ongoing',
+                currentIntervalStarted: now
+              }
+            },
+            { new: true, runValidators: true }
+          );
+        } else {
+          // If already ongoing, just return it
+          timeLog = existingTimeLog;
+        }
+      } else {
+        // Create a new time log
+        timeLog = await bmTimeLog.create({
           project: projectId,
           member: memberId,
-          $or: [{ status: "ongoing" }, { status: "paused" }]
-        },
-        [
-          {
-            $set: {
-              status: "ongoing",
-              task: task,
-              currentIntervalStarted: {
-                $cond: {
-                  if: {
-                    $or: [
-                      { $eq: ["$status", "paused"] },
-                      { $eq: ["$currentIntervalStarted", null] } // new timelog
-                    ]
-                  },
-                  then: new Date(),
-                  else: "$currentIntervalStarted"
-                }
-              }
-            }
-          }
-        ],
-        {
-          new: true, // Return updated document
-          upsert: true, // Create new if it doesn’t exist
-          setDefaultsOnInsert: true, // Apply schema defaults
-          runValidators: true
-        }
-      );
-
-      res.status(201).json({
-        message: "Time log started/resumed successfully",
-        timeLog: updatedTimeLog
+          task: task || 'Default Task',
+          status: 'ongoing',
+          currentIntervalStarted: now,
+          totalElapsedTime: 0,
+          intervals: []
+        });
+      }
+      
+      res.status(200).json({
+        message: "Time log started successfully",
+        timeLog
       });
     } catch (error) {
       res.status(500).json({
@@ -61,50 +73,46 @@ const bmTimeLoggerController = function (bmTimeLog) {
     try {
       const { projectId, memberId } = req.params;
       const { timeLogId } = req.body;
-
-      const updatedTimeLog = await bmTimeLog.findOneAndUpdate(
-        { 
-          _id: timeLogId, 
-          project: projectId, 
-          member: memberId, 
-          status: 'ongoing' 
-        },
-        [
-          {
-            $set: {
-              intervals: {
-                $concatArrays: [
-                  "$intervals",
-                  [{
-                    startTime: "$currentIntervalStarted",
-                    endTime: new Date(),
-                    duration: { 
-                      $subtract: [new Date(), "$currentIntervalStarted"]
-                    }
-                  }]
-                ]
-              },
-              totalElapsedTime: {
-                $add: [
-                  "$totalElapsedTime",
-                  { $subtract: [new Date(), "$currentIntervalStarted"] }
-                ]
-              },
-              status: "paused",
-              currentIntervalStarted: null
-            }
-          }
-        ],
-        { 
-          new: true, // Return updated document
-          runValidators: true 
-        }
-      );
-
-      if (!updatedTimeLog) {
+      
+      // fetch the current document to ensure we have valid data fisrt
+      const currentTimeLog = await bmTimeLog.findOne({
+        _id: timeLogId,
+        project: projectId,
+        member: memberId,
+        status: 'ongoing'
+      });
+      
+      if (!currentTimeLog) {
         return res.status(404).json({ message: "Active time log not found" });
       }
-
+      
+      const currentDuration = Date.now() - (currentTimeLog.currentIntervalStarted?.getTime() || Date.now());
+      
+      const newTotalElapsedTime = (currentTimeLog.totalElapsedTime || 0) + currentDuration;
+      
+      // Create the new interval
+      const newInterval = {
+        startTime: currentTimeLog.currentIntervalStarted || new Date(),
+        endTime: new Date(),
+        duration: currentDuration
+      };
+      
+      const updatedTimeLog = await bmTimeLog.findByIdAndUpdate(
+        timeLogId,
+        {
+          $push: { intervals: newInterval },
+          $set: {
+            totalElapsedTime: newTotalElapsedTime,
+            status: "paused",
+            currentIntervalStarted: null
+          }
+        },
+        {
+          new: true,
+          runValidators: true
+        }
+      );
+      
       res.status(200).json({
         message: "Time log paused successfully",
         timeLog: updatedTimeLog
@@ -220,7 +228,7 @@ const bmTimeLoggerController = function (bmTimeLog) {
         matchStage.member = memberId;
       }
 
-      const timeLogs = await TimeLog.aggregate([
+      const timeLogs = await bmTimeLog.aggregate([
         { $match: matchStage },
         {
           $lookup: {
