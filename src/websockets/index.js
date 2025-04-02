@@ -2,6 +2,8 @@
 /* eslint-disable operator-linebreak */
 /* eslint-disable consistent-return */
 /* eslint-disable quotes */
+import Message from '../models/lbdashboard/message'
+
 /* eslint-disable linebreak-style */
 const WebSocket = require('ws');
 const moment = require('moment');
@@ -101,6 +103,42 @@ export default async (expServer) => {
       const resp = await handleMessage(msg, clients, msg.userId ?? userId);
       broadcastToSameUser(connections, userId, resp);
       if (msg.userId) broadcastToSameUser(connections, msg.userId, resp);
+
+      if (msg.action === "SEND_MESSAGE") {
+        const chatMessage = {
+          sender: userId, // from JWT
+          receiver: msg.receiver,
+          content: msg.content,
+          status: 'sent',
+          timestamp: new Date(),
+        };
+    
+        try {
+          // 💾 Save message to MongoDB
+          const savedMessage = await Message.create(chatMessage);
+          // 📤 Send to receiver
+            broadcastToSameUser(connections, msg.receiver, JSON.stringify({
+              action: 'RECEIVE_MESSAGE',
+              payload: savedMessage,
+            }));
+          
+          // 🔁 Optional: echo back to sender
+          ws.send(JSON.stringify({
+            action: 'RECEIVE_MESSAGE',
+            payload: savedMessage,
+          }));
+    
+        } catch (err) {
+          console.error("❌ Error saving message:", err);
+          ws.send(JSON.stringify({
+            action: 'SEND_MESSAGE_FAILED',
+            error: "Could not send message"
+          }));
+        }
+    
+        return;
+      }
+
     });
 
     /**
