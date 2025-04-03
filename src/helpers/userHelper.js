@@ -203,6 +203,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
+        ${infringement.reasons?.length ? `<p><b>Reasons:</b> ${infringement.reasons.join(', ')}</p>` : ''}
         ${descrInfringement}
         ${finalParagraph}
         <p>Thank you,<p>
@@ -742,7 +743,6 @@ const userHelper = function () {
                 'dddd M-D-YYYY',
               )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
             }
-            
           } else {
             description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
               'dddd M-D-YYYY',
@@ -815,6 +815,7 @@ const userHelper = function () {
             } else {
               emailsBCCs = null;
             }
+
             emailSender(
               status.email,
               'New Infringement Assigned',
@@ -827,6 +828,7 @@ const userHelper = function () {
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
+
           const categories = await dashboardHelper.laborThisWeekByCategory(
             personId,
             pdtStartOfLastWeek,
@@ -900,6 +902,7 @@ const userHelper = function () {
       const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
         const user = inactiveUsers[i];
+
         await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
       }
     } catch (err) {
@@ -909,81 +912,96 @@ const userHelper = function () {
 
   const missedSummaryTemplate = (firstname) => {
     return (
-    `  <p>Dear ${firstname},</p>
+    `<div style="font-family: Arial, sans-serif;">
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Dear ${firstname},</p>
 
-    <p>When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for “Last Week”.</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
 
-    <p>Reply to this email once you’ve done this, so I know to review what you’ve submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I’ll remove this blue square.</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">Reply to this email once you've done this, so I know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I'll remove this blue square.</p>
 
-    <p>With Gratitude,</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">With Gratitude,</p>
 
-    <p>Jae Sabol</p>
-    <p>310.755.4693</p>
-    <p>Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></p>
-    <p>Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></p>
-    <p>Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></p>
-    <p>Timezone: Los Angeles, CA - Pacific Time</p>`
+      <div style="margin: 0; padding: 0; margin-top: 10px;">
+        <p style="margin: 0; padding: 0; line-height: 1;">Jae Sabol</p>
+        <p style="margin: 0; padding: 0; line-height: 1;">310.755.4693</p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Timezone: Los Angeles, CA - Pacific Time</p>
+      </div>
+    </div>`
     )
   }
   // function to send emails to those users who have completed hours but not submitted their summary
   const completeHoursAndMissedSummary= async () => {
       try{
       const users = await userProfile.find(
-        { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        { isActive: true, weeklySummaryOption: "Required"  },
+        '_id weeklycommittedHours weeklySummaries missedHours role email firstName',
       );
+      
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+      
       for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        const person = await userProfile.findById(user._id);
-        const personId = mongoose.Types.ObjectId(user._id);
-        let hasWeeklySummary = false;
+        const allowedEmails = [
+          "jae@onecommunityglobal.org", //Summary turned off Owner
+          "onecommunityhospitality@gmail.com", //Summary turned off Admin
+          "one.community@me.com", //Manager, did hours but no summary
+          "jatinagrawal0801@gmail.com", //Volunteer, did hours but no summary
+          "ttertitsa1@gmail.com", //Volunteer did hours with summary
+          "osorare@yahoo.com", //Core Team, did hours with summary
+        ];
 
-        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-          const { summary } = user.weeklySummaries[0];
-          if (summary) {
-            hasWeeklySummary = true;
+        if(allowedEmails.includes(users[i].email)){
+          const user = users[i];
+          const personId = mongoose.Types.ObjectId(user._id);
+          let hasWeeklySummary = false;
+
+          if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+            const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
+            const summary = relevantSummary?.summary;
+
+            if (summary && summary.trim().length > 0) {
+              hasWeeklySummary = true;
+            }
           }
-        }
-        const results = await dashboardHelper.laborthisweek(
-          personId,
-          pdtStartOfLastWeek,
-          pdtEndOfLastWeek,
-        );
-
-        const { timeSpent_hrs: timeSpent } = results[0];
-
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        const timeNotMet = timeSpent < weeklycommittedHours;
-
-        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
-
-        const requestsForTimeOff = await timeOffRequest.find({
-          requestFor: personId,
-          startingDate: { $lte: utcStartMoment },
-          endingDate: { $gte: utcEndMoment },
-        });
-        const hasTimeOffRequest = requestsForTimeOff.length > 0;
-        // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
-        if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
-            emailSender(
-             person.email,
-            'Re: New Infringement Assigned',
-            missedSummaryTemplate(person.firstName),
-            null,
-            'jae@onecommunityglobal.org',
-            'jae@onecommunityglobal.org',
-            null,
+          const results = await dashboardHelper.laborthisweek(
+            personId,
+            pdtStartOfLastWeek,
+            pdtEndOfLastWeek,
           );
-        }
-      }
-    }catch(err){
+          const { timeSpent_hrs: timeSpent } = results[0];
+
+          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+          const timeNotMet = timeSpent < weeklycommittedHours;
+
+          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+        
+          // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
+          if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
+              emailSender(
+              users[i].email,
+              'Weekly Summary Missing',
+              missedSummaryTemplate(users[i].firstName),
+              null,
+              'jae@onecommunityglobal.org',
+              'jae@onecommunityglobal.org',
+            );
+          }
+        }}
+    }catch(err){ 
       console.log(err)
     }
   };
@@ -1293,7 +1311,10 @@ const userHelper = function () {
         getInfringementEmailBody(
           firstName,
           lastName,
-          element,
+          {
+            ...element,
+            reasonsText: element.reasons,
+          },
           totalInfringements,
           undefined,
           undefined,
@@ -2581,8 +2602,8 @@ const userHelper = function () {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
-    completeHoursAndMissedSummary,
     getProfileImagesFromWebsite,
+    completeHoursAndMissedSummary
   };
 };
 
