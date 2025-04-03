@@ -55,6 +55,15 @@ const titlecontroller = function (Title) {
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
 
+    if (!title.titleCode || !title.titleCode.trim()) {
+      return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+    }
+
+    const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
+    if (!titleCodeRegex.test(title.titleCode)) {
+      return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+    }
+
     // valid title name
     if (!title.titleName.trim()) {
       res.status(400).send({ message: 'Title cannot be empty.' });
@@ -146,6 +155,16 @@ const titlecontroller = function (Title) {
       if (!req.body.titleName.trim()) {
         res.status(400).send({ message: 'Title cannot be empty.' });
         return;
+      }
+
+      if (!req.body.titleCode.trim()) {
+        res.status(400).send({ message: 'Title code cannot be empty.' });
+        return;
+      }
+
+      const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
+      if (!titleCodeRegex.test(req.body.titleCode)) {
+        return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
       }
 
       //  if media is empty
