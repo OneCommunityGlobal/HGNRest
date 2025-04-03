@@ -8,12 +8,12 @@ global.AbortController = AbortController;
 const routes = function () {
   const imageRouter = express.Router();
 
-  const storageAccountName = process.env.AZURE_STORAGE_ACCOUNT_NAME || 'hgnimageupload';
-  const sasToken = process.env.AZURE_SAS_TOKEN || '?sv=2022-11-02&ss=b&srt=sco&sp=rwdlatfx&se=2026-03-14T08:20:19Z&st=2025-03-14T00:20:19Z&spr=https&sig=xnn3G0eOWW1%2FLeFce5%2BihtnvqM0yGTNLjHjVHwUA7jI%3D';
+  const storageAccountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+  const sasToken = process.env.AZURE_SAS_TOKEN;
   const blobServiceClient = new BlobServiceClient(
     `https://${storageAccountName}.blob.core.windows.net?${sasToken}`
   );
-  const containerName = 'weekly-progress-images';
+  const containerName = process.env.AZURE_STORAGE_ACCOUNT_CONTAINER;
 
   imageRouter.route('/upload-image').post(async (req, res) => {
     try {
