@@ -51,7 +51,7 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       let userProfile = await UserProfile.findById(userId)
         .populate({
           path: 'teams',
-          select: '_id name role',
+          select: '_id teamName role',
         })
         .lean();
 
@@ -102,26 +102,28 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       const contactInfo = {
         email: userProfile.contactSettings?.isEmailPublic ? userProfile.email : null,
         phone: userProfile.contactSettings?.isPhonePublic ? userProfile.phone || null : null,
-        preferredContact: userProfile.contactSettings?.preferredContact || 'email',
+        public:
+          userProfile.contactSettings?.isEmailPublic ||
+          userProfile.contactSettings?.isPhonePublic ||
+          false,
       };
 
       // Extract team details - handle both populated and non-populated teams
       const teamDetails =
         userProfile.teams?.map((team) => {
-          // If teams were populated successfully
-          if (team.team && typeof team.team === 'object') {
+          // Check if team is directly populated or is just an ID reference
+          if (typeof team === 'object' && team._id) {
             return {
-              id: team.team._id,
-              name: team.team.name,
+              id: team._id,
+              name: team.teamName || 'Unknown Team',
               role: team.role || 'Member',
-              description: team.team.description || null,
             };
           }
           // Fallback if population didn't work (or using default values)
           return {
-            id: team._id || 'unknown',
-            name: team.name || 'Unknown Team',
-            role: team.role || 'Member',
+            id: team || 'unknown',
+            name: 'Unknown Team',
+            role: 'Member',
           };
         }) || [];
 
@@ -161,6 +163,12 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
             period: 'N/A',
             leadership_experience: 'No data available',
             combined_frontend_backend: '0',
+          },
+          followup: formResponses?.followup || {
+            platform: 'N/A',
+            other_skills: 'N/A',
+            suggestion: 'N/A',
+            additional_info: 'No followup data available',
           },
           preferences: formResponses?.preferences || ['No preferences data available'],
           availability: formResponses?.availability || { Note: 'No availability data provided' },
