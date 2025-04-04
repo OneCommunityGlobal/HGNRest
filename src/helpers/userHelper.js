@@ -28,6 +28,11 @@ const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
+const fs = require('fs');
+const cheerio = require('cheerio');
+const axios = require('axios');
+const sharp = require('sharp');
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -105,7 +110,7 @@ const userHelper = function () {
     }
 
     const imageType = picParts[0].split('/')[1].split(';')[0];
-    if (imageType !== 'jpeg' && imageType !== 'png') {
+    if (imageType !== 'jpeg' && imageType !== 'png' && imageType !== 'svg+xml') {
       errors.push('Image type shoud be either jpeg or png.');
       result = false;
     }
@@ -198,6 +203,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
+        ${infringement.reasons?.length ? `<p><b>Reasons:</b> ${infringement.reasons.join(', ')}</p>` : ''}
         ${descrInfringement}
         ${finalParagraph}
         <p>Thank you,<p>
@@ -904,6 +910,102 @@ const userHelper = function () {
     }
   };
 
+  const missedSummaryTemplate = (firstname) => {
+    return (
+    `<div style="font-family: Arial, sans-serif;">
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Dear ${firstname},</p>
+
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
+
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">Reply to this email once you've done this, so I know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I'll remove this blue square.</p>
+
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">With Gratitude,</p>
+
+      <div style="margin: 0; padding: 0; margin-top: 10px;">
+        <p style="margin: 0; padding: 0; line-height: 1;">Jae Sabol</p>
+        <p style="margin: 0; padding: 0; line-height: 1;">310.755.4693</p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></p>
+        <p style="margin: 0; padding: 0; line-height: 1;">Timezone: Los Angeles, CA - Pacific Time</p>
+      </div>
+    </div>`
+    )
+  }
+  // function to send emails to those users who have completed hours but not submitted their summary
+  const completeHoursAndMissedSummary= async () => {
+      try{
+      const users = await userProfile.find(
+        { isActive: true, weeklySummaryOption: "Required"  },
+        '_id weeklycommittedHours weeklySummaries missedHours role email firstName',
+      );
+      
+      const pdtStartOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week');
+      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+      
+      for (let i = 0; i < users.length; i += 1) {
+        const allowedEmails = [
+          "jae@onecommunityglobal.org", //Summary turned off Owner
+          "onecommunityhospitality@gmail.com", //Summary turned off Admin
+          "one.community@me.com", //Manager, did hours but no summary
+          "jatinagrawal0801@gmail.com", //Volunteer, did hours but no summary
+          "ttertitsa1@gmail.com", //Volunteer did hours with summary
+          "osorare@yahoo.com", //Core Team, did hours with summary
+        ];
+
+        if(allowedEmails.includes(users[i].email)){
+          const user = users[i];
+          const personId = mongoose.Types.ObjectId(user._id);
+          let hasWeeklySummary = false;
+
+          if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+            const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
+            const summary = relevantSummary?.summary;
+
+            if (summary && summary.trim().length > 0) {
+              hasWeeklySummary = true;
+            }
+          }
+          const results = await dashboardHelper.laborthisweek(
+            personId,
+            pdtStartOfLastWeek,
+            pdtEndOfLastWeek,
+          );
+          const { timeSpent_hrs: timeSpent } = results[0];
+
+          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+          const timeNotMet = timeSpent < weeklycommittedHours;
+
+          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+        
+          // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
+          if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
+              emailSender(
+              users[i].email,
+              'Weekly Summary Missing',
+              missedSummaryTemplate(users[i].firstName),
+              null,
+              'jae@onecommunityglobal.org',
+              'jae@onecommunityglobal.org',
+            );
+          }
+        }}
+    }catch(err){ 
+      console.log(err)
+    }
+  };
+
   const applyMissedHourForCoreTeam = async () => {
     try {
       const currentDate = moment().tz('America/Los_Angeles').format();
@@ -1070,7 +1172,9 @@ const userHelper = function () {
       );
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        if (moment().isSameOrAfter(moment(user.reactivationDate))) {
+        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
+        if (canActivate) {
+          // Use '!' to invert the boolean value for testing
           await userProfile.findByIdAndUpdate(
             user._id,
             {
@@ -1207,7 +1311,10 @@ const userHelper = function () {
         getInfringementEmailBody(
           firstName,
           lastName,
-          element,
+          {
+            ...element,
+            reasonsText: element.reasons,
+          },
           totalInfringements,
           undefined,
           undefined,
@@ -1602,35 +1709,46 @@ const userHelper = function () {
   };
 
   // 'Most Hrs in Week'
-
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
-    if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
-      const badgeOfType = badgeCollection
-        .filter((object) => object.badge.type === 'Most Hrs in Week')
-        .map((object) => object.badge);
-      await badge.findOne({ type: 'Most Hrs in Week' }).then((results) => {
-        userProfile
-          .aggregate([
-            { $match: { isActive: true } },
-            { $group: { _id: 1, maxHours: { $max: '$lastWeekTangibleHrs' } } },
-          ])
-          .then((userResults) => {
-            if (badgeOfType.length > 1) {
-              removeDupBadge(user._id, badgeOfType[0]._id);
-            }
+    try {
+      if (user.weeklycommittedHours > 0 && user.lastWeekTangibleHrs > user.weeklycommittedHours) {
+        // Getting badge of type 'Most Hrs in Week'
+        const results = await badge.findOne({ type: 'Most Hrs in Week' });
+        if (!results) {
+          console.error('No badge found for type "Most Hrs in Week"');
+          return;
+        }
 
-            if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= userResults[0].maxHours) {
-              if (badgeOfType.length) {
-                increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType[0]._id));
-              } else {
-                addBadge(personId, mongoose.Types.ObjectId(results._id));
-              }
-            }
-          });
-      });
+        // Getting the max hours of all active users
+        const userResults = await userProfile.aggregate([
+          { $match: { isActive: true } },
+          { $group: { _id: null, maxHours: { $max: '$lastWeekTangibleHrs' } } },
+        ]);
+
+        if (!userResults || userResults.length === 0) {
+          console.error('No user results found');
+          return;
+        }
+
+        const maxHours = userResults[0].maxHours;
+
+        if (user.lastWeekTangibleHrs && user.lastWeekTangibleHrs >= maxHours) {
+          const existingBadge = badgeCollection.find(
+            (object) => object.badge.type === 'Most Hrs in Week',
+          );
+          if (existingBadge) {
+            // console.log('Increasing badge count');
+            await increaseBadgeCount(personId, mongoose.Types.ObjectId(existingBadge.badge._id));
+          } else {
+            // console.log('Adding badge');
+            await addBadge(personId, mongoose.Types.ObjectId(results._id));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkMostHrsWeek:', error);
     }
   };
-
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
     const badgesOfType = [];
@@ -2246,6 +2364,224 @@ const userHelper = function () {
     }
   };
 
+  function searchForTermsInFields(data, term1, term2) {
+    const lowerCaseTerm1 = term1.toLowerCase();
+    const lowerCaseTerm2 = term2.toLowerCase();
+
+    let bothTermsMatches = [];
+    let term2Matches = [];
+
+    // Check if the current data is an array
+    if (Array.isArray(data)) {
+      data.forEach((item) => {
+        const bothTermsFound = searchForBothTerms(item, lowerCaseTerm1, lowerCaseTerm2);
+        // const term2OnlyFound = searchForTerm2(item, lowerCaseTerm2);
+
+        if (bothTermsFound) {
+          bothTermsMatches.push(item); // If both terms are found, store the item
+        }
+        // else if (term2OnlyFound) {
+        //     term2Matches.push(item); // If only term2 is found, store the item
+        // }
+      });
+
+      // If matches for both terms are found, return them, else return term2 matches
+      if (bothTermsMatches.length > 0) {
+        return bothTermsMatches;
+      }
+      //  else if (term2Matches.length > 0) {
+      //     return term2Matches;
+      // }
+      else {
+        return []; // No match found, return empty array
+      }
+    }
+
+    // Recursion case for nested objects
+    if (typeof data === 'object' && data !== null) {
+      const result = Object.keys(data).some((key) => {
+        if (typeof data[key] === 'object') {
+          return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+        }
+      });
+      return result ? data : null;
+    }
+    return [];
+  }
+
+  // Helper function to check if both terms are in the string
+  function searchForBothTerms(data, term1, term2) {
+    if (typeof data === 'object' && data !== null) {
+      const fieldsToCheck = ['src', 'alt', 'title', 'nitro_src'];
+      return Object.keys(data).some((key) => {
+        if (fieldsToCheck.includes(key)) {
+          const stringValue = String(data[key]).toLowerCase();
+          return stringValue.includes(term1) && stringValue.includes(term2); // Check if both terms are in the string
+        }
+        return false;
+      });
+    }
+    return false;
+  }
+
+  // Helper function to check if only term2 is in the string
+  function searchForTerm2(data, term2) {
+    if (typeof data === 'object' && data !== null) {
+      const fieldsToCheck = ['src', 'alt', 'title', 'nitro_src'];
+      return Object.keys(data).some((key) => {
+        if (fieldsToCheck.includes(key)) {
+          const stringValue = String(data[key]).toLowerCase();
+          return stringValue.includes(term2); // Check if only term2 is in the string
+        }
+        return false;
+      });
+    }
+    return false;
+  }
+
+  // async function imageUrlToPngBase64(url) {
+  //   try {
+  //     // Fetch the image as a buffer
+  //     const response = await axios.get(url, { responseType: 'arraybuffer' });
+
+  //     if (response.status !== 200) {
+  //       throw new Error(`Failed to fetch the image: ${response.statusText}`);
+  //     }
+
+  //     const imageBuffer = Buffer.from(response.data);
+  //     // Compress and resize the image using sharp
+  //     const pngBuffer = await sharp(imageBuffer)
+  //       // .resize(1000, 1000) // Resize to given dimensions
+  //       // .png({ quality: 100 }) // Compress PNG with quality 80 (lower = more compression)
+  //       .toBuffer();
+
+  //     // Convert the PNG buffer to a base64 string
+  //     const base64Png = pngBuffer.toString('base64');
+
+  //     return `data:image/png;base64,${base64Png}`;
+  //   } catch (error) {
+  //     console.error(`An error occurred: ${error.message}`);
+  //     return null;
+  //   }
+  // }
+  async function imageUrlToPngBase64(url, maxSizeKB = 45) {
+    try {
+      // Fetch the image as a buffer
+      const response = await axios.get(url, { responseType: "arraybuffer" });
+  
+      if (response.status !== 200) {
+        throw new Error(`Failed to fetch the image: ${response.statusText}`);
+      }
+  
+      let imageBuffer = Buffer.from(response.data);
+  
+      let quality = 100; // Start with max quality
+      let width = 1200; // Start with a reasonable large width
+      let pngBuffer = await sharp(imageBuffer).resize({ width }).png({ quality }).toBuffer();
+      let imageSizeKB = pngBuffer.length / 1024; // Convert bytes to KB
+  
+      // Try to optimize while keeping best quality
+      while (imageSizeKB > maxSizeKB) {
+        if (quality > 10) {
+          quality -= 5; // Reduce quality gradually
+        } else {
+          width = Math.max(100, Math.round(width * 0.9)); // Reduce width gradually
+        }
+  
+        pngBuffer = await sharp(imageBuffer)
+          .resize({ width }) // Adjust width
+          .png({ quality }) // Adjust quality
+          .toBuffer();
+  
+        imageSizeKB = pngBuffer.length / 1024;
+      }
+  
+      // Convert to Base64 and return
+      return `data:image/png;base64,${pngBuffer.toString("base64")}`;
+    } catch (error) {
+      console.error(`An error occurred: ${error.message}`);
+      return null;
+    }
+  }
+
+  const fetchWithRetry = async (url, maxRetries = 2, delayTime = 300000) => {
+    let attempts = 0;
+    while (attempts < maxRetries) {
+      try {
+        const response = await axios.get(url);
+        return response.data; // Return data if the request succeeds
+      } catch (error) {
+        attempts++;
+        // console.error(`Attempt ${attempts} failed: ${error.message}`);
+        if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
+        // console.log(`Retrying in ${delayTime / 1000} seconds...`);
+        await delay(delayTime); // Wait for 5 minutes
+      }
+    }
+  };
+
+  const getProfileImagesFromWebsite = async () => {
+    try {
+      // Fetch the webpage with retry logic
+      const htmlText = await fetchWithRetry('https://www.onecommunityglobal.org/team');
+      // Load HTML into Cheerio
+      const $ = cheerio.load(htmlText);
+      const imgData = [];
+      $('img').each((i, img) => {
+        imgData.push({
+          src: $(img).attr('src'),
+          alt: $(img).attr('alt'),
+          title: $(img).attr('title'),
+          nitro_src: $(img).attr('nitro-lazy-src'),
+          data_src: $(img).attr('data-src'),
+        });
+      });
+      const users = await userProfile.find(
+        { isActive: true, bioPosted: "posted" },
+        'firstName lastName email profilePic suggestedProfilePics',
+      );
+
+      await Promise.all(
+        users.map(async (u) => {
+          if (!u.profilePic) {
+            var result = searchForTermsInFields(imgData, u.firstName, u.lastName);
+            try {
+              if (result.length === 1) {
+                if (result[0].nitro_src !== undefined && result[0].nitro_src !== null) {
+                  await userProfile.updateOne(
+                    { _id: u._id },
+                    { $set: { profilePic: result[0].nitro_src } },
+                  );
+                } else {
+                  const images = result[0].src.startsWith('http')
+                    ? result[0].src
+                    : result[0].data_src;
+                  const image = await imageUrlToPngBase64(images);
+                  await userProfile.updateOne({ _id: u._id }, { $set: { profilePic: image } });
+                }
+              }
+              // else if (result.length > 1) {
+              //     if(!result[0].src.startsWith('http')){
+              //       for(let i=0; i<result.length; i++){
+              //         result[i].data_src=await imageUrlToPngBase64(result[i].data_src);
+              //       }
+              //     }
+              //     await userProfile.updateOne(
+              //       { _id: u._id },
+              //       { $set: { suggestedProfilePics: result } }
+              //     );
+              // }
+            } catch (error) {
+              console.error(`Error updating user ${u._id}:`, error);
+            }
+          }
+        }),
+      );
+    } catch (error) {
+      console.error('Failed to fetch profile images:', error);
+    }
+  };
+
   return {
     changeBadgeCount,
     getUserName,
@@ -2266,6 +2602,8 @@ const userHelper = function () {
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
+    getProfileImagesFromWebsite,
+    completeHoursAndMissedSummary
   };
 };
 
