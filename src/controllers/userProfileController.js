@@ -485,8 +485,24 @@ const userProfileController = function (UserProfile, Project) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
       }
-      // validate userprofile pic
 
+      // Capture Weekly Summary Submission Date
+      if (req.body.weeklySummaries && req.body.weeklySummaries.length > 0) {
+        const latestSummary = req.body.weeklySummaries[req.body.weeklySummaries.length - 1];
+
+        // Ensure the user profile has a `summarySubmissionDates` array
+        if (!record.summarySubmissionDates) {
+          record.summarySubmissionDates = [];
+        }
+
+        // Add current date to `summarySubmissionDates`
+        record.summarySubmissionDates.push({
+          date: new Date(),
+          summaryId: latestSummary._id || null,
+        });
+      }
+
+      // validate userprofile pic
       if (req.body.profilePic) {
         const results = userHelper.validateProfilePic(req.body.profilePic);
 
@@ -560,6 +576,7 @@ const userProfileController = function (UserProfile, Project) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
       if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
         const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
         summaryFields.forEach((fieldName) => {
@@ -1493,8 +1510,6 @@ const userProfileController = function (UserProfile, Project) {
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
-
- 
 
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
