@@ -11,7 +11,8 @@ const routes = function (Meeting) {
     controller.markMeetingAsRead,
   );
   MeetingRouter.route('/meetings/upcoming/:organizerId').get(controller.getAllMeetingsByOrganizer);
-
+  MeetingRouter.route('/meeting/:meetingId/calendar').get(controller.getCalendarInvite);
+  MeetingRouter.route('/meetings/participant/:participantId').get(controller.getUpcomingMeetingForParticipant);
   return MeetingRouter;
 };
 

@@ -11,6 +11,7 @@ const meetingSchema = new mongoose.Schema({
     },
   ],
   location: { type: String },
+  locationDetails: { type: String },
   notes: { type: String },
 });
 

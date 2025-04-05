@@ -19,6 +19,7 @@ const meetingController = function (Meeting) {
       req.body.participantList.length === 0 ||
       (req.body.location && !['Zoom', 'Phone call', 'On-site'].includes(req.body.location));
 
+
     if (isInvalid) {
       return res.status(400).send({ error: 'Bad request: Invalid form values' });
     }
@@ -61,6 +62,7 @@ const meetingController = function (Meeting) {
         notificationIsRead: false,
       }));
       meeting.location = req.body.location;
+      meeting.locationDetails = req.body.locationDetails;
       meeting.notes = req.body.notes;
 
       await meeting.save({ session });
@@ -99,12 +101,15 @@ const meetingController = function (Meeting) {
             duration: 1,
             organizer: 1,
             location: 1,
+            locationDetails: 1,
             notes: 1,
             recipient: '$participantList.participant',
             isRead: '$participantList.notificationIsRead',
           },
         },
       ]);
+      console.log(meetings[meetings.length-1]);
+      
       res.status(200).json(meetings);
     } catch (error) {
       console.error('Error fetching meetings:', error);
@@ -155,6 +160,7 @@ const meetingController = function (Meeting) {
             duration: 1,
             organizer: 1,
             location: 1,
+            locationDetails: 1,
             notes: 1,
             participantList: 1,
           },
@@ -167,12 +173,115 @@ const meetingController = function (Meeting) {
       res.status(500).json({ error: 'Failed to fetch all upcoming meetings' });
     }
   };
+  const getCalendarInvite = async (req, res) => {
+    try {
+      const { meetingId } = req.params;
+      const meeting = await Meeting.findById(meetingId).populate('organizer');
+
+      if (!meeting) {
+        return res.status(404).json({ error: 'Meeting not found' });
+      }
+
+      const organizerFullName = `${meeting.organizer.firstName} ${meeting.organizer.lastName}`;
+      const startDate = new Date(meeting.dateTime);
+      const endDate = new Date(startDate.getTime() + meeting.duration * 1000);
+      const formatDate = (date) => date.toISOString().replace(/-|:|\.\d+/g, '').toUpperCase();
+
+      const googleCalendarLink = `https://calendar.google.com/calendar/u/0/r/eventedit?action=TEMPLATE&dates=${formatDate(startDate)}/${formatDate(endDate)}&details=${encodeURIComponent(meeting.notes)}&location=${encodeURIComponent(meeting.locationDetails)}&text=Meeting%20with%20${encodeURIComponent(organizerFullName)}`;
+
+      const icsContent = `BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//YourApp//Meeting Scheduler//EN
+      BEGIN:VEVENT
+      SUMMARY:Meeting with ${organizerFullName}
+      LOCATION:${meeting.locationDetails}
+      DTSTART:${formatDate(startDate)}
+      DTEND:${formatDate(endDate)}
+      DESCRIPTION:${meeting.notes}
+      END:VEVENT
+      END:VCALENDAR`;
+
+      res.status(200).json({
+        googleCalendarLink,
+        icsContent,
+        organizerFullName,
+      });
+    } catch (error) {
+      logger.logException(error);
+      res.status(500).json({ error: 'Failed to fetch calendar invite' });
+    }
+  };
+
+  const getUpcomingMeetingForParticipant = async function (req, res) {
+    try {
+      const { participantId } = req.params;
+  
+      // Use aggregate pipeline to fetch meetings for the participant
+      const meetings = await Meeting.aggregate([
+        { $unwind: '$participantList' }, // Must unwind before matching on nested field
+        {
+          $match: {
+            'participantList.participant': mongoose.Types.ObjectId(participantId),
+          },
+        },
+        {
+          $project: {
+            _id: 1, // this is the meeting ID
+            dateTime: 1,
+            duration: 1,
+            organizer: 1,
+            location: 1,
+            locationDetails: 1,
+            notes: 1,
+            recipient: '$participantList.participant',
+            isRead: '$participantList.notificationIsRead',
+          },
+        },
+       // optional: ensures the list is sorted chronologically
+      ]);
+  
+      if (meetings.length === 0) {
+        return res.status(404).json({ error: 'No meetings found for this participant' });
+      }
+  
+      const lastMeeting = meetings[meetings.length - 1];
+  
+      // Fetch full meeting document with organizer populated
+      const meeting = await Meeting.findById(lastMeeting._id).populate('organizer');
+  
+      if (!meeting || !meeting.organizer) {
+        return res.status(404).json({ error: 'Organizer information not found' });
+      }
+  
+      const organizerName = `${meeting.organizer.firstName} ${meeting.organizer.lastName}`;
+  
+      // Send the last meeting and organizer name as response
+      res.status(200).json({ lastMeeting, organizerName });
+  
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      res.status(500).json({ error: 'Failed to fetch meetings' });
+    }
+  };
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
 
   return {
     postMeeting,
     getMeetings,
     markMeetingAsRead,
     getAllMeetingsByOrganizer,
+    getCalendarInvite,
+    getUpcomingMeetingForParticipant,
   };
 };
 
