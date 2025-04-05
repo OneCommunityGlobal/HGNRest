@@ -420,7 +420,7 @@ const addEditHistory = async (
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        <hr style="border-top: 1px dashed #000;"/>      
+        <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
@@ -568,7 +568,7 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (timeEntry.taskId) {
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               timeEntry.taskId,
               0,
               timeEntry.taskId,
@@ -758,7 +758,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // change from tangible to intangible
           if (initialIsTangible) {
             // subtract initial logged hours from old task (if not null)
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               initialTaskId,
               initialTotalSeconds,
               null,
@@ -784,7 +784,7 @@ const timeEntrycontroller = function (TimeEntry) {
             );
           } else {
             // from intangible to tangible
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               null,
               null,
               newTaskId,
@@ -813,7 +813,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
 
           // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
-          updateTaskLoggedHours(
+          await updateTaskLoggedHours(
             initialTaskId,
             initialTotalSeconds,
             newTaskId,
@@ -931,7 +931,7 @@ const timeEntrycontroller = function (TimeEntry) {
           await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
@@ -983,7 +983,8 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: userId,
         dateOfWork: { $gte: fromdate, $lte: todate },
         // include the time entries for the archived projects
-      }).sort('-lastModifiedDateTime');
+      })
+      .sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
@@ -1069,8 +1070,8 @@ const timeEntrycontroller = function (TimeEntry) {
     const timeentryCache=cacheClosure();
     const cacheData=timeentryCache.hasCache(cacheKey)
     if(cacheData){
-      let data=timeentryCache.getCache(cacheKey);
-      return res.status(200).send(data); 
+      const data = timeentryCache.getCache(cacheKey);
+      return res.status(200).send(data);
     }
     try {
       const results = await TimeEntry.find(
@@ -1285,7 +1286,7 @@ const timeEntrycontroller = function (TimeEntry) {
   const getLostTimeEntriesForTeamList = function (req, res) {
     const { teams, fromDate, toDate } = req.body;
     const lostteamentryCache=cacheClosure()
-    const cacheKey='LostTeamEntry'+`_${fromDate}`+`_${toDate}`;
+    const cacheKey = `LostTeamEntry_${fromDate}_${toDate}`;
     const cacheData=lostteamentryCache.getCache(cacheKey)
     if(cacheData){
       return res.status(200).send(cacheData)
