@@ -46,6 +46,10 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+
+const buildingToolModel = require('../models/bmdashboard/buildingTool');
+const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
+
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
@@ -125,13 +129,14 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(buildingProject, buildingMaterialModel, buildingToolModel);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
 );
 
-const collaborationRouter=require('../routes/collaborationRouter');
+const collaborationRouter = require('../routes/collaborationRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -186,4 +191,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
+  app.use('/api/financials', bmFinancialRouter);
 };
