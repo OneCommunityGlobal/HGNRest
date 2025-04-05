@@ -1,4 +1,5 @@
 const express = require('express');
+
 //const { facebookController } = require('../controllers/facebookSocialMediaController');
 
 const routes = function () {
@@ -7,6 +8,8 @@ const routes = function () {
  
     
     facebookRouter.route('/createFbPost').post(controller.createFbPost);
+    facebookRouter.route('/scheduleFbPost').post(controller.scheduleFbPost);
+    facebookRouter.route('/posts').post(controller.scheduleFbPost);
  
     return facebookRouter;
   };

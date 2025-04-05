@@ -3,6 +3,7 @@ const cheerio = require('cheerio');
 const axios =  require("axios");
 const FormData = require('form-data');
 const fs = require('fs');
+const ScheduledPost = require('../models/scheduledPostSchema');
 
 const facebookController = function(){
 
@@ -111,6 +112,75 @@ const facebookController = function(){
       }
     }
 
+    async function scheduleFbPost(req, res) {
+      console.log('scheduleTweet call');
+      console.log('Request body:', req.body);
+      const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.EmailContent);
+      console.log("request reached backend textcontent", textContent)
+      const scheduledDate = req.body.ScheduleDate;
+      const scheduledTime = req.body.ScheduleTime;
+      console.log('scheduledDate', scheduledDate);
+      console.log('scheduledTime', scheduledTime);
+   
+      if (!scheduledDate || !scheduledTime) {
+        return res
+          .status(400)
+          .json({ error: 'Missing required parameters: scheduledDate or scheduledTime' });
+      }
+   
+      const platform = 'facebook';
+      const newScheduledFbPost = new ScheduledPost({
+        textContent,
+        urlSrcs,
+        base64Srcs,
+        scheduledDate,
+        scheduledTime,
+        platform,
+        status: 'scheduled',
+      });
+   
+      newScheduledFbPost
+        .save()
+        .then((scheduledFbPost) => {
+          console.log('scheduledFbPost saved:', scheduledFbPost);
+          res.status(200).json({ success: true, scheduledFbPost });
+        })
+        .catch((error) => {
+          console.error('[Backend] Database error: ', error);
+          res.status(500).json({ success: false, error: 'Internal server error' });
+        });
+    }
+
+
+    async function postToFb(textContent, image){
+    
+      //const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
+      //const authToken = req.body.accessToken;
+      //const pages = await getPagesManagedByUser(authToken);
+      //if (pages.length === 0) {
+      //  return res.status(400).json({ error: 'No pages found for this user' });
+      //}
+      // Asumming user has access to only one page.
+       // const page = pages[0];  // In this case, we are posting to the first page the user manages
+      //  const pageId = page.id;
+      const pageId = `515563784975867`;
+      //  const pageAccessToken = page.access_token;
+      const pageAccessToken = `EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT`;
+        let postResponse;
+      try {
+         if (base64Srcs.length > 0) { 
+          const postResponse = await postImgToPageFeed(pageId, pageAccessToken, textContent, base64Srcs); 
+        }
+         else {
+          const postResponse = await postToPageFeed(pageId, pageAccessToken, textContent);
+        }
+        res.status(200).json(postResponse);  
+      } catch (error) {
+        console.error('[Backend] Error creating Facebook post:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+
 
 
   async function createFbPost(req,res){
@@ -140,7 +210,10 @@ const facebookController = function(){
     }
 
   }
-  return {createFbPost}
+  return {createFbPost,
+    postToFb,
+    scheduleFbPost
+  }
 
 }
 
