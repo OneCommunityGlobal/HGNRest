@@ -49,12 +49,11 @@ async function ValidatePassword(req, res) {
   }
 
   const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
-  const canReset = await hasPermission(req.body.requestor, 'resetPassword');
 
   // Verify request is authorized by self or adminsitrator
   if (
     userId !== requestor.requestorId &&
-    !canUpdate && !canReset
+    !canUpdate
   ) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
