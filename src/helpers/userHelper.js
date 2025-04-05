@@ -32,6 +32,7 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const axios = require('axios');
 const sharp = require('sharp');
+const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
@@ -916,19 +917,10 @@ const userHelper = function () {
       <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Dear ${firstname},</p>
 
       <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
-
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">Reply to this email once you've done this, so I know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I'll remove this blue square.</p>
-
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">If you also forgot to submit your weekly media files, be sure to fix that too.</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;"><strong>Reply All</strong> to this email once you've done this, so I know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I'll remove this blue square.</p>
       <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">With Gratitude,</p>
-
-      <div style="margin: 0; padding: 0; margin-top: 10px;">
-        <p style="margin: 0; padding: 0; line-height: 1;">Jae Sabol</p>
-        <p style="margin: 0; padding: 0; line-height: 1;">310.755.4693</p>
-        <p style="margin: 0; padding: 0; line-height: 1;">Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></p>
-        <p style="margin: 0; padding: 0; line-height: 1;">Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></p>
-        <p style="margin: 0; padding: 0; line-height: 1;">Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></p>
-        <p style="margin: 0; padding: 0; line-height: 1;">Timezone: Los Angeles, CA - Pacific Time</p>
-      </div>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
     </div>`
     )
   }
@@ -946,6 +938,10 @@ const userHelper = function () {
         .subtract(1, 'week');
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
       
+      const bluesquarebcc=await BlueSquareEmailAssignmentModel.find().select('email');
+      var bluesquareemails=bluesquarebcc.map((bcc)=>bcc.email);
+      bluesquareemails.push("onecommunityglobal@gmail.com");
+      bluesquareemails.push("jae@onecommunityglobal.org");
       for (let i = 0; i < users.length; i += 1) {
         const allowedEmails = [
           "jae@onecommunityglobal.org", //Summary turned off Owner
@@ -988,7 +984,6 @@ const userHelper = function () {
             endingDate: { $gte: utcEndMoment },
           });
           const hasTimeOffRequest = requestsForTimeOff.length > 0;
-        
           // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
           if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
               emailSender(
@@ -996,7 +991,7 @@ const userHelper = function () {
               'Weekly Summary Missing',
               missedSummaryTemplate(users[i].firstName),
               null,
-              'jae@onecommunityglobal.org',
+              bluesquareemails,
               'jae@onecommunityglobal.org',
             );
           }
