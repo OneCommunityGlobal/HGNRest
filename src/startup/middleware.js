@@ -43,6 +43,11 @@ module.exports = function (app) {
       next();
       return;
     }
+    // Allow Reddit routes to handle their own authentication
+    if (req.originalUrl.startsWith('/api/reddit')) {
+      next();
+      return;
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
