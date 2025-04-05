@@ -270,7 +270,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
-      'scheduleMeetings
+      'scheduleMeetings',
       'requestBio',
 
 
