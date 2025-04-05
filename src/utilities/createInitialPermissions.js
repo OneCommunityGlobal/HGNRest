@@ -102,6 +102,8 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+      // Meeting
+      'scheduleMeetings',
     ],
   },
   {
@@ -158,6 +160,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'scheduleMeetings',
     ],
   },
   {
@@ -267,7 +270,9 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'scheduleMeetings
       'requestBio',
+
 
       // Title
       'seeQSC',
