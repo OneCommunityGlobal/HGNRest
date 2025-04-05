@@ -1,8 +1,11 @@
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
+const fileUpload = require('express-fileupload');
 
 module.exports = function (app) {
+  app.use(fileUpload());
+  
   app.all('*', (req, res, next) => {
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
