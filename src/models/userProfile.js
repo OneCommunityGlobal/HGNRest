@@ -52,7 +52,7 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String, required: true }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String,
@@ -112,6 +112,7 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+      reasons: {type: [String], default: []},
     },
   ],
   warnings: [
