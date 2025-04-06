@@ -1653,6 +1653,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
+    
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1667,6 +1668,9 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+
+      req.body.blueSquare.reasons = ['other'];
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1715,7 +1719,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1729,6 +1733,9 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+        }
         }
         return blueSquare;
       });
@@ -1761,7 +1768,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
