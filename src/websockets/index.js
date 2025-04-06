@@ -110,6 +110,7 @@ export default async (expServer) => {
           receiver: msg.receiver,
           content: msg.content,
           status: 'sent',
+          isRead: false,
           timestamp: new Date(),
         };
     
@@ -119,7 +120,11 @@ export default async (expServer) => {
           // 📤 Send to receiver
             broadcastToSameUser(connections, msg.receiver, JSON.stringify({
               action: 'RECEIVE_MESSAGE',
-              payload: savedMessage,
+              // payload: savedMessage,
+              payload: {
+                ...savedMessage.toObject(),
+                status: 'delivered'
+              }
             }));
           
           // 🔁 Optional: echo back to sender
@@ -138,7 +143,43 @@ export default async (expServer) => {
     
         return;
       }
-
+      if (msg.action === "MESSAGES_READ") {
+        try {
+          const { messageIds, sender } = msg;
+          
+          // Update messages in database
+          await Message.updateMany(
+            { 
+              _id: { $in: messageIds },
+              sender: sender,
+              receiver: userId
+            },
+            { 
+              $set: { 
+                isRead: true,
+                status: 'read',
+                readAt: new Date()
+              } 
+            }
+          );
+      
+          // Notify sender that messages were read
+          broadcastToSameUser(connections, sender, JSON.stringify({
+            action: 'MESSAGE_READ',
+            messageIds,
+            readBy: userId,
+            readAt: new Date()
+          }));
+      
+        } catch (err) {
+          console.error("❌ Error updating message status:", err);
+          ws.send(JSON.stringify({
+            action: 'MESSAGE_STATUS_UPDATE_FAILED',
+            error: "Could not update message status"
+          }));
+        }
+        return;
+      }
     });
 
     /**

@@ -18,20 +18,6 @@ exports.sendMessage = async (req, res) => {
     }
 };
 
-// exports.getMessages = async (req, res) => {
-//     try {
-//         const { userId } = req.params;
-//         console.log(userId)
-//         const messages = await Message.find({
-//             $or: [{receiver: userId }, {sender: userId}]
-//         }).sort({ timestamp: 1 });
-//         console.log(messages)
-//         res.json({ messages });
-//     } catch (error) {
-//         res.status(500).json({ error: "Error fetching messages" });
-//     }
-// };
-
 exports.getMessages = async (req, res) => {
     try {
       const { userId } = req.params;
@@ -39,8 +25,8 @@ exports.getMessages = async (req, res) => {
         $or: [{ receiver: userId }, { sender: userId }]
       })
         .sort({ timestamp: 1 })
-        .populate('sender', 'firstName lastName role')   // only include these fields
-        .populate('receiver', 'firstName lastName role');
+        .populate('sender', 'firstName lastName role email')   // only include these fields
+        .populate('receiver', 'firstName lastName role email');
       res.json({ messages });
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -48,7 +34,6 @@ exports.getMessages = async (req, res) => {
     }
   };
   
-
 exports.updateMessageStatus = async (req, res) => {
     try {
         const { messageId } = req.params;
