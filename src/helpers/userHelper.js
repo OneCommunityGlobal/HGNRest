@@ -459,7 +459,7 @@ const userHelper = function () {
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
-        { isActive: true },
+        { isActive: true},
         '_id weeklycommittedHours weeklySummaries missedHours',
       );
       const usersRequiringBlueSqNotification = [];
@@ -816,7 +816,6 @@ const userHelper = function () {
             } else {
               emailsBCCs = null;
             }
-
             emailSender(
               status.email,
               'New Infringement Assigned',
@@ -914,7 +913,7 @@ const userHelper = function () {
   const missedSummaryTemplate = (firstname) => {
     return (
     `<div style="font-family: Arial, sans-serif;">
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning Jae,</p>
+      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstname},</p>
       <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
       <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">If you also forgot to submit your weekly media files, be sure to fix that too.</p>
       <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;"><strong>Reply All</strong> to this email once you've done this, so we know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and "reply all" so we know and we will remove this blue square.</p>
@@ -950,12 +949,10 @@ const userHelper = function () {
           "ttertitsa1@gmail.com", //Volunteer did hours with summary
           "osorare@yahoo.com", //Core Team, did hours with summary
         ];
-
         if(allowedEmails.includes(users[i].email)){
           const user = users[i];
           const personId = mongoose.Types.ObjectId(user._id);
           let hasWeeklySummary = false;
-
           if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
             const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
             const summary = relevantSummary?.summary;
@@ -973,7 +970,6 @@ const userHelper = function () {
 
           const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
           const timeNotMet = timeSpent < weeklycommittedHours;
-
           const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
           const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
 
@@ -987,7 +983,7 @@ const userHelper = function () {
           if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
               emailSender(
               users[i].email,
-              'Weekly Summary Missing',
+              'Re: Infringement Assigned',
               missedSummaryTemplate(users[i].firstName),
               null,
               bluesquareemails,
