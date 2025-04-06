@@ -1,0 +1,99 @@
+/* eslint-disable camelcase */
+const axios = require('axios');
+
+const Payments = require('../../models/lbdashboard/payments');
+
+const Bids = require('../../models/lbdashboard/bids');
+
+const bidsController = require('./bidsController');
+
+const bidsControllerInstance = bidsController(Bids);
+
+const { getPayPalAccessTokenl } = bidsControllerInstance;
+
+const webHookController = function (Bids) {
+  // const webHookController = function () {
+  const myHook = async (req, res) => {
+    console.log('getMyHook');
+    console.log(process.env.BASE_URL);
+    const accessToken = await getPayPalAccessTokenl();
+    console.log(accessToken);
+
+    try {
+      console.log('before webhookResponse');
+      const webhookResponse = await axios.post(
+        `${process.env.BASE_URL}/v1/notifications/webhooks`,
+        {
+          // url: 'https://example.com/all_webhook',
+          // url: 'https://localhost.com/myWebhooks',
+          // url: 'https://localhost.com/api/lb/myWebhooks',
+          url: 'https://empty-aware-pole-showcase.trycloudflare.com/api/lb/myWebhooks',
+
+          event_types: [
+            /*  { name: 'PAYMENT.AUTHORIZATION.CREATED' }, */
+            { name: 'PAYMENT.AUTHORIZATION.VOIDED' },
+            { name: '*' },
+          ],
+        },
+
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      console.log(webhookResponse);
+      // return { status: 200, data: 'accessToken' };
+      return res.status(200).send(webhookResponse.data);
+    } catch (error) {
+      console.log(error.response.data);
+      return res.status(500).send('Failure');
+    }
+  };
+
+  /*
+const verifyPaypalSignature = require('./verifyPaypalSignature');
+
+app.post("/api/lb/myWebhooks", express.json(), verifyPaypalSignature, 
+(req, res) => {
+  // Your logic
+  res.sendStatus(200);
+});
+
+{{base_url}}/v1/notifications/verify-webhook-signature
+
+  */
+
+  const webhookTest = async (req, res) => {
+    console.log('Message Received');
+    console.log(req.header);
+    console.log(req.body);
+    try {
+      const { event_type } = req.body;
+      if (event_type === 'PAYMENT.AUTHORIZATION.CREATED')
+        console.log("'PAYMENT.AUTHORIZATION.CREATED'");
+      else if (event_type === 'PAYMENT.AUTHORIZATION.VOIDED') {
+        console.log(' Payment Authorization Voided:', req.body);
+
+        // Handle payment void scenario
+      } else if (event_type === 'CHECKOUT.ORDER.COMPLETED') {
+        console.log(' CHECKOUT.ORDER.COMPLETED', req.body);
+
+        // Handle payment void scenario
+      }
+
+      // Respond to PayPal to confirm receipt
+      return res.status(200).json('event received');
+    } catch (error) {
+      console.log(error);
+      return res.status(501).json('error in webhook');
+    }
+  };
+
+  return {
+    myHook,
+    webhookTest,
+  };
+};
+module.exports = webHookController;
