@@ -3,7 +3,9 @@ const Wishlist = require('../../models/lbdashboard/wishlists');
 // Get all wishlists
 exports.getAllWishlists = async (req, res) => {
   try {
-    const wishlists = await Wishlist.find().populate('createdBy', 'name email');
+    const wishlists = await Wishlist.find()
+      .populate('addedBy', 'name email') // Populate addedBy with user details
+      .select('-__v'); // Exclude the __v field
     res.status(200).json(wishlists);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch wishlists' });
@@ -13,7 +15,9 @@ exports.getAllWishlists = async (req, res) => {
 // Get a single wishlist by ID
 exports.getWishlistById = async (req, res) => {
   try {
-    const wishlist = await Wishlist.findById(req.params.id).populate('createdBy', 'name email');
+    const wishlist = await Wishlist.findById(req.params.id)
+      .populate('addedBy', 'name email') // Populate addedBy with user details
+      .select('-__v'); // Exclude the __v field
     if (!wishlist) {
       return res.status(404).json({ error: 'Wishlist not found' });
     }
@@ -26,8 +30,28 @@ exports.getWishlistById = async (req, res) => {
 // Create a new wishlist
 exports.createWishlist = async (req, res) => {
   try {
-    const { name, description, items, createdBy } = req.body;
-    const newWishlist = new Wishlist({ name, description, items, createdBy });
+    const {
+      villageName,
+      unitName,
+      images,
+      unitAmenities,
+      villageAmenities,
+      location,
+      addedBy,
+      price,
+    } = req.body;
+
+    const newWishlist = new Wishlist({
+      villageName,
+      unitName,
+      images,
+      unitAmenities,
+      villageAmenities,
+      location,
+      addedBy,
+      price,
+    });
+
     const savedWishlist = await newWishlist.save();
     res.status(201).json(savedWishlist);
   } catch (error) {
@@ -41,7 +65,8 @@ exports.updateWishlist = async (req, res) => {
     const updatedWishlist = await Wishlist.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
-    });
+    }).populate('addedBy', 'name email'); // Populate addedBy with user details
+
     if (!updatedWishlist) {
       return res.status(404).json({ error: 'Wishlist not found' });
     }
