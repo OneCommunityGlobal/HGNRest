@@ -1,5 +1,16 @@
 const mongoose = require('mongoose');
 
+const pointSchema = new mongoose.Schema({
+    type: {
+        type: String,
+        enum: ['Point'],
+        required: true
+    },
+    coordinates: {
+        type: [Number],
+        required: true
+    }
+})
 const OrgLocationSchema = new mongoose.Schema({
     orgId: {
         type: String,
@@ -20,15 +31,9 @@ const OrgLocationSchema = new mongoose.Schema({
         required: true
     },
     location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point'
-        },
-        coordinates: {
-            type: [Number],
-            required: true
-        }
+        type: pointSchema,
+        required: true,
+        index: '2dsphere'
     },
     country: {
         type: String,
@@ -42,8 +47,9 @@ const OrgLocationSchema = new mongoose.Schema({
         type: Date,
         required: true
     }
+}, {
+    timestamps: true
 })
 
 // geospatial index
-OrgLocationSchema.index({ location: '2dsphere' });
-module.exports = mongoose.model('OrgLocation', OrgLocationSchema);
+module.exports = mongoose.model('OrgLocation', OrgLocationSchema, 'orgLocation');
