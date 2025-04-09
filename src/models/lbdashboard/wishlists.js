@@ -1,24 +1,9 @@
 const mongoose = require('mongoose');
 
 const WishlistSchema = new mongoose.Schema({
-  villageName: {
-    type: String,
-    required: true,
-  },
-  unitName: {
-    type: String,
-  },
-  images: {
-    type: [String],
-  },
-  unitAmenities: {
-    type: [String],
-  },
-  villageAmenities: {
-    type: [String],
-  },
-  location: {
-    type: String,
+  wishlistVillageListing: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'listings',
     required: true,
   },
   addedBy: {
@@ -30,10 +15,6 @@ const WishlistSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  price: {
-    type: Number,
-    required: true,
-  }
 });
 
-module.exports = mongoose.model('Wishlist', WishlistSchema);
+module.exports = mongoose.model('wishlist', WishlistSchema);

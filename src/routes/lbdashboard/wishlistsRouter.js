@@ -1,30 +1,33 @@
 const express = require('express');
-const router = express.Router();
-const wishlistsController = require('../../controllers/lbdashboard/wishlistsController');
-const authenticate = require('../../middleware/authenticate'); // Middleware for user authentication
 
-// Route to get all wishlists (Admin or general use)
-router.get('/', authenticate, wishlistsController.getAllWishlists);
+const routes = function (wishlist) {
+  const wishlistRouter = express.Router();
+  const controller = require('../../controllers/lbdashboard/wishlistsController')(wishlist);
 
-// Route to get a single wishlist by ID
-router.get('/:id', authenticate, wishlistsController.getWishlistById);
+  // Test route
+  wishlistRouter.route('/wishlist/test').get((req, res) => {
+    res.status(200).send('Test route is working!');
+  });
 
-// Route to create a new wishlist
-router.post('/', authenticate, wishlistsController.createWishlist);
+  // Route to get a single wishlist by ID
+  wishlistRouter.route('/wishlist/:id').get(controller.getWishlistById);
 
-// Route to update a wishlist by ID
-router.put('/:id', authenticate, wishlistsController.updateWishlist);
+  // Route to create a new wishlist
+  wishlistRouter.route('/wishlist').post(controller.createWishlist);
 
-// Route to delete a wishlist by ID
-router.delete('/:id', authenticate, wishlistsController.deleteWishlist);
+  // Route to update a wishlist by ID
+  wishlistRouter.route('/wishlist/:id').put(controller.updateWishlist);
 
-// Route to add a listing to a user's wishlist
-router.post('/add', authenticate, wishlistsController.addListingToWishlist);
+  // Route to delete a wishlist by ID
+  wishlistRouter.route('/wishlist/:id').delete(controller.deleteWishlist);
 
-// Route to remove a listing from a user's wishlist
-router.post('/remove', authenticate, wishlistsController.removeListingFromWishlist);
+  // Route to add a listing to a user's wishlist
+  wishlistRouter.route('/wishlist/add').post(controller.addListingToWishlist);
 
-// Route to retrieve a user's wishlist
-router.get('/user/:userId', authenticate, wishlistsController.getUserWishlist);
+  // Route to retrieve a user's wishlist
+  wishlistRouter.route('/wishlist/user/:userId').get(controller.getUserWishlist);
 
-module.exports = router;
+  return wishlistRouter;
+};
+
+module.exports = routes;
