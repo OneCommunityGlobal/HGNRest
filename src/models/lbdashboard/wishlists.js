@@ -1,14 +1,16 @@
 const mongoose = require('mongoose');
 
 const WishlistSchema = new mongoose.Schema({
-  wishlistVillageListing: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'listings',
-    required: true,
-  },
+  wishlistListings: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      // ref: 'listings',
+      required: true,
+    },
+  ],
   addedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'userProfile',
     required: true,
   },
   dateAdded: {

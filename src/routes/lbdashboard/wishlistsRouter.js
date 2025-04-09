@@ -6,26 +6,24 @@ const routes = function (wishlist) {
 
   // Test route
   wishlistRouter.route('/wishlist/test').get((req, res) => {
-    res.status(200).send('Test route is working!');
+    res.status(200).send('Test route is working again!');
   });
 
-  // Route to get a single wishlist by ID
-  wishlistRouter.route('/wishlist/:id').get(controller.getWishlistById);
 
   // Route to create a new wishlist
   wishlistRouter.route('/wishlist').post(controller.createWishlist);
 
-  // Route to update a wishlist by ID
-  wishlistRouter.route('/wishlist/:id').put(controller.updateWishlist);
-
-  // Route to delete a wishlist by ID
-  wishlistRouter.route('/wishlist/:id').delete(controller.deleteWishlist);
+  // Route to get a single wishlist by ID
+  wishlistRouter.route('/wishlist').get(controller.getWishlistById);
 
   // Route to add a listing to a user's wishlist
   wishlistRouter.route('/wishlist/add').post(controller.addListingToWishlist);
 
+  // Route to remove a listing to a user's wishlist
+  wishlistRouter.route('/wishlist/remove').post(controller.removeListingFromWishlist);
+
   // Route to retrieve a user's wishlist
-  wishlistRouter.route('/wishlist/user/:userId').get(controller.getUserWishlist);
+  wishlistRouter.route('/wishlist/user').get(controller.getUserWishlist);
 
   return wishlistRouter;
 };
