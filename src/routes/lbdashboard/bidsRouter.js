@@ -16,6 +16,8 @@ bidsRouter.route('/bidAndPay/').post(bidsController.postBidsAndPay);
 // bidsRouter.route('/postBidsAndPay/').get(bidsController.postBidsAndPay);
 
 bidsRouter.route('/orderAuthorize/').get(bidsController.orderAuthorize);
-bidsRouter.route('/orderCapture/').get(bidsController.orderCapture);
+bidsRouter.route('/orderCapture/').post(bidsController.orderCapture);
+
+bidsRouter.route('/voidPayment/').post(bidsController.voidPayment);
 
 module.exports = bidsRouter;

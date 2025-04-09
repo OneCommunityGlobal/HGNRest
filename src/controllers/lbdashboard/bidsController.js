@@ -456,7 +456,6 @@ const bidsController = function (Bids) {
   }
 
   const orderCapture = async (req, res) => {
-    // return capturePayment.data;
     try {
       const orderCap = await orderCapturel(req);
       return res.status(201).json(orderCap);
@@ -466,13 +465,17 @@ const bidsController = function (Bids) {
       return res.status(401).json({ 'OrderCapture Error': error.response?.data || error.message });
     }
   };
-  // const orderCapture = async (req, res) => {
+
   async function orderCapturel(req) {
     console.log('inside orderCapture');
     console.log('before authorId');
+    // CreateOrderWithCard response body if sent
+    /*
     const authorId = req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
       ? req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
       : req.purchase_units[0]?.payments?.authorizations[0]?.id;
+    */
+    const authorId = req.body?.authorId;
     console.log(authorId);
     // console.log(req.purchase_units[0]?.payments?.authorizations);
     // console.log(req.purchase_units[0]?.payments?.authorizations[0]?.id);
@@ -496,6 +499,56 @@ const bidsController = function (Bids) {
     } catch (error) {
       console.log('error');
       console.error('capturePayment Error:', error.response?.data || error.message);
+      return error.response?.data;
+    }
+  }
+
+  const voidPayment = async (req, res) => {
+    try {
+      const voidPymnt = await voidPaymentl(req);
+      return res.status(201).json(voidPymnt);
+    } catch (error) {
+      console.log('error');
+      console.error('Void Payment Error:', error.response?.data || error.message);
+      return res.status(401).json({ VoidPaymentError: error.response?.data || error.message });
+    }
+  };
+
+  async function voidPaymentl(req) {
+    console.log('inside voidPaymentl');
+    console.log('before authorId');
+    // CreateOrderWithCard response body if sent
+    /*
+    const authorId = req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
+      ? req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
+      : req.purchase_units[0]?.payments?.authorizations[0]?.id;
+    // console.log(req.purchase_units[0]?.payments?.authorizations);
+    // console.log(req.purchase_units[0]?.payments?.authorizations[0]?.id);
+    
+      */
+    const authorId = req.body?.authorId;
+    console.log(authorId);
+    const accessToken = await getPayPalAccessTokenl();
+    console.log(accessToken);
+    try {
+      console.log('ins voidPayment');
+      const voidPyment = await axios.post(
+        `${process.env.BASE_URL}/v2/payments/authorizations/${authorId}/void`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      console.log(voidPyment);
+
+      return voidPyment.data;
+    } catch (error) {
+      console.log('error');
+      console.log(error);
+      console.error('voidPayment Error:', error.response?.data || error.message);
       return error.response?.data;
     }
   }
@@ -929,6 +982,7 @@ const bidsController = function (Bids) {
     createOrder,
     orderAuthorize,
     orderCapture,
+    voidPayment,
   };
 };
 
