@@ -1,6 +1,6 @@
 const UserProfile = require('../models/userProfile');
 
-const permissionChangeLogController = function (PermissionChangeLog,userPermissionChangeLog) {
+const permissionChangeLogController = function (PermissionChangeLog, userPermissionChangeLog) {
   const getPermissionChangeLogs = async function (req, res) {
     try {
       const userProfile = await UserProfile.findOne({ _id: req.params.userId }).exec();
@@ -12,19 +12,20 @@ const permissionChangeLogController = function (PermissionChangeLog,userPermissi
           const userChangeLogs = await userPermissionChangeLog.find();
           const rolePermissionChangeLogs = await PermissionChangeLog.find();
 
-          const formattedUserChangeLogs = userChangeLogs.map(log => ({
+          const formattedUserChangeLogs = userChangeLogs.map((log) => ({
             ...log.toObject(),
             name: log.individualName,
           }));
 
-          const formattedRolePermissionChangeLogs = rolePermissionChangeLogs.map(log => ({
+          const formattedRolePermissionChangeLogs = rolePermissionChangeLogs.map((log) => ({
             ...log.toObject(),
             name: log.roleName,
           }));
 
-          const mergedLogs = [...formattedUserChangeLogs, ...formattedRolePermissionChangeLogs].sort(
-            (a, b) => new Date(b.logDateTime) - new Date(a.logDateTime)
-          );
+          const mergedLogs = [
+            ...formattedUserChangeLogs,
+            ...formattedRolePermissionChangeLogs,
+          ].sort((a, b) => new Date(b.logDateTime) - new Date(a.logDateTime));
 
           res.status(200).json(mergedLogs);
         }
