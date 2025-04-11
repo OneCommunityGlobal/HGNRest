@@ -41,18 +41,26 @@ const questionnaireAnalyticsController = function () {
           },
         },
         { $unwind: '$profile' },
+        {
+          $unwind: {
+            path: '$profile.teams',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $addFields: {
+            isSameTeam: { $in: ['$profile.teams', profile.teams] },
+          },
+        },
       ];
       // filter through the same team users, if sameTeam is selected
       if (isSameTeam) {
         if (profile.teams?.length > 0) {
-          basePipeline.push(
-            { $unwind: '$profile.teams' },
-            {
-              $match: {
-                'profile.teams': { $in: profile.teams },
-              },
+          basePipeline.push({
+            $match: {
+              isSameTeam: true,
             },
-          );
+          });
         } else {
           res.status(400).json({ error: `User is not part of any team` });
         }
@@ -67,6 +75,7 @@ const questionnaireAnalyticsController = function () {
               $sum: skillPaths.map((path) => ({ $toDouble: path })),
             },
             count: { $literal: skillPaths.length },
+            isSameTeam: 1,
           },
         },
         {
@@ -84,6 +93,7 @@ const questionnaireAnalyticsController = function () {
             // lastname: '$profile.lastName',
             // email: '$profile.email',
             avg_score: 1,
+            isSameTeam: 1,
           },
         },
       );
