@@ -102,6 +102,7 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
+const communityRouter = require('../routes/communityRouter');
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -177,6 +178,7 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform',hgnFormResponseRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/hgnHelp', communityRouter());
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
