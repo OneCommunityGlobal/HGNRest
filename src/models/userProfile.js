@@ -35,7 +35,6 @@ const userProfileSchema = new Schema({
     required: true,
   },
   permissions: {
-    isAcknowledged: { type: Boolean, default: false },
     frontPermissions: [String],
     backPermissions: [String],
   },
@@ -104,9 +103,9 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
-  suggestedProfilePics: {
-    type: [mongoose.Schema.Types.Mixed],
-    default: [],
+  suggestedProfilePics:{
+    type:[mongoose.Schema.Types.Mixed],
+    default:[]
   },
   infringements: [
     {
