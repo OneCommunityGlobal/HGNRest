@@ -31,6 +31,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
       'postTeam',
@@ -216,6 +217,7 @@ const permissionsRoles = [
       'assignProjectToUsers',
       'importTask',
       'postTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       'updateTask',
       'swapTask',
