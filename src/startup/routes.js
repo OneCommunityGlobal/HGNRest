@@ -51,6 +51,8 @@ const {
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
+const instagramRouter = require('../routes/instagramRouter')();
+
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
@@ -141,6 +143,7 @@ const collaborationRouter=require('../routes/collaborationRouter');
 
 
 module.exports = function (app) {
+  app.use('/api', instagramRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
