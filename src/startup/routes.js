@@ -50,7 +50,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryItem');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
-
+const hgnFormResponses = require('../models/hgnFormResponse');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -184,6 +184,7 @@ module.exports = function (app) {
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform',hgnFormResponseRouter);
+  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
@@ -198,5 +199,4 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
   app.use('/api', registrationRouter);
-  app.use('/api/skills', userSkillTabsRouter);
 };
