@@ -52,6 +52,7 @@ const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
+const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -197,4 +198,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
   app.use('/api', registrationRouter);
+  app.use('/api/skills', userSkillTabsRouter);
 };
