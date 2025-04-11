@@ -1957,6 +1957,41 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const replaceTeamCodeForUsers = async (req, res) => {
+    const { oldTeamCodes, newTeamCode } = req.body;
+
+    // Validate input
+    if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
+      console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
+      return res.status(400).send({ error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.' });
+    }
+  
+    try {
+      // Sanitize input
+      const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
+
+      // Find and update users
+      const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
+  
+      if (usersToUpdate.length === 0) {
+        return res.status(404).send({ error: 'No users found with the specified team codes.' });
+      }
+  
+      const updateResult = await UserProfile.updateMany(
+        { teamCode: { $in: sanitizedOldTeamCodes } },
+        { $set: { teamCode: newTeamCode } }
+      );
+  
+      return res.status(200).send({
+        message: 'Team codes updated successfully.',
+        updatedCount: updateResult.nModified,
+      });
+    } catch (error) {
+      console.error('Error updating team codes:', error);
+      return res.status(500).send({ error: 'An error occurred while updating team codes.' });
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1992,6 +2027,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    replaceTeamCodeForUsers,
   };
 };
 
