@@ -10,6 +10,9 @@ const routes = function () {
     facebookRouter.route('/createFbPost').post(controller.createFbPost);
     facebookRouter.route('/scheduleFbPost').post(controller.scheduleFbPost);
     facebookRouter.route('/posts').post(controller.scheduleFbPost);
+    facebookRouter.route('/createFb').post(controller.createFbPost);
+    
+    
  
     return facebookRouter;
   };

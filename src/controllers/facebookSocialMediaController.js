@@ -152,9 +152,9 @@ const facebookController = function(){
     }
 
 
-    async function postToFb(textContent, image){
+    async function postToFb(req,res){
     
-      //const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
+      const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
       //const authToken = req.body.accessToken;
       //const pages = await getPagesManagedByUser(authToken);
       //if (pages.length === 0) {
@@ -168,12 +168,12 @@ const facebookController = function(){
       const pageAccessToken = `EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT`;
         let postResponse;
       try {
-         if (base64Srcs.length > 0) { 
-          const postResponse = await postImgToPageFeed(pageId, pageAccessToken, textContent, base64Srcs); 
-        }
-         else {
+         //if (base64Srcs.length > 0) { 
+        //  const postResponse = await postImgToPageFeed(pageId, pageAccessToken, textContent, base64Srcs); 
+        //}
+        // else {
           const postResponse = await postToPageFeed(pageId, pageAccessToken, textContent);
-        }
+        //}
         res.status(200).json(postResponse);  
       } catch (error) {
         console.error('[Backend] Error creating Facebook post:', error);
