@@ -152,7 +152,7 @@ const facebookController = function(){
     }
 
 
-    async function postToFb(req,res){
+    /*async function postToFb(req,res){
     
       const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
       //const authToken = req.body.accessToken;
@@ -179,7 +179,7 @@ const facebookController = function(){
         console.error('[Backend] Error creating Facebook post:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
-    }
+    }*/
 
 
 
