@@ -193,7 +193,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('/api', bmIssueRouter);
+  app.use('api', bmIssueRouter);
   app.use('/api', registrationRouter);
   app.use('/api', toolAvailabilityRoutes);
 };
