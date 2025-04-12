@@ -414,7 +414,7 @@ const teamcontroller = function (Team) {
 
   const getTeamMembersSkillsAndContact = async function (req, res) {
     try {
-      // Get user ID from requestor object added by middleware
+      // Get user ID
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
