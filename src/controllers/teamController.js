@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
@@ -408,7 +409,136 @@ const teamcontroller = function (Team) {
       console.log(error)
       res.status(500).send({'message':"Fetching team members failed"});
     }
-  }
+  };
+
+  const getTeamMembersSkillsAndContact = async function (req, res) {
+    try {
+      const userId = req.user._id; // Get authenticated user's ID
+      const skillName = req.params.skill || req.query.skill; // Get skill parameter
+      
+      if (!skillName) {
+        return res.status(400).send({ error: 'Skill parameter is required' });
+      }
+      
+      // Find the user's team
+      const user = await userProfile.findById(userId)
+        .populate('teams')
+        .lean();
+      
+      if (!user || !user.teams || user.teams.length === 0) {
+        return res.status(404).send({ error: 'No teams found for this user' });
+      }
+      
+      // Use the first team found
+      const teamId = user.teams[0]._id;
+      
+      // Get all team members from the team
+      const teamMembers = await Team.aggregate([
+        { 
+          $match: { 
+            _id: mongoose.Types.ObjectId(teamId),
+            isActive: true
+          } 
+        },
+        { $unwind: '$members' },
+        {
+          $match: {
+            'members.visible': true // Only include visible members
+          }
+        },
+        {
+          $lookup: {
+            from: 'userProfiles',
+            localField: 'members.userId',
+            foreignField: '_id',
+            as: 'userProfile',
+          },
+        },
+        { $unwind: '$userProfile' },
+        {
+          $match: {
+            'userProfile.isActive': true
+          }
+        },
+        {
+          $project: {
+            _id: '$userProfile._id',
+            firstName: '$userProfile.firstName',
+            lastName: '$userProfile.lastName',
+            email: '$userProfile.email'
+          }
+        }
+      ]);
+      
+      // Get form responses for the team members
+      const memberIds = teamMembers.map(member => member._id.toString());
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $in: memberIds }
+      }).lean();
+      
+      // Map form responses to team members
+      const teamMembersWithSkills = teamMembers.map(member => {
+        const formResponse = formResponses.find(response => 
+          response.user_id === member._id.toString()
+        );
+        
+        let skillScore = 0;
+        let slackHandle = '';
+        
+        if (formResponse) {
+          // Get slack handle
+          slackHandle = formResponse.userInfo?.slack || '';
+          
+          // Determine which section contains the skill
+          let skillValue = null;
+          
+          // Check in frontend skills
+          if (formResponse.frontend && formResponse.frontend[skillName] !== undefined) {
+            skillValue = formResponse.frontend[skillName];
+          } 
+          // Check in backend skills
+          else if (formResponse.backend && formResponse.backend[skillName] !== undefined) {
+            skillValue = formResponse.backend[skillName];
+          }
+          
+          // Convert skill value to numeric score (assuming format like "7 - Good")
+          if (skillValue) {
+            const numericValue = parseInt(skillValue.split(' ')[0], 10);
+            if (!Number.isNaN(numericValue)) {
+              skillScore = numericValue;
+            }
+          }
+        }
+        
+        return {
+          name: `${member.firstName} ${member.lastName}`,
+          email: member.email,
+          slack: slackHandle,
+          score: skillScore,
+          rating: `${skillScore} / 10` // Format as shown in the image
+        };
+      });
+      
+      // Sort team members by skill score (highest first)
+      teamMembersWithSkills.sort((a, b) => b.score - a.score);
+      
+      return res.status(200).send({
+        success: true,
+        teamName: user.teams[0].teamName,
+        skill: skillName,
+        data: teamMembersWithSkills
+      });
+      
+    } catch (error) {
+      Logger.logException(error, null, `userId: ${req.user?._id}, skill: ${req.params.skill || req.query.skill}`);
+      return res.status(500).send({
+        success: false,
+        message: 'Failed to retrieve team members',
+        error: error.message
+      });
+    }
+  };
+
   return {
     getAllTeams,
     getAllTeamCode,
@@ -419,7 +549,8 @@ const teamcontroller = function (Team) {
     assignTeamToUsers,
     getTeamMembership,
     updateTeamVisibility,
-    getAllTeamMembers
+    getAllTeamMembers,
+    getTeamMembersSkillsAndContact,
   };
 };
 
