@@ -13,6 +13,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
@@ -1653,6 +1654,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
+    
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1667,6 +1669,9 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+
+      req.body.blueSquare.reasons = ['other'];
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1715,7 +1720,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1729,6 +1734,9 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+        }
         }
         return blueSquare;
       });
@@ -1761,7 +1769,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -1957,6 +1964,54 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getAllMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+      
+      // Get all form responses
+      const formResponses = await HGNFormResponses.find({}).lean();
+      
+      // Map data directly from form responses
+      const membersData = formResponses.map(response => {
+        let score = 0;
+        
+        // Check for skill score in frontend or backend
+        if (response.frontend && response.frontend[skillName] !== undefined) {
+          score = parseInt(response.frontend[skillName], 10) || 0;
+        } else if (response.backend && response.backend[skillName] !== undefined) {
+          score = parseInt(response.backend[skillName], 10) || 0;
+        }
+        
+        return {
+          name: response.userInfo.name,
+          email: response.userInfo.email,
+          slack: response.userInfo.slack || '',
+          rating: `${score} / 10`
+        };
+      });
+      
+      // Sort by skill score (highest first)
+      membersData.sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+      
+      return res.status(200).send(membersData);
+      
+    } catch (error) {
+      console.error('Error in getAllMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve members',
+        error: error.message
+      });
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -1992,6 +2047,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    getAllMembersSkillsAndContact,
   };
 };
 
