@@ -1966,9 +1966,8 @@ const overviewReportHelper = function () {
   };
 
   const weeklySummaryFiltersOperations = (req) => {
-    let { recordId, filters: filterData } = req.body; // ✅ Extract once
+    let { recordId, filters: filterData } = req.body; //  Extract once
     recordId = mongoose.Types.ObjectId(recordId);
-    console.log(recordId)
     return {
         updateRecord: async () => {
             const updatedRecord = await WeeklySummaryFilters.findOneAndUpdate(
@@ -1986,7 +1985,6 @@ const overviewReportHelper = function () {
         },
         deleteRecord: async () => {
           const deletedRecord = await WeeklySummaryFilters.findOneAndDelete({ _id: recordId });
-
           if (!deletedRecord) {
               return { message: "No record found for the given recordId" };
           }
@@ -2020,7 +2018,6 @@ const overviewReportHelper = function () {
         }
         
       }   catch (e){
-        console.log(e)
           return {error: e}
       }
     
@@ -2036,7 +2033,6 @@ const overviewReportHelper = function () {
 
         return { records };
     } catch (err) {
-        console.error("Error fetching filters:", err);
         return { msg: 'Internal Server Error' };
     }
 };

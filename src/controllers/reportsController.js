@@ -4,6 +4,8 @@ const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
+const logger = require('../startup/logger');
+
 
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
@@ -558,7 +560,7 @@ const reportsController = function () {
       const saveFiltersIntoUserprofiles = await overviewReportHelper.postFiltersIntoUserProfiles(req);
       return res.status(200).json({ saveFiltersIntoUserprofiles });
     } catch (err) {
-      console.log(err);
+      logger.logException(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
@@ -566,10 +568,9 @@ const reportsController = function () {
   const getWeeklySummaryFiltersForUser = async function (req, res) {
     try {
       const getFilters = await overviewReportHelper.getWeeklySummaryFilters();
-      console.log(getFilters)
       return res.status(200).json({ getFilters });
     } catch (err) {
-      console.log(err);
+      logger.logException(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
 };
