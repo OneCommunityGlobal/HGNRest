@@ -213,7 +213,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
 
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate jobTitle role email')
+    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber')
       .sort({
         lastName: 1,
       })

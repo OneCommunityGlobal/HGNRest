@@ -43,7 +43,6 @@ exports.lbsendEmail = async (req, res) => {
 
 exports.lbsendSMS = async (req, res) => {
     try {
-        const { phoneNumber, message } = req.body;
         // Implement SMS sending logic here
         // For example, using Twilio or any other SMS service
         res.json({ message: "SMS sent successfully" });

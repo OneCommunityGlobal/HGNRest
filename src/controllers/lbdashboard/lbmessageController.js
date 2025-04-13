@@ -1,5 +1,4 @@
 const Message = require("../../models/lbdashboard/message");
-const { sendNotification } = require("./lbnotificationController.js");
 
 exports.sendMessage = async (req, res) => {
     try {
