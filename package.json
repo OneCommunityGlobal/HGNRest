@@ -9,7 +9,7 @@
     "test:unit": "npm test -- --watch -c jest-unit.config.js",
     "test:integration": "npm test -- --watch -c jest-integration.config.js",
     "test:staged": "npm test --findRelatedTests",
-    "test:ci": "npm test -- --coverage",
+    "test:ci": "jest --passWithNoTests --silent --noStackTrace --runInBand --coverage",
     "lint": "eslint --fix ./src",
     "build": "babel src -d dist",
     "buildw": "babel src -d dist --watch",
