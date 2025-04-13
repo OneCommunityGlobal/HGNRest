@@ -128,6 +128,8 @@ const routes = function (userProfile, project) {
     .get(controller.getUserByAutocomplete);
 
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
+  
+  userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
   return userProfileRouter;
 };
