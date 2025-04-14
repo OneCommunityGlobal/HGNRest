@@ -1966,14 +1966,23 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
+      // Get user ID from requestor object added by middleware
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+    
+      const userId = req.body.requestor.requestorId;
+
       // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
       }
       
-      // Get all form responses
-      const formResponses = await HGNFormResponses.find({}).lean();
+      // Get all form responses except for the current user
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $ne: userId } // Exclude current user
+      }).lean();
       
       // Map data directly from form responses
       const membersData = formResponses.map(response => {

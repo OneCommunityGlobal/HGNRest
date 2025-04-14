@@ -129,6 +129,8 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
 
+  userProfileRouter.route('/userProfile/skills/:skill').get(controller.getAllMembersSkillsAndContact)
+
   return userProfileRouter;
 };
 
