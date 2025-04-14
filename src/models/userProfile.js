@@ -35,7 +35,7 @@ const userProfileSchema = new Schema({
     required: true,
   },
   permissions: {
-    isAcknowledged: { type: Boolean, default: false },
+    isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
   },
@@ -120,7 +120,7 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: {
         type: String,
-        required: true
+        required: true,
       },
       color: {
         type: String,
