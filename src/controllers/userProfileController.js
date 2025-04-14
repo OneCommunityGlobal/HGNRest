@@ -47,11 +47,11 @@ async function ValidatePassword(req, res) {
     });
     return;
   }
+
+  const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
+
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId !== requestor.requestorId && !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -59,10 +59,7 @@ async function ValidatePassword(req, res) {
   }
 
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId === requestor.requestorId && !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -523,25 +520,21 @@ const userProfileController = function (UserProfile, Project) {
       }
       // validate userprofile pic
 
-      if (req.body.profilePic) {
-        const results = userHelper.validateProfilePic(req.body.profilePic);
+      // if (req.body.profilePic) {
+      //   const results = userHelper.validateProfilePic(req.body.profilePic);
 
-        if (!results.result) {
-          res.status(400).json(results.errors);
-          return;
-        }
-      }
+      //   if (!results.result) {
+      //     res.status(400).json(results.errors);
+      //     return;
+      //   }
+      // }
 
       const canEditTeamCode =
         req.body.requestor.role === 'Owner' ||
         req.body.requestor.role === 'Administrator' ||
         req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if (
-        !canEditTeamCode &&
-        req.body.teamCode !== undefined &&
-        record.teamCode !== req.body.teamCode
-      ) {
+      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
         res.status(403).send('You are not authorized to edit team code.');
         return;
       }
@@ -616,6 +609,7 @@ const userProfileController = function (UserProfile, Project) {
       if (req.body.isAcknowledged !== undefined && record.permissions) {
         record.permissions.isAcknowledged = req.body.isAcknowledged;
       }
+
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
         const importantFields = [
           'email',
@@ -742,7 +736,6 @@ const userProfileController = function (UserProfile, Project) {
             isAcknowledged: false, // used to inform the user
             ...req.body.permissions,
           };
-
           await logUserPermissionChangeByAccount(req);
         }
 
@@ -1423,7 +1416,7 @@ const userProfileController = function (UserProfile, Project) {
 
   const resetPassword = async function (req, res) {
     try {
-      ValidatePassword(req);
+      await ValidatePassword(req);
 
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -1441,11 +1434,6 @@ const userProfileController = function (UserProfile, Project) {
 
       if (!user) {
         res.status(404).send({ error: 'User not found' });
-        return;
-      }
-
-      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
-        res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
@@ -1967,6 +1955,43 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const replaceTeamCodeForUsers = async (req, res) => {
+    const { oldTeamCodes, newTeamCode } = req.body;
+
+    // Validate input
+    if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
+      console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
+      return res.status(400).send({
+        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+      });
+    }
+
+    try {
+      // Sanitize input
+      const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
+
+      // Find and update users
+      const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
+
+      if (usersToUpdate.length === 0) {
+        return res.status(404).send({ error: 'No users found with the specified team codes.' });
+      }
+
+      const updateResult = await UserProfile.updateMany(
+        { teamCode: { $in: sanitizedOldTeamCodes } },
+        { $set: { teamCode: newTeamCode } },
+      );
+
+      return res.status(200).send({
+        message: 'Team codes updated successfully.',
+        updatedCount: updateResult.nModified,
+      });
+    } catch (error) {
+      console.error('Error updating team codes:', error);
+      return res.status(500).send({ error: 'An error occurred while updating team codes.' });
+    }
+  };
+
   return {
     postUserProfile,
     getUserProfiles,
@@ -2002,6 +2027,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    replaceTeamCodeForUsers,
   };
 };
 

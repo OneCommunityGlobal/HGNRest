@@ -30,6 +30,8 @@ const userProfileJobs = () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
         await userhelper.completeHoursAndMissedSummary();
+        await userhelper.weeklyBlueSquareReminderFunction();
+        await userhelper.inCompleteHoursEmailFunction();
       }
     },
     null,
