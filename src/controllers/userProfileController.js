@@ -178,7 +178,7 @@ const userProfileController = function (UserProfile, Project) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate',
+      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate filterColor',
     )
       .sort({
         lastName: 1,
@@ -215,7 +215,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
 
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
+    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate filterColor')
       .sort({
         lastName: 1,
       })
@@ -550,6 +550,7 @@ const userProfileController = function (UserProfile, Project) {
         'jobTitle',
         'emailPubliclyAccessible',
         'phoneNumberPubliclyAccessible',
+        'filterColor',
         'profilePic',
         'firstName',
         'lastName',
@@ -1962,23 +1963,23 @@ const userProfileController = function (UserProfile, Project) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
       return res.status(400).send({ error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.' });
     }
-  
+
     try {
       // Sanitize input
       const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
 
       // Find and update users
       const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
-  
+
       if (usersToUpdate.length === 0) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
-  
+
       const updateResult = await UserProfile.updateMany(
         { teamCode: { $in: sanitizedOldTeamCodes } },
         { $set: { teamCode: newTeamCode } }
       );
-  
+
       return res.status(200).send({
         message: 'Team codes updated successfully.',
         updatedCount: updateResult.nModified,
