@@ -16,6 +16,18 @@ const paypalAuthMiddleware = (req, res, next) => {
   }
   next();
 };
+
+// Socket.IO middleware
+function socketMiddleware(socket, next) {
+  const { token } = socket.handshake.auth;
+  console.log(' Token received:', token);
+
+  if (token === 'secret123') {
+    return next();
+  }
+  return next(new Error('Invalid token'));
+}
+
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
     const openPaths = ['/api/lb/myWebhooks'];
@@ -113,4 +125,16 @@ module.exports = function (app) {
   // Apply PayPal middleware only to specific route
   console.log('before api/lb/myWebhooks');
   app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
+};
+module.exports = function (socket) {
+  // socket('io', (next) => {
+  // console.log(socket);
+  //   const { token } = socket.handshake.auth;
+  console.log(' Token received:');
+
+  /* if (token === 'secret123') {
+    return true;
+  }
+  return false; // next(new Error('Invalid token'));
+*/
 };
