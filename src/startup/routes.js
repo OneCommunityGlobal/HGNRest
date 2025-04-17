@@ -15,6 +15,8 @@ const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
+const bookings = require('../models/lbdashboard/bookings');
+const listings = require('../models/lbdashboard/listings');
 const ownerMessage = require('../models/ownerMessage');
 // Title
 const title = require('../models/title');
@@ -97,6 +99,9 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
 
+
+const lbpaymentRouter = require('../routes/lbdashboard/bookingsRouter')(bookings);
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -173,4 +178,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('api', bmIssueRouter);
+
+  app.use('/api/lb',lbpaymentRouter );
 };
