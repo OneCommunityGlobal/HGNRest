@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const HGNFormResponses = require('../models/hgnFormResponse');
+const team = require('../models/team');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
@@ -408,7 +410,89 @@ const teamcontroller = function (Team) {
       console.log(error)
       res.status(500).send({'message':"Fetching team members failed"});
     }
-  }
+  };
+
+  const getTeamMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+      
+      const userId = req.body.requestor.requestorId;
+      
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+      
+      // Find the user's team
+      const userDoc = await userProfile.findById(userId);
+      if (!userDoc) {
+        return res.status(404).send({ message: 'User not found' });
+      }
+      
+      // Check if user has any teams
+      if (!userDoc.teams || userDoc.teams.length === 0) {
+        return res.status(404).send({ message: 'User has no teams' });
+      }
+      
+      const teamId = userDoc.teams[0]; // Use the first team
+      
+      // Get team details
+      const teamDoc = await team.findById(teamId);
+      if (!teamDoc || !teamDoc.members || teamDoc.members.length === 0) {
+        return res.status(200).send([]);
+      }
+      
+      // Get all member IDs except the current user
+      const memberUserIds = teamDoc.members
+        .filter(member => member.visible !== false && member.userId.toString() !== userId)
+        .map(member => member.userId);
+      
+      // Get form responses for all team members
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $in: memberUserIds.map(id => id.toString()) }
+      }).lean();
+      
+      // Map data directly from form responses
+      const teamMembersData = formResponses.map(response => {
+        let score = 0;
+        
+        // Check for skill score in frontend or backend
+        if (response.frontend && response.frontend[skillName] !== undefined) {
+          score = parseInt(response.frontend[skillName], 10) || 0;
+        } else if (response.backend && response.backend[skillName] !== undefined) {
+          score = parseInt(response.backend[skillName], 10) || 0;
+        }
+        
+        return {
+          name: response.userInfo.name,
+          email: response.userInfo.email,
+          slack: response.userInfo.slack || null,
+          rating: `${score} / 10`
+        };
+      });
+      
+      // Sort by skill score
+      teamMembersData.sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+      
+      return res.status(200).send(teamMembersData);
+      
+    } catch (error) {
+      console.error('Error in getTeamMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve team members',
+        error: error.message
+      });
+    }
+  };
+
   return {
     getAllTeams,
     getAllTeamCode,
@@ -419,7 +503,8 @@ const teamcontroller = function (Team) {
     assignTeamToUsers,
     getTeamMembership,
     updateTeamVisibility,
-    getAllTeamMembers
+    getAllTeamMembers,
+    getTeamMembersSkillsAndContact,
   };
 };
 
