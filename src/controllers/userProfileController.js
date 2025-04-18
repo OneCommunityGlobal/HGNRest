@@ -1998,7 +1998,7 @@ const userProfileController = function (UserProfile, Project) {
         return {
           name: response.userInfo.name,
           email: response.userInfo.email,
-          slack: response.userInfo.slack || '',
+          slack: response.userInfo.slack || null,
           rating: `${score} / 10`
         };
       });
