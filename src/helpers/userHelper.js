@@ -55,6 +55,19 @@ const userHelper = function () {
     });
   };
 
+  // flag warning when user status is changed from inactive to active 
+  // and when the teamcode does not match the latest team code. 
+  const handleUserActivation =  async function (user, status) {
+    if (user.isActive || !user.teams || user.teams.length === 0) {
+        return;
+    }
+
+    const latestTeamId = user.teams[0];
+    const latestTeam = await Team.findById(latestTeamId);
+
+    user.teamCodeWarning = !latestTeam || user.teamCode !== latestTeam.teamCode;
+  }
+
   const getTeamMembersForBadge = async function (user) {
 
       try{

@@ -1965,7 +1965,12 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
+        
+        if (e.item == "isActive"){
+            await userHelper.handleUserActivation(result, e.value);
+        }
+
+        result[e.item] = e.value
         await result.save();
       });
       res.status(200).send({ message: 'Update successful' });
