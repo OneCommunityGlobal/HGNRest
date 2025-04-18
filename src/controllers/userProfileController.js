@@ -954,7 +954,11 @@ const userProfileController = function (UserProfile, Project) {
         },
         {
           path: 'infringements', // Populate infringements field
-          select: 'date description',
+          select: 'date description manuallyAssignedBy editedBy',
+          populate: [
+            { path: 'manuallyAssignedBy', select: 'firstName lastName' },
+            { path: 'editedBy', select: 'firstName lastName' },
+          ],
           options: {
             sort: {
               date: -1, // Sort by date descending if needed
@@ -1712,7 +1716,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, editedBy } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1726,6 +1730,7 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          blueSquare.editedBy = editedBy?? blueSquare.editedBy;
         }
         return blueSquare;
       });
