@@ -83,7 +83,8 @@ const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')
   mapLocations,
 );
 const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
-  permissionChangeLog, userPermissionChangeLog,
+  permissionChangeLog,
+  userPermissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
@@ -141,6 +142,8 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter=require('../routes/collaborationRouter');
 
+
+const socialMediaRouter = require('../routes/socialMediaRouter')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -200,4 +203,5 @@ module.exports = function (app) {
   app.use('api', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api', socialMediaRouter);
 };
