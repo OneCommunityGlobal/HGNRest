@@ -1944,6 +1944,11 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
+        
+        if (e.item == "isActive"){
+            await userHelper.handleUserActivation(result, e.value);
+        }
+
         result[e.item] = e.value
         await result.save();
       })
