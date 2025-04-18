@@ -1,46 +1,76 @@
-const Message = require("../../models/lbdashboard/message");
-
-exports.sendMessage = async (req, res) => {
+const lbMessageController = function (Message) {
+  const sendMessage = async (req, res) => {
     try {
-        const { receiver, content,sender } = req.body;
-        const newMessage = new Message({ sender, receiver, content });
+      const { sender, receiver, content } = req.body;
 
-        let result=await newMessage.save();
-        if(result._id)
-            await Message.findByIdAndUpdate(result._id,{ status: "sent" });
-        // Send notification immediately (no Redis queue)
-        // sendNotification(receiver, `New message from ${req.user.name}: ${content}`);
-        res.status(201).json({ message: "Message sent successfully", data: newMessage });
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({ error: "Error sending message" });
-    }
-};
+      if (!sender || !receiver || !content) {
+        return res.status(400).json({ message: "Sender, receiver, and content are required." });
+      }
 
-exports.getMessages = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const messages = await Message.find({
-        $or: [{ receiver: userId }, { sender: userId }]
-      })
-        .sort({ timestamp: 1 })
-        .populate('sender', 'firstName lastName role email')   // only include these fields
-        .populate('receiver', 'firstName lastName role email');
-      res.json({ messages });
+      const message = new Message({ sender, receiver, content });
+      await message.save();
+
+      res.status(201).json({ message: "Message sent successfully", data: message });
     } catch (error) {
-      console.error("Error fetching messages:", error);
-      res.status(500).json({ error: "Error fetching messages" });
+      console.error("Error sending message:", error);
+      res.status(500).json({ message: "Error sending message", error: error.message });
     }
   };
-  
-exports.updateMessageStatus = async (req, res) => {
-    try {
-        const { messageId } = req.params;
-        const { status } = req.body;
-        const message = await Message.findByIdAndUpdate(messageId, { status }, { new: true });
 
-        res.json({ message });
+  const getConversation = async (req, res) => {
+    try {
+      console.log("getConversation called");
+      const userId = req.headers.userid || req.query.userId;
+      const contactId = req.headers.contactid || req.query.contactId;
+  
+      if (!userId || !contactId) {
+        return res.status(400).json({ message: "User ID and Contact ID are required." });
+      }
+  
+      const messages = await Message.find({
+        $or: [
+          { sender: userId, receiver: contactId },
+          { sender: contactId, receiver: userId },
+        ],
+      }).sort({ timestamp: 1 });
+  
+      res.status(200).json(messages);
     } catch (error) {
-        res.status(500).json({ error: "Error updating message status" });
+      console.error("Error fetching conversation:", error); // Log the error details
+      res.status(500).json({ message: "Error fetching conversation", error: error.message });
     }
+  };
+
+  const updateMessageStatus = async (req, res) => {
+    try {
+      const { messageId, isRead } = req.body;
+
+      if (!messageId || typeof isRead === "undefined") {
+        return res.status(400).json({ message: "Message ID and isRead status are required." });
+      }
+
+      const message = await Message.findByIdAndUpdate(
+        messageId,
+        { isRead },
+        { new: true }
+      );
+
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+
+      res.status(200).json(message);
+    } catch (error) {
+      console.error("Error updating message status:", error);
+      res.status(500).json({ message: "Error updating message status", error: error.message });
+    }
+  };
+
+  return {
+    sendMessage,
+    getConversation,
+    updateMessageStatus,
+  };
 };
+
+module.exports = lbMessageController;

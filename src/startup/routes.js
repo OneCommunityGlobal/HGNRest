@@ -18,6 +18,8 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const userPreferences = require('../models/lbdashboard/userPreferences');
+const message = require('../models/lbdashboard/message');
 
 
 // Title
@@ -132,9 +134,8 @@ const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(bui
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
-const lbmessageRouter = require('../routes/lbdashboard/messagesRouter');
-const lbnotificationRouter = require('../routes/lbdashboard/notificationRouter');
-const lbuserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter');
+const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
+const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(userPreferences);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -204,8 +205,7 @@ module.exports = function (app) {
   app.use('api', bmIssueRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   // lb dashboard
-  app.use('/api/lb',lbmessageRouter);
-  app.use('/api/lb',lbnotificationRouter);
-  app.use('/api/lb',lbuserPrefRouter);
+  app.use('/api/lb',lbMessageRouter);
+  app.use('/api/lb',lbUserPrefRouter);
   app.use('/api', registrationRouter);
 };

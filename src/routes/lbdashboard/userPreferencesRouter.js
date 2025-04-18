@@ -1,12 +1,16 @@
 const express = require("express");
-const { updatePreferences, getUserPreferences, lbsendEmail, lbsendSMS} = require("../../controllers/lbdashboard/lbuserPrefController");
 
-const router = express.Router();
+const routes = function (UserPreferences) {
+  const userPreferencesRouter = express.Router();
+  const controller = require("../../controllers/lbdashboard/lbUserPrefController")(UserPreferences);
 
-router
-.put("/notification/:userId", updatePreferences)
-.get("/notification/:userId", getUserPreferences)
-.post("/notification/email", lbsendEmail)
-.post("/notification/sms", lbsendSMS);
+  // Route to get user preferences
+  userPreferencesRouter.route("/preferences").post(controller.getPreferences);
 
-module.exports = router;
+  // Route to update user preferences
+  userPreferencesRouter.route("/preferences").put(controller.updatePreferences);
+
+  return userPreferencesRouter;
+};
+
+module.exports = routes;

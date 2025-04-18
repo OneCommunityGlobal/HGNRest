@@ -1,10 +1,19 @@
 const express = require("express");
-const { sendMessage, getMessages, updateMessageStatus } = require("../../controllers/lbdashboard/lbmessageController");
 
-const router = express.Router();
+const routes = function (Message, Notification) {
+  const messagesRouter = express.Router();
+  const controller = require("../../controllers/lbdashboard/lbMessageController")(Message, Notification);
 
-router.post("/send", sendMessage);
-router.get("/:userId", getMessages);
-router.patch("/:messageId/status", updateMessageStatus);
+  // Route to send a message
+  messagesRouter.route("/messages").post(controller.sendMessage);
 
-module.exports = router;
+  // Route to get conversation history
+  messagesRouter.route("/messages/conversation").get(controller.getConversation);
+
+  // Route to update message status
+  messagesRouter.route("/messages/status").patch(controller.updateMessageStatus);
+
+  return messagesRouter;
+};
+
+module.exports = routes;
