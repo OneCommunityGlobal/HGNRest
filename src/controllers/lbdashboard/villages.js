@@ -69,7 +69,26 @@ const villagesController = () => {
             .optional()
             .trim()
             .isURL()
-            .withMessage('Property link must be a valid URL')
+            .withMessage('Property link must be a valid URL'),
+
+        // Validate villageMapLink (optional URL)
+        body('villageMapLink')
+        .optional()
+        .trim()
+        .isURL()
+        .withMessage('Village map link must be a valid URL'),
+
+        // Validate amenities array and each amenity
+        body('amenities')
+        .optional()
+        .isArray()
+        .withMessage('Amenities must be an array'),
+        
+        body('amenities.*')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Each amenity must be a non‑empty string'),
     ];
 
     // Get all villages
