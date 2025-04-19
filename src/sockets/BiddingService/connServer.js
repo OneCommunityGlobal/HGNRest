@@ -8,6 +8,10 @@ const client = require('twilio')(
   process.env.twilio_testAccountSid,
   process.env.twilio_testAuthToken,
 );
+const client = require('twilio')(
+  process.env.twilio_testAccountSid,
+  process.env.twilio_testAuthToken,
+);
 
 function sendSMS() {
   client.messages
@@ -264,11 +268,6 @@ module.exports = function (server) {
       console.log(SMSResp);
       console.log('before sendBIDSMS');
 
-      //   const vonSendResp = vonSendSMS();
-      //   console.log('after vonSendResp');
-      //   console.log(vonSendResp);
-
-      // const SMSResponse = sendBidSMS('+447940534646', 500);
       console.log('SMSResponse');
 
       const emailBidBody = `
