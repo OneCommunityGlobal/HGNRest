@@ -42,4 +42,16 @@ const formquestions = [
   { title: "followup", subject: "additional_info", text: "Is there anything else you'd like to share with us?", page: "5", qno:4 },
 ];
 
+const getSkillsList = () =>
+  formquestions.filter((ele) => {
+    const { title, subject } = ele;
+    if (title === 'frontend' || title === 'backend') {
+      if (subject.trim().toLowerCase() !== 'overall') {
+        return true;
+      }
+    }
+    return false;
+  });
+
 module.exports = formquestions;
+module.exports.getSkillsList=  getSkillsList;

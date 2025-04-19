@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
 
 const hgnFormController = function () {

@@ -1,6 +1,7 @@
 const { hasPermission } = require('utilities/permissions');
 const FormResponse = require('../models/hgnFormResponse');
 const userProfile = require('../models/userProfile');
+// const { getSkillsList } = require('../utilities/hgnformQuestions');
 
 const questionnaireAnalyticsController = function () {
   const getUsersBySkills = async function (req, res) {
@@ -23,6 +24,17 @@ const questionnaireAnalyticsController = function () {
       //     }
       //  }
       // ['$frontend.React', '$frontend.Redux', '$backend.MongoDB', '$backend.Deployment'];
+
+      // const allSkillListPath = getSkillsList().map((skill) => {
+      //   const { title, subject } = skill;
+      //   return [
+      //     {
+      //       name: subject,
+      //       score: `$${title}.${subject}`,
+      //     },
+      //   ];
+      // });
+
       const skillPaths = Object.entries(skills).flatMap(([domain, list]) =>
         list.map((skill) => `$${domain}.${skill}`),
       );
