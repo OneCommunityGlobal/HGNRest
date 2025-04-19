@@ -112,6 +112,9 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+      manuallyAssigned: { type: Boolean, default: false },
+      manuallyAssignedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
+      editedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
     },
   ],
   warnings: [
