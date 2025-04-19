@@ -8,10 +8,6 @@ const client = require('twilio')(
   process.env.twilio_testAccountSid,
   process.env.twilio_testAuthToken,
 );
-const client = require('twilio')(
-  process.env.twilio_testAccountSid,
-  process.env.twilio_testAuthToken,
-);
 
 function sendSMS() {
   client.messages
