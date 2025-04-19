@@ -4,6 +4,8 @@ const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
+const logger = require('../startup/logger');
+
 
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
@@ -540,6 +542,40 @@ const reportsController = function () {
     }
   };
 
+  const postSummaryFilters = async (req, res) => {
+    // request structure from frontend.
+    /**  request = [{
+      codes: "",
+      colors: "",
+      filterName: "",
+      FilterByBioStatus: "",
+      FilterByOverHours: ""
+  }]; */
+
+    if (req?.body?.filter?.length > 0) {
+      return res.status(400).send({ msg: 'Please provide an proper filter' });
+    }
+
+    try {
+      const saveFiltersIntoUserprofiles = await overviewReportHelper.postFiltersIntoUserProfiles(req);
+      return res.status(200).json({ saveFiltersIntoUserprofiles });
+    } catch (err) {
+      logger.logException(err);
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const getWeeklySummaryFiltersForUser = async function (req, res) {
+    try {
+      const getFilters = await overviewReportHelper.getWeeklySummaryFilters();
+      return res.status(200).json({ getFilters });
+    } catch (err) {
+      logger.logException(err);
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+};
+
+  
   return {
     getVolunteerStats,
     getVolunteerHoursStats,
@@ -553,6 +589,8 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    postSummaryFilters,
+    getWeeklySummaryFiltersForUser
   };
 };
 
