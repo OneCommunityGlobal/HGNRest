@@ -36,7 +36,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: true },
+        $match: { isActive: { $in: [true, false] } } // Fetch both active and inactive users
       },
       {
         $lookup: {
@@ -75,12 +75,13 @@ const reporthelper = function () {
           },
           firstName: 1,
           lastName: 1,
-          role: 1,
+          role: 1,    
           email: 1,
           mediaUrl: 1,
           createdDate: 1,
           weeklycommittedHours: 1,
           weeklycommittedHoursHistory: 1,
+          isActive: 1,
           weeklySummaryNotReq: 1,
           weeklySummaryOption: 1,
           adminLinks: 1,
@@ -130,7 +131,6 @@ const reporthelper = function () {
           timeOffTill: {
             $ifNull: ['$timeOffTill', null],
           },
-          role: 1,
           weeklySummaries: {
             $filter: {
               input: "$weeklySummaries",
@@ -182,7 +182,7 @@ const reporthelper = function () {
 
       delete result.timeEntries;
     });
-
+    
     return results;
   };
   const getReportReceipents = () => {
