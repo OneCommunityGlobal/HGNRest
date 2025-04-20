@@ -289,7 +289,7 @@ module.exports = function (server) {
         console.log(accessToken);
         console.log('accessToken.token');
         console.log(accessToken.token);
-        /* const transporter = nodemailer.createTransport({
+        const transporter = nodemailer.createTransport({
           service: 'gmail',
           auth: {
             type: 'OAuth2',
@@ -299,8 +299,10 @@ module.exports = function (server) {
             refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
             accessToken: accessToken.token, //  Important: .token
           },
-        }); 
-        const transporter = nodemailer.createTransport({
+          logger: true,
+          debug: true,
+        });
+        /* const transporter = nodemailer.createTransport({
           service: 'gmail',
           auth: {
             user: process.env.REACT_APP_EMAIL,
@@ -333,7 +335,7 @@ module.exports = function (server) {
         });
 */
         // console.log(socket.handshake.auth.email);
-
+        /* working fine
         const transporter = nodemailer.createTransport({
           service: 'gmail',
           auth: {
@@ -343,7 +345,7 @@ module.exports = function (server) {
           logger: true,
           debug: true,
         });
-
+*/
         const mailOptions = {
           from: process.env.REACT_APP_EMAIL,
           subject: 'Test Email',
@@ -369,12 +371,12 @@ module.exports = function (server) {
         });
 */
         emailSender(
-          socket.handshake.auth.email, // recipents 'onecommunityglobal@gmail.com',
+          process.env.REACT_APP_EMAIL, // recipents 'onecommunityglobal@gmail.com',
           'Received Bid', // subject
           emailBidBody, // message
           null, // attachments
           null, //  cc
-          socket.handshake.auth.email, // reply to
+          process.env.REACT_APP_EMAIL, // reply to
         );
         console.log('email sent');
         // res.status(200).send("Success");
