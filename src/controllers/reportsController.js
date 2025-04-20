@@ -558,7 +558,7 @@ const reportsController = function () {
   const puppeteerLogic = async () => {
     const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
     if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-      logger.logError('Puppeteer email or password not found in environment variables');
+      // logger.logError('Puppeteer email or password not found in environment variables');
     }
     const browser = await puppeteer.launch({
       headless: true,
@@ -583,7 +583,9 @@ const reportsController = function () {
 
     // eslint-disable-next-line no-restricted-syntax
     for (const element of elements) {
+      // eslint-disable-next-line no-await-in-loop
       await element.click();
+      // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(1000); // wait for the animation to complete
     }
     await page.waitForTimeout(50000);
@@ -597,9 +599,7 @@ const reportsController = function () {
 
   const sendEmailReport = async (req, res) => {
     try {
-      const { recipients } = req.body;
-      const subject = 'Summary Report';
-      const message = 'Please find the attached summary report';
+      const { recipients, subject, message } = req.body;
       if (!recipients || recipients.length === 0) {
         return res.status(400).send({ msg: 'Please provide at least one recipient' });
       }
