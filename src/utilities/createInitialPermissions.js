@@ -10,6 +10,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
       'totalValidWeeklySummaries',
+      'requestBio',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -51,7 +52,9 @@ const permissionsRoles = [
       'changeUserStatus',
       'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
+      'toggleInvisibility',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
@@ -59,6 +62,15 @@ const permissionsRoles = [
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'updateSummaryRequirements',
+      // Tracking Management
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -86,6 +98,7 @@ const permissionsRoles = [
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
@@ -183,6 +196,14 @@ const permissionsRoles = [
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'changeUserStatus',
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       'seeBadges',
       'assignBadges',
       'createBadges',
@@ -216,6 +237,7 @@ const permissionsRoles = [
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
@@ -247,17 +269,20 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'requestBio',
 
       // Title
       'seeQSC',
       'addNewTitle',
+      'editTitle',
       'assignTitle',
 
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
+      'toggleInvisibility',
       'manageAdminLinks',
-
+      'removeUserFromTask',
       'editHeaderMessage',
     ],
   },
