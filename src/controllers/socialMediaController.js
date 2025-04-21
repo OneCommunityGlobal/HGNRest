@@ -130,24 +130,9 @@ async function refreshAccessToken(userId, refreshToken) {
   }
 }
 
-async function checkConnection(req, res) {
-  const userId = req.body.requestor.requestorId;
-  try {
-    const tokenObject = await pinterestToken.findOne({ userId: userId })
-    const { refreshTokenExpireAt } = tokenObject;
-
-    if (new Date() > refreshTokenExpireAt) {
-      res.status(200).json({ error: 'CONNECTION EXPIRED' });
-    }
-    res.status(200).json({});
-  } catch (error) {
-    res.status(200).json({ error: 'CONNECTION NOT FOUND' })
-  }
-}
-
 async function createPin(req, res) {
   const userId = req.body.requestor.requestorId;
-
+ 
   try {
     const tokenObject = await pinterestToken.findOne({ userId: userId })
     const { accessToken, refreshToken, accessTokenExpireAt, refreshTokenExpireAt } = tokenObject;
@@ -205,7 +190,7 @@ async function createPin(req, res) {
 
 
     let requestUrl = 'https://api.pinterest.com/v5/pins'
-
+     
     const response = await axios.post(requestUrl, postData, {
       headers: createPinHeaders,
       responseType: 'json'
@@ -226,6 +211,5 @@ async function createPin(req, res) {
 module.exports = {
   createSessionIdForOAuth,
   getPinterestAccessToken,
-  createPin,
-  checkConnection,
+  createPin
 };
