@@ -19,9 +19,7 @@ const bmOrgsController = function() {
                 .select('orgId name location status startDate country')
                 .lean()
                 .exec();
-                
-            console.log(`Found ${orgs.length} organizations`);
-            
+                            
             // transform data             
             const transformedOrgs = orgs
                 .filter(org => org.location && org.location.coordinates && org.location.coordinates.length === 2)
