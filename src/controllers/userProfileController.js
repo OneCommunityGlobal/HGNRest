@@ -529,14 +529,23 @@ const userProfileController = function (UserProfile, Project) {
       //   }
       // }
 
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        const canEditTeamCode =
+          req.body.requestor.role === 'Owner' ||
+          req.body.requestor.role === 'Administrator' ||
+          req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
+        if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+          res.status(403).send('You are not authorized to edit team code.');
+          return;
+        }
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
@@ -570,16 +579,6 @@ const userProfileController = function (UserProfile, Project) {
           record[fieldName] = req.body[fieldName];
         }
       });
-
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
-      // we need to remove the cache when team code is updated in case of new team code generation
-      if (req.body.teamCode) {
-        // remove teamCode cache when new team assigned
-        if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache('teamCodes');
-        }
-        record.teamCode = req.body.teamCode;
-      }
 
       record.lastModifiedDate = Date.now();
 
