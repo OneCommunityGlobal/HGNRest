@@ -7,13 +7,16 @@ const questionnaireAnalyticsController = function () {
   const getUsersBySkills = async function (req, res) {
     try {
       const { skills, requestor } = req.body;
+      const { frontend, backend } = skills || {};
       // payload check
-      if (!skills) {
+      if (!skills || (!frontend?.length && !backend?.length)) {
         res.status(400).json({ error: `Please provide 1 or more skills` });
+        return;
       }
       // permission check
       // if (!(await hasPermission(requestor, 'seeQuestioneerAnalytics'))) {
       //   res.status(403).json({ error: `you are not authorized to view skill rankings` });
+      //   return;
       // }
 
       // sample skills payload
@@ -75,6 +78,7 @@ const questionnaireAnalyticsController = function () {
           });
         } else {
           res.status(400).json({ error: `User is not part of any team` });
+          return;
         }
       }
 
