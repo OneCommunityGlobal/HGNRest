@@ -952,95 +952,6 @@ const userHelper = function () {
     }
   };
 
-  const missedSummaryTemplate = (firstname) => {
-    return (
-    `<div style="font-family: Arial, sans-serif;">
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning Jae,</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">If you also forgot to submit your weekly media files, be sure to fix that too.</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;"><strong>Reply All</strong> to this email once you've done this, so we know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and "reply all" so we know and we will remove this blue square.</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-    </div>`
-    )
-  }
-  // function to send emails to those users who have completed hours but not submitted their summary
-  const completeHoursAndMissedSummary= async () => {
-      try{
-      const users = await userProfile.find(
-        { isActive: true, weeklySummaryOption: "Required"  },
-        '_id weeklycommittedHours weeklySummaries missedHours role email firstName',
-      );
-      
-      const pdtStartOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .subtract(1, 'week');
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-      
-      const bluesquarebcc=await BlueSquareEmailAssignmentModel.find().select('email');
-      var bluesquareemails=bluesquarebcc.map((bcc)=>bcc.email);
-      bluesquareemails.push("onecommunityglobal@gmail.com");
-      bluesquareemails.push("jae@onecommunityglobal.org");
-      for (let i = 0; i < users.length; i += 1) {
-        const allowedEmails = [
-          "jae@onecommunityglobal.org", //Summary turned off Owner
-          "onecommunityhospitality@gmail.com", //Summary turned off Admin
-          "one.community@me.com", //Manager, did hours but no summary
-          "jatinagrawal0801@gmail.com", //Volunteer, did hours but no summary
-          "ttertitsa1@gmail.com", //Volunteer did hours with summary
-          "osorare@yahoo.com", //Core Team, did hours with summary
-        ];
-
-        if(allowedEmails.includes(users[i].email)){
-          const user = users[i];
-          const personId = mongoose.Types.ObjectId(user._id);
-          let hasWeeklySummary = false;
-
-          if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-            const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
-            const summary = relevantSummary?.summary;
-
-            if (summary && summary.trim().length > 0) {
-              hasWeeklySummary = true;
-            }
-          }
-          const results = await dashboardHelper.laborthisweek(
-            personId,
-            pdtStartOfLastWeek,
-            pdtEndOfLastWeek,
-          );
-          const { timeSpent_hrs: timeSpent } = results[0];
-
-          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-          const timeNotMet = timeSpent < weeklycommittedHours;
-
-          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-          const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
-
-          const requestsForTimeOff = await timeOffRequest.find({
-            requestFor: personId,
-            startingDate: { $lte: utcStartMoment },
-            endingDate: { $gte: utcEndMoment },
-          });
-          const hasTimeOffRequest = requestsForTimeOff.length > 0;
-          // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
-          if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
-              emailSender(
-              users[i].email,
-              'Weekly Summary Missing',
-              missedSummaryTemplate(users[i].firstName),
-              null,
-              bluesquareemails,
-              'jae@onecommunityglobal.org',
-            );
-          }
-        }}
-    }catch(err){ 
-      console.log(err)
-    }
-  };
-
   const applyMissedHourForCoreTeam = async () => {
     try {
       const currentDate = moment().tz('America/Los_Angeles').format();
@@ -2640,7 +2551,6 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
-    completeHoursAndMissedSummary
   };
 };
 
