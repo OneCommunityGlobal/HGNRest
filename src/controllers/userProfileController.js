@@ -1297,8 +1297,9 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
-      .then((user) => {
+    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode')
+      .then(async (user) => {
+        const wasInactive = !user.isActive;
         user.set({
           isActive: activeStatus,
           reactivationDate: activationDate,
@@ -1306,6 +1307,15 @@ const userProfileController = function (UserProfile, Project) {
           isSet,
           finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
+
+        // if teamcode is invalid, flag warning
+        if (activeStatus && wasInactive) {
+            const mismatch = await userHelper.checkTeamCodeMismatch(user);
+            if (mismatch) {
+              user.teamCodeWarning = true;
+            }
+          }
+
         user
           .save()
           .then(() => {
@@ -1941,14 +1951,11 @@ const userProfileController = function (UserProfile, Project) {
 
   const updateUserInformation = async function (req, res) {
     try {
+        logger.logInfo("in updateUserInformation");
+        
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        
-        if (e.item == "isActive"){
-            await userHelper.handleUserActivation(result, e.value);
-        }
-
         result[e.item] = e.value
         await result.save();
       })

@@ -55,19 +55,6 @@ const userHelper = function () {
     });
   };
 
-  // flag warning when user status is changed from inactive to active 
-  // and when the teamcode does not match the latest team code. 
-  const handleUserActivation =  async function (user, status) {
-    if (user.isActive || !user.teams || user.teams.length === 0) {
-        return;
-    }
-
-    const latestTeamId = user.teams[0];
-    const latestTeam = await Team.findById(latestTeamId);
-
-    user.teamCodeWarning = !latestTeam || user.teamCode !== latestTeam.teamCode;
-  }
-
   const getTeamMembersForBadge = async function (user) {
 
       try{
@@ -2525,6 +2512,35 @@ const userHelper = function () {
     return false;
   }
 
+  async function getCurrentTeamCode(teamId) {
+    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+  
+    const result = await userProfile.aggregate([
+      { $match: { teams: mongoose.Types.ObjectId(teamId), isActive: true } },
+      { $limit: 1 },
+      { $project: { teamCode: 1 } },
+    ]);
+  
+    return result.length > 0 ? result[0].teamCode : null;
+  }
+  
+  async function checkTeamCodeMismatch(user) {
+    try{
+        if (!user || !user.teams.length) return false;
+  
+        const latestTeamId = user.teams[0];
+        const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
+        if (!teamCodeFromFirstActive) return false;
+      
+        return teamCodeFromFirstActive !== user.teamCode;
+    } catch(error) {
+        console.error('Error in checkTeamCodeMismatch:', error);
+        return false;
+    }
+
+  }
+  
+
   async function imageUrlToPngBase64(url, maxSizeKB = 45) {
     try {
       // Fetch the image as a buffer
@@ -2653,7 +2669,8 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
-    completeHoursAndMissedSummary
+    completeHoursAndMissedSummary,
+    checkTeamCodeMismatch
   };
 };
 
