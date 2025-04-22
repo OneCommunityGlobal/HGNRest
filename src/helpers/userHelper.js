@@ -2534,7 +2534,7 @@ const userHelper = function () {
       
         return teamCodeFromFirstActive !== user.teamCode;
     } catch(error) {
-        console.error('Error in checkTeamCodeMismatch:', error);
+        logger.logException(error);
         return false;
     }
 
