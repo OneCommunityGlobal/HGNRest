@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const jobs = require('../models/jobs');
-const JobsNotificationList = require('../models/jobsNotificationList');
+const jobs = require('models/jobs');
+const JobsNotificationList = require('models/jobsNotificationList');
 
 const { ObjectId } = mongoose.Types;
 
