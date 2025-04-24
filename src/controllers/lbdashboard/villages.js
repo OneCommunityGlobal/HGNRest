@@ -172,6 +172,9 @@ const villagesController = () => {
             if (req.body.imageLink !== undefined) village.imageLink = req.body.imageLink;
             if (req.body.position !== undefined) village.position = req.body.position;
             if (req.body.properties !== undefined) village.properties = req.body.properties;
+            if (req.body.villageMapLink !== undefined) village.villageMapLink = req.body.villageMapLink;
+            if (req.body.amenities !== undefined)      
+            village.amenities = req.body.amenities;
 
             const updatedVillage = await village.save();
             res.json(updatedVillage);
