@@ -42,18 +42,67 @@ async function getPinterestAccessToken(req, res) {
   }
 }
 
-async function createPin(req, res) {
+// async function fetchBoardList(req, res) {
+async function fetchBoardList() {
+  let accessToken;
+  let expireTime;
+
+  if (process.env.PINTEREST_SANDBOX_API) {
+    accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
+  } else {
+    if (!fs.existsSync("access_token.txt")) {
+      console.log("no token file, start generating........")
+      await getPinterestAccessToken();
+    }
+    let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
+    let tokenObject = JSON.parse(tokenData);
+    expireTime = new Date(tokenObject.expireTime);
+    accessToken = tokenObject.accessToken;
+  }
+  const requestHeader = { Authorization: `Bearer ${accessToken}` }
+
+  try {
+    let requestUrl = ""
+    if (process.env.PINTEREST_SANDBOX_API) {
+      requestUrl = 'https://api-sandbox.pinterest.com/v5/boards'
+    } else {
+      requestUrl = 'https://api.pinterest.com/v5/boards'
+    }
+    const response = await axios.get(requestUrl, {
+      headers: requestHeader,
+      responseType: 'json'
+    });
+    const boardList = response.data.items;
+    // console.log(boardList);
+    // res.status(200).json(boardList);
+    return boardList;
+  } catch (error) {
+    console.error('Error getting board list:', error);
+    if (error.response) {
+      // res.status(error.response.status).json({ error: error.response.data.message });
+      console.log(error.response.data.message);
+    } else {
+      // res.status(500).json({ error: 'Failed to get board list' });
+      console.log('Failed to get board list');
+    }
+  }
+}
+
+async function createBoard(title, details) {
+  // async function createBoard(req, res){
   let accessToken = "";
 
   if (process.env.PINTEREST_SANDBOX_API) {
     accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
   } else {
     if (!fs.existsSync("access_token.txt")) {
+      console.log("no token file, start generating........")
       await getPinterestAccessToken();
     }
     let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
     let tokenObject = JSON.parse(tokenData);
     const expireTime = new Date(tokenObject.expireTime);
+    accessToken = tokenObject.accessToken;
     // get new token if current token expired
     if (new Date() > expireTime) {
       await getPinterestAccessToken();
@@ -62,6 +111,80 @@ async function createPin(req, res) {
     tokenObject = JSON.parse(tokenData);
     accessToken = tokenObject.accessToken;
   }
+
+
+  try {
+    let requestUrl = ""
+    if (process.env.PINTEREST_SANDBOX_API) {
+      requestUrl = 'https://api-sandbox.pinterest.com/v5/boards'
+    } else {
+      requestUrl = 'https://api.pinterest.com/v5/boards'
+    }
+
+    const postData = { name: title, description: details, privacy: "PUBLIC" };
+    const createPinHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+
+    const response = await axios.post(requestUrl, postData, {
+      headers: createPinHeaders,
+      responseType: 'json'
+    })
+
+    return response.data;
+    // res.status(200).json(response.data)
+  } catch (error) {
+    console.error('Error creating board:', error);
+    if (error.response) {
+      // res.status(error.response.status).json({ error: error.response.data.message });
+      rconsole.log(error.response.data.message);
+    } else {
+      // res.status(500).json({ error: 'Failed to create board' });
+      console.log('Failed to create board');
+    }
+  }
+}
+
+
+
+async function createPin(req, res) {
+  let accessToken = "";
+
+  if (process.env.PINTEREST_SANDBOX_API) {
+    accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
+  } else {
+    if (!fs.existsSync("access_token.txt")) {
+      console.log("no token file, start generating........")
+      await getPinterestAccessToken();
+    }
+    let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
+    let tokenObject = JSON.parse(tokenData);
+    const expireTime = new Date(tokenObject.expireTime);
+    accessToken = tokenObject.accessToken;
+    // get new token if current token expired
+    if (new Date() > expireTime) {
+      await getPinterestAccessToken();
+    }
+    tokenData = await fs.readFileSync('access_token.txt', 'utf8');
+    tokenObject = JSON.parse(tokenData);
+    accessToken = tokenObject.accessToken;
+  }
+
+  //get board list
+  const boardList = await fetchBoardList();
+
+  //If One Community board not exist, create one
+  let OneCommBoard = boardList.find((board) => board.name === "One Community");
+  if (!OneCommBoard) {
+    const boardTitle = "One Community";
+    const boardDetails = "Updates from One Community";
+    OneCommBoard = await createBoard(boardTitle, boardDetails);
+  }
+
+  const board_id = OneCommBoard.id;
+  console.log(OneCommBoard);
+  console.log(board_id);
+
+
+  //process content
   let source_type;
   let hasBase64Image = false;
   let hasUrlImage = false;
@@ -100,7 +223,7 @@ async function createPin(req, res) {
       { source_type, ...(media_source_items[0]) };
   }
   const description = $.text();
-  const board_id = '1110841133028920431'; // TODO: get board id from Pinterest API
+  // const board_id = '1110841133029039080'; // TODO: get board id from Pinterest API
   const title = 'Weekly progress'; // TODO: get a proper title
 
   const postData = { board_id: board_id, description, title, media_source };
@@ -132,5 +255,7 @@ async function createPin(req, res) {
 
 module.exports = {
   getPinterestAccessToken,
-  createPin
+  createPin,
+  fetchBoardList,
+  createBoard,
 };
