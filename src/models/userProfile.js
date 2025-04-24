@@ -256,6 +256,19 @@ const userProfileSchema = new Schema({
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
   permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
+  questionaireFeedback: {
+    haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
+    peopleYouContacted: [
+      {
+        fullName: { type: String, required: true },
+        rating: { type: Number, min: 1, max: 5 },
+        isActive: { type: Boolean, default: false },
+      }
+    ],
+    additionalComments: { type: String },
+    daterequestedFeedback: { type: Date, default: Date.now },
+    foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
+  }
 });
 
 userProfileSchema.pre('save', function (next) {

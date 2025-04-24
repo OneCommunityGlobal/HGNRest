@@ -329,6 +329,24 @@ const dashboardcontroller = function () {
       res.status(500).send("Internal Server Error");
     }
   };
+  const requestFeedbackModal = async function (req, res) {
+    try {
+      console.log("Hey bro Inga vanthuchu")
+      const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
+      return res.status(200).json({ savingRequestFeedbackData });
+    } catch (err) {
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+ 
+  const getUserNames = async function (req, res) {
+    try {
+      const usersList = await dashboardhelper.getNamesFromProfiles();
+      return res.status(200).json({ users : usersList });
+    } catch (err) {
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
 
   return {
     dashboarddata,
@@ -344,6 +362,8 @@ const dashboardcontroller = function () {
     sendMakeSuggestion,
     updateCopiedPrompt,
     getPromptCopiedDate,
+    requestFeedbackModal,
+    getUserNames
   };
 };
 
