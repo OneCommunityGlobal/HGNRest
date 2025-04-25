@@ -19,7 +19,6 @@ const lbMessageController = function (Message) {
 
   const getConversation = async (req, res) => {
     try {
-      console.log("getConversation called");
       const userId = req.headers.userid || req.query.userId;
       const contactId = req.headers.contactid || req.query.contactId;
   

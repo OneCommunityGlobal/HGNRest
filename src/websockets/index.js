@@ -2,13 +2,16 @@
 /* eslint-disable operator-linebreak */
 /* eslint-disable consistent-return */
 /* eslint-disable quotes */
-import Message from '../models/lbdashboard/message'
 
 /* eslint-disable linebreak-style */
 const WebSocket = require('ws');
+const {Server} = require('socket.io');
 const moment = require('moment');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+import Message from '../models/lbdashboard/message'
+
+
 const {
   insertNewUser,
   removeConnection,
@@ -25,24 +28,23 @@ const { getClient, handleMessage, action } = require('./TimerService/clientsHand
  */
 const authenticate = (req, res) => {
   const authToken = req.headers?.['sec-websocket-protocol'];
+  console.log("🔑 Received WebSocket token:", authToken);
+
+  if (!authToken) {
+    console.error("❌ WebSocket authentication failed: No token provided");
+    res('401 Unauthorized', null);
+    return;
+  }
+
   let payload = '';
   try {
     payload = jwt.verify(authToken, config.JWT_SECRET);
+    console.log("✅ WebSocket authentication successful:", payload);
+    res(null, payload.userid);
   } catch (error) {
+    console.error("❌ WebSocket authentication failed:", error.message);
     res('401 Unauthorized', null);
   }
-
-  if (
-    !payload ||
-    !payload.expiryTimestamp ||
-    !payload.userid ||
-    !payload.role ||
-    moment().isAfter(payload.expiryTimestamp)
-  ) {
-    res('401 Unauthorized', null);
-  }
-
-  res(null, payload.userid);
 };
 
 /**
@@ -217,4 +219,69 @@ export default async (expServer) => {
   });
 
   return wss;
+};
+
+export const setupMessagingWebSocket = (expServer) => {
+  const io = new Server(expServer, {
+    path: "/lb-messaging",
+    cors: {
+      origin: "*", // Adjust this to your frontend's origin
+      methods: ["GET", "POST"],
+    },
+  });
+
+  console.log("✅ Messaging Socket.IO server initialized on /lb-messaging");
+
+  io.use((socket, next) => {
+    const token = socket.handshake.query.token;
+    console.log("Received token:", token);
+    if (!token) {
+      console.error("❌ Socket.IO authentication failed: No token provided");
+      return next(new Error("Authentication error"));
+    }
+
+    try {
+      const payload = jwt.verify(token, config.JWT_SECRET);
+      socket.userId = payload.userid; // Attach userId to the socket
+      console.log("✅ Socket.IO authentication successful:", payload);
+      next();
+    } catch (error) {
+      console.error("❌ Socket.IO authentication failed:", error.message);
+      next(new Error("Authentication error"));
+    }
+  });
+
+  io.on("connection", (socket) => {
+    console.log(`✅ New Socket.IO connection established for user: ${socket.userId}`);
+  
+    socket.on("SEND_MESSAGE", async (data) => {
+      const { receiver, content } = data;
+      const chatMessage = {
+        sender: socket.userId,
+        receiver,
+        content,
+        status: "sent",
+        isRead: false,
+        timestamp: new Date(),
+      };
+  
+      try {
+        const savedMessage = await Message.create(chatMessage);
+  
+        // Emit the message to the receiver
+        io.to(receiver).emit("RECEIVE_MESSAGE", {
+          ...savedMessage.toObject(),
+          status: "delivered",
+        });
+  
+        // Echo back to the sender
+        socket.emit("RECEIVE_MESSAGE", savedMessage);
+      } catch (err) {
+        console.error("❌ Error saving message:", err);
+        socket.emit("SEND_MESSAGE_FAILED", { error: "Could not send message" });
+      }
+    });
+  });
+
+  return io;
 };
