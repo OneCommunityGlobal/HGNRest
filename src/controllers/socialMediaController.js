@@ -172,9 +172,9 @@ async function createPin(req, res) {
   const boardList = await fetchBoardList();
 
   //If One Community board not exist, create one
-  let OneCommBoard = boardList.find((board) => board.name === "One Community");
+  let OneCommBoard = boardList.find((board) => board.name === "Test");
   if (!OneCommBoard) {
-    const boardTitle = "One Community";
+    const boardTitle = "Test";
     const boardDetails = "Updates from One Community";
     OneCommBoard = await createBoard(boardTitle, boardDetails);
   }
@@ -186,45 +186,27 @@ async function createPin(req, res) {
 
   //process content
   let source_type;
-  let hasBase64Image = false;
-  let hasUrlImage = false;
-  const emailContent = req.body.emailContent;
-  const $ = cheerio.load(emailContent);
+  const imgType = req.body.imgType;
+  const media_source_items=req.body.mediaItems
   let media_source;
-  let media_source_items = $('img').map((i, img) => {
-    const imgSrc = $(img).attr('src');
-    if (imgSrc.startsWith('data:')) {
-      //process base64 format image data
-      hasBase64Image = true;
-      // base64 format: data:image/png;base64,<base64 part>
-      const content_type = imgSrc.split(';')[0].split(':')[1].trim();
-      const data = imgSrc.split(',')[1].trim();
-      return { content_type, data };
-    } else {
-      hasUrlImage = true;
-      return { url: imgSrc };
-    }
-  }).toArray();
-  if (hasBase64Image) {
-    //filter base64 image source
-    media_source_items = media_source_items.filter((source) => source.content_type);
+ 
+  if (imgType === 'FILE') {
+    //process upload image file
     //Pinterest restriction: there must be two images to use multiple_xxx source type
     source_type = media_source_items.length > 1 ? 'multiple_image_base64' : 'image_base64';
     media_source = media_source_items.length > 1 ?
       { source_type, items: media_source_items } :
       { source_type, ...(media_source_items[0]) };
   } else {
-    //filter url image source
-    media_source_items = media_source_items.filter((source) => source.url);
+    //process url image source
     //Pinterest restriction: there must be two images to use multiple_xxx source type
     source_type = media_source_items.length > 1 ? 'multiple_image_urls' : 'image_url';
     media_source = media_source_items.length > 1 ?
       { source_type, items: media_source_items } :
       { source_type, ...(media_source_items[0]) };
   }
-  const description = $.text();
-  // const board_id = '1110841133029039080'; // TODO: get board id from Pinterest API
-  const title = 'Weekly progress'; // TODO: get a proper title
+  const description = req.body.description
+  const title = req.body.title
 
   const postData = { board_id: board_id, description, title, media_source };
   const createPinHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
