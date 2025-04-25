@@ -1,13 +1,15 @@
 const mongoose = require('mongoose');
 const { google } = require('googleapis');
 // const twilio = require('twilio');
-const emailSender = require('../../utilities/emailSender');
-const nodemailer = require('nodemailer');
-
 const client = require('twilio')(
   process.env.twilio_testAccountSid,
   process.env.twilio_testAuthToken,
 );
+
+const nodemailer = require('nodemailer');
+const emailSender = require('../../utilities/emailSender');
+
+const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 
 function sendSMS() {
   client.messages
@@ -147,6 +149,56 @@ module.exports = function (server) {
       console.log(`user is ${socket.handshake.auth.email}`);
 
       try {
+        const bidDeadlines = await BidDeadlines.findOne({
+          listingId,
+          isActive: true,
+        });
+        // const bidDeadlineId = bidDeadlines?._id;
+        console.log(bidDeadlines);
+        const currDate = Date.now();
+        console.log('currDate');
+        console.log(currDate);
+        console.log(bidDeadlines.endDate.getTime());
+        if (bidDeadlines && currDate > bidDeadlines.endDate.getTime()) {
+          io.emit('bid-not-updated', 'Time Elapsed! Bidding is over');
+          return 'Time Elapsed! Bidding is over';
+        }
+        console.log('amount checking');
+        console.log(
+          bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice.toString(),
+        );
+        console.log(amount);
+
+        console.log(
+          parseFloat(amount) <=
+            parseFloat(
+              bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice,
+            ),
+        );
+        if (
+          bidDeadlines &&
+          parseFloat(amount) <=
+            parseFloat(bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice)
+        ) {
+          io.emit(
+            'bid-not-updated',
+            `bidPrice should be greater than ${bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice}`,
+          );
+
+          return `bidPrice should be greater than ${bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice}`;
+        }
+        await BidDeadlines.updateOne(
+          { listingId },
+          {
+            $push: {
+              biddingHistory: {
+                bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
+                createdDatetime: new Date(),
+              },
+            },
+          },
+        );
+
         const user = await Users.findOne({
           email: socket.handshake.auth.email,
         });
@@ -268,7 +320,7 @@ module.exports = function (server) {
 
       const emailBidBody = `
   <h2>Thank you for your bid!</h2>
-  <p>We have received your bid successfully.</p>
+  <p>We have received your bid $${amount} successfully.</p>
   <p>We'll get back to you shortly.</p>
   <br>
   <p>Regards,<br>Team HGN</p>
@@ -351,7 +403,7 @@ module.exports = function (server) {
           subject: 'Test Email',
           html: `
             <h2>Thank you for your bid!</h2>
-            <p>We have received your bid successfully.</p>
+            <p>We have received your bid $${amount} successfully.</p>
             <p>We'll get back to you shortly.</p>
             <br>
             <p>Regards,<br>Team HGN</p>`,
