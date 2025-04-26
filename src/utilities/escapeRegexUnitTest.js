@@ -1,7 +1,6 @@
 const assert = require('assert');
 const escapeRegex = require('./escapeRegex');
 
-
 let str = '.';
 let regex = new RegExp(escapeRegex(str));
 assert(regex.test(str) && !regex.test('a'), "'.' not escaped");

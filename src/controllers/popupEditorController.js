@@ -13,7 +13,6 @@ const popupEditorController = function (PopupEditors) {
       .catch(error => res.status(404).send(error));
   };
 
-
   const createPopupEditor = async function (req, res) {
     if (!await hasPermission(req.body.requestor, 'createPopup')) {
       res
@@ -61,7 +60,6 @@ const popupEditorController = function (PopupEditors) {
     });
   };
 
-
   return {
     createPopupEditor,
     getAllPopupEditors,
@@ -69,6 +67,5 @@ const popupEditorController = function (PopupEditors) {
     getPopupEditorById,
   };
 };
-
 
 module.exports = popupEditorController;

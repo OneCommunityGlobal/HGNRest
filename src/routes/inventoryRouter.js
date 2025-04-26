@@ -1,6 +1,5 @@
 const express = require('express');
 
-
 const routes = function (item, itemType) {
   const controller = require('../controllers/inventoryController')(item, itemType);
 
@@ -35,6 +34,5 @@ const routes = function (item, itemType) {
 
   return inventoryRouter;
 };
-
 
 module.exports = routes;
