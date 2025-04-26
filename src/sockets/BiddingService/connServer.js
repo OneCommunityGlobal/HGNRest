@@ -1,32 +1,37 @@
 const mongoose = require('mongoose');
 const { google } = require('googleapis');
-// const twilio = require('twilio');
-const client = require('twilio')(
-  process.env.twilio_testAccountSid,
-  process.env.twilio_testAuthToken,
-);
+const twilio = require('twilio');
+
+const client = twilio(process.env.twilio_testAccountSid, process.env.twilio_testAuthToken);
 
 const nodemailer = require('nodemailer');
 const emailSender = require('../../utilities/emailSender');
 
 const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 
-function sendSMS() {
+let io = null; // socket will be stored here
+
+async function sendSMS(bodySMS, fromMob, toMob) {
   client.messages
     .create({
-      body: 'Hello SMS',
-      from: '+15005550006', // Magic "from" number (valid for testing)
-      to: '+15005550006', // Magic "to" number simulates success
+      body: bodySMS, // 'Hello SMS',
+      from: fromMob, // '+15005550006', // Magic "from" number (valid for testing)
+      to: toMob, // '+15005550006', // Magic "to" number simulates success
       // to: '+15005550001', // Magic "to" number simulates invalid number
       // to: '+15005550007', // Success
       // to: '+15005550008', // Success
       // to: '+15005550009', //  Unknown error
     })
     .then((message) => {
+      console.log('then');
       console.log(message.sid);
-      console.log('above SMS message.sid');
+      console.log(message.body);
+      return message;
     })
-    .catch((error) => console.log(error));
+    .catch((error) => {
+      console.log(error);
+      return 'Error sending SMS';
+    });
 }
 // const { VONAGE_API_KEY } = process.env;
 // const { VONAGE_API_SECRET } = process.env;
@@ -85,7 +90,9 @@ function sendBidSMS(toPhone, bidAmount) {
     .catch((err) => console.error('SMS error:', err));
 }
 
-module.exports = function (server) {
+// module.exports = function (server) {  working fine
+// module.exports =
+function soc(server) {
   console.log('socketIO inside');
   const socketIO = require('socket.io');
   const Bids = require('../../models/lbdashboard/bids');
@@ -112,7 +119,8 @@ module.exports = function (server) {
     return encodedMessage;
   }
 
-  const io = socketIO(server, {
+  // const
+  io = socketIO(server, {
     cors: { origin: '*' },
     methods: ['GET', 'POST'], // allow all origins for now (adjust for production)
   });
@@ -232,7 +240,7 @@ module.exports = function (server) {
         console.log(error);
       }
       console.log('Bid Received');
-      console.log('befoe callback');
+      console.log('before callback');
       /* const axios = require('axios');
       const express = require('express');
       const app = express();
@@ -310,13 +318,13 @@ module.exports = function (server) {
 */
       const textBeltSMS = TextbeltSMS();
       console.log(textBeltSMS);
+      const SMSBody = 'New Bid Received';
+      const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
+      const toMob = '+15005550006'; // Magic "to" number simulates success
 
-      const SMSResp = sendSMS();
+      const SMSResp = await sendSMS(SMSBody, fromMob, toMob);
       console.log('SMSResp');
       console.log(SMSResp);
-      console.log('before sendBIDSMS');
-
-      console.log('SMSResponse');
 
       const emailBidBody = `
   <h2>Thank you for your bid!</h2>
@@ -485,4 +493,17 @@ module.exports = function (server) {
       });
     });
   });
-};
+}
+function sendNotifications(bodyS, toEmail) {
+  if (io) {
+    io.to(toEmail).emit('someEvent', bodyS); // example of using the socket
+  } else {
+    console.error('Socket.io not initialized yet!');
+  }
+}
+function getIO() {
+  return io;
+}
+soc.sendNotifications = sendNotifications;
+soc.getIO = getIO;
+module.exports = { soc, sendSMS, sendNotifications, getIO };
