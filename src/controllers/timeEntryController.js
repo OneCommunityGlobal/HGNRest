@@ -9,6 +9,9 @@ const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
+const cacheModule = require('../utilities/nodeCache');
+
+const cacheUtil = cacheModule();
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -471,6 +474,15 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
+
+  const invalidateWeeklySummariesCache = (weekIndex) => {
+    const cacheKey = `weeklySummaries_${weekIndex}`;
+    cacheUtil.removeCache(cacheKey);
+    
+    // Also invalidate the "all weeks" cache
+    cacheUtil.removeCache('weeklySummaries_all');
+  };
+  
   /**
    * Helper func: Check if this is the first time entry for the given user id
    *
@@ -597,6 +609,21 @@ const timeEntrycontroller = function (TimeEntry) {
         await userprofile.save({ session, validateModifiedOnly: true });
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
+
+        // Add cache invalidation for weekly summaries here
+        const dateOfWork = new Date(timeEntry.dateOfWork);
+        const today = new Date();
+        const diffTime = today - dateOfWork;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Calculate which week this entry belongs to (0 = this week, 1 = last week, etc.)
+        const weekIndex = Math.floor(diffDays / 7);
+        
+        // Only invalidate cache for entries in the last 4 weeks
+        if (weekIndex >= 0 && weekIndex <= 3) {
+          // Call the invalidation function
+          invalidateWeeklySummariesCache(weekIndex);
+        }
       }
 
       await session.commitTransaction();
