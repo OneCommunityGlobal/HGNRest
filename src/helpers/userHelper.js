@@ -2526,11 +2526,15 @@ const userHelper = function () {
   
   async function checkTeamCodeMismatch(user) {
     try{
-        if (!user || !user.teams.length) return false;
+        if (!user || !user.teams.length) {
+            return false
+        };
   
         const latestTeamId = user.teams[0];
         const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
-        if (!teamCodeFromFirstActive) return false;
+        if (!teamCodeFromFirstActive) {
+            return false
+        };
       
         return teamCodeFromFirstActive !== user.teamCode;
     } catch(error) {
