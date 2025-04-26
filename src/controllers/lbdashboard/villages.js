@@ -54,12 +54,22 @@ const villagesController = () => {
             .trim()
             .matches(/^\d+(\.\d+)?%$/)
             .withMessage('Top position must be a percentage value (e.g., "100%" or "48%")'),
-            
-        body('properties.*.name')
+        
+        body('properties')
             .optional()
-            .trim()
+            .isArray()
+            .withMessage('Properties must be an array'),
+
+        body('properties.*.unit')
+            .optional()
+            .isInt()
             .notEmpty()
-            .withMessage('Property name cannot be empty'),
+            .withMessage('Property unit must be an integer'),
+
+        body('properties.*.currentBid')
+            .optional()
+            .isInt()
+            .withMessage('Property bidding must be an integer'),
             
         body('properties.*.description')
             .optional()
