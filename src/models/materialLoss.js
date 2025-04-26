@@ -9,10 +9,6 @@ const materialLossModel = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now, required: true}
 });
 
-// // Indexes for performance
-// materialLossSchema.index({ materialId: 1 });
-// materialLossSchema.index({ year: 1 });
-// materialLossSchema.index({ updatedAt: 1 });
-materialLossModel.index({ materialId: 1, year: 1, updatedAt: 1 });
+materialLossModel.index({ materialId: 1, year: 1, month: 1 });
 
 module.exports = mongoose.model('MaterialLoss', materialLossModel, 'materialLoss');
