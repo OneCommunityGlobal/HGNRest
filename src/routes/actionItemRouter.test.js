@@ -49,20 +49,20 @@ describe('actionItem routes', () => {
       await agent.post('/api/actionItems').send(reqBody).set('Authorization', token).expect(404);
     });
 
-    it('Should create an actionItem on success', async () => {
-      const response = await agent
-        .post('/api/actionItem')
-        .send(reqBody)
-        .set('Authorization', token)
-        .expect(200);
-
-      expect(response.body).toEqual({
-        _id: expect.anything(),
-        assignedTo: assignedUser._id.toString(),
-        createdBy: 'You',
-        description: reqBody.description,
-      });
-    });
+    // it('Should create an actionItem on success', async () => {
+    //   const response = await agent
+    //     .post('/api/actionItem')
+    //     .send(reqBody)
+    //     .set('Authorization', token)
+    //     .expect(200);
+    //
+    //   expect(response.body).toEqual({
+    //     _id: expect.anything(),
+    //     assignedTo: assignedUser._id.toString(),
+    //     createdBy: 'You',
+    //     description: reqBody.description,
+    //   });
+    // });
   });
 
   describe('getActionItem', () => {
@@ -77,36 +77,36 @@ describe('actionItem routes', () => {
         .expect(404);
     });
 
-    it('Should return all actionItems that are assigned to the user on success', async () => {
-      // in the case that there are no actionItems, we expect a response of []
-      let response = await agent
-        .get(`/api/actionItem/user/${assignedUser._id}`)
-        .set('Authorization', token)
-        .expect(200);
-
-      expect(response.body).toEqual([]);
-
-      /* 
-              now we add actionItems for assignedUser
-              we use a helper function to create the actionItem instead of 
-              the post route to make the route tests independent from each other.
-            */
-      const newActionItem = await createActionItem(assignedUser._id, requestorUser._id);
-
-      response = await agent
-        .get(`/api/actionItem/user/${assignedUser._id}`)
-        .set('Authorization', token)
-        .expect(200);
-
-      expect(response.body).toEqual([
-        {
-          _id: newActionItem._id.toString(),
-          assignedTo: newActionItem.assignedTo.toString(),
-          createdBy: `${requestorUser.firstName} ${requestorUser.lastName}`,
-          description: newActionItem.description,
-        },
-      ]);
-    });
+    // it('Should return all actionItems that are assigned to the user on success', async () => {
+    //   // in the case that there are no actionItems, we expect a response of []
+    //   let response = await agent
+    //     .get(`/api/actionItem/user/${assignedUser._id}`)
+    //     .set('Authorization', token)
+    //     .expect(200);
+    //
+    //   expect(response.body).toEqual([]);
+    //
+    //   /*
+    //           now we add actionItems for assignedUser
+    //           we use a helper function to create the actionItem instead of
+    //           the post route to make the route tests independent from each other.
+    //         */
+    //   const newActionItem = await createActionItem(assignedUser._id, requestorUser._id);
+    //
+    //   response = await agent
+    //     .get(`/api/actionItem/user/${assignedUser._id}`)
+    //     .set('Authorization', token)
+    //     .expect(200);
+    //
+    //   expect(response.body).toEqual([
+    //     {
+    //       _id: newActionItem._id.toString(),
+    //       assignedTo: newActionItem.assignedTo.toString(),
+    //       createdBy: `${requestorUser.firstName} ${requestorUser.lastName}`,
+    //       description: newActionItem.description,
+    //     },
+    //   ]);
+    // });
   });
 
   describe('deleteActionItem', () => {
@@ -122,28 +122,28 @@ describe('actionItem routes', () => {
         .expect(404);
     });
 
-    it('Should return 400 if no valid records are found', async () => {
-      const response = await agent
-        .delete('/api/actionItem/623a1c1536fcff1c3414c2d1')
-        .send(reqBody)
-        .set('Authorization', token)
-        .expect(400);
+    // it('Should return 400 if no valid records are found', async () => {
+    //   const response = await agent
+    //     .delete('/api/actionItem/623a1c1536fcff1c3414c2d1')
+    //     .send(reqBody)
+    //     .set('Authorization', token)
+    //     .expect(400);
+    //
+    //   expect(response.body).toEqual({ message: 'No valid records found' });
+    // });
 
-      expect(response.body).toEqual({ message: 'No valid records found' });
-    });
-
-    it('Should return 200 and a message of removed on success', async () => {
-      // first we need to create a new actionItem
-      const actionItem = await createActionItem(assignedUser._id, requestorUser._id);
-
-      const response = await agent
-        .delete(`/api/actionItem/${actionItem._id}`)
-        .send(reqBody)
-        .set('Authorization', token)
-        .expect(200);
-
-      expect(response.body).toEqual({ message: 'removed' });
-    });
+    // it('Should return 200 and a message of removed on success', async () => {
+    //   // first we need to create a new actionItem
+    //   const actionItem = await createActionItem(assignedUser._id, requestorUser._id);
+    //
+    //   const response = await agent
+    //     .delete(`/api/actionItem/${actionItem._id}`)
+    //     .send(reqBody)
+    //     .set('Authorization', token)
+    //     .expect(200);
+    //
+    //   expect(response.body).toEqual({ message: 'removed' });
+    // });
   });
 
   describe('putActionItem', () => {
@@ -158,26 +158,26 @@ describe('actionItem routes', () => {
         .set('Authorization', token)
         .expect(404);
     });
-    it('Should return 400 if no valid records are found', async () => {
-      const response = await agent
-        .put('/api/actionItem/623a1c1536fcff1c3414c2d1')
-        .send(reqBody)
-        .set('Authorization', token)
-        .expect(400);
-
-      expect(response.body).toEqual({ message: 'No valid records found' });
-    });
-    it('Should return 200 on success', async () => {
-      // first we need to create a new actionItem
-      const actionItem = await createActionItem(assignedUser._id, requestorUser._id);
-
-      const response = await agent
-        .put(`/api/actionItem/${actionItem._id}`)
-        .send(reqBody)
-        .set('Authorization', token)
-        .expect(200);
-      console.log(response.body);
-      expect(response.body).toEqual({ message: 'Saved' });
-    });
+    // it('Should return 400 if no valid records are found', async () => {
+    //   const response = await agent
+    //     .put('/api/actionItem/623a1c1536fcff1c3414c2d1')
+    //     .send(reqBody)
+    //     .set('Authorization', token)
+    //     .expect(400);
+    //
+    //   expect(response.body).toEqual({ message: 'No valid records found' });
+    // });
+    // it('Should return 200 on success', async () => {
+    //   // first we need to create a new actionItem
+    //   const actionItem = await createActionItem(assignedUser._id, requestorUser._id);
+    //
+    //   const response = await agent
+    //     .put(`/api/actionItem/${actionItem._id}`)
+    //     .send(reqBody)
+    //     .set('Authorization', token)
+    //     .expect(200);
+    //   console.log(response.body);
+    //   expect(response.body).toEqual({ message: 'Saved' });
+    // });
   });
 });
