@@ -4,7 +4,7 @@ const Sentry = require('@sentry/node');
 const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
-
+const actualCostBreakdownRoutes = require('./routes/actualCostBreakdownRoutes');
 logger.init();
 
 // The request handler must be the first middleware on the app
@@ -20,5 +20,5 @@ app.use(Sentry.Handlers.errorHandler());
 
 // Make it the last middleware since it returns a response and do not call next()
 app.use(globalErrorHandler);
-
+app.use(actualCostBreakdownRoutes);
 module.exports = { app, logger };
