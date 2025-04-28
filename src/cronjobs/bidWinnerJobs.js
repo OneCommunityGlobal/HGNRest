@@ -145,6 +145,6 @@ const bidWinnerJobs = () => {
     false, // true, // start
     // 'America/Los_Angeles', // timeZone
   );
-  bidWinnerJob.start(); // is optional here because of the fourth parameter set to true.
+  //  bidWinnerJob.start(); // is optional here because of the fourth parameter set to true.
 };
 module.exports = bidWinnerJobs;
