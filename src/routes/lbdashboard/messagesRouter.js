@@ -1,17 +1,21 @@
 const express = require("express");
+const {
+  sendMessageHandler,
+  getConversationHandler,
+  updateMessageStatusHandler,
+} = require("../../websockets/lbMessaging/lbMessageHandler");
 
-const routes = function (Message, Notification) {
+const routes = function (io) {
   const messagesRouter = express.Router();
-  const controller = require("../../controllers/lbdashboard/lbMessageController")(Message, Notification);
 
   // Route to send a message
-  messagesRouter.route("/messages").post(controller.sendMessage);
+  messagesRouter.post("/messages", (req, res) => sendMessageHandler(req, res, io));
 
   // Route to get conversation history
-  messagesRouter.route("/messages/conversation").get(controller.getConversation);
+  messagesRouter.get("/messages/conversation", getConversationHandler);
 
   // Route to update message status
-  messagesRouter.route("/messages/status").patch(controller.updateMessageStatus);
+  messagesRouter.patch("/messages/status", (req, res) => updateMessageStatusHandler(req, res, io));
 
   return messagesRouter;
 };

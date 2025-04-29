@@ -1,19 +1,22 @@
 /* eslint-disable quotes */
 require('dotenv').load();
 const { app, logger } = require('./app');
-const { setupMessagingWebSocket } = require('./websockets');
-const websockets = require('./websockets').default;
+const TimerWebsockets = require('./websockets').default;
+const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+const websocketRouter = require('./websockets/webSocketRouter');
 
 const port = process.env.PORT || 4500;
 
 const server = app.listen(port, () => {
   logger.logInfo(`Started server on port ${port}`);
 });
-(async () => {
-  await websockets(server);
-  setupMessagingWebSocket(server);
-})();
+
+const timerService = TimerWebsockets();
+const messagingService = MessagingWebSocket();
+
+websocketRouter(server, [timerService, messagingService]);
+
 
 module.exports = server;
