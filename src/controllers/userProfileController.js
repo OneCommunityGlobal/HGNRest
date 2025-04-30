@@ -520,14 +520,14 @@ const userProfileController = function (UserProfile, Project) {
       }
       // validate userprofile pic
 
-      if (req.body.profilePic) {
-        const results = userHelper.validateProfilePic(req.body.profilePic);
+      // if (req.body.profilePic) {
+      //   const results = userHelper.validateProfilePic(req.body.profilePic);
 
-        if (!results.result) {
-          res.status(400).json(results.errors);
-          return;
-        }
-      }
+      //   if (!results.result) {
+      //     res.status(400).json(results.errors);
+      //     return;
+      //   }
+      // }
 
       // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
