@@ -1,24 +1,24 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 // const userProfile = require('../models/userProfile');
 // const hasPermission = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const cache = require('../utilities/nodeCache')();
+const cacheClosure = require('../utilities/nodeCache');
 
 const informationController = function (Information) {
+  const cache = cacheClosure();
   const getInformations = function (req, res) {
     // return all informations if cache is available
     if (cache.hasCache('informations')) {
       res.status(200).send(cache.getCache('informations'));
       return;
     }
-
     Information.find({}, 'infoName infoContent visibility')
       .then((results) => {
         // cache results
         cache.setCache('informations', results);
         res.status(200).send(results);
       })
-      .catch((error) => res.status(404).send(error));
+      .catch(error => res.status(404).send(error));
   };
 
   const addInformation = function (req, res) {
@@ -41,9 +41,9 @@ const informationController = function (Information) {
                   }
                   res.status(201).send(newInformation);
                 })
-                .catch((error) => res.status(400).send(error));
+                .catch(error => res.status(400).send(error));
         })
-        .catch((error) => res.status(500).send({ error }));
+        .catch(error => res.status(500).send({ error }));
   };
 
   const deleteInformation = function (req, res) {
@@ -56,7 +56,7 @@ const informationController = function (Information) {
         }
         res.status(200).send(deletedInformation);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   // Update existing information by id
@@ -70,7 +70,7 @@ const informationController = function (Information) {
         }
         res.status(200).send(updatedInformation);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   return {

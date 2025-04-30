@@ -1,6 +1,6 @@
 const UserProfile = require('../models/userProfile');
 
-const permissionChangeLogController = function (PermissionChangeLog) {
+const permissionChangeLogController = function (PermissionChangeLog, userPermissionChangeLog) {
   const getPermissionChangeLogs = async function (req, res) {
     try {
       const userProfile = await UserProfile.findOne({ _id: req.params.userId }).exec();

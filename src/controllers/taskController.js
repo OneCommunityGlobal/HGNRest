@@ -14,6 +14,7 @@ const taskController = function (Task) {
     let query = {
       wbsId: { $in: [req.params.wbsId] },
       level: { $in: [level] },
+      isActive: { $ne: false },
     };
 
     const { mother } = req.params;
@@ -248,6 +249,7 @@ const taskController = function (Task) {
       $and: [
         { $or: [{ taskId: parentId1 }, { parentId1 }, { parentId1: null }] },
         { wbsId: { $in: [wbsId] } },
+        { isActive: { $ne: false } },
       ],
     }).then((tasks) => {
       tasks = [...new Set(tasks.map((item) => item))];
@@ -429,15 +431,13 @@ const taskController = function (Task) {
 
   const postTask = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'postTask'))) {
-      res.status(403).send({ error: 'You are not authorized to create new Task.' });
-      return;
+      return res.status(403).send({ error: 'You are not authorized to create new Task.' });
     }
 
     if (!req.body.taskName || !req.body.isActive) {
-      res.status(400).send({
-        error: 'Task Name, Active status, Task Number are mandatory fields',
+      return res.status(400).send({
+        error: 'Task Name, Active status are mandatory fields',
       });
-      return;
     }
 
     const wbsId = req.params.id;
@@ -445,31 +445,69 @@ const taskController = function (Task) {
     const createdDatetime = Date.now();
     const modifiedDatetime = Date.now();
 
-    const _task = new Task({
-      ...task,
-      wbsId,
-      createdDatetime,
-      modifiedDatetime,
-    });
+    const parentId = task.mother; 
+    let level = 1;
+    let num = '';
 
-    const saveTask = _task.save();
-    const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
-      currentwbs.modifiedDatetime = Date.now();
-      return currentwbs.save();
-    });
-    // Posting a task will update the related project - Sucheta
-    const saveProject = WBS.findById(wbsId).then((currentwbs) => {
-      Project.findById(currentwbs.projectId).then((currentProject) => {
-        currentProject.modifiedDatetime = Date.now();
-        return currentProject.save();
-      });
-    });
+    try {
+      if (parentId) {
+        // This is a subtask — find its parent
+        const parentTask = await Task.findById(parentId);
+        if (!parentTask) {
+          return res.status(400).send({ error: 'Invalid parent task ID provided.' });
+        }
 
-    Promise.all([saveTask, saveWbs, saveProject])
-      .then((results) => res.status(201).send(results[0]))
-      .catch((errors) => {
-        res.status(400).send(errors);
+        level = parentTask.level + 1;
+        // Find siblings under same parent to generate WBS number
+        const siblings = await Task.find({ mother: parentId });
+        const nextIndex = siblings.length
+          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0))) + 1
+          : 1;
+
+        const baseNum = parentTask.num
+          .split('.')
+          .slice(0, level - 1)
+          .join('.');
+        num = baseNum ? `${baseNum}.${nextIndex}` : `${nextIndex}`;
+      } else {
+        const topTasks = await Task.find({ wbsId, level: 1 });
+        const nextTopNum = topTasks.length
+          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
+          : 1;
+        num = `${nextTopNum}`;
+      }
+
+      const _task = new Task({
+        ...task,
+        wbsId,
+        num, // Assign calculated num
+        level,
+        createdDatetime,
+        modifiedDatetime,
       });
+
+      const saveTask = _task.save();
+      const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
+        currentwbs.modifiedDatetime = Date.now();
+        return currentwbs.save();
+      });
+      // Posting a task will update the related project - Sucheta
+      const saveProject = WBS.findById(wbsId).then((currentwbs) => {
+        Project.findById(currentwbs.projectId).then((currentProject) => {
+          currentProject.modifiedDatetime = Date.now();
+          return currentProject.save();
+        });
+      });
+
+      Promise.all([saveTask, saveWbs, saveProject])
+        .then((results) => res.status(201).send(results[0])) // send task with generated num
+        .catch((errors) => {
+          res.status(400).send(errors);
+        });
+    } catch (err) {
+      console.error('Error creating task:', err);
+      return res.status(500).send({ error: 'Internal server error.', details: err.message });
+    }
   };
 
   const updateNum = async (req, res) => {
@@ -681,9 +719,16 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    if (!(await hasPermission(req.body.requestor, 'updateTask'))) {
+    if (
+      !(await hasPermission(req.body.requestor, 'updateTask')) &&
+      !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
+    ) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
+    }
+
+    if(req.body.hoursBest>0 && req.body.hoursWorst>0 && req.body.hoursMost>0 && req.body.hoursLogged>0 && req.body.estimatedHours>0){
+      return res.status(400).send({ error: 'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0' });
     }
 
     const { taskId } = req.params;
@@ -703,7 +748,6 @@ const taskController = function (Task) {
         });
       });
     });
-
     Task.findOneAndUpdate(
       { _id: mongoose.Types.ObjectId(taskId) },
       { ...req.body, modifiedDatetime: Date.now() },
@@ -823,26 +867,54 @@ const taskController = function (Task) {
   const getTasksByUserId = async (req, res) => {
     const { userId } = req.params;
     try {
-      Task.find(
-        {
-          'resources.userID': mongoose.Types.ObjectId(userId),
-        },
-        '-resources.profilePic',
-      ).then((results) => {
-        WBS.find({
-          _id: { $in: results.map((item) => item.wbsId) },
-        }).then((WBSs) => {
-          const resultsWithProjectsIds = results.map((item) => {
-            item.set(
-              'projectId',
-              WBSs?.find((wbs) => wbs._id.toString() === item.wbsId.toString())?.projectId,
-              { strict: false },
-            );
-            return item;
-          });
-          res.status(200).send(resultsWithProjectsIds);
+      const tasks = await Task.aggregate()
+        .match({
+          resources: {
+            $elemMatch: {
+              userID: mongoose.Types.ObjectId(userId),
+              completedTask: {
+                $ne: true,
+              },
+            },
+          },
+          isActive: {
+            $ne: false,
+          },
+        })
+        .lookup({
+          from: 'wbs',
+          localField: 'wbsId',
+          foreignField: '_id',
+          as: 'wbs',
+        })
+        .unwind({
+          path: '$wbs',
+          includeArrayIndex: 'string',
+          preserveNullAndEmptyArrays: true,
+        })
+        .addFields({
+          wbsName: '$wbs.wbsName',
+          projectId: '$wbs.projectId',
+        })
+        .lookup({
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project',
+        })
+        .unwind({
+          path: '$project',
+          includeArrayIndex: 'string',
+          preserveNullAndEmptyArrays: true,
+        })
+        .addFields({
+          projectName: '$project.projectName',
+        })
+        .project({
+          wbs: 0,
+          project: 0,
         });
-      });
+      res.status(200).send(tasks);
     } catch (error) {
       res.status(400).send(error);
     }
