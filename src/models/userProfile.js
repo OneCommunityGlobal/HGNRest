@@ -35,7 +35,6 @@ const userProfileSchema = new Schema({
     required: true,
   },
   permissions: {
-    isAcknowledged: { type: Boolean, default: false },
     frontPermissions: [String],
     backPermissions: [String],
   },
@@ -104,9 +103,9 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
-  suggestedProfilePics: {
-    type: [mongoose.Schema.Types.Mixed],
-    default: [],
+  suggestedProfilePics:{
+    type:[mongoose.Schema.Types.Mixed],
+    default:[]
   },
   infringements: [
     {
@@ -275,5 +274,6 @@ userProfileSchema.pre('save', function (next) {
 
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
