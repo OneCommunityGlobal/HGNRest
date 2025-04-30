@@ -1,4 +1,4 @@
-const { hasPermission } = require('utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const FormResponse = require('../models/hgnFormResponse');
 const userProfile = require('../models/userProfile');
 // const { getSkillsList } = require('../utilities/hgnformQuestions');
