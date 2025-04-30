@@ -487,13 +487,13 @@ const userProfileController = function (UserProfile, Project) {
 
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid || await hasPermission(req.body.requestor, 'editTeamCode'))
-    );
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid));
+
+    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
 
-    if (!isRequestorAuthorized && !canManageAdminLinks) {
+    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -520,14 +520,14 @@ const userProfileController = function (UserProfile, Project) {
       }
       // validate userprofile pic
 
-      // if (req.body.profilePic) {
-      //   const results = userHelper.validateProfilePic(req.body.profilePic);
+      if (req.body.profilePic) {
+        const results = userHelper.validateProfilePic(req.body.profilePic);
 
-      //   if (!results.result) {
-      //     res.status(400).json(results.errors);
-      //     return;
-      //   }
-      // }
+        if (!results.result) {
+          res.status(400).json(results.errors);
+          return;
+        }
+      }
 
       // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
