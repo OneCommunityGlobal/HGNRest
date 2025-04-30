@@ -127,6 +127,7 @@ describe('Unit test for inventoryController', () => {
       assertResMock(200, mockData, response, mockRes);
     });
   });
+
   describe('postInvInProjectWBS', () => {
     test('Returns error 403 if the user is not authorized to view data', async () => {
       const { getAllInvInProjectWBS } = makeSut();
