@@ -10,6 +10,7 @@ const permissionsRoles = [
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
       'totalValidWeeklySummaries',
+      'requestBio',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -37,19 +38,39 @@ const permissionsRoles = [
       'putTeam',
       'assignTeamToUsers',
       // Time Entries
-      'editTimeEntry',
+      'editTimeEntryTime',
+      'editTimeEntryDescription',
+      'editTimeEntryDate',
+      'editTimeEntryToggleTangible',
       'deleteTimeEntry',
-      // 'postTimeEntry',?
+      'postTimeEntry',
       // User Profile
-      'putRole',
+      'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
       'changeUserStatus',
       'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'toggleInvisibility',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
+      'manageAdminLinks',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
+      'updateSummaryRequirements',
+      // Tracking Management
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -73,15 +94,26 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+
+      // Title
+      'seeQSC',
+      'addNewTitle',
+      'editTitle',
+      'assignTitle',
+
+      'seeUsersInDashboard',
+      'editTeamCode',
     ],
   },
   {
     roleName: 'Volunteer',
-    permissions: ['getReporteesLimitRoles', 'suggestTask'],
+    permissions: ['suggestTask'],
   },
   {
     roleName: 'Core Team',
     permissions: [
+      'getReports',
+      'getWeeklySummaries',
       'getUserProfiles',
       'getProjectMembers',
       'getAllInvInProjectWBS',
@@ -98,20 +130,19 @@ const permissionsRoles = [
       'getAllInvType',
       'postInvType',
       'getWeeklySummaries',
-      'getReports',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'seeUsersInDashboard',
     ],
   },
   {
     roleName: 'Manager',
     permissions: [
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'infringementAuthorizer',
       'getReporteesLimitRoles',
+      'postTask',
       'updateTask',
+      'suggestTask',
+      'putReviewStatus',
       'putTeam',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -134,10 +165,7 @@ const permissionsRoles = [
     roleName: 'Mentor',
     permissions: [
       'suggestTask',
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'infringementAuthorizer',
+      'putReviewStatus',
       'getReporteesLimitRoles',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -164,7 +192,18 @@ const permissionsRoles = [
       'putRole',
       'addDeleteEditOwners',
       'putUserProfilePermissions',
+      'highlightEligibleBios',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
       'changeUserStatus',
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       'seeBadges',
       'assignBadges',
       'createBadges',
@@ -182,20 +221,33 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'resolveTask',
+      'suggestTask',
+      'putReviewStatus',
       'postTeam',
       'deleteTeam',
       'putTeam',
       'assignTeamToUsers',
-      'editTimeEntry',
+      'editTimeEntryTime',
+      'editTimeEntryDescription',
+      'editTimeEntryDate',
+      'editTimeEntryToggleTangible',
       'deleteTimeEntry',
+      'postTimeEntry',
+      'sendEmails',
+      'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
+      'updateSummaryRequirements',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
       'postWbs',
       'deleteWbs',
       'getAllInvInProjectWBS',
@@ -217,7 +269,21 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'requestBio',
+
+      // Title
+      'seeQSC',
+      'addNewTitle',
+      'editTitle',
+      'assignTitle',
+
+      'seeUsersInDashboard',
+
       'changeUserRehireableStatus',
+      'toggleInvisibility',
+      'manageAdminLinks',
+      'removeUserFromTask',
+      'editHeaderMessage',
     ],
   },
 ];
@@ -266,16 +332,17 @@ const createInitialPermissions = async () => {
     }
 
     // Update Default presets
+    const defaultName = 'hard-coded default';
 
     const presetDataBase = allPresets.find(
-      (preset) => preset.roleName === roleName && preset.presetName === 'default',
+      (preset) => preset.roleName === roleName && preset.presetName === defaultName,
     );
 
     // If role does not exist in db, create it
     if (!presetDataBase) {
       const defaultPreset = new RolePreset();
       defaultPreset.roleName = roleName;
-      defaultPreset.presetName = 'default';
+      defaultPreset.presetName = defaultName;
       defaultPreset.permissions = permissions;
       defaultPreset.save();
 

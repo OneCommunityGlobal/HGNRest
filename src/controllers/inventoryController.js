@@ -14,7 +14,7 @@ const inventoryController = function (Item, ItemType, projects) {
     // use req.params.projectId and wbsId
     // Run a mongo query on the Item model to find all items with both the project and wbs
     // sort the mongo query so that the Wasted false items are listed first
-    return Item.find({
+    await Item.find({
       project: mongoose.Types.ObjectId(req.params.projectId),
       wbs:
         req.params.wbsId && req.params.wbsId !== 'Unassigned'

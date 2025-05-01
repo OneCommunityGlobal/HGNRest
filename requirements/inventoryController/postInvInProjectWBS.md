@@ -1,19 +1,19 @@
 Check mark: ✅
 Cross Mark: ❌
 
-# Get User Profiles
+# Post Inventory in Project WBS
 
 > ## Positive case
 
-1. ✅ Receives a GET request in the **/api/userProfile** route
-2. ✅ Receives a 201 if an inventory item doesn't exist and is sucessfully created
-3. ✅ Receives a 201 if an inventory item does exist and is updated with new values
+1. ✅ Receives a POST request in the **/api/userProfile** route
+2. ✅ Returns status code 201, if the inventory was successfully created and saved
+3. ✅ Returns status code 201, if the inventory item was succesfully updated and saved.
 
 > ## Negative case
 
 1. ✅ Returns error 404 if the API does not exist
-2. ❌ Returns error 403 if the user doesn't have the postInvInProjectWBS permission
-3. ❌ Returns error 400 if valid project, but quantity and id are necessary as well as valid wbs if sent in and not Unassigned
-4. ❌ Returns error 500 if saving an inventoryItem occurs
+2. ✅ Returns error 403 if the user is not authorized to view data
+3. ✅ Returns error 500 if an error occurs when saving
+4. ✅ Returns error 400 if a valid project was found but quantity and type id were missing
 
 > ## Edge case
