@@ -16,7 +16,7 @@ const projectController = function (Project) {
     try {
       const projects = await Project.find(
         { isArchived: { $ne: true } },
-        'projectName isActive category modifiedDatetime membersModifiedDatetime',
+        'projectName isActive category modifiedDatetime membersModifiedDatetime inventoryModifiedDatetime',
       ).sort({ modifiedDatetime: -1 });
       res.status(200).send(projects);
     } catch (error) {
