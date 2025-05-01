@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const notificationhelper = require('../helpers/notificationhelper')();
+const notificationhelper = require('../helpers/notificationhelper');
 
 const actionItemController = function (ActionItem) {
   const getactionItem = function (req, res) {
@@ -28,6 +28,7 @@ const actionItemController = function (ActionItem) {
         res.status(400).send(error);
       });
   };
+
   const postactionItem = function (req, res) {
     const { requestorId, assignedTo } = req.body.requestor;
     const _actionItem = new ActionItem();
@@ -100,6 +101,7 @@ const actionItemController = function (ActionItem) {
       });
       return;
     }
+
     notificationhelper.notificationedited(requestorId, assignedTo, _actionItem.description, req.body.description);
 
     _actionItem.description = req.body.description;
@@ -115,7 +117,6 @@ const actionItemController = function (ActionItem) {
     postactionItem,
     deleteactionItem,
     editactionItem,
-
   };
 };
 

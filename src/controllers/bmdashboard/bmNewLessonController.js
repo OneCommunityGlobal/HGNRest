@@ -8,8 +8,8 @@ const bmNewLessonController = function (BuildingNewLesson) {
             BuildingNewLesson
             .find()
             .populate()
-            .then((result) => res.status(200).send(result))
-            .catch((error) => res.status(500).send(error));
+            .then(result => res.status(200).send(result))
+            .catch(error => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -17,8 +17,8 @@ const bmNewLessonController = function (BuildingNewLesson) {
     const bmPostLessonList = async (req, res) => {
         try {
             const newLesson = BuildingNewLesson.create(req.body)
-            .then((result) => res.status(201).send(result))
-            .catch((error) => res.status(500).send(error));
+            .then(result => res.status(201).send(result))
+            .catch(error => res.status(500).send(error));
         } catch (err) {
             res.json(err);
         }
@@ -47,7 +47,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
             // Extract only allowed fields (content, tag, relatedProject and title)
             const allowedFields = ['content', 'tags', 'relatedProject', 'title', 'allowedRoles', 'files'];
             const filteredUpdateData = Object.keys(updateData)
-                .filter((key) => allowedFields.includes(key))
+                .filter(key => allowedFields.includes(key))
                 .reduce((obj, key) => {
                     obj[key] = updateData[key];
                     return obj;
@@ -100,6 +100,72 @@ const bmNewLessonController = function (BuildingNewLesson) {
           res.status(500).json({ error: 'Internal Server Error' });
         }
       };
+
+      const addNewTag = async (req, res) => {
+        try {
+          const { tag } = req.body;
+          
+          if (!tag || typeof tag !== 'string') {
+            return res.status(400).json({ error: 'Invalid tag format' });
+          }
+      
+          // Check if tag already exists
+          const existingLesson = await BuildingNewLesson.findOne({ tags: tag });
+          
+          if (!existingLesson) {
+            await BuildingNewLesson.create({
+              title: 'Tag Storage',
+              content: 'Tag Storage Entry',
+              tags: [tag],
+              author: '000000000000000000000000',
+              relatedProject: '000000000000000000000000',
+              allowedRoles: 'All'
+            });
+          }
+          const tags = await BuildingNewLesson.getAllTags();
+          return res.status(201).json(tags);
+      
+        } catch (error) {
+          console.error('Tag creation error:', error);
+          return res.status(500).json({ 
+            error: 'Error adding new tag',
+            details: error.message 
+          });
+        }
+      };
+
+      const deleteTag = async (req, res) => {
+        try {
+          const tagToDelete = req.params.tag;
+          
+          if (!tagToDelete) {
+            return res.status(400).json({ error: 'Tag parameter is required' });
+          }
+      
+          // Update all lessons that contain the tag using updateMany
+          await BuildingNewLesson.updateMany(
+            { tags: tagToDelete },
+            { $pull: { tags: tagToDelete } }
+          );
+      
+          // Delete any empty tag storage documents
+          await BuildingNewLesson.deleteMany({
+            title: 'Tag Storage',
+            tags: { $size: 0 }
+          });
+      
+          const remainingTags = await BuildingNewLesson.getAllTags();
+          return res.status(200).json(remainingTags);
+          
+        } catch (error) {
+          console.error('Delete tag error:', error);
+          return res.status(500).json({ 
+            error: 'Error deleting tag',
+            details: error.message 
+          });
+        }
+      };
+
       const likeLesson = async (req, res) => {
         const { lessonId } = req.params;
         const { userId } = req.body;
@@ -133,8 +199,18 @@ const bmNewLessonController = function (BuildingNewLesson) {
           return res.status(500).json({ status: 'error', message: 'Error liking/unliking lesson' });
         }
       };
+      const getLessonTags = async (req, res) => {
+        try {
+            const lessons = await BuildingNewLesson.find({}, 'tags');
+            const allTags = lessons.reduce((acc, lesson) => [...acc, ...lesson.tags], []);
+            const uniqueTags = [...new Set(allTags)].sort();
+            res.status(200).json(uniqueTags);
+        } catch (error) {
+            res.status(500).json({ error: 'Error fetching tags' });
+        }
+    };
     return {
- bmPostLessonList, bmGetLessonList, bmGetSingleLesson, bmDeleteSingleLesson, bmEditSingleLesson, likeLesson,
+ bmPostLessonList, bmGetLessonList, bmGetSingleLesson, bmDeleteSingleLesson, bmEditSingleLesson, likeLesson, getLessonTags, addNewTag, deleteTag
 };
 };
 

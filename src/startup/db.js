@@ -23,8 +23,8 @@ const afterConnect = async () => {
         role: 'Volunteer',
         password: process.env.DEF_PWD,
       })
-        .then((result) => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
-        .catch((error) => logger.logException(error));
+        .then(result => logger.logInfo(`TimeArchive account was created with id of ${result._id}`))
+        .catch(error => logger.logException(error));
     }
   } catch (error) {
     throw new Error(error);
@@ -33,12 +33,12 @@ const afterConnect = async () => {
 
 module.exports = function () {
   const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;
-
+ 
   mongoose.connect(uri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useFindAndModify: false,
   })
     .then(afterConnect)
-    .catch((err) => logger.logException(err));
+    .catch(err => logger.logException(err));
 };

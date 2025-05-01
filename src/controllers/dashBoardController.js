@@ -2,12 +2,13 @@
 const path = require("path");
 const fs = require("fs/promises");
 const mongoose = require("mongoose");
-const dashboardhelper = require("../helpers/dashboardhelper")();
+const dashboardHelperClosure = require("../helpers/dashboardhelper");
 const emailSender = require("../utilities/emailSender");
 const AIPrompt = require("../models/weeklySummaryAIPrompt");
 const User = require("../models/userProfile");
 
 const dashboardcontroller = function () {
+  const dashboardhelper = dashboardHelperClosure();
   const dashboarddata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
@@ -23,7 +24,7 @@ const dashboardcontroller = function () {
     return User.findOneAndUpdate(
       { _id: req.params.userId },
       { copiedAiPrompt: Date.now() },
-      { new: true },
+      { new: true }
     )
       .then((user) => {
         if (user) {
@@ -51,12 +52,12 @@ const dashboardcontroller = function () {
           ...req.body,
           aIPromptText: req.body.aIPromptText,
           modifiedDatetime: Date.now(),
-        },
+        }
       )
         .then(() => {
           res.status(200).send("Successfully saved AI prompt.");
         })
-        .catch((error) => res.status(500).send(error));
+        .catch(error => res.status(500).send(error));
     }
   };
 
@@ -82,7 +83,7 @@ const dashboardcontroller = function () {
             });
         }
       })
-      .catch((error) => res.status(500).send(error));
+      .catch(error => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -90,7 +91,7 @@ const dashboardcontroller = function () {
     const laborthismonth = dashboardhelper.laborthismonth(
       userId,
       req.params.fromDate,
-      req.params.toDate,
+      req.params.toDate
     );
     laborthismonth.then((results) => {
       if (!results || results.length === 0) {
@@ -112,7 +113,7 @@ const dashboardcontroller = function () {
     const laborthisweek = dashboardhelper.laborthisweek(
       userId,
       req.params.fromDate,
-      req.params.toDate,
+      req.params.toDate
     );
     laborthisweek.then((results) => {
       res.status(200).send(results);
@@ -133,7 +134,7 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const orgData = function (req, res) {
@@ -143,7 +144,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -155,7 +156,7 @@ const dashboardcontroller = function () {
     expected,
     actual,
     visual,
-    severity,
+    severity
   ) {
     const text = `New Bug Report From <b>${firstName} ${lastName}</b>:
         <p>[Feature Name] Bug Title:</p>
@@ -200,7 +201,7 @@ const dashboardcontroller = function () {
       expected,
       actual,
       visual,
-      severity,
+      severity
     );
 
     try {
@@ -208,7 +209,7 @@ const dashboardcontroller = function () {
         "onecommunityglobal@gmail.com",
         `Bug Rport from ${firstName} ${lastName}`,
         emailBody,
-        email,
+        email
       );
       res.status(200).send("Success");
     } catch {
@@ -234,7 +235,7 @@ const dashboardcontroller = function () {
     let fieldaaray = [];
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
-        (item) => `<p>${item}</p>
+        item => `<p>${item}</p>
                    <p>${args[3][item]}</p>`,
       );
     }
@@ -263,15 +264,13 @@ const dashboardcontroller = function () {
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-    const {
- suggestioncate, suggestion, confirm, email, ...rest
-} = req.body;
+    const { suggestioncate, suggestion, confirm, email, ...rest } = req.body;
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
       confirm,
       rest,
-      email,
+      email
     );
     try {
       emailSender(
@@ -281,7 +280,7 @@ const dashboardcontroller = function () {
         null,
         null,
         email,
-        null,
+        null
       );
       res.status(200).send("Success");
     } catch {
@@ -310,7 +309,7 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.suggestion = suggestionData.suggestion.filter(
-            (item, index) => index + 1 !== +req.body.newField,
+            (item, index) => index + 1 !== +req.body.newField
           );
         }
       } else {
@@ -319,7 +318,7 @@ const dashboardcontroller = function () {
         }
         if (req.body.action === "delete") {
           suggestionData.field = suggestionData.field.filter(
-            (item) => item !== req.body.newField,
+            item => item !== req.body.newField,
           );
         }
       }
@@ -349,3 +348,4 @@ const dashboardcontroller = function () {
 };
 
 module.exports = dashboardcontroller;
+

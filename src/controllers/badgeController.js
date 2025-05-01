@@ -1,10 +1,9 @@
-const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const cache = require('../utilities/nodeCache')();
-const logger = require('../startup/logger');
+const cacheClosure = require('../utilities/nodeCache');
+//const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -12,11 +11,29 @@ const badgeController = function (Badge) {
    * @param {Object} req - Request object.
    * @returns {Array<Object>} List containing badge records.
    */
+  const cache = cacheClosure();
+
+  // const awardBadgesTest = async function (req, res) {
+  //   await userHelper.awardNewBadges();
+  //   res.status(200).send('Badges awarded');
+  // };
+
   const getAllBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
+    // console.log(req.body.requestor);  // Retain logging from development branch for debugging
+
+    // Check if the user has any of the following permissions
+    if (
+      !(await helper.hasPermission(req.body.requestor, 'seeBadges')) &&
+      !(await helper.hasPermission(req.body.requestor, 'assignBadges')) &&
+      !(await helper.hasPermission(req.body.requestor, 'createBadges')) &&
+      !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
+      !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
+    ) {
+      // console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
+
     // Add cache to reduce database query and optimize performance
     if (cache.hasCache('allBadges')) {
       res.status(200).send(cache.getCache('allBadges'));
@@ -49,20 +66,33 @@ const badgeController = function (Badge) {
    * - Refactored data validation for duplicate badge id.
    * - Added data validation for badge count should greater than 0.
    * - Added logic to combine duplicate badges into one with updated properties.
+   *
+   * Updated Date: 04/05/2024
+   * Updated By: Abi
+   * Function added:
+   * - Refactored method to utilize async await syntax to make the code more testable.
    */
 
   const assignBadges = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'assignBadges'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
     }
 
     const userToBeAssigned = mongoose.Types.ObjectId(req.params.userId);
 
-    UserProfile.findById(userToBeAssigned, (error, record) => {
-      if (error || record === null) {
+    try {
+      const record = await UserProfile.findById(userToBeAssigned);
+      if (record === null) {
         res.status(400).send('Can not find the user to be assigned.');
         return;
+      }
+      let totalNewBadges = 0;
+      const existingBadges = {};
+      if (record.badgeCollection && Array.isArray(record.badgeCollection)) {
+        record.badgeCollection.forEach(badgeItem => {
+          existingBadges[badgeItem.badge] = badgeItem.count;
+        });
       }
 
       const badgeGroups = req.body.badgeCollection.reduce((grouped, item) => {
@@ -78,6 +108,7 @@ const badgeController = function (Badge) {
         if (item.count === 0) {
           return grouped;
         }
+
 
         if (!grouped[badge]) {
           // If the badge is not in the grouped object, add a new entry
@@ -98,10 +129,16 @@ const badgeController = function (Badge) {
             const combinedEarnedDate = [...grouped[badge].earnedDate, ...item.earnedDate];
             const timestampArray = combinedEarnedDate.map((date) => new Date(date).getTime());
             timestampArray.sort((a, b) => a - b);
-            grouped[badge].earnedDate = timestampArray.map((timestamp) => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
-              .replace(/ /g, '-')
-              .replace(',', ''));
+            grouped[badge].earnedDate = timestampArray.map((timestamp) => new Date(timestamp)
+                .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                .replace(/ /g, '-')
+                .replace(',', ''));
           }
+        }
+        if (existingBadges[badge]) {
+          totalNewBadges += Math.max(0, item.count - existingBadges[badge]);
+        } else {
+          totalNewBadges += item.count;
         }
 
         return grouped;
@@ -117,39 +154,37 @@ const badgeController = function (Badge) {
       }));
 
       record.badgeCollection = badgeGroupsArray;
+      record.badgeCount += totalNewBadges;
 
       if (cache.hasCache(`user-${userToBeAssigned}`)) {
         cache.removeCache(`user-${userToBeAssigned}`);
       }
 
-      record
-      .save()
-      .then((results) => {
-        res.status(201).send(results._id);
-      })
-      .catch((err) => {
-        res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
-      });
-    });
+      const results = await record.save();
+      res.status(201).send(results._id);
+    } catch (err) {
+      res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
+    }
   };
 
   const postBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'createBadges'))) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to create new badges.' });
+    if (!(await helper.hasPermission(req.body.requestor, 'createBadges'))) {
+      res.status(403).send({ error: 'You are not authorized to create new badges.' });
       return;
     }
 
-    Badge.find({
-      badgeName: { $regex: escapeRegex(req.body.badgeName), $options: 'i' },
-    }).then((result) => {
+    try {
+      const result = await Badge.find({
+        badgeName: { $regex: escapeRegex(req.body.badgeName), $options: 'i' },
+      });
+
       if (result.length > 0) {
         res.status(400).send({
           error: `Another badge with name ${result[0].badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.`,
         });
         return;
       }
+
       const badge = new Badge();
 
       badge.badgeName = req.body.badgeName;
@@ -166,24 +201,20 @@ const badgeController = function (Badge) {
       badge.description = req.body.description;
       badge.showReport = req.body.showReport;
 
-      badge
-        .save()
-        .then((results) => {
-          // remove cache after new badge is saved
-          if (cache.getCache('allBadges')) {
-            cache.removeCache('allBadges');
-          }
-          res.status(201).send(results);
-        })
-        .catch((errors) => res.status(500).send(errors));
-    });
+      const newBadge = await badge.save();
+      // remove cache after new badge is saved
+      if (cache.getCache('allBadges')) {
+        cache.removeCache('allBadges');
+      }
+      res.status(201).send(newBadge);
+    } catch (error) {
+      res.status(500).send(error);
+    }
   };
 
   const deleteBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteBadges'))) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to delete badges.' });
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteBadges'))) {
+      res.status(403).send({ error: 'You are not authorized to delete badges.' });
       return;
     }
     const { badgeId } = req.params;
@@ -211,16 +242,15 @@ const badgeController = function (Badge) {
         .catch((errors) => {
           res.status(500).send(errors);
         });
-    }).catch((error) => {
-      res.status(500).send(error);
     });
+    // .catch((error) => {
+    //   res.status(500).send(error);
+    // });
   };
 
   const putBadge = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'updateBadges'))) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to update badges.' });
+    if (!(await helper.hasPermission(req.body.requestor, 'updateBadges'))) {
+      res.status(403).send({ error: 'You are not authorized to update badges.' });
       return;
     }
     const { badgeId } = req.params;
@@ -261,13 +291,67 @@ const badgeController = function (Badge) {
       res.status(200).send({ message: 'Badge successfully updated' });
     });
   };
+  const getBadgeCount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      // Check for errors or if user profile doesn't exist
+      if (error || record === null) {
+        res.sendStatus(404).send('Can not find the user to be assigned.');
+        return;
+      }
+      // Return badge count from user profile
+      res.status(200).send({ count: record.badgeCount });
+    });
+  }
+
+
+  const putBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 1;
+
+      record
+        .save()
+        .then(results => res.status(201).send(results._id))
+        .catch((err) => {
+          res.status(500).send(err);
+        });
+    });
+  };
+
+  const resetBadgecount = async function (req, res) {
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
+    UserProfile.findById(userId, (error, record) => {
+      if (error || record === null) {
+        res.status(400).send('Can not find the user to be assigned.');
+        return;
+      }
+      record.badgeCount = 0;
+
+      record.save();
+      res.status(201).send({ count: record.badgeCount });
+
+    });
+  }
+
 
   return {
+    //awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
     deleteBadge,
     putBadge,
+    getBadgeCount,
+    putBadgecount,
+    resetBadgecount
   };
 };
 
