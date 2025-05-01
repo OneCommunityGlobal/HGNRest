@@ -32,39 +32,36 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   }
 
   const fetchToolTypes = async (req, res) => {
-    
     try {
-        ToolType
-        .find()
+      ToolType.find()
         .populate([
-              {
-                path: 'available',
-                select: '_id code project',
-                populate: {
-                  path: 'project',
-                  select: '_id name'
-                }
-              },
-              {
-                path: 'using',
-                select: '_id code project',
-                populate: {
-                  path: 'project',
-                  select: '_id name'
-                }
-              }
+          {
+            path: 'available',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name',
+            },
+          },
+          {
+            path: 'using',
+            select: '_id code project',
+            populate: {
+              path: 'project',
+              select: '_id name',
+            },
+          },
         ])
         .exec()
-        .then(result => {
+        .then((result) => {
           res.status(200).send(result);
         })
-        .catch(error => {
-          console.error("fetchToolTypes error: ", error);
+        .catch((error) => {
+          console.error('fetchToolTypes error: ', error);
           res.status(500).send(error);
         });
-     
     } catch (err) {
-      console.log("error: ", err)
+      console.log('error: ', err);
       res.json(err);
     }
   };
@@ -181,6 +178,74 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               createdBy: requestorId,
             };
             ConsType.create(newDoc)
+              .then((results) => {
+                res.status(201).send(results);
+              })
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error.errors.unit.message);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
+          }
+        })
+        .catch((error) => {
+          res.status(500).send(error);
+        });
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  }
+
+  async function addToolType(req, res) {
+    const {
+      name,
+      description,
+      invoice,
+      purchaseRental,
+      fromDate,
+      toDate,
+      condition,
+      phoneNumber,
+      quantity,
+      currency,
+      unitPrice,
+      shippingFee,
+      taxes,
+      totalPriceWithShipping,
+      images,
+      link,
+      requestor: { requestorId },
+    } = req.body;
+
+    try {
+      ToolType.find({ name })
+        .then((result) => {
+          if (result.length) {
+            res.status(409).send('Oops!! Tool already exists!');
+          } else {
+            const newDoc = {
+              category: 'Tool',
+              name,
+              description,
+              invoice,
+              purchaseRental,
+              fromDate,
+              toDate,
+              condition,
+              phoneNumber,
+              quantity,
+              currency,
+              unitPrice,
+              shippingFee,
+              taxes,
+              totalPriceWithShipping,
+              images,
+              link,
+              createdBy: requestorId,
+            };
+            ToolType.create(newDoc)
               .then((results) => {
                 res.status(201).send(results);
               })
@@ -334,6 +399,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     updateNameAndUnit,
     addMaterialType,
     addConsumableType,
+    addToolType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
   };
