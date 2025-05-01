@@ -8,13 +8,11 @@ async function inviteUser(req, res) {
     return res.status(400).json({ error: 'Email is required' });
   }
   const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
-    res.status(403).send({ error: 'Unauthorized request' });
-    return;
-  }
+  // if (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+  //  {
+  //   res.status(403).send({ error: 'Unauthorized request' });
+  //   return;
+  // }
   try {
     const invitation = await sentryService.inviteUser(email, role);  // Call the service to invite the user
     res.status(201).json({ message: 'Invitation sent', data: invitation });
@@ -32,18 +30,17 @@ async function removeUser(req, res) {
   }
 
   const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
-    res.status(403).send({ error: 'Unauthorized request' });
-    return;
-  }
+
+  // if(requestor.role !== 'Administrator' || requestor.role !== 'Owner') {
+  //   return res.status(403).json({ error: 'Unauthorized request' });
+  // }
 
   try {
-    // Get all members and find the user to remove based on the email
     const members = await sentryService.getMembers();
+    console.log('Members:', members);  // Debugging log
+
     const userToRemove = members.find(member => member.email === email);
+    console.log('User to remove:', userToRemove);  // Debugging log
 
     if (userToRemove) {
       const message = await sentryService.removeUser(userToRemove.id);  // Call the service to remove the user
@@ -55,6 +52,7 @@ async function removeUser(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
+
 
 module.exports = {
   inviteUser,

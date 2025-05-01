@@ -12,14 +12,24 @@ const headers = {
 // Function to get all members of the organization
 async function getMembers() {
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
+  const members = [];
+  let nextUrl = url;
 
   try {
-    const response = await request({ url, headers });
-    return response.data;  // Return the list of members
+    while (nextUrl) {
+      const response = await request({ url: nextUrl, headers });
+      members.push(...response.data);  // Add members to the array
+      nextUrl = response.headers['link'] && response.headers['link'].includes('rel="next"') 
+                ? response.headers['link'].match(/<([^>]+)>; rel="next"/)[1]
+                : null;  // Extract next URL from 'link' header if available
+    }
+    return members;
   } catch (error) {
     throw new Error('Error fetching organization members: ' + error.message);
   }
 }
+
+
 
 // Function to invite a user to the Sentry organization
 async function inviteUser(email, role = 'member') {
