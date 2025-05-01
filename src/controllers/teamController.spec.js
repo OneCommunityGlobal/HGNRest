@@ -71,6 +71,7 @@ describe('teamController', () => {
     test('Returns 200 - all is successful, return a team by ID.', async () => {
       const { getTeamById } = makeSut();
       const teamId = '5a8e21f00317bc';
+      mockReq.params.teamId = teamId;
       const findByIdSpy = jest.spyOn(Team, 'findById').mockResolvedValue({ teamId });
       const response = getTeamById(mockReq, mockRes);
       await flushPromises();
