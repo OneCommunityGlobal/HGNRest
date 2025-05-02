@@ -16,11 +16,15 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const village = require('../models/lbdashboard/villages');
+const registration = require('../models/registration');
+
 
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
-
+const hgnformRouter=require('../routes/hgnformRouter');
+const hgnFormResponseRouter=require('../routes/hgnFormResponseRouter');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
@@ -102,7 +106,9 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
-
+const form=require('../models/forms')
+const formResponse=require('../models/formResponse')
+const formRouter=require('../routes/formRouter')(form,formResponse);
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -132,11 +138,14 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+const registrationRouter = require('../routes/registrationRouter')(registration);
+
 const socialMediaRouter = require('../routes/socialMediaRouter')();
 
 const collaborationRouter=require('../routes/collaborationRouter');
 
 const fbSocialMediaRouter = require('../routes/fbSocialmediaRouter')();
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -176,8 +185,11 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
+  app.use('/api',formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api/jobs', jobsRouter);
+  app.use('/api/questions', hgnformRouter);
+  app.use('/api/hgnform',hgnFormResponseRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
@@ -191,6 +203,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
+  app.use('/api/villages', require('../routes/lb_dashboard/villages'));
+  app.use('/api', registrationRouter);
   app.use('/api', fbSocialMediaRouter);
   app.use('/api', socialMediaRouter);
 };
