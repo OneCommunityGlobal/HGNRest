@@ -52,6 +52,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryItem');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+const materialLoss = require('../models/materialLoss');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -108,6 +109,8 @@ const followUpRouter = require('../routes/followUpRouter')(followUp);
 const form=require('../models/forms')
 const formResponse=require('../models/formResponse')
 const formRouter=require('../routes/formRouter')(form,formResponse);
+const materialLossRouter = require('../routes/materialLossRouter')(materialLoss);
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -186,6 +189,7 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform',hgnFormResponseRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/materials', materialLossRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
