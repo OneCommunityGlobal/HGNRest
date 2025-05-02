@@ -232,6 +232,7 @@ const userProfileSchema = new Schema({
   bioPosted: { type: String, default: 'default' },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
+  teamCodeWarning: { type: Boolean, default: false},
   teamCode: {
     type: String,
     default: '',
