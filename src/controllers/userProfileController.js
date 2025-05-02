@@ -210,29 +210,23 @@ const userProfileController = function (UserProfile, Project) {
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
    */
   const getUserProfileBasicInfo = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
-    }
-
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber')
-      .sort({
+    try {
+      if (!(await checkPermission(req, 'getUserProfiles'))) {
+        return res.status(403).send({ error: 'Unauthorized' });
+      }
+  
+      const userProfiles = await UserProfile.find(
+        {},
+        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic' // Include profilePic
+      ).sort({
         lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
-        }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
-      })
-      .catch((error) => res.status(404).send(error));
+      });
+  
+      res.status(200).json(userProfiles);
+    } catch (error) {
+      console.error("Error fetching user profiles:", error);
+      res.status(500).send({ error: "Failed to fetch user profiles" });
+    }
   };
 
   const getProjectMembers = async function (req, res) {

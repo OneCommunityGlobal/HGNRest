@@ -6,20 +6,16 @@ const Message = require('../../models/lbdashboard/message');
 
 const authenticate = (req, res) => {
     const authToken = req.headers?.['sec-websocket-protocol'];
-    console.log(`Auth Token: ${authToken}`);
 
     if (!authToken) {
-        console.log("No token provided");
         res('401 Unauthorized', null);
         return;
     }
 
     try {
         const payload = jwt.verify(authToken, config.JWT_SECRET);
-        console.log("Decoded payload:", payload);
         res(null, payload.userid);
     } catch (error) {
-        console.error("Token verification failed:", error);
         res('401 Unauthorized', null);
     }
 };
@@ -31,75 +27,107 @@ export default () => {
 
     const handleUpgrade = (request, socket, head) => {
         authenticate(request, (err, client) => {
-          if (err || !client) {
-            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-            socket.destroy();
-            return;
-          }
-          request.userId = client;
-          wss.handleUpgrade(request, socket, head, (websocket) => {
-            console.log("WebSocket upgrade successful for messaging service");
-            wss.emit('connection', websocket, request);
-          });
+            if (err || !client) {
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+            request.userId = client;
+            wss.handleUpgrade(request, socket, head, (websocket) => {
+                wss.emit('connection', websocket, request);
+            });
         });
-      };
+    };
 
-    const userConnections = new Map(); // { userId: WebSocket }
+    const userConnections = new Map();
+
+    const broadcastStatusUpdate = async (messageId, status, userId) => {
+        const message = await Message.findByIdAndUpdate(
+            messageId,
+            { status },
+            { new: true }
+        );
+
+        if (!message) return;
+
+        const senderSocket = userConnections.get(message.sender)?.socket;
+        if (senderSocket && senderSocket.readyState === Websockets.OPEN) {
+            senderSocket.send(JSON.stringify({
+                action: 'MESSAGE_STATUS_UPDATED',
+                payload: { messageId: message._id, status },
+            }));
+        }
+
+        const receiverSocket = userConnections.get(message.receiver)?.socket;
+        if (receiverSocket && receiverSocket.readyState === Websockets.OPEN) {
+            receiverSocket.send(JSON.stringify({
+                action: 'MESSAGE_STATUS_UPDATED',
+                payload: { messageId: message._id, status },
+            }));
+        }
+    };
 
     wss.on('connection', (ws, req) => {
         const { userId } = req;
-        userConnections.set(userId, ws);
-
-        console.log(`📡 User ${userId} connected to messaging service`);
+        userConnections.set(userId, { socket: ws, isActive: true, inChatWith: null });
 
         ws.on('message', async (data) => {
             const msg = JSON.parse(data.toString());
 
             if (msg.action === "SEND_MESSAGE") {
-                const messageDoc = {
-                    sender: userId,
-                    receiver: msg.receiver,
-                    content: msg.content,
-                    status: 'sent',
-                    isRead: false,
-                    timestamp: new Date(),
-                };
-
                 try {
-                    const savedMessage = await Message.create(messageDoc);
+                    const savedMessage = await sendMessageHandler(msg, userId);
 
-                    const receiverSocket = userConnections.get(msg.receiver);
-                    if (receiverSocket && receiverSocket.readyState === Websockets.OPEN) {
-                        receiverSocket.send(JSON.stringify({
+                    const senderState = userConnections.get(userId);
+                    if (senderState?.socket?.readyState === Websockets.OPEN) {
+                        senderState.socket.send(JSON.stringify({
                             action: 'RECEIVE_MESSAGE',
-                            payload: {
-                                ...savedMessage.toObject(),
-                                status: 'delivered',
-                            },
+                            payload: savedMessage,
                         }));
                     }
 
-                    ws.send(JSON.stringify({
-                        action: 'RECEIVE_MESSAGE',
-                        payload: savedMessage,
-                    }));
+                    const receiverState = userConnections.get(msg.receiver);
+                    if (receiverState) {
+                        if (receiverState.inChatWith === userId) {
+                            savedMessage.status = "read";
+                        } else if (receiverState.isActive) {
+                            savedMessage.status = "delivered";
+                        } else {
+                            savedMessage.status = "sent";
+                        }
+                        await savedMessage.save();
+
+                        if (receiverState.socket?.readyState === Websockets.OPEN) {
+                            if (receiverState.inChatWith === userId) {
+                                receiverState.socket.send(JSON.stringify({
+                                    action: 'RECEIVE_MESSAGE',
+                                    payload: savedMessage,
+                                }));
+                            }
+                        }
+
+                        broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
+                    }
                 } catch (error) {
-                    console.error("❌ Error saving message:", error);
+                    console.error("❌ Error sending message:", error);
                     ws.send(JSON.stringify({
                         action: 'SEND_MESSAGE_FAILED',
                         error: 'Could not send message',
                     }));
+                }
+            } else if (msg.action === "UPDATE_CHAT_STATE") {
+                const userState = userConnections.get(userId);
+                if (userState) {
+                    userState.isActive = msg.isActive;
+                    userState.inChatWith = msg.inChatWith || null;
                 }
             }
         });
 
         ws.on('close', () => {
             userConnections.delete(userId);
-            console.log(`📴 User ${userId} disconnected from messaging service`);
         });
     });
-
-    console.log("📡 Messaging WebSocket server started on /messaging-service");
 
     return { path: '/messaging-service', handleUpgrade };
 };

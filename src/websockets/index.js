@@ -62,7 +62,6 @@ export default () => {
       }
       request.userId = client;
       wss.handleUpgrade(request, socket, head, (websocket) => {
-        console.log("WebSocket upgrade successful for timer service");
         wss.emit('connection', websocket, request);
       });
     });

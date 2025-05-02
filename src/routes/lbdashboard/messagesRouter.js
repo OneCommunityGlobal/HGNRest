@@ -3,19 +3,25 @@ const {
   sendMessageHandler,
   getConversationHandler,
   updateMessageStatusHandler,
+  getMessageStatusesHandler,
+  getExistingChatsHandler,
+  searchUserProfilesHandler
 } = require("../../websockets/lbMessaging/lbMessageHandler");
 
-const routes = function (io) {
+const routes = function () {
   const messagesRouter = express.Router();
 
-  // Route to send a message
-  messagesRouter.post("/messages", (req, res) => sendMessageHandler(req, res, io));
+  messagesRouter.post("/messages", (req, res) => sendMessageHandler(req, res));
 
-  // Route to get conversation history
   messagesRouter.get("/messages/conversation", getConversationHandler);
 
-  // Route to update message status
-  messagesRouter.patch("/messages/status", (req, res) => updateMessageStatusHandler(req, res, io));
+  messagesRouter.patch("/messages/status", (req, res) => updateMessageStatusHandler(req, res));
+
+  messagesRouter.get("/messages/statuses", (req, res) => getMessageStatusesHandler(req, res));
+
+  messagesRouter.get("/messages/existing-chats", getExistingChatsHandler);
+
+  messagesRouter.get("/messages/search-users", (req, res) => searchUserProfilesHandler(req, res));
 
   return messagesRouter;
 };
