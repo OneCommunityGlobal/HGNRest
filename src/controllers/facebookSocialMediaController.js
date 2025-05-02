@@ -230,9 +230,11 @@ const facebookController = function(){
      // Asumming user has access to only one page.
       const page = pages[0];  // In this case, we are posting to the first page the user manages
       //const pageId = page.id;*/
-      const pageId = `515563784975867`;
+      //const pageId = `515563784975867`;
+      const pageId = process.env.FB_PAGEID;
      //   const pageAccessToken = page.access_token;
-      const pageAccessToken = `EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT`;
+      //const pageAccessToken = `EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT`;
+      const pageAccessToken = process.env.FB_ACCESSCODE;
       let postResponse;
       try {
        if (base64Srcs.length > 0) { 
