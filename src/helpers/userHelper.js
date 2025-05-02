@@ -179,7 +179,7 @@ const userHelper = function () {
     let descrInfringement = '';
     if (timeRemaining === undefined) {
       finalParagraph =
-        '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
+        '<p>Life happens and we understand that. That\'s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
       descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
@@ -243,7 +243,7 @@ const userHelper = function () {
     }
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
-        <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
+        <p>Oops, it looks like something happened and you've managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
@@ -1114,13 +1114,16 @@ const userHelper = function () {
     try {
       const users = await userProfile.find(
         { isActive: false, reactivationDate: { $exists: true } },
-        '_id isActive reactivationDate',
+        '_id isActive reactivationDate endDate firstName lastName email',
       );
+      
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
-        if (canActivate) {
-          // Use '!' to invert the boolean value for testing
+        const reactivationDate = moment(user.reactivationDate).tz('America/Los_Angeles');
+        const currentDate = moment().tz('America/Los_Angeles');
+        
+        // Check if current date is same or after reactivation date
+        if (currentDate.isSameOrAfter(reactivationDate, 'day')) {
           await userProfile.findByIdAndUpdate(
             user._id,
             {
@@ -1128,35 +1131,32 @@ const userHelper = function () {
                 isActive: true,
               },
               $unset: {
-                endDate: user.endDate,
+                reactivationDate: "",
+                endDate: "",
               },
             },
             { new: true },
           );
+          
           logger.logInfo(
-            `User with id: ${user._id} was re-acticated at ${moment()
-              .tz('America/Los_Angeles')
-              .format()}.`,
+            `User with id: ${user._id} was re-activated at ${currentDate.format()}.`,
           );
-          const id = user._id;
-          const person = await userProfile.findById(id);
 
-          const endDate = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().format()}.`);
+          const subject = `IMPORTANT: ${user.firstName} ${user.lastName} has been RE-activated in the Highest Good Network`;
 
-          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been RE-activated in the Highest Good Network`;
+          const emailBody = [
+            '<p>Hi Admin!</p>',
+            '',
+            `<p>This email is to let you know that ${user.firstName} ${user.lastName} has been made active again in the Highest Good Network application after being paused.</p>`,
+            '',
+            `<p>If you need to communicate anything with them, this is their email from the system: ${user.email}.</p>`,
+            '',
+            '<p>Thanks!</p>',
+            '',
+            '<p>The HGN A.I. (and One Community)</p>'
+          ].join('\n');
 
-          const emailBody = `<p> Hi Admin! </p>
-
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has been made active again in the Highest Good Network application after being paused on ${endDate}.</p>
-
-          <p>If you need to communicate anything with them, this is their email from the system: ${person.email}.</p>
-
-          <p> Thanks! </p>
-
-          <p>The HGN A.I. (and One Community)</p>`;
-
-          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, person.email);
+          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, user.email);
         }
       }
     } catch (err) {
