@@ -240,12 +240,12 @@ async function createTweet(req, res) {
 }
 
 async function getPosts(req, res) {
-  console.log('getPosts call');
+  //console.log('getPosts call');
   try {
     const posts = await ScheduledPost.find({}).select(
       'textContent urlSrcs scheduledDate scheduledTime platform createdAt base64Srcs',
     );
-    console.log(posts);
+    //console.log(posts);
     res.status(200).json({ success: true, posts });
   } catch (error) {
     console.error('[Backend] Database error: ', error);

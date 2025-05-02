@@ -1,6 +1,6 @@
 const express = require('express');
 
-//const { facebookController } = require('../controllers/facebookSocialMediaController');
+
 
 const routes = function () {
     const controller = require('../controllers/facebookSocialMediaController')()
