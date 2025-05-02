@@ -113,14 +113,9 @@ const facebookController = function(){
     }
 
     async function scheduleFbPost(req, res) {
-      console.log('scheduleTweet call');
-      console.log('Request body:', req.body);
       const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.EmailContent);
-      console.log("request reached backend textcontent", textContent)
       const scheduledDate = req.body.ScheduleDate;
       const scheduledTime = req.body.ScheduleTime;
-      console.log('scheduledDate', scheduledDate);
-      console.log('scheduledTime', scheduledTime);
    
       if (!scheduledDate || !scheduledTime) {
         return res
@@ -142,7 +137,7 @@ const facebookController = function(){
       newScheduledFbPost
         .save()
         .then((scheduledFbPost) => {
-          console.log('scheduledFbPost saved:', scheduledFbPost);
+          //console.log('scheduledFbPost saved:', scheduledFbPost);
           res.status(200).json({ success: true, scheduledFbPost });
         })
         .catch((error) => {
@@ -181,13 +176,9 @@ const facebookController = function(){
     }
     }
 
-
-
   async function createFbPost(req,res){
     
     const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
-    //const base64Image = req.body.base64Content;
-    //console.log("reached base24 backend", base64Image);
     const authToken = req.body.accessToken;
     const pages = await getPagesManagedByUser(authToken);
     if (pages.length === 0) {
@@ -214,26 +205,9 @@ const facebookController = function(){
   }
 
     async function postToFacebook(content, image) {
-      console.log('create Scheduled Facebook call');
       const textContent = content;
       const base64Srcs = image;
-      //const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
-     //const base64Image = req.body.base64Content;
-     //console.log("reached base24 backend", base64Image);
-     //const authToken = req.body.accessToken;
-      //const authToken = `EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT`;
-
-     /* const pages = await getPagesManagedByUser(authToken);
-     if (pages.length === 0) {
-       return res.status(400).json({ error: 'No pages found for this user' });
-     }
-     // Asumming user has access to only one page.
-      const page = pages[0];  // In this case, we are posting to the first page the user manages
-      //const pageId = page.id;*/
-      //const pageId = `515563784975867`;
       const pageId = process.env.FB_PAGEID;
-     //   const pageAccessToken = page.access_token;
-      //const pageAccessToken = `EAASZBdxJRmpMBO9p6FpMaTeW1Xwi3R5Ww6Lmt5Tmg2zhjXmotA2IZBzmKDxdpRJLOBy1ZA2ULWZBKzUt3aE1WDunUOazJ0GSeMdySzLZAnB2LwaAhIizS4aB6gj2yZCazR8lXKn2OWkbAtlhRiOUiPgSplKkZCOtryduO7pGMxjWoI4YZC7vZBLsVJFQLySbPIcZAT`;
       const pageAccessToken = process.env.FB_ACCESSCODE;
       let postResponse;
       try {
