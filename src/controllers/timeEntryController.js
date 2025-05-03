@@ -115,10 +115,9 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       userProfile.email,
       'Logged more hours than estimated for a task',
       text,
+      null,
+      null,
       'onecommunityglobal@gmail.com',
-      null,
-      userProfile.email,
-      null,
     );
   } catch (error) {
     throw new Error(
@@ -568,7 +567,7 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (timeEntry.taskId) {
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               timeEntry.taskId,
               0,
               timeEntry.taskId,
@@ -758,7 +757,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // change from tangible to intangible
           if (initialIsTangible) {
             // subtract initial logged hours from old task (if not null)
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               initialTaskId,
               initialTotalSeconds,
               null,
@@ -784,7 +783,7 @@ const timeEntrycontroller = function (TimeEntry) {
             );
           } else {
             // from intangible to tangible
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               null,
               null,
               newTaskId,
@@ -813,7 +812,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
 
           // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
-          updateTaskLoggedHours(
+          await updateTaskLoggedHours(
             initialTaskId,
             initialTotalSeconds,
             newTaskId,
@@ -931,7 +930,7 @@ const timeEntrycontroller = function (TimeEntry) {
           await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);

@@ -119,13 +119,17 @@ const routes = function (userProfile, project) {
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
-  
+    
   userProfileRouter.route('/userProfile/profileImage/remove').put(controller.removeProfileImage);
   userProfileRouter.route('/userProfile/profileImage/imagefromwebsite').put(controller.updateProfileImageFromWebsite);
 
   userProfileRouter
     .route('/userProfile/autocomplete/:searchText')
     .get(controller.getUserByAutocomplete);
+
+  userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
+  
+  userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
   return userProfileRouter;
 };
