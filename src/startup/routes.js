@@ -149,8 +149,6 @@ const collaborationRouter=require('../routes/collaborationRouter');
 const fbSocialMediaRouter = require('../routes/fbSocialmediaRouter')();
 
 
-const collaborationRouter = require('../routes/collaborationRouter');
-
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
