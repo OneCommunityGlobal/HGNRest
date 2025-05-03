@@ -14,6 +14,7 @@ const routes = () => {
     // instagramRouter.route('/instagram/exchange-token').post(instagramController.exchangeToken)
 
     instagramRouter.route('/instagram/access-token').post(instagramController.getInstagramShortLivedToken);
+    instagramRouter.route('/instagram/long-lived-token').get(instagramController.getInstagramLongLivedToken);
     instagramRouter.route('/instagram/get-user-id').get(instagramController.getInstagramUserId);
     instagramRouter.route('/instagram/create-container').post(instagramController.createInstagramContainer);
     instagramRouter.route('/instagram/publish-container').post(instagramController.publishInstagramContainer);

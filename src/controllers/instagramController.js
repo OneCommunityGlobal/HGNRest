@@ -61,6 +61,42 @@ const getInstagramShortLivedToken = async (req, res) => {
 
 }
 
+const getInstagramLongLivedToken = async (req, res) => {
+    if (!instagramClientId || !instagramClientSecret) {
+        return res.status(500).json({ error: 'Instagram credentials are not set' });
+    }
+
+    const { shortLivedToken } = req.body;
+
+    if (!shortLivedToken) {
+        return res.status(400).json({ error: 'Short-lived token is required' });
+    }
+
+    try {
+        const response = await axios.get('https://graph.instagram.com/access_token', {
+            params: {
+              grant_type: 'ig_exchange_token',
+              client_secret: instagramClientSecret,
+              access_token: shortLivedToken
+            }
+        });
+
+        console.log('Instagram long-lived token received:', response.data);
+        return res.json({
+            ...response.data,
+            success: true,
+            message: 'Instagram long-lived token received successfully'
+        });
+    } catch (error) {
+        console.error('Error requesting long-lived token from Instagram:', error.response?.data || error.message);
+        return res.status(500).json({
+            success: false,
+            message: 'Error requesting long-lived token from Instagram',
+            error: error.response?.data || error.message
+        });
+    }
+}
+
 const getInstagramUserId = async (req, res) => {
     const { accessToken } = req.body;
 
@@ -68,10 +104,12 @@ const getInstagramUserId = async (req, res) => {
         return res.status(400).json({ error: 'Access token is required' });
     }
 
+    const access_token = accessToken
+
     try {
         const response = await axios.get('https://graph.instagram.com/me', 
             {
-                params: { accessToken }
+                params: { access_token }
             }
         );
 
@@ -83,10 +121,10 @@ const getInstagramUserId = async (req, res) => {
             message: 'Instagram user ID received successfully'
         });
     } catch (error) {
-        console.error('Error requesting short-lived token from Instagram:', error.response.data);
+        console.error('Error requesting instagram user ID:', error.response.data);
         return res.status(500).json({
             success: false,
-            message: 'Error requesting short-lived token from Instagram',
+            message: 'Error requesting instagram user ID',
             error: error.response.data
         });
     }
@@ -234,6 +272,19 @@ const deleteImageFromImgur = async (req, res) => {
     }
 }
 
+const getInstagramUserIdHelper = async (accessToken) => {
+    try {
+        const response = await axios.get('https://graph.instagram.com/me', {
+            params: { access_token: accessToken }
+        });
+        return response.data.id;
+    } catch (error) {
+        console.error('Error requesting Instagram user ID:', 
+            error.response?.data || error.message);
+        return null;
+    }
+};
+
 const createInstagramContainer = async (req, res) => {
     const { imageUrl, caption, accessToken } = req.body;
 
@@ -241,7 +292,7 @@ const createInstagramContainer = async (req, res) => {
         return res.status(400).json({ error: 'Image URL, caption, and access token are required' });
     }
 
-    const userId = await getInstagramUserId(accessToken);
+    const userId = await getInstagramUserIdHelper(accessToken);
     if (!userId) {
         return res.status(500).json({ error: 'Failed to get Instagram user ID' });
     }
@@ -283,7 +334,7 @@ const publishInstagramContainer = async (req, res) => {
         return res.status(400).json({ error: 'Container ID and access token are required' });
     }
 
-    const userId = await getInstagramUserId(accessToken);
+    const userId = await getInstagramUserIdHelper(accessToken);
     if (!userId) {
         return res.status(500).json({ error: 'Failed to get Instagram user ID' });
     }
@@ -317,6 +368,7 @@ const publishInstagramContainer = async (req, res) => {
 
 module.exports = {
     getInstagramShortLivedToken,
+    getInstagramLongLivedToken,
     getInstagramUserId,
     getImgurAccessToken,
     uploadImageToImgur,
