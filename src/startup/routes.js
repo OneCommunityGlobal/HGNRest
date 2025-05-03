@@ -18,6 +18,7 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const projectCost = require('../models/bmdashboard/projectCost');
 
 
 // Title
@@ -141,6 +142,7 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter=require('../routes/collaborationRouter');
 
+const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -200,4 +202,5 @@ module.exports = function (app) {
   app.use('api', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api/', projectCostRouter);
 };
