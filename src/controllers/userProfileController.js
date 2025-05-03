@@ -1242,10 +1242,19 @@ const userProfileController = function (UserProfile, Project) {
     const isSet = req.body.isSet === 'FinalDay';
     let activeStatus = status;
     let emailThreeWeeksSent = false;
+
+    console.log(`[changeUserStatus] Input endDate: ${endDate}`);
+    console.log(`[changeUserStatus] Input endDate as object:`, new Date(endDate));
+
+
     if (endDate && status) {
       const dateObject = new Date(endDate);
       dateObject.setHours(dateObject.getHours() + 7);
       const setEndDate = dateObject;
+
+      console.log(`[changeUserStatus] setEndDate after 7 hour adjustment: ${setEndDate}`);
+
+
       if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
         activeStatus = false;
       } else if (moment().isBefore(moment(endDate).subtract(3, 'weeks'))) {
@@ -1321,6 +1330,10 @@ const userProfileController = function (UserProfile, Project) {
               allUserData.splice(userIdx, 1, userData);
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
+
+            console.log(`[changeUserStatus] endDate being passed to sendDeactivateEmailBody: ${endDate}`);
+            console.log(`[changeUserStatus] endDate as object:`, new Date(endDate));
+
             userHelper.sendDeactivateEmailBody(
               user.firstName,
               user.lastName,

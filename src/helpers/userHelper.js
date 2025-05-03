@@ -2172,11 +2172,22 @@ const userHelper = function () {
     let emailBody;
     recipients.push('onecommunityglobal@gmail.com');
     recipients = recipients.toString();
+
+    console.log(`[sendDeactivateEmailBody] Received endDate: ${endDate}`);
+    console.log(`[sendDeactivateEmailBody] endDate as object:`, new Date(endDate));
+
+
     if (reactivationDate) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part until they return on ${moment(reactivationDate).format('M-D-YYYY')}. </p>
 
       <p>With Gratitude, </p>
@@ -2184,10 +2195,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && sendThreeWeeks) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p>This is more than 3 weeks from now, but you should still start confirming all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
 
       <p>An additional reminder email will be sent in their final 2 weeks.</p>
@@ -2197,10 +2214,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && followup) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p> This is coming up soon. For a smooth transition, please confirm all your work is wrapped up with this individual and nothing further will be needed on their part after this date. </p>
 
       <p>With Gratitude, </p>
@@ -2208,10 +2231,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p> For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
 
       <p>With Gratitude, </p>
@@ -2219,10 +2248,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
 
       <p>With Gratitude, </p>
