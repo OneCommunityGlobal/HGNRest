@@ -10,17 +10,8 @@ bidNotificationsRouter
   .route('/bidNotifications')
   .get(bidNotificationsController.getBidNotifications)
   .post(bidNotificationsController.postBidNotifications);
-
-/*
-bidTermsRouter
-  .route('/bidTerms')
-  .get(bidTermsController.getBidTerms)
-  .post(bidTermsController.postBidTerms);
-
-
 bidNotificationsRouter
-  .route('/bidNotifications')
-  .get(bidNotificationsController.getNotifications)
-  .post(bidNotificationsController.postNotifications);
-*/
+  .route('/bidNotificationsMarkDelivered')
+  .post(bidNotificationsController.bidNotificationsMarkDelivered);
+
 module.exports = bidNotificationsRouter;

@@ -7,6 +7,7 @@ const usersSchema = new Schema({
   email: { type: String, required: true },
   phone: { type: String, required: true },
   isActive: { type: Boolean, default: true },
+  mobile: { type: String, required: false },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
 });

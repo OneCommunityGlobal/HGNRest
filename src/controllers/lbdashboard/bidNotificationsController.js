@@ -51,11 +51,14 @@ const bidNotificationsController = function (BidNotifications) {
     console.log('getBidNotifications');
     const { email } = req.body;
 
-    console.log(req.body);
+    console.log(email);
 
     try {
       console.log('inside getBidNotifications');
-      BidNotifications.findOne({ email })
+      const users = await Users.findOne({ email });
+      console.log(users);
+      BidNotifications.find({ userId: users._id, isDelivered: false })
+
         .select('userId message isDelivered createdAt modifiedAt _id')
         .then((results) => {
           console.log('results fetched ');
@@ -69,9 +72,29 @@ const bidNotificationsController = function (BidNotifications) {
       console.log('error occurred');
     }
   };
+
+  const bidNotificationsMarkDelivered = async (req, res) => {
+    const { notificationIds } = req.body;
+    try {
+      console.log('inside bidNotificationsMarkDelivered');
+      console.log(notificationIds);
+      const postBidNotificationsMarkDelivered = await BidNotifications.updateMany(
+        { _id: { $in: notificationIds } },
+        { $set: { isDelivered: true } },
+      );
+
+      console.log('results fetched ');
+      console.log(postBidNotificationsMarkDelivered);
+      res.status(200).json({ success: true, data: postBidNotificationsMarkDelivered });
+    } catch (error) {
+      console.log('error');
+      res.status(500).send({ error });
+    }
+  };
   return {
     getBidNotifications,
     postBidNotifications,
+    bidNotificationsMarkDelivered,
   };
 };
 module.exports = bidNotificationsController;
