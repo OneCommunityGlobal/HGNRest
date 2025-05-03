@@ -6,8 +6,8 @@ const routes = (BidProperty) => {
     BidProperty,
   );
 
-  bidPropertyController.route("/properties").get(controller.fetchProperty);
-
+  bidPropertyController.route("/properties/:propertyId").get(controller.fetchProperty);
+  return bidPropertyController;
 }
 
 module.exports = routes;

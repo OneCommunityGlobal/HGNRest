@@ -3,10 +3,10 @@ const mongoose = require('mongoose');
 const bidPropertyController = (BidProperty) => {
   const fetchProperty = async (req, res) => {
     try {
-      const PropId = req.params.id;
+      const PropId = req.params.propertyId;
 
-      const property = await Listing.findById(PropId)
-        .select('images description amenities price')
+      const property = await BidProperty.findById(PropId)
+        .select('images description amenities price status title description perUnit createdBy updatedBy availability createOn updateOn __v')
         .exec();
 
       if (!property) {
@@ -22,8 +22,8 @@ const bidPropertyController = (BidProperty) => {
     }
   }
 
-  return fetchProperty;
+  return { fetchProperty };
 
-}
+};
 
 module.exports = bidPropertyController;

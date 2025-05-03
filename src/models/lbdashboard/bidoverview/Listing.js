@@ -1,10 +1,29 @@
 const mongoose = require('mongoose');
-
-const propertySchema = new mongoose.Schema({
-  description: { type: String, required: true },
-  images: { type: [String], required: true },
-  amenities: { type: [String], required: true },
-  price: { type: String, required: true },
+const { Schema } = mongoose;
+const listings = new Schema({
+  title: { type: String, required: true, maxLength: 255 },
+  price: { type: Number, required: true },
+  createdOn: { type: Date, required: true, default: Date.now },
+  createdBy: {
+    type: mongoose.SchemaTypes.ObjectId,
+    ref: 'userProfile',
+    required: true,
+  },
+  perUnit: { type: String, required: true },
+  description: { type: String },
+  images: { type: [String] },
+  amenities: { type: [String] },
+  availability: { type: Date },
+  updatedOn: { type: Date, required: true, default: Date.now },
+  updatedBy: {
+    type: mongoose.SchemaTypes.ObjectId,
+    ref: 'userProfile',
+    required: true,
+  },
+  status: { type: String, required: true, enum: ['draft', 'complete'], default: 'draft' },
 });
-
-module.exports = mongoose.model('bidoverview_Listing', propertySchema, "bidoverview_Listings");
+listings.index({ price: -1 });
+listings.index({ price: 1 });
+listings.index({ createdOn: -1 });
+listings.index({ createdOn: 1 });
+module.exports = mongoose.model('listings', listings, 'listings');

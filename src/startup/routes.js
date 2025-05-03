@@ -49,6 +49,14 @@ const {
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 
+const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing')
+
+const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid')
+
+const bidoverview_User = require('../models/lbdashboard/bidoverview/User')
+
+const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification')
+
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
@@ -133,7 +141,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 //lbdashboard_bidoverview
 
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
-const userBidRouter = require('../routes/lbdashboard/userBidRouter')(bidoverview_Bid, bidoverview_User);
+const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(bidoverview_Bid, bidoverview_Listing, bidoverview_User, bidoverview_Notification);
 
 
 module.exports = function (app) {
@@ -190,5 +198,5 @@ module.exports = function (app) {
 
   //lb dashboard
   app.use('/api/lb', bidPropertyRouter)
-  app.use('api/lb', userBidRouter)
+  app.use('/api/lb', userBidRouter)
 };

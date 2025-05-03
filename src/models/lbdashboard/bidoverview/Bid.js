@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Define the schema
 const bidSchema = new mongoose.Schema({
   user_id: {
     type: String,
