@@ -115,10 +115,9 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       userProfile.email,
       'Logged more hours than estimated for a task',
       text,
+      null,
+      null,
       'onecommunityglobal@gmail.com',
-      null,
-      userProfile.email,
-      null,
     );
   } catch (error) {
     throw new Error(
