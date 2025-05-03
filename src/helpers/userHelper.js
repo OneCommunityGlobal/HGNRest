@@ -862,10 +862,9 @@ const userHelper = function () {
               status.email,
               'New Infringement Assigned',
               emailBody,
+              null,
               emailsBCCs,
               'onecommunityglobal@gmail.com',
-              status.email,
-              null,
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
