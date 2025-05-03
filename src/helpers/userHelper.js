@@ -2216,101 +2216,101 @@ const userHelper = function () {
   //       });
   //   });
   // };
-  const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
-    const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
-    const approvedRoles = ['Mentor', 'Manager','Administrator'];
+  // const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
+  //   const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
+  //   const approvedRoles = ['Mentor', 'Manager','Administrator'];
   
-    console.log('Checking role for user:', user.role);
-    if (!approvedRoles.includes(user.role)) {
-      console.log('User role not approved for badge check. Exiting.');
-      return;
-    }
+  //   console.log('Checking role for user:', user.role);
+  //   if (!approvedRoles.includes(user.role)) {
+  //     console.log('User role not approved for badge check. Exiting.');
+  //     return;
+  //   }
   
-    let teamMembers;
-    // await getTeamMembers({ _id: personId }).then((results) => {
-    //   if (results) {
-    //     teamMembers = results.myteam;
-    //     console.log('Fetched team members:', teamMembers.length);
-    //   } else {
-    //     teamMembers = [];
-    //     console.log('No team members found.');
-    //   }
-    // });
+  //   let teamMembers;
+  //   // await getTeamMembers({ _id: personId }).then((results) => {
+  //   //   if (results) {
+  //   //     teamMembers = results.myteam;
+  //   //     console.log('Fetched team members:', teamMembers.length);
+  //   //   } else {
+  //   //     teamMembers = [];
+  //   //     console.log('No team members found.');
+  //   //   }
+  //   // });
   
-    const objIds = {};
-    teamMembers = teamMembers.filter((member) => {
-      if (leaderRoles.includes(member.role)) {
-        console.log('Skipping leader role:', member.role);
-        return false;
-      }
-      if (objIds[member._id]) {
-        console.log('Duplicate member found, skipping:', member._id);
-        return false;
-      }
-      objIds[member._id] = true;
-      return true;
-    });
+  //   const objIds = {};
+  //   teamMembers = teamMembers.filter((member) => {
+  //     if (leaderRoles.includes(member.role)) {
+  //       console.log('Skipping leader role:', member.role);
+  //       return false;
+  //     }
+  //     if (objIds[member._id]) {
+  //       console.log('Duplicate member found, skipping:', member._id);
+  //       return false;
+  //     }
+  //     objIds[member._id] = true;
+  //     return true;
+  //   });
   
-    console.log('Filtered team members count:', teamMembers.length);
+  //   console.log('Filtered team members count:', teamMembers.length);
   
-    let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      const currentBadge = badgeCollection[i].badge;
-      if (currentBadge?.type === 'Lead a team of X+') {
-        console.log('Evaluating badge:', currentBadge);
-        if (badgeOfType && badgeOfType.people <= currentBadge.people) {
-          console.log('Removing duplicate badge (lower or equal):', badgeOfType._id);
-          removeDupBadge(personId, badgeOfType._id);
-          badgeOfType = currentBadge;
-        } else if (badgeOfType && badgeOfType.people > currentBadge.people) {
-          console.log('Removing duplicate badge (higher):', currentBadge._id);
-          removeDupBadge(personId, currentBadge._id);
-        } else if (!badgeOfType) {
-          console.log('First badge of type found:', currentBadge);
-          badgeOfType = currentBadge;
-        }
-      }
-    }
+  //   let badgeOfType;
+  //   for (let i = 0; i < badgeCollection.length; i += 1) {
+  //     const currentBadge = badgeCollection[i].badge;
+  //     if (currentBadge?.type === 'Lead a team of X+') {
+  //       console.log('Evaluating badge:', currentBadge);
+  //       if (badgeOfType && badgeOfType.people <= currentBadge.people) {
+  //         console.log('Removing duplicate badge (lower or equal):', badgeOfType._id);
+  //         removeDupBadge(personId, badgeOfType._id);
+  //         badgeOfType = currentBadge;
+  //       } else if (badgeOfType && badgeOfType.people > currentBadge.people) {
+  //         console.log('Removing duplicate badge (higher):', currentBadge._id);
+  //         removeDupBadge(personId, currentBadge._id);
+  //       } else if (!badgeOfType) {
+  //         console.log('First badge of type found:', currentBadge);
+  //         badgeOfType = currentBadge;
+  //       }
+  //     }
+  //   }
   
-    console.log('Current badge of type to compare:', badgeOfType);
+  //   console.log('Current badge of type to compare:', badgeOfType);
   
-    await badge
-      .find({ type: 'Lead a team of X+' })
-      .sort({ people: -1 })
-      .then((results) => {
-        if (!Array.isArray(results) || !results.length) {
-          console.log('No badges found in DB of type "Lead a team of X+"');
-          return;
-        }
+  //   await badge
+  //     .find({ type: 'Lead a team of X+' })
+  //     .sort({ people: -1 })
+  //     .then((results) => {
+  //       if (!Array.isArray(results) || !results.length) {
+  //         console.log('No badges found in DB of type "Lead a team of X+"');
+  //         return;
+  //       }
   
-        results.every((bg) => {
-          console.log(`Evaluating badge from DB: People=${bg.people}, TeamCount=${teamMembers.length}`);
-          if (teamMembers && teamMembers.length >= bg.people) {
-            if (badgeOfType) {
-              if (
-                badgeOfType._id.toString() !== bg._id.toString() &&
-                badgeOfType.people < bg.people
-              ) {
-                console.log('Replacing badge:', badgeOfType._id, 'with', bg._id);
-                replaceBadge(
-                  personId,
-                  mongoose.Types.ObjectId(badgeOfType._id),
-                  mongoose.Types.ObjectId(bg._id),
-                );
-              } else {
-                console.log('No replacement needed or badge already assigned.');
-              }
-              return false;
-            }
+  //       results.every((bg) => {
+  //         console.log(`Evaluating badge from DB: People=${bg.people}, TeamCount=${teamMembers.length}`);
+  //         if (teamMembers && teamMembers.length >= bg.people) {
+  //           if (badgeOfType) {
+  //             if (
+  //               badgeOfType._id.toString() !== bg._id.toString() &&
+  //               badgeOfType.people < bg.people
+  //             ) {
+  //               console.log('Replacing badge:', badgeOfType._id, 'with', bg._id);
+  //               replaceBadge(
+  //                 personId,
+  //                 mongoose.Types.ObjectId(badgeOfType._id),
+  //                 mongoose.Types.ObjectId(bg._id),
+  //               );
+  //             } else {
+  //               console.log('No replacement needed or badge already assigned.');
+  //             }
+  //             return false;
+  //           }
   
-            console.log('Adding new badge:', bg._id);
-            addBadge(personId, mongoose.Types.ObjectId(bg._id));
-            return false;
-          }
-          return true;
-        });
-      });
-  };
+  //           console.log('Adding new badge:', bg._id);
+  //           addBadge(personId, mongoose.Types.ObjectId(bg._id));
+  //           return false;
+  //         }
+  //         return true;
+  //       });
+  //     });
+  // };
   
 
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
@@ -2400,9 +2400,9 @@ const userHelper = function () {
         // await updatePersonalMax(personId, user);
         // await checkPersonalMax(personId, user, badgeCollection);
         // await checkMostHrsWeek(personId, user, badgeCollection);
-        // await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
-        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        // await checkTotalHrsInCat(personId, user, badgeCollection);
+        //await checkLeadTeamOfXplus(personId, user, badgeCollection);
         // await checkXHrsForXWeeks(personId, user, badgeCollection);
         //await checkNoInfringementStreak(personId, user, badgeCollection);
         //remove cache after badge asssignment.
