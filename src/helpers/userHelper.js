@@ -2270,17 +2270,8 @@ const userHelper = function () {
 
       const users = await userProfile.find({isActive: true}).populate('badgeCollection.badge');
       
-      console.log("awardNewBadge working")
-
-      const users = await userProfile.find({
-            isActive: true,
-            $or: [
-                { 'badgeCollection.badge': { $exists: true }},
-                { badgeCollection: { $size: 0 }},
-                { badgeCollection: { $exists: false }}
-            ]
-        }).populate('badgeCollection.badge');
-
+      console.log("awardNewBadge working");
+      
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
