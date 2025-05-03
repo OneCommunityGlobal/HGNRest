@@ -1970,22 +1970,42 @@ const userProfileController = function (UserProfile, Project) {
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
-    
+  
       const userId = req.body.requestor.requestorId;
-
+  
       // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
       }
-      
+  
       // Get all form responses except for the current user
       const formResponses = await HGNFormResponses.find({
         user_id: { $ne: userId } // Exclude current user
       }).lean();
+  
+      // Get user IDs from form responses
+      const userIds = formResponses.map(response => response.user_id);
+  
+      // Get user profiles to get privacy settings
+      const userProfiles = await userProfile.find({
+        _id: { $in: userIds }
+      }).select('_id email phoneNumber privacySettings').lean();
       
-      // Map data directly from form responses
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = userProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+  
+      // Map data with privacy considerations
       const membersData = formResponses.map(response => {
+        const profile = profileMap[response.user_id];
+        
+        if (!profile) {
+          return null;
+        }
+        
         let score = 0;
         
         // Check for skill score in frontend or backend
@@ -1995,23 +2015,36 @@ const userProfileController = function (UserProfile, Project) {
           score = parseInt(response.backend[skillName], 10) || 0;
         }
         
+        // Apply privacy settings
+        const email = profile.privacySettings?.email === false ? null : profile.email;
+        
+        // Get phone number with privacy consideration
+        let phoneNumber = null;
+        if (profile.privacySettings?.phoneNumber !== false) {
+          if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+            const [firstPhoneNumber] = profile.phoneNumber;
+            phoneNumber = firstPhoneNumber;
+          }
+        }
+        
         return {
           name: response.userInfo.name,
-          email: response.userInfo.email,
-          slack: response.userInfo.slack || null,
+          email,
+          phoneNumber,
+          slack: response.userInfo.slack,
           rating: `${score} / 10`
         };
-      });
-      
+      }).filter(item => item !== null);
+  
       // Sort by skill score (highest first)
-      membersData.sort((a, b) => {
+      const sortedData = [...membersData].sort((a, b) => {
         const scoreA = parseInt(a.rating.split(' / ')[0], 10);
         const scoreB = parseInt(b.rating.split(' / ')[0], 10);
         return scoreB - scoreA;
       });
-      
-      return res.status(200).send(membersData);
-      
+  
+      return res.status(200).send(sortedData);
+  
     } catch (error) {
       console.error('Error in getAllMembersSkillsAndContact:', error);
       return res.status(500).send({
