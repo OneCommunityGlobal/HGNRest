@@ -119,12 +119,14 @@ describe('teamController', () => {
             assertResMock(404, error, response, mockRes);
         });
 
-        test('Returns 200 - all is successful, return a team by ID.', async () => {
-            const { getTeamById } = makeSut();
-            const teamId = '5a8e21f00317bc';
-            const findByIdSpy = jest.spyOn(Team, 'findById').mockResolvedValue({ teamId });
-            const response = getTeamById(mockReq, mockRes);
-            await flushPromises();
+    test('Returns 200 - all is successful, return a team by ID.', async () => {
+      const { getTeamById } = makeSut();
+      const teamId = '5a8e21f00317bc';
+      const req = { params: { teamId } };
+      const findByIdSpy = jest.spyOn(Team, 'findById').mockResolvedValue({ teamId });
+      const response = getTeamById(req, mockRes);
+      await flushPromises();
+
 
             expect(findByIdSpy).toHaveBeenCalledWith(teamId);
             assertResMock(200, { teamId }, response, mockRes);
