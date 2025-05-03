@@ -451,13 +451,30 @@ const teamcontroller = function (Team) {
         .filter(member => member.visible !== false && member.userId.toString() !== userId)
         .map(member => member.userId);
       
+      // Get user profiles to get privacy settings
+      const memberProfiles = await userProfile.find({
+        _id: { $in: memberUserIds }
+      }).select('_id email phoneNumber privacySettings').lean();
+      
       // Get form responses for all team members
       const formResponses = await HGNFormResponses.find({
         user_id: { $in: memberUserIds.map(id => id.toString()) }
       }).lean();
       
-      // Map data directly from form responses
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = memberProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+      
+      // Map data with privacy considerations
       const teamMembersData = formResponses.map(response => {
+        const profile = profileMap[response.user_id];
+        
+        if (!profile) {
+          return null;
+        }
+        
         let score = 0;
         
         // Check for skill score in frontend or backend
@@ -467,22 +484,35 @@ const teamcontroller = function (Team) {
           score = parseInt(response.backend[skillName], 10) || 0;
         }
         
+        // Apply privacy settings
+        const email = profile.privacySettings?.email === false ? null : profile.email;
+        
+        // Get phone number with privacy consideration
+        let phoneNumber = null;
+        if (profile.privacySettings?.phoneNumber !== false) {
+          if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+            const [firstPhoneNumber] = profile.phoneNumber;
+            phoneNumber = firstPhoneNumber;
+          }
+        }
+        
         return {
           name: response.userInfo.name,
-          email: response.userInfo.email,
-          slack: response.userInfo.slack || null,
+          email,
+          phoneNumber,
+          slack: response.userInfo.slack,
           rating: `${score} / 10`
         };
-      });
+      }).filter(item => item !== null);
       
       // Sort by skill score
-      teamMembersData.sort((a, b) => {
+      const sortedData = [...teamMembersData].sort((a, b) => {
         const scoreA = parseInt(a.rating.split(' / ')[0], 10);
         const scoreB = parseInt(b.rating.split(' / ')[0], 10);
         return scoreB - scoreA;
       });
       
-      return res.status(200).send(teamMembersData);
+      return res.status(200).send(sortedData);
       
     } catch (error) {
       console.error('Error in getTeamMembersSkillsAndContact:', error);
