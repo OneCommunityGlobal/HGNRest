@@ -76,6 +76,7 @@
     "mongoose": "^5.13.20",
     "mongoose-validator": "^2.1.0",
     "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.4.16",
     "redis": "^4.2.0",

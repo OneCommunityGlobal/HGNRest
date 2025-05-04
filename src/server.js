@@ -1,5 +1,6 @@
 /* eslint-disable quotes */
 require('dotenv').load();
+require('./jobs/dailyMessageEmailNotification');
 const { app, logger } = require('./app');
 const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;

@@ -20,6 +20,7 @@ const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
+const notification = require('../models/notification');
 
 
 // Title
@@ -135,7 +136,7 @@ const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIss
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
-const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(userPreferences);
+const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(userPreferences, notification);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,

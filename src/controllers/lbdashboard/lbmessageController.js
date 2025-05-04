@@ -104,10 +104,31 @@ const lbMessageController = function (Message, io) {
     }
   };
 
+  const markMessagesAsRead = async (req, res) => {
+    try {
+      const { userId, contactId } = req.body;
+
+      if (!userId || !contactId) {
+        return res.status(400).json({ message: "User ID and Contact ID are required." });
+      }
+
+      const updatedMessages = await Message.updateMany(
+        { sender: contactId, receiver: userId, status: { $ne: "read" } },
+        { $set: { status: "read" } }
+      );
+
+      res.status(200).json({ message: "Messages marked as read.", updatedMessages });
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ message: "Failed to mark messages as read." });
+    }
+  };
+
   return {
     sendMessage,
     getConversation,
     updateMessageStatus,
+    markMessagesAsRead,
   };
 };
 

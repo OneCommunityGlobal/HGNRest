@@ -3,6 +3,10 @@ const jwt = require('jsonwebtoken');
 const config = require('../../config');
 const { sendMessageHandler, updateMessageStatusHandler } = require("./lbMessageHandler");
 const Message = require('../../models/lbdashboard/message');
+const Notification = require('../../models/notification')
+const UserProfile = require('../../models/userProfile');
+const UserPreference = require('../../models/lbdashboard/userPreferences');
+const mongoose = require('mongoose');
 
 const authenticate = (req, res) => {
     const authToken = req.headers?.['sec-websocket-protocol'];
@@ -85,6 +89,8 @@ export default () => {
                             payload: savedMessage,
                         }));
                     }
+                    const senderProfile = await UserProfile.findById(userId).select('firstName lastName');
+                    const senderName = `${senderProfile.firstName} ${senderProfile.lastName}`;
 
                     const receiverState = userConnections.get(msg.receiver);
                     if (receiverState) {
@@ -98,15 +104,38 @@ export default () => {
                         await savedMessage.save();
 
                         if (receiverState.socket?.readyState === Websockets.OPEN) {
-                            if (receiverState.inChatWith === userId) {
-                                receiverState.socket.send(JSON.stringify({
-                                    action: 'RECEIVE_MESSAGE',
-                                    payload: savedMessage,
-                                }));
-                            }
-                        }
+                            receiverState.socket.send(JSON.stringify({
+                                action: 'RECEIVE_MESSAGE',
+                                payload: savedMessage,
+                            }));
 
+
+                            if (receiverState.isActive && receiverState.inChatWith !== userId) {
+                                const userPreference = await UserPreference.findOne({ user: msg.receiver });
+                                const isSenderInPreference = userPreference?.users.some(
+                                    (pref) =>
+                                        pref.userNotifyingFor.toString() === userId &&
+                                        pref.notifyInApp === true
+                                );
+
+                                if (isSenderInPreference) {
+                                    receiverState.socket.send(JSON.stringify({
+                                        action: 'NEW_NOTIFICATION',
+                                        payload: `You got a message from ${senderName}`,
+                                    }));
+                                }
+                            }
+
+                        }
                         broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
+                    } else {
+                        const notification = new Notification({
+                            message: `You got a message from ${senderName}`,
+                            sender: userId,
+                            recipient: msg.receiver,
+                            isSystemGenerated: false,
+                        });
+                        await notification.save();
                     }
                 } catch (error) {
                     console.error("❌ Error sending message:", error);
@@ -120,6 +149,29 @@ export default () => {
                 if (userState) {
                     userState.isActive = msg.isActive;
                     userState.inChatWith = msg.inChatWith || null;
+                }
+            } else if (msg.action === "MARK_MESSAGES_AS_READ") {
+                try {
+                    const { contactId } = msg;
+                    if (!contactId) {
+                        throw new Error("Contact ID is required to mark messages as read.");
+                    }
+
+                    const updatedMessages = await Message.updateMany(
+                        { sender: contactId, receiver: userId, status: { $ne: "read" } },
+                        { $set: { status: "read" } }
+                    );
+
+
+                    const senderSocket = userConnections.get(contactId)?.socket;
+                    if (senderSocket && senderSocket.readyState === Websockets.OPEN) {
+                        senderSocket.send(JSON.stringify({
+                            action: 'MESSAGE_STATUS_UPDATED',
+                            payload: { contactId, status: "read" },
+                        }));
+                    }
+                } catch (error) {
+                    console.error("❌ Error marking messages as read:", error);
                 }
             }
         });
