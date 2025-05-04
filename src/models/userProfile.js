@@ -52,7 +52,7 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String, required: true }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String,
@@ -119,14 +119,7 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: {
         type: String,
-        required: true,
-        enum: [
-          'Better Descriptions',
-          'Log Time to Tasks',
-          'Log Time as You Go',
-          'Log Time to Action Items',
-          'Intangible Time Log w/o Reason',
-        ],
+        required: true
       },
       color: {
         type: String,
@@ -281,5 +274,6 @@ userProfileSchema.pre('save', function (next) {
 
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
