@@ -129,13 +129,21 @@ export default () => {
                         }
                         broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
                     } else {
-                        const notification = new Notification({
-                            message: `You got a message from ${senderName}`,
-                            sender: userId,
-                            recipient: msg.receiver,
-                            isSystemGenerated: false,
-                        });
-                        await notification.save();
+                        const userPreference = await UserPreference.findOne({ user: msg.receiver });
+                        const isSenderInPreference = userPreference?.users.some(
+                            (pref) =>
+                                pref.userNotifyingFor.toString() === userId &&
+                                pref.notifyInApp === true
+                        );
+                        if (isSenderInPreference) {
+                            const notification = new Notification({
+                                message: `You got a message from ${senderName}`,
+                                sender: userId,
+                                recipient: msg.receiver,
+                                isSystemGenerated: false,
+                            });
+                            await notification.save();
+                        }
                     }
                 } catch (error) {
                     console.error("❌ Error sending message:", error);
