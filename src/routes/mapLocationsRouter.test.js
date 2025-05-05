@@ -1,6 +1,3 @@
-jest.mock('../controllers/lbdashboard/lbMessageController', () => ({
-  markMessageAsRead: jest.fn(),
-}));
 
 const request = require('supertest');
 const { jwtPayload } = require('../test');
