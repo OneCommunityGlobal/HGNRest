@@ -179,7 +179,7 @@ const dashboardcontroller = function () {
     return text;
   };
 
-  const sendBugReport = function (req, res) {
+  const sendBugReport = async function (req, res) {
     const {
       firstName,
       lastName,
@@ -203,17 +203,17 @@ const dashboardcontroller = function () {
       visual,
       severity
     );
-
+  
     try {
-      emailSender(
+      await emailSender.sendEmail(
         "onecommunityglobal@gmail.com",
-        `Bug Rport from ${firstName} ${lastName}`,
+        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email
       );
       res.status(200).send("Success");
-    } catch {
-      res.status(500).send("Failed");
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -273,7 +273,7 @@ const dashboardcontroller = function () {
       email
     );
     try {
-      emailSender(
+      await emailSender.sendEmail(
         "onecommunityglobal@gmail.com",
         "A new suggestion",
         emailBody,
@@ -283,8 +283,8 @@ const dashboardcontroller = function () {
         null
       );
       res.status(200).send("Success");
-    } catch {
-      res.status(500).send("Failed");
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
