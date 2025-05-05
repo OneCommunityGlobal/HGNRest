@@ -2,7 +2,7 @@ const express = require("express");
 
 const routes = function (UserPreferences, Notification) {
   const userPreferencesRouter = express.Router();
-  const controller = require("../../controllers/lbdashboard/lbUserPrefController")(UserPreferences, Notification);
+  const controller = require("../../controllers/lbdashboard/lbUserPrefController.js")(UserPreferences, Notification);
 
   // Route to get user preferences
   userPreferencesRouter.route("/preferences").post(controller.getPreferences);
