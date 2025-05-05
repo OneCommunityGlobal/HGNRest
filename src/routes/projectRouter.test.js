@@ -1,3 +1,7 @@
+jest.mock('../controllers/lbdashboard/lbMessageController', () => ({
+  markMessageAsRead: jest.fn(),
+}));
+
 const request = require('supertest');
 const { app } = require('../app');
 const {

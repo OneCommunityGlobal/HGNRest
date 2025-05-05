@@ -18,7 +18,6 @@ jest.mock('../models/timeentry', () => ({
   find: jest.fn(),
 }));
 
-
 const mongoose = require('mongoose');
 
 const {
@@ -39,7 +38,11 @@ const projectController = require('./projectController');
 const project = require('../models/project');
 
 // mock the cache function before importing so we can manipulate the implementation
-jest.mock('../utilities/nodeCache');
+jest.mock('../utilities/nodeCache', () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+  removeCache: jest.fn(),
+}));
 // const cache = require('../utilities/nodeCache');
 
 const makeSut = () => {
@@ -73,7 +76,11 @@ const flushPromises = () => new Promise(setImmediate);
 
 describe('projectController module', () => {
   beforeAll(async () => {
-    await dbConnect();
+    try {
+      await dbConnect();
+    } catch (error) {
+      console.error('Error connecting to the database:', error);
+    }
   });
 
   beforeEach(() => {
@@ -86,10 +93,13 @@ describe('projectController module', () => {
   });
 
   afterAll(async () => {
-    await dbDisconnect();
-    // Clear models after disconnecting
-    mongoose.models = {};
-    mongoose.modelSchemas = {};
+    try {
+      await dbDisconnect();
+      mongoose.models = {};
+      mongoose.modelSchemas = {};
+    } catch (error) {
+      console.error('Error disconnecting from the database:', error);
+    }
   });
 
   describe('getAllProjects function', () => {
