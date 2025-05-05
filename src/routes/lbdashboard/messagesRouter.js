@@ -7,8 +7,7 @@ const {
   getExistingChatsHandler,
   searchUserProfilesHandler
 } = require("../../websockets/lbMessaging/lbMessageHandler");
-const { markMessageAsRead } = require("../../controllers/lbdashboard/lbMessageController");
-
+const lbMessageController = require('../../controllers/lbdashboard/lbMessageController');
 const routes = function () {
   const messagesRouter = express.Router();
 
@@ -24,7 +23,7 @@ const routes = function () {
 
   messagesRouter.get("/messages/search-users", (req, res) => searchUserProfilesHandler(req, res));
 
-  messagesRouter.patch("/messages/mark-as-read", (req, res) => markMessageAsRead(req, res));
+  messagesRouter.patch("/messages/mark-as-read", (req, res) => lbMessageController.markMessageAsRead(req, res));
 
   return messagesRouter;
 };

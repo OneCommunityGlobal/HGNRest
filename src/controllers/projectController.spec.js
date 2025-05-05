@@ -14,9 +14,10 @@ jest.mock('../models/userProfile', () => ({
   updateMany: jest.fn(),
 }));
 
-jest.mock('../models/timeEntry', () => ({
+jest.mock('../models/timeentry', () => ({
   find: jest.fn(),
 }));
+
 
 const mongoose = require('mongoose');
 

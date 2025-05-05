@@ -12,7 +12,7 @@ const agent = request.agent(app);
 
 // TODO: Fix
 describe('mapLocations tests', () => {
-  it("Fix this test suite", () => {})
+  test.todo('Fix this test suite');
 });
 
 
