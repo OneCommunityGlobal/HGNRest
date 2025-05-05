@@ -22,7 +22,6 @@ const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const notification = require('../models/notification');
 
-
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -38,7 +37,7 @@ const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
-const buildingIssue = require('../models/bmdashboard/buildingIssue');
+const metIssue = require('../models/bmdashboard/metIssue');
 const {
   invTypeBase,
   materialType,
@@ -134,7 +133,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
@@ -205,9 +204,9 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('api', bmIssueRouter);
-  app.use('/api/villages', require('../routes/lbdashboard/villages'));
+  app.use('/api/bm', bmIssueRouter);
   // lb dashboard
+  app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb',lbMessageRouter);
   app.use('/api/lb',lbUserPrefRouter);
   app.use('/api', registrationRouter);
