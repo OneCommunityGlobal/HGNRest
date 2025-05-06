@@ -85,6 +85,19 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          filterColor: {
+            $cond: {
+              if: { $isArray: "$filterColor" },
+              then: "$filterColor",
+              else: {
+                $cond: {
+                  if: { $eq: [{ $type: "$filterColor" }, "string"] },
+                  then: ["$filterColor"],
+                  else: [],
+                },
+              },
+            },
+          },
           badgeCollection: {
             $filter: {
               input: "$badgeCollection",
