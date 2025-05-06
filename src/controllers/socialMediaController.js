@@ -187,12 +187,20 @@ async function createPin(req, res) {
   //process content
   let source_type;
   const imgType = req.body.imgType;
-  const media_source_items=req.body.mediaItems
+  let media_source_items;
+  // const media_source_items=req.body.mediaItems
+  const mediaItems = req.body.mediaItems;
   let media_source;
- 
+
   if (imgType === 'FILE') {
     //process upload image file
     //Pinterest restriction: there must be two images to use multiple_xxx source type
+    media_source_items = mediaItems.map(item => {
+      const content_type = item.split(';')[0].split(':')[1].trim();
+      const data = item.split(',')[1].trim();
+      return { content_type, data };
+    })
+
     source_type = media_source_items.length > 1 ? 'multiple_image_base64' : 'image_base64';
     media_source = media_source_items.length > 1 ?
       { source_type, items: media_source_items } :
@@ -200,6 +208,7 @@ async function createPin(req, res) {
   } else {
     //process url image source
     //Pinterest restriction: there must be two images to use multiple_xxx source type
+    media_source_items = mediaItems;
     source_type = media_source_items.length > 1 ? 'multiple_image_urls' : 'image_url';
     media_source = media_source_items.length > 1 ?
       { source_type, items: media_source_items } :
