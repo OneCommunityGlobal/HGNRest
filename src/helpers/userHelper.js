@@ -482,227 +482,205 @@ const userHelper = function () {
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
+  
   const assignBlueSquareForTimeNotMet = async () => {
     try {
       console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
-
+  
       logger.logInfo(
         `Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`,
       );
-
+  
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-
+  
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-
-      const users = await userProfile.find(
-        { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
-      );
+  
       const usersRequiringBlueSqNotification = [];
-      // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
-      // targeted as spam
-      // There's no need to put Promise.all here
 
-      /*
-      Note from Shengwei (3/11/24) Potential enhancement:
-        1. I think we could remove the for loop to update find user profile by batch to reduce db roundtrips.
-        Otherwise, each record checking and update require at least 1 db roundtrip. Then, we could use for loop to do email sending.
+      /**
+ * Manvitha :
+ * - Added batch processing for assigning blue squares to users to ensure scalability and prevent MongoDB timeouts.
+ * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
+ */
+      const emailQueue = [];
+      const batchSize = 500;
+      let skip = 0;
+  
+      while (true) {
+        const users = await userProfile.find(
+          { isActive: true },
+          '_id weeklycommittedHours weeklySummaries missedHours'
+        ).skip(skip).limit(batchSize);
+  
+        if (!users.length) break;
 
-        Do something like:
-        do while (batch != lastBatch)
-          const lsOfResult = await userProfile.find({ _id: { $in: arrayOfIds } }
-          for item in lsOfResult:
-            // do the update and checking
-          // save updated records in batch (mongoose updateMany) and do asyc email sending
-        2. Wrap the operation in one transaction to ensure the atomicity of the operation.
-      */
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-
-        const person = await userProfile.findById(user._id);
-
-        const personId = mongoose.Types.ObjectId(user._id);
-
-        let hasWeeklySummary = false;
-
-        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-          const { summary } = user.weeklySummaries[0];
-          if (summary) {
-            hasWeeklySummary = true;
-          }
-        }
-
-        //  This needs to run AFTER the check for weekly summary above because the summaries array will be updated/shifted after this function runs.
-        await processWeeklySummariesByUserId(personId);
-
-        const results = await dashboardHelper.laborthisweek(
-          personId,
-          pdtStartOfLastWeek,
-          pdtEndOfLastWeek,
-        );
-
-        const { timeSpent_hrs: timeSpent } = results[0];
-
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-
-        const timeNotMet = timeSpent < weeklycommittedHours;
-
-        let description;
-
-        const timeRemaining = weeklycommittedHours - timeSpent;
-
-        /** Check if the user is new user to prevent blue square assignment
-         * Condition:
-         *  1. Not Started: Start Date > end date of last week && totalTangibleHrs === 0 && totalIntangibleHrs === 0
-         *  2. Short Week: Start Date (First time entrie) is after Monday && totalTangibleHrs === 0 && totalIntangibleHrs === 0
-         *  3. No hours logged, and the account was after the start of last week.
-         *
-         * Notes:
-         *  1. Start date is automatically updated upon first time-log.
-         *  2. User meet above condition but meet minimum hours without submitting weekly summary
-         *     should get a blue square as reminder.
-         *  */
-        let isNewUser = false;
-        const userStartDate = moment(person.startDate);
-        if (
-          person.totalTangibleHrs === 0 &&
-          person.totalIntangibleHrs === 0 &&
-          timeSpent === 0 &&
-          userStartDate.isAfter(pdtStartOfLastWeek)
-        ) {
-          console.log('1');
-          isNewUser = true;
-        }
-
-        if (
-          userStartDate.isAfter(pdtEndOfLastWeek) ||
-          (userStartDate.isAfter(pdtStartOfLastWeek) &&
-            userStartDate.isBefore(pdtEndOfLastWeek) &&
-            timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
-        ) {
-          console.log('2');
-          isNewUser = true;
-        }
-
-        const updateResult = await userProfile.findByIdAndUpdate(
-          personId,
-          {
-            $inc: {
-              totalTangibleHrs: timeSpent || 0,
-            },
-            $max: {
-              personalBestMaxHrs: timeSpent || 0,
-            },
-            $push: {
-              savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
-            },
-            $set: {
-              lastWeekTangibleHrs: timeSpent || 0,
-            },
-          },
-          { new: true },
-        );
-
-        if (
-          updateResult?.weeklySummaryOption === 'Not Required' ||
-          updateResult?.weeklySummaryNotReq
-        ) {
-          hasWeeklySummary = true;
-        }
-
-        const cutOffDate = moment().subtract(1, 'year');
-
-        const oldInfringements = [];
-        for (let k = 0; k < updateResult?.infringements.length; k += 1) {
-          if (
-            updateResult?.infringements &&
-            moment(updateResult?.infringements[k].date).diff(cutOffDate) >= 0
-          ) {
-            oldInfringements.push(updateResult.infringements[k]);
-          } else {
-            break;
-          }
-        }
-        // use histroy Infringements to align the highlight requirements
-        let historyInfringements = 'No Previous Infringements.';
-        if (oldInfringements.length) {
-          userProfile.findByIdAndUpdate(
-            personId,
-            {
-              $push: {
-                oldInfringements: { $each: oldInfringements, $slice: -10 },
-              },
-            },
-            { new: true },
-          );
-          historyInfringements = oldInfringements
-            .map((item, index) => {
-              let enhancedDescription;
-              if (item.description) {
-                let sentences = item.description.split('.');
-                const dateRegex =
-                  /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
-                sentences = sentences.map((sentence) =>
-                  sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
-                    const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
-                      'M-D-YYYY',
-                    );
-                    const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
-                      'M-D-YYYY',
-                    );
-                    return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
-                  }),
-                );
-                if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
-                  sentences[0] = sentences[0].replace(
-                    /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
-                    '<span style="color: blue;"><b>$1</b></span>',
-                  );
-                  enhancedDescription = sentences.join('.');
-                  enhancedDescription = enhancedDescription.replace(
-                    /logged (\d+(\.\d+)?\s*hours)/i,
-                    'logged <span style="color: blue;"><b>$1</b></span>',
-                  );
-                } else if (
-                  sentences[0].includes(
-                    'System auto-assigned infringement for editing your time entries',
-                  )
-                ) {
-                  sentences[0] = sentences[0].replace(
-                    /time entries <(\d+)>\s*times/i,
-                    'time entries <b>$1 times</b>',
-                  );
-                  enhancedDescription = sentences.join('.');
-                } else if (sentences[0].includes('System auto-assigned infringement')) {
-                  sentences[0] = sentences[0].replace(
-                    /(not submitting a weekly summary)/gi,
-                    '<span style="color: blue;"><b>$1</b></span>',
-                  );
-                  sentences[0] = sentences[0].replace(
-                    /(not meeting weekly volunteer time commitment)/gi,
-                    '<span style="color: blue;"><b>$1</b></span>',
-                  );
-                  enhancedDescription = sentences.join('.');
-                  enhancedDescription = enhancedDescription.replace(
-                    /logged (\d+(\.\d+)?\s*hours)/i,
-                    'logged <span style="color: blue;"><b>$1</b></span>',
-                  );
-                } else {
-                  enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
-                }
+        await Promise.allSettled(users.map(async (user) => {
+          try {
+            const person = await userProfile.findById(user._id);
+            const personId = mongoose.Types.ObjectId(user._id);
+        
+            let hasWeeklySummary = false;
+        
+            if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+              const { summary } = user.weeklySummaries[0];
+              if (summary) {
+                hasWeeklySummary = true;
               }
-              return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(
-                item.date,
-              ).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
-            })
-            .join('');
-        }
-        // No extra hours is needed if blue squares isn't over 5.
+            }
+        
+            await processWeeklySummariesByUserId(personId);
+        
+            const results = await dashboardHelper.laborthisweek(
+              personId,
+              pdtStartOfLastWeek,
+              pdtEndOfLastWeek,
+            );
+        
+            const { timeSpent_hrs: timeSpent } = results[0];
+            const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+            const timeNotMet = timeSpent < weeklycommittedHours;
+            const timeRemaining = weeklycommittedHours - timeSpent;
+        
+            let isNewUser = false;
+            const userStartDate = moment.tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles');
+        
+            if (
+              person.totalTangibleHrs === 0 &&
+              person.totalIntangibleHrs === 0 &&
+              timeSpent === 0 &&
+              userStartDate.isAfter(pdtStartOfLastWeek)
+            ) {
+              console.log('1');
+              isNewUser = true;
+            }
+        
+            if (
+              userStartDate.isAfter(pdtEndOfLastWeek) ||
+              (userStartDate.isAfter(pdtStartOfLastWeek) &&
+                userStartDate.isBefore(pdtEndOfLastWeek) &&
+                timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+            ) {
+              console.log('2');
+              isNewUser = true;
+            }
+        
+            const updateResult = await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $inc: {
+                  totalTangibleHrs: timeSpent || 0,
+                },
+                $max: {
+                  personalBestMaxHrs: timeSpent || 0,
+                },
+                $push: {
+                  savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
+                },
+                $set: {
+                  lastWeekTangibleHrs: timeSpent || 0,
+                },
+              },
+              { new: true },
+            );
+        
+            if (
+              updateResult?.weeklySummaryOption === 'Not Required' ||
+              updateResult?.weeklySummaryNotReq
+            ) {
+              hasWeeklySummary = true;
+            }
+        
+            const cutOffDate = moment().subtract(1, 'year');
+
+            const oldInfringements = [];
+            for (let k = 0; k < updateResult?.infringements.length; k += 1) {
+              if (
+                updateResult?.infringements &&
+                moment(new Date(updateResult.infringements[k].date).toISOString()).diff(cutOffDate) >= 0
+              ){
+                oldInfringements.push(updateResult.infringements[k]);
+              } else {
+                break;
+              }
+            }
+            let historyInfringements = 'No Previous Infringements.';
+            if (oldInfringements.length) {
+              await userProfile.findByIdAndUpdate(
+                personId,
+                {
+                  $push: {
+                    oldInfringements: { $each: oldInfringements, $slice: -10 },
+                  },
+                },
+                { new: true },
+              );
+        
+              historyInfringements = oldInfringements
+                .map((item, index) => {
+                  let enhancedDescription;
+                  if (item.description) {
+                    let sentences = item.description.split('.');
+                    const dateRegex =
+                      /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+                    sentences = sentences.map((sentence) =>
+                      sentence.replace(dateRegex, (match, year1, month1, day1, year2, month2, day2) => {
+                        const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                          'M-D-YYYY',
+                        );
+                        const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                          'M-D-YYYY',
+                        );
+                        return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+                      }),
+                    );
+                    if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+                      sentences[0] = sentences[0].replace(
+                        /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                        '<span style="color: blue;"><b>$1</b></span>',
+                      );
+                      enhancedDescription = sentences.join('.');
+                      enhancedDescription = enhancedDescription.replace(
+                        /logged (\d+(\.\d+)?\s*hours)/i,
+                        'logged <span style="color: blue;"><b>$1</b></span>',
+                      );
+                    } else if (
+                      sentences[0].includes('System auto-assigned infringement for editing your time entries')
+                    ) {
+                      sentences[0] = sentences[0].replace(
+                        /time entries <(\d+)>\s*times/i,
+                        'time entries <b>$1 times</b>',
+                      );
+                      enhancedDescription = sentences.join('.');
+                    } else if (sentences[0].includes('System auto-assigned infringement')) {
+                      sentences[0] = sentences[0].replace(
+                        /(not submitting a weekly summary)/gi,
+                        '<span style="color: blue;"><b>$1</b></span>',
+                      );
+                      sentences[0] = sentences[0].replace(
+                        /(not meeting weekly volunteer time commitment)/gi,
+                        '<span style="color: blue;"><b>$1</b></span>',
+                      );
+                      enhancedDescription = sentences.join('.');
+                      enhancedDescription = enhancedDescription.replace(
+                        /logged (\d+(\.\d+)?\s*hours)/i,
+                        'logged <span style="color: blue;"><b>$1</b></span>',
+                      );
+                    } else {
+                      enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+                    }
+                  }
+                  return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(
+                    item.date,
+                  ).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+                })
+                .join('');
+            }
+           // No extra hours is needed if blue squares isn't over 5.
         // length +1 is because new infringement hasn't been created at this stage.
         const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
@@ -724,15 +702,15 @@ const userHelper = function () {
         if (hasTimeOffRequest) {
           // eslint-disable-next-line prefer-destructuring
           requestForTimeOff = requestsForTimeOff[0];
-          requestForTimeOffStartingDate = moment(requestForTimeOff.startingDate).format(
-            'dddd M-D-YYYY',
-          );
-          requestForTimeOffEndingDate = moment(requestForTimeOff.endingDate).format(
+          requestForTimeOffStartingDate = moment.tz(requestForTimeOff.startingDate, 'America/Los_Angeles').format('dddd M-D-YYYY',);
+
+          requestForTimeOffEndingDate = moment.tz(requestForTimeOff.endingDate, 'America/Los_Angeles').format(
             'dddd  M-D-YYYY',
           );
           requestForTimeOffreason = requestForTimeOff.reason;
           requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
         }
+        let description = '';
 
         if (timeNotMet || !hasWeeklySummary) {
           if (hasTimeOffRequest) {
@@ -791,13 +769,15 @@ const userHelper = function () {
             )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
           }
 
+
           const infringement = {
             date: moment().utc().format('YYYY-MM-DD'),
             description,
             createdDate: hasTimeOffRequest
-              ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
+              ? moment.tz(new Date(requestForTimeOff.createdAt).toISOString(), 'America/Los_Angeles').format('YYYY-MM-DD')
               : null,
           };
+
           // Only assign blue square and send email if the user IS NOT a new user
           // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
           // All other new users will not receive a blue square or notification
@@ -813,7 +793,7 @@ const userHelper = function () {
               { new: true },
             );
             const administrativeContent = {
-              startDate: moment(person.startDate).utc().format('M-D-YYYY'),
+              startDate: moment.tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles').utc().format('M-D-YYYY'),
               role: person.role,
               userTitle: person.jobTitle[0],
               historyInfringements,
@@ -858,15 +838,16 @@ const userHelper = function () {
               emailsBCCs = null;
             }
 
-            emailSender(
-              status.email,
-              'New Infringement Assigned',
-              emailBody,
-              emailsBCCs,
-              'onecommunityglobal@gmail.com',
-              status.email,
-              null,
-            );
+            emailQueue.push({
+              to: person.email,
+              subject: 'New Infringement Assigned',
+              body: emailBody,
+              bcc: emailsBCCs,
+              from: 'onecommunityglobal@gmail.com',
+              replyTo: person.email,
+              attachments: null,
+            });
+
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
@@ -877,14 +858,12 @@ const userHelper = function () {
             pdtEndOfLastWeek,
           );
 
-          if (Array.isArray(categories) && categories.length > 0) {
-            await userProfile.findOneAndUpdate(
-              { _id: personId, categoryTangibleHrs: { $exists: false } },
-              { $set: { categoryTangibleHrs: [] } },
-            );
-          } else {
-            continue;
-          }
+          if (!Array.isArray(categories) || categories.length === 0) return;
+
+          await userProfile.findOneAndUpdate(
+            { _id: personId, categoryTangibleHrs: { $exists: false } },
+            { $set: { categoryTangibleHrs: [] } },
+          );
 
           for (let j = 0; j < categories.length; j += 1) {
             const elem = categories[j];
@@ -920,11 +899,29 @@ const userHelper = function () {
         if (cache.hasCache(`user-${personId}`)) {
           cache.removeCache(`user-${personId}`);
         }
+          } catch (err) {
+            logger.logException(err);
+          }
+        }));
+        
+  
+        skip += batchSize;
       }
-      // eslint-disable-next-line no-use-before-define
+
+      for (const email of emailQueue) {
+        await emailSender(
+          email.to,
+          email.subject,
+          email.body,
+          email.bcc,
+          email.from,
+          email.replyTo,
+          email.attachments
+        );
+      }
+  
       await deleteOldTimeOffRequests();
-      // Create notification for users who are new and met the time requirement but weekly summary not submitted
-      // Since the notification is required a sender, we fetch an owner user as the sender for the system generated notification
+  
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -938,105 +935,18 @@ const userHelper = function () {
     } catch (err) {
       logger.logException(err);
     }
-
-    // processWeeklySummaries for nonActive users
+  
     try {
       const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
         const user = inactiveUsers[i];
-
         await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
       }
     } catch (err) {
       logger.logException(err);
     }
-  };
 
-  const missedSummaryTemplate = (firstname) => {
-    return (
-    `<div style="font-family: Arial, sans-serif;">
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstname},</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">If you also forgot to submit your weekly media files, be sure to fix that too.</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;"><strong>Reply All</strong> to this email once you've done this, so we know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and "reply all" so we know and we will remove this blue square.</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-      <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-    </div>`
-    )
-  }
-  // function to send emails to those users who have completed hours but not submitted their summary
-  const completeHoursAndMissedSummary= async () => {
-      try{
-      const users = await userProfile.find(
-        { isActive: true, weeklySummaryOption: "Required"  },
-        '_id weeklycommittedHours weeklySummaries missedHours role email firstName',
-      );
-      
-      const pdtStartOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .subtract(1, 'week');
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-      
-      const bluesquarebcc=await BlueSquareEmailAssignmentModel.find().select('email');
-      var bluesquareemails=bluesquarebcc.map((bcc)=>bcc.email);
-      bluesquareemails.push("onecommunityglobal@gmail.com");
-      bluesquareemails.push("jae@onecommunityglobal.org");
-      for (let i = 0; i < users.length; i += 1) {
-        // const allowedEmails = [
-        //   "jae@onecommunityglobal.org", //Summary turned off Owner
-        //   "onecommunityhospitality@gmail.com", //Summary turned off Admin
-        //   "one.community@me.com", //Manager, did hours but no summary
-        //   "jatinagrawal0801@gmail.com", //Volunteer, did hours but no summary
-        //   "ttertitsa1@gmail.com", //Volunteer did hours with summary
-        //   "osorare@yahoo.com", //Core Team, did hours with summary
-        // ];
-          const user = users[i];
-          const personId = mongoose.Types.ObjectId(user._id);
-          let hasWeeklySummary = false;
-
-          if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-            const relevantSummary = user.weeklySummaries?.find(summary => moment(summary.uploadDate).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, 'day', '[]'));
-            const summary = relevantSummary?.summary;
-
-            if (summary && summary.trim().length > 0) {
-              hasWeeklySummary = true;
-            }
-          }
-          const results = await dashboardHelper.laborthisweek(
-            personId,
-            pdtStartOfLastWeek,
-            pdtEndOfLastWeek,
-          );
-          const { timeSpent_hrs: timeSpent } = results[0];
-
-          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-          const timeNotMet = timeSpent < weeklycommittedHours;
-
-          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-          const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
-
-          const requestsForTimeOff = await timeOffRequest.find({
-            requestFor: personId,
-            startingDate: { $lte: utcStartMoment },
-            endingDate: { $gte: utcEndMoment },
-          });
-          const hasTimeOffRequest = requestsForTimeOff.length > 0;
-          // log values of the below used conditions in if statement to know if the email is being sent is correct conditions
-          if(hasTimeOffRequest===false && timeNotMet===false && hasWeeklySummary===false){
-              emailSender(
-              users[i].email,
-              'Re: Infringement Assigned',
-              missedSummaryTemplate(users[i].firstName),
-              null,
-              bluesquareemails,
-              'jae@onecommunityglobal.org',
-            );
-          }
-        }
-    }catch(err){ 
-      console.log(err)
-    }
+   
   };
 
   const applyMissedHourForCoreTeam = async () => {
@@ -2617,238 +2527,6 @@ const userHelper = function () {
     }
   };
 
-  const WeeklyReminderEmailBody = (templateNo,firstName) => {
-    switch(templateNo){
-      case "MISSED_HOURS_BY_<15%":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">You completed close enough to your total hours for us to remove this blue square. Please be sure to complete the minimum or more of your hours from now on though.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "COMPLETED_HOURS_65%_84.9%":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">We’re checking in to see if everything is ok with you. You completed most but not all of your hours this last week. Is everything ok?</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Please <strong>reply all</strong> to let us know.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "COMPLETED_HOURS_25%_64.9%":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">This email is checking in to see if everything is ok with you. You completed some but not all of your hours this last week. Is everything ok? Is there a reason you didn’t use the blue square scheduler on your Profile Page to schedule the week off?</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Please <strong>reply all</strong> to let us know.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "<1MON_ONE_BLUESQUARE":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">It’s very unusual for someone to get a blue square in their first few weeks on the team. This email is to check in with you to see if everything is ok and if you are still wanting to volunteer with us.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Please <strong>reply all</strong> to let us know.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "<2MON_TWO_BLUESQUARE":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">We noticed that you’ve received <strong>two blue squares</strong> within your first couple of months on the team, which is somewhat unusual. We’re reaching out to check in, understand what happened, and see if this role still aligns with your interests, availability, and energy.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Please <strong>reply all</strong> to let us know.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 15px; line-height: 1;">Looking forward to your response.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "<1MON_TWO_BLUESQUARE":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">We noticed that you’ve received <strong>two blue squares</strong> within your first few weeks on the team, which is quite unusual. When this happens, we start to wonder whether this position is the right fit for you and if you still wish to continue volunteering with us</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Do you still feel this role aligns with your interests, availability, and energy? If so, what steps will you take to meet the requirements of being a One Community team member moving forward?</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Please <strong>reply all</strong> to let us know your thoughts.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 15px; line-height: 1;">Looking forward to your response.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "<2MON_THREE_BLUESQUARE":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">It’s very unusual for people to get 3 blue squares in less than 2 months on the team. We’re writing to check in with you to see if A) everything is OK and B) if you still have the time and desire to continue with us?</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Please <strong>reply all</strong> to let us know what happened and your desire/intent for continuing.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 15px; line-height: 1;">Looking forward to your response.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">Sincerely,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "4TH_BLUE_SQUARE":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">We wanted to reach out because you’ve received <strong>four blue squares</strong>. As you may know, we allow a maximum of <strong>five</strong>, so we want to ensure you’re aware that you are nearing the limit.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">We appreciate your contributions and hope to see you avoiding any further blue squares. Please let us know if you have any concerns or need support in this.</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-            <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-          </div>`
-          )
-      case "SCHEDULED_TIME_OFF":
-        return (
-          `<div style="font-family: Arial, sans-serif;">
-          <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 0; line-height: 1;">Good Morning ${firstName},</p>
-          <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 12px; line-height: 1;">Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated.</p>
-          <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 25px; line-height: 1;">With Gratitude,</p>
-          <p style="margin: 0; padding: 0; margin-bottom: 0; margin-top: 10px; line-height: 1;">One Community</p>
-        </div>`
-        )
-      default:
-        console.error(`Unknown email template: ${templateNo}`);
-        return null;
-    }
-    
-  }
-
-  const inCompleteHoursEmailFunction = async() =>{
-    // get all users email firstName weeklycommittedHours, lastWeekTangibleHrs
-    try {
-      const users = await userProfile.find(
-        { isActive: true},
-        '_id weeklycommittedHours missedHours email firstName infringements startDate',
-      );
-      
-      const pdtStartOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .subtract(1, 'week');
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-      
-      const bluesquarebcc=await BlueSquareEmailAssignmentModel.find().select('email');
-      var bluesquareemails=bluesquarebcc.map((bcc)=>bcc.email);
-      bluesquareemails.push("onecommunityglobal@gmail.com");
-      bluesquareemails.push("jae@onecommunityglobal.org");
-
-      for(let i=0;i<users.length;i++){
-        const user = users[i];
-        const results = await dashboardHelper.laborthisweek(
-          users[i]._id,
-          pdtStartOfLastWeek,
-          pdtEndOfLastWeek,
-        );
-        const { timeSpent_hrs: timeSpent } = results[0];
-
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        // const timeNotMet = timeSpent < weeklycommittedHours;
-        
-      // Convert startDate from UTC to Los Angeles time before calculating weeks and months
-        const currentDate = moment().tz('America/Los_Angeles');
-        const startDate = moment(user.startDate).tz('America/Los_Angeles');
-        const startOfMonth = startDate.clone().startOf('month');
-        const currentMonthStart = currentDate.clone().startOf('month');
-        const numMonths = currentMonthStart.diff(startOfMonth, 'months');
-        const todayBlueSquare=users[i].infringements.filter((infringement) => infringement.date === currentDate.format('YYYY-MM-DD'));
-        
-        if(timeSpent>=0.85*weeklycommittedHours && timeSpent<weeklycommittedHours && user.infringements.length===4 && todayBlueSquare.length===1){
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("MISSED_HOURS_BY_<15%", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }
-        else if(timeSpent>=0.65*weeklycommittedHours && timeSpent<=0.849*weeklycommittedHours){
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("COMPLETED_HOURS_65%_84.9%", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }
-        else if(timeSpent>=0.25*weeklycommittedHours && timeSpent<=0.649*weeklycommittedHours && numMonths >2){
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("COMPLETED_HOURS_25%_64.9%", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }
-      }
-
-    }catch(error) {
-      console.error('Error in inCompleteHoursEmailFunction:', error);
-    }
-  }
-
-  const weeklyBlueSquareReminderFunction = async () => {
-    try{
-    const users = await userProfile.find(
-      { isActive: true},
-      '_id missedHours email firstName infringements startDate',
-    );
-    
-    const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
-    const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-
-    const date = moment();
-    const todayDate=date.tz('America/Los_Angeles').format('YYYY-MM-DD');
-
-    // blue square email BCC's
-    const bluesquarebcc=await BlueSquareEmailAssignmentModel.find().select('email');
-    var bluesquareemails=bluesquarebcc.map((bcc)=>bcc.email);
-    bluesquareemails.push("onecommunityglobal@gmail.com");
-    bluesquareemails.push("jae@onecommunityglobal.org");
-    // time off request
-    const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-    const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
-
-    for(let i=0;i<users.length;i++){
-      const user = users[i];
-      const results = await dashboardHelper.laborthisweek(
-        users[i]._id,
-        pdtStartOfLastWeek,
-        pdtEndOfLastWeek,
-      );
-      if (results && results[0] && results[0].timeSpent_hrs) {
-      const { timeSpent_hrs: timeSpent } = results[0];
-
-      const currentDate = moment().tz('America/Los_Angeles');
-      const startDate = moment(user.startDate).tz('America/Los_Angeles');
-      const startOfMonth = startDate.clone().startOf('month');
-      const currentMonthStart = currentDate.clone().startOf('month');
-      const numMonths = currentMonthStart.diff(startOfMonth, 'months');
-      
-      const requestsForTimeOff = await timeOffRequest.find({
-        requestFor: user._id,
-        startingDate: { $lte: utcStartMoment },
-        endingDate: { $gte: utcEndMoment },
-      });
-      const hasTimeOffRequest = requestsForTimeOff.length > 0;
-
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        const timeCondition1=timeSpent>=0.85*weeklycommittedHours && timeSpent<weeklycommittedHours;
-        const timeCondition2=timeSpent>=0.65*weeklycommittedHours && timeSpent<=0.849*weeklycommittedHours
-        const bluesquareEmailCondition=hasTimeOffRequest===false && (timeCondition1 || timeCondition2);
-        const todayBlueSquare=users[i].infringements.filter((infringement) => infringement.date === todayDate);
-        
-        if(bluesquareEmailCondition && users[i].infringements.length===1 && todayBlueSquare.length===1 && numMonths<1){
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("<1MON_ONE_BLUESQUARE", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }
-        else if(bluesquareEmailCondition && users[i].infringements.length===2 && todayBlueSquare.length===1){
-          if(numMonths<1){
-            emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("<1MON_TWO_BLUESQUARE", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-          }else if(numMonth<2){
-            emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("<2MON_TWO_BLUESQUARE", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-          }
-        }
-        else if(bluesquareEmailCondition && users[i].infringements.length===3 && todayBlueSquare.length===1 && numMonths<2){
-          // <2month
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("<2MON_THREE_BLUESQUARE", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }
-        else if(users[i].infringements.length===4 && todayBlueSquare.length===1 && timeSpent>=0.85*weeklycommittedHours && timeSpent<weeklycommittedHours){
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("4TH_BLUE_SQUARE", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }else if(hasTimeOffRequest===true){
-          emailSender(users[i].email, "Re: Infringement Assigned", WeeklyReminderEmailBody("SCHEDULED_TIME_OFF", users[i].firstName), null, bluesquareemails, "jae@onecommunityglobal.org");
-        }
-    }}
-  }catch(error){
-    console.log(error);
-  }
-  }
-
   return {
     changeBadgeCount,
     getUserName,
@@ -2870,9 +2548,6 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
-    completeHoursAndMissedSummary,
-    weeklyBlueSquareReminderFunction,
-    inCompleteHoursEmailFunction,
   };
 };
 
