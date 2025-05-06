@@ -76,11 +76,11 @@ const projectController = function (Project) {
     if (!(await helper.hasPermission(req.body.requestor, 'postProject'))) {
       return res.status(401).send('You are not authorized to create new projects.');
     }
-
+  
     if (!req.body.projectName) {
       return res.status(400).send('Project Name is mandatory fields.');
     }
-
+  
     try {
       const projectWithRepeatedName = await Project.find({
         projectName: {
@@ -89,13 +89,11 @@ const projectController = function (Project) {
         },
       });
       if (projectWithRepeatedName.length > 0) {
-        res
-          .status(400)
-          .send(
-            `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
-          );
-        return;
+        return res.status(400).send(
+          `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
+        );
       }
+  
       const _project = new Project();
       const now = new Date();
       _project.projectName = req.body.projectName;
@@ -103,10 +101,10 @@ const projectController = function (Project) {
       _project.isActive = true;
       _project.createdDatetime = now;
       _project.modifiedDatetime = now;
+  
       const savedProject = await _project.save();
       return res.status(200).send(savedProject);
     } catch (error) {
-      logger.logException(error);
       res.status(400).send('Error creating project. Please try again.');
     }
   };
@@ -297,9 +295,9 @@ const projectController = function (Project) {
   const getProjectsWithActiveUserCounts = async function (req, res) {
     try {
       const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
-  
+
       const projectIds = projects.map(project => project._id);
-  
+
       const userCounts = await userProfile.aggregate([
         { $match: { projects: { $in: projectIds }, isActive: true } },
         { $unwind: '$projects' },
@@ -311,19 +309,19 @@ const projectController = function (Project) {
           },
         },
       ]);
-  
+
       const result = userCounts.reduce((acc, curr) => {
         acc[curr._id.toString()] = curr.activeUserCount;
         return acc;
       }, {});
-  
+
       res.status(200).send(result);
     } catch (error) {
       console.error(error);
       res.status(500).send('Error fetching active member counts');
     }
   };
-  
+
 
   return {
     getAllProjects,

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
-const emailSender = require('../utilities/emailSender');
+const { emailSender } = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
@@ -111,8 +111,11 @@ function informManagerMessage(user) {
 const sendEmailWithAcknowledgment = (email, subject, message) =>
   new Promise((resolve, reject) => {
     emailSender(email, subject, message, null, null, null, (error, result) => {
-      if (result) resolve(result);
-      if (error) reject(result);
+      if (error) {
+        LOGGER.logException(error, 'sendEmailWithAcknowledgment', JSON.stringify({ email, subject }), null);
+        return reject(error);
+      }
+      resolve(result);
     });
   });
 
@@ -534,24 +537,24 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = ['getUserProfiles','postUserProfile','putUserProfile','changeUserStatus']
-    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') || (role === 'Mentor') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
-      try{
-      ProfileInitialSetupToken
-      .find({ isSetupCompleted: false })
-      .sort({ createdDate: -1 })
-      .exec((err, result) => {
-        // Handle the result
-        if (err) {
-          LOGGER.logException(err);
-          return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-        }
-          return res.status(200).send(result);
-      });
-    } catch (error) {
-      LOGGER.logException(error);
-      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-    }
+    let user_permissions = ['getUserProfiles', 'postUserProfile', 'putUserProfile', 'changeUserStatus']
+    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') || (role === 'Mentor') || user_permissions.some(e => permissions.frontPermissions.includes(e))) {
+      try {
+        ProfileInitialSetupToken
+          .find({ isSetupCompleted: false })
+          .sort({ createdDate: -1 })
+          .exec((err, result) => {
+            // Handle the result
+            if (err) {
+              LOGGER.logException(err);
+              return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+            }
+            return res.status(200).send(result);
+          });
+      } catch (error) {
+        LOGGER.logException(error);
+        return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
+      }
     } else {
       return res.status(403).send('You are not authorized to get setup history.');
     }
