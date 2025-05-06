@@ -51,10 +51,7 @@ async function ValidatePassword(req, res) {
   const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
 
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId !== requestor.requestorId &&
-    !canUpdate
-  ) {
+  if (userId !== requestor.requestorId && !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -62,9 +59,7 @@ async function ValidatePassword(req, res) {
   }
 
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId === requestor.requestorId && !canUpdate
-  ) {
+  if (userId === requestor.requestorId && !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -193,7 +188,7 @@ const userProfileController = function (UserProfile, Project) {
           res.status(500).send({ error: 'User result was invalid' });
           return;
         }
-        const transformedResults = results.map(user => ({
+        const transformedResults = results.map((user) => ({
           ...user.toObject(),
           jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
         }));
@@ -534,14 +529,23 @@ const userProfileController = function (UserProfile, Project) {
       //   }
       // }
 
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        const canEditTeamCode =
+          req.body.requestor.role === 'Owner' ||
+          req.body.requestor.role === 'Administrator' ||
+          req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
+        if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+          res.status(403).send('You are not authorized to edit team code.');
+          return;
+        }
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
@@ -576,16 +580,6 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
-      // we need to remove the cache when team code is updated in case of new team code generation
-      if (req.body.teamCode) {
-        // remove teamCode cache when new team assigned
-        if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache('teamCodes');
-        }
-        record.teamCode = req.body.teamCode;
-      }
-
       record.lastModifiedDate = Date.now();
 
       // find userData in cache
@@ -609,6 +603,10 @@ const userProfileController = function (UserProfile, Project) {
 
       if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
+      }
+
+      if (req.body.isAcknowledged !== undefined && record.permissions) {
+        record.permissions.isAcknowledged = req.body.isAcknowledged;
       }
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
@@ -733,7 +731,10 @@ const userProfileController = function (UserProfile, Project) {
           req.body.permissions !== undefined &&
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
-          record.permissions = req.body.permissions;
+          record.permissions = {
+            isAcknowledged: false, // used to inform the user
+            ...req.body.permissions,
+          };
           await logUserPermissionChangeByAccount(req);
         }
 
@@ -1525,8 +1526,6 @@ const userProfileController = function (UserProfile, Project) {
     res.status(200).send({ refreshToken: currentRefreshToken });
   };
 
-
-
   const getUserBySingleName = (req, res) => {
     const pattern = new RegExp(`^${req.params.singleName}`, 'i');
 
@@ -1569,7 +1568,6 @@ const userProfileController = function (UserProfile, Project) {
       })
       .catch((error) => res.status(500).send(error));
   };
-
 
   const authorizeUser = async (req, res) => {
     try {
@@ -1642,8 +1640,8 @@ const userProfileController = function (UserProfile, Project) {
         message: 'User visibility updated successfully',
         isVisible,
       });
-    })
-  }
+    });
+  };
 
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
@@ -1802,28 +1800,28 @@ const userProfileController = function (UserProfile, Project) {
 
       const query = match[1]
         ? {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              $and: [
-                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-              ],
-            },
-          ],
-        }
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
         : {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-          ],
-        };
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
 
       const userProfile = await UserProfile.find(query);
 
@@ -1850,13 +1848,13 @@ const userProfileController = function (UserProfile, Project) {
         teamCode: { $ne: null },
       });
 
-      distinctTeamCodes = distinctTeamCodes.filter(code => code && code.trim() !== '');
+      distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== '');
 
       try {
         cache.removeCache('teamCodes');
         cache.setCache('teamCodes', JSON.stringify(distinctTeamCodes));
       } catch (error) {
-        console.error("Error caching team codes:", error);
+        console.error('Error caching team codes:', error);
       }
 
       return distinctTeamCodes;
@@ -1878,30 +1876,32 @@ const userProfileController = function (UserProfile, Project) {
 
   const removeProfileImage = async (req, res) => {
     try {
-      var user_id = req.body.user_id
-      await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: "" } })
+      var user_id = req.body.user_id;
+      await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: '' } });
       cache.removeCache(`user-${user_id}`);
-      return res.status(200).send({ message: 'Image Removed' })
+      return res.status(200).send({ message: 'Image Removed' });
     } catch (err) {
-      console.log(err)
-      return res.status(404).send({ message: "Error Removing Image" })
+      console.log(err);
+      return res.status(404).send({ message: 'Error Removing Image' });
     }
-  }
+  };
   const updateProfileImageFromWebsite = async (req, res) => {
     try {
-      var user = req.body
-      await UserProfile.updateOne({ _id: user.user_id },
+      var user = req.body;
+      await UserProfile.updateOne(
+        { _id: user.user_id },
         {
           $set: { profilePic: user.selectedImage },
-          $unset: { suggestedProfilePics: "" }
-        })
+          $unset: { suggestedProfilePics: '' },
+        },
+      );
       cache.removeCache(`user-${user.user_id}`);
-      return res.status(200).send({ message: "Profile Updated" })
+      return res.status(200).send({ message: 'Profile Updated' });
     } catch (err) {
-      console.log(err)
-      return res.status(404).send({ message: "Profile Update Failed" })
+      console.log(err);
+      return res.status(404).send({ message: 'Profile Update Failed' });
     }
-  }
+  };
 
   const getUserByAutocomplete = (req, res) => {
     const { searchText } = req.params;
@@ -1944,13 +1944,13 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value
+        result[e.item] = e.value;
         await result.save();
-      })
+      });
       res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error)
-      return res.status(500)
+      console.log(error);
+      return res.status(500);
     }
   };
 
@@ -1960,25 +1960,27 @@ const userProfileController = function (UserProfile, Project) {
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
-      return res.status(400).send({ error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.' });
+      return res.status(400).send({
+        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+      });
     }
-  
+
     try {
       // Sanitize input
-      const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
+      const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
 
       // Find and update users
       const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
-  
+
       if (usersToUpdate.length === 0) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
-  
+
       const updateResult = await UserProfile.updateMany(
         { teamCode: { $in: sanitizedOldTeamCodes } },
-        { $set: { teamCode: newTeamCode } }
+        { $set: { teamCode: newTeamCode } },
       );
-  
+
       return res.status(200).send({
         message: 'Team codes updated successfully.',
         updatedCount: updateResult.nModified,
