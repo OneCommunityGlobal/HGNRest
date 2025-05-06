@@ -1,12 +1,11 @@
-const mongoose = require('mongoose');
-
-const bmIssueController = function (BuildingIssue) {
+const bmIssueController = function (metIssue) {
     const bmGetIssue = async (req, res) => {
         try {
-            BuildingIssue
+            metIssue
             .find()
-            .populate()
-            .then((result) => res.status(200).send(result))
+            .populate('createdBy', 'firstName lastName _id')
+            .then((result) => {
+                res.status(200).send(result)})
             .catch((error) => res.status(500).send(error));
         } catch (err) {
             res.json(err);
@@ -15,9 +14,11 @@ const bmIssueController = function (BuildingIssue) {
 
     const bmPostIssue = async (req, res) => {
         try {
-            const newIssue = BuildingIssue.create(req.body)
-            .then((result) => res.status(201).send(result))
-            .catch((error) => res.status(500).send(error));
+            metIssue.create(req.body)
+            .then((result) => {
+                res.status(201).send(result)})
+            .catch((error) => {
+                res.status(500).send(error)});
         } catch (err) {
             res.json(err);
         }
