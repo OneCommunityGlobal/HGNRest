@@ -122,7 +122,27 @@ const bmMProjectController = function (BuildingProject) {
       res.json(err);
     }
   };
-  return { fetchAllProjects, fetchSingleProject };
+
+  const fetchProjectsNames = async (req, res) => {
+    try {
+      const projects = await BuildingProject.find(
+        { isActive: true }, // only active projects
+        { _id: 1, name: 1 }, // only select id + name
+      );
+
+      const projectNames = projects.map((proj) => ({
+        projectId: proj._id,
+        projectName: proj.name,
+      }));
+
+      res.status(200).json(projectNames);
+    } catch (error) {
+      console.error('Error in fetchProjectNames:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
+  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames };
 };
 
 module.exports = bmMProjectController;
