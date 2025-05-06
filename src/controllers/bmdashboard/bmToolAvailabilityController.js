@@ -7,7 +7,10 @@ exports.getToolAvailability = async (req, res) => {
   if (projectId) filter.project = projectId;
 
   try {
-    const tools = await BuildingTool.find(filter).lean();
+    const tools = await BuildingTool.find(filter)
+    .populate({ path: 'itemType', model: 'invTypeBase', select: 'name' })
+    .populate('project', 'name') 
+    .lean();
 
     let available = 0;
     let used = 0;
@@ -35,8 +38,15 @@ exports.getToolAvailability = async (req, res) => {
       ...entry,
       percentage: total > 0 ? parseFloat(((entry.count / total) * 100).toFixed(1)) : 0,
     }));
+    const toolDropdownData = tools.map(tool => ({
+      _id: tool._id,
+      toolId: tool.itemType?._id,
+      name: tool.itemType?.name || 'Unnamed Tool',
+      projectId: tool.project?._id,
+      projectName: tool.project?.name || '',
+    }));
 
-    return res.status(200).json({ data, total });
+    return res.status(200).json({ data, total, tools: toolDropdownData, });
   } catch (err) {
     console.error('Error calculating tool availability:', err);
     res.status(500).json({ error: 'Internal server error' });
