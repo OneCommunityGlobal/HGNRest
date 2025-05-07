@@ -1,6 +1,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const cheerio = require('cheerio');
+const pinterestSchedule = require('../models/pinterestSchedule');
 
 // const auth = `https://api.pinterest.com/oauth/?response_type=code&redirect_uri=${process.env.PINTEREST_REDIRECT_URI}&client_id=${process.env.PINTEREST_CLIENT_ID}&scope=${scopes.join(',')}`;
 
@@ -144,6 +145,55 @@ async function createBoard(title, details) {
 }
 
 
+async function getPostData(requestBody) {
+  //get board list
+  const boardList = await fetchBoardList();
+
+  //If One Community board not exist, create one
+  let OneCommBoard = boardList.find((board) => board.name === "Test");
+  if (!OneCommBoard) {
+    const boardTitle = "Test";
+    const boardDetails = "Updates from One Community";
+    OneCommBoard = await createBoard(boardTitle, boardDetails);
+  }
+
+  const board_id = OneCommBoard.id;
+  console.log(OneCommBoard);
+  console.log(board_id);
+
+
+  //process content
+  let source_type;
+  const imgType = requestBody.imgType;
+  let media_source_items;
+  // const media_source_items=req.body.mediaItems
+  const mediaItems = requestBody.mediaItems;
+  let media_source;
+
+  if (imgType === 'FILE') {
+    //process upload image file
+    //Pinterest restriction: there must be two images to use multiple_xxx source type
+    const content_type = mediaItems.split(';')[0].split(':')[1].trim();
+    const data = mediaItems.split(',')[1].trim();
+
+    media_source_items = { content_type, data };
+    source_type = 'image_base64';
+    media_source = { source_type, ...media_source_items };
+  } else {
+    //process url image source
+    //Pinterest restriction: there must be two images to use multiple_xxx source type
+    media_source_items = mediaItems;
+    source_type = 'image_url';
+    media_source = { source_type, ...media_source_items };
+  }
+  const description = requestBody.description
+  const title = requestBody.title
+
+  const postData = { board_id: board_id, description, title, media_source };
+
+  return postData;
+
+}
 
 async function createPin(req, res) {
   let accessToken = "";
@@ -168,56 +218,8 @@ async function createPin(req, res) {
     accessToken = tokenObject.accessToken;
   }
 
-  //get board list
-  const boardList = await fetchBoardList();
+  const postData = await getPostData(req.body);
 
-  //If One Community board not exist, create one
-  let OneCommBoard = boardList.find((board) => board.name === "Test");
-  if (!OneCommBoard) {
-    const boardTitle = "Test";
-    const boardDetails = "Updates from One Community";
-    OneCommBoard = await createBoard(boardTitle, boardDetails);
-  }
-
-  const board_id = OneCommBoard.id;
-  console.log(OneCommBoard);
-  console.log(board_id);
-
-
-  //process content
-  let source_type;
-  const imgType = req.body.imgType;
-  let media_source_items;
-  // const media_source_items=req.body.mediaItems
-  const mediaItems = req.body.mediaItems;
-  let media_source;
-
-  if (imgType === 'FILE') {
-    //process upload image file
-    //Pinterest restriction: there must be two images to use multiple_xxx source type
-    media_source_items = mediaItems.map(item => {
-      const content_type = item.split(';')[0].split(':')[1].trim();
-      const data = item.split(',')[1].trim();
-      return { content_type, data };
-    })
-
-    source_type = media_source_items.length > 1 ? 'multiple_image_base64' : 'image_base64';
-    media_source = media_source_items.length > 1 ?
-      { source_type, items: media_source_items } :
-      { source_type, ...(media_source_items[0]) };
-  } else {
-    //process url image source
-    //Pinterest restriction: there must be two images to use multiple_xxx source type
-    media_source_items = mediaItems;
-    source_type = media_source_items.length > 1 ? 'multiple_image_urls' : 'image_url';
-    media_source = media_source_items.length > 1 ?
-      { source_type, items: media_source_items } :
-      { source_type, ...(media_source_items[0]) };
-  }
-  const description = req.body.description
-  const title = req.body.title
-
-  const postData = { board_id: board_id, description, title, media_source };
   const createPinHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
   try {
@@ -227,7 +229,6 @@ async function createPin(req, res) {
     } else {
       requestUrl = 'https://api.pinterest.com/v5/pins'
     }
-    // const response = await axios.post('https://api.pinterest.com/v5/pins', postData, {
     const response = await axios.post(requestUrl, postData, {
       headers: createPinHeaders,
       responseType: 'json'
@@ -244,9 +245,46 @@ async function createPin(req, res) {
 
 }
 
+async function schedulePin(req, res) {
+
+  try {
+
+    const postDataObj = await getPostData(req.body);
+    const postData = JSON.stringify(postDataObj);
+    const scheduledTime = req.body.scheduledTime;
+
+    const scheduledPin = new pinterestSchedule({ postData, scheduledTime })
+    await scheduledPin.save();
+
+    res.status(200).send();
+  } catch (err) {
+    res.status(500).send();
+  }
+
+}
+
+async function fetchScheduledPin(req, res) {
+  const scheduledPinList = await pinterestSchedule.find();
+  res.status(200).json(scheduledPinList);
+}
+
+
+async function deletedScheduledPin(req,res) {
+  try {
+    await pinterestSchedule.deleteOne({ _id: req.params.id })
+    res.status(200).send("Scheduled pin post deleted successfully!")
+  } catch (err) {
+    res.status(500).send("Failed to deleted scheduled pin post!");
+  }
+}
+
+
 module.exports = {
   getPinterestAccessToken,
   createPin,
   fetchBoardList,
   createBoard,
+  schedulePin,
+  fetchScheduledPin,
+  deletedScheduledPin,
 };
