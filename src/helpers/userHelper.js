@@ -1014,7 +1014,6 @@ const userHelper = function () {
             $match: {
               role: 'Core Team',
               isActive: true,
-              email: "ttertitsa@gmail.com",
             },
           },
           {
