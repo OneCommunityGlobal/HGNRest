@@ -1265,7 +1265,7 @@ const userHelper = function () {
           administrativeContent,
         ),
         null, // attachments
-        emailAddress, // cc
+        [emailAddress, "jae@onecommunityglobal.org"], // cc
         emailAddress, // reply-to
       );
     });
