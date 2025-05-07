@@ -62,11 +62,14 @@ const getInstagramShortLivedToken = async (req, res) => {
 }
 
 const getInstagramLongLivedToken = async (req, res) => {
+    console.log('Requesting long-lived token from Instagram...');
+    
     if (!instagramClientId || !instagramClientSecret) {
         return res.status(500).json({ error: 'Instagram credentials are not set' });
     }
 
     const { shortLivedToken } = req.body;
+    console.log('Short-lived token received:', shortLivedToken);
 
     if (!shortLivedToken) {
         return res.status(400).json({ error: 'Short-lived token is required' });
