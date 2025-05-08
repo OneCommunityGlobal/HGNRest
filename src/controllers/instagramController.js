@@ -13,15 +13,36 @@ const instagramClientId = process.env.REACT_APP_INSTAGRAM_CLIENT_ID;
 const instagramClientSecret = process.env.REACT_APP_INSTAGRAM_APP_SECRET;
 const instagramRedirectUri = process.env.REACT_APP_INSTAGRAM_REDIRECT_URI;
 
-const getInstagramShortLivedToken = async (req, res) => {
-    if (!instagramClientId || !instagramClientSecret || !instagramRedirectUri) {
-        return res.status(500).json({ error: 'Instagram credentials are not set' });
+const instagramAuthStore = {
+    status: null,       // 'success' or 'failed'
+    message: null,      // Status message
+    timestamp: null,    // When status was last updated
+    tokens: {           // Token data if successful
+      userId: null,
+      accessToken: null,
+      expiresAt: null
     }
+  };
+  
+// Helper to update the auth status
+const updateAuthStatus = (status, message, tokenData = null) => {
+    instagramAuthStore.status = status;
+    instagramAuthStore.message = message;
+    instagramAuthStore.timestamp = Date.now();
+    
+    if (tokenData) {
+      instagramAuthStore.tokens = {
+        userId: tokenData.userId,
+        accessToken: tokenData.accessToken,
+        expiresAt: tokenData.expiresAt
+      };
+    }
+};
 
-    const { code } = req.body;
 
-    if (!code) {
-        return res.status(400).json({ error: 'Code is required' });
+const getInstagramShortLivedTokenHelper = async (code) => {
+    if (!instagramClientId || !instagramClientSecret || !instagramRedirectUri) {
+        throw new Error('Instagram credentials are not set');
     }
 
     const formData = new FormData();
@@ -45,69 +66,138 @@ const getInstagramShortLivedToken = async (req, res) => {
 
         console.log('Instagram short-lived token received:', response.data);
 
-        return res.json({
-            ...response.data,
-            success: true,
-            message: 'Instagram access token generated successfully'
-        });
+        return response.data;
     } catch (error) {
         console.error('Error requesting short-lived token from Instagram:', error.response?.data || error.message);
-        return res.status(500).json({
-            success: false,
-            message: 'Error requesting short-lived token from Instagram',
-            error: error.response?.data || error.message
-        });
+        throw new Error('Error requesting short-lived token from Instagram');
     }
-
 }
 
-const getInstagramLongLivedToken = async (req, res) => {
-    console.log('Requesting long-lived token from Instagram...');
-    
+const getInstagramLongLivedTokenHelper = async (shortLivedToken) => {
     if (!instagramClientId || !instagramClientSecret) {
-        return res.status(500).json({ error: 'Instagram credentials are not set' });
+        throw new Error('Instagram credentials are not set');
     }
 
-    const { shortLivedToken } = req.body;
-    console.log('Short-lived token received:', shortLivedToken);
-
-    if (!shortLivedToken) {
-        return res.status(400).json({ error: 'Short-lived token is required' });
-    }
+    console.log('Requesting long-lived token from Instagram...');
 
     try {
         const response = await axios.get('https://graph.instagram.com/access_token', {
             params: {
-              grant_type: 'ig_exchange_token',
-              client_secret: instagramClientSecret,
-              access_token: shortLivedToken
+                grant_type: 'ig_exchange_token',
+                client_secret: instagramClientSecret,
+                access_token: shortLivedToken
             }
         });
 
         console.log('Instagram long-lived token received:', response.data);
-        return res.json({
-            ...response.data,
-            success: true,
-            message: 'Instagram long-lived token received successfully'
-        });
+        return response.data;
     } catch (error) {
         console.error('Error requesting long-lived token from Instagram:', error.response?.data || error.message);
-        return res.status(500).json({
+        throw new Error('Error requesting long-lived token from Instagram');
+    }
+
+}
+
+// Helper to send a response page with a message and color
+function sendResponsePage(res, success, message) {
+    const color = success ? 'green' : 'red';
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Instagram Authentication ${success ? 'Success' : 'Failed'}</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+            .message { color: ${color}; font-size: 18px; margin: 20px; }
+            .redirecting { font-size: 14px; margin-top: 30px; color: #666; }
+        </style>
+    </head>
+    <body>
+        <h2>Instagram Authentication</h2>
+        <div class="message">${message}</div>
+        <div class="redirecting">Closing in 2 seconds...</div>
+        
+        <script>
+            // Close the window after 2 seconds
+            setTimeout(function() {
+                window.close();
+            }, 2000);
+        </script>
+    </body>
+    </html>
+    `;
+    
+    res.send(html);
+}
+
+const handleInstagramAuthCallback = async (req, res) => {
+    const { code } = req.query;
+
+    if (!code) {
+        return res.status(400).json({
             success: false,
-            message: 'Error requesting long-lived token from Instagram',
-            error: error.response?.data || error.message
+            message: 'Authorization code is required'
         });
+    }
+
+    console.log('Instagram auth callback received with code:', code);
+
+    try {
+        const shortLivedToken = await getInstagramShortLivedTokenHelper(code);
+        if (!shortLivedToken) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error requesting short-lived token from Instagram'
+            });
+        }
+
+        const longLivedToken = await getInstagramLongLivedTokenHelper(shortLivedToken.access_token);
+        if (!longLivedToken) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error requesting long-lived token from Instagram'
+            });
+        }
+
+        updateAuthStatus('success', 'Instagram authentication successful', {
+            userId: shortLivedToken.user_id,
+            accessToken: longLivedToken.access_token,
+            expiresAt: Date.now() + (longLivedToken.expires_in * 1000)
+        });
+
+        return sendResponsePage(res, true, 'Instagram auth callback received successfully');
+    } catch (error) {
+        console.error('Error handling Instagram auth callback:', error.message);
+        updateAuthStatus('failed', 'Instagram authentication failed', null);
+        return sendResponsePage(res, false, 'Instagram auth callback failed');
     }
 }
 
+const getInstagramAuthStatus = async (req, res) => res.json({
+    success: instagramAuthStore.status === 'success',
+    status: instagramAuthStore.status || 'unknown',
+    message: instagramAuthStore.message || 'No authentication attempt recorded',
+    timestamp: instagramAuthStore.timestamp,
+    data: instagramAuthStore.status === 'success' ? {
+        userId: instagramAuthStore.tokens.userId,
+        // Don't expose the actual token for security
+        hasValidToken: !!instagramAuthStore.tokens.accessToken,
+        tokenExpires: instagramAuthStore.tokens.expiresAt
+    } : null
+});
+
 const getInstagramUserId = async (req, res) => {
     const { accessToken } = req.body;
-
-    if (!accessToken) {
-        return res.status(400).json({ error: 'Access token is required' });
+    let access_token = accessToken;
+    // If no token provided in the request, try to use the stored token
+    if (!access_token) {
+        access_token = instagramAuthStore.tokens.accessToken;
     }
 
-    const access_token = accessToken
+    if (!access_token) {
+        return res.status(400).json({ error: 'Access token is required' });
+    }
 
     try {
         const response = await axios.get('https://graph.instagram.com/me', 
@@ -124,54 +214,16 @@ const getInstagramUserId = async (req, res) => {
             message: 'Instagram user ID received successfully'
         });
     } catch (error) {
-        console.error('Error requesting instagram user ID:', error.response.data);
+        console.error('Error requesting instagram user ID:', error.response?.data || error.message);
         return res.status(500).json({
             success: false,
             message: 'Error requesting instagram user ID',
-            error: error.response.data
+            error: error.response?.data || error.message
         });
     }
 }
 
-// const getImgurAccessToken = async (req, res) => {
-//     if (!imgurClientId || !imgurClientSecret || !imgurRefreshToken) {
-//         return res.status(500).json({ error: 'Imgur credentials are not set' });
-//     }
-
-//     const formData = new FormData();
-//     formData.append('client_id', imgurClientId);
-//     formData.append('client_secret', imgurClientSecret);
-//     formData.append('grant_type', 'refresh_token');
-//     formData.append('refresh_token', imgurRefreshToken);
-
-//     try {
-//         const response = await axios.post('https://api.imgur.com/oauth2/token',
-//             formData,
-//             {
-//                 headers: {
-//                     'content-type': 'multipart/form-data'
-//                 }
-//             }
-//         );
-
-//         console.log('Imgur access token received:', response.data);
-
-//         return res.json({
-//             ...response.data,
-//             success: true,
-//             message: 'Imgur access token generated successfully'
-//         });
-//     } catch (error) {
-//         console.error('Error requesting access token from Imgur:', error.response.data);
-//         return res.status(500).json({
-//             success: false,
-//             message: 'Error requesting access token from Imgur',
-//             error: error.response.data
-//         });
-//     }
-// }
-
-const getImgurAccessToken = async () => {
+const getImgurAccessTokenHelper = async () => {
     try {
         const response = await axios.post('https://api.imgur.com/oauth2/token', 
             new URLSearchParams({
@@ -202,7 +254,7 @@ const uploadImageToImgur = async (req, res) => {
         return res.status(400).json({ error: 'Image file is required' });
     }
 
-    const imgurAccessToken = await getImgurAccessToken();
+    const imgurAccessToken = await getImgurAccessTokenHelper();
 
     if (!imgurAccessToken) {
         return res.status(500).json({ error: 'Failed to get Imgur access token' });
@@ -240,13 +292,15 @@ const uploadImageToImgur = async (req, res) => {
 }
 
 const deleteImageFromImgur = async (req, res) => {
-    const {deleteHash } = req.body;
+    const { deleteHash } = req.body;
+
+    console.log('Deleting image from Imgur with hash:', deleteHash);
 
     if (!deleteHash) {
         return res.status(400).json({ error: 'Access token and image hash are required' });
     }
 
-    const imgurAccessToken = await getImgurAccessToken();
+    const imgurAccessToken = await getImgurAccessTokenHelper();
 
     if (!imgurAccessToken) {
         return res.status(500).json({ error: 'Failed to get Imgur access token' });
@@ -291,18 +345,24 @@ const getInstagramUserIdHelper = async (accessToken) => {
 const createInstagramContainer = async (req, res) => {
     const { imageUrl, caption, accessToken } = req.body;
 
-    if (!imageUrl || !caption || !accessToken) {
+    let access_token = accessToken;
+    // If no token provided in the request, try to use the stored token
+    if (!access_token) {
+        access_token = instagramAuthStore.tokens.accessToken;
+    }
+
+    if (!imageUrl || !caption || !access_token) {
         return res.status(400).json({ error: 'Image URL, caption, and access token are required' });
     }
 
-    const userId = await getInstagramUserIdHelper(accessToken);
+    const userId = await getInstagramUserIdHelper(access_token);
     if (!userId) {
         return res.status(500).json({ error: 'Failed to get Instagram user ID' });
     }
 
     const params = {
         caption,
-        access_token: accessToken,
+        access_token,
         image_url: imageUrl,
     }
 
@@ -333,17 +393,23 @@ const createInstagramContainer = async (req, res) => {
 const publishInstagramContainer = async (req, res) => {
     const { containerId, accessToken } = req.body;
 
-    if (!containerId || !accessToken) {
+    let access_token = accessToken;
+    // If no token provided in the request, try to use the stored token
+    if (!access_token) {
+        access_token = instagramAuthStore.tokens.accessToken;
+    }
+
+    if (!containerId || !access_token) {
         return res.status(400).json({ error: 'Container ID and access token are required' });
     }
 
-    const userId = await getInstagramUserIdHelper(accessToken);
+    const userId = await getInstagramUserIdHelper(access_token);
     if (!userId) {
         return res.status(500).json({ error: 'Failed to get Instagram user ID' });
     }
 
     const params = {
-        access_token: accessToken,
+        access_token,
         creation_id: containerId
     }
 
@@ -370,10 +436,12 @@ const publishInstagramContainer = async (req, res) => {
 }
 
 module.exports = {
-    getInstagramShortLivedToken,
-    getInstagramLongLivedToken,
+    handleInstagramAuthCallback,
+    getInstagramAuthStatus,
+    // getInstagramShortLivedToken,
+    // getInstagramLongLivedToken,
     getInstagramUserId,
-    getImgurAccessToken,
+    getImgurAccessTokenHelper,
     uploadImageToImgur,
     deleteImageFromImgur,
     createInstagramContainer,
