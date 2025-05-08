@@ -115,6 +115,7 @@ const userProfileSchema = new Schema({
       manuallyAssigned: { type: Boolean, default: false },
       manuallyAssignedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
       editedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
+      reasons: {type: [String], default: []},
     },
   ],
   warnings: [
