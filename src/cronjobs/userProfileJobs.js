@@ -39,6 +39,7 @@ const userProfileJobs = () => {
   // Job to run every day, 1 minute past midnight to deactivate the user
   const dailyUserDeactivateJobs = new CronJob(
     // '* * * * *', // Comment out for testing. Run Every minute.
+    // Changed it to run every day, 1 minute past midnight
     '1 0 * * *', // Every day, 1 minute past midnight
     async () => {
       // console.log('Starting daily user activation jobs...');
