@@ -35,6 +35,7 @@ const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 const metIssue = require('../models/bmdashboard/metIssue');
+const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const {
   invTypeBase,
   materialType,
@@ -132,7 +133,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
