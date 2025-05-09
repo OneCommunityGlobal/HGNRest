@@ -764,8 +764,8 @@ const userProfileController = function (UserProfile, Project) {
       }
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1678,8 +1678,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1730,8 +1730,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1771,8 +1771,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,

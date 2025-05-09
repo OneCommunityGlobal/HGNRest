@@ -1161,7 +1161,7 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (
+  const notifyInfringements = async (
     original,
     current,
     firstName,
@@ -1170,7 +1170,7 @@ const userHelper = function () {
     role,
     startDate,
     jobTitle,
-  ) {
+  ) => {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
@@ -1247,9 +1247,12 @@ const userHelper = function () {
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
     );
-    newInfringements.forEach((element) => {
+
+    const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+    const bccEmails = assignments.map(a => a.email);
+    newInfringements.forEach(async (element) => {
       emailSender(
-        emailAddress,
+        [...bccEmails, 'onecommunityglobal@gmail.com'], // bcc
         'New Infringement Assigned',
         getInfringementEmailBody(
           firstName,
@@ -1261,9 +1264,9 @@ const userHelper = function () {
           undefined,
           administrativeContent,
         ),
-        null,
-        'onecommunityglobal@gmail.com',
-        emailAddress,
+        null, // attachments
+        [emailAddress, "jae@onecommunityglobal.org"], // cc
+        emailAddress, // reply-to
       );
     });
   };
