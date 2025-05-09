@@ -2280,8 +2280,8 @@ const userHelper = function () {
         // await updatePersonalMax(personId, user);
         // await checkPersonalMax(personId, user, badgeCollection);
         // await checkMostHrsWeek(personId, user, badgeCollection);
-        // await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
+        await checkMinHoursMultiple(personId, user, badgeCollection);
+        // await checkTotalHrsInCat(personId, user, badgeCollection);
         // await checkLeadTeamOfXplus(personId, user, badgeCollection);
         // await checkXHrsForXWeeks(personId, user, badgeCollection);
         //await checkNoInfringementStreak(personId, user, badgeCollection);
