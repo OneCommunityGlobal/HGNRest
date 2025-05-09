@@ -52,6 +52,7 @@ const {
 } = require('../models/bmdashboard/buildingInventoryItem');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+const supplierPerformance = require('../models/summaryDashboard/supplierPerformance');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -144,6 +145,11 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+// summary dashboard routes
+const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')(
+  supplierPerformance
+);
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -204,4 +210,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+
+  // summary dashboard
+  app.use('/api/suppliers', supplierPerformanceRouter);
 };
