@@ -137,6 +137,10 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter=require('../routes/collaborationRouter');
 
+const costBreakdown = require('../models/bmdashboard/costBreakdown');
+const costBreakdownRouter = require('../routes/bmdashboard/costBreakdownRouter')(costBreakdown);
+
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -194,4 +198,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', costBreakdownRouter);
 };
