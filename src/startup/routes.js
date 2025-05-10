@@ -19,7 +19,6 @@ const currentWarnings = require('../models/currentWarnings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 
-
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -35,7 +34,7 @@ const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
-const buildingIssue = require('../models/bmdashboard/buildingIssue');
+const metIssue = require('../models/bmdashboard/metIssue');
 const {
   invTypeBase,
   materialType,
@@ -90,6 +89,8 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 
+const faqRouter = require('../routes/faqRouter');
+
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
 const roleRouter = require('../routes/roleRouter')(role);
@@ -131,7 +132,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
@@ -174,6 +175,7 @@ module.exports = function (app) {
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
+  app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
   app.use('/api', currentWarningsRouter);
@@ -199,7 +201,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('api', bmIssueRouter);
+  app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
 };

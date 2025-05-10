@@ -529,14 +529,23 @@ const userProfileController = function (UserProfile, Project) {
       //   }
       // }
 
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        const canEditTeamCode =
+          req.body.requestor.role === 'Owner' ||
+          req.body.requestor.role === 'Administrator' ||
+          req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
+        if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+          res.status(403).send('You are not authorized to edit team code.');
+          return;
+        }
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
@@ -571,16 +580,6 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
-      // we need to remove the cache when team code is updated in case of new team code generation
-      if (req.body.teamCode) {
-        // remove teamCode cache when new team assigned
-        if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache('teamCodes');
-        }
-        record.teamCode = req.body.teamCode;
-      }
-
       record.lastModifiedDate = Date.now();
 
       // find userData in cache
@@ -604,6 +603,10 @@ const userProfileController = function (UserProfile, Project) {
 
       if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
+      }
+
+      if (req.body.isAcknowledged !== undefined && record.permissions) {
+        record.permissions.isAcknowledged = req.body.isAcknowledged;
       }
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
@@ -728,7 +731,10 @@ const userProfileController = function (UserProfile, Project) {
           req.body.permissions !== undefined &&
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
-          record.permissions = req.body.permissions;
+          record.permissions = {
+            isAcknowledged: false, // used to inform the user
+            ...req.body.permissions,
+          };
           await logUserPermissionChangeByAccount(req);
         }
 
@@ -758,8 +764,8 @@ const userProfileController = function (UserProfile, Project) {
       }
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1672,8 +1678,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1724,8 +1730,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1765,8 +1771,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
