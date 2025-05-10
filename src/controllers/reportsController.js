@@ -1,9 +1,12 @@
 /* eslint-disable consistent-return */
+const fs = require('fs');
 const mongoose = require('mongoose');
+const puppeteer = require('puppeteer');
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
+const emailSender = require('../utilities/emailSender');
 
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
@@ -540,6 +543,98 @@ const reportsController = function () {
     }
   };
 
+  // Weekly admin summary
+
+  const getAdminList = async (req, res) => {
+    try {
+      const adminList = await UserProfile.find({ jobTitle: 'Administrator' });
+      const emailList = adminList.map((admin) => admin.email);
+      res.status(200).send({ emailList });
+    } catch (err) {
+      console.log(err);
+      res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+  const puppeteerLogic = async () => {
+    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
+    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
+      // logger.logError('Puppeteer email or password not found in environment variables');
+    }
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    const page = await browser.newPage();
+    await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1.5,
+    });
+    await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
+    await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
+    // await page.click('button[type="submit"]', { delay: 100 });
+    await page.click('.btn.btn-primary', { delay: 100 });
+    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+    await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
+    const elements = await page.$$('.accordian-trigger');
+
+    console.log('elements', elements);
+
+    // eslint-disable-next-line no-restricted-syntax
+    for (const element of elements) {
+      // eslint-disable-next-line no-await-in-loop
+      await element.click();
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(1000); // wait for the animation to complete
+    }
+    await page.waitForTimeout(50000);
+    // take a screenshot of the page
+    // await page.setViewport({ width: 1920, height: 1080 });
+    await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
+
+    // close the browser
+    await browser.close();
+  };
+
+  const sendEmailReport = async (req, res) => {
+    try {
+      const { recipients, subject, message } = req.body;
+      if (!recipients || recipients.length === 0) {
+        return res.status(400).send({ msg: 'Please provide at least one recipient' });
+      }
+
+      await puppeteerLogic().then(() => {
+        console.log('Puppeteer logic completed');
+        // create an attachment object
+        const attachment = {
+          filename: 'weeklyCompanySummary.png',
+          content: fs.readFileSync('./weeklyCompanySummary.png'),
+          contentType: 'image/png',
+        };
+        emailSender(
+          recipients,
+          subject,
+          message,
+          attachment,
+          recipients,
+          'onecommunity@gmail.com',
+        ).then((eresult) => {
+          console.log('Email Sender Job Done...', eresult);
+          // delete the image
+          fs.unlink('./weeklyCompanySummary.png', (err) => {
+            if (err) throw err;
+            console.log('./weeklyCompanySummary.png was deleted');
+          });
+        });
+      });
+    } catch (err) {
+      console.log(err);
+      res.status(500).send({ msg: 'Error occured while sending email. Please try again!' });
+    }
+    res.status(200).send({ msg: 'Email sent successfully' });
+  };
+
   return {
     getVolunteerStats,
     getVolunteerHoursStats,
@@ -553,6 +648,8 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    getAdminList,
+    sendEmailReport,
   };
 };
 
