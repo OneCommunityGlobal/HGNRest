@@ -20,6 +20,8 @@ const routes = function (buildingNewLesson) {
         .post(controller.addNewTag);
     NewLessonRouter.route('/tags/:tag')
         .delete(controller.deleteTag);
+    NewLessonRouter.route('/lessons-learnt')
+        .get(controller.getLessonsLearnt)
 
 
     return NewLessonRouter;
