@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const projectMaterial = require('../../models/projectMaterial');
+const projectMaterial = require('../models/projectMaterial');
 
 const materialSusceptibleController = {
 

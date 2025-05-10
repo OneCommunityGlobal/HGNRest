@@ -1,5 +1,5 @@
 const express = require("express");
-const controller = require('../../controllers/materialSusceptibleController');
+const controller = require('../controllers/materialSusceptibleController');
 
 const routes = function() {
 
