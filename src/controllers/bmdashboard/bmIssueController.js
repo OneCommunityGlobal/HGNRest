@@ -24,11 +24,38 @@ const bmIssueController = function (BuildingIssue) {
 
   //   GET /issues/longest-open?projectIds=proj1,proj2&startDate=xxx&endDate=xxx
   const bmLongestOpenIssues = async (req, res) => {
-    const today = new Date();
     try {
+      const { projectIds, startDate, endDate } = req.query;
+
+      const projectIdArray = projectIds
+        ? projectIds.split(',').map((id) => mongoose.Types.ObjectId(id))
+        : [];
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      const today = new Date();
+
+      // Build dynamic $match filter
+      const matchStage = {
+        closeDate: { $exists: false }, // open issues only
+      };
+
+      if (projectIdArray.length > 0) {
+        matchStage.projectId = { $in: projectIdArray };
+      }
+
+      if (start || end) {
+        matchStage.createdDate = {};
+        if (start) matchStage.createdDate.$gte = start;
+        if (end) matchStage.createdDate.$lte = end;
+      }
+
       const pipeline = [
         // Match only issues that are still open (no closeDate)
-        { $match: { closeDate: { $exists: false } } },
+        {
+          $match: matchStage,
+          // { closeDate: { $exists: false } }
+        },
 
         // Add calculated daysOpen field
         {
@@ -54,7 +81,7 @@ const bmIssueController = function (BuildingIssue) {
             daysOpen: { $round: ['$daysOpen', 0] }, // round to whole number
           },
         },
-        { $sort: { totalCost: -1 } },
+        { $sort: { daysOpen: -1 } },
       ];
 
       const longestOpenIssues = await BuildingIssue.aggregate(pipeline);
@@ -73,15 +100,40 @@ const bmIssueController = function (BuildingIssue) {
     }
   };
 
-  return { bmGetIssue, bmPostIssue, bmLongestOpenIssues, bmMostExpensiveIssues };
-};
-
   const bmMostExpensiveIssues = async (req, res) => {
-    const today = new Date();
     try {
+      const { projectIds, startDate, endDate } = req.query;
+
+      const projectIdArray = projectIds
+        ? projectIds.split(',').map((id) => mongoose.Types.ObjectId(id))
+        : [];
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      const today = new Date();
+
+      // Build dynamic $match filter
+      const matchStage = {
+        closeDate: { $exists: false }, // open issues only
+      };
+
+      if (projectIdArray.length > 0) {
+        matchStage.projectId = { $in: projectIdArray };
+      }
+
+      if (start || end) {
+        matchStage.createdDate = {};
+        if (start) matchStage.createdDate.$gte = start;
+        if (end) matchStage.createdDate.$lte = end;
+      }
       const pipeline = [
         // Match only issues that are still open (no closeDate)
-        { $match: { closeDate: { $exists: false } } },
+        {
+          $match: matchStage,
+          // {
+          //   closeDate: { $exists: false }
+          // }
+        },
 
         // Add calculated daysOpen field
         {
