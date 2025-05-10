@@ -63,7 +63,7 @@ describe('Building Materials Inventory Controller', () => {
       mockConsType,
       mockReusType,
       mockToolType,
-      mockEquipType
+      mockEquipType,
     );
 
     req = {
@@ -108,21 +108,21 @@ describe('Building Materials Inventory Controller', () => {
     it('should add a new material type successfully', async () => {
       const mockNewMaterial = { ...req.body, _id: 'mat123' };
       mockMatType.find.mockReturnValue({
-        then: jest.fn().mockImplementation(cb => {
+        then: jest.fn().mockImplementation((cb) => {
           cb([]);
           return {
-            catch: jest.fn()
+            catch: jest.fn(),
           };
-        })
+        }),
       });
 
       mockMatType.create.mockReturnValue({
-        then: jest.fn().mockImplementation(cb => {
+        then: jest.fn().mockImplementation((cb) => {
           cb(mockNewMaterial);
           return {
-            catch: jest.fn()
+            catch: jest.fn(),
           };
-        })
+        }),
       });
 
       await controller.addMaterialType(req, res);
@@ -134,12 +134,12 @@ describe('Building Materials Inventory Controller', () => {
 
     it('should handle duplicate material names', async () => {
       mockMatType.find.mockReturnValue({
-        then: jest.fn().mockImplementation(cb => {
+        then: jest.fn().mockImplementation((cb) => {
           cb([{ name: 'New Material' }]);
           return {
-            catch: jest.fn()
+            catch: jest.fn(),
           };
-        })
+        }),
       });
 
       await controller.addMaterialType(req, res);
@@ -178,7 +178,7 @@ describe('Building Materials Inventory Controller', () => {
     it('should update name and unit successfully', async () => {
       req.params = { invtypeId: 'inv123' };
       req.body = { name: 'Updated Name', unit: 'Updated Unit' };
-      
+
       const updatedDoc = { ...req.body, _id: 'inv123' };
       mockInvType.findByIdAndUpdate.mockResolvedValue(updatedDoc);
 
@@ -187,7 +187,7 @@ describe('Building Materials Inventory Controller', () => {
       expect(mockInvType.findByIdAndUpdate).toHaveBeenCalledWith(
         'inv123',
         { name: 'Updated Name', unit: 'Updated Unit' },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(updatedDoc);

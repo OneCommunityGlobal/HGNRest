@@ -80,4 +80,18 @@ describe('ForcePwdController Unit Tests', () => {
     await flushPromises();
     assertResMock(500, errorMsg, response, mockRes);
   });
+  test('Returns a 500 Internal Error status if new password fails to save', async () => {
+    const { forcePwd } = makeSut();
+    const errorMsg = 'Error happened when saving user';
+    const mockUser = {
+      set: jest.fn(),
+      save: jest.fn().mockRejectedValue(errorMsg),
+    };
+
+    jest.spyOn(userProfile, 'findById').mockResolvedValue(mockUser);
+
+    const response = forcePwd(mockReq, mockRes);
+    await flushPromises();
+    assertResMock(500, errorMsg, response, mockRes);
+  });
 });

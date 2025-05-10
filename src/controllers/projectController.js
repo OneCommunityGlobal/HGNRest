@@ -293,13 +293,12 @@ const projectController = function (Project) {
       });
   };
 
-
   const getProjectsWithActiveUserCounts = async function (req, res) {
     try {
       const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
-  
-      const projectIds = projects.map(project => project._id);
-  
+
+      const projectIds = projects.map((project) => project._id);
+
       const userCounts = await userProfile.aggregate([
         { $match: { projects: { $in: projectIds }, isActive: true } },
         { $unwind: '$projects' },
@@ -311,19 +310,18 @@ const projectController = function (Project) {
           },
         },
       ]);
-  
+
       const result = userCounts.reduce((acc, curr) => {
         acc[curr._id.toString()] = curr.activeUserCount;
         return acc;
       }, {});
-  
+
       res.status(200).send(result);
     } catch (error) {
       console.error(error);
       res.status(500).send('Error fetching active member counts');
     }
   };
-  
 
   return {
     getAllProjects,

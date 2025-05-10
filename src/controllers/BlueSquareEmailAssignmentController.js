@@ -1,10 +1,10 @@
 const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment, userProfile) {
   const getBlueSquareEmailAssignment = async function (req, res) {
     try {
-      const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec()
+      const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
       res.status(200).send(assignments);
     } catch (error) {
-      console.log(error)
+      console.log(error);
       res.status(500).send(error);
     }
   };
@@ -28,7 +28,9 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
         assignedTo: user._id,
       });
       await newAssignment.save();
-      const assignment = await BlueSquareEmailAssignment.find({email}).populate('assignedTo').exec()
+      const assignment = await BlueSquareEmailAssignment.find({ email })
+        .populate('assignedTo')
+        .exec();
 
       res.status(200).send(assignment[0]);
     } catch (error) {
@@ -51,7 +53,7 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
         return;
       }
 
-      res.status(200).send({id});
+      res.status(200).send({ id });
     } catch (error) {
       res.status(500).send(error);
     }
