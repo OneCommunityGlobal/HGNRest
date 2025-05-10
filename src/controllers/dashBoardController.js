@@ -330,8 +330,19 @@ const dashboardcontroller = function () {
     }
   };
   const requestFeedbackModal = async function (req, res) {
+   /** request structure -  pass with userId fetched from initial load response.
+
+    {
+      "haveYouRecievedHelpLastWeek": "Yes", //no
+      "peopleYouContacted":[
+          {"fullName": "ABCD", "rating": 3, "isActive": false}
+      ],
+      "additionalComments": "Here is the text you entered",
+      "daterequestedFeedback": "2025-04-20T04:04:40.189Z",
+      "foundHelpSomeWhereClosePermanently": false,
+      "userId": "5baac381e16814009017678c"
+  }*/
     try {
-      console.log("Hey bro Inga vanthuchu")
       const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
       return res.status(200).json({ savingRequestFeedbackData });
     } catch (err) {
@@ -340,6 +351,18 @@ const dashboardcontroller = function () {
   };
  
   const getUserNames = async function (req, res) {
+    /** Call this api once and show in frontend.
+     * this will be the response structure
+     * {
+    "users": [
+        {
+            "isActive": true,   based on this value segregate whether the user is active or inactive user.
+            "firstName": "Jaeaa",
+            "lastName": "Test5"
+        }
+    ]
+  }
+     */
     try {
       const usersList = await dashboardhelper.getNamesFromProfiles();
       return res.status(200).json({ users : usersList });
@@ -347,6 +370,23 @@ const dashboardcontroller = function () {
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
+
+  const checkUserFoundHelpSomewhere = async function (req, res) {
+/** request structure -  pass with userId fetched from initial load response.
+    Only call this api, when clicking found help permanentely
+    {
+    "foundHelpSomeWhereClosePermanently": true,
+    "userId": "5baac381e16814009017678c"
+}*/
+    try {
+      const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
+      return res.status(200).json({ foundHelp });
+    } catch (err) {
+      console.log(err)
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
 
   return {
     dashboarddata,
@@ -363,7 +403,8 @@ const dashboardcontroller = function () {
     updateCopiedPrompt,
     getPromptCopiedDate,
     requestFeedbackModal,
-    getUserNames
+    getUserNames,
+    checkUserFoundHelpSomewhere
   };
 };
 

@@ -45,6 +45,10 @@ const route = function () {
 
     Dashboardrouter.route('/dashboard/questionaire/userNamesList')
     .get(controller.getUserNames);
+
+    Dashboardrouter.route('/dashboard/questionaire/checkUserFoundHelpSomewhere')
+    .post(controller.checkUserFoundHelpSomewhere);
+
   return Dashboardrouter;
 };
 

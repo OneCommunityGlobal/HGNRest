@@ -669,6 +669,38 @@ const dashboardhelper = function () {
     }
   };
 
+  const checkQuestionaireFeedback = async (req) => {
+    try {
+      const {
+        userId,
+        foundHelpSomeWhereClosePermanently,
+      } = req.body;
+  
+      if (!userId) {
+        return { message: 'userId is required' };
+      }
+
+      const updatedUser = await userProfile.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(userId) },
+        {
+          $set: {
+            "questionaireFeedback.foundHelpSomeWhereClosePermanently": foundHelpSomeWhereClosePermanently
+          }
+        },
+        { new: true }
+      );
+  
+      if (!updatedUser) {
+        return { message: 'User not found' };
+      }
+  
+      return { message: 'request submitted successfully'};
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+
   return {
     personaldetails,
     getUserLaborData,
@@ -678,7 +710,8 @@ const dashboardhelper = function () {
     laborthisweek,
     laborThisWeekByCategory,
     requestFeedback,
-    getNamesFromProfiles
+    getNamesFromProfiles,
+    checkQuestionaireFeedback
   };
 };
 
