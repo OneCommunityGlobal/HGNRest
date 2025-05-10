@@ -512,7 +512,6 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
-
       // To keep a copy of the original record if we edit the protected account
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
@@ -581,7 +580,6 @@ const userProfileController = function (UserProfile, Project) {
       });
 
       record.lastModifiedDate = Date.now();
-
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -955,7 +953,11 @@ const userProfileController = function (UserProfile, Project) {
         },
         {
           path: 'infringements', // Populate infringements field
-          select: 'date description',
+          select: 'date description manuallyAssignedBy editedBy',
+          populate: [
+            { path: 'manuallyAssignedBy', select: 'firstName lastName' },
+            { path: 'editedBy', select: 'firstName lastName' },
+          ],
           options: {
             sort: {
               date: -1, // Sort by date descending if needed
@@ -1662,6 +1664,7 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      req.body.blueSquare.reasons = ['other'];
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1710,7 +1713,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, editedBy, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1724,6 +1727,10 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          blueSquare.editedBy = editedBy?? blueSquare.editedBy;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+          }
         }
         return blueSquare;
       });
