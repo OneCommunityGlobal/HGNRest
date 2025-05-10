@@ -1347,10 +1347,7 @@ const userHelper = function () {
         getInfringementEmailBody(
           firstName,
           lastName,
-          {
-            ...element,
-            reasonsText: element.reasons,
-          },
+          element,
           totalInfringements,
           undefined,
           undefined,
