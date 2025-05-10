@@ -27,6 +27,40 @@ async function TextbeltSMS(msg, toMob) {
     key: process.env.TextbeltKey, // Free public API key (1 message/day)
   });
 }
+async function TelesignSMS(msg, toMob) {
+  const TeleSignSDK = require('telesignsdk');
+
+  //  Telesign authentication credentials from the environment variables.
+  const customerId = process.env.telesign_CUSTOMER_ID;
+  const apiKey = process.env.telesign_API_KEY;
+
+  // Set the default below to your test phone number or pull it from an environment variable.
+  // In your production code, update the phone number dynamically for each transaction.
+  const phoneNumber = toMob; // process.env.PHONE_NUMBER || "447487575485";
+
+  // Set the message text and type.
+  const message = msg;
+  const messageType = 'ARN';
+
+  // Instantiate a messaging client object.
+  const telesignClient = new TeleSignSDK(customerId, apiKey);
+
+  // Define the callback.
+  function smsCallback(error, responseBody) {
+    // Display the response body in the console for debugging purposes.
+    // In your production code, you would likely remove this.
+    if (error === null) {
+      console.log(`\nResponse body:\n${JSON.stringify(responseBody)}`);
+    } else {
+      console.error(`Unable to send SMS. Error:\n\n${error}`);
+    }
+  }
+  console.log(process.env.telesignsendSMS);
+  if (process.env.telesignsendSMS !== 'true') return 'Sending SMS Not Enabled';
+  // Make the request and capture the response.
+  telesignClient.sms.message(smsCallback, phoneNumber, message, messageType);
+}
+
 // const { VONAGE_API_KEY } = process.env;
 // const { VONAGE_API_SECRET } = process.env;
 // const { SMS_SENDER_ID } = process.env;
@@ -58,4 +92,4 @@ function vonSendSMS() {
 // module.exports = function (server) {  working fine
 // module.exports =
 
-module.exports = { sendSMS, TextbeltSMS };
+module.exports = { sendSMS, TextbeltSMS, TelesignSMS };
