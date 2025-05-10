@@ -1,6 +1,12 @@
 const Team = require('../models/team');
 const teamController = require('./teamController');
-const { mockReq, mockRes, assertResMock } = require('../test');
+const { mockReq: baseMockReq, mockRes, assertResMock } = require('../test');
+
+const mockReq = {
+  ...baseMockReq,
+  params: {},
+  body: {}
+};
 
 const makeSut = () => {
   const { getAllTeams, getTeamById } = teamController(Team);
@@ -71,9 +77,9 @@ describe('teamController', () => {
     test('Returns 200 - all is successful, return a team by ID.', async () => {
       const { getTeamById } = makeSut();
       const teamId = '5a8e21f00317bc';
-      const req = { params: { teamId } };
+      mockReq.params.teamId = teamId;
       const findByIdSpy = jest.spyOn(Team, 'findById').mockResolvedValue({ teamId });
-      const response = getTeamById(req, mockRes);
+      const response = getTeamById(mockReq, mockRes);
       await flushPromises();
 
       expect(findByIdSpy).toHaveBeenCalledWith(teamId);
