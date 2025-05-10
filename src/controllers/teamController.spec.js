@@ -73,7 +73,7 @@ describe('teamController', () => {
       const teamId = '5a8e21f00317bc';
       mockReq.params.teamId = teamId;
       const findByIdSpy = jest.spyOn(Team, 'findById').mockResolvedValue({ teamId });
-      const response = getTeamById(mockReq, mockRes);
+      const response = getTeamById(req, mockRes);
       await flushPromises();
 
       expect(findByIdSpy).toHaveBeenCalledWith(teamId);
