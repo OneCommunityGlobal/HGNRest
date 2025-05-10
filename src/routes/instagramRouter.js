@@ -9,22 +9,26 @@ const routes = () => {
     const instagramController = require('../controllers/instagramController');
     const instagramRouter = express.Router();
 
-    // instagramRouter.route('/instagram').get(instagramController.getInstagram)
-    // instagramRouter.route('/auth/instagram/callback').get(instagramController.getInstagramCallback)
-    // instagramRouter.route('/instagram/exchange-token').post(instagramController.exchangeToken)
+    // Instagram Authentication
     instagramRouter.route('/instagram/auth-callback').get(instagramController.handleInstagramAuthCallback);
     instagramRouter.route('/instagram/auth-status').get(instagramController.getInstagramAuthStatus);
-    // instagramRouter.route('/instagram/access-token').post(instagramController.getInstagramShortLivedToken);
-    // instagramRouter.route('/instagram/long-lived-token').post(instagramController.getInstagramLongLivedToken);
+
+    // Instagram Posting
     instagramRouter.route('/instagram/get-user-id').get(instagramController.getInstagramUserId);
     instagramRouter.route('/instagram/create-container').post(instagramController.createInstagramContainer);
     instagramRouter.route('/instagram/publish-container').post(instagramController.publishInstagramContainer);
 
+    // Imgur helper for Instagram
     instagramRouter.route('/instagram/upload-imgur').post(
         upload.single('image'),
         instagramController.uploadImageToImgur
     );
     instagramRouter.route('/instagram/delete-imgur').delete(instagramController.deleteImageFromImgur);
+
+    // Instagram scheduling
+    instagramRouter.route('/instagram/schedule-post').post(instagramController.scheduleInstagramPost);
+    instagramRouter.route('/instagram/posts/:jobId').delete(instagramController.deleteInstagramPostByJobId);
+    instagramRouter.route('/instagram/posts').get(instagramController.getAllInstagramPosts);
 
     return instagramRouter;
 }

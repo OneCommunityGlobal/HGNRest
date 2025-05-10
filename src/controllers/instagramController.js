@@ -2,6 +2,9 @@ const path = require('path');
 // const fs = require('fs');
 const axios = require('axios');
 const FormData = require('form-data');
+const InstagramScheduledPost = require('../models/instagramPost');
+const schedule = require('node-schedule');
+const crypto = require('crypto');
 
 require ('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -435,15 +438,124 @@ const publishInstagramContainer = async (req, res) => {
     }
 }
 
+const publishScheduledPost = async (jobId) => {
+    const post = await InstagramScheduledPost.findOne({ jobId });
+    if (!post) {
+        throw new Error('Scheduled post not found');
+    }
+
+    if (!instagramAuthStore.tokens.accessToken) {
+        throw new Error('No valid Instagram access token found');
+    }
+
+    try {
+        console.log('Publishing scheduled post:', post);
+    } catch (error) {
+        console.error('Error publishing scheduled post:', error);
+        throw new Error('Error publishing scheduled post');
+    }
+}
+
+const scheduledJobs = new Map();
+
+const scheduleInstagramPostHelper = async (jobId, scheduledTime) => {
+    const job = schedule.scheduleJob(new Date(scheduledTime), async () => {
+        try {
+            await publishScheduledPost(jobId);
+            scheduledJobs.delete(jobId);
+        } catch (error) {
+            console.error('Error publishing scheduled post:', error);
+            await InstagramScheduledPost.findOneAndUpdate(
+                { jobId },
+                { status: 'failed' }
+            );
+        }
+        
+    });
+
+    scheduledJobs.set(jobId, job);
+    console.log(`Scheduled job ${jobId} to publish post at ${scheduledTime}`);
+}
+
+const scheduleInstagramPost = async (req, res) => {
+    console.log('Scheduling Instagram post...');
+    const { imgurImageUrl, imgurDeleteHash, caption, scheduledTime } = req.body;
+
+    try {
+        if (!imgurImageUrl || !imgurDeleteHash || !caption || !scheduledTime) {
+            return res.status(400).json({
+                success: false,
+                message: 'Image URL, delete hash, caption, and scheduled time are required'
+            });
+        }
+
+        const jobId = crypto.randomUUID();
+
+        console.log('Scheduling post with job ID:', jobId);
+        // console.log('Image URL:', imgurImageUrl);
+        // console.log('Delete hash:', imgurDeleteHash);
+        // console.log('Caption:', caption);
+        // console.log('Scheduled time:', scheduledTime);
+
+        const scheduledPost = await InstagramScheduledPost.create({
+            jobId,
+            imgurImageUrl,
+            imgurDeleteHash,
+            caption,
+            scheduledTime: new Date(scheduledTime),
+            status: 'scheduled'
+        });
+        console.log('Scheduled post created:', scheduledPost);
+        await scheduleInstagramPostHelper(jobId, scheduledTime);
+
+        return res.json({
+            success: true,
+            message: 'Scheduled post created successfully',
+            scheduledPost
+        });
+        
+    } catch (error) {
+        console.error('Error scheduling Instagram post:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error scheduling Instagram post',
+            error: error.message
+        });
+    }
+}
+
+const deleteInstagramPostByJobId = async (req, res) => {
+}
+
+const getAllInstagramPosts = async (req, res) => {
+    try {
+        const posts = await InstagramScheduledPost.find();
+        return res.json({
+            success: true,
+            posts
+        });
+        
+    } catch (error) {
+        console.error('Error fetching Instagram posts:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching Instagram posts',
+            error: error.message
+        });
+    }
+}
+
 module.exports = {
     handleInstagramAuthCallback,
     getInstagramAuthStatus,
-    // getInstagramShortLivedToken,
-    // getInstagramLongLivedToken,
     getInstagramUserId,
     getImgurAccessTokenHelper,
     uploadImageToImgur,
     deleteImageFromImgur,
     createInstagramContainer,
-    publishInstagramContainer
+    publishInstagramContainer,
+
+    scheduleInstagramPost,
+    deleteInstagramPostByJobId,
+    getAllInstagramPosts
 };
