@@ -445,7 +445,7 @@ const taskController = function (Task) {
     const createdDatetime = Date.now();
     const modifiedDatetime = Date.now();
 
-    const parentId = task.mother; 
+    const parentId = task.mother;
     let level = 1;
     let num = '';
 
@@ -727,8 +727,19 @@ const taskController = function (Task) {
       return;
     }
 
-    if(req.body.hoursBest>0 && req.body.hoursWorst>0 && req.body.hoursMost>0 && req.body.hoursLogged>0 && req.body.estimatedHours>0){
-      return res.status(400).send({ error: 'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0' });
+    if (
+      req.body.hoursBest > 0 &&
+      req.body.hoursWorst > 0 &&
+      req.body.hoursMost > 0 &&
+      req.body.hoursLogged > 0 &&
+      req.body.estimatedHours > 0
+    ) {
+      return res
+        .status(400)
+        .send({
+          error:
+            'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
+        });
     }
 
     const { taskId } = req.params;
