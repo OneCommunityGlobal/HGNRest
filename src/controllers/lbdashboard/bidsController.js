@@ -34,7 +34,7 @@ const bidsController = function (Bids) {
       const inStartDate = parseDate(req.body.startDate);
       const inEndDate = parseDate(req.body.endDate);
 
-      console.log(req.body);
+      console.log(req.body.requestor);
 
       const userExists = await Users.findOne({ email });
       if (!userExists) {
@@ -52,7 +52,8 @@ const bidsController = function (Bids) {
       }
       console.log(listingsExists);
 
-      if (!requestor?.requestorId) {
+      // if (!requestor?.requestorId || !userExists._id) {
+      if (!userExists._id) {
         return { status: 400, error: 'userId cannot be empty' };
       }
       if (!termsAgreed) {
@@ -340,6 +341,7 @@ const bidsController = function (Bids) {
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const { cardNumber, expiry, cvv } = req.body;
     const { bidPrice } = req.body;
+    const { listingId } = req.body;
     console.log(req.body);
     const payerEmailAddress = req.body.email;
     console.log('payerEmailAddress');
@@ -364,11 +366,32 @@ const bidsController = function (Bids) {
 
           purchase_units: [
             {
-              reference_id: 'greatReference',
+              reference_id: listingId,
               amount: {
                 currency_code: 'USD',
                 value: rentalPeriod * bidPrice,
+                breakdown: {
+                  item_total: {
+                    currency_code: 'USD',
+                    value: rentalPeriod * bidPrice,
+                  },
+                },
               },
+              items: [
+                {
+                  name: 'Rent',
+                  unit_amount: {
+                    currency_code: 'USD',
+                    value: bidPrice,
+                  },
+                  quantity: rentalPeriod,
+
+                  tax: {
+                    currency_code: 'USD',
+                    value: '0.00',
+                  },
+                },
+              ],
             },
           ],
           payment_source: {
@@ -700,7 +723,12 @@ const bidsController = function (Bids) {
   const postBidsAndPay = async (req, res) => {
     const accessToken = await getPayPalAccessTokenl();
     console.log(accessToken);
+    console.log('req.requestor');
+
+    console.log(req.requestor);
+
     console.log(req.body);
+    console.log(req.body.requestor);
 
     try {
       const isValidCard = await cardValidation(req, res);
@@ -740,7 +768,7 @@ const bidsController = function (Bids) {
       console.log(' condition false');
       console.log(createOrdersWithCardC);
       // return res.status(201).json({ success: true, data: createOrdersWithCardC.data });
-
+      console.log(req.body.requestor);
       const postBidsResponse = await postBidsloc(req);
       console.log('postBidsResponse');
       console.log(postBidsResponse);

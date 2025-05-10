@@ -123,8 +123,9 @@ const bidWinnerJobs = () => {
 
           // send in-app notification
           // Notify all connected clients
-
+          console.log('Getting socket IO instance...');
           const io = getIO();
+          console.log('io is', io);
           if (io) {
             io.emit('Bid-Won', 'You won the Bid!!!!!!');
           }

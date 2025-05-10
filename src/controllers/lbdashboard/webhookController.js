@@ -64,16 +64,46 @@ app.post("/api/lb/myWebhooks", express.json(), verifyPaypalSignature,
 {{base_url}}/v1/notifications/verify-webhook-signature
 
   */
+  // const socketIo = require('socket.io');
+  // const io = socketIo(connServer);
 
+  function emitBid(bidPric) {
+    const { getIO } = require('../../sockets/BiddingService/connServer');
+    console.log('Getting socket IO instance...');
+    const io = getIO();
+    console.log('IO Initialized');
+
+    if (io) {
+      io.emit('bid-updated', `current bid price is ${bidPric}`);
+    }
+    console.log('io.emitted');
+    // Notify all connected clients
+  }
   const webhookTest = async (req, res) => {
     console.log('Message Received');
-    console.log(req.header);
+    console.log('req.body below');
+    /* purchase_units: [
+            {
+              items: [
+                {
+                  name: 'T-Shirt',
+                  unit_amount: {
+                    currency_code: 'USD',
+                    value: bidPrice,
+          */
+
+    console.log(req.body?.resource?.amount?.value);
     console.log(req.body);
+
+    console.log('req.body above');
+
     try {
       const { event_type } = req.body;
-      if (event_type === 'PAYMENT.AUTHORIZATION.CREATED')
-        console.log("'PAYMENT.AUTHORIZATION.CREATED'");
-      else if (event_type === 'PAYMENT.AUTHORIZATION.VOIDED') {
+      const bidPrice = req.body.resource.amount.value;
+      if (event_type === 'PAYMENT.AUTHORIZATION.CREATED') {
+        console.log('PAYMENT.AUTHORIZATION.CREATED');
+        emitBid(bidPrice);
+      } else if (event_type === 'PAYMENT.AUTHORIZATION.VOIDED') {
         console.log(' Payment Authorization Voided:', req.body);
 
         // Handle payment void scenario

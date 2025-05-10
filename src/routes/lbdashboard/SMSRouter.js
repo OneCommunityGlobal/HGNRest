@@ -9,6 +9,8 @@ const routes = function () {
 
   SMSRouter.route('/TextbeltSMS').post(SMSController.TextbeltSMS);
 
+  SMSRouter.route('/TelesignSMS').post(SMSController.TelesignSMS);
+
   return SMSRouter;
 };
 

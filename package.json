@@ -84,6 +84,7 @@
     "sharp": "^0.33.5",
     "socket.io": "^4.8.1",
     "supertest": "^6.3.4",
+    "telesignsdk": "^3.0.3",
     "twilio": "^5.5.2",
     "uuid": "^3.4.0",
     "ws": "^8.17.1"

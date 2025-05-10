@@ -15,11 +15,15 @@ const server = http.createServer(app);
 logger.logInfo(`Started server on port ${port}`);
 
 // Initialize socket.io
-// require('./sockets/BiddingService/connServer')(server); // 👈 this is important
-const { soc } = require('./sockets/BiddingService/connServer');
+// require('./sockets/BiddingService/connServer')(server);
+// // 👈 this is important
+const { initSocket } = require('./sockets/BiddingService/connServer');
 
-soc(server);
-// Start the actual server (not app.listen!)
+console.log('Calling initSocket...');
+initSocket(server);
+console.log('initSocket initialized');
+
+// Start the actual server
 server.listen(port, () => {
   console.log(`🚀 Server is listening on http://localhost:${port}`);
 });
@@ -27,4 +31,19 @@ server.listen(port, () => {
 (async () => {
   await websockets(server);
 })();
+/*
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  console.log('Headers:', req.headers);
+  next();
+});
+
+app.get('/', (req, res) => {
+  res.send('Hello from the root route!');
+});
+// Optional catch-all for 404s
+app.use((req, res) => {
+  res.status(404).send(`Not found: ${req.method} ${req.originalUrl}`);
+});
+*/
 module.exports = server;

@@ -5,7 +5,8 @@ const webHookController = require('../../controllers/lbdashboard/webhookControll
 const webhookRouter = express.Router();
 const paypalAuthMiddleware = require('../../startup/middleware');
 
+console.log('inside webhookRouter');
 webhookRouter.route('/webhook').post(webHookController.myHook);
-webhookRouter.route('/myWebhooks/').post(paypalAuthMiddleware, webHookController.webhookTest);
+webhookRouter.route('/myWebhooks').post(paypalAuthMiddleware, webHookController.webhookTest);
 
 module.exports = webhookRouter;

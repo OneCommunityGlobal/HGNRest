@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
-const { sendSMS: SMSSender, TextbeltSMS: TextbeltSender } = require('../../utilities/SMSSender');
+const {
+  sendSMS: SMSSender,
+  TextbeltSMS: TextbeltSender,
+  TelesignSMS: TelesignSMSSender,
+} = require('../../utilities/SMSSender');
 
 const emailSender = require('../../utilities/emailSender');
 
@@ -7,22 +11,28 @@ const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 
 let io = null; // socket will be stored here
 
-function soc(server) {
+function initSocket(server) {
   console.log('socketIO inside');
   const socketIO = require('socket.io');
   const Bids = require('../../models/lbdashboard/bids');
   const Users = require('../../models/lbdashboard/users');
 
+  // Load and apply socket auth middleware
+  const socketAuth = require('../../startup/socket-auth-middleware');
+
   io = socketIO(server, {
     cors: { origin: '*' },
     methods: ['GET', 'POST'], // allow all origins for now (adjust for production)
   });
+
+  io.use(socketAuth);
+
   io.engine.on('connection_error', (err) => {
     console.log('io.engine error');
-    console.log(err.req); // the request object
+    // console.log(err.req); // the request object
     console.log(err.code); // the error code, for example 1
     console.log(err.message); // the error message, for example "Session ID unknown"
-    console.log(err.context); // some additional error context
+    // console.log(err.context); // some additional error context
   });
 
   // Simple token validation function
@@ -50,7 +60,7 @@ function soc(server) {
     console.log('now');
     console.log(onlineUsers);
     socket.on('new-bid', async ({ listId, amount, bidder }) => {
-      const listingId = mongoose.Types.ObjectId('67dc4d8a3f1a8ec3a678fd72'); // 67dc4d543f1a8ec3a678fd70');
+      const listingId = mongoose.Types.ObjectId('67db45973f1a8ec3a678fd57'); // 67dc4d543f1a8ec3a678fd70');
       console.log(`itemId is ${listingId}`);
       console.log(`amount is ${amount}`);
       console.log(`user is ${socket.handshake.auth.email}`);
@@ -82,45 +92,47 @@ function soc(server) {
           return 'Time Elapsed! Bidding is over';
         }
         console.log('amount checking');
-        console.log(
-          bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice.toString(),
-        );
+        console.log(bidDeadlines.biddingHistory.length);
+        const lastBid = bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1];
+        console.log(lastBid);
+        console.log(!lastBid);
         console.log(amount);
-
-        console.log(
-          parseFloat(amount) <=
-            parseFloat(
-              bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice,
-            ),
-        );
-        if (
-          bidDeadlines &&
-          parseFloat(amount) <=
-            parseFloat(bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice)
-        ) {
-          io.emit(
-            'bid-not-updated',
-            `bidPrice should be greater than ${bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice}`,
-          );
-
-          return `bidPrice should be greater than ${bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1].bidPrice}`;
-        }
-        await BidDeadlines.updateOne(
-          { listingId },
-          {
-            $push: {
-              biddingHistory: {
-                bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
-                createdDatetime: new Date(),
+        console.log(bidDeadlines);
+        if (bidDeadlines)
+          if (lastBid === undefined) {
+            await BidDeadlines.updateOne(
+              { listingId },
+              {
+                $push: {
+                  biddingHistory: {
+                    bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
+                    createdDatetime: new Date(),
+                  },
+                },
               },
-            },
-          },
-        );
+            );
+          } else if (parseFloat(amount) <= parseFloat(lastBid.bidPrice)) {
+            io.emit('bid-not-updated', `bidPrice should be greater than ${lastBid.bidPrice}`);
 
-        console.log({
-          listingId, // mongoose.Types.ObjectId(listingId),
-          userId,
-        });
+            return `bidPrice should be greater than ${lastBid.bidPrice}`;
+          } else {
+            await BidDeadlines.updateOne(
+              { listingId },
+              {
+                $push: {
+                  biddingHistory: {
+                    bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
+                    createdDatetime: new Date(),
+                  },
+                },
+              },
+            );
+
+            console.log({
+              listingId, // mongoose.Types.ObjectId(listingId),
+              userId,
+            });
+          }
         const matchBid = await Bids.findOne({
           listingId, // mongoose.Types.ObjectId(listingId),
           userId,
@@ -146,14 +158,24 @@ function soc(server) {
       console.log('before callback');
 
       console.log(userMobile);
+      const smsMsg = `Thank you for your bid!
+  We have received your bid $${amount} successfully.
+  We'll get back to you shortly.
+  Regards,<br>Team HGN`;
+      // textBelt
+      const textBeltSMSSendRes = await TextbeltSender(smsMsg, userMobile);
+      console.log(textBeltSMSSendRes?.data);
 
-      const textBeltSMSSendRes = await TextbeltSender('New Bid Received', userMobile);
-      console.log(textBeltSMSSendRes);
-      const SMSBody = 'New Bid Received';
+      // telesign
+      const telesignSMSSendRes = await TelesignSMSSender(smsMsg, userMobile);
+      console.log(telesignSMSSendRes);
+      console.log('telesignSMSSendRes above');
+      // Twilio
+      // const SMSBody = 'New Bid Received';
       const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
       const toMob = '+15005550006'; // Magic "to" number simulates success
 
-      const SMSSenderResp = await SMSSender(SMSBody, fromMob, toMob);
+      const SMSSenderResp = await SMSSender(smsMsg, fromMob, toMob);
       console.log('SMSSenderResp');
       console.log(SMSSenderResp);
 
@@ -216,8 +238,11 @@ function sendNotifications(bodyS, toEmail) {
   }
 }
 function getIO() {
+  if (!io) {
+    console.error('Socket.io not initialized');
+  }
   return io;
 }
-soc.sendNotifications = sendNotifications;
-soc.getIO = getIO;
-module.exports = { soc, sendNotifications, getIO };
+initSocket.sendNotifications = sendNotifications;
+initSocket.getIO = getIO;
+module.exports = { initSocket, sendNotifications, getIO };

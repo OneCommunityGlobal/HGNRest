@@ -20,7 +20,7 @@ const paypalAuthMiddleware = (req, res, next) => {
 // Socket.IO middleware
 function socketMiddleware(socket, next) {
   const { token } = socket.handshake.auth;
-  console.log(' Token received:', token);
+  console.log(' Token received socketMiddleware :', token);
 
   if (token === 'secret123') {
     return next();
@@ -126,15 +126,17 @@ module.exports = function (app) {
   console.log('before api/lb/myWebhooks');
   app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };
-module.exports = function (socket) {
+/* module.exports = function (socket, next) {
   // socket('io', (next) => {
   // console.log(socket);
-  //   const { token } = socket.handshake.auth;
+  const { token } = socket.handshake.auth;
   console.log(' Token received:');
 
-  /* if (token === 'secret123') {
-    return true;
+  if (token === 'secret123') {
+    // return true;
+    next();
+  } else {
+    next(new Error('Unauthorized'));
   }
-  return false; // next(new Error('Invalid token'));
-*/
-};
+  // return false; // next(new Error('Invalid token'));
+}; */
