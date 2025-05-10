@@ -134,6 +134,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
+const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');
 
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
@@ -210,4 +211,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api', toolAvailabilityRoutes);
 };
