@@ -1,6 +1,12 @@
 const Team = require('../models/team');
 const teamController = require('./teamController');
-const { mockReq, mockRes, assertResMock } = require('../test');
+const { mockReq: baseMockReq, mockRes, assertResMock } = require('../test');
+
+const mockReq = {
+  ...baseMockReq,
+  params: {},
+  body: {}
+};
 
 const makeSut = () => {
   const { getAllTeams, getTeamById } = teamController(Team);
