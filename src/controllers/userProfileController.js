@@ -1243,19 +1243,12 @@ const userProfileController = function (UserProfile, Project) {
     let activeStatus = status;
     let emailThreeWeeksSent = false;
 
-    console.log(`[changeUserStatus] Input endDate: ${endDate}`);
-    console.log(`[changeUserStatus] Input endDate as object:`, new Date(endDate));
-
-
     if (endDate && status) {
       const dateObject = new Date(endDate);
       dateObject.setHours(dateObject.getHours() + 7);
       const setEndDate = dateObject;
 
-      console.log(`[changeUserStatus] setEndDate after 7 hour adjustment: ${setEndDate}`);
-
-
-      if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
+      if (moment().isAfter(moment(setEndDate))) {
         activeStatus = false;
       } else if (moment().isBefore(moment(endDate).subtract(3, 'weeks'))) {
         emailThreeWeeksSent = true;
