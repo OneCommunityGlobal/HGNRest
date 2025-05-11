@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const {
-  sendSMS: SMSSender,
-  TextbeltSMS: TextbeltSender,
+  twilioSendSMS: TwilioSMSSender,
+  TextbeltSMS: TextbeltSMSSender,
   TelesignSMS: TelesignSMSSender,
 } = require('../../utilities/SMSSender');
 
@@ -11,6 +11,58 @@ const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 
 let io = null; // socket will be stored here
 
+async function emailNotifications(toEmailAddress, amount) {
+  const emailBidBody = `
+  <h2>Thank you for your bid!</h2>
+  <p>We have received your bid $${amount} successfully.</p>
+  <p>We'll get back to you shortly.</p>
+  <br>
+  <p>Regards,<br>Team HGN</p>
+`;
+  console.log(emailBidBody);
+  const mailOptions = {
+    from: process.env.REACT_APP_EMAIL,
+    subject: 'Test Email',
+    html: `
+            <h2>Thank you for your bid!</h2>
+            <p>We have received your bid $${amount} successfully.</p>
+            <p>We'll get back to you shortly.</p>
+            <br>
+            <p>Regards,<br>Team HGN</p>`,
+    // attachments: null,
+    // cc: null,
+    to: process.env.REACT_APP_EMAIL, // socket.handshake.auth.email,
+  };
+
+  await emailSender(
+    toEmailAddress, // recipents 'onecommunityglobal@gmail.com',
+    'Received Bid', // subject
+    emailBidBody, // message
+    null, // attachments
+    null, //  cc
+    'onecommunityglobal@gmail.com', // reply to
+  );
+  console.log('email sent');
+}
+async function SMSNotifications(smsMsg, toMobile) {
+  // textBelt
+  const textBeltSMSSendRes = await TextbeltSMSSender(smsMsg, toMobile);
+  console.log('textBeltSMSSendRes?.data below');
+
+  console.log(textBeltSMSSendRes?.data);
+
+  // telesign
+  const telesignSMSSendRes = await TelesignSMSSender(smsMsg, toMobile);
+  console.log(telesignSMSSendRes);
+  console.log('telesignSMSSendRes above');
+
+  // Twilio
+  const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
+  const toMob = '+15005550006'; // Magic "to" number simulates success
+  const twilioSMSSenderResp = await TwilioSMSSender(smsMsg, fromMob, toMob);
+  console.log('twilioSMSSenderResp below');
+  console.log(twilioSMSSenderResp);
+}
 function initSocket(server) {
   console.log('socketIO inside');
   const socketIO = require('socket.io');
@@ -59,7 +111,7 @@ function initSocket(server) {
     });
     console.log('now');
     console.log(onlineUsers);
-    socket.on('new-bid', async ({ listId, amount, bidder }) => {
+    socket.on('new-bid', async ({ listId, amount }) => {
       const listingId = mongoose.Types.ObjectId('67db45973f1a8ec3a678fd57'); // 67dc4d543f1a8ec3a678fd70');
       console.log(`itemId is ${listingId}`);
       console.log(`amount is ${amount}`);
@@ -162,6 +214,12 @@ function initSocket(server) {
   We have received your bid $${amount} successfully.
   We'll get back to you shortly.
   Regards,<br>Team HGN`;
+
+      SMSNotifications(smsMsg, userMobile);
+      /*       const smsMsg = `Thank you for your bid!
+  We have received your bid $${amount} successfully.
+  We'll get back to you shortly.
+  Regards,<br>Team HGN`;
       // textBelt
       const textBeltSMSSendRes = await TextbeltSender(smsMsg, userMobile);
       console.log(textBeltSMSSendRes?.data);
@@ -177,8 +235,9 @@ function initSocket(server) {
 
       const SMSSenderResp = await SMSSender(smsMsg, fromMob, toMob);
       console.log('SMSSenderResp');
-      console.log(SMSSenderResp);
-
+      console.log(SMSSenderResp); */
+      emailNotifications(socket.handshake.auth.email, amount);
+      /*
       const emailBidBody = `
   <h2>Thank you for your bid!</h2>
   <p>We have received your bid $${amount} successfully.</p>
@@ -210,7 +269,7 @@ function initSocket(server) {
         'onecommunityglobal@gmail.com', // reply to
       );
       console.log('email sent');
-
+*/
       // res.status(200).send("Success");
 
       // Notify all connected clients
@@ -245,4 +304,4 @@ function getIO() {
 }
 initSocket.sendNotifications = sendNotifications;
 initSocket.getIO = getIO;
-module.exports = { initSocket, sendNotifications, getIO };
+module.exports = { initSocket, sendNotifications, SMSNotifications, getIO };

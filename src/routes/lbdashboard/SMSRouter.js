@@ -5,7 +5,7 @@ const routes = function () {
   console.log('SMSRouter');
   const SMSRouter = express.Router();
 
-  SMSRouter.route('/sendSMS').post(SMSController.sendSMS);
+  SMSRouter.route('/TwilioSendSMS').post(SMSController.twilioSendSMS);
 
   SMSRouter.route('/TextbeltSMS').post(SMSController.TextbeltSMS);
 

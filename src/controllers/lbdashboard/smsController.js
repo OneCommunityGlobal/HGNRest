@@ -1,10 +1,13 @@
 // smsController.js
-const { SMSSender, TextbeltSMS: TextbeltSender } = require('../../utilities/SMSSender');
+const {
+  twilioSendSMS: TwilioSMSSender,
+  TextbeltSMS: TextbeltSender,
+} = require('../../utilities/SMSSender');
 
-async function sendSMS(req, res) {
+async function twilioSendSMS(req, res) {
   const { msg, fromMob, toMob } = req.body;
   try {
-    const result = await SMSSender(msg, fromMob, toMob);
+    const result = await TwilioSMSSender(msg, fromMob, toMob);
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Error Sending SMS' });
@@ -36,7 +39,7 @@ async function TelesignSMS(req, res) {
 }
 
 module.exports = {
-  sendSMS,
+  twilioSendSMS,
   TextbeltSMS,
   TelesignSMS,
 };

@@ -5,7 +5,7 @@ const twilio = require('twilio');
 
 const client = twilio(process.env.twilio_testAccountSid, process.env.twilio_testAuthToken);
 
-async function sendSMS(bodySMS, fromMob, toMob) {
+async function twilioSendSMS(bodySMS, fromMob, toMob) {
   // "fromMob": "+15005550006", // Magic "from" number (valid for testing)
   // "toMob": "+15005550006" // Magic "to" number simulates success
   // toMob: '+15005550001', // Magic "to" number simulates invalid number
@@ -92,4 +92,4 @@ function vonSendSMS() {
 // module.exports = function (server) {  working fine
 // module.exports =
 
-module.exports = { sendSMS, TextbeltSMS, TelesignSMS };
+module.exports = { twilioSendSMS, TextbeltSMS, TelesignSMS };

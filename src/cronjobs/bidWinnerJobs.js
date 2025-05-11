@@ -4,29 +4,33 @@ const BidDeadlines = require('../models/lbdashboard/bidDeadline');
 const Bids = require('../models/lbdashboard/bids');
 const Users = require('../models/lbdashboard/users');
 const emailSender = require('../utilities/emailSender');
-const { sendSMS } = require('../sockets/BiddingService/connServer');
+const { SMSNotifications } = require('../sockets/BiddingService/connServer');
 
-const connServer = require('../sockets/BiddingService/connServer');
+// const connServer = require('../sockets/BiddingService/connServer');
 const { getIO } = require('../sockets/BiddingService/connServer');
 
 // const io = connServer
 
 async function processBid(bid) {
-  console.log('inside ProcessBid');
-  console.log(bid.biddingHistory[bid.biddingHistory.length - 1].bidPrice.toString());
-  return bid.biddingHistory[bid.biddingHistory.length - 1].bidPrice;
+  const lastBid = bid.biddingHistory[bid.biddingHistory.length - 1];
+  console.log(bid._id);
+  console.log(lastBid);
+  if (lastBid !== undefined) {
+    console.log('inside ProcessBid');
+    console.log(lastBid.bidPrice.toString());
+    return lastBid.bidPrice;
+  }
 }
 
 const bidWinnerJobs = () => {
   const bidWinnerJob = new CronJob(
-    '* * * * * ', // cronTime
+    // '* * * * * ', // cronTime
     // '* * * * * *' // every second
-    // '* * * * *' // every minute
-
+    '* * * * *', // every minute
     async () => {
       try {
         console.log('You will see this message every minute');
-        const listingId = mongoose.Types.ObjectId('67dc4d543f1a8ec3a678fd70');
+        const listingId = mongoose.Types.ObjectId('67db45973f1a8ec3a678fd57');
         const now = new Date();
 
         const bidDeadlines = await BidDeadlines.findOne({
@@ -116,8 +120,9 @@ const bidWinnerJobs = () => {
           const SMSBody = 'Congratulations!!!! You have won the Bid';
           const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
           const toMob = '+15005550006'; // Magic "to" number simulates success
+          // const SMSResp = await SMSNotifications(SMSBody, fromMob, toMob);
 
-          const SMSResp = await sendSMS(SMSBody, fromMob, toMob);
+          const SMSResp = await SMSNotifications(SMSBody, toMob);
           console.log('SMSResp from bidWinnerJobs Cron Jobs');
           console.log(SMSResp);
 
@@ -146,6 +151,6 @@ const bidWinnerJobs = () => {
     false, // true, // start
     // 'America/Los_Angeles', // timeZone
   );
-  //  bidWinnerJob.start(); // is optional here because of the fourth parameter set to true.
+  bidWinnerJob.start(); // is optional here because of the fourth parameter set to true.
 };
 module.exports = bidWinnerJobs;
