@@ -1960,9 +1960,11 @@ const userProfileController = function (UserProfile, Project) {
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
-      return res.status(400).send({
-        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
-      });
+      return res
+        .status(400)
+        .send({
+          error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+        });
     }
 
     try {
