@@ -487,13 +487,13 @@ const userProfileController = function (UserProfile, Project) {
 
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
-    );
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid));
+
+    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
 
-    if (!isRequestorAuthorized && !canManageAdminLinks) {
+    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
