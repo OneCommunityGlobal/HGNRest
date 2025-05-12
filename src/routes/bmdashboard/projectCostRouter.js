@@ -8,19 +8,7 @@ const routes = function (projectCost) {
   projectCostRouter.route('/project')
     .get(controller.getAllProjects)
     .post(controller.createProject);
-
-  // Routes for a specific project
-  projectCostRouter.route('/project/:projectId')
-    .get(controller.getProjectCost)
-    .delete(controller.deleteProject);
-
-  // Routes for managing cost entries of a project
-  projectCostRouter.route('/project/:projectId/entries')
-    .post(controller.addCostEntry);
-
-  projectCostRouter.route('/project/:projectId/entries/:costId')
-    .put(controller.updateCostEntry);
-
+    
   // Route for getting cost predictions
   projectCostRouter.route('/project/:projectId/predictions')
     .get(controller.getProjectPredictions);
