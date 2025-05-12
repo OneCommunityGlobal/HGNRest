@@ -153,7 +153,6 @@ const collaborationRouter=require('../routes/collaborationRouter');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
-const collaborationRouter = require('../routes/collaborationRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
