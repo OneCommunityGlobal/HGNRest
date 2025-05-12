@@ -438,7 +438,7 @@ const publishInstagramContainer = async (req, res) => {
     }
 }
 
-const publishScheduledPost = async (jobId) => {
+const publishScheduledPost = async (jobId) => { // NEED MORE TESTING
     const post = await InstagramScheduledPost.findOne({ jobId });
     if (!post) {
         throw new Error('Scheduled post not found');
@@ -450,6 +450,23 @@ const publishScheduledPost = async (jobId) => {
 
     try {
         console.log('Publishing scheduled post:', post);
+        const { imgurImageUrl, caption } = post;
+        const containerResponse = await createInstagramContainer({
+            imageUrl: imgurImageUrl,
+            caption,
+            accessToken: instagramAuthStore.tokens.accessToken
+        });
+        console.log('Container created:', containerResponse);
+        const postResponse = await publishInstagramContainer({
+            containerId: containerResponse.data.id,
+            accessToken: instagramAuthStore.tokens.accessToken
+        });
+        console.log('Post published:', postResponse);
+        await InstagramScheduledPost.findOneAndUpdate(
+            { jobId },
+            { status: 'published' }
+        );
+
     } catch (error) {
         console.error('Error publishing scheduled post:', error);
         throw new Error('Error publishing scheduled post');
@@ -525,6 +542,43 @@ const scheduleInstagramPost = async (req, res) => {
 }
 
 const deleteInstagramPostByJobId = async (req, res) => {
+    const { jobId } = req.params;
+
+    console.log('Deleting Instagram post with job ID:', jobId);
+    if (!jobId) {
+        return res.status(400).json({ error: 'Job ID is required' });
+    }
+
+    try {
+        const post = await InstagramScheduledPost.findOne({ jobId });
+        if (!post) {
+            return res.status(404).json({ error: 'Scheduled post not found' });
+        }
+
+        if (!instagramAuthStore.tokens.accessToken) {
+            return res.status(500).json({ error: 'No valid Instagram access token found' });
+        }
+
+        const job = scheduledJobs.get(jobId);
+        if (job) {
+            job.cancel();
+            scheduledJobs.delete(jobId);
+        }
+
+        await InstagramScheduledPost.deleteOne({ jobId });
+
+        return res.json({ 
+            success: true,
+            message: 'Scheduled post deleted successfully'
+         });
+    } catch (error) {
+        console.error('Error deleting Instagram post:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error deleting Instagram post',
+            error: error.message
+        });
+    }
 }
 
 const getAllInstagramPosts = async (req, res) => {
