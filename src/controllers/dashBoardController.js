@@ -1,11 +1,11 @@
 /* eslint-disable quotes */
-const path = require("path");
-const fs = require("fs/promises");
-const mongoose = require("mongoose");
-const dashboardHelperClosure = require("../helpers/dashboardhelper");
-const emailSender = require("../utilities/emailSender");
-const AIPrompt = require("../models/weeklySummaryAIPrompt");
-const User = require("../models/userProfile");
+const path = require('path');
+const fs = require('fs/promises');
+const mongoose = require('mongoose');
+const dashboardHelperClosure = require('../helpers/dashboardhelper');
+const emailSender = require('../utilities/emailSender');
+const AIPrompt = require('../models/weeklySummaryAIPrompt');
+const User = require('../models/userProfile');
 
 
 const dashboardcontroller = function () {
@@ -25,13 +25,13 @@ const dashboardcontroller = function () {
     return User.findOneAndUpdate(
       { _id: req.params.userId },
       { copiedAiPrompt: Date.now() },
-      { new: true }
+      { new: true },
     )
       .then((user) => {
         if (user) {
-          res.status(200).send("Copied AI prompt");
+          res.status(200).send('Copied AI prompt');
         } else {
-          res.status(404).send({ message: "User not found " });
+          res.status(404).send({ message: 'User not found ' });
         }
       })
       .catch((error) => {
@@ -46,24 +46,24 @@ const dashboardcontroller = function () {
     });
   };
   const updateAIPrompt = function (req, res) {
-    if (req.body.requestor.role === "Owner") {
+    if (req.body.requestor.role === 'Owner') {
       AIPrompt.findOneAndUpdate(
-        { _id: "ai-prompt" },
+        { _id: 'ai-prompt' },
         {
           ...req.body,
           aIPromptText: req.body.aIPromptText,
           modifiedDatetime: Date.now(),
-        }
+        },
       )
         .then(() => {
-          res.status(200).send("Successfully saved AI prompt.");
+          res.status(200).send('Successfully saved AI prompt.');
         })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     }
   };
 
   const getAIPrompt = function (req, res) {
-    AIPrompt.findById({ _id: "ai-prompt" })
+    AIPrompt.findById({ _id: 'ai-prompt' })
       .then((result) => {
         if (result) {
           // If the GPT prompt exists, send it back.
@@ -71,7 +71,7 @@ const dashboardcontroller = function () {
         } else {
           // If the GPT prompt does not exist, create it.
           const defaultPrompt = {
-            _id: "ai-prompt",
+            _id: 'ai-prompt',
             aIPromptText:
               "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:",
           };
@@ -84,7 +84,7 @@ const dashboardcontroller = function () {
             });
         }
       })
-      .catch(error => res.status(500).send(error));
+      .catch((error) => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -92,13 +92,13 @@ const dashboardcontroller = function () {
     const laborthismonth = dashboardhelper.laborthismonth(
       userId,
       req.params.fromDate,
-      req.params.toDate
+      req.params.toDate,
     );
     laborthismonth.then((results) => {
       if (!results || results.length === 0) {
         const emptyresult = [
           {
-            projectName: "",
+            projectName: '',
             timeSpent_hrs: 0,
           },
         ];
@@ -114,7 +114,7 @@ const dashboardcontroller = function () {
     const laborthisweek = dashboardhelper.laborthisweek(
       userId,
       req.params.fromDate,
-      req.params.toDate
+      req.params.toDate,
     );
     laborthisweek.then((results) => {
       res.status(200).send(results);
@@ -135,7 +135,7 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const orgData = function (req, res) {
@@ -145,7 +145,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -157,7 +157,7 @@ const dashboardcontroller = function () {
     expected,
     actual,
     visual,
-    severity
+    severity,
   ) {
     const text = `New Bug Report From <b>${firstName} ${lastName}</b>:
         <p>[Feature Name] Bug Title:</p>
@@ -202,32 +202,32 @@ const dashboardcontroller = function () {
       expected,
       actual,
       visual,
-      severity
+      severity,
     );
 
     try {
       emailSender(
-        "onecommunityglobal@gmail.com",
+        'onecommunityglobal@gmail.com',
         `Bug Rport from ${firstName} ${lastName}`,
         emailBody,
-        email
+        email,
       );
-      res.status(200).send("Success");
+      res.status(200).send('Success');
     } catch {
-      res.status(500).send("Failed");
+      res.status(500).send('Failed');
     }
   };
 
   const suggestionData = {
     suggestion: [
-      "Identify and remedy poor client and/or user service experiences",
-      "Identify bright spots and enhance positive service experiences",
-      "Make fundamental changes to our programs and/or operations",
-      "Inform the development of new programs/projects",
-      "Identify where we are less inclusive or equitable across demographic groups",
-      "Strengthen relationships with the people we serve",
+      'Identify and remedy poor client and/or user service experiences',
+      'Identify bright spots and enhance positive service experiences',
+      'Make fundamental changes to our programs and/or operations',
+      'Inform the development of new programs/projects',
+      'Identify where we are less inclusive or equitable across demographic groups',
+      'Strengthen relationships with the people we serve',
       "Understand people's needs and how we can help them achieve their goals",
-      "Other",
+      'Other',
     ],
     field: [],
   };
@@ -236,13 +236,11 @@ const dashboardcontroller = function () {
     let fieldaaray = [];
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
-        item => `<p>${item}</p>
+        (item) => `<p>${item}</p>
                    <p>${args[3][item]}</p>`,
       );
     }
-    const text = `New Suggestion From <b>${args[3].firstName} ${
-      args[3].lastName
-    }
+    const text = `New Suggestion From <b>${args[3].firstName} ${args[3].lastName}
     </b>:
     <br>
     <br> 
@@ -250,7 +248,7 @@ const dashboardcontroller = function () {
     <p>${args[0]}</p>
     <b> &#9913; Suggestion:</b>
     <p>${args[1]}</p>
-    ${fieldaaray.length > 0 ? fieldaaray : ""}
+    ${fieldaaray.length > 0 ? fieldaaray : ''}
     <b> &#9913; Name of Suggester:</b>
     <p>${args[3].firstName} ${args[3].lastName}</p>
     <b> &#9913; Email of Suggester:</b>
@@ -271,21 +269,21 @@ const dashboardcontroller = function () {
       suggestion,
       confirm,
       rest,
-      email
+      email,
     );
     try {
       emailSender(
-        "onecommunityglobal@gmail.com",
-        "A new suggestion",
+        'onecommunityglobal@gmail.com',
+        'A new suggestion',
         emailBody,
         null,
         null,
         email,
-        null
+        null,
       );
-      res.status(200).send("Success");
+      res.status(200).send('Success');
     } catch {
-      res.status(500).send("Failed");
+      res.status(500).send('Failed');
     }
   };
 
@@ -294,40 +292,38 @@ const dashboardcontroller = function () {
       if (suggestionData) {
         res.status(200).send(suggestionData);
       } else {
-        res.status(404).send("Suggestion data not found.");
+        res.status(404).send('Suggestion data not found.');
       }
     } catch (error) {
-      console.error("Error getting suggestion data:", error);
-      res.status(500).send("Internal Server Error");
+      console.error('Error getting suggestion data:', error);
+      res.status(500).send('Internal Server Error');
     }
   };
 
   const editSuggestionOption = async (req, res) => {
     try {
       if (req.body.suggestion) {
-        if (req.body.action === "add") {
+        if (req.body.action === 'add') {
           suggestionData.suggestion.unshift(req.body.newField);
         }
-        if (req.body.action === "delete") {
+        if (req.body.action === 'delete') {
           suggestionData.suggestion = suggestionData.suggestion.filter(
-            (item, index) => index + 1 !== +req.body.newField
+            (item, index) => index + 1 !== +req.body.newField,
           );
         }
       } else {
-        if (req.body.action === "add") {
+        if (req.body.action === 'add') {
           suggestionData.field.unshift(req.body.newField);
         }
-        if (req.body.action === "delete") {
-          suggestionData.field = suggestionData.field.filter(
-            item => item !== req.body.newField,
-          );
+        if (req.body.action === 'delete') {
+          suggestionData.field = suggestionData.field.filter((item) => item !== req.body.newField);
         }
       }
 
-      res.status(200).send("success");
+      res.status(200).send('success');
     } catch (error) {
-      console.error("Error editing suggestion option:", error);
-      res.status(500).send("Internal Server Error");
+      console.error('Error editing suggestion option:', error);
+      res.status(500).send('Internal Server Error');
     }
   };
   const requestFeedbackModal = async function (req, res) {
@@ -410,4 +406,3 @@ const dashboardcontroller = function () {
 };
 
 module.exports = dashboardcontroller;
-
