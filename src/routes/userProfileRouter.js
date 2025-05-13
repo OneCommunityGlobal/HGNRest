@@ -24,7 +24,6 @@ const routes = function (userProfile, project) {
     );
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);  
-  
   // Endpoint to retrieve basic user profile information
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
   userProfileRouter
@@ -129,6 +128,8 @@ const routes = function (userProfile, project) {
     .get(controller.getUserByAutocomplete);
 
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
+  
+  userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
   return userProfileRouter;
 };
