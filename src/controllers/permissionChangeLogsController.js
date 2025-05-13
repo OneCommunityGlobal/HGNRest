@@ -9,7 +9,12 @@ const permissionChangeLogController = function (PermissionChangeLog, userPermiss
         if (userProfile.role !== 'Owner') {
           return res.status(204).send([]);
         }
-        const changeLogs = await PermissionChangeLog.find({});
+        const roleChangeLogs = await PermissionChangeLog.find({});
+        const userChangeLogs = await userPermissionChangeLog.find({});
+        const changeLogs = [...roleChangeLogs, ...userChangeLogs];
+        changeLogs.sort((a, b) => new Date(b.logDateTime) - new Date(a.logDateTime));
+        // changeLogs.sort((a, b) => new Date(a.logDateTime) - new Date(b.logDateTime));
+        // const changeLogs = await PermissionChangeLog.find({});
         return res.status(200).send(changeLogs);
       }
       return res.status(403).send(`User (${req.params.userId}) not found.`);
