@@ -332,6 +332,34 @@ const deleteImageFromImgur = async (req, res) => {
     }
 }
 
+const deleteImageFromImgurHelper = async (deleteHash) => {
+    console.log('Deleting image from Imgur with hash:', deleteHash);
+    if (!deleteHash) {
+        throw new Error('Image hash is required');
+    }
+
+    try {
+        const imgurAccessToken = await getImgurAccessTokenHelper();
+
+        if (!imgurAccessToken) {
+            throw new Error('Failed to get Imgur access token');
+        }
+
+        const response = await axios.delete(`https://api.imgur.com/3/image/${deleteHash}`, {
+            headers: {
+                Authorization: `Bearer ${imgurAccessToken}`
+            }
+        });
+
+        console.log('Image deleted from Imgur:', response.data);
+        return response.data;
+
+    } catch (error) {
+        console.error('Error deleting image from Imgur:', error.response?.data || error.message);
+        throw new Error('Error deleting image from Imgur');
+    }
+}
+
 const getInstagramUserIdHelper = async (accessToken) => {
     try {
         const response = await axios.get('https://graph.instagram.com/me', {
@@ -393,6 +421,41 @@ const createInstagramContainer = async (req, res) => {
     }
 }
 
+const createInstagramContainerHelper = async (imageUrl, caption) => {
+    try {
+        if (!imageUrl || !caption) {
+            throw new Error('Image URL and caption are required');
+        }
+
+        const access_token = instagramAuthStore.tokens.accessToken;
+        if (!access_token) {
+            throw new Error('No valid Instagram access token found');
+        }
+
+        const userId = await getInstagramUserIdHelper(access_token);
+        if (!userId) {
+            throw new Error('Failed to get Instagram user ID');
+        }
+
+        const params = {
+            caption,
+            access_token,
+            image_url: imageUrl,
+        }
+
+        const response = await axios.post(`https://graph.instagram.com/${userId}/media`, 
+            null, 
+            { params }
+        ); 
+
+        console.log('Instagram container created:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error creating Instagram container:', error.response.data);
+        throw new Error('Error creating Instagram container');
+    }
+}
+
 const publishInstagramContainer = async (req, res) => {
     const { containerId, accessToken } = req.body;
 
@@ -438,30 +501,61 @@ const publishInstagramContainer = async (req, res) => {
     }
 }
 
-const publishScheduledPost = async (jobId) => { // NEED MORE TESTING
-    const post = await InstagramScheduledPost.findOne({ jobId });
-    if (!post) {
-        throw new Error('Scheduled post not found');
-    }
+const publishInstagramContainerHelper = async (containerId) => {
+    try {
+        if (!containerId) {
+            throw new Error('Container ID is required');
+        }
 
-    if (!instagramAuthStore.tokens.accessToken) {
-        throw new Error('No valid Instagram access token found');
+        const access_token = instagramAuthStore.tokens.accessToken;
+        if (!access_token) {
+            throw new Error('No valid Instagram access token found');
+        }
+
+        const userId = await getInstagramUserIdHelper(access_token);
+        if (!userId) {
+            throw new Error('Failed to get Instagram user ID');
+        }
+
+        const params = {
+            access_token,
+            creation_id: containerId
+        }
+
+        const response = await axios.post(`https://graph.instagram.com/${userId}/media_publish`, 
+            null, 
+            { params }
+        );
+
+        console.log('Instagram container published:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error publishing Instagram container:', error.response.data);
+        throw new Error('Error publishing Instagram container');
     }
+}
+
+const publishScheduledPost = async (jobId) => { // NEED MORE TESTING
 
     try {
+        const post = await InstagramScheduledPost.findOne({ jobId });
+        if (!post) {
+            throw new Error('Scheduled post not found');
+        }
+
+        if (!instagramAuthStore.tokens.accessToken) {
+            throw new Error('No valid Instagram access token found');
+        }
+
         console.log('Publishing scheduled post:', post);
         const { imgurImageUrl, caption } = post;
-        const containerResponse = await createInstagramContainer({
-            imageUrl: imgurImageUrl,
-            caption,
-            accessToken: instagramAuthStore.tokens.accessToken
-        });
+        const containerResponse = await createInstagramContainerHelper(imgurImageUrl, caption);
         console.log('Container created:', containerResponse);
-        const postResponse = await publishInstagramContainer({
-            containerId: containerResponse.data.id,
-            accessToken: instagramAuthStore.tokens.accessToken
-        });
+
+        const { id: containerId } = containerResponse;
+        const postResponse = await publishInstagramContainerHelper(containerId);
         console.log('Post published:', postResponse);
+
         await InstagramScheduledPost.findOneAndUpdate(
             { jobId },
             { status: 'published' }
@@ -550,10 +644,11 @@ const deleteInstagramPostByJobId = async (req, res) => {
     }
 
     try {
-        const post = await InstagramScheduledPost.findOne({ jobId });
+        const post = await InstagramScheduledPost.findOne({ _id: jobId });
         if (!post) {
             return res.status(404).json({ error: 'Scheduled post not found' });
         }
+        console.log('Scheduled post found:', post);
 
         if (!instagramAuthStore.tokens.accessToken) {
             return res.status(500).json({ error: 'No valid Instagram access token found' });
@@ -565,11 +660,28 @@ const deleteInstagramPostByJobId = async (req, res) => {
             scheduledJobs.delete(jobId);
         }
 
-        await InstagramScheduledPost.deleteOne({ jobId });
+
+        await InstagramScheduledPost.deleteOne({ _id: jobId });
+        console.log('Scheduled post deleted from database');
+
+        let imgurDeleteSuccess = true;
+        let imgurDeleteResponse = null;
+        
+        try {
+            const deleteHash = post.imgurDeleteHash;
+            imgurDeleteResponse = await deleteImageFromImgurHelper(deleteHash);
+            console.log('Image deleted from Imgur:', imgurDeleteResponse);
+        } catch (imgurError) {
+            // Just log the error but continue with the database deletion
+            console.warn('Warning: Failed to delete image from Imgur:', imgurError.message);
+            imgurDeleteSuccess = false;
+        }
 
         return res.json({ 
             success: true,
-            message: 'Scheduled post deleted successfully'
+            message: 'Scheduled post deleted successfully',
+            imgurDeleteSuccess,
+            imgurDeleteResponse
          });
     } catch (error) {
         console.error('Error deleting Instagram post:', error);
