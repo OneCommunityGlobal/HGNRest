@@ -1,13 +1,10 @@
 const axios = require('axios');
 const fs = require('fs');
-const cheerio = require('cheerio');
 const pinterestSchedule = require('../models/pinterestSchedule');
-
-// const auth = `https://api.pinterest.com/oauth/?response_type=code&redirect_uri=${process.env.PINTEREST_REDIRECT_URI}&client_id=${process.env.PINTEREST_CLIENT_ID}&scope=${scopes.join(',')}`;
-
 const OAUTH_URL = 'https://api.pinterest.com/v5/oauth';
 
 
+//get access token from pinterest and store it
 async function getPinterestAccessToken(req, res) {
   const auth = `${process.env.PINTEREST_APP_ID}:${process.env.PINTEREST_APP_SECRET}`;
   const b64auth = Buffer.from(auth).toString('base64');
@@ -43,23 +40,34 @@ async function getPinterestAccessToken(req, res) {
   }
 }
 
-// async function fetchBoardList(req, res) {
-async function fetchBoardList() {
-  let accessToken;
-  let expireTime;
-
+//fetch access token from local file
+async function fetchAccessToken() {
+  let accessToken = "";
   if (process.env.PINTEREST_SANDBOX_API) {
-    accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
-  } else {
-    if (!fs.existsSync("access_token.txt")) {
-      console.log("no token file, start generating........")
-      await getPinterestAccessToken();
-    }
-    let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
-    let tokenObject = JSON.parse(tokenData);
-    expireTime = new Date(tokenObject.expireTime);
-    accessToken = tokenObject.accessToken;
+    return process.env.PINTEREST_SANDBOX_API_TOKEN;
   }
+
+  if (!fs.existsSync("access_token.txt")) {
+    console.log("no token file, start generating........")
+    await getPinterestAccessToken();
+  }
+  let tokenData = fs.readFileSync('access_token.txt', 'utf8');
+  let tokenObject = JSON.parse(tokenData);
+  const expireTime = new Date(tokenObject.expireTime);
+  accessToken = tokenObject.accessToken;
+  // get new token if current token expired
+  if (new Date() > expireTime) {
+    await getPinterestAccessToken();
+  }
+  tokenData = fs.readFileSync('access_token.txt', 'utf8');
+  tokenObject = JSON.parse(tokenData);
+  accessToken = tokenObject.accessToken;
+  return accessToken;
+}
+
+
+async function fetchBoardList() {
+  const accessToken = await fetchAccessToken();
   const requestHeader = { Authorization: `Bearer ${accessToken}` }
 
   try {
@@ -90,30 +98,7 @@ async function fetchBoardList() {
 }
 
 async function createBoard(title, details) {
-  // async function createBoard(req, res){
-  let accessToken = "";
-
-  if (process.env.PINTEREST_SANDBOX_API) {
-    accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
-  } else {
-    if (!fs.existsSync("access_token.txt")) {
-      console.log("no token file, start generating........")
-      await getPinterestAccessToken();
-    }
-    let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
-    let tokenObject = JSON.parse(tokenData);
-    const expireTime = new Date(tokenObject.expireTime);
-    accessToken = tokenObject.accessToken;
-    // get new token if current token expired
-    if (new Date() > expireTime) {
-      await getPinterestAccessToken();
-    }
-    tokenData = await fs.readFileSync('access_token.txt', 'utf8');
-    tokenObject = JSON.parse(tokenData);
-    accessToken = tokenObject.accessToken;
-  }
-
-
+  const accessToken = await fetchAccessToken();
   try {
     let requestUrl = ""
     if (process.env.PINTEREST_SANDBOX_API) {
@@ -146,7 +131,6 @@ async function createBoard(title, details) {
 
 
 async function getPostData(requestBody) {
-  //get board list
   const boardList = await fetchBoardList();
 
   //If One Community board not exist, create one
@@ -158,21 +142,16 @@ async function getPostData(requestBody) {
   }
 
   const board_id = OneCommBoard.id;
-  console.log(OneCommBoard);
-  console.log(board_id);
-
-
-  //process content
+  
+  //Process content
   let source_type;
   const imgType = requestBody.imgType;
   let media_source_items;
-  // const media_source_items=req.body.mediaItems
   const mediaItems = requestBody.mediaItems;
   let media_source;
 
   if (imgType === 'FILE') {
-    //process upload image file
-    //Pinterest restriction: there must be two images to use multiple_xxx source type
+    //Process upload image file
     const content_type = mediaItems.split(';')[0].split(':')[1].trim();
     const data = mediaItems.split(',')[1].trim();
 
@@ -180,8 +159,7 @@ async function getPostData(requestBody) {
     source_type = 'image_base64';
     media_source = { source_type, ...media_source_items };
   } else {
-    //process url image source
-    //Pinterest restriction: there must be two images to use multiple_xxx source type
+    //Process url image source
     media_source_items = mediaItems;
     source_type = 'image_url';
     media_source = { source_type, ...media_source_items };
@@ -195,31 +173,9 @@ async function getPostData(requestBody) {
 
 }
 
-async function createPin(req, res) {
-  let accessToken = "";
-
-  if (process.env.PINTEREST_SANDBOX_API) {
-    accessToken = process.env.PINTEREST_SANDBOX_API_TOKEN
-  } else {
-    if (!fs.existsSync("access_token.txt")) {
-      console.log("no token file, start generating........")
-      await getPinterestAccessToken();
-    }
-    let tokenData = await fs.readFileSync('access_token.txt', 'utf8');
-    let tokenObject = JSON.parse(tokenData);
-    const expireTime = new Date(tokenObject.expireTime);
-    accessToken = tokenObject.accessToken;
-    // get new token if current token expired
-    if (new Date() > expireTime) {
-      await getPinterestAccessToken();
-    }
-    tokenData = await fs.readFileSync('access_token.txt', 'utf8');
-    tokenObject = JSON.parse(tokenData);
-    accessToken = tokenObject.accessToken;
-  }
-
-  const postData = await getPostData(req.body);
-
+//Send post pin request to Pinterest API
+async function postPinImmediately(postData) {
+  const accessToken = await fetchAccessToken();
   const createPinHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
   try {
@@ -233,6 +189,18 @@ async function createPin(req, res) {
       headers: createPinHeaders,
       responseType: 'json'
     });
+    return response;
+  } catch (error) {
+    console.error('Error creating Pinterest pin:', error.response.data);
+  }
+
+
+}
+
+async function createPin(req, res) {
+  try {
+    const postData = await getPostData(req.body);
+    const response = await postPinImmediately(postData);
     res.status(200).json(response.data);
   } catch (error) {
     console.error('Error creating Pinterest pin:', error.response.data);
@@ -246,30 +214,30 @@ async function createPin(req, res) {
 }
 
 async function schedulePin(req, res) {
-
   try {
-
     const postDataObj = await getPostData(req.body);
     const postData = JSON.stringify(postDataObj);
     const scheduledTime = req.body.scheduledTime;
 
     const scheduledPin = new pinterestSchedule({ postData, scheduledTime })
     await scheduledPin.save();
-
     res.status(200).send();
   } catch (err) {
     res.status(500).send();
   }
-
 }
 
 async function fetchScheduledPin(req, res) {
-  const scheduledPinList = await pinterestSchedule.find();
-  res.status(200).json(scheduledPinList);
+  try {
+    const scheduledPinList = await pinterestSchedule.find();
+    res.status(200).json(scheduledPinList);
+  } catch (err) {
+    res.status(500).send("Failed to fetch scheduled pins")
+  }
 }
 
 
-async function deletedScheduledPin(req,res) {
+async function deletedScheduledPin(req, res) {
   try {
     await pinterestSchedule.deleteOne({ _id: req.params.id })
     res.status(200).send("Scheduled pin post deleted successfully!")
@@ -287,4 +255,5 @@ module.exports = {
   schedulePin,
   fetchScheduledPin,
   deletedScheduledPin,
+  postPinImmediately,
 };
