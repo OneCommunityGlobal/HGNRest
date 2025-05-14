@@ -12,6 +12,7 @@ const routes = () => {
     // Instagram Authentication
     instagramRouter.route('/instagram/auth-callback').get(instagramController.handleInstagramAuthCallback);
     instagramRouter.route('/instagram/auth-status').get(instagramController.getInstagramAuthStatus);
+    instagramRouter.route('/instagram/disconnect').delete(instagramController.disconnectInstagram);
 
     // Instagram Posting
     instagramRouter.route('/instagram/get-user-id').get(instagramController.getInstagramUserId);

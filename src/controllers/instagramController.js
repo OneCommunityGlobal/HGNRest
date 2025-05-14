@@ -25,7 +25,7 @@ const instagramAuthStore = {
       accessToken: null,
       expiresAt: null
     }
-  };
+};
   
 // Helper to update the auth status
 const updateAuthStatus = (status, message, tokenData = null) => {
@@ -41,6 +41,31 @@ const updateAuthStatus = (status, message, tokenData = null) => {
       };
     }
 };
+
+const disconnectInstagram = async (req, res) => {
+    console.log('Disconnecting Instagram...');
+    try {
+        instagramAuthStore.tokens = {
+            userId: null,
+            accessToken: null,
+            expiresAt: null
+        };
+
+        updateAuthStatus('disconnected', 'Instagram disconnected successfully');
+        return res.json({
+            success: true,
+            message: 'Instagram disconnected successfully'
+        });
+    } catch (error) {
+        console.error('Error disconnecting Instagram:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error disconnecting Instagram',
+            error: error.message
+        });
+    }
+};
+
 
 
 const getInstagramShortLivedTokenHelper = async (code) => {
@@ -535,7 +560,7 @@ const publishInstagramContainerHelper = async (containerId) => {
     }
 }
 
-const publishScheduledPost = async (jobId) => { // NEED MORE TESTING
+const publishScheduledPost = async (jobId) => {
 
     try {
         const post = await InstagramScheduledPost.findOne({ jobId });
@@ -713,6 +738,7 @@ const getAllInstagramPosts = async (req, res) => {
 
 module.exports = {
     handleInstagramAuthCallback,
+    disconnectInstagram,
     getInstagramAuthStatus,
     getInstagramUserId,
     getImgurAccessTokenHelper,
