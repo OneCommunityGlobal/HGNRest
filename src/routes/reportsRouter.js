@@ -37,7 +37,7 @@ const route = function () {
 
   reportsRouter.route('/reports/volunteertrends').get(controller.getVolunteerTrends);
 
-  reportsRouter.route('/reports/teams').get(controller.getTeamsWithActiveMembers)
+  reportsRouter.route('/reports/teams').get(controller.getTeamsWithActiveMembers);
 
   return reportsRouter;
 };

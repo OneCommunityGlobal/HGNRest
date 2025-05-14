@@ -29,4 +29,3 @@ async function inviteUser(req, res) {
 module.exports = {
   inviteUser,
 };
-

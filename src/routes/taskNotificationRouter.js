@@ -1,9 +1,7 @@
 const express = require('express');
 
 const routes = function (TaskNotification) {
-  const controller = require('../controllers/taskNotificationController')(
-    TaskNotification,
-  );
+  const controller = require('../controllers/taskNotificationController')(TaskNotification);
   const TaskNotificationRouter = express.Router();
 
   TaskNotificationRouter.route('/task/:taskId/tasknotification').post(
@@ -24,9 +22,9 @@ const routes = function (TaskNotification) {
 
   // newly created endpoint
 
-  TaskNotificationRouter.route(
-    '/tasknotification/:userId/:taskId',
-  ).delete(controller.deleteTaskNotificationByUserId);
+  TaskNotificationRouter.route('/tasknotification/:userId/:taskId').delete(
+    controller.deleteTaskNotificationByUserId,
+  );
 
   return TaskNotificationRouter;
 };

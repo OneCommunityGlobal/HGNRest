@@ -4,8 +4,7 @@ const routes = function () {
   const loginrouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmLoginController')();
 
-  loginrouter.route('/login')
-    .post(controller.bmLogin);
+  loginrouter.route('/login').post(controller.bmLogin);
 
   return loginrouter;
 };

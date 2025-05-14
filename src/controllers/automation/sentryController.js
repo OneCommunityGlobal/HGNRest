@@ -14,7 +14,7 @@ async function inviteUser(req, res) {
   //   return;
   // }
   try {
-    const invitation = await sentryService.inviteUser(email, role);  // Call the service to invite the user
+    const invitation = await sentryService.inviteUser(email, role); // Call the service to invite the user
     res.status(201).json({ message: 'Invitation sent', data: invitation });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -37,13 +37,13 @@ async function removeUser(req, res) {
 
   try {
     const members = await sentryService.getMembers();
-    console.log('Members:', members);  // Debugging log
+    console.log('Members:', members); // Debugging log
 
-    const userToRemove = members.find(member => member.email === email);
-    console.log('User to remove:', userToRemove);  // Debugging log
+    const userToRemove = members.find((member) => member.email === email);
+    console.log('User to remove:', userToRemove); // Debugging log
 
     if (userToRemove) {
-      const message = await sentryService.removeUser(userToRemove.id);  // Call the service to remove the user
+      const message = await sentryService.removeUser(userToRemove.id); // Call the service to remove the user
       res.status(200).json({ message });
     } else {
       res.status(404).json({ error: `User with email ${email} not found.` });
@@ -52,7 +52,6 @@ async function removeUser(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
-
 
 module.exports = {
   inviteUser,

@@ -1,7 +1,7 @@
 // TODO: Fix this
 
 describe('wbsController tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 
 // const mongoose = require('mongoose');
@@ -327,3 +327,32 @@ describe('wbsController tests', () => {
 //     });
 //   });
 // });
+
+jest.mock('../services/automation/dropboxService', () => ({
+  createFolderWithSubfolder: jest.fn().mockResolvedValue({
+    parentFolderResponse: { result: { id: 'test-folder-id', path_display: '/test-folder' } },
+    subfolderResponse: { result: { id: 'test-subfolder-id', path_display: '/test-folder/Week 1' } },
+  }),
+  inviteUserToFolder: jest.fn().mockResolvedValue({ success: true }),
+  deleteFolder: jest.fn().mockResolvedValue({ success: true }),
+}));
+jest.mock('../services/automation/sentryService', () => ({
+  inviteUser: jest.fn().mockResolvedValue({ success: true }),
+  getMembers: jest.fn().mockResolvedValue([{ id: 'test-member-id', email: 'test@gmail.com' }]),
+  removeUser: jest.fn().mockResolvedValue({ success: true }),
+}));
+jest.mock('../services/automation/githubService', () => ({
+  sendInvitation: jest.fn().mockResolvedValue({ success: true }),
+  removeUser: jest.fn().mockResolvedValue({ success: true }),
+}));
+jest.mock('../services/automation/slackService', () => ({
+  sendSlackInvite: jest.fn().mockResolvedValue({ success: true }),
+}));
+jest.mock('../services/automation/googleSheetService', () => ({
+  addNewMember: jest.fn().mockResolvedValue({ success: true }),
+  updateMemberStatus: jest.fn().mockResolvedValue({ success: true }),
+}));
+
+jest.resetModules();
+
+console.log('dropboxService mock:', require('../services/automation/dropboxService'));

@@ -13,7 +13,7 @@ const agent = request.agent(app);
 
 // TODO: Fix
 describe('PopupEditorBackups tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 
 // describe('PopupEditorBackups routes', () => {

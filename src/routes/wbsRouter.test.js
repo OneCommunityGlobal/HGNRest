@@ -15,7 +15,7 @@ const agent = request.agent(app);
 
 // TODO: Fix
 describe('wbsRouter tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 
 // describe('actionItem routes', () => {

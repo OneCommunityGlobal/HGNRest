@@ -4,10 +4,12 @@ const routes = function (information) {
   const controller = require('../controllers/informationController')(information);
   const informationRouter = express.Router();
 
-  informationRouter.route('/informations')
+  informationRouter
+    .route('/informations')
     .get(controller.getInformations)
     .post(controller.addInformation);
-  informationRouter.route('/informations/:id')
+  informationRouter
+    .route('/informations/:id')
     .put(controller.updateInformation)
     .delete(controller.deleteInformation);
 

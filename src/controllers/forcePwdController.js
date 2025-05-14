@@ -9,10 +9,12 @@ const forcePwdcontroller = function (userProfile) {
       return;
     }
 
-    userProfile.findById(userId, 'password')
+    userProfile
+      .findById(userId, 'password')
       .then((user) => {
         user.set({ password: req.body.newpassword });
-        user.save()
+        user
+          .save()
           .then(() => {
             res.status(200).send({ message: ' password Reset' });
           })

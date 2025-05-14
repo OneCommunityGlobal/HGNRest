@@ -5,8 +5,7 @@ const routes = function () {
 
   const isEmailExistsRouter = express.Router();
 
-  isEmailExistsRouter.route('/is-email-exists/:email')
-    .get(controller.isEmailExists);
+  isEmailExistsRouter.route('/is-email-exists/:email').get(controller.isEmailExists);
 
   return isEmailExistsRouter;
 };

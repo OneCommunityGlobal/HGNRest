@@ -12,8 +12,9 @@ const routes = function (BuildingConsumable) {
     controller.bmPurchaseConsumables,
   );
 
-  BuildingConsumableController.route('/updateConsumablesRecord')
-    .post(controller.bmPostConsumableUpdateRecord);
+  BuildingConsumableController.route('/updateConsumablesRecord').post(
+    controller.bmPostConsumableUpdateRecord,
+  );
 
   return BuildingConsumableController;
 };

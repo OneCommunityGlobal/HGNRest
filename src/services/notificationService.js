@@ -24,13 +24,17 @@ async function createNotification(
   isSystemGenerated = false,
   isRead = false,
 ) {
-  const isValidRecipientId = recipientIds ? (Array.isArray(recipientIds) && recipientIds.length > 0 && recipientIds.every((id) => isValidObjectId(id))) : false;
+  const isValidRecipientId = recipientIds
+    ? Array.isArray(recipientIds) &&
+      recipientIds.length > 0 &&
+      recipientIds.every((id) => isValidObjectId(id))
+    : false;
 
   if (!isValidObjectId(senderId)) {
-    throw new Error(`Invalid sender ID ${ senderId }`);
+    throw new Error(`Invalid sender ID ${senderId}`);
   }
   if (!isValidRecipientId) {
-    throw new Error(`Invalid recipient ID ${ recipientIds.toString() }`);
+    throw new Error(`Invalid recipient ID ${recipientIds.toString()}`);
   }
 
   const session = await startSession();
@@ -39,13 +43,13 @@ async function createNotification(
     session.startTransaction();
     const sanitizedMessage = cleanHtml(message.trim());
     const models = recipientIds.map((recipientId) => ({
-        message: sanitizedMessage,
-        sender: senderId,
-        recipient: recipientId,
-        isSystemGenerated,
-        isRead,
-        createdTimeStamps: new Date(),
-      }));
+      message: sanitizedMessage,
+      sender: senderId,
+      recipient: recipientId,
+      isSystemGenerated,
+      isRead,
+      createdTimeStamps: new Date(),
+    }));
 
     const result = await NotificationModel.insertMany(models, { session });
     await session.commitTransaction();
@@ -57,7 +61,7 @@ async function createNotification(
     await session.abortTransaction();
     session.endSession();
 
-    throw new Error(`Could not create notification: ${ error.message}`);
+    throw new Error(`Could not create notification: ${error.message}`);
   }
 }
 
@@ -68,14 +72,14 @@ async function createNotification(
  */
 async function getNotifications(userId) {
   if (!isValidObjectId(userId)) {
-    throw new Error(`Invalid user ID ${ userId }`);
+    throw new Error(`Invalid user ID ${userId}`);
   }
   try {
     return await NotificationModel.find({ recipient: userId })
       .populate('userInfo', 'recipientInfo')
       .sort({ createdTimeStamps: -1 });
   } catch (error) {
-    throw new Error(`Could not fetch notifications: ${ error.message}`);
+    throw new Error(`Could not fetch notifications: ${error.message}`);
   }
 }
 
@@ -86,14 +90,14 @@ async function getNotifications(userId) {
  */
 async function getUnreadUserNotifications(userId) {
   if (!isValidObjectId(userId)) {
-    throw new Error(`Invalid user ID ${ userId }`);
+    throw new Error(`Invalid user ID ${userId}`);
   }
   try {
     return await NotificationModel.find({ recipient: userId, isRead: false })
       .populate('userInfo', 'recipientInfo')
       .sort({ createdTimeStamps: -1 });
   } catch (error) {
-    throw new Error(`Could not fetch notifications user ${ userId }: ${ error.message}`);
+    throw new Error(`Could not fetch notifications user ${userId}: ${error.message}`);
   }
 }
 
@@ -104,14 +108,14 @@ async function getUnreadUserNotifications(userId) {
  */
 async function getSentNotifications(senderId) {
   if (!isValidObjectId(senderId)) {
-    throw new Error(`Invalid sender ID ${ senderId }`);
+    throw new Error(`Invalid sender ID ${senderId}`);
   }
   try {
     return await NotificationModel.find({ sender: senderId })
       .populate('userInfo', 'senderInfo')
       .sort({ createdTimeStamps: -1 });
   } catch (error) {
-    throw new Error(`Could not fetch notifications for user ${ senderId }: ${ error.message}`);
+    throw new Error(`Could not fetch notifications for user ${senderId}: ${error.message}`);
   }
 }
 
@@ -122,12 +126,16 @@ async function getSentNotifications(senderId) {
  */
 async function markNotificationAsRead(notificationId, recipientId) {
   if (!isValidObjectId(notificationId)) {
-    throw new Error(`Invalid notification ID: ${ notificationId }`);
+    throw new Error(`Invalid notification ID: ${notificationId}`);
   }
   try {
-    return await NotificationModel.findOneAndUpdate({ _id: notificationId, recipient: recipientId }, { isRead: true }, { new: true });
+    return await NotificationModel.findOneAndUpdate(
+      { _id: notificationId, recipient: recipientId },
+      { isRead: true },
+      { new: true },
+    );
   } catch (error) {
-    throw new Error(`Could not mark notification as read: ${ error.message}`);
+    throw new Error(`Could not mark notification as read: ${error.message}`);
   }
 }
 
@@ -138,12 +146,12 @@ async function markNotificationAsRead(notificationId, recipientId) {
  */
 async function deleteNotification(notificationId) {
   if (!isValidObjectId(notificationId)) {
-    throw new Error(`Invalid notification ID: ${ notificationId }`);
+    throw new Error(`Invalid notification ID: ${notificationId}`);
   }
   try {
     return await NotificationModel.findByIdAndDelete(notificationId);
   } catch (error) {
-    throw new Error(`Could not delete notification ${ notificationId }: ${ error.message} `);
+    throw new Error(`Could not delete notification ${notificationId}: ${error.message} `);
   }
 }
 

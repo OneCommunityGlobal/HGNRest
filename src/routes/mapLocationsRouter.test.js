@@ -12,9 +12,8 @@ const agent = request.agent(app);
 
 // TODO: Fix
 describe('mapLocations tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
-
 
 // describe('mapLocations routes', () => {
 //   let ownerUser;

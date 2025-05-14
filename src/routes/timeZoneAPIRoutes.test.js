@@ -1,4 +1,4 @@
-test.todo("Fix time zone API routes tests");
+test.todo('Fix time zone API routes tests');
 // const request = require('supertest');
 // const { jwtPayload } = require('../test');
 //

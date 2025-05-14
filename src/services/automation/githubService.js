@@ -1,26 +1,17 @@
-const { gaxios } = require('gaxios');
+const { Octokit } = require('@octokit/rest');
 require('dotenv').config();
 
-const token = process.env.GITHUB_TOKEN;
+const octokit = new Octokit({
+  auth: process.env.GITHUB_TOKEN,
+});
+
 const orgName = process.env.ORG_NAME;
-
-const headers = {
-  'Authorization': `token ${token}`,
-  'Accept': 'application/vnd.github.v3+json',
-};
-
-const getUserIdUrl = (username) => `https://api.github.com/users/${username}`;
-const sendInvitationUrl = (orgName) => `https://api.github.com/orgs/${orgName}/invitations`;
-const removeUserUrl = (orgName, username) => `https://api.github.com/orgs/${orgName}/memberships/${username}`;
 
 // Service to fetch GitHub user ID by username
 async function getUserId(username) {
   try {
-    const response = await gaxios.request({
-      url: getUserIdUrl(username),
-      headers,
-    });
-    return response.data.id; // Return the GitHub ID of the user
+    const { data } = await octokit.users.getByUsername({ username });
+    return data.id;
   } catch (error) {
     throw new Error('Error fetching user ID: ' + error.message);
   }
@@ -30,20 +21,11 @@ async function getUserId(username) {
 async function sendInvitation(username) {
   try {
     const userId = await getUserId(username);
-    const payload = { invitee_id: userId };
-
-    const response = await gaxios.request({
-      method: 'POST',
-      url: sendInvitationUrl(orgName),
-      headers,
-      data: payload,
+    const { data } = await octokit.orgs.createInvitation({
+      org: orgName,
+      invitee_id: userId,
     });
-
-    if (response.status === 201) {
-      return `Invitation sent to ${username} with ID: ${userId}`;
-    } else {
-      throw new Error(`Unexpected response: ${response.status}`);
-    }
+    return `Invitation sent to ${username} with ID: ${userId}`;
   } catch (error) {
     throw new Error('Error sending invitation: ' + error.message);
   }
@@ -52,23 +34,46 @@ async function sendInvitation(username) {
 // Service to remove a user from the GitHub organization
 async function removeUser(username) {
   try {
-    const response = await gaxios.request({
-      method: 'DELETE',
-      url: removeUserUrl(orgName, username),
-      headers,
+    await octokit.orgs.removeMembershipForUser({
+      org: orgName,
+      username,
     });
-
-    if (response.status === 204) {
-      return `${username} has been successfully removed from the organization.`;
-    } else {
-      throw new Error(`Unexpected response: ${response.status}`);
-    }
+    return `${username} has been successfully removed from the organization.`;
   } catch (error) {
     throw new Error('Error removing user: ' + error.message);
   }
 }
 
+// Batch operations
+async function batchInviteUsers(usernames) {
+  const results = [];
+  for (const username of usernames) {
+    try {
+      const result = await sendInvitation(username);
+      results.push({ username, success: true, message: result });
+    } catch (error) {
+      results.push({ username, success: false, error: error.message });
+    }
+  }
+  return results;
+}
+
+async function batchRemoveUsers(usernames) {
+  const results = [];
+  for (const username of usernames) {
+    try {
+      const result = await removeUser(username);
+      results.push({ username, success: true, message: result });
+    } catch (error) {
+      results.push({ username, success: false, error: error.message });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   sendInvitation,
   removeUser,
+  batchInviteUsers,
+  batchRemoveUsers,
 };

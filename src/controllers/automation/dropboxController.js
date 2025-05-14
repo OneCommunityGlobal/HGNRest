@@ -4,15 +4,16 @@ const dropboxService = require('../../services/automation/dropboxService');
 async function createFolder(req, res) {
   try {
     const { folderName } = req.body;
-    const { parentFolderResponse, subfolderResponse } = await dropboxService.createFolderWithSubfolder(folderName);
+    const { parentFolderResponse, subfolderResponse } =
+      await dropboxService.createFolderWithSubfolder(folderName);
     const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
-    res.status(403).send({ error: 'Unauthorized request' });
-    return;
-  }
+    if (
+      requestor.requestorId !== userId &&
+      (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+    ) {
+      res.status(403).send({ error: 'Unauthorized request' });
+      return;
+    }
 
     res.status(201).json({
       message: 'Folder and subfolder created successfully!',
@@ -30,13 +31,13 @@ async function inviteUserToFolder(req, res) {
     const { folderPath, email } = req.body;
     const response = await dropboxService.inviteUserToFolder(folderPath, email);
     const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
-    res.status(403).send({ error: 'Unauthorized request' });
-    return;
-  }
+    if (
+      requestor.requestorId !== userId &&
+      (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+    ) {
+      res.status(403).send({ error: 'Unauthorized request' });
+      return;
+    }
     res.status(200).json({ message: 'User invited successfully', data: response });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -49,13 +50,13 @@ async function deleteFolder(req, res) {
     const { folderPath } = req.body;
     const response = await dropboxService.deleteFolder(folderPath);
     const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
-    res.status(403).send({ error: 'Unauthorized request' });
-    return;
-  }
+    if (
+      requestor.requestorId !== userId &&
+      (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+    ) {
+      res.status(403).send({ error: 'Unauthorized request' });
+      return;
+    }
     res.status(200).json({ message: 'Folder deleted successfully', data: response });
   } catch (error) {
     res.status(500).json({ message: error.message });
