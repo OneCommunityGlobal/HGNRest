@@ -7,6 +7,7 @@ const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * 0', // Every Sunday, 1 minute past midnight.
+    // '*/2 * * * *', // Every 5 minutes for testing
 
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
@@ -19,6 +20,7 @@ const userProfileJobs = () => {
         await userhelper.deleteExpiredTokens();
       }
       await userhelper.awardNewBadges();
+      await userhelper.weeklyCompanySummaryEmail();
     },
     null,
     false,
