@@ -37,34 +37,66 @@ let mongoServer;
 const connectDB = async () => {
   try {
     if (!mongoServer) {
-      mongoServer = await MongoMemoryServer.create();
+      mongoServer = await MongoMemoryServer.create({
+        instance: {
+          dbName: 'jest',
+          port: 27017,
+        },
+        binary: {
+          version: '4.4.18',
+          downloadDir: './node_modules/.cache/mongodb-memory-server',
+        },
+      });
     }
     const mongoUri = await mongoServer.getUri();
     
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000, // 30 seconds
+      serverSelectionTimeoutMS: 30000,
       connectTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
     };
+
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+    }
 
     await mongoose.connect(mongoUri.toString(), options);
     console.log('MongoDB connected successfully');
   } catch (error) {
     console.error('MongoDB connection error:', error);
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
     throw error;
   }
 };
 
 beforeAll(async () => {
   console.log('Setting up MongoDB...');
-  await connectDB();
-  console.log('MongoDB setup complete');
+  try {
+    await connectDB();
+    console.log('MongoDB setup complete');
+  } catch (error) {
+    console.error('Failed to setup MongoDB:', error);
+    throw error;
+  }
 });
 
 beforeEach(async () => {
-  if (mongoose.connection.readyState !== 1) {
-    await connectDB();
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
+    
+    const collections = mongoose.connection.collections;
+    for (const key in collections) {
+      await collections[key].deleteMany();
+    }
+  } catch (error) {
+    console.error('Error in beforeEach:', error);
+    throw error;
   }
   
   jest.clearAllMocks();
@@ -109,7 +141,9 @@ beforeEach(async () => {
 afterAll(async () => {
   console.log('Cleaning up MongoDB...');
   try {
-    await mongoose.disconnect();
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+    }
     if (mongoServer) {
       await mongoServer.stop();
     }
