@@ -17,6 +17,9 @@ const routes = function (project) {
   projectRouter.route('/projects/user/:userId')
     .get(controller.getUserProjects);
 
+  projectRouter.route('/projects/with-active-users')
+    .get(controller.getProjectsWithActiveUserCounts);
+
   projectRouter.route('/project/:projectId/users/')
     .post(controller.assignProjectToUsers)
     .get(controller.getprojectMembership);
