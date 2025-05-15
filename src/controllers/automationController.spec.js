@@ -38,7 +38,7 @@ const connectDB = async () => {
           storageEngine: 'wiredTiger'
         },
         binary: {
-          version: '5.0.19'
+          version: '6.0.20'
         }
       });
     }
