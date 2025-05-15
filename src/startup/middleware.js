@@ -47,7 +47,8 @@ module.exports = function (app) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
     }
-    const authToken = req.header(config.REQUEST_AUTHKEY);
+    const authHeader = req.header('Authorization');
+    const authToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
 
     let payload = '';
 

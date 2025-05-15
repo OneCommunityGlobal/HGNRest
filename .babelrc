@@ -1,5 +1,12 @@
 {
-  "presets": ["@babel/preset-env"],
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "current"
+      },
+      "modules": "commonjs"
+    }]
+  ],
   "plugins": [
     "@babel/plugin-transform-async-to-generator",
     [
@@ -18,5 +25,16 @@
       }
     ]
   ],
-  "ignore": ["**/*.test.js", "**/*.spec.js", "src/test/**"]
+  "env": {
+    "test": {
+      "presets": [
+        ["@babel/preset-env", {
+          "targets": {
+            "node": "current"
+          },
+          "modules": "commonjs"
+        }]
+      ]
+    }
+  }
 }
