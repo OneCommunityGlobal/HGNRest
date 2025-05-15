@@ -252,6 +252,27 @@ const userProfileController = function (UserProfile, Project) {
     );
   };
 
+  const searchUsersByName = async function (req, res) {
+    // if (!(await checkPermission(req, 'searchUserProfile'))) {
+    //   forbidden(res, 'You are not authorized to search for users');
+    //   return;
+    // }
+    const { name } = req.query;
+
+    const result = await UserProfile.find({
+      "$expr": {
+        "$regexMatch": {
+          "input": { "$concat": ["$firstName", " ", "$lastName"] },
+          "regex": name,  
+          "options": "i"
+        }
+      }
+    }).limit(10)
+      .select({ "firstName": 1, "lastName": 1, "_id": 1 })
+      .sort({'firstName': 1, 'lastName': 1});
+    res.json(result);
+  }
+
   const postUserProfile = async function (req, res) {
     if (!(await checkPermission(req, 'postUserProfile'))) {
       forbidden(res, 'You are not authorized to create new users');
@@ -1992,6 +2013,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   return {
+    searchUsersByName,
     postUserProfile,
     getUserProfiles,
     putUserProfile,
