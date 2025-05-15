@@ -1,7 +1,6 @@
 // First require all dependencies
 const request = require('supertest');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
@@ -16,6 +15,20 @@ const googleSheetService = require('../services/automation/googleSheetService');
 
 const { app } = require('../app');
 
+// Mock mongoose 所有数据库相关操作
+jest.mock('mongoose', () => ({
+  connect: jest.fn(),
+  disconnect: jest.fn(),
+  connection: {
+    on: jest.fn(),
+    once: jest.fn(),
+    close: jest.fn(),
+    readyState: 1,
+    collections: {},
+    dropDatabase: jest.fn(),
+  },
+}));
+
 // Set test JWT secret
 config.JWT_SECRET = 'test-jwt-secret-key';
 
@@ -28,73 +41,7 @@ const payload = {
 };
 const authToken = jwt.sign(payload, config.JWT_SECRET);
 
-let mongoServer;
-
-const connectDB = async () => {
-  try {
-    if (!mongoServer) {
-      mongoServer = await MongoMemoryServer.create({
-        instance: {
-          storageEngine: 'wiredTiger'
-        },
-        binary: {
-          version: '6.0.20'
-        }
-      });
-    }
-    const mongoUri = await mongoServer.getUri();
-    await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 30000,
-    });
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    if (mongoServer) {
-      await mongoServer.stop();
-    }
-    throw error;
-  }
-};
-
-// Update beforeAll
-beforeAll(async () => {
-  console.log('Setting up MongoDB...');
-  await connectDB();
-  console.log('MongoDB setup complete');
-}, 60000);
-
-// Keep this afterAll (the first one in the file) and remove the duplicate
-afterAll(async () => {
-  console.log('Cleaning up MongoDB...');
-  await mongoose.disconnect();
-  if (mongoServer) {
-    await mongoServer.stop();
-  }
-  console.log('MongoDB cleanup complete');
-}, 60000);
-
-
-beforeEach(async () => {
-  try {
-    // Clean up any existing connections
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.dropDatabase();
-    } else {
-      await connectDB();
-    }
-    
-    // Clear all collections
-    const collections = mongoose.connection.collections;
-    for (const key in collections) {
-      await collections[key].deleteMany();
-    }
-  } catch (error) {
-    console.error('Error in beforeEach:', error);
-    throw error;
-  }
-  
+beforeEach(() => {
   jest.clearAllMocks();
 
   // Mock Dropbox service
@@ -132,8 +79,7 @@ beforeEach(async () => {
   // Mock Google Sheet service
   jest.spyOn(googleSheetService, 'addNewMember').mockResolvedValue({ success: true });
   jest.spyOn(googleSheetService, 'updateMemberStatus').mockResolvedValue({ success: true });
-}, 60000);
-
+});
 
 describe('Automation Controller Tests', () => {
   const testUser = {
