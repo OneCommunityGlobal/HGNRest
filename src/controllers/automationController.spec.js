@@ -15,7 +15,7 @@ const googleSheetService = require('../services/automation/googleSheetService');
 
 const { app } = require('../app');
 
-// Mock mongoose 所有数据库相关操作
+// Mock mongoose database operations
 jest.mock('mongoose', () => ({
   connect: jest.fn(),
   disconnect: jest.fn(),
