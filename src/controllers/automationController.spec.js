@@ -42,12 +42,14 @@ const connectDB = async () => {
           dbName: 'jest',
           port: 27017,
           storageEngine: 'wiredTiger',
+          args: ['--quiet'],
         },
         binary: {
-          version: '4.4.18',
+          version: '4.2.17',
           downloadDir: './node_modules/.cache/mongodb-memory-server',
           checkMD5: false,
         },
+        autoStart: true,
       });
     }
     const mongoUri = await mongoServer.getUri();
@@ -58,6 +60,7 @@ const connectDB = async () => {
       serverSelectionTimeoutMS: 60000,
       connectTimeoutMS: 60000,
       socketTimeoutMS: 60000,
+      family: 4,
     };
 
     if (mongoose.connection.readyState === 1) {
