@@ -16,3 +16,4 @@ module.exports = {
     '^.+\\.js$': 'babel-jest',
   },
 };
+MONGOMS_SKIP_DOWNLOAD=true

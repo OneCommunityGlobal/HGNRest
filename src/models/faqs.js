@@ -46,7 +46,19 @@ const defaultFAQs = [
 ];
 
 const insertDefaultFAQs = async () => {
+    // 在测试环境中跳过默认 FAQ 的插入
+    if (process.env.NODE_ENV === 'test') {
+        return;
+    }
+
     try {
+        // 等待 MongoDB 连接就绪
+        if (mongoose.connection.readyState !== 1) {
+            await new Promise((resolve) => {
+                mongoose.connection.once('connected', resolve);
+            });
+        }
+
         for (const faq of defaultFAQs) {
             const existingFAQ = await FAQ.findOne({ question: faq.question });
             if (!existingFAQ) {
@@ -59,9 +71,10 @@ const insertDefaultFAQs = async () => {
     }
 };
 
-// Ensure the FAQs are inserted into the database when the model is first loaded
-insertDefaultFAQs();
-
-module.exports = FAQ;
+// 导出模型和初始化函数
+module.exports = {
+    FAQ,
+    initializeFAQs: insertDefaultFAQs
+};
 
 

@@ -150,6 +150,15 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+
+// Automations
+
+const dropboxRouter = require('../routes/automation/dropboxRouter');
+const githubRouter = require('../routes/automation/githubRouter');
+const sentryRouter = require('../routes/automation/sentryRouter');
+const slackRouter = require('../routes/automation/slackRouter');
+const automationRouter = require('../routes/automationRoutes');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -210,4 +219,9 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
+  app.use('/api/automation', automationRouter);
 };
