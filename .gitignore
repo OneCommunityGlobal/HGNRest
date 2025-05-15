@@ -24,4 +24,4 @@ testem.log
 /.vscode
 
 # OS specific
-.DS_Store
+.DS_Storeaccess_token.txt

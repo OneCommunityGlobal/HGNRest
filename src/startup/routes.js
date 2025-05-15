@@ -146,6 +146,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+const socialMediaRouter = require('../routes/socialMediaRouter');
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const collaborationRouter = require('../routes/collaborationRouter');
@@ -207,6 +209,9 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
+  //social media routes
+  app.use('/api/social', socialMediaRouter);
+  app.use('api', bmIssueRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
