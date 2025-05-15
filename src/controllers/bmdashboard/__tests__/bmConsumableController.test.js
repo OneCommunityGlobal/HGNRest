@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bmConsumableController = require('../bmConsumableController');
 
-mongoose.Types.ObjectId = jest.fn(id => id);
+mongoose.Types.ObjectId = jest.fn((id) => id);
 
 const mockBuildingConsumable = {
   find: jest.fn(),
@@ -38,7 +38,7 @@ describe('Building Consumable Controller', () => {
 
       mockBuildingConsumable.find.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockReturnValue(Promise.resolve(mockResult))
+        exec: jest.fn().mockReturnValue(Promise.resolve(mockResult)),
       });
 
       await controller.fetchBMConsumables({}, mockResponse);
@@ -72,12 +72,14 @@ describe('Building Consumable Controller', () => {
       expect(mockBuildingConsumable.create).toHaveBeenCalledWith({
         itemType: '456',
         project: '123',
-        purchaseRecord: [{
-          quantity: 10,
-          priority: 'high',
-          brandPref: 'TestBrand',
-          requestedBy: '789',
-        }],
+        purchaseRecord: [
+          {
+            quantity: 10,
+            priority: 'high',
+            brandPref: 'TestBrand',
+            requestedBy: '789',
+          },
+        ],
       });
       expect(mockResponse.status).toHaveBeenCalledWith(201);
     });
@@ -91,7 +93,7 @@ describe('Building Consumable Controller', () => {
 
       mockBuildingConsumable.findOne.mockResolvedValue(mockExistingDoc);
       mockBuildingConsumable.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({})
+        exec: jest.fn().mockResolvedValue({}),
       });
 
       await controller.bmPurchaseConsumables(mockRequest, mockResponse);
@@ -107,7 +109,7 @@ describe('Building Consumable Controller', () => {
               requestedBy: '789',
             },
           },
-        }
+        },
       );
       expect(mockResponse.status).toHaveBeenCalledWith(201);
     });
@@ -154,7 +156,7 @@ describe('Building Consumable Controller', () => {
               quantityWasted: 5,
             },
           },
-        }
+        },
       );
       expect(mockResponse.status).toHaveBeenCalledWith(200);
     });
@@ -196,7 +198,7 @@ describe('Building Consumable Controller', () => {
               quantityWasted: expectedWasted,
             },
           },
-        }
+        },
       );
       expect(mockResponse.status).toHaveBeenCalledWith(200);
     });
@@ -214,7 +216,8 @@ describe('Building Consumable Controller', () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.send).toHaveBeenCalledWith({
-        message: 'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
+        message:
+          'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
       });
     });
 
