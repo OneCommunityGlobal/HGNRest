@@ -4,7 +4,7 @@ const bmMaterialsController = require('../bmMaterialsController');
 
 // Mock mongoose models
 const mockExec = jest.fn();
-const mockThen = jest.fn().mockImplementation(function(callback) {
+const mockThen = jest.fn().mockImplementation(function (callback) {
   callback();
   return { catch: jest.fn() };
 });
@@ -43,17 +43,17 @@ describe('bmMaterialsController', () => {
     it('should fetch and return materials list', async () => {
       const mockResults = [{ name: 'Cement', quantity: 100 }];
       // Fix the chaining of populate calls
-      mockPopulate.mockImplementation(function() {
+      mockPopulate.mockImplementation(function () {
         return {
           populate: mockPopulate,
-          exec: function() {
+          exec: function () {
             return {
-              then: function(callback) {
+              then: function (callback) {
                 callback(mockResults);
                 return { catch: mockCatch };
-              }
+              },
             };
-          }
+          },
         };
       });
 
@@ -74,8 +74,12 @@ describe('bmMaterialsController', () => {
 
     it('should handle errors during fetch', async () => {
       const mockError = new Error('Database error');
-      mockThen.mockImplementation(function() {
-        return { catch: function(callback) { callback(mockError); } };
+      mockThen.mockImplementation(function () {
+        return {
+          catch: function (callback) {
+            callback(mockError);
+          },
+        };
       });
 
       const req = {};
@@ -97,10 +101,10 @@ describe('bmMaterialsController', () => {
       mockFindOne.mockResolvedValue(null);
       mockCreate.mockImplementation(() => {
         return {
-          then: function(callback) {
+          then: function (callback) {
             callback();
             return { catch: jest.fn() };
-          }
+          },
         };
       });
 
@@ -112,7 +116,7 @@ describe('bmMaterialsController', () => {
           priority: 'high',
           brand: 'BrandX',
           requestor: { requestorId: 'user123' },
-        }
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -133,16 +137,16 @@ describe('bmMaterialsController', () => {
     it('should update an existing material if found', async () => {
       const mockMaterial = { _id: 'material123' };
       mockFindOne.mockResolvedValue(mockMaterial);
-      
+
       mongoose.Types.ObjectId = jest.fn().mockReturnValue('material123');
-      
+
       mockFindOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockReturnValue({
-          then: jest.fn().mockImplementation(function(callback) {
+          then: jest.fn().mockImplementation(function (callback) {
             callback();
             return { catch: jest.fn() };
-          })
-        })
+          }),
+        }),
       });
 
       const req = {
@@ -153,7 +157,7 @@ describe('bmMaterialsController', () => {
           priority: 'high',
           brand: 'BrandX',
           requestor: { requestorId: 'user123' },
-        }
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -182,7 +186,7 @@ describe('bmMaterialsController', () => {
           priority: 'high',
           brand: 'BrandX',
           requestor: { requestorId: 'user123' },
-        }
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -199,10 +203,10 @@ describe('bmMaterialsController', () => {
   describe('bmPostMaterialUpdateRecord', () => {
     it('should update material stock and add update record', async () => {
       mockUpdateOne.mockReturnValue({
-        then: function(callback) {
+        then: function (callback) {
           callback({ nModified: 1 });
           return { catch: jest.fn() };
-        }
+        },
       });
 
       const material = {
@@ -211,7 +215,7 @@ describe('bmMaterialsController', () => {
         stockUsed: 20,
         stockWasted: 10,
       };
-      
+
       const req = {
         body: {
           material,
@@ -221,7 +225,7 @@ describe('bmMaterialsController', () => {
           requestor: { requestorId: 'user123' },
           QtyUsedLogUnit: 'unit',
           QtyWastedLogUnit: 'unit',
-        }
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -242,15 +246,15 @@ describe('bmMaterialsController', () => {
         stockUsed: 5,
         stockWasted: 2,
       };
-      
+
       const req = {
         body: {
           material,
-          quantityUsed: 15,  // More than available
+          quantityUsed: 15, // More than available
           quantityWasted: 0,
           QtyUsedLogUnit: 'unit',
           QtyWastedLogUnit: 'unit',
-        }
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -260,18 +264,18 @@ describe('bmMaterialsController', () => {
       await controller.bmPostMaterialUpdateRecord(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith(expect.stringContaining("exceeds the total stock available"));
+      expect(res.send).toHaveBeenCalledWith(
+        expect.stringContaining('exceeds the total stock available'),
+      );
     });
   });
 
   describe('bmupdatePurchaseStatus', () => {
     it('should update purchase status to Approved and increase stock', async () => {
       const mockMaterial = {
-        purchaseRecord: [
-          { _id: 'purchase123', status: 'Pending' }
-        ]
+        purchaseRecord: [{ _id: 'purchase123', status: 'Pending' }],
       };
-      
+
       mockFindOne.mockResolvedValue(mockMaterial);
       mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
 
@@ -279,8 +283,8 @@ describe('bmMaterialsController', () => {
         body: {
           purchaseId: 'purchase123',
           status: 'Approved',
-          quantity: 30
-        }
+          quantity: 30,
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -294,9 +298,9 @@ describe('bmMaterialsController', () => {
         { 'purchaseRecord._id': 'purchase123' },
         {
           $set: { 'purchaseRecord.$.status': 'Approved' },
-          $inc: { 'stockBought': 30 }
+          $inc: { stockBought: 30 },
         },
-        { new: true }
+        { new: true },
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
@@ -309,8 +313,8 @@ describe('bmMaterialsController', () => {
         body: {
           purchaseId: 'nonexistent',
           status: 'Approved',
-          quantity: 30
-        }
+          quantity: 30,
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -325,19 +329,17 @@ describe('bmMaterialsController', () => {
 
     it('should reject if purchase is not in Pending status', async () => {
       const mockMaterial = {
-        purchaseRecord: [
-          { _id: 'purchase123', status: 'Rejected' }
-        ]
+        purchaseRecord: [{ _id: 'purchase123', status: 'Rejected' }],
       };
-      
+
       mockFindOne.mockResolvedValue(mockMaterial);
 
       const req = {
         body: {
           purchaseId: 'purchase123',
           status: 'Approved',
-          quantity: 30
-        }
+          quantity: 30,
+        },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
@@ -347,7 +349,9 @@ describe('bmMaterialsController', () => {
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.send).toHaveBeenCalledWith(expect.stringContaining("can only be updated from 'Pending'"));
+      expect(res.send).toHaveBeenCalledWith(
+        expect.stringContaining("can only be updated from 'Pending'"),
+      );
     });
   });
 });

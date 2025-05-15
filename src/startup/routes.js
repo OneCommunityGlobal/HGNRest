@@ -4,6 +4,8 @@ const project = require('../models/project');
 const information = require('../models/information');
 const team = require('../models/team');
 // const actionItem = require('../models/actionItem');
+/* eslint-disable */
+const notification = require('../models/notification');
 const wbs = require('../models/wbs');
 const task = require('../models/task');
 const popup = require('../models/popupEditor');
@@ -74,7 +76,11 @@ const taskRouter = require('../routes/taskRouter')(task);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
-const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
+const inventoryRouter = require('../routes/inventoryRouter')(
+  inventoryItem,
+  inventoryItemType,
+  project,
+);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
   profileInitialSetuptoken,
@@ -88,6 +94,8 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
+
+const faqRouter = require('../routes/faqRouter');
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -175,6 +183,7 @@ module.exports = function (app) {
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
+  app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);
   app.use('/api', warningRouter);
   app.use('/api', currentWarningsRouter);
