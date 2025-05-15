@@ -34,66 +34,93 @@ const authToken = jwt.sign(payload, config.JWT_SECRET);
 
 let mongoServer;
 
+const connectDB = async () => {
+  try {
+    if (!mongoServer) {
+      mongoServer = await MongoMemoryServer.create();
+    }
+    const mongoUri = await mongoServer.getUri();
+    
+    const options = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 30000, // 30 seconds
+      connectTimeoutMS: 30000,
+    };
+
+    await mongoose.connect(mongoUri.toString(), options);
+    console.log('MongoDB connected successfully');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  }
+};
+
 beforeAll(async () => {
   console.log('Setting up MongoDB...');
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = await mongoServer.getUri();
-  await mongoose.connect(mongoUri.toString(), {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  await connectDB();
   console.log('MongoDB setup complete');
+});
+
+beforeEach(async () => {
+  if (mongoose.connection.readyState !== 1) {
+    await connectDB();
+  }
+  
+  jest.clearAllMocks();
+
+  // Mock Dropbox service
+  jest.spyOn(dropboxService, 'createFolderWithSubfolder').mockResolvedValue({
+    parentFolderResponse: {
+      result: {
+        id: 'test-folder-id',
+        path_display: '/test-folder',
+      },
+    },
+    subfolderResponse: {
+      result: {
+        id: 'test-subfolder-id',
+        path_display: '/test-folder/Week 1',
+      },
+    },
+  });
+  jest.spyOn(dropboxService, 'inviteUserToFolder').mockResolvedValue({ success: true });
+  jest.spyOn(dropboxService, 'deleteFolder').mockResolvedValue({ success: true });
+
+  // Mock Sentry service
+  jest.spyOn(sentryService, 'inviteUser').mockResolvedValue({ success: true });
+  jest
+    .spyOn(sentryService, 'getMembers')
+    .mockResolvedValue([{ id: 'test-member-id', email: 'test@gmail.com' }]);
+  jest.spyOn(sentryService, 'removeUser').mockResolvedValue({ success: true });
+
+  // Mock GitHub service
+  jest.spyOn(githubService, 'sendInvitation').mockResolvedValue({ success: true });
+  jest.spyOn(githubService, 'removeUser').mockResolvedValue({ success: true });
+
+  // Mock Slack service
+  jest.spyOn(slackService, 'sendSlackInvite').mockResolvedValue({ success: true });
+
+  // Mock Google Sheet service
+  jest.spyOn(googleSheetService, 'addNewMember').mockResolvedValue({ success: true });
+  jest.spyOn(googleSheetService, 'updateMemberStatus').mockResolvedValue({ success: true });
 });
 
 afterAll(async () => {
   console.log('Cleaning up MongoDB...');
-  await mongoose.disconnect();
-  await mongoServer.stop();
-  console.log('MongoDB cleanup complete');
+  try {
+    await mongoose.disconnect();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
+    console.log('MongoDB cleanup complete');
+  } catch (error) {
+    console.error('Error during MongoDB cleanup:', error);
+    throw error;
+  }
 });
 
 describe('Automation Controller Tests', () => {
-  beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks();
-
-    // Mock Dropbox service
-    jest.spyOn(dropboxService, 'createFolderWithSubfolder').mockResolvedValue({
-      parentFolderResponse: {
-        result: {
-          id: 'test-folder-id',
-          path_display: '/test-folder',
-        },
-      },
-      subfolderResponse: {
-        result: {
-          id: 'test-subfolder-id',
-          path_display: '/test-folder/Week 1',
-        },
-      },
-    });
-    jest.spyOn(dropboxService, 'inviteUserToFolder').mockResolvedValue({ success: true });
-    jest.spyOn(dropboxService, 'deleteFolder').mockResolvedValue({ success: true });
-
-    // Mock Sentry service
-    jest.spyOn(sentryService, 'inviteUser').mockResolvedValue({ success: true });
-    jest
-      .spyOn(sentryService, 'getMembers')
-      .mockResolvedValue([{ id: 'test-member-id', email: 'test@gmail.com' }]);
-    jest.spyOn(sentryService, 'removeUser').mockResolvedValue({ success: true });
-
-    // Mock GitHub service
-    jest.spyOn(githubService, 'sendInvitation').mockResolvedValue({ success: true });
-    jest.spyOn(githubService, 'removeUser').mockResolvedValue({ success: true });
-
-    // Mock Slack service
-    jest.spyOn(slackService, 'sendSlackInvite').mockResolvedValue({ success: true });
-
-    // Mock Google Sheet service
-    jest.spyOn(googleSheetService, 'addNewMember').mockResolvedValue({ success: true });
-    jest.spyOn(googleSheetService, 'updateMemberStatus').mockResolvedValue({ success: true });
-  });
-
   const testUser = {
     name: 'Test User',
     email: 'test@gmail.com',
