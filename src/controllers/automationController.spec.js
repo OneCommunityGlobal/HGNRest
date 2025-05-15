@@ -30,22 +30,28 @@ const authToken = jwt.sign(payload, config.JWT_SECRET);
 
 let mongoServer;
 
-// Update the connectDB function
 const connectDB = async () => {
   try {
     if (!mongoServer) {
-      mongoServer = await MongoMemoryServer.create();
+      mongoServer = await MongoMemoryServer.create({
+        instance: {
+          storageEngine: 'wiredTiger' // More stable storage engine
+        }
+      });
     }
     const mongoUri = await mongoServer.getUri();
     
-    const options = {
+    await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-    };
-
-    await mongoose.connect(mongoUri, options);
+      connectTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
+    });
   } catch (error) {
     console.error('MongoDB connection error:', error);
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
     throw error;
   }
 };
@@ -57,7 +63,7 @@ beforeAll(async () => {
   console.log('MongoDB setup complete');
 }, 60000);
 
-// Update afterAll
+// Keep this afterAll (the first one in the file) and remove the duplicate
 afterAll(async () => {
   console.log('Cleaning up MongoDB...');
   await mongoose.disconnect();
@@ -66,17 +72,18 @@ afterAll(async () => {
   }
   console.log('MongoDB cleanup complete');
 }, 60000);
-jest.setTimeout(600000);
 
 
 beforeEach(async () => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      console.log('Reconnecting to MongoDB...');
+    // Clean up any existing connections
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.dropDatabase();
+    } else {
       await connectDB();
     }
     
-    console.log('Cleaning up collections...');
+    // Clear all collections
     const collections = mongoose.connection.collections;
     for (const key in collections) {
       await collections[key].deleteMany();
@@ -125,23 +132,6 @@ beforeEach(async () => {
   jest.spyOn(googleSheetService, 'updateMemberStatus').mockResolvedValue({ success: true });
 }, 60000);
 
-afterAll(async () => {
-  console.log('Cleaning up MongoDB...');
-  try {
-    if (mongoose.connection.readyState === 1) {
-      console.log('Disconnecting from MongoDB...');
-      await mongoose.disconnect();
-    }
-    if (mongoServer) {
-      console.log('Stopping MongoDB memory server...');
-      await mongoServer.stop();
-    }
-    console.log('MongoDB cleanup complete');
-  } catch (error) {
-    console.error('Error during MongoDB cleanup:', error);
-    throw error;
-  }
-}, 60000);
 
 describe('Automation Controller Tests', () => {
   const testUser = {
