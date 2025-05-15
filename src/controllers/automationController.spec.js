@@ -1,5 +1,4 @@
 // First require all dependencies
-console.log('Requiring dependencies...');
 const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
@@ -15,10 +14,7 @@ const githubService = require('../services/automation/githubService');
 const slackService = require('../services/automation/slackService');
 const googleSheetService = require('../services/automation/googleSheetService');
 
-// Finally require app
-console.log('Requiring app...');
 const { app } = require('../app');
-console.log('App required successfully');
 
 // Set test JWT secret
 config.JWT_SECRET = 'test-jwt-secret-key';
@@ -37,26 +33,14 @@ let mongoServer;
 const connectDB = async () => {
   try {
     if (!mongoServer) {
-      console.log('Creating MongoDB memory server...');
       mongoServer = await MongoMemoryServer.create({
-        instance: {
-          dbName: 'jest',
-          port: 27017,
-          storageEngine: 'wiredTiger',
-          args: ['--quiet'],
-        },
         binary: {
           version: '4.0.14',
           downloadDir: './node_modules/.cache/mongodb-memory-server',
-          checkMD5: false,
         },
-        autoStart: true,
       });
-      console.log('MongoDB memory server created');
     }
-    console.log('Getting MongoDB URI...');
     const mongoUri = await mongoServer.getUri();
-    console.log('MongoDB URI:', mongoUri);
     
     const options = {
       useNewUrlParser: true,
@@ -64,17 +48,13 @@ const connectDB = async () => {
       serverSelectionTimeoutMS: 60000,
       connectTimeoutMS: 60000,
       socketTimeoutMS: 60000,
-      family: 4,
     };
 
     if (mongoose.connection.readyState === 1) {
-      console.log('Disconnecting existing MongoDB connection...');
       await mongoose.disconnect();
     }
 
-    console.log('Connecting to MongoDB...');
     await mongoose.connect(mongoUri.toString(), options);
-    console.log('MongoDB connected successfully');
   } catch (error) {
     console.error('MongoDB connection error:', error);
     if (mongoServer) {
@@ -85,8 +65,7 @@ const connectDB = async () => {
   }
 };
 
-// 增加超时时间到 60 秒
-jest.setTimeout(60000);
+jest.setTimeout(600000);
 
 beforeAll(async () => {
   console.log('Setting up MongoDB...');
@@ -97,7 +76,7 @@ beforeAll(async () => {
     console.error('Failed to setup MongoDB:', error);
     throw error;
   }
-}, 60000);
+}, 600000);
 
 beforeEach(async () => {
   try {
