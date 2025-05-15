@@ -150,6 +150,8 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+const materialCostRouter = require('../routes/materialCostRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -210,4 +212,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api', materialCostRouter); 
 };
