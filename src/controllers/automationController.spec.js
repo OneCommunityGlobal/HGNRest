@@ -35,9 +35,8 @@ const connectDB = async () => {
   try {
     if (!mongoServer) {
       mongoServer = await MongoMemoryServer.create();
-      // Remove the binary version specification to use default
     }
-    const mongoUri = mongoServer.getUri();
+    const mongoUri = await mongoServer.getUri();
     
     const options = {
       useNewUrlParser: true,
