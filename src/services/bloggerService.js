@@ -1,7 +1,10 @@
 const { google } = require('googleapis');
 const logger = require('../startup/logger');
 
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
+if (
+    process.env.NODE_ENV !== 'test' &&
+    (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI)
+) {
     logger.logException(new Error('Missing required OAuth configuration'), 'OAuth Config', {
         clientId: !!process.env.GOOGLE_CLIENT_ID,
         clientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
