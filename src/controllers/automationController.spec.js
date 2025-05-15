@@ -37,6 +37,7 @@ let mongoServer;
 const connectDB = async () => {
   try {
     if (!mongoServer) {
+      console.log('Creating MongoDB memory server...');
       mongoServer = await MongoMemoryServer.create({
         instance: {
           dbName: 'jest',
@@ -45,14 +46,17 @@ const connectDB = async () => {
           args: ['--quiet'],
         },
         binary: {
-          version: '4.2.17',
+          version: '4.0.14',
           downloadDir: './node_modules/.cache/mongodb-memory-server',
           checkMD5: false,
         },
         autoStart: true,
       });
+      console.log('MongoDB memory server created');
     }
+    console.log('Getting MongoDB URI...');
     const mongoUri = await mongoServer.getUri();
+    console.log('MongoDB URI:', mongoUri);
     
     const options = {
       useNewUrlParser: true,
@@ -64,14 +68,17 @@ const connectDB = async () => {
     };
 
     if (mongoose.connection.readyState === 1) {
+      console.log('Disconnecting existing MongoDB connection...');
       await mongoose.disconnect();
     }
 
+    console.log('Connecting to MongoDB...');
     await mongoose.connect(mongoUri.toString(), options);
     console.log('MongoDB connected successfully');
   } catch (error) {
     console.error('MongoDB connection error:', error);
     if (mongoServer) {
+      console.log('Stopping MongoDB memory server...');
       await mongoServer.stop();
     }
     throw error;
@@ -95,9 +102,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   try {
     if (mongoose.connection.readyState !== 1) {
+      console.log('Reconnecting to MongoDB...');
       await connectDB();
     }
     
+    console.log('Cleaning up collections...');
     const collections = mongoose.connection.collections;
     for (const key in collections) {
       await collections[key].deleteMany();
@@ -150,9 +159,11 @@ afterAll(async () => {
   console.log('Cleaning up MongoDB...');
   try {
     if (mongoose.connection.readyState === 1) {
+      console.log('Disconnecting from MongoDB...');
       await mongoose.disconnect();
     }
     if (mongoServer) {
+      console.log('Stopping MongoDB memory server...');
       await mongoServer.stop();
     }
     console.log('MongoDB cleanup complete');
