@@ -30,53 +30,45 @@ const authToken = jwt.sign(payload, config.JWT_SECRET);
 
 let mongoServer;
 
+// Update the connectDB function
 const connectDB = async () => {
   try {
     if (!mongoServer) {
-      mongoServer = await MongoMemoryServer.create({
-        binary: {
-          version: '4.0.14',
-          downloadDir: './node_modules/.cache/mongodb-memory-server',
-        },
-      });
+      mongoServer = await MongoMemoryServer.create();
+      // Remove the binary version specification to use default
     }
-    const mongoUri = await mongoServer.getUri();
+    const mongoUri = mongoServer.getUri();
     
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 60000,
-      connectTimeoutMS: 60000,
-      socketTimeoutMS: 60000,
     };
 
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.disconnect();
-    }
-
-    await mongoose.connect(mongoUri.toString(), options);
+    await mongoose.connect(mongoUri, options);
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    if (mongoServer) {
-      console.log('Stopping MongoDB memory server...');
-      await mongoServer.stop();
-    }
     throw error;
   }
 };
 
-jest.setTimeout(600000);
-
+// Update beforeAll
 beforeAll(async () => {
   console.log('Setting up MongoDB...');
-  try {
-    await connectDB();
-    console.log('MongoDB setup complete');
-  } catch (error) {
-    console.error('Failed to setup MongoDB:', error);
-    throw error;
+  await connectDB();
+  console.log('MongoDB setup complete');
+}, 60000);
+
+// Update afterAll
+afterAll(async () => {
+  console.log('Cleaning up MongoDB...');
+  await mongoose.disconnect();
+  if (mongoServer) {
+    await mongoServer.stop();
   }
-}, 600000);
+  console.log('MongoDB cleanup complete');
+}, 60000);
+jest.setTimeout(600000);
+
 
 beforeEach(async () => {
   try {
