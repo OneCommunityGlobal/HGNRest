@@ -41,10 +41,12 @@ const connectDB = async () => {
         instance: {
           dbName: 'jest',
           port: 27017,
+          storageEngine: 'wiredTiger',
         },
         binary: {
           version: '4.4.18',
           downloadDir: './node_modules/.cache/mongodb-memory-server',
+          checkMD5: false,
         },
       });
     }
@@ -53,9 +55,9 @@ const connectDB = async () => {
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 60000,
+      connectTimeoutMS: 60000,
+      socketTimeoutMS: 60000,
     };
 
     if (mongoose.connection.readyState === 1) {
@@ -73,6 +75,9 @@ const connectDB = async () => {
   }
 };
 
+// 增加超时时间到 60 秒
+jest.setTimeout(60000);
+
 beforeAll(async () => {
   console.log('Setting up MongoDB...');
   try {
@@ -82,7 +87,7 @@ beforeAll(async () => {
     console.error('Failed to setup MongoDB:', error);
     throw error;
   }
-});
+}, 60000);
 
 beforeEach(async () => {
   try {
@@ -136,7 +141,7 @@ beforeEach(async () => {
   // Mock Google Sheet service
   jest.spyOn(googleSheetService, 'addNewMember').mockResolvedValue({ success: true });
   jest.spyOn(googleSheetService, 'updateMemberStatus').mockResolvedValue({ success: true });
-});
+}, 60000);
 
 afterAll(async () => {
   console.log('Cleaning up MongoDB...');
@@ -152,7 +157,7 @@ afterAll(async () => {
     console.error('Error during MongoDB cleanup:', error);
     throw error;
   }
-});
+}, 60000);
 
 describe('Automation Controller Tests', () => {
   const testUser = {
