@@ -35,12 +35,14 @@ const connectDB = async () => {
     if (!mongoServer) {
       mongoServer = await MongoMemoryServer.create({
         instance: {
-          storageEngine: 'wiredTiger' // More stable storage engine
+          storageEngine: 'wiredTiger'
+        },
+        binary: {
+          version: '4.2.14'
         }
       });
     }
     const mongoUri = await mongoServer.getUri();
-    
     await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
