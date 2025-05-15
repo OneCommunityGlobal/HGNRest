@@ -5,7 +5,7 @@ const routes = function (badge) {
 
   const badgeRouter = express.Router();
 
-  // badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
+  badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
 
   badgeRouter.route('/badge').get(controller.getAllBadges).post(controller.postBadge);
 
