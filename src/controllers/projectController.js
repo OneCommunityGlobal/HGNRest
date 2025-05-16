@@ -11,6 +11,8 @@ const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
 const cache = require('../utilities/nodeCache')();
 
+// Shit code included.
+
 const projectController = function (Project) {
   const getAllProjects = async function (req, res) {
     try {
@@ -271,19 +273,20 @@ const projectController = function (Project) {
   };
 
   const getprojectMembership = async function (req, res) {
+    if (!(await helper.hasPermission(req.body.requestor, 'getProjectMembers'))) {
+      res.status(403).send('You are not authorized to perform this operation');
+      return;
+    }
     const { projectId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       res.status(400).send('Invalid request');
       return;
     }
-    const getId = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
-
     userProfile
       .find(
-        { projects: projectId },
-        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+        { projects: projectId, isActive: true },
+        { firstName: 1, lastName: 1, profilePic: 1 },
       )
-      .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
         console.log(results);
         res.status(200).send(results);
@@ -293,13 +296,12 @@ const projectController = function (Project) {
       });
   };
 
-
   const getProjectsWithActiveUserCounts = async function (req, res) {
     try {
       const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
-  
-      const projectIds = projects.map(project => project._id);
-  
+
+      const projectIds = projects.map((project) => project._id);
+
       const userCounts = await userProfile.aggregate([
         { $match: { projects: { $in: projectIds }, isActive: true } },
         { $unwind: '$projects' },
@@ -311,19 +313,18 @@ const projectController = function (Project) {
           },
         },
       ]);
-  
+
       const result = userCounts.reduce((acc, curr) => {
         acc[curr._id.toString()] = curr.activeUserCount;
         return acc;
       }, {});
-  
+
       res.status(200).send(result);
     } catch (error) {
       console.error(error);
       res.status(500).send('Error fetching active member counts');
     }
   };
-  
 
   return {
     getAllProjects,

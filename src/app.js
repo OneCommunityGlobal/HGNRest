@@ -11,6 +11,7 @@ logger.init();
 // The request handler must be the first middleware on the app
 app.use(Sentry.Handlers.requestHandler());
 
+require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
 require('./startup/middleware')(app);
