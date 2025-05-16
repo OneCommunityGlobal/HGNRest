@@ -31,8 +31,7 @@ describe('ForcePwdController Unit Tests', () => {
   test('Returns a 500 Internal Error if finding userProfile throws an error', async () => {
     const { forcePwd } = makeSut();
     const errorMsg = 'Error happened when finding user';
-    jest.spyOn(userProfile, 'findById')
-      .mockImplementationOnce(() => Promise.reject(errorMsg));
+    jest.spyOn(userProfile, 'findById').mockImplementationOnce(() => Promise.reject(errorMsg));
     const response = forcePwd(mockReq, mockRes);
     await flushPromises();
     assertResMock(500, errorMsg, response, mockRes);
