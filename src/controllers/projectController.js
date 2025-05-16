@@ -325,7 +325,6 @@ const projectController = function (Project) {
       res.status(500).send('Error fetching active member counts');
     }
   };
-  
 
   return {
     getAllProjects,
