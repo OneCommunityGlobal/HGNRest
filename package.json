@@ -78,7 +78,7 @@
     "nodemailer": "^6.4.16",
     "redis": "^4.2.0",
     "sanitize-html": "^2.13.0",
-    "sharp": "^0.28.3",
+    "sharp": "^0.29.3",
     "supertest": "^6.3.4",
     "uuid": "^3.4.0",
     "ws": "^8.17.1"
