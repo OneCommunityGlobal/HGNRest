@@ -25,12 +25,17 @@ const makeSut = () => {
     confirmNonHgnEmailSubscription,
   };
 };
+
+
+test.todo("TODO: Fix emailController Controller Unit tests")
+
 describe('emailController Controller Unit tests', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   describe('sendEmail function', () => {
+    it.todo("TODO: Fix sendEmail function")
     // TODO: Fix this
     // test('should send email successfully', async () => {
     //   const { sendEmail } = makeSut();
@@ -60,7 +65,7 @@ describe('emailController Controller Unit tests', () => {
   // });
 });
 
-  describe('updateEmailSubscriptions function', () => {
+describe('updateEmailSubscriptions function', () => {
     test('should handle error when updating email subscriptions', async () => {
       const { updateEmailSubscriptions } = makeSut();
 
@@ -81,9 +86,9 @@ describe('emailController Controller Unit tests', () => {
 
       assertResMock(500, 'Error updating email subscriptions', response, mockRes);
     });
-  });
+});
 
-  describe('confirmNonHgnEmailSubscription function', () => {
+describe('confirmNonHgnEmailSubscription function', () => {
     afterEach(() => {
       jest.clearAllMocks();
     });
@@ -128,8 +133,9 @@ describe('emailController Controller Unit tests', () => {
 
       assertResMock(400, 'Invalid token', response, mockRes);
     });
-  });
-  describe('removeNonHgnEmailSubscription function', () => {
+});
+
+describe('removeNonHgnEmailSubscription function', () => {
     afterEach(() => {
       jest.clearAllMocks();
     });
@@ -142,5 +148,4 @@ describe('emailController Controller Unit tests', () => {
 
       assertResMock(400, 'Email is required', response, mockRes);
     });
-  });
 });
