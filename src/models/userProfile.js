@@ -38,6 +38,7 @@ const userProfileSchema = new Schema({
     isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
+    removedDefaultPermissions: [String]
   },
   firstName: {
     type: String,
