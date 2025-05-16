@@ -16,15 +16,16 @@ function getEmailMessageForForgotPassword(user, ranPwd) {
 
 const forgotPwdController = function (userProfile) {
   const forgotPwd = async function (req, res) {
-    const _email = (req.body.email).toLowerCase();
-    const _firstName = (req.body.firstName);
-    const _lastName = (req.body.lastName);
+    const _email = req.body.email.toLowerCase();
+    const _firstName = req.body.firstName;
+    const _lastName = req.body.lastName;
 
-    const user = await userProfile.findOne({
-      email: { $regex: escapeRegex(_email), $options: 'i' },
-      firstName: { $regex: escapeRegex(_firstName), $options: 'i' },
-      lastName: { $regex: escapeRegex(_lastName), $options: 'i' },
-    })
+    const user = await userProfile
+      .findOne({
+        email: { $regex: escapeRegex(_email), $options: 'i' },
+        firstName: { $regex: escapeRegex(_firstName), $options: 'i' },
+        lastName: { $regex: escapeRegex(_lastName), $options: 'i' },
+      })
       .catch((error) => {
         res.status(500).send(error);
         logger.logException(error);
@@ -36,7 +37,8 @@ const forgotPwdController = function (userProfile) {
     }
     const ranPwd = uuidv4().concat('TEMP');
     user.set({ resetPwd: ranPwd });
-    user.save()
+    user
+      .save()
       .then(() => {
         emailSender(
           user.email,
