@@ -9,12 +9,13 @@ const permissionChangeLogController = function (PermissionChangeLog, userPermiss
         if (userProfile.role !== 'Owner') {
           return res.status(204).send([]);
         }
+        // Add usage of userPermissionChangeLog so the log table displays logs of changes to permissions of both
+        // user and roles, and the .sort ensures the latest log is first on page 1, and the oldest is last on the
+        // last page
         const roleChangeLogs = await PermissionChangeLog.find({});
         const userChangeLogs = await userPermissionChangeLog.find({});
         const changeLogs = [...roleChangeLogs, ...userChangeLogs];
         changeLogs.sort((a, b) => new Date(b.logDateTime) - new Date(a.logDateTime));
-        // changeLogs.sort((a, b) => new Date(a.logDateTime) - new Date(b.logDateTime));
-        // const changeLogs = await PermissionChangeLog.find({});
         return res.status(200).send(changeLogs);
       }
       return res.status(403).send(`User (${req.params.userId}) not found.`);
