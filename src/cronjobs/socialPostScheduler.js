@@ -9,20 +9,22 @@ const socialPostScheduler = () => {
     '*/1 * * * *', // Run every minute for testing
     //'0 0 * * *', // Run once daily at midnight
     async () => {
-     // console.log('cron job started');
+      // console.log('cron job started');
       const now = moment().tz('America/Los_Angeles').format('YYYY-MM-DD HH:mm'); // right now i kept timezone as america/chicago,will change later.
-    //  console.log('Current date and time:', now);
+      //  console.log('Current date and time:', now);
 
       const posts = await ScheduledPost.find();
 
       posts.forEach(async (post) => {
         const scheduledDateTime = moment
-          .tz(`${post.scheduledDate} ${post.scheduledTime}`, 'YYYY-MM-DD HH:mm', 'America/Los_Angeles')
+          .tz(
+            `${post.scheduledDate} ${post.scheduledTime}`,
+            'YYYY-MM-DD HH:mm',
+            'America/Los_Angeles',
+          )
           .format('YYYY-MM-DD HH:mm');
 
         if (scheduledDateTime === now) {
-          console.log(`Running scheduled task for ${post.platform} at`, new Date());
-
           switch (post.platform) {
             case 'twitter':
               await socialMediaController.postToTwitter(post.textContent, post.base64Srcs);
@@ -48,4 +50,3 @@ const socialPostScheduler = () => {
 };
 
 module.exports = socialPostScheduler;
-
