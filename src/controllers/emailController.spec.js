@@ -45,6 +45,20 @@ describe('emailController Controller Unit tests', () => {
     //   assertResMock(200, 'Email sent successfully', response, mockRes);
     // });
   });
+  // TODO: Fix this
+  // test('should send email successfully', async () => {
+  //   const { sendEmail } = makeSut();
+  //   const mockReq = {
+  //     body: {
+  //       to: 'recipient@example.com',
+  //       subject: 'Test Subject',
+  //       html: '<p>Test Body</p>',
+  //     },
+  //   };
+  //   const response = await sendEmail(mockReq, mockRes);
+  //   assertResMock(200, 'Email sent successfully', response, mockRes);
+  // });
+});
 
   describe('updateEmailSubscriptions function', () => {
     test('should handle error when updating email subscriptions', async () => {
