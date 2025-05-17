@@ -38,6 +38,8 @@ const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 const metIssue = require('../models/bmdashboard/metIssue');
+const injuryIssue = require('../models/bmdashboard/injuryIssue');
+
 const {
   invTypeBase,
   materialType,
@@ -144,7 +146,7 @@ const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listing
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue, injuryIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
@@ -214,7 +216,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmTimeLoggerRouter);  
-  app.use('api', bmIssueRouter);
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
