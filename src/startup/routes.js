@@ -21,6 +21,7 @@ const currentWarnings = require('../models/currentWarnings');
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const helpCategory = require('../models/helpCategory');
 
 // Title
 const title = require('../models/title');
@@ -96,6 +97,7 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
+const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
 const faqRouter = require('../routes/faqRouter');
 
@@ -202,6 +204,7 @@ module.exports = function (app) {
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/help-categories', helpCategoryRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
