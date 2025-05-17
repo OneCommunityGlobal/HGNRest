@@ -26,10 +26,10 @@ const hasIndividualPermission = async (userId, action) =>
     .catch(false);
 
 const hasPermission = async (requestor, action) => {
-  const defaultRemoved = await hasDefaultPermissionRemoved(requestor.requestorId, action);
+  const defaultRemoved = requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
   const roleHasPermission = await hasRolePermission(requestor.role, action);
-  const individualHasPermission = await hasIndividualPermission(requestor.requestorId, action);
-
+  const individualHasPermission = requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
+  
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
 }
 
