@@ -1,5 +1,6 @@
 const { CronJob } = require('cron');
 const moment = require('moment-timezone');
+
 const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
@@ -23,19 +24,6 @@ const userProfileJobs = () => {
     false,
     'America/Los_Angeles',
   );
-  const summaryNotSubmittedJobs=new CronJob(
-  //  completeHoursButMissedSummaryCronJob.
-    '0 4 * * 0', // Every Sunday at 4AM
-    async () => {
-      const SUNDAY = 0;
-      if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        await userhelper.completeHoursAndMissedSummary();
-      }
-    },
-    null,
-    false,
-    'America/Los_Angeles', 
-  );
 
   // Job to run every day, 1 minute past midnight to deactivate the user
   const dailyUserDeactivateJobs = new CronJob(
@@ -50,7 +38,6 @@ const userProfileJobs = () => {
     'America/Los_Angeles',
   );
   allUserProfileJobs.start();
-  summaryNotSubmittedJobs.start();
   dailyUserDeactivateJobs.start();
 };
 module.exports = userProfileJobs;
