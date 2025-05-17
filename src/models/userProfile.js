@@ -12,6 +12,8 @@ const SALT_ROUNDS = 10;
 const today = new Date();
 
 const userProfileSchema = new Schema({
+  // Updated filed
+  summarySubmissionDates: [{ type: Date }],
   password: {
     type: String,
     required: true,
@@ -33,8 +35,10 @@ const userProfileSchema = new Schema({
     required: true,
   },
   permissions: {
+    isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
+    removedDefaultPermissions: [String]
   },
   firstName: {
     type: String,
@@ -50,7 +54,7 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String, required: true }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String,
@@ -101,6 +105,10 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
   infringements: [
     {
       date: { type: String, required: true },
@@ -114,13 +122,6 @@ const userProfileSchema = new Schema({
       description: {
         type: String,
         required: true,
-        enum: [
-          'Better Descriptions',
-          'Log Time to Tasks',
-          'Log Time as You Go',
-          'Log Time to Action Items',
-          'Intangible Time Log w/o Reason',
-        ],
       },
       color: {
         type: String,
@@ -128,7 +129,7 @@ const userProfileSchema = new Schema({
         required: true,
         default: 'white',
       },
-      iconId: { type: String, required: true },
+      iconId: { type: String, required: false },
     },
   ],
   location: {
@@ -275,5 +276,6 @@ userProfileSchema.pre('save', function (next) {
 
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

@@ -3,7 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
-// const userHelper = require('../helpers/userHelper')();
+//const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -19,7 +19,7 @@ const badgeController = function (Badge) {
   // };
 
   const getAllBadges = async function (req, res) {
-    console.log(req.body.requestor);  // Retain logging from development branch for debugging
+    // console.log(req.body.requestor);  // Retain logging from development branch for debugging
 
     // Check if the user has any of the following permissions
     if (
@@ -29,7 +29,7 @@ const badgeController = function (Badge) {
       !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
-      console.log('in if statement');  // Retain logging from development branch for debugging
+      // console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
     }
@@ -90,7 +90,7 @@ const badgeController = function (Badge) {
       let totalNewBadges = 0;
       const existingBadges = {};
       if (record.badgeCollection && Array.isArray(record.badgeCollection)) {
-        record.badgeCollection.forEach(badgeItem => {
+        record.badgeCollection.forEach((badgeItem) => {
           existingBadges[badgeItem.badge] = badgeItem.count;
         });
       }
@@ -108,7 +108,6 @@ const badgeController = function (Badge) {
         if (item.count === 0) {
           return grouped;
         }
-
 
         if (!grouped[badge]) {
           // If the badge is not in the grouped object, add a new entry
@@ -305,8 +304,7 @@ const badgeController = function (Badge) {
       // Return badge count from user profile
       res.status(200).send({ count: record.badgeCount });
     });
-  }
-
+  };
 
   const putBadgecount = async function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
@@ -320,7 +318,7 @@ const badgeController = function (Badge) {
 
       record
         .save()
-        .then(results => res.status(201).send(results._id))
+        .then((results) => res.status(201).send(results._id))
         .catch((err) => {
           res.status(500).send(err);
         });
@@ -339,13 +337,11 @@ const badgeController = function (Badge) {
 
       record.save();
       res.status(201).send({ count: record.badgeCount });
-
     });
-  }
-
+  };
 
   return {
-    // awardBadgesTest,
+    //awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
@@ -353,7 +349,7 @@ const badgeController = function (Badge) {
     putBadge,
     getBadgeCount,
     putBadgecount,
-    resetBadgecount
+    resetBadgecount,
   };
 };
 
