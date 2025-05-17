@@ -212,16 +212,41 @@ const reportsController = function () {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
-
-    // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
+      // Extract forceRefresh parameter
+    const forceRefresh = req.query.forceRefresh === 'true';
+      // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
     const week = req.query.week !== undefined ? parseInt(req.query.week, 10) : null;
-    
+
     // Generate cache key based on week
     const cacheKey = `weeklySummaries_${week !== null ? week : 'all'}`;
-    
+    // console.log(`Request for week: ${week}, checking cache: ${cacheKey}, forceRefresh: ${forceRefresh}`);
+
+    // Check if we have cached data and aren't forcing a refresh
+    if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
+      // console.log(`Cache hit for ${cacheKey}, serving from cache`);
+      return res.status(200).send(cacheUtil.getCache(cacheKey));
+    }
+    // if (forceRefresh) {
+    //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
+    // } else {
+    //   console.log(`Cache miss for ${cacheKey}, fetching from database`);
+    // }
+    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
+      res.status(403).send('You are not authorized to view all users');
+      return;
+    }
+
     // Check if we have cached data
     if (cacheUtil.hasCache(cacheKey)) {
-      return res.status(200).send(cacheUtil.getCache(cacheKey));
+      const cacheAge = Math.round((Date.now() - cacheUtil.getCacheTime(cacheKey)) / 1000);
+      console.log(`Cache hit for ${cacheKey}, serving from cache (age: ${cacheAge}s)`);
+      return res.status(200).send({
+        data: cacheUtil.getCache(cacheKey),
+        cacheInfo: { 
+          fromCache: true, 
+          cacheAge
+        }
+      });
     }
     
     // Determine cache duration based on week
