@@ -306,17 +306,16 @@ const projectController = function (Project) {
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).send('Invalid project ID');
     }
-    
     // Sanitize user input and escape special characters
     const sanitizedQuery = escapeRegExp(query.trim());
     // case-insensitive search
     const searchRegex = new RegExp(sanitizedQuery, 'i');
     
     try {
-      const getProjMembers = await hasPermission(req.body.requestor, 'getProjectMembers');
-      const postTask = await hasPermission(req.body.requestor, 'postTask');
-      const updateTask = await hasPermission(req.body.requestor, 'updateTask');
-      const suggestTask = await hasPermission(req.body.requestor, 'suggestTask');
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
       const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
       
       const results = await userProfile.find({
