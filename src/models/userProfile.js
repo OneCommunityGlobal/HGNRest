@@ -276,6 +276,8 @@ userProfileSchema.pre('save', function (next) {
 
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ projects: 1, firstName: 1 });
+userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
