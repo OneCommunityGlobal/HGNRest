@@ -82,7 +82,6 @@
     "nodemailer": "^6.4.16",
     "redis": "^4.2.0",
     "regression": "^2.0.1",
-    "sanitize-html": "^2.13.0",
     "sanitize-html": "^2.16.0",
     "sharp": "^0.28.3",
     "supertest": "^6.3.4",
