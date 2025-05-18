@@ -1,10 +1,10 @@
 const path = require('path');
-// const fs = require('fs');
+const crypto = require('crypto');
+const schedule = require('node-schedule');
 const axios = require('axios');
 const FormData = require('form-data');
 const InstagramScheduledPost = require('../models/instagramPost');
-const schedule = require('node-schedule');
-const crypto = require('crypto');
+
 
 require ('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -17,17 +17,26 @@ const instagramClientSecret = process.env.REACT_APP_INSTAGRAM_APP_SECRET;
 const instagramRedirectUri = process.env.REACT_APP_INSTAGRAM_REDIRECT_URI;
 
 const instagramAuthStore = {
-    status: null,       // 'success' or 'failed'
-    message: null,      // Status message
-    timestamp: null,    // When status was last updated
-    tokens: {           // Token data if successful
+    status: null,      
+    message: null,     
+    timestamp: null,  
+    tokens: {          
       userId: null,
       accessToken: null,
       expiresAt: null
     }
 };
   
-// Helper to update the auth status
+/**
+ * Updates the authentication status in the Instagram auth store
+ * 
+ * @param {string} status - The authentication status ('success', 'failed', 'disconnected', etc.)
+ * @param {string} message - A descriptive message about the authentication status
+ * @param {Object} tokenData - Optional token data to store if authentication was successful
+ * @param {string} tokenData.userId - The Instagram user ID
+ * @param {string} tokenData.accessToken - The Instagram access token
+ * @param {number} tokenData.expiresAt - Timestamp when the token expires
+ */
 const updateAuthStatus = (status, message, tokenData = null) => {
     instagramAuthStore.status = status;
     instagramAuthStore.message = message;
@@ -42,8 +51,14 @@ const updateAuthStatus = (status, message, tokenData = null) => {
     }
 };
 
+/**
+ * Disconnects from Instagram by clearing stored tokens
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response indicating success or failure
+ */
 const disconnectInstagram = async (req, res) => {
-    console.log('Disconnecting Instagram...');
     try {
         instagramAuthStore.tokens = {
             userId: null,
@@ -67,7 +82,13 @@ const disconnectInstagram = async (req, res) => {
 };
 
 
-
+/**
+ * Exchanges an authorization code for a short-lived Instagram token
+ * 
+ * @param {string} code - The authorization code from Instagram OAuth redirect
+ * @returns {Object} Response containing the access_token and user_id
+ * @throws {Error} If credentials are not set or API request fails
+ */
 const getInstagramShortLivedTokenHelper = async (code) => {
     if (!instagramClientId || !instagramClientSecret || !instagramRedirectUri) {
         throw new Error('Instagram credentials are not set');
@@ -80,7 +101,6 @@ const getInstagramShortLivedTokenHelper = async (code) => {
     formData.append('redirect_uri', instagramRedirectUri);
     formData.append('code', code);
 
-    console.log('Requesting short-lived token from Instagram...');
 
     try {
         const response = await axios.post('https://api.instagram.com/oauth/access_token',
@@ -92,7 +112,6 @@ const getInstagramShortLivedTokenHelper = async (code) => {
             }
         );
 
-        console.log('Instagram short-lived token received:', response.data);
 
         return response.data;
     } catch (error) {
@@ -101,12 +120,18 @@ const getInstagramShortLivedTokenHelper = async (code) => {
     }
 }
 
+/**
+ * Exchanges a short-lived token for a long-lived Instagram token
+ * 
+ * @param {string} shortLivedToken - The short-lived access token
+ * @returns {Object} Response containing the long-lived access_token and expires_in
+ * @throws {Error} If credentials are not set or API request fails
+ */
 const getInstagramLongLivedTokenHelper = async (shortLivedToken) => {
     if (!instagramClientId || !instagramClientSecret) {
         throw new Error('Instagram credentials are not set');
     }
 
-    console.log('Requesting long-lived token from Instagram...');
 
     try {
         const response = await axios.get('https://graph.instagram.com/access_token', {
@@ -117,7 +142,6 @@ const getInstagramLongLivedTokenHelper = async (shortLivedToken) => {
             }
         });
 
-        console.log('Instagram long-lived token received:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error requesting long-lived token from Instagram:', error.response?.data || error.message);
@@ -126,7 +150,13 @@ const getInstagramLongLivedTokenHelper = async (shortLivedToken) => {
 
 }
 
-// Helper to send a response page with a message and color
+/**
+ * Generates an HTML response page for Instagram authentication result
+ * 
+ * @param {Object} res - Express response object
+ * @param {boolean} success - Whether authentication was successful
+ * @param {string} message - The message to display to the user
+ */
 function sendResponsePage(res, success, message) {
     const color = success ? 'green' : 'red';
 
@@ -147,7 +177,6 @@ function sendResponsePage(res, success, message) {
         <div class="redirecting">Closing in 2 seconds...</div>
         
         <script>
-            // Close the window after 2 seconds
             setTimeout(function() {
                 window.close();
             }, 2000);
@@ -159,6 +188,15 @@ function sendResponsePage(res, success, message) {
     res.send(html);
 }
 
+/**
+ * Handles the Instagram OAuth redirect callback
+ * Exchanges the authorization code for tokens and stores them
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.query.code - The authorization code from Instagram
+ * @param {Object} res - Express response object
+ * @returns {Object} HTML response page or error JSON
+ */
 const handleInstagramAuthCallback = async (req, res) => {
     const { code } = req.query;
 
@@ -169,7 +207,6 @@ const handleInstagramAuthCallback = async (req, res) => {
         });
     }
 
-    console.log('Instagram auth callback received with code:', code);
 
     try {
         const shortLivedToken = await getInstagramShortLivedTokenHelper(code);
@@ -202,6 +239,13 @@ const handleInstagramAuthCallback = async (req, res) => {
     }
 }
 
+/**
+ * Returns the current Instagram authentication status
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with authentication status, message, and token data
+ */
 const getInstagramAuthStatus = async (req, res) => res.json({
     success: instagramAuthStore.status === 'success',
     status: instagramAuthStore.status || 'unknown',
@@ -209,12 +253,21 @@ const getInstagramAuthStatus = async (req, res) => res.json({
     timestamp: instagramAuthStore.timestamp,
     data: instagramAuthStore.status === 'success' ? {
         userId: instagramAuthStore.tokens.userId,
-        // Don't expose the actual token for security
+        // Don't expose the actual token for security reasons
         hasValidToken: !!instagramAuthStore.tokens.accessToken,
         tokenExpires: instagramAuthStore.tokens.expiresAt
     } : null
 });
 
+/**
+ * Retrieves the Instagram user ID using an access token
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} [req.body.accessToken] - Optional access token (falls back to stored token)
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with user ID and success information
+ */
 const getInstagramUserId = async (req, res) => {
     const { accessToken } = req.body;
     let access_token = accessToken;
@@ -234,7 +287,6 @@ const getInstagramUserId = async (req, res) => {
             }
         );
 
-        console.log('Instagram user ID received:', response.data);
 
         return res.json({
             ...response.data,
@@ -251,6 +303,11 @@ const getInstagramUserId = async (req, res) => {
     }
 }
 
+/**
+ * Retrieves a fresh access token from Imgur API
+ * 
+ * @returns {string|null} The Imgur access token or null if request failed
+ */
 const getImgurAccessTokenHelper = async () => {
     try {
         const response = await axios.post('https://api.imgur.com/oauth2/token', 
@@ -274,6 +331,16 @@ const getImgurAccessTokenHelper = async () => {
     }
 }
 
+/**
+ * Uploads an image to Imgur
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.file - The uploaded file from multer
+ * @param {Buffer} req.file.buffer - The file data buffer
+ * @param {string} req.file.originalname - Original filename
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with Imgur upload response
+ */
 const uploadImageToImgur = async (req, res) => {
     
     const image = req.file;
@@ -303,7 +370,6 @@ const uploadImageToImgur = async (req, res) => {
             }
         );
 
-        console.log('Image uploaded to Imgur:', response.data);
         return res.json({
             ...response.data,
             success: true,
@@ -319,10 +385,18 @@ const uploadImageToImgur = async (req, res) => {
     }
 }
 
+/**
+ * Deletes an image from Imgur
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.deleteHash - The Imgur image delete hash
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response indicating success or failure
+ */
 const deleteImageFromImgur = async (req, res) => {
     const { deleteHash } = req.body;
 
-    console.log('Deleting image from Imgur with hash:', deleteHash);
 
     if (!deleteHash) {
         return res.status(400).json({ error: 'Access token and image hash are required' });
@@ -341,7 +415,6 @@ const deleteImageFromImgur = async (req, res) => {
             }
         });
 
-        console.log('Image deleted from Imgur:', response.data);
         return res.json({
             ...response.data,
             success: true,
@@ -357,8 +430,14 @@ const deleteImageFromImgur = async (req, res) => {
     }
 }
 
+/**
+ * Helper function to delete an image from Imgur
+ * 
+ * @param {string} deleteHash - The Imgur image delete hash
+ * @returns {Object} Imgur API response data
+ * @throws {Error} If delete hash is missing or request fails
+ */
 const deleteImageFromImgurHelper = async (deleteHash) => {
-    console.log('Deleting image from Imgur with hash:', deleteHash);
     if (!deleteHash) {
         throw new Error('Image hash is required');
     }
@@ -376,7 +455,6 @@ const deleteImageFromImgurHelper = async (deleteHash) => {
             }
         });
 
-        console.log('Image deleted from Imgur:', response.data);
         return response.data;
 
     } catch (error) {
@@ -385,6 +463,12 @@ const deleteImageFromImgurHelper = async (deleteHash) => {
     }
 }
 
+/**
+ * Helper function to get Instagram user ID
+ * 
+ * @param {string} accessToken - Instagram access token
+ * @returns {string|null} Instagram user ID or null if request failed
+ */
 const getInstagramUserIdHelper = async (accessToken) => {
     try {
         const response = await axios.get('https://graph.instagram.com/me', {
@@ -398,6 +482,17 @@ const getInstagramUserIdHelper = async (accessToken) => {
     }
 };
 
+/**
+ * Creates an Instagram container (media object) for posting
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.imageUrl - URL to the image
+ * @param {string} req.body.caption - Caption for the Instagram post
+ * @param {string} [req.body.accessToken] - Optional access token (falls back to stored token)
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with container creation result
+ */
 const createInstagramContainer = async (req, res) => {
     const { imageUrl, caption, accessToken } = req.body;
 
@@ -429,7 +524,6 @@ const createInstagramContainer = async (req, res) => {
             { params }
         ); 
 
-        console.log('Instagram container created:', response.data);
         return res.json({
             ...response.data,
             success: true,
@@ -446,6 +540,14 @@ const createInstagramContainer = async (req, res) => {
     }
 }
 
+/**
+ * Helper function to create an Instagram container
+ * 
+ * @param {string} imageUrl - URL to the image
+ * @param {string} caption - Caption for the Instagram post
+ * @returns {Object} Instagram API container creation response
+ * @throws {Error} If parameters are missing or request fails
+ */
 const createInstagramContainerHelper = async (imageUrl, caption) => {
     try {
         if (!imageUrl || !caption) {
@@ -473,7 +575,6 @@ const createInstagramContainerHelper = async (imageUrl, caption) => {
             { params }
         ); 
 
-        console.log('Instagram container created:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error creating Instagram container:', error.response.data);
@@ -481,6 +582,16 @@ const createInstagramContainerHelper = async (imageUrl, caption) => {
     }
 }
 
+/**
+ * Publishes an Instagram container to make it visible on Instagram
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.containerId - The container ID from Instagram
+ * @param {string} [req.body.accessToken] - Optional access token (falls back to stored token)
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with publish result
+ */
 const publishInstagramContainer = async (req, res) => {
     const { containerId, accessToken } = req.body;
 
@@ -510,7 +621,6 @@ const publishInstagramContainer = async (req, res) => {
             { params }
         );
 
-        console.log('Instagram container published:', response.data);
         return res.json({
             ...response.data,
             success: true,
@@ -526,6 +636,13 @@ const publishInstagramContainer = async (req, res) => {
     }
 }
 
+/**
+ * Helper function to publish an Instagram container
+ * 
+ * @param {string} containerId - The container ID from Instagram
+ * @returns {Object} Instagram API publish response
+ * @throws {Error} If container ID is missing or request fails
+ */
 const publishInstagramContainerHelper = async (containerId) => {
     try {
         if (!containerId) {
@@ -552,7 +669,6 @@ const publishInstagramContainerHelper = async (containerId) => {
             { params }
         );
 
-        console.log('Instagram container published:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error publishing Instagram container:', error.response.data);
@@ -560,6 +676,13 @@ const publishInstagramContainerHelper = async (containerId) => {
     }
 }
 
+/**
+ * Publishes a scheduled post to Instagram
+ * 
+ * @param {string} jobId - The job ID of the scheduled post
+ * @returns {void}
+ * @throws {Error} If post not found, no token available, or request fails
+ */
 const publishScheduledPost = async (jobId) => {
 
     try {
@@ -572,14 +695,11 @@ const publishScheduledPost = async (jobId) => {
             throw new Error('No valid Instagram access token found');
         }
 
-        console.log('Publishing scheduled post:', post);
         const { imgurImageUrl, caption } = post;
         const containerResponse = await createInstagramContainerHelper(imgurImageUrl, caption);
-        console.log('Container created:', containerResponse);
 
         const { id: containerId } = containerResponse;
         const postResponse = await publishInstagramContainerHelper(containerId);
-        console.log('Post published:', postResponse);
 
         await InstagramScheduledPost.findOneAndUpdate(
             { jobId },
@@ -594,6 +714,13 @@ const publishScheduledPost = async (jobId) => {
 
 const scheduledJobs = new Map();
 
+/**
+ * Helper function to schedule an Instagram post for later publication
+ * 
+ * @param {string} jobId - The job ID of the scheduled post
+ * @param {string|Date} scheduledTime - The time when the post should be published
+ * @returns {void}
+ */
 const scheduleInstagramPostHelper = async (jobId, scheduledTime) => {
     const job = schedule.scheduleJob(new Date(scheduledTime), async () => {
         try {
@@ -610,11 +737,21 @@ const scheduleInstagramPostHelper = async (jobId, scheduledTime) => {
     });
 
     scheduledJobs.set(jobId, job);
-    console.log(`Scheduled job ${jobId} to publish post at ${scheduledTime}`);
 }
 
+/**
+ * Schedules an Instagram post for later publication
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.imgurImageUrl - URL to the image on Imgur
+ * @param {string} req.body.imgurDeleteHash - Imgur delete hash for cleanup
+ * @param {string} req.body.caption - Caption for the Instagram post
+ * @param {string|Date} req.body.scheduledTime - When to publish the post
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with scheduling result and created post data
+ */
 const scheduleInstagramPost = async (req, res) => {
-    console.log('Scheduling Instagram post...');
     const { imgurImageUrl, imgurDeleteHash, caption, scheduledTime } = req.body;
 
     try {
@@ -626,13 +763,6 @@ const scheduleInstagramPost = async (req, res) => {
         }
 
         const jobId = crypto.randomUUID();
-
-        console.log('Scheduling post with job ID:', jobId);
-        // console.log('Image URL:', imgurImageUrl);
-        // console.log('Delete hash:', imgurDeleteHash);
-        // console.log('Caption:', caption);
-        // console.log('Scheduled time:', scheduledTime);
-
         const scheduledPost = await InstagramScheduledPost.create({
             jobId,
             imgurImageUrl,
@@ -641,7 +771,6 @@ const scheduleInstagramPost = async (req, res) => {
             scheduledTime: new Date(scheduledTime),
             status: 'scheduled'
         });
-        console.log('Scheduled post created:', scheduledPost);
         await scheduleInstagramPostHelper(jobId, scheduledTime);
 
         return res.json({
@@ -660,10 +789,18 @@ const scheduleInstagramPost = async (req, res) => {
     }
 }
 
+/**
+ * Deletes a scheduled Instagram post
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.jobId - The job ID of the scheduled post
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response indicating success or failure
+ */
 const deleteInstagramPostByJobId = async (req, res) => {
     const { jobId } = req.params;
 
-    console.log('Deleting Instagram post with job ID:', jobId);
     if (!jobId) {
         return res.status(400).json({ error: 'Job ID is required' });
     }
@@ -673,7 +810,6 @@ const deleteInstagramPostByJobId = async (req, res) => {
         if (!post) {
             return res.status(404).json({ error: 'Scheduled post not found' });
         }
-        console.log('Scheduled post found:', post);
 
         if (!instagramAuthStore.tokens.accessToken) {
             return res.status(500).json({ error: 'No valid Instagram access token found' });
@@ -687,7 +823,6 @@ const deleteInstagramPostByJobId = async (req, res) => {
 
 
         await InstagramScheduledPost.deleteOne({ _id: jobId });
-        console.log('Scheduled post deleted from database');
 
         let imgurDeleteSuccess = true;
         let imgurDeleteResponse = null;
@@ -695,7 +830,6 @@ const deleteInstagramPostByJobId = async (req, res) => {
         try {
             const deleteHash = post.imgurDeleteHash;
             imgurDeleteResponse = await deleteImageFromImgurHelper(deleteHash);
-            console.log('Image deleted from Imgur:', imgurDeleteResponse);
         } catch (imgurError) {
             // Just log the error but continue with the database deletion
             console.warn('Warning: Failed to delete image from Imgur:', imgurError.message);
@@ -718,6 +852,13 @@ const deleteInstagramPostByJobId = async (req, res) => {
     }
 }
 
+/**
+ * Gets all scheduled Instagram posts
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with array of scheduled posts
+ */
 const getAllInstagramPosts = async (req, res) => {
     try {
         const posts = await InstagramScheduledPost.find();
