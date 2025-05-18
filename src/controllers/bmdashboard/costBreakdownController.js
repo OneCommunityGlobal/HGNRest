@@ -1,3 +1,5 @@
+/* eslint-disable prefer-template */
+/* eslint-disable one-var */
 const moment = require('moment');
 
 const costBreakdownController = (costBreakdown) => {
