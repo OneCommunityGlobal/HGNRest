@@ -18,6 +18,7 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 const projectCost = require('../models/bmdashboard/projectCost');
@@ -53,8 +54,10 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+const tag = require('../models/tag');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -135,6 +138,10 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
+const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+
+// lb dashboard
+const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
@@ -152,6 +159,8 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 const collaborationRouter=require('../routes/collaborationRouter');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
+
+const tagRouter = require('../routes/tagRouter')(tag);
 
 
 module.exports = function (app) {
@@ -200,6 +209,7 @@ module.exports = function (app) {
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api', tagRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -211,6 +221,10 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('api', bmIssueRouter);
+  // lb dashboard
+  app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
