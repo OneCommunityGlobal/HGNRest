@@ -10,16 +10,16 @@ const costBreakdownController = (costBreakdown) => {
     try {
       const { id } = req.params;
       const { fromDate, toDate } = req.query;
-      
+
       // Create date filters
-    //   const dateFilter = {};
-    //   if (fromDate) dateFilter.$gte = new Date(fromDate);
-    //   if (toDate) dateFilter.$lte = new Date(toDate);
-      
+      const dateFilter = {};
+      if (fromDate) dateFilter.$gte = new Date(fromDate);
+      if (toDate) dateFilter.$lte = new Date(toDate);
+
       // Query for current period data
       const filter = { projectId: id };
       if (fromDate || toDate) filter.date = dateFilter;
-      
+
       const currentData = await costBreakdown.aggregate([
         { $match: filter },
         { $group: {
@@ -28,7 +28,7 @@ const costBreakdownController = (costBreakdown) => {
           }
         }
       ]);
-      
+
       // Create the result structure
       const result = {
         current: {
@@ -39,24 +39,24 @@ const costBreakdownController = (costBreakdown) => {
         },
         previousMonthTotal: 0
       };
-      
+
       // Populate current data
       currentData.forEach(item => {
         const category = item._id.toLowerCase();
         result.current[category] = item.totalCost;
       });
-      
+
       // Calculate current total
       const currentTotal = Object.values(result.current).reduce((sum, cost) => sum + cost, 0);
-      
+
       // Get previous month's data
       let previousMonthStart, previousMonthEnd;
-      
+
       if (fromDate && toDate) {
         const currentPeriodStart = moment(fromDate);
         const currentPeriodEnd = moment(toDate);
         const daysDiff = currentPeriodEnd.diff(currentPeriodStart, 'days');
-        
+
         previousMonthStart = moment(currentPeriodStart).subtract(daysDiff, 'days');
         previousMonthEnd = moment(currentPeriodStart).subtract(1, 'day');
       } else {
@@ -64,7 +64,7 @@ const costBreakdownController = (costBreakdown) => {
         previousMonthStart = moment().subtract(1, 'month').startOf('month');
         previousMonthEnd = moment().subtract(1, 'month').endOf('month');
       }
-      
+
       const previousMonthFilter = {
         projectId: id,
         date: {
@@ -72,7 +72,7 @@ const costBreakdownController = (costBreakdown) => {
           $lte: previousMonthEnd.toDate()
         }
       };
-      
+
       const previousMonthData = await costBreakdown.aggregate([
         { $match: previousMonthFilter },
         { $group: {
@@ -81,21 +81,21 @@ const costBreakdownController = (costBreakdown) => {
           }
         }
       ]);
-      
+
       if (previousMonthData.length > 0) {
         result.previousMonthTotal = previousMonthData[0].totalCost;
       }
-      
+
       // Add the current total to the result
       result.currentTotal = currentTotal;
-      
+
       // Calculate percentage change
       if (result.previousMonthTotal > 0) {
         result.percentageChange = ((currentTotal - result.previousMonthTotal) / result.previousMonthTotal) * 100;
       } else {
         result.percentageChange = 100; // If previous is 0, assume 100% increase
       }
-      
+
       res.json(result);
     } catch (error) {
       console.error('Error fetching cost breakdown:', error);
