@@ -74,6 +74,7 @@ const reporthelper = function () {
           email: 1,
           mediaUrl: 1,
           createdDate: 1,
+          endDate: 1,
           weeklycommittedHours: 1,
           weeklycommittedHoursHistory: 1,
           weeklySummaryNotReq: 1,
