@@ -175,7 +175,7 @@ module.exports = function (app) {
   app.use('/api', collaborationRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
-  app.use('/api', questionSetTemplateRoutes);
+  // app.use('/api', questionSetTemplateRoutes);
   app.use('/api', templateRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
