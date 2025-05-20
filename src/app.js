@@ -15,9 +15,9 @@ require('./startup/bodyParser')(app);
 require('./startup/middleware')(app);
 require('./startup/routes')(app);
 
-// const jobAnalyticsRoutes = require('./routes/jobAnalytics');
+const jobAnalyticsRoutes = require('./routes/jobAnalytics');
 
-// app.use('/api/job-analytics', jobAnalyticsRoutes);
+app.use('/api/job-analytics', jobAnalyticsRoutes);
 
 // The error handler must be before any other error middleware and after all controllers
 app.use(Sentry.Handlers.errorHandler());
