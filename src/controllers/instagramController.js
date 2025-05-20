@@ -15,6 +15,7 @@ const imgurRefreshToken = process.env.REACT_APP_IMGUR_REFRESH_TOKEN;
 const instagramClientId = process.env.REACT_APP_INSTAGRAM_CLIENT_ID;
 const instagramClientSecret = process.env.REACT_APP_INSTAGRAM_APP_SECRET;
 const instagramRedirectUri = process.env.REACT_APP_INSTAGRAM_REDIRECT_URI;
+const instagramScope = process.env.REACT_APP_INSTAGRAM_SCOPE;
 
 const instagramAuthStore = {
     status: null,      
@@ -149,6 +150,52 @@ const getInstagramLongLivedTokenHelper = async (shortLivedToken) => {
     }
 
 }
+
+/**
+ * Generates the Instagram authentication URL
+ * 
+ * @returns {Object} An object containing the authentication URL and state
+ */
+function getInstagramAuth() {
+    if (!instagramClientId || !instagramRedirectUri || !instagramScope) {
+        throw new Error('Instagram credentials are not properly configured');
+    }
+
+    const state = crypto.randomBytes(16).toString('hex');
+    const authUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${instagramClientId}&redirect_uri=${encodeURIComponent(instagramRedirectUri)}&response_type=code&scope=${instagramScope}&state=${state}`;
+
+    return {
+        url: authUrl,
+        state
+    };
+    
+}
+
+/**
+ * Generates the Instagram authentication URL and returns it in JSON format
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON with the authentication URL and state
+ * @throws {Error} If an error occurs while generating the URL
+ */
+const getInstagramAuthUrl = async (req, res) => {
+    try {
+        const authUrl = getInstagramAuth();
+        return res.json({
+            success: true,
+            url: authUrl.url,
+            state: authUrl.state
+        });
+    } catch (error) {
+        console.error('Error generating Instagram auth URL:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error generating Instagram auth URL',
+            error: error.message
+        });
+    }
+};
 
 /**
  * Generates an HTML response page for Instagram authentication result
@@ -878,6 +925,7 @@ const getAllInstagramPosts = async (req, res) => {
 }
 
 module.exports = {
+    getInstagramAuthUrl,
     handleInstagramAuthCallback,
     disconnectInstagram,
     getInstagramAuthStatus,

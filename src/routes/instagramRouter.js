@@ -10,6 +10,7 @@ const routes = () => {
     const instagramRouter = express.Router();
 
     // Instagram Authentication
+    instagramRouter.route('/instagram/auth').get(instagramController.getInstagramAuthUrl);
     instagramRouter.route('/instagram/auth-callback').get(instagramController.handleInstagramAuthCallback);
     instagramRouter.route('/instagram/auth-status').get(instagramController.getInstagramAuthStatus);
     instagramRouter.route('/instagram/disconnect').delete(instagramController.disconnectInstagram);
