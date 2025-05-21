@@ -17,11 +17,13 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const event = require('../models/event');
+const registration = require('../models/registration');
 
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
-
+const hgnformRouter=require('../routes/hgnformRouter');
+const hgnFormResponseRouter=require('../routes/hgnFormResponseRouter');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
@@ -83,6 +85,7 @@ const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter'
   permissionChangeLog, userPermissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
+const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -101,7 +104,9 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
-
+const form=require('../models/forms')
+const formResponse=require('../models/formResponse')
+const formRouter=require('../routes/formRouter')(form,formResponse);
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -124,6 +129,7 @@ const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -131,6 +137,10 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 );
 
 const eventRouter = require('../routes/eventRouter');
+const registrationRouter = require('../routes/registrationRouter')(registration);
+
+const collaborationRouter=require('../routes/collaborationRouter');
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -170,7 +180,12 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
+  app.use('/api',formRouter);
+  app.use('/api', collaborationRouter);
   app.use('/api/jobs', jobsRouter);
+  app.use('/api/questions', hgnformRouter);
+  app.use('/api/hgnform',hgnFormResponseRouter);
+  app.use('/api/job-notification-list/', jobNotificationListRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -181,6 +196,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
+  app.use('/api/bm', bmExternalTeam);
   app.use('api', bmIssueRouter);
   app.use('/api', eventRouter);
+  app.use('/api', registrationRouter);
 };
