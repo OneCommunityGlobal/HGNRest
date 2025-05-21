@@ -212,6 +212,7 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
+      'reorderJobs',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
