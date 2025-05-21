@@ -157,6 +157,9 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter=require('../routes/collaborationRouter');
 
+
+const costBreakdown = require('../models/bmdashboard/costBreakdown');
+const costBreakdownRouter = require('../routes/bmdashboard/costBreakdownRouter')(costBreakdown);
 const tagRouter = require('../routes/tagRouter')(tag);
 
 
@@ -225,4 +228,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api', costBreakdownRouter);
 };
