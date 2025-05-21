@@ -55,5 +55,4 @@ EventSchema.pre('save', function (next) {
 });
 
 const Event = mongoose.model('Event', EventSchema);
-console.log('Event model registered');  // Add this line
 module.exports = Event;
