@@ -1988,7 +1988,7 @@ const userProfileController = function (UserProfile, Project) {
       const userIds = formResponses.map(response => response.user_id);
   
       // Get user profiles to get privacy settings
-      const userProfiles = await userProfile.find({
+      const userProfiles = await UserProfile.find({
         _id: { $in: userIds }
       }).select('_id email phoneNumber privacySettings').lean();
       
