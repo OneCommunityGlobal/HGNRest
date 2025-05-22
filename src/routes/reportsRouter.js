@@ -14,6 +14,10 @@ const route = function () {
   reportsRouter.route('/reports/getrecepients').get(controller.getReportRecipients);
 
   reportsRouter.route('/reports/weeklysummaries').get(controller.getWeeklySummaries);
+  
+  reportsRouter.route('/reports/weeklysummaries/userfilters').post(controller.postSummaryFilters);
+
+  reportsRouter.route('/reports/weeklysummaries/getuserfilters').get(controller.getWeeklySummaryFiltersForUser);
 
   reportsRouter
     .route('/reports/overviewsummaries/volunteerstats')
