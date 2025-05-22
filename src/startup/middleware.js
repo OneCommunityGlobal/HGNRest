@@ -39,6 +39,10 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl.includes('/api/instagram/auth-callback') && req.method === 'GET') {
+      next();
+      return;
+    }
     if (req.originalUrl.startsWith('/api/jobs') && req.method === 'GET') {
       next();
       return;
