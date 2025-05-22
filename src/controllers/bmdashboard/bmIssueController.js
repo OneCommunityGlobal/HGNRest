@@ -23,7 +23,20 @@ const bmIssueController = function (BuildingIssue) {
         }
     };
 
-    return { bmGetIssue, bmPostIssue };
+    const bmMostExpensiveIssues = async (req, res) => {
+        const {option} = req.params;
+        try {
+            BuildingIssue
+            .find({status: 'open'})
+            .populate()
+            .then((result) => res.status(200).send(result))
+            .catch((error) => res.status(500).send(error));
+        } catch (err) {
+            res.json(err);
+        }
+    };
+
+    return { bmGetIssue, bmPostIssue, bmMostExpensiveIssues };
 };
 
 module.exports = bmIssueController;
