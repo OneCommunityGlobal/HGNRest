@@ -1,13 +1,14 @@
+/* eslint-disable */
 const mongoose = require('mongoose');
 const moment = require('moment');
-const projects = require('../models/project');
 const wbs = require('../models/wbs');
-const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
+const helper = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
-const inventoryController = function (Item, ItemType) {
+const inventoryController = function (Item, ItemType, projects) {
   const getAllInvInProjectWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getAllInvInProjectWBS'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'getAllInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.params.projectId and wbsId
@@ -40,8 +41,19 @@ const inventoryController = function (Item, ItemType) {
       .catch((error) => res.status(404).send(error));
   };
 
+  //update the project’s inventoryModifiedDatetime
+  const updateProjectInventoryModifiedTime = function (projectId) {
+    return projects.findByIdAndUpdate(projectId, { inventoryModifiedDatetime: Date.now() })
+      .then((result) => {
+        return result;
+      })
+      .catch((err) => {
+        throw new Error('Failed to update project inventoryModifiedDatetime: ' + err.message);
+      });
+  };
+
   const postInvInProjectWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
     // use req.body.projectId and req.body.wbsId req.body.quantity,
@@ -95,7 +107,15 @@ const inventoryController = function (Item, ItemType) {
 
         return inventoryItem
           .save()
-          .then((results) => res.status(201).send(results))
+          .then((results) => {
+          return updateProjectInventoryModifiedTime(req.params.projectId)
+            .then(() => {
+              res.status(201).send(results);
+            })
+            .catch((err) => {
+              res.status(500).send(err.message);
+            });
+        })
           .catch((errors) => res.status(500).send(errors));
       }
       return Item.findOneAndUpdate(
@@ -125,7 +145,13 @@ const inventoryController = function (Item, ItemType) {
           results._id,
           { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
           { new: true },
-        ).then((result) => res.status(201).send(result));
+        ).then((result) => {
+          updateProjectInventoryModifiedTime(req.params.projectId)
+          .then(() => {
+            res.status(201).send(result);
+          })
+          .catch((err) => res.status(500).send(err.message));
+      });
       });
     }
     return res
@@ -214,7 +240,16 @@ const inventoryController = function (Item, ItemType) {
 
         return inventoryItem
           .save()
-          .then((results) => res.status(201).send(results))
+          .then((results) => {
+            return updateProjectInventoryModifiedTime(req.params.projectId)
+              .then(() => {
+                res.status(201).send(results);
+              })
+              .catch((err) => {
+                // If project update fails, send error response
+                res.status(500).send(err.message);
+              });
+          })
           .catch((errors) => res.status(500).send(errors));
       }
       // if item does exist we will update it
@@ -243,9 +278,13 @@ const inventoryController = function (Item, ItemType) {
           results._id,
           { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
           { new: true },
-        )
-          .then((result) => res.status(201).send(result))
-          .catch((errors) => res.status(500).send(errors));
+        ).then((result) => {
+            updateProjectInventoryModifiedTime(req.params.projectId)
+              .then(() => {
+                res.status(201).send(result);
+              })
+              .catch((err) => res.status(500).send(err.message));
+          });
       });
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
@@ -565,89 +604,88 @@ const inventoryController = function (Item, ItemType) {
           },
         },
         { new: true },
-      )
-        .then((prevResults) => {
-          if (!prevResults) {
-            return;
-          }
-          // check if there is a new item that already exists
-          Item.findOne(
-            {
-              project: req.body.projectId,
+      );
+      x.then((prevResults) => {
+        if (!prevResults) {
+          return;
+        }
+        // check if there is a new item that already exists
+        Item.findOne(
+          {
+            project: req.body.projectId,
+            wbs:
+              req.body.wbsId && req.body.wbsId !== 'Unassigned'
+                ? mongoose.Types.ObjectId(req.body.wbsId)
+                : null,
+            wasted: false,
+          },
+          { new: true },
+        )
+          .then((newItem) => {
+            // update the old item cost with the previous results
+            Item.findByIdAndUpdate(prevResults._id, {
+              $decr: { cost: prevResults.costPer * req.body.quantity },
+            });
+            // If the new item exists update it otherwise create one.
+            if (newItem) {
+              return Item.findByIdAndUpdate(
+                newItem._id,
+                {
+                  $inc: {
+                    quantity: req.body.quantity,
+                    cost: prevResults.costPer * req.body.quantity,
+                  },
+                  $push: {
+                    notes: {
+                      quantity: req.body.quantity,
+                      typeOfMovement: 'UnWasted to',
+                      message: `UnWasted ${req.body.quantity} here on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
+                    },
+                    poNums: newItem.poNums,
+                  },
+                },
+                { new: true },
+              )
+                .then((results) => {
+                  Item.findByIdAndUpdate(
+                    results._id,
+                    { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
+                    { new: true },
+                  )
+                    .then((result) => res.status(201).send(result))
+                    .catch((errors) => res.status(500).send(errors));
+                })
+                .catch((errors) => res.status(500).send(errors));
+            }
+            const data = {
+              quantity: req.body.quantity,
+              poNums: [req.body.poNum],
+              cost: prevResults.costPer * req.body.quantity,
+              inventoryItemType: prevResults.inventoryItemType || req.body.typeID,
+              wasted: false,
+              project: mongoose.Types.ObjectId(req.body.projectId),
               wbs:
                 req.body.wbsId && req.body.wbsId !== 'Unassigned'
                   ? mongoose.Types.ObjectId(req.body.wbsId)
                   : null,
-              wasted: false,
-            },
-            { new: true },
-          )
-            .then((newItem) => {
-              // update the old item cost with the previous results
-              Item.findByIdAndUpdate(prevResults._id, {
-                $decr: { cost: prevResults.costPer * req.body.quantity },
-              });
-              // If the new item exists update it otherwise create one.
-              if (newItem) {
-                return Item.findByIdAndUpdate(
-                  newItem._id,
-                  {
-                    $inc: {
-                      quantity: req.body.quantity,
-                      cost: prevResults.costPer * req.body.quantity,
-                    },
-                    $push: {
-                      notes: {
-                        quantity: req.body.quantity,
-                        typeOfMovement: 'UnWasted to',
-                        message: `UnWasted ${req.body.quantity} here on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-                      },
-                      poNums: newItem.poNums,
-                    },
-                  },
-                  { new: true },
-                )
-                  .then((results) => {
-                    Item.findByIdAndUpdate(
-                      results._id,
-                      { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
-                      { new: true },
-                    )
-                      .then((result) => res.status(201).send(result))
-                      .catch((errors) => res.status(500).send(errors));
-                  })
-                  .catch((errors) => res.status(500).send(errors));
-              }
-              const data = {
-                quantity: req.body.quantity,
-                poNums: [req.body.poNum],
-                cost: prevResults.costPer * req.body.quantity,
-                inventoryItemType: prevResults.inventoryItemType || req.body.typeID,
-                wasted: false,
-                project: mongoose.Types.ObjectId(req.body.projectId),
-                wbs:
-                  req.body.wbsId && req.body.wbsId !== 'Unassigned'
-                    ? mongoose.Types.ObjectId(req.body.wbsId)
-                    : null,
-                notes: [
-                  {
-                    quantity: req.body.quantity,
-                    typeOfMovement: 'UnWasted to',
-                    message: `UnWasted ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-                  },
-                ],
-                created: Date.now(),
-              };
-              const inventoryItem = new Item(data);
+              notes: [
+                {
+                  quantity: req.body.quantity,
+                  typeOfMovement: 'UnWasted to',
+                  message: `UnWasted ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
+                },
+              ],
+              created: Date.now(),
+            };
+            const inventoryItem = new Item(data);
 
-              return inventoryItem
-                .save()
-                .then((results) => res.status(201).send({ from: prevResults, to: results }))
-                .catch((errors) => res.status(500).send(errors));
-            })
-            .catch((errors) => res.status(500).send(errors));
-        })
-        .catch((errors) => res.status(500).send(errors));
+            return inventoryItem
+              .save()
+              .then((results) => res.status(201).send({ from: prevResults, to: results }))
+              .catch((errors) => res.status(500).send(errors));
+          })
+          .catch((errors) => res.status(500).send(errors));
+      }).catch((errors) => res.status(500).send(errors));
     }
     return res
       .status(400)
@@ -693,13 +731,17 @@ const inventoryController = function (Item, ItemType) {
       created: Date.now(),
     };
 
-    return Item.findByIdAndUpdate(invId, data, (error, record) => {
-      if (error || record == null) {
-        res.status(400).send({ error: 'No Valid records found' });
-        return;
+    try {
+      const record = await Item.findByIdAndUpdate(invId, data, { new: true });
+      if (!record) {
+        return res.status(404).send({ error: 'No valid record found' });
       }
-      res.status(200).send({ message: 'Inventory successfully updated ' });
-    });
+      await updateProjectInventoryModifiedTime(req.params.projectId);
+
+      res.status(200).send({ message: 'Inventory successfully updated' });
+    } catch (error) {
+      res.status(500).send({ error: 'An internal error occurred' });
+    }
   };
 
   const getInvTypeById = async function (req, res) {
