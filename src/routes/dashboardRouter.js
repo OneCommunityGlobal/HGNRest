@@ -9,6 +9,10 @@ const route = function () {
     .get(controller.getAIPrompt)
     .put(controller.updateAIPrompt);
 
+  Dashboardrouter.route('/dashboard/aiPrompt/copied/:userId')
+    .get(controller.getPromptCopiedDate)
+    .put(controller.updateCopiedPrompt);
+
   Dashboardrouter.route('/dashboard/:userId')
     .get(controller.dashboarddata);
 
@@ -35,7 +39,15 @@ const route = function () {
 
   Dashboardrouter.route('/dashboard/makesuggestion/:userId')
     .post(controller.sendMakeSuggestion);
+    
+  Dashboardrouter.route('/dashboard/questionaire/feedbackrequest')
+    .post(controller.requestFeedbackModal);
 
+    Dashboardrouter.route('/dashboard/questionaire/userNamesList')
+    .get(controller.getUserNames);
+
+    Dashboardrouter.route('/dashboard/questionaire/checkUserFoundHelpSomewhere')
+    .post(controller.checkUserFoundHelpSomewhere);
 
   return Dashboardrouter;
 };
