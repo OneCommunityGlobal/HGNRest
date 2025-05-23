@@ -17,8 +17,6 @@ router.get("/jobforms/:formId", formController.getFormFormat);
 // Get all responses of a form
 router.get("/jobforms/:formId/responses", formController.getFormResponses);
 
-// Add these routes to your existing collaborationRouter.js file
-
 // Question management routes
 router.post("/jobforms/:formId/questions", formController.addQuestion);
 router.patch("/jobforms/:formId/questions/:questionIndex", formController.updateQuestion);
