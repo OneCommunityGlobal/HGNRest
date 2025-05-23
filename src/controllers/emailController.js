@@ -225,17 +225,25 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
 const removeNonHgnEmailSubscription = async (req, res) => {
   try {
     const { email } = req.body;
+
+    // Validate input
     if (!email) {
       return res.status(400).send('Email is required');
     }
-    await EmailSubcriptionList.findOneAndDelete({
+
+    // Try to delete the email
+    const deletedEntry = await EmailSubcriptionList.findOneAndDelete({
       email: { $eq: email },
     });
-    // console.log('delete', email);
-    return res.status(200).send('Email unsubsribed successfully');
+
+    // If not found, respond accordingly
+    if (!deletedEntry) {
+      return res.status(404).send('Email not found or already unsubscribed');
+    }
+
+    return res.status(200).send('Email unsubscribed successfully');
   } catch (error) {
-    console.error('Error updating email subscriptions:', error);
-    return res.status(500).send('Error updating email subscriptions');
+    return res.status(500).send('Server error while unsubscribing');
   }
 };
 
