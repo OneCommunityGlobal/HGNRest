@@ -76,3 +76,67 @@ function getImgurAuth() {
         state
     };
 }
+
+const getImgurAuthUrl = async (req, res) => {
+    try {
+        const authUrl = getImgurAuth();
+        return res.json({
+            success: true,
+            authUrl: authUrl.url
+        });
+    } catch (error) {
+        console.error('Error generating Imgur auth URL:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error generating Imgur auth URL',
+            error: error.message
+        });
+    }
+}
+
+function sendResponsePage(res, success, message) {
+    const color = success ? 'green' : 'red';
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Imgur Authentication ${success ? 'Success' : 'Failed'}</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+            .message { color: ${color}; font-size: 18px; margin: 20px; }
+            .redirecting { font-size: 14px; margin-top: 30px; color: #666; }
+        </style>
+    </head>
+    <body>
+        <h2>Imgur Authentication</h2>
+        <div class="message">${message}</div>
+        <div class="redirecting">Closing in 2 seconds...</div>
+        
+        <script>
+            setTimeout(function() {
+                window.close();
+            }, 2000);
+        </script>
+    </body>
+    </html>
+    `;
+
+    res.send(html);
+}
+
+const handleImgurAuthCallback = async (req, res) => {
+    console.log('Imgur auth callback received');
+    const { access_token, expires_in, refresh_token } = req.query;
+    console.log('Access Token:', access_token);
+    console.log('Expires In:', expires_in);
+    console.log('Refresh Token:', refresh_token);
+
+    return sendResponsePage(res, true, 'Imgur authentication successful');
+}
+
+module.exports = {
+    getImgurAuthUrl,
+    handleImgurAuthCallback,
+    disconnectImgur
+}

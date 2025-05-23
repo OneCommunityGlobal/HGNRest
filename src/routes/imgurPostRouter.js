@@ -41,6 +41,11 @@ const routes = () => {
     imgurRouter.route('/scheduledPosts/:jobId').delete(imgurPostController.deleteScheduledPost);
     // imgurRouter.route('/auth/imgur/callback').post(imgurPostController.authImgur);
 
+    imgurRouter.route('/imgur/auth').get(imgurPostController.getImgurAuthUrl);
+    imgurRouter.route('/imgur/auth-callback').get(imgurPostController.handleImgurAuthCallback);
+    imgurRouter.route('/imgur/store-token').post(imgurPostController.storeImgurToken);
+    imgurRouter.route('/imgur/auth-status').get(imgurPostController.getImgurAuthStatus);
+    imgurRouter.route('/imgur/disconnect').delete(imgurPostController.disconnectImgur);
 
     return imgurRouter;
 }

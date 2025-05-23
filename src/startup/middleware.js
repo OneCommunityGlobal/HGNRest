@@ -43,6 +43,10 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl.includes('/api/imgur/store-token') && req.method === 'POST') {
+      next();
+      return;
+    }
     if (req.originalUrl.includes('/api/imgur/auth-callback') && req.method === 'GET') {
       next();
       return;

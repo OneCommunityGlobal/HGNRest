@@ -11,8 +11,8 @@ const routes = () => {
 
     imgurRouter.route('/imgur/auth').get(imgurController.getImgurAuthUrl);
     imgurRouter.route('/imgur/auth-callback').get(imgurController.handleImgurAuthCallback);
-    imgurRouter.route('/imgur/auth-status').get(imgurController.getimgurAuthStatus);
-    imgurRouter.route('/imgur/disconnect').delete(imgurController.disconnectimgur);
+    // imgurRouter.route('/imgur/auth-status').get(imgurController.getimgurAuthStatus);
+    // imgurRouter.route('/imgur/disconnect').delete(imgurController.disconnectimgur);
 
     return imgurRouter;
 }

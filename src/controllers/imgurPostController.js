@@ -7,29 +7,225 @@ const FormData = require('form-data');
 const schedule = require('node-schedule');
 const ImgurScheduledPost = require('../models/imgurPosts');
 
-const getImgurAccessToken = async () => {
-    const {IMGUR_CLIENT_ID, IMGUR_CLIENT_SECRET, IMGUR_REFRESH_TOKEN} = process.env;
+const crypto = require('crypto');
 
-    if (!IMGUR_CLIENT_ID || !IMGUR_CLIENT_SECRET || !IMGUR_REFRESH_TOKEN) {
-        throw new Error('IMGUR_CLIENT_ID, IMGUR_CLIENT_SECRET, and IMGUR_REDIRECT_URI must be set in the environment variables');
+const imgurClientId = process.env.REACT_APP_IMGUR_CLIENT_ID2;
+const imgurRedirectUri = process.env.REACT_APP_IMGUR_REDIRECT_URI;
+const imgurClientSecret = process.env.REACT_APP_IMGUR_CLIENT_SECRET;
+const imgurRefreshToken = process.env.REACT_APP_IMGUR_REFRESH_TOKEN;
+
+const imgurAuthStore = {
+    status: null,
+    message: null,
+    tokens: {
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null,
+        accountUsername: null,
+        accountId: null,
     }
+}
 
+const updateAuthStatus = (status, message, tokenData = null) => {
+    imgurAuthStore.status = status;
+    imgurAuthStore.message = message;
+    imgurAuthStore.timestamp = Date.now();
 
-    try {
-        const response = await axios.post(
-            'https://api.imgur.com/oauth2/token',
-            new URLSearchParams({
-                grant_type: 'refresh_token',
-                client_id: IMGUR_CLIENT_ID,
-                client_secret: IMGUR_CLIENT_SECRET,
-                refresh_token: IMGUR_REFRESH_TOKEN,
-            })
-        );
-        return response.data.access_token;
-    } catch (e) {
-        throw new Error('Error getting Imgur access token');
+    if (tokenData) {
+      imgurAuthStore.tokens = {
+        accessToken: tokenData.accessToken,
+        refreshToken: tokenData.refreshToken,
+        expiresAt: tokenData.expiresAt
+      };
     }
 };
+
+const disconnectImgur = async (req, res) => {
+    try {
+        imgurAuthStore.tokens = {
+            accessToken: null,
+            refreshToken: null,
+            expiresAt: null,
+            accountUsername: null,
+            accountId: null
+        };
+
+        updateAuthStatus('disconnected', 'Imgur disconnected successfully');
+        return res.json({
+            success: true,
+            message: 'Imgur disconnected successfully'
+        });
+    } catch (error) {
+        console.error('Error disconnecting Imgur:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error disconnecting Imgur',
+            error: error.message
+        });
+    }
+};
+
+function getImgurAuth() {
+    if (!imgurClientId) {
+        throw new Error('Imgur client ID is not configured');
+    }
+
+    const state = crypto.randomBytes(16).toString('hex');
+    
+    // For Implicit Grant flow
+    const authUrl = `https://api.imgur.com/oauth2/authorize?client_id=${imgurClientId}&response_type=token`;
+    
+    return {
+        url: authUrl,
+        state
+    };
+}
+
+const getImgurAuthUrl = async (req, res) => {
+    try {
+        const authUrl = getImgurAuth();
+        return res.json({
+            success: true,
+            authUrl: authUrl.url
+        });
+    } catch (error) {
+        console.error('Error generating Imgur auth URL:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error generating Imgur auth URL',
+            error: error.message
+        });
+    }
+}
+
+const handleImgurAuthCallback = async (req, res) => {
+    console.log('Imgur auth callback received');
+    
+    // Create an HTML page that extracts tokens from the fragment and sends them back to server
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Imgur Authentication</title>
+        <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+            .message { font-size: 18px; margin: 20px; }
+            .success { color: green; }
+            .error { color: red; }
+            .redirecting { font-size: 14px; margin-top: 30px; color: #666; }
+        </style>
+    </head>
+    <body>
+        <h2>Imgur Authentication</h2>
+        <div id="status" class="message">Processing your authentication...</div>
+        <div id="redirecting" class="redirecting"></div>
+        
+        <script>
+            // Extract tokens from URL fragment
+            const fragment = window.location.hash.substring(1);
+            const params = new URLSearchParams(fragment);
+            
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+            const expiresIn = params.get('expires_in');
+            const accountUsername = params.get('account_username');
+            const accountId = params.get('account_id');
+            
+            if (!accessToken || !refreshToken) {
+                document.getElementById('status').className = 'message error';
+                document.getElementById('status').textContent = 'Authentication failed. Missing required tokens.';
+                throw new Error('Authentication failed. Missing required tokens.');
+            }
+            
+            // Use relative URL path instead of hardcoded domain
+            
+            axios.post('http://localhost:4500/api/imgur/store-token', {
+                accessToken,
+                refreshToken,
+                expiresIn,
+                accountUsername,
+                accountId
+            })
+            .then(response => {
+                if (response.data.success) {
+                    document.getElementById('status').className = 'message success';
+                    document.getElementById('status').textContent = 'Authentication successful!';
+                    document.getElementById('redirecting').textContent = 'Closing in 2 seconds...';
+                    setTimeout(() => window.close(), 2000);
+                } else {
+                    document.getElementById('status').className = 'message error';
+                    document.getElementById('status').textContent = 'Authentication failed: ' + response.data.message;
+                }
+            })
+            .catch(error => {
+                document.getElementById('status').className = 'message error';
+                document.getElementById('status').textContent = 'Authentication error: ' + 
+                    (error.response?.data?.message || error.message);
+            });
+        </script>
+    </body>
+    </html>
+    `;
+    
+    res.send(html);
+};
+
+
+const storeImgurToken = async (req, res) => {
+    try {
+        console.log('Received request to store Imgur token:', req.body);
+        
+        const { accessToken, refreshToken, expiresIn, accountUsername, accountId } = req.body;
+        
+        if (!accessToken || !refreshToken) {
+            console.warn('Missing required tokens in request');
+            return res.status(400).json({
+                success: false,
+                message: 'Access token and refresh token are required'
+            });
+        }
+        
+        // Calculate expiration time
+        const expiresAt = Date.now() + (parseInt(expiresIn, 10) * 1000); 
+        
+        // Store tokens in your auth store
+        updateAuthStatus('success', 'Successfully authenticated with Imgur', {
+            accessToken,
+            refreshToken,
+            expiresAt,
+            accountUsername,
+            accountId
+        });
+        
+        console.log('Successfully stored Imgur tokens for user:', accountUsername);
+        
+        return res.json({
+            success: true,
+            message: 'Imgur tokens stored successfully'
+        });
+    } catch (error) {
+        console.error('Error in storeImgurToken:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error while storing Imgur tokens',
+            error: error.message
+        });
+    }
+};
+
+const getImgurAuthStatus = async (req, res) => res.json({
+    success: imgurAuthStore.status === 'success',
+    status: imgurAuthStore.status || 'unknown',
+    message: imgurAuthStore.message || 'No status available',
+    timestamp: imgurAuthStore.timestamp || null,
+    data: imgurAuthStore.status === 'success' ? {
+        accountId: imgurAuthStore.tokens.accountId,
+        accountUsername: imgurAuthStore.tokens.accountUsername,
+        hasValidToken: !!imgurAuthStore.tokens.accessToken,
+        expiresAt: imgurAuthStore.tokens.expiresAt,
+    } : null,
+});
 
 
 
@@ -386,4 +582,10 @@ module.exports = {
     reloadScheduledPosts,
     deleteScheduledPost,
     // authImgur,
+
+    getImgurAuthUrl,
+    handleImgurAuthCallback,
+    storeImgurToken,
+    disconnectImgur,
+    getImgurAuthStatus,
 };
