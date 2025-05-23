@@ -155,10 +155,10 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
-const collaborationRouter=require('../routes/collaborationRouter');
+const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
-
+const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -218,11 +218,12 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api/bm', bmExpenditureRouter);
 };
