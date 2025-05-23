@@ -613,6 +613,94 @@ const dashboardhelper = function () {
     ]);
   };
 
+  const requestFeedback = async (req) => {
+    try {
+      const {
+        userId,
+        haveYouRecievedHelpLastWeek,
+        peopleYouContacted,
+        additionalComments,
+        foundHelpSomeWhereClosePermanently,
+        daterequestedFeedback
+      } = req.body;
+  
+      if (!userId) {
+        return { message: 'userId is required' };
+      }
+  
+      const feedback = {
+        haveYouRecievedHelpLastWeek,
+        peopleYouContacted,
+        additionalComments,
+        foundHelpSomeWhereClosePermanently,
+        daterequestedFeedback: daterequestedFeedback || new Date()
+      };
+
+      const updatedUser = await userProfile.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(userId) },
+        { $set: { questionaireFeedback: feedback } },
+        { new: true }
+      );
+  
+      if (!updatedUser) {
+        return { message: 'User not found' };
+      }
+  
+      return { message: 'Feedback submitted successfully', data: updatedUser };
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+  
+  const getNamesFromProfiles = async (req) => {
+    try {
+
+      const users = await userProfile.find(
+        {},                               // no filter, fetch all
+        { firstName: 1, lastName: 1, isActive: 1, _id: 0 } // projection
+      );
+
+  
+      return users;
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+
+  const checkQuestionaireFeedback = async (req) => {
+    try {
+      const {
+        userId,
+        foundHelpSomeWhereClosePermanently,
+      } = req.body;
+  
+      if (!userId) {
+        return { message: 'userId is required' };
+      }
+
+      const updatedUser = await userProfile.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(userId) },
+        {
+          $set: {
+            "questionaireFeedback.foundHelpSomeWhereClosePermanently": foundHelpSomeWhereClosePermanently
+          }
+        },
+        { new: true }
+      );
+  
+      if (!updatedUser) {
+        return { message: 'User not found' };
+      }
+  
+      return { message: 'request submitted successfully'};
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+
   return {
     personaldetails,
     getUserLaborData,
@@ -621,6 +709,9 @@ const dashboardhelper = function () {
     laborthismonth,
     laborthisweek,
     laborThisWeekByCategory,
+    requestFeedback,
+    getNamesFromProfiles,
+    checkQuestionaireFeedback
   };
 };
 

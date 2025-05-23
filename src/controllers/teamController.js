@@ -3,6 +3,9 @@ const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
+const helper = require('../utilities/permissions');
+
+const INTERNAL_SERVER_ERROR = 'Internal server error';
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -23,8 +26,8 @@ const teamcontroller = function (Team) {
       },
       {
         $match: {
-          isActive: true,  
-        }
+          isActive: true,
+        },
       },
       {
         $group: {
@@ -85,7 +88,7 @@ const teamcontroller = function (Team) {
   };
 
   const postTeam = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postTeam'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postTeam'))) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -101,27 +104,13 @@ const teamcontroller = function (Team) {
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    // Check if a team with the same name already exists
-    Team.findOne({ teamName: team.teamName })
-      .then((existingTeam) => {
-        if (existingTeam) {
-          // If a team with the same name exists, return an error
-          res.status(400).send({ error: 'A team with this name already exists' });
-        } else {
-          // If no team with the same name exists, save the new team
-          team
-            .save()
-            .then((results) => res.send(results).status(200))
-            .catch((error) => {
-              Logger.logException(error, null, `teamName: ${req.body.teamName}`);
-              res.send(error).status(404);
-            });
-        }
-      })
-      .catch((error) => {
-        Logger.logException(error, null, `teamName: ${req.body.teamName}`);
-        res.send(error).status(404);
-      });
+    try {
+      const result = await team.save();
+      res.status(200).send(result);
+    } catch (error) {
+      Logger.logException(error, null, `teamName: ${req.body.teamName}`);
+      res.status(500).send({ error: INTERNAL_SERVER_ERROR });
+    }
   };
 
   const deleteTeam = async function (req, res) {
@@ -148,9 +137,6 @@ const teamcontroller = function (Team) {
           Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send(errors);
         });
-    }).catch((error) => {
-      Logger.logException(error, null, `teamId: ${teamId}`);
-      res.status(400).send(error);
     });
   };
 
@@ -282,7 +268,7 @@ const teamcontroller = function (Team) {
       },
     ])
       .then((result) => {
-        res.status(200).send(result)
+        res.status(200).send(result);
       })
       .catch((error) => {
         Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
@@ -368,20 +354,28 @@ const teamcontroller = function (Team) {
       });
   };
 
-  const getAllTeamMembers = async function (req,res) {
-    try{
+  const getAllTeamMembers = async function (req, res) {
+    try {
       const teamIds = req.body;
-      const cacheKey='teamMembersCache'
-      if(cache.hasCache(cacheKey)){
-        let data=cache.getCache('teamMembersCache')
+      const cacheKey = 'teamMembersCache';
+      if (cache.hasCache(cacheKey)) {
+        let data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
-      if (!Array.isArray(teamIds) || teamIds.length === 0 || !teamIds.every(team => mongoose.Types.ObjectId.isValid(team._id))) {
-        return res.status(400).send({ error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.' });
+      if (
+        !Array.isArray(teamIds) ||
+        teamIds.length === 0 ||
+        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team._id))
+      ) {
+        return res
+          .status(400)
+          .send({
+            error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
+          });
       }
       let data = await Team.aggregate([
-        { 
-          $match: { _id: { $in: teamIds.map(team => mongoose.Types.ObjectId(team._id)) } } 
+        {
+          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team._id)) } },
         },
         { $unwind: '$members' },
         {
@@ -395,20 +389,20 @@ const teamcontroller = function (Team) {
         { $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true } },
         {
           $group: {
-            _id: '$_id',  // Group by team ID
+            _id: '$_id', // Group by team ID
             teamName: { $first: '$teamName' }, // Use $first to keep the team name
-            createdDatetime: { $first: '$createdDatetime' }, 
-            members: { $push: '$members' },  // Rebuild the members array
+            createdDatetime: { $first: '$createdDatetime' },
+            members: { $push: '$members' }, // Rebuild the members array
           },
         },
-      ])
-      cache.setCache(cacheKey,data)
+      ]);
+      cache.setCache(cacheKey, data);
       res.status(200).send(data);
-    }catch(error){
-      console.log(error)
-      res.status(500).send({'message':"Fetching team members failed"});
+    } catch (error) {
+      console.log(error);
+      res.status(500).send({ message: 'Fetching team members failed' });
     }
-  }
+  };
   return {
     getAllTeams,
     getAllTeamCode,
@@ -419,7 +413,7 @@ const teamcontroller = function (Team) {
     assignTeamToUsers,
     getTeamMembership,
     updateTeamVisibility,
-    getAllTeamMembers
+    getAllTeamMembers,
   };
 };
 

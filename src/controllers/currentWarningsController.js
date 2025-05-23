@@ -6,7 +6,7 @@ const currentWarningsController = function (currentWarnings) {
   const normalizeWarningTitle = (warningTitle /*: string */) => warningTitle.toLowerCase().trim();
 
   const checkIfSpecialCharacter = (warning) => {
-    return !/^[a-zA-Z][a-zA-Z0-9]*(?: [a-zA-Z0-9]+)*$/.test(warning);
+    return !/^[a-zA-Z][a-zA-Z0-9,+-]*(?: [a-zA-Z0-9,+-]+)*$/.test(warning);
   };
 
   const getCurrentWarnings = async (req, res) => {
@@ -23,18 +23,16 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const postNewWarningDescription = async (req, res) => {
-    if (!(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) 
-      
-    ) {
+    if (!(await helper.hasPermission(req.body.requestor, 'addWarningTracker'))) {
       res.status(403).send('You are not authorized to add a new WarningTracker.');
       return;
     }
     try {
       const { newWarning, activeWarning, isPermanent } = req.body;
-      const newWarningTitle = normalizeWarningTitle(newWarning);
-
+      const normalizedWarningTitle = normalizeWarningTitle(newWarning);
+      const trimmedWarning = newWarning.trim();
       // Validate first
-      if (checkIfSpecialCharacter(newWarningTitle)) {
+      if (checkIfSpecialCharacter(normalizedWarningTitle)) {
         return res.status(400).send({
           error: 'Warnings cannot have special characters as the first letter',
         });
@@ -42,7 +40,7 @@ const currentWarningsController = function (currentWarnings) {
 
       // DB check
       const warning = await currentWarnings.exists({
-        warningTitle: newWarningTitle,
+        warningTitle: normalizedWarningTitle,
       });
 
       if (warning) {
@@ -51,14 +49,14 @@ const currentWarningsController = function (currentWarnings) {
         });
       }
 
-      const newWarningDescription = new currentWarnings();
-      newWarningDescription.warningTitle = newWarningTitle;
-      newWarningDescription.activeWarning = activeWarning;
-      newWarningDescription.isPermanent = isPermanent;
+      await new currentWarnings({
+        warningTitle: trimmedWarning,
+        activeWarning,
+        isPermanent,
+      }).save();
 
-      await newWarningDescription.save();
-
-      return res.status(201).send({ newWarnings: await currentWarnings.find({}) });
+      const updatedWarnings = await currentWarnings.find({});
+      return res.status(201).send({ newWarnings: updatedWarnings });
     } catch (error) {
       return res.status(401).send({ message: error.message });
     }
@@ -67,18 +65,20 @@ const currentWarningsController = function (currentWarnings) {
   const editWarningDescription = async (req, res) => {
     try {
       const { editedWarning } = req.body;
-      const newWarningTitle = normalizeWarningTitle(editedWarning.warningTitle);
-
+      const normalizedWarningTitle = normalizeWarningTitle(editedWarning.warningTitle);
+      const trimmedWarning = editedWarning.warningTitle.trim();
       // Check client input first
-      if (checkIfSpecialCharacter(newWarningTitle)) {
+      if (checkIfSpecialCharacter(normalizedWarningTitle)) {
         return res.status(400).send({
           error: 'Warning cannot have special characters as the first letter',
         });
       }
 
       // Check if the new warning title already exists
-      if (await currentWarnings.exists({ warningTitle: newWarningTitle })) {
-        return res.status(400).send({ error: 'Warning already exists, please try a different name' });
+      if (await currentWarnings.exists({ warningTitle: normalizedWarningTitle })) {
+        return res
+          .status(400)
+          .send({ error: 'Warning already exists, please try a different name' });
       }
 
       // Fetch the warning to be edited
@@ -88,7 +88,7 @@ const currentWarningsController = function (currentWarnings) {
         return res.status(400).send({ message: 'Warning not found.' });
       }
 
-      warning.warningTitle = newWarningTitle;
+      warning.warningTitle = trimmedWarning;
 
       await warning.save();
       res.status(201).send({ message: 'warning description was updated' });
@@ -97,10 +97,15 @@ const currentWarningsController = function (currentWarnings) {
     }
   };
   const updateWarningDescription = async (req, res) => {
-    if (!(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
+    if (
+      !(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) &&
       !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker'))
     ) {
-      res.status(403).send('You are not authorized to reactivate a WarningTracker or deactivate warning tracker.');
+      res
+        .status(403)
+        .send(
+          'You are not authorized to reactivate a WarningTracker or deactivate warning tracker.',
+        );
       return;
     }
     try {
@@ -119,8 +124,7 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const deleteWarningDescription = async (req, res) => {
-    if (!(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker')) 
-    ) {
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker'))) {
       res.status(403).send('You are not authorized to delete a WarningTracker.');
       return;
     }
