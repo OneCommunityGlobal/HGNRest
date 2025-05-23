@@ -8,8 +8,10 @@ const routes = function (buildingIssue) {
         .get(controller.bmGetIssue);
     IssueRouter.route('/issue/add')
         .post(controller.bmPostIssue);
-    IssueRouter.route('/issues/most-expensive/:option?')
-        .get(controller.bmMostExpensiveIssues);
+    IssueRouter.route('/issues/:id')
+        .patch(controller.bmUpdateIssue);
+    IssueRouter.route('/issues/:id')
+        .delete(controller.bmDeleteIssue);
     return IssueRouter;
 };
 module.exports = routes;
