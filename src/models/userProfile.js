@@ -279,5 +279,17 @@ userProfileSchema.index({ email: 1 });
 userProfileSchema.index({ projects: 1, firstName: 1 });
 userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
+// Add index for weeklySummaries.dueDate to speed up filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Add compound index for isActive and createdDate
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for weekly summaries date filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Compound index for isActive and createdDate (for filtering and sorting)
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for total hours calculation and filtering
+userProfileSchema.index({ totalTangibleHrs: 1 });
+// Index to help with bio status filtering
+userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
