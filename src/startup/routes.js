@@ -104,14 +104,12 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
   hgnFormResponses,
   userProfile,
 );
 
 const faqRouter = require('../routes/faqRouter');
-
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -161,6 +159,11 @@ const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(bui
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
+const toolAvailability = require('../models/bmdashboard/toolAvailability');
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
+  toolAvailability,
+);
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
@@ -168,12 +171,9 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
-
-const collaborationRouter=require('../routes/collaborationRouter');
+const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
-
-
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -235,8 +235,9 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
+  app.use('/api', toolAvailabilityRouter);
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
