@@ -159,33 +159,35 @@ const addNonHgnEmailSubscription = async (req, res) => {
     if (!email) {
       return res.status(400).send('Email is required');
     }
-    const emailList = await EmailSubcriptionList.find({
-      email: { $eq: email },
-    });
+
+    const emailList = await EmailSubcriptionList.find({ email: { $eq: email } });
     if (emailList.length > 0) {
       return res.status(400).send('Email already exists');
     }
-    const payload = { email };
 
-    const token = jwt.sign(payload, jwtSecret, {
-      expiresIn: 360,
-    });
-    const emailContent = ` <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-      </head>
-      <body>
-        <p>Thank you for subscribing to our email updates!</p>
-        <p><a href="${frontEndUrl}/email-subscribe?token=${token}">Click here to confirm your email</a></p>
-      </body>
-      `;
-    // console.log('email', email);
+    // Save to DB immediately
+    const newEmailList = new EmailSubcriptionList({ email });
+    await newEmailList.save();
+
+    // Optional: Still send confirmation email
+    const payload = { email };
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: 360 });
+    const emailContent = `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"></head>
+        <body>
+          <p>Thank you for subscribing to our email updates!</p>
+          <p><a href="${frontEndUrl}/email-subscribe?token=${token}">Click here to confirm your email</a></p>
+        </body>
+      </html>
+    `;
+
     emailSender(email, 'HGN Email Subscription', emailContent);
-    return res.status(200).send('Email subsribed successfully');
+    return res.status(200).send('Email subscribed successfully');
   } catch (error) {
-    console.error('Error updating email subscriptions:', error);
-    res.status(500).send('Error updating email subscriptions');
+    console.error('Error adding email subscription:', error);
+    res.status(500).send('Error adding email subscription');
   }
 };
 
