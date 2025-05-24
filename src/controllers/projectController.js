@@ -295,6 +295,7 @@ const projectController = function (Project) {
         res.status(500).send(error);
       });
   };
+  
 
   function escapeRegExp(string) {
     return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');

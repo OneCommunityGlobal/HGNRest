@@ -7,7 +7,6 @@ const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
-
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
   const dashboarddata = function (req, res) {

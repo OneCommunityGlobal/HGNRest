@@ -838,18 +838,14 @@ const userHelper = function () {
               emailsBCCs = null;
             }
 
-
-
             emailSender(
               status.email,
               'New Infringement Assigned',
               emailBody,
               null,
-             'onecommunityglobal@gmail.com', //cc
-             'jae@onecommunityglobal.org', // replyTo
-              emailsBCCs, //bcc
+              emailsBCCs,
+              'onecommunityglobal@gmail.com',
             );
-
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }

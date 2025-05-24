@@ -330,10 +330,6 @@ describe('inventoryController', () => {
         return Promise.resolve(resolvedInventoryItem);
       });
 
-      jest.spyOn(projects, 'findByIdAndUpdate').mockImplementationOnce(() => {
-        return Promise.resolve({ _id: 'mockedProjectId', inventoryModifiedDatetime: Date.now() });
-      });
-
       const response = await postInvInProjectWBS(mockReq, mockRes);
       await flushPromises();
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'postInvInProjectWBS');
@@ -418,10 +414,6 @@ describe('inventoryController', () => {
 
       jest.spyOn(inventoryItem, 'findByIdAndUpdate').mockImplementationOnce(() => {
         return Promise.resolve(updatedResolvedInventoryItem);
-      });
-
-      jest.spyOn(projects, 'findByIdAndUpdate').mockImplementationOnce(() => {
-        return Promise.resolve({ _id: 'mockedProjectId', inventoryModifiedDatetime: Date.now() });
       });
 
       const response = await postInvInProjectWBS(mockReq, mockRes);
