@@ -72,8 +72,6 @@ const bmMProjectController = function (BuildingProject) {
             totalEquipmentCost: { $sum: 3000 },
           },
         },
-          },
-        },
       ])
         .then((results) => {
           results.forEach((proj) => {
