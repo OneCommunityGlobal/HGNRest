@@ -557,6 +557,24 @@ const deleteImage = async (req, res) => {
     }
 }
 
+const getImgurScheduledPosts = async (req, res) => {
+    try {
+        const posts = await ImgurScheduledPost.find();
+        return res.json({
+            success: true,
+            message: 'Scheduled posts retrieved successfully',
+            posts
+        });
+    } catch (error) {
+        console.error('Error retrieving scheduled posts:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error retrieving scheduled posts',
+            error: error.message
+        });
+    }
+}
+
 // const uploadImageToImgur = async (file, ACCESS_TOKEN) => {
 //     const formData = new FormData();
 //     formData.append('image', file.buffer, file.originalname);
@@ -861,41 +879,6 @@ const deleteImage = async (req, res) => {
 //     }
 // }
 
-const getScheduledPosts = async (req, res) => {
-    try {
-        const scheduledPosts = await ImgurScheduledPost.find({}).populate('files');
-        res.status(200).json({
-            success: true,
-            message: 'Successfully fetched scheduled posts',
-            scheduledPosts,
-        });
-    } catch (e) {
-        console.error('Error getting scheduled posts:', e);
-        res.status(e.response?.status || 500).json({
-            success: false,
-            message: e.response?.data?.message || 'Failed to get scheduled posts',
-            error: e.response?.data || e.message,
-        });
-    }
-}
-// const reloadScheduledPosts = async () => {
-//     try {
-//         const scheduledPosts = await ImgurScheduledPost.find({});
-//         scheduledPosts.forEach((post) => {
-//             const job = schedule.scheduleJob(post.scheduleTime, async () => {
-//                 try {
-//                     await publishToImgur(post.title, post.files.map(file => file.imageHash), post.files.map(file => file.description), post.tags, post.topic);
-//                     await ImgurScheduledPost.deleteOne({ jobId: post.jobId });
-//                 } catch (e) {
-//                     console.error('Error posting to Imgur using scheduled job:', e.response?.data || e.message);
-//                 }
-//             })
-//         });
-//     } catch (e) {
-//         console.error('Error reloading scheduled posts:', e);
-//     }
-// }
-
 module.exports = {
     // postToImgur,
     // getScheduledPosts,
@@ -915,4 +898,5 @@ module.exports = {
     deleteImage,
 
     scheduleImgurPost,
+    getImgurScheduledPosts
 };
