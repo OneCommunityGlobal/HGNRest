@@ -175,6 +175,8 @@ const tagRouter = require('../routes/tagRouter')(tag);
 
 
 
+const socialMediaRouter = require('../routes/socialMediaRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -242,4 +244,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api', socialMediaRouter);
 };
