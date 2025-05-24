@@ -1,10 +1,9 @@
-import userProfile from 'models/userProfile';
-import actionItem from 'models/actionItem';
-
 /* eslint-disable quotes */
 const path = require('path');
 const fs = require('fs/promises');
 const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const actionItem = require('../models/actionItem');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
