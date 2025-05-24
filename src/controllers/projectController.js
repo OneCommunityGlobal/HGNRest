@@ -18,7 +18,7 @@ const projectController = function (Project) {
     try {
       const projects = await Project.find(
         { isArchived: { $ne: true } },
-        'projectName isActive category modifiedDatetime',
+        'projectName isActive category modifiedDatetime membersModifiedDatetime inventoryModifiedDatetime',
       ).sort({ modifiedDatetime: -1 });
       res.status(200).send(projects);
     } catch (error) {
@@ -295,7 +295,45 @@ const projectController = function (Project) {
         res.status(500).send(error);
       });
   };
-  
+
+  function escapeRegExp(string) {
+    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
+
+  const searchProjectMembers = async function (req, res) {
+    const { projectId, query } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).send('Invalid project ID');
+    }
+    // Sanitize user input and escape special characters
+    const sanitizedQuery = escapeRegExp(query.trim());
+    // case-insensitive search
+    const searchRegex = new RegExp(sanitizedQuery, 'i');
+    
+    try {
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
+      const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
+      
+      const results = await userProfile.find({
+        projects: projectId,
+        $or: [
+          { firstName: { $regex: searchRegex } }, 
+          { lastName: { $regex: searchRegex } }
+        ]
+      })
+      .select(`firstName lastName isActive ${canGetId ? '_id' : ''}`)
+      .sort({ firstName: 1, lastName: 1 })
+      .limit(30);
+      res.status(200).send(results);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   const getProjectsWithActiveUserCounts = async function (req, res) {
     try {
       const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
@@ -335,6 +373,7 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    searchProjectMembers,
     getProjectsWithActiveUserCounts,
   };
 };
