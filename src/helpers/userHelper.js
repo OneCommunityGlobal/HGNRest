@@ -482,24 +482,24 @@ const userHelper = function () {
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
-
+  
   const assignBlueSquareForTimeNotMet = async () => {
     try {
       console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
-
+  
       logger.logInfo(
         `Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`,
       );
-
+  
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-
+  
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-
+  
       const usersRequiringBlueSqNotification = [];
 
       /**
@@ -508,47 +508,47 @@ const userHelper = function () {
  * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
  */
       const emailQueue = [];
-      const batchSize = 500;
+      const batchSize = 100;
       let skip = 0;
-
+  
       while (true) {
         const users = await userProfile.find(
           { isActive: true },
           '_id weeklycommittedHours weeklySummaries missedHours'
         ).skip(skip).limit(batchSize);
-
+  
         if (!users.length) break;
 
         await Promise.allSettled(users.map(async (user) => {
           try {
             const person = await userProfile.findById(user._id);
             const personId = mongoose.Types.ObjectId(user._id);
-
+        
             let hasWeeklySummary = false;
-
+        
             if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
               const { summary } = user.weeklySummaries[0];
               if (summary) {
                 hasWeeklySummary = true;
               }
             }
-
+        
             await processWeeklySummariesByUserId(personId);
-
+        
             const results = await dashboardHelper.laborthisweek(
               personId,
               pdtStartOfLastWeek,
               pdtEndOfLastWeek,
             );
-
+        
             const { timeSpent_hrs: timeSpent } = results[0];
             const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
             const timeNotMet = timeSpent < weeklycommittedHours;
             const timeRemaining = weeklycommittedHours - timeSpent;
-
+        
             let isNewUser = false;
             const userStartDate = moment.tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles');
-
+        
             if (
               person.totalTangibleHrs === 0 &&
               person.totalIntangibleHrs === 0 &&
@@ -558,7 +558,7 @@ const userHelper = function () {
               console.log('1');
               isNewUser = true;
             }
-
+        
             if (
               userStartDate.isAfter(pdtEndOfLastWeek) ||
               (userStartDate.isAfter(pdtStartOfLastWeek) &&
@@ -568,7 +568,7 @@ const userHelper = function () {
               console.log('2');
               isNewUser = true;
             }
-
+        
             const updateResult = await userProfile.findByIdAndUpdate(
               personId,
               {
@@ -587,14 +587,14 @@ const userHelper = function () {
               },
               { new: true },
             );
-
+        
             if (
               updateResult?.weeklySummaryOption === 'Not Required' ||
               updateResult?.weeklySummaryNotReq
             ) {
               hasWeeklySummary = true;
             }
-
+        
             const cutOffDate = moment().subtract(1, 'year');
 
             const oldInfringements = [];
@@ -619,7 +619,7 @@ const userHelper = function () {
                 },
                 { new: true },
               );
-
+        
               historyInfringements = oldInfringements
                 .map((item, index) => {
                   let enhancedDescription;
@@ -838,17 +838,16 @@ const userHelper = function () {
               emailsBCCs = null;
             }
 
+            emailQueue.push({
+              to: [person.email, ...(emailsBCCs || [])], // email id of the user along with the bcc's
+              subject: 'New Infringement Assigned',
+              body: emailBody,
+              // bcc: emailsBCCs,
+              cc: 'onecommunityglobal@gmail.com',
+              replyTo: 'jae@onecommunityglobal.org',
+              attachments: null,
+            });
 
-
-            emailSender(
-              status.email,
-              'New Infringement Assigned',
-              emailBody,
-              null,
-             'onecommunityglobal@gmail.com', //cc
-             'jae@onecommunityglobal.org', // replyTo
-              emailsBCCs, //bcc
-            );
 
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -905,25 +904,24 @@ const userHelper = function () {
             logger.logException(err);
           }
         }));
-
-
+        
+  
         skip += batchSize;
       }
-
       for (const email of emailQueue) {
-        await emailSender(
-          email.to,
-          email.subject,
-          email.body,
-          email.bcc,
-          email.from,
-          email.replyTo,
-          email.attachments
-        );
+         await emailSender(
+            email.to,  //email id of the user along with the bcc's
+            email.subject,
+            email.body,
+            email.attachments,
+            email.cc,
+            email.replyTo,
+          );
+       
       }
-
+  
       await deleteOldTimeOffRequests();
-
+  
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -937,7 +935,7 @@ const userHelper = function () {
     } catch (err) {
       logger.logException(err);
     }
-
+  
     try {
       const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
@@ -948,7 +946,7 @@ const userHelper = function () {
       logger.logException(err);
     }
 
-
+   
   };
 
   const applyMissedHourForCoreTeam = async () => {
