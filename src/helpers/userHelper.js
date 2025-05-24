@@ -508,7 +508,7 @@ const userHelper = function () {
  * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
  */
       const emailQueue = [];
-      const batchSize = 500;
+      const batchSize = 100;
       let skip = 0;
   
       while (true) {
@@ -839,14 +839,15 @@ const userHelper = function () {
             }
 
             emailQueue.push({
-              to: person.email,
+              to: [person.email, ...(emailsBCCs || [])], // email id of the user along with the bcc's
               subject: 'New Infringement Assigned',
               body: emailBody,
-              bcc: emailsBCCs,
-              from: 'onecommunityglobal@gmail.com',
-              replyTo: person.email,
+              // bcc: emailsBCCs,
+              cc: 'onecommunityglobal@gmail.com',
+              replyTo: 'jae@onecommunityglobal.org',
               attachments: null,
             });
+
 
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -907,17 +908,16 @@ const userHelper = function () {
   
         skip += batchSize;
       }
-
       for (const email of emailQueue) {
-        await emailSender(
-          email.to,
-          email.subject,
-          email.body,
-          email.bcc,
-          email.from,
-          email.replyTo,
-          email.attachments
-        );
+         await emailSender(
+            email.to,  //email id of the user along with the bcc's
+            email.subject,
+            email.body,
+            email.attachments,
+            email.cc,
+            email.replyTo,
+          );
+       
       }
   
       await deleteOldTimeOffRequests();
