@@ -150,6 +150,9 @@ const updateTaskLoggedHours = async (
   // if both fromTaskId and toTaskId are null, then there is no need to update task hoursLogged
   if (!fromTaskId && !toTaskId) return;
 
+  // if both fromTaskId and toTaskId are the same, then there is no need to update task hoursLogged
+  if (fromTaskId === toTaskId) return;
+
   const hoursToBeRemoved = secondsToBeRemoved ? Number((secondsToBeRemoved / 3600).toFixed(2)) : 0;
   const hoursToBeAdded = secondsToBeAdded ? Number((secondsToBeAdded / 3600).toFixed(2)) : 0;
   if (fromTaskId && toTaskId && fromTaskId !== toTaskId) {
@@ -812,16 +815,31 @@ const timeEntrycontroller = function (TimeEntry) {
           // if tangibility is not changed,
           // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
 
-          // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
-          await updateTaskLoggedHours(
-            initialTaskId,
-            initialTotalSeconds,
-            newTaskId,
-            newTotalSeconds,
-            userprofile,
-            session,
-            pendingEmailCollection,
-          );
+          // if the time entry is a general entry, then the taskId and wbsId should be null
+          if (isGeneralEntry && initialTaskId && newTaskId) {
+            // If the initial entry was general and is now assigned to a specific task, only add time to the new task, do not subtact
+            await updateTaskLoggedHours(
+              null,
+              null,
+              newTaskId,
+              newTotalSeconds,
+              userprofile,
+              session,
+              pendingEmailCollection,
+            );
+          } else {
+            // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
+            await updateTaskLoggedHours(
+              initialTaskId,
+              initialTotalSeconds,
+              newTaskId,
+              newTotalSeconds,
+              userprofile,
+              session,
+              pendingEmailCollection,
+            );
+          }
+          
           // when project is also changed
           if (projectChanged || timeChanged) {
             await updateUserprofileCategoryHrs(
