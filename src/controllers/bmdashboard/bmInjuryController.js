@@ -1,7 +1,7 @@
-const buildingProject = require('models/bmdashboard/buildingProject');
 const mongoose = require('mongoose');
+const buildingProject = require('models/bmdashboard/buildingProject');
 
-const injuryController = function (InjuryRecord) {
+const injuryController = function (injujrySeverity) {
   const postInjury = async (req, res) => {
     try {
       const { projectId, date, injuryType, department, severity, count } = req.body;
@@ -15,7 +15,7 @@ const injuryController = function (InjuryRecord) {
       }
 
       // 2) inject projectName and create
-      const newRecord = await InjuryRecord.create({
+      const newRecord = await injujrySeverity.create({
         projectId,
         projectName: project.name,
         date,
@@ -59,8 +59,7 @@ const injuryController = function (InjuryRecord) {
         const departmentsArray = departments.split(',');
         query.department = { $in: departmentsArray };
       }
-
-      const result = await InjuryRecord.aggregate([
+      const result = await injujrySeverity.aggregate([
         { $match: query },
         {
           $group: {
