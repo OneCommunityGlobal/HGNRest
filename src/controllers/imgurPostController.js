@@ -1,18 +1,12 @@
-// const fs = require('fs');
-const fs = require('fs');
-const path = require('path');
+const crypto = require('crypto');
 const axios = require('axios');
 require ('dotenv').config();
 const FormData = require('form-data');
 const schedule = require('node-schedule');
 const ImgurScheduledPost = require('../models/imgurPosts');
 
-const crypto = require('crypto');
-
 const imgurClientId = process.env.REACT_APP_IMGUR_CLIENT_ID2;
-const imgurRedirectUri = process.env.REACT_APP_IMGUR_REDIRECT_URI;
 const imgurClientSecret = process.env.REACT_APP_IMGUR_CLIENT_SECRET;
-const imgurRefreshToken = process.env.REACT_APP_IMGUR_REFRESH_TOKEN;
 
 const imgurAuthStore = {
     status: null,
@@ -58,7 +52,6 @@ const disconnectImgur = async (req, res) => {
             message: 'Imgur disconnected successfully'
         });
     } catch (error) {
-        console.error('Error disconnecting Imgur:', error);
         return res.status(500).json({
             success: false,
             message: 'Error disconnecting Imgur',
@@ -91,7 +84,6 @@ const getImgurAuthUrl = async (req, res) => {
             authUrl: authUrl.url
         });
     } catch (error) {
-        console.error('Error generating Imgur auth URL:', error);
         return res.status(500).json({
             success: false,
             message: 'Error generating Imgur auth URL',
@@ -101,7 +93,6 @@ const getImgurAuthUrl = async (req, res) => {
 }
 
 const handleImgurAuthCallback = async (req, res) => {
-    console.log('Imgur auth callback received');
     
     // Create an HTML page that extracts tokens from the fragment and sends them back to server
     const html = `
@@ -176,7 +167,6 @@ const handleImgurAuthCallback = async (req, res) => {
 
 const storeImgurToken = async (req, res) => {
     try {
-        console.log('Received request to store Imgur token:', req.body);
         
         const { accessToken, refreshToken, expiresIn, accountUsername, accountId } = req.body;
         
@@ -200,14 +190,12 @@ const storeImgurToken = async (req, res) => {
             accountId
         });
         
-        console.log('Successfully stored Imgur tokens for user:', accountUsername);
         
         return res.json({
             success: true,
             message: 'Imgur tokens stored successfully'
         });
     } catch (error) {
-        console.error('Error in storeImgurToken:', error);
         return res.status(500).json({
             success: false,
             message: 'Internal server error while storing Imgur tokens',
@@ -260,7 +248,6 @@ const refreshImgurToken = async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Error refreshing Imgur token:', error);
         return res.status(500).json({
             success: false,
             message: 'Error refreshing Imgur token',
@@ -270,7 +257,6 @@ const refreshImgurToken = async (req, res) => {
 }
 
 const uploadImage = async (req, res) => {
-    console.log('Received request to upload image:', req.file);
     try {
         const image = req.file;
         const title = req.body.title;
@@ -315,7 +301,6 @@ const uploadImage = async (req, res) => {
             data: response.data
         });
     } catch (error) {
-        console.error('Error uploading image to Imgur:', error);
         return res.status(500).json({
             success: false,
             message: 'Error uploading image to Imgur',
@@ -325,7 +310,6 @@ const uploadImage = async (req, res) => {
 }
 
 const uploadImageToGallery = async (req, res) => {
-    console.log('Received request to upload image to gallery');
     try {
         const { imageHash } = req.params;
         const { title, topic, tags } = req.body;
@@ -363,7 +347,6 @@ const uploadImageToGallery = async (req, res) => {
             data: response.data
         });
     } catch (error) {
-        console.error('Error uploading image to gallery on Imgur:', error);
         return res.status(500).json({
             success: false,
             message: 'Error uploading image to gallery on Imgur',
@@ -373,12 +356,10 @@ const uploadImageToGallery = async (req, res) => {
 }
 
 const uploadImageToGalleryHelper = async (imageHash, title, topic, tags) => {
-    console.log('Uploading image to Imgur gallery with hash:', imageHash);
     try {
         const accessToken = imgurAuthStore.tokens.accessToken;
         if (!accessToken) {
             throw new Error('Imgur access token is missing or expired');
-            return;
         }
 
         const response = await axios.post(`https://api.imgur.com/3/gallery/image/${imageHash}`, {
@@ -395,13 +376,11 @@ const uploadImageToGalleryHelper = async (imageHash, title, topic, tags) => {
 
         return response.data;
     } catch (error) {
-        console.error('Error uploading image to gallery on Imgur:', error);
-        throw error;
+        throw new Error('Error uploading image to gallery on Imgur');
     }
 }
 
 const publishScheduledPost = async (jobId) => {
-    console.log('Publishing scheduled post with jobId:', jobId);
     try {
         const post = await ImgurScheduledPost.findOne({ jobId });
         if (!post) {
@@ -416,17 +395,15 @@ const publishScheduledPost = async (jobId) => {
         const { imageHash, title, tags, topic } = post;
         const postResponse = await uploadImageToGalleryHelper(imageHash, title, topic, tags);
 
-        if (postResponse) {
-            console.log('Successfully posted to Imgur gallery:', postResponse);
-        } else {
-            throw new Error('Failed to post to Imgur gallery');
+        if (!postResponse) {
+            throw new Error('Failed to upload image to Imgur gallery');
         }
+
         await ImgurScheduledPost.findOneAndUpdate(
             { jobId },
             { status: 'published' }
         );
     } catch (error) {
-        console.error('Error publishing scheduled post:', error);
         throw new Error('Error publishing scheduled post');
     }
 }
@@ -434,13 +411,11 @@ const publishScheduledPost = async (jobId) => {
 const scheduledJobs = new Map();
 
 const scheduleImgurPostHelper = async (jobId, scheduledTime) => {
-    console.log('Scheduling Imgur post with jobId:', jobId, 'at time:', scheduledTime);
     const job = schedule.scheduleJob(new Date(scheduledTime), async () => {
         try {
             await publishScheduledPost(jobId);
             scheduledJobs.delete(jobId);
         } catch (error) {
-            console.error('Error executing scheduled job:', error);
             await ImgurScheduledPost.findOneAndUpdate(
                 { jobId },
                 { status: 'failed' }
@@ -452,7 +427,6 @@ const scheduleImgurPostHelper = async (jobId, scheduledTime) => {
 }
 
 const getImageInfoHelper = async (imageHash) => {
-    console.log('Getting image info from Imgur for hash:', imageHash);
     try {
         const accessToken = imgurAuthStore.tokens.accessToken;
         if (!accessToken) {
@@ -467,7 +441,6 @@ const getImageInfoHelper = async (imageHash) => {
 
         return response.data;
     } catch (error) {
-        console.error('Error getting image info from Imgur:', error);
         throw new Error('Error getting image info from Imgur');
     }
 }
@@ -502,7 +475,6 @@ const deleteImage = async (req, res) => {
             data: response.data
         });
     } catch (error) {
-        console.error('Error deleting image from Imgur:', error);
         return res.status(500).json({
             success: false,
             message: 'Error deleting image from Imgur',
@@ -513,11 +485,9 @@ const deleteImage = async (req, res) => {
 
 const deleteImageHelper = async (deleteHash) => {
     if (!deleteHash) {
-        console.error('No deleteHash provided to deleteImageHelper');
         return { success: false, message: 'No deleteHash provided' };
     }
     
-    console.log('Deleting image from Imgur with hash:', deleteHash);
     try {
         const accessToken = imgurAuthStore.tokens.accessToken;
         if (!accessToken) {
@@ -532,15 +502,12 @@ const deleteImageHelper = async (deleteHash) => {
 
         return response.data;
     } catch (error) {
-        console.error('Error deleting image from Imgur:', error);
         throw new Error('Error deleting image from Imgur');
     }
 }
 
 const scheduleImgurPost = async (req, res) => {
-    console.log('Received request to schedule Imgur post');
     const { imageHash, tags, topic, deleteHash, scheduledTime } = req.body;
-    console.log('Request body:', req.body);
     try {
 
         if (!imageHash || !tags || !topic || !scheduledTime) {
@@ -583,20 +550,13 @@ const scheduleImgurPost = async (req, res) => {
             data: scheduledPost
         });
     } catch (error) {
-        console.error('Error scheduling post:', error);
         
         // Only attempt to delete if we have a deleteHash
         if (deleteHash) {
-            console.log('Deleting image from Imgur...');
             try {
-                const deleteResponse = await deleteImageHelper(deleteHash);
-                if (deleteResponse && deleteResponse.success) {
-                    console.log('Deleted image from Imgur successfully');
-                } else {
-                    console.error('Error deleting image from Imgur:', deleteResponse);
-                }
+                await deleteImageHelper(deleteHash);
             } catch (deleteError) {
-                console.error('Failed to delete image during error cleanup:', deleteError);
+                console.warn('Error deleting image from Imgur during post scheduling:', deleteError);
             }
         } else {
             console.warn('No deleteHash available, skipping image deletion');
@@ -621,7 +581,6 @@ const getImgurScheduledPosts = async (req, res) => {
             posts
         });
     } catch (error) {
-        console.error('Error retrieving scheduled posts:', error);
         return res.status(500).json({
             success: false,
             message: 'Error retrieving scheduled posts',
@@ -664,12 +623,7 @@ const deleteImgurScheduledPost = async (req, res) => {
 
         try {
             const deleteHash = post.deleteHash;
-            const deleteResponse = await deleteImageHelper(deleteHash);
-            if (deleteResponse && deleteResponse.success) {
-                console.log('Deleted image from Imgur successfully');
-            } else {
-                console.error('Error deleting image from Imgur:', deleteResponse);
-            }
+            await deleteImageHelper(deleteHash);
         } catch (deleteError) {
             console.warn('Error deleting image from Imgur during scheduled post deletion:', deleteError);
         }
@@ -679,7 +633,6 @@ const deleteImgurScheduledPost = async (req, res) => {
             message: 'Scheduled post deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting scheduled post:', error);
         return res.status(500).json({
             success: false,
             message: 'Error deleting scheduled post',
