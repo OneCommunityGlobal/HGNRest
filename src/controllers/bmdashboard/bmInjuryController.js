@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const buildingProject = require('models/bmdashboard/buildingProject');
+const buildingProject = require('../../models/bmdashboard/buildingProject');
+
 
 const injuryController = function (injujrySeverity) {
   const postInjury = async (req, res) => {
