@@ -14,6 +14,7 @@ const bidDeadline = new Schema(
       },
     ],
     isActive: { type: Boolean, required: true, default: true },
+    isClosed: { type: Boolean, required: false, default: false },
   },
   {
     timestamps: { createdAt: 'createdDatetime', updatedAt: 'modifiedDatetime' },

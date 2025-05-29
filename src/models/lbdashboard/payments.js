@@ -3,13 +3,13 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const paymentSchema = new Schema({
-  orderId: { type: String, required: true },
-  authorizationsId: { type: String, required: true },
+  paypalOrderId: { type: String, required: true },
+  authorizationsId: { type: String, required: false },
   payment_source: {
     card: {
-      lastDigits: { type: String, required: true },
-      expiry: { type: String, required: true },
-      brand: { type: String, required: true },
+      lastDigits: { type: String, required: false },
+      expiry: { type: String, required: false },
+      brand: { type: String, required: false },
     },
   },
   purchase_units: {

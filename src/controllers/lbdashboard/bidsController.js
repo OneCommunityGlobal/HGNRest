@@ -2,11 +2,33 @@ const axios = require('axios');
 const Payments = require('../../models/lbdashboard/payments');
 const Users = require('../../models/lbdashboard/users');
 const Listings = require('../../models/lbdashboard/listings');
+const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 const paymentController = require('./paymentsController');
 
 const paymentControllerInstance = paymentController(Payments);
+const { addBidToHistory } = require('./bidDeadlinesController')();
 
-const { postPayments } = paymentControllerInstance;
+const { postPayments, postPaymentsWithoutCard } = paymentControllerInstance;
+const { getIO } = require('../../sockets/BiddingService/connServer');
+const emailSender = require('../../utilities/emailSender');
+
+const parseDate = (dateStr) => {
+    const [month, day, year] = dateStr.split('/'); // Extract parts
+    return new Date(`${month}-${day}-${year}`); // Convert to YYYY-MM-DD format
+  };
+
+
+  async function getRentalPeriod(startDate, endDate) {
+   console.log(startDate);
+   console.log(endDate)
+    const inStartDate = startDate.toString().includes('/') ? parseDate(startDate) :startDate;
+     const inEndDate = endDate.toString().includes('/') ?parseDate(endDate):endDate
+
+    const rentalPeriod = (inEndDate - inStartDate) / (1000 * 60 * 60 * 24);
+
+    console.log(`rentalPeriod in days: ${rentalPeriod}`);
+    return rentalPeriod;
+  }
 
 const bidsController = function (Bids) {
   // validations
@@ -23,18 +45,31 @@ const bidsController = function (Bids) {
   // 9. price = periodOfRenting * listingPrice not done
   //  Generate PayPal Access Token
 
-  const parseDate = (dateStr) => {
-    const [month, day, year] = dateStr.split('/'); // Extract parts
-    return new Date(`${month}-${day}-${year}`); // Convert to YYYY-MM-DD format
-  };
-
-  const postBidsloc = async (req) => {
+  
+  const postBidsloc = async (req, ordDetails) => {
+    console.log("inside postBidsloc")
     try {
-      const { listingId, requestor, termsAgreed, bidPrice, email } = req.body;
+      const { listingId, requestor, termsAgreed, email } = req.body;
+      const { bidPrice } = req.body.biddingHistory;
+      console.log(ordDetails);
+      const paypalOrderId = ordDetails.id;
+      console.log(paypalOrderId);
+
+      const reqdURL = ordDetails.links;
+      
+      console.log(reqdURL);
+      
+      const checkoutnowLink = reqdURL.find((u) => u.href.includes('checkoutnow'));
+      
+      console.log('checkoutnowLink');
+      console.log(checkoutnowLink?.href);
+      
+
       const inStartDate = parseDate(req.body.startDate);
       const inEndDate = parseDate(req.body.endDate);
 
       console.log(req.body.requestor);
+      console.log(req.body);
 
       const userExists = await Users.findOne({ email });
       if (!userExists) {
@@ -72,14 +107,26 @@ const bidsController = function (Bids) {
         return { status: 400, error: 'Bid price should be greater than 0' };
       }
 
-      const rentalPeriod = (inEndDate - inStartDate) / (1000 * 60 * 60 * 24);
-
+      // const rentalPeriod = (inEndDate - inStartDate) / (1000 * 60 * 60 * 24);
+      const rentalPeriod = await getRentalPeriod(req.body.startDate, req.body.endDate)
       console.log(`rentalPeriod in days: ${rentalPeriod}`);
       console.log(rentalPeriod * bidPrice);
-      const newBidsData = { ...req.body, userId: userExists._id };
+      const newBidsData = { ...req.body, userId: userExists._id, paypalOrderId, paypalCheckoutNowLink:checkoutnowLink?.href };
       const newBids = new Bids(newBidsData);
       console.log(newBids);
       const savedBids = await newBids.save();
+      // Notify all connected clients
+      // send in-app notification
+      console.log('Getting socket IO instance...');
+      const io = getIO();
+      console.log('io is', io);
+      if (io) {
+        io.emit('bid-updated', `current bid price is ${bidPrice}`);
+      }
+
+      const savedBidHistory = await addBidToHistory(BidDeadlines, listingId, bidPrice);
+      console.log(savedBidHistory);
+
       // console.log(savedBids);
       return { status: 200, data: savedBids };
     } catch (error) {
@@ -310,29 +357,11 @@ const bidsController = function (Bids) {
     }
   };
 
-  const createOrderWithCard = async (req, res) => {
-    try {
-      const constCreatOrderWithCard = await createOrderWithCardl(req);
-      console.log('after local call');
-      console.log(constCreatOrderWithCard);
-
-      console.log(constCreatOrderWithCard.success === true);
-      if (constCreatOrderWithCard?.success) {
-        return res.status(201).json({ success: true, data: constCreatOrderWithCard });
-      }
-
-      return res.status(500).json({ success: false, error: constCreatOrderWithCard.error });
-    } catch (error) {
-      console.log('error');
-      console.log(error.response);
-
-      return res.status(500).json({ success: false, error: error.response });
-    }
-  };
-
+  
   // const checkoutOrderWithCard = async (req, res) => {
 
   async function createOrderWithCardl(req) {
+    console.log("createOrderWithCardl")
     console.log(req.body);
 
     const accessToken = await getPayPalAccessTokenl();
@@ -340,8 +369,8 @@ const bidsController = function (Bids) {
     console.log(accessToken);
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const { cardNumber, expiry, cvv } = req.body;
-    const { bidPrice } = req.body;
-    const { listingId } = req.body;
+    const { bidPrice } = req.body.biddingHistory;
+   // const { listingId } = req.body;
     console.log(req.body);
     const payerEmailAddress = req.body.email;
     console.log('payerEmailAddress');
@@ -366,7 +395,7 @@ const bidsController = function (Bids) {
 
           purchase_units: [
             {
-              reference_id: listingId,
+              reference_id: bidPrice, //listingId,
               amount: {
                 currency_code: 'USD',
                 value: rentalPeriod * bidPrice,
@@ -419,28 +448,63 @@ const bidsController = function (Bids) {
       return { success: true, data: checkoutOrder.data };
     } catch (error) {
       console.log('error');
-      console.log(error.response.data);
-      return { success: false, error: error.response.data };
+      console.log(error);
+      return { success: false, error: error.response?.data };
     }
   }
+
+  const createOrderWithCard = async (req, res) => {
+    try {
+      const constCreatOrderWithCard = await createOrderWithCardl(req);
+      console.log('after local call');
+      console.log(constCreatOrderWithCard);
+
+      console.log(constCreatOrderWithCard.success === true);
+      if (constCreatOrderWithCard?.success) {
+        return res.status(201).json({ success: true, data: constCreatOrderWithCard });
+      }
+
+      return res.status(500).json({ success: false, error: constCreatOrderWithCard.error });
+    } catch (error) {
+      console.log('error');
+      console.log(error.response);
+
+      return res.status(500).json({ success: false, error: error.response });
+    }
+  };
 
   const createOrder = async (req, res) => {
     try {
       const constCreateOrder = await createOrderl(req);
+console.log("inside CreateOrder");
+      console.log(constCreateOrder.data);
 
-      return res.status(200).json(constCreateOrder);
+ console.log(constCreateOrder.success === true);
+ console.log(constCreateOrder.success);
+ console.log(constCreateOrder.data);
+      if (constCreateOrder?.success) {
+        console.log("before return success")
+        return res.status(200).json({ success: true, data: constCreateOrder.data });
+      }
+
+      return res.status(500).json({ success: false, error: constCreateOrder.error });
     } catch (error) {
       console.log('error');
-      console.log(error.response.data);
-      return res.status(500).json(error.response.data);
+      console.log(error);
+console.log(error.response);
+
+      return res.status(500).json({ success: false, error: error.response });
     }
   };
 
   async function createOrderl(req) {
     const accessToken = await getPayPalAccessTokenl();
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    const { amt } = req.body.data;
-    console.log(amt);
+    // const { amt } = req.body.data;
+    const { bidPrice } = req.body.biddingHistory;
+    console.log(bidPrice);
+    const rentPeriod = await getRentalPeriod(req.body.startDate, req.body.endDate);
+    console.log(rentPeriod)
 
     try {
       const checkoutOrder = await axios.post(
@@ -450,10 +514,10 @@ const bidsController = function (Bids) {
 
           purchase_units: [
             {
-              reference_id: 'OrderReference',
+              reference_id: bidPrice,
               amount: {
                 currency_code: 'USD',
-                value: amt,
+                value: bidPrice * rentPeriod,
               },
             },
           ],
@@ -469,13 +533,15 @@ const bidsController = function (Bids) {
           },
         },
       );
+      console.log("after CreateOrdercheckoutOrder.data");
       console.log(checkoutOrder.data);
-      return checkoutOrder.data;
+      return { success: true, data: checkoutOrder.data };
     } catch (error) {
       console.log('error');
       console.log(error.response.data);
-      return error.response.data;
+      return { success: false, error: error.response.data };
     }
+
   }
 
   const orderCapture = async (req, res) => {
@@ -639,6 +705,56 @@ const bidsController = function (Bids) {
       return error.response.data;
     }
   }
+
+
+ 
+  // const orderAuthorize = async (req, res) => {
+  async function orderAuthorizeWithoutCardl(req) {
+    console.log('orderAuthorize');
+    console.log('req.query.params.id');
+    console.log(req.body);
+    const orderId = req.body.id;
+    const accessToken = await getPayPalAccessTokenl();
+    console.log(accessToken);
+    console.log('before orderAuthorize post');
+    console.log(orderId);
+
+    try {
+      console.log('before authorize');
+      const authoriseOrderWithoutCard = await axios.post(
+        
+        `${process.env.BASE_URL}/v2/checkout/orders/${orderId}/authorize`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('orderAuthorize:');
+      console.log(authoriseOrderWithoutCard.data);
+      return authoriseOrderWithoutCard.data;
+    } catch (error) {
+      console.log('error');
+      console.log(error.response.data);
+      return error.response.data;
+    }
+  }
+
+   const orderAuthorizeWithoutCard = async (req, res) => {
+    try {
+      const ordAutWithoutCard = await orderAuthorizeWithoutCardl(req);
+      console.log(ordAutWithoutCard);
+      return res.status(200).json(ordAutWithoutCard);
+    } catch (error) {
+      console.log('error');
+      console.log(error.response.data);
+      return res.status(401).json(error.response.data);
+    }
+  };
+
   const cardValidation = async (req, res) => {
     // async function cardValidation(req) {
     //    const accessToken = await getPayPalAccessTokenl();
@@ -769,7 +885,7 @@ const bidsController = function (Bids) {
       console.log(createOrdersWithCardC);
       // return res.status(201).json({ success: true, data: createOrdersWithCardC.data });
       console.log(req.body.requestor);
-      const postBidsResponse = await postBidsloc(req);
+      const postBidsResponse = await postBidsloc(req,createOrdersWithCardC.data);
       console.log('postBidsResponse');
       console.log(postBidsResponse);
       if (postBidsResponse?.status !== 200) {
@@ -805,6 +921,318 @@ const bidsController = function (Bids) {
     }
   };
 
+  const postBidsAndPayWithoutCard = async (req, res) => {
+    const accessToken = await getPayPalAccessTokenl();
+    console.log(accessToken);
+    console.log('req.requestor');
+
+    console.log(req.requestor);
+
+    console.log(req.body);
+    console.log(req.body.requestor);
+
+    try {
+      
+      
+      const userExists = await Users.findOne({ email: req.body.email });
+      if (!userExists) {
+        return res.status(500).json({ success: false, error: 'Invalid email' });
+      }
+      console.log(userExists);
+
+      const listingsExists = await Listings.findOne({ _id: req.body.listingId });
+      if (!listingsExists) {
+        return res.status(500).json({ success: false, error: 'Invalid listingId' });
+      }
+      console.log(listingsExists);
+
+      console.log('before createOrder');
+
+    
+      // const createOrdersWithoutCardC = await createOrder(req,res);
+      const createOrdersWithoutCardC = await createOrderl(req);
+      
+      console.log('createOrdersWithoutCardC');
+      console.log(createOrdersWithoutCardC);
+
+      if (createOrdersWithoutCardC?.success === false) {
+        console.log('inside 500');
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: createOrdersWithoutCardC?.error });
+      }
+      console.log(' condition false');
+      console.log(createOrdersWithoutCardC);
+      console.log(createOrdersWithoutCardC.data);
+    
+
+      const postBidsResponse = await postBidsloc(req, createOrdersWithoutCardC.data);
+      console.log('postBidsResponse');
+      console.log(postBidsResponse);
+      if (postBidsResponse?.status !== 200) {
+        console.log('inside 500');
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: postBidsResponse?.error });
+      }
+      console.log("createOrdersWithoutCardC.data before postPaymnts");
+      console.log(createOrdersWithoutCardC.data);
+      
+      const postPaymnts = await postPaymentsWithoutCard(
+        req,        
+        createOrdersWithoutCardC.data,
+        postBidsResponse?.data,
+      );
+      console.log('postPayments');
+      console.log(postPaymnts);
+
+      if (postPaymnts?.success === false) {
+        console.log('inside 500');
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: postPaymnts?.error });
+      }
+
+      return res.status(201).json({ success: true, data: postPaymnts?.data });
+
+      // const capturePayment = await orderCapturel(createOrdersWithCardC);
+      // console.log(capturePayment);
+      // return res.status(201).json(capturePayment);
+    } catch (error) {
+      console.log('error');
+
+      console.log(error);
+      return res.status(500).json(error.response);
+    }
+  };
+
+  async function updateOrderLocal(req) {
+    console.log(req.body);
+
+    const accessToken = await getPayPalAccessTokenl();
+
+    console.log(accessToken);
+    const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const { bidPrice,listingId,paypalOrderId } = req.body;
+    // const { listingId } = req.body;
+
+    console.log(req.body);
+    const userExists = await Users.findOne({ email: req.body.email });
+    if (!userExists) {
+      return { status: 400, error: 'Invalid email' };
+    }
+    console.log(userExists);
+
+    const bidExists = await Bids.findOne({ paypalOrderId });
+    if (!bidExists) {
+      return { status: 400, error: 'Invalid orderId' };
+    }
+    console.log(bidExists);
+    console.log(bidExists.biddingHistory.length);
+    const lastBid = bidExists.biddingHistory[bidExists.biddingHistory.length - 1];
+    console.log(lastBid);
+    console.log(!lastBid);
+    const firstBid = bidExists.biddingHistory[0];
+    console.log(firstBid);
+    console.log(!firstBid);
+
+    const oldBidPrice = firstBid.bidPrice;
+    console.log("oldBidPrice.toString()");
+    
+    console.log(oldBidPrice.toString());
+    // const payerEmailAddress = req.body.email;
+    // console.log('payerEmailAddress');
+    // console.log(payerEmailAddress);
+
+    // First, find the index of the correct purchase_unit
+
+    const rentalPeriod = await getRentalPeriod(bidExists.startDate, 
+                                         bidExists.endDate);
+    console.log(`rentalPeriod is ${rentalPeriod}`);
+    console.log(`bidPrice is ${bidPrice}`);
+    
+    const paymentExists = await Payments.findOne({
+      paypalOrderId: {
+        $in: [bidExists.paypalOrderId],
+      },
+    });
+    console.log(paymentExists);
+    // getRentalPeriod(startDate, endDate)
+
+    // https://api-m.sandbox.paypal.com/v2/checkout/orders/{id}
+
+    try {
+      const paypalOrder = await axios.get(
+        `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+     // console.log('paypalOrder.data.purchase_units');
+     // console.log(paypalOrder.data.purchase_units);
+     console.log("paypalOrder.data");
+
+     console.log(paypalOrder.data);
+
+      const units = paypalOrder.data.purchase_units;
+      console.log(units[0].amount.toString())
+      console.log(units[0].amount)
+      
+      // const referenceIndex = units.findIndex((u) => u.reference_id === '$[oldBidPrice.toString()}');
+      const referenceIndex = units.findIndex((u) => u.reference_id === oldBidPrice.toString());
+      
+      console.log('referenceIndex');
+
+      console.log(referenceIndex);
+      
+      console.log(units[0].amount);
+      console.log('/purchase_units/reference_id:/amount');
+      console.log(`/purchase_units/reference_id:${oldBidPrice.toString()}/amount`);
+      console.log('/purchase_units/0/amount');
+      // return { success: true, data: paypalOrder.data }; 
+
+      const updateOrd = await axios.patch(
+        `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
+        [
+          {
+            op:  "replace",
+            //   path: `/purchase_units/0/amount/`,
+            // path: `/purchase_units/0/amount/`,
+            //  "path": "/purchase_units/@reference_id=='default'/amount",
+            // path: `/purchase_units/reference_id:${oldBidPrice.toString()}/amount`,
+        //     path: `/purchase_units/${referenceIndex}/amount`,
+        path: `/purchase_units/@reference_id=='${oldBidPrice.toString()}'/amount`,
+
+            value: {
+              currency_code: 'USD',
+              value: rentalPeriod * bidPrice,
+              /* breakdown: {
+                item_total: {
+                  currency_code: 'USD',
+                  value: rentalPeriod * bidPrice,
+                },
+              }, */ 
+            },
+          }, 
+        /*   {
+        op: "add",
+        path: `/purchase_units/@reference_id=='${oldBidPrice.toString()}'/invoice_id`,
+//   path: `/purchase_units/@reference_id=='410'/invoice_id`,
+
+      //  "path": "/purchase_units/@reference_id=='default'/invoice_id",
+        "value": "03012022-3303-05"
+    } */
+        ],
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'PayPal-Request-Id': paypalRequestId,
+          },
+        },
+      ); 
+      // method PATCH
+
+      console.log(updateOrd.data);
+      const afterPatchPaypalOrder = await axios.get(
+        `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+     // console.log('paypalOrder.data.purchase_units');
+     // console.log(paypalOrder.data.purchase_units);
+     console.log("afterPatchPaypalOrder.data");
+
+     console.log(afterPatchPaypalOrder.data);
+
+      return { success: true, data: paypalOrder.data }; 
+    } catch (error) {
+      console.log('error');
+      console.log(error.response.data);
+      return { success: false, error: error.response.data };
+    }
+  }
+
+  const updateOrder = async (req, res) => {
+    try {
+      const updOrd = await updateOrderLocal(req);
+
+      return res.status(200).json(updOrd);
+    } catch (error) {
+      console.log('error');
+      console.log(error.response.data);
+      return res.status(500).json(error.response.data);
+    }
+  };
+
+  const orderCheckoutNow = async (req, res) => {
+    const accessToken = await getPayPalAccessTokenl();
+    const myUrl = `${process.env.BASE_URL}/checkoutnow?token=${req.body.id}`;
+    const outUrl = req.body.hrefLink;
+    console.log(`myUrl is ${myUrl}`);
+    try {
+      console.log('before checkoutnow post');
+      const emailPaymentApprovalBody = `   
+    Body:Hi [User's First Name]
+Thank you for your order!
+
+To complete your payment securely through PayPal, please click the link below:
+
+<a href="${outUrl}">Click here to approve payment</a>
+
+👉 Complete Your Payment
+
+This will open the PayPal checkout page where you can review and approve your payment.
+
+If you have any questions or run into any issues, feel free to reply to this email and we’ll be happy to help.
+
+Best regards,
+[Your Name]
+[Your Company Name]
+[Contact Information]
+`;
+
+console.log(emailPaymentApprovalBody);
+ 
+
+  await emailSender(
+    "meenu.ajai@gmail.com", // toEmailAddress, // recipents 'onecommunityglobal@gmail.com',
+    'Complete Your Payment via PayPal', // subject
+    emailPaymentApprovalBody, // message
+    null, // attachments
+    null, //  cc
+    'onecommunityglobal@gmail.com', // reply to
+  );
+  console.log('email sent');
+
+        
+      // href: 'https://www.sandbox.paypal.com/checkoutnow?token=8TS64434HU813854C',
+      // rel: 'approve',
+      // method: 'GET'
+/*      const checkoutNowOrder = await axios.get(
+        `${process.env.BASE_URL}/checkoutnow?token=${req.id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Order Manually Approved:', checkoutNowOrder); */
+    } catch (error) {
+      console.log('error');
+      console.error(
+        'checkoutnow:',
+        error.response?.data?.details?.description || error.message,
+      );
+      return error.response?.data;
+    }
+  };
+
   // below this line not used
 
   const oldpostPayment = async (req, res) => {
@@ -817,7 +1245,7 @@ const bidsController = function (Bids) {
     const createOrdersWithCardC = await createOrderWithCard(req.body);
     console.log('createOrdersWithCardC');
     console.log(createOrdersWithCardC);
-    return res.status(201).json(createOrdersWithCardC);
+    // return res.status(201).json(createOrdersWithCardC);
 
     const createOrders = await createOrder(req.body.data);
     console.log('createOrders');
@@ -969,48 +1397,23 @@ const bidsController = function (Bids) {
     }
   };
 
-  const checkoutNowPost = async (req, res) => {
-    const accessToken = await getPayPalAccessTokenl();
-
-    try {
-      console.log('before checkoutnow post');
-      // href: 'https://www.sandbox.paypal.com/checkoutnow?token=8TS64434HU813854C',
-      // rel: 'approve',
-      // method: 'GET'
-      const checkoutNowPayment = await axios.get(
-        `${process.env.BASE_URL}/checkoutnow?token=${req.id}`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      console.log('Order Manually Approved:', checkoutNowPayment);
-    } catch (error) {
-      console.log('error');
-      console.error(
-        'checkoutnowPost:',
-        error.response?.data?.details?.description || error.message,
-      );
-      return error.response?.data;
-    }
-  };
-
+  
   // above this line not used
   return {
     getBids,
     postBids,
     getPaymentCardToken,
     postBidsAndPay,
+    postBidsAndPayWithoutCard,    
     getPayPalAccessToken,
     createOrderWithCard,
     createOrder,
     orderAuthorize,
+    orderAuthorizeWithoutCard,
     orderCapture,
     voidPayment,
+    updateOrder,
+    orderCheckoutNow
   };
 };
 

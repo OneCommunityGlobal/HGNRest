@@ -99,10 +99,12 @@ app.post("/api/lb/myWebhooks", express.json(), verifyPaypalSignature,
 
     try {
       const { event_type } = req.body;
-      const bidPrice = req.body.resource.amount.value;
+      // const bidPrice = req.body.resource.amount.value;
+      const bidPrice = req.body.reference;
+
       if (event_type === 'PAYMENT.AUTHORIZATION.CREATED') {
         console.log('PAYMENT.AUTHORIZATION.CREATED');
-        emitBid(bidPrice);
+        // emitBid(bidPrice);
       } else if (event_type === 'PAYMENT.AUTHORIZATION.VOIDED') {
         console.log(' Payment Authorization Voided:', req.body);
 

@@ -5,6 +5,8 @@ const {
   TelesignSMS: TelesignSMSSender,
 } = require('../../utilities/SMSSender');
 
+const { addBidToHistory } = require('../../controllers/lbdashboard/bidDeadlinesController')();
+
 const emailSender = require('../../utilities/emailSender');
 
 const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
@@ -82,8 +84,8 @@ function initSocket(server) {
   io.engine.on('connection_error', (err) => {
     console.log('io.engine error');
     // console.log(err.req); // the request object
-    console.log(err.code); // the error code, for example 1
-    console.log(err.message); // the error message, for example "Session ID unknown"
+    // console.log(err.code); // the error code, for example 1
+    // console.log(err.message); // the error message, for example "Session ID unknown"
     // console.log(err.context); // some additional error context
   });
 
@@ -111,8 +113,8 @@ function initSocket(server) {
     });
     console.log('now');
     console.log(onlineUsers);
-    socket.on('new-bid', async ({ listId, amount }) => {
-      const listingId = mongoose.Types.ObjectId('67db45973f1a8ec3a678fd57'); // 67dc4d543f1a8ec3a678fd70');
+    socket.on('new-bid', async ({ listingId, amount }) => {
+      // const listingId = mongoose.Types.ObjectId('67da392415114d82e8f27727'); // 67dc4d543f1a8ec3a678fd70');
       console.log(`itemId is ${listingId}`);
       console.log(`amount is ${amount}`);
       console.log(`user is ${socket.handshake.auth.email}`);
@@ -152,7 +154,8 @@ function initSocket(server) {
         console.log(bidDeadlines);
         if (bidDeadlines)
           if (lastBid === undefined) {
-            await BidDeadlines.updateOne(
+            await addBidToHistory(BidDeadlines, listingId, amount);
+            /* await BidDeadlines.updateOne(
               { listingId },
               {
                 $push: {
@@ -162,13 +165,15 @@ function initSocket(server) {
                   },
                 },
               },
-            );
+            ); */
           } else if (parseFloat(amount) <= parseFloat(lastBid.bidPrice)) {
             io.emit('bid-not-updated', `bidPrice should be greater than ${lastBid.bidPrice}`);
 
             return `bidPrice should be greater than ${lastBid.bidPrice}`;
           } else {
-            await BidDeadlines.updateOne(
+            await addBidToHistory(BidDeadlines, listingId, amount);
+
+            /* await BidDeadlines.updateOne(
               { listingId },
               {
                 $push: {
@@ -179,7 +184,7 @@ function initSocket(server) {
                 },
               },
             );
-
+*/
             console.log({
               listingId, // mongoose.Types.ObjectId(listingId),
               userId,
@@ -192,7 +197,7 @@ function initSocket(server) {
         console.log(matchBid);
         console.log(matchBid.id);
         console.log(mongoose.Types.Decimal128.fromString(amount.toString()));
-        await Bids.updateOne(
+        /* await Bids.updateOne(
           { listingId, userId },
           {
             $push: {
@@ -202,9 +207,10 @@ function initSocket(server) {
               },
             },
           },
-        );
+        ); */
+        await addBidToHistory(Bids, listingId, amount);
       } catch (error) {
-        console.log(error);
+        console.log("error 244");
       }
       console.log('Bid Received');
       console.log('before callback');

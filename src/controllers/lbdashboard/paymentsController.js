@@ -6,8 +6,8 @@ const paymentsController = function (Payments) {
       console.log('bidDetails');
 
       console.log(bidDetails);
-      const orderId = ordDetails.id;
-      console.log(orderId);
+      const paypalOrderId = ordDetails.id;
+      console.log(paypalOrderId);
       console.log('ordDetails?.purchase_units[0].payments.authorizations');
       console.log(ordDetails?.purchase_units[0].payments.authorizations[0]);
 
@@ -33,7 +33,7 @@ const paymentsController = function (Payments) {
 
       //   const newPayments = new Payments(newPaymentsData);
       const newPayments = new Payments({
-        orderId,
+        paypalOrderId,
         authorizationsId,
         payment_source: {
           card: {
@@ -48,6 +48,59 @@ const paymentsController = function (Payments) {
             expirationTime,
           },
         },
+        userId,
+        bidId,
+        status,
+      });
+      console.log('newPayments before save');
+      console.log(newPayments);
+      const savedPayments = await newPayments.save();
+      // console.log(savedPayments);
+      return { success: true, data: savedPayments };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+   const postPaymentsWithoutCard = async (req, ordDetails, bidDetails) => {
+    try {
+      console.log('ordDetails');
+      console.log(ordDetails);
+      console.log('bidDetails');
+      const amount = req.body.biddingHistory.bidPrice;
+      console.log(bidDetails);
+      const paypalOrderId = ordDetails.id;
+      console.log(paypalOrderId);
+      const { userId } = bidDetails;
+      console.log(bidDetails._id);
+      const bidId = bidDetails._id;
+
+      console.log(bidId, userId);
+
+      const {paypalCheckoutNowLink} = ordDetails;
+      console.log(paypalCheckoutNowLink)
+      
+      const status = 'Payment Authorizations Created';
+      //  const newPaymentsData = { ...req.body };
+
+      //   const newPayments = new Payments(newPaymentsData);
+      const newPayments = new Payments({
+        paypalOrderId,
+        paypalCheckoutNowLink,
+        // authorizationsId,
+        /* payment_source: {
+          card: {
+            lastDigits,
+            expiry,
+            brand,
+          },
+        }, */
+        purchase_units: {
+          payments: {
+            amount,
+           // expirationTime,
+          },
+        }, 
         userId,
         bidId,
         status,
@@ -80,7 +133,9 @@ const paymentsController = function (Payments) {
     }
   };
 */
-  return { postPayments };
+  return { postPayments,
+    postPaymentsWithoutCard
+   };
 };
 
 module.exports = paymentsController;

@@ -1,4 +1,5 @@
-const axios = require('axios');
+const mongoose = require('mongoose');
+
 // const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 const Listings = require('../../models/lbdashboard/listings');
 
@@ -80,10 +81,29 @@ const bidsDeadlineController = function (BidDeadlines) {
       console.log('error occurred');
     }
   };
+  const addBidToHistory = async (modl, listingId, amount) => {
+    console.log('addBidToHistory');
+    console.log(modl);
+    console.log(listingId);
+    console.log(amount);
+
+    if (!modl || !listingId || amount == null) {
+      throw new Error('model, listingId and amount are required.');
+    }
+
+    const bidEntry = {
+      bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
+      createdDatetime: new Date(),
+    };
+    return modl.updateOne({ listingId }, { $push: { biddingHistory: bidEntry } });
+
+    //  return BidDeadlines.updateOne({ listingId }, { $push: { biddingHistory: bidEntry } });
+  };
 
   return {
     getBidDeadlines,
     postBidDeadlines,
+    addBidToHistory,
   };
 };
 

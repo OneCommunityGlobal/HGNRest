@@ -8,16 +8,23 @@ bidsRouter.route('/bids').get(bidsController.getBids).post(bidsController.postBi
 bidsRouter.route('/getPaymentCardToken/').get(bidsController.getPaymentCardToken);
 
 bidsRouter.route('/getPayPalAccessToken/').get(bidsController.getPayPalAccessToken);
-bidsRouter.route('/createOrderWithCard').get(bidsController.createOrderWithCard);
+bidsRouter.route('/createOrderWithCard').post(bidsController.createOrderWithCard);
 
-bidsRouter.route('/createOrder').get(bidsController.createOrder);
+bidsRouter.route('/createOrder').post(bidsController.createOrder);
 // bidsRouter.route('/postPaymentWithCard/').get(bidsController.postPaymentWithCard);
 bidsRouter.route('/bidAndPay/').post(bidsController.postBidsAndPay);
 // bidsRouter.route('/postBidsAndPay/').get(bidsController.postBidsAndPay);
+bidsRouter.route('/bidAndPayWithoutCard/').post(bidsController.postBidsAndPayWithoutCard);
 
 bidsRouter.route('/orderAuthorize/').get(bidsController.orderAuthorize);
 bidsRouter.route('/orderCapture/').post(bidsController.orderCapture);
 
+bidsRouter.route('/orderAuthorizeWithoutCard/').get(bidsController.orderAuthorizeWithoutCard);
+
+
 bidsRouter.route('/voidPayment/').post(bidsController.voidPayment);
+bidsRouter.route('/updateOrder/').patch(bidsController.updateOrder);
+
+bidsRouter.route('/orderCheckoutNow/').get(bidsController.orderCheckoutNow);
 
 module.exports = bidsRouter;
