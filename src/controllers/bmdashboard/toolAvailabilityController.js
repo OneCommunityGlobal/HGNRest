@@ -6,23 +6,41 @@ const toolAvailabilityController = function (ToolAvailability) {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
 
-      // Parse dates from query parameters
-      const startDateTime = startDate
-        ? new Date(startDate)
-        : new Date(new Date().setMonth(new Date().getMonth() - 1));
-      const endDateTime = endDate ? new Date(endDate) : new Date();
-
       // Validate project ID format
       if (!ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
+
+      // Build date filter based on what's provided
+      let dateFilter = {};
+
+      if (startDate && endDate) {
+        // If both dates are provided, use them as range
+        dateFilter = {
+          date: {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate),
+          },
+        };
+      } else if (startDate) {
+        // If only start date is provided, use it as lower bound
+        dateFilter = {
+          date: { $gte: new Date(startDate) },
+        };
+      } else if (endDate) {
+        // If only end date is provided, use it as upper bound
+        dateFilter = {
+          date: { $lte: new Date(endDate) },
+        };
+      }
+      // If no dates are provided, don't filter by date at all
 
       // Query the database for tool availability data
       const results = await ToolAvailability.aggregate([
         {
           $match: {
             projectId: new ObjectId(projectId),
-            date: { $gte: startDateTime, $lte: endDateTime },
+            ...dateFilter,
           },
         },
         {
