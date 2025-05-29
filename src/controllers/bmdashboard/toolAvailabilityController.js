@@ -104,8 +104,50 @@ const toolAvailabilityController = function (ToolAvailability) {
     }
   };
 
+  const getUniqueProjectIds = async (req, res) => {
+    try {
+      // Use aggregation to get distinct project IDs and lookup their names
+      const results = await ToolAvailability.aggregate([
+        {
+          $group: {
+            _id: '$projectId',
+          },
+        },
+        {
+          $lookup: {
+            from: 'buildingProject',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'projectDetails',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            projectName: { $arrayElemAt: ['$projectDetails.projectName', 0] },
+          },
+        },
+        {
+          $sort: { projectName: 1 },
+        },
+      ]);
+
+      // Format the response
+      const formattedResults = results.map((item) => ({
+        projectId: item._id,
+        projectName: item.projectName || 'Unknown Project',
+      }));
+
+      return res.json(formattedResults);
+    } catch (error) {
+      console.error('Error fetching unique project IDs:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   return {
     getToolsAvailability,
+    getUniqueProjectIds,
   };
 };
 

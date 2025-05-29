@@ -9,8 +9,6 @@ const routes = function (BuildingTool, ToolType) {
 
   toolRouter.route('/tools').get(controller.fetchAllTools);
 
-  toolRouter.route('/tools/projects').get(controller.fetchAllToolProjectIds);
-
   toolRouter.route('/tools/:toolId').get(controller.fetchSingleTool);
 
   toolRouter.route('/tools/purchase').post(controller.bmPurchaseTools);

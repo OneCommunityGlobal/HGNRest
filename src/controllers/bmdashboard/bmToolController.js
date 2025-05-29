@@ -106,64 +106,6 @@ const bmToolController = (BuildingTool, ToolType) => {
     }
   };
 
-  // New function to get all unique project IDs that have tools
-  const fetchAllToolProjectIds = async (req, res) => {
-    try {
-      // Aggregate to get unique project IDs
-      const uniqueProjects = await BuildingTool.aggregate([
-        // Match only documents with a project field
-        {
-          $match: {
-            project: { $exists: true, $ne: null },
-          },
-        },
-        // Group by project ID
-        {
-          $group: {
-            _id: '$project',
-          },
-        },
-        // Lookup project details from buildingProject collection
-        {
-          $lookup: {
-            from: 'buildingProjects',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'projectDetails',
-          },
-        },
-        // Unwind the projectDetails array
-        {
-          $unwind: {
-            path: '$projectDetails',
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        // Project only the necessary fields
-        {
-          $project: {
-            _id: '$_id',
-            projectName: '$projectDetails.projectName',
-          },
-        },
-        // Sort by project name
-        {
-          $sort: {
-            projectName: 1,
-          },
-        },
-      ]);
-
-      return res.status(200).send(uniqueProjects);
-    } catch (error) {
-      console.error('Error fetching unique tool project IDs:', error);
-      return res.status(500).send({
-        message: 'Error fetching unique tool project IDs',
-        error: error.message,
-      });
-    }
-  };
-
   const bmPurchaseTools = async function (req, res) {
     const {
       projectId,
@@ -303,7 +245,6 @@ const bmToolController = (BuildingTool, ToolType) => {
     fetchSingleTool,
     bmPurchaseTools,
     bmLogTools,
-    fetchAllToolProjectIds,
   };
 };
 
