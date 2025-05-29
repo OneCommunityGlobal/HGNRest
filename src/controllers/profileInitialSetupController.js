@@ -540,6 +540,7 @@ const profileInitialSetupController = function (
 
     const { permissions } = req.body.requestor;
     let user_permissions = [
+      'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
       'putUserProfile',
