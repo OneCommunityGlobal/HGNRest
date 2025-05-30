@@ -21,7 +21,7 @@ const currentWarnings = require('../models/currentWarnings');
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
-
+const injury = require('../models/bmdashboard/injury');
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -138,6 +138,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   equipmentType,
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const injuriesRouter = require('../routes/bmdashboard/injuryRouter')(injury);
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -220,6 +221,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('api', bmIssueRouter);
+  app.use('/api', injuriesRouter);
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
