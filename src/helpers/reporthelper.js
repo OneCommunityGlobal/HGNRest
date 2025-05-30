@@ -165,7 +165,7 @@ const reporthelper = function () {
 
     // Logic too difficult to do using aggregation.
     results.forEach((result) => {    
-    // NEW CODE - This should create Array(4)
+      // create Array(4) to hold totalSeconds for each week
       result.totalSeconds = [0, 0, 0, 0];
 
       result.timeEntries.forEach((entry) => {
