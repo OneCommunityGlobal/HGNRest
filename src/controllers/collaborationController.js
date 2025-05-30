@@ -106,7 +106,7 @@ exports.getAllFormsFormat = async (req, res) => {
   };
   
 
-//Pallavi..
+//..
 exports.addQuestion = async (req, res) => {
   try {
     const { formId } = req.params;
