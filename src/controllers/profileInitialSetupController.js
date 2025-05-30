@@ -139,24 +139,24 @@ const profileInitialSetupController = function (
     const token = uuidv4();
     const expiration = moment().add(3, 'week');
     // Wrap multiple db operations in a transaction
-    // const session = await startSession();
-    // session.startTransaction();
+    const session = await startSession();
+    session.startTransaction();
 
     try {
       const existingEmail = await userProfile
         .findOne({
           email,
-        });
-        // .session(session);
+        })
+        .session(session);
 
       if (existingEmail) {
-        // await session.abortTransaction();
-        // session.endSession();
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).send('email already in use');
       }
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email });
-      // .session(session);
+      await ProfileInitialSetupToken.findOneAndDelete({ email })
+        .session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -169,10 +169,10 @@ const profileInitialSetupController = function (
       });
 
       const savedToken = await newToken.save(
-        // { session }
+        { session }
       );
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
-      // await session.commitTransaction();
+      await session.commitTransaction();
 
       // Send response immediately without waiting for email acknowledgment
       res.status(200).send({ message: 'Token created successfully, email is being sent.' });
@@ -196,11 +196,11 @@ const profileInitialSetupController = function (
         }
       });
     } catch (error) {
-      // await session.abortTransaction();
+      await session.abortTransaction();
       LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
       return res.status(400).send(`Error: ${error}`);
     } finally {
-      // session.endSession();
+      session.endSession();
     }
   };
 
