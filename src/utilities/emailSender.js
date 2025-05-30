@@ -91,7 +91,6 @@ const emailSender = (
   attachments = null,
   cc = null,
   replyTo = null,
-  emailBccs = null,
 ) => {
   if (!process.env.sendEmail) return;
   return new Promise((resolve, reject) => {
@@ -100,8 +99,7 @@ const emailSender = (
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
         from: config.email,
-        to: batchRecipients.join(','), // <-- use 'to' instead of 'bcc'
-        bcc: emailBccs.join(','),
+        bcc: batchRecipients.join(','),
         subject,
         html: message,
         attachments,
