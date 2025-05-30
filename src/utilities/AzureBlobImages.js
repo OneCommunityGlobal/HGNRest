@@ -75,6 +75,8 @@ const fetchImagesFromAzureBlobStorage = async (imageUrls) => {
 }
 
 module.exports = {
-  saveImagestoAzureBlobStorage, 
+  saveImagestoAzureBlobStorage,
   fetchImagesFromAzureBlobStorage
 };
+
+
