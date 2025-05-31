@@ -3,29 +3,31 @@ const mongoose = require('mongoose');
 const issueSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
+    default: () => new mongoose.Types.ObjectId(),
     required: true
   },
-  issueType: {
+  projectName: {
     type: String,
-    enum: ['Equipment', 'Labor', 'Materials'],
-    required: true
+    required: true,
   },
-  description: {
-    type: String,
-    required: true
+  equipmentIssues: {
+    type: Number,
+    required: true,
   },
-  dateReported: {
-    type: Date,
-    default: Date.now,
-    required: true
-  }
+  laborIssues: {
+    type: Number,
+    required: true,
+  },
+  materialIssues: {
+    type: Number,
+    required: true,
+  },
 }, {
   timestamps: true // Adds createdAt and updatedAt fields automatically
 });
 
 // Create a compound index on projectId and issueType for efficient querying
-issueSchema.index({ projectId: 1, issueType: 1 });
+issueSchema.index({ projectId: 1 });
 
 const Issue = mongoose.model('Issue', issueSchema);
 
