@@ -1,17 +1,13 @@
-/* eslint-disable quotes */
-require('dotenv').load();
-const { app, logger } = require('./app');
-const websockets = require('./websockets').default;
-require('./startup/db')();
-require('./cronjobs/userProfileJobs')();
+require('dotenv').config();
+const app = require('./app');
+const logger = require('./startup/logger'); // if you have a logger
+require('./startup/db')(); // DB connection if applicable
+require('./cronjobs/userProfileJobs')(); // if needed
 
 const port = process.env.PORT || 4500;
-
 const server = app.listen(port, () => {
-  logger.logInfo(`Started server on port ${port}`);
+  console.log(`Server running on port ${port}`);
+  logger && logger.logInfo(`Started server on port ${port}`);
 });
-(async () => {
-  await websockets(server);
-})();
 
 module.exports = server;
