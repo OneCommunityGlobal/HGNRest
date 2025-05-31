@@ -3,11 +3,11 @@ const path = require('path');
 const { google } = require('googleapis');
 const { hasPermission } = require('../utilities/permissions');
 
-// Google OAuth2 config for testing
-const CLIENT_ID = '632550011285-blbthkovp8eagnr3bhcajmbijdk50i5q.apps.googleusercontent.com';
-const CLIENT_SECRET = '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';
-const REDIRECT_URI = 'https://developers.google.com/oauthplayground';
-const REFRESH_TOKEN = '1//04EerinWLuF0jCgYIARAAGAQSNwF-L9Ird5qp0F3iDwxPJ87Yoox9yNcD4e4agZuVaTTnLEGPe-0t8GejxeYlH-UGvP7ot5rUlbo';
+// Read sensitive config from environment variables
+const CLIENT_ID = process.env.YT_CLIENT_ID;
+const CLIENT_SECRET = process.env.YT_CLIENT_SECRET;
+const REDIRECT_URI = process.env.YT_REDIRECT_URI;
+const REFRESH_TOKEN = process.env.YT_REFRESH_TOKEN;
 
 const youtubeUploadController = () => {
   const uploadVideo = async (req, res) => {
