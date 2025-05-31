@@ -7,14 +7,13 @@ const {
   createRole,
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../test');
-const RolePreset = require('../models/rolePreset');
+// const RolePreset = require('../models/rolePreset');
 
-const agent = request.agent(app);
+// const agent = request.agent(app);
 
+
+test.todo('Fix rolePresetTest');
 // TODO: Fix whole file
-describe('rolePreset tests', () => {
-  it("Fix this test suite", () => {})
-});
 // describe('rolePreset routes', () => {
 //   let adminUser;
 //   let adminToken;

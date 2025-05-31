@@ -38,6 +38,7 @@ const userProfileSchema = new Schema({
     isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
+    removedDefaultPermissions: [String]
   },
   firstName: {
     type: String,
@@ -257,6 +258,19 @@ const userProfileSchema = new Schema({
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
   permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
+  questionaireFeedback: {
+    haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
+    peopleYouContacted: [
+      {
+        fullName: { type: String, required: true },
+        rating: { type: Number, min: 1, max: 5 },
+        isActive: { type: Boolean, default: false },
+      }
+    ],
+    additionalComments: { type: String },
+    daterequestedFeedback: { type: Date, default: Date.now },
+    foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
+  }
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -275,6 +289,20 @@ userProfileSchema.pre('save', function (next) {
 
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ projects: 1, firstName: 1 });
+userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
+// Add index for weeklySummaries.dueDate to speed up filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Add compound index for isActive and createdDate
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for weekly summaries date filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Compound index for isActive and createdDate (for filtering and sorting)
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for total hours calculation and filtering
+userProfileSchema.index({ totalTangibleHrs: 1 });
+// Index to help with bio status filtering
+userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

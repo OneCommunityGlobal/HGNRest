@@ -110,10 +110,9 @@ function informManagerMessage(user) {
 
 const sendEmailWithAcknowledgment = (email, subject, message) =>
   new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, (error, result) => {
-      if (result) resolve(result);
-      if (error) reject(result);
-    });
+    emailSender(email, subject, message, null, null, null, null)
+      .then(resolve)
+      .catch(reject);
   });
 
 const profileInitialSetupController = function (
@@ -156,7 +155,8 @@ const profileInitialSetupController = function (
         return res.status(400).send('email already in use');
       }
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
+      await ProfileInitialSetupToken.findOneAndDelete({ email })
+        .session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -168,7 +168,9 @@ const profileInitialSetupController = function (
         createdDate: Date.now(),
       });
 
-      const savedToken = await newToken.save({ session });
+      const savedToken = await newToken.save(
+        { session }
+      );
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
@@ -540,6 +542,7 @@ const profileInitialSetupController = function (
 
     const { permissions } = req.body.requestor;
     let user_permissions = [
+      'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
       'putUserProfile',

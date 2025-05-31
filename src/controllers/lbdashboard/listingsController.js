@@ -1,12 +1,18 @@
 const mongoose = require('mongoose');
 const {fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage} = require('../../utilities/AzureBlobImages');
 const userProfile = require('../../models/userProfile');
-const Availability = require('../../models/lbdashboard/availability');
 
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
     try {
-      const { page = 1, size = 10 } = req.query;
+      const { 
+        page = 1, 
+        size = 10, 
+        village, 
+        availableFrom, 
+        availableTo 
+      } = req.query;
+      
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
 
@@ -16,14 +22,32 @@ const listingsController = (ListingHome) => {
       }
 
       const skip = (pageNum - 1) * sizeNum;
-      const total = await ListingHome.countDocuments();
+      
+      // Build query based on filters
+      const query = {};
+      if (village) query.village = village;
+      
+      // Handle date range filtering
+      if (availableFrom || availableTo) {
+        query.$and = [];
+        
+        if (availableFrom) {
+          query.$and.push({ availableTo: { $gte: new Date(availableFrom) } });
+        }
+        
+        if (availableTo) {
+          query.$and.push({ availableFrom: { $lte: new Date(availableTo) } });
+        }
+      }
+      
+      const total = await ListingHome.countDocuments(query);
       const totalPages = Math.ceil(total / sizeNum);
 
       if (pageNum > totalPages && totalPages > 0) {
         return res.status(404).json({ error: 'Page not found' });
       }
 
-      const listings = await ListingHome.find()
+      const listings = await ListingHome.find(query)
         .populate([
           {
             path: 'createdBy', select: '_id firstName lastName'
@@ -38,16 +62,45 @@ const listingsController = (ListingHome) => {
         .lean()
         .exec();
 
+      // Return empty array if no listings found - don't treat as an error
       if (!listings.length) {
-        return res.status(404).json({ error: 'No listings found' });
+        return res.status(200).json({ 
+          status: 200,
+          message: 'No listings found',
+          data: {
+            items: [],
+            pagination: {
+              total: 0,
+              totalPages: 0,
+              currentPage: pageNum,
+              pageSize: sizeNum
+            }
+          }
+        });
       }
 
-      const processedListings = await Promise.all (listings.map( async listing => {
+      // Process listings with error handling for image fetching
+      const processedListings = await Promise.all(listings.map(async listing => {
+        let images = [];
+        
+        // Try to fetch images from Azure with error handling
+        try {
+          if (listing.images && listing.images.length > 0) {
+            images = await fetchImagesFromAzureBlobStorage(listing.images);
+          }
+        } catch (error) {
+          console.error('Error fetching images from Azure:', error.message);
+          // Fallback to placeholder images
+          images = ['https://via.placeholder.com/300x200?text=Unit'];
+        }
+        
         const processed = { 
           ...listing,
-          images: listing.images.length > 0 ? await fetchImagesFromAzureBlobStorage(listing.images) : [],
+          images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
           createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
           updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
+          availableFrom: listing.availableFrom ? listing.availableFrom.toISOString().split('T')[0] : null,
+          availableTo: listing.availableTo ? listing.availableTo.toISOString().split('T')[0] : null,
         };
         return processed;
       }));
@@ -86,7 +139,10 @@ const listingsController = (ListingHome) => {
         perUnit, 
         createdBy,
         updatedBy, 
-        availability, 
+        availableFrom,
+        availableTo,
+        village,
+        coordinates,
         amenities, 
         status 
       } = req.body;
@@ -99,7 +155,7 @@ const listingsController = (ListingHome) => {
       }
 
       if (isComplete) {
-        if (!title || !description || !price || !perUnit || !createdBy || !images || !availability || !amenities || !updatedBy) {
+        if (!title || !description || !price || !perUnit || !createdBy || !availableFrom || !availableTo || !village || !amenities || !updatedBy) {
           return res.status(400).json({
             error: 'Missing required fields for complete listing',
             details: {
@@ -108,9 +164,11 @@ const listingsController = (ListingHome) => {
               price: !price ? 'Required' : null,
               perUnit: !perUnit ? 'Required' : null,
               createdBy: !createdBy ? 'Required' : null,
-              images: !images ? 'Required' : null,
-              availability: !availability ? 'Required' : null,
-              anmenities: !amenities ? 'Required' : null
+              availableFrom: !availableFrom ? 'Required' : null,
+              availableTo: !availableTo ? 'Required' : null,
+              village: !village ? 'Required' : null,
+              amenities: !amenities ? 'Required' : null,
+              updatedBy: !updatedBy ? 'Required' : null
             }
           });
         }
@@ -141,23 +199,52 @@ const listingsController = (ListingHome) => {
         }
       }
 
+      // Parse coordinates if they're provided as a string
+      let parsedCoordinates = coordinates;
+      if (coordinates && typeof coordinates === 'string') {
+        try {
+          parsedCoordinates = JSON.parse(coordinates);
+          // Validate coordinates
+          if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2 ||
+              typeof parsedCoordinates[0] !== 'number' || typeof parsedCoordinates[1] !== 'number') {
+            return res.status(400).json({ error: 'Coordinates must be an array of two numbers [longitude, latitude]' });
+          }
+        } catch (e) {
+          return res.status(400).json({ error: 'Invalid coordinates format' });
+        }
+      }
+
       const listingData = {
         title,
         description,
         price: price ? parseFloat(price) : undefined,
         perUnit,
         createdBy,
-        availability,
-        status,
-        updatedBy
+        updatedBy,
+        status
       };
-  
-      if (images) {
-        listingData.images = await saveImagestoAzureBlobStorage(images, title);
-      };
-      if (availability) listingData.availability = new Date(availability); // in MM/DD/YYYY format
-      console.log('availability', availability);
-      if (amenities) listingData.amenities = amenities;
+
+      // Handle image uploads with error handling
+      if (images && images.length) {
+        try {
+          listingData.images = await saveImagestoAzureBlobStorage(images, title);
+        } catch (error) {
+          console.error('Error saving images to Azure:', error);
+          // Just store the titles as fallback if Azure storage fails
+          listingData.images = images.map((image, idx) => `image-${idx}-${Date.now()}`);
+        }
+      }
+      
+      if (availableFrom) listingData.availableFrom = new Date(availableFrom);
+      if (availableTo) listingData.availableTo = new Date(availableTo);
+      if (village) listingData.village = village;
+      if (parsedCoordinates) listingData.coordinates = parsedCoordinates;
+      if (amenities) {
+        // Handle amenities as an array if it comes as a string
+        // eslint-disable-next-line no-nested-ternary
+        listingData.amenities = Array.isArray(amenities) ? amenities : 
+                              typeof amenities === 'string' ? [amenities] : [];
+      }
 
       let savedListing;
       const {draftId} = req.body;
@@ -202,7 +289,10 @@ const listingsController = (ListingHome) => {
           createdBy: savedListing.createdBy,
           status: savedListing.status,
           images: savedListing.images,
-          availability: savedListing.availability,
+          availableFrom: savedListing.availableFrom,
+          availableTo: savedListing.availableTo,
+          village: savedListing.village,
+          coordinates: savedListing.coordinates,
           amenities: savedListing.amenities
         }
       });
@@ -214,254 +304,184 @@ const listingsController = (ListingHome) => {
       });
     }
   };
-
-  const getAvailabilityForListing = async (req, res) => {
+  
+  // GET endpoint for retrieving biddings
+  const getBiddings = async (req, res) => {
     try {
-      const { listingId } = req.params;
+      const { 
+        page = 1, 
+        size = 10, 
+        village, 
+        availableFrom, 
+        availableTo 
+      } = req.query;
+      
+      const pageNum = parseInt(page, 10);
+      const sizeNum = parseInt(size, 10);
 
-      if (!mongoose.Types.ObjectId.isValid(listingId)) {
-        return res.status(400).json({ error: 'Invalid listing ID' });
+      if (Number.isNaN(pageNum)) return res.status(400).json({ error: 'Invalid page number' });
+      if (Number.isNaN(sizeNum) || sizeNum < 1 || sizeNum > 100) {
+        return res.status(400).json({ error: 'Invalid page size (1-100)' });
       }
 
-      const availabilityForListing = await Availability.findOne({ listingId });
+      const skip = (pageNum - 1) * sizeNum;
+      
+      // Build query based on filters
+      const query = {};
+      if (village) query.village = village;
+      
+      // Handle date range filtering
+      if (availableFrom || availableTo) {
+        query.$and = [];
+        
+        if (availableFrom) {
+          query.$and.push({ availableTo: { $gte: new Date(availableFrom) } });
+        }
+        
+        if (availableTo) {
+          query.$and.push({ availableFrom: { $lte: new Date(availableTo) } });
+        }
+      }
+      
+      const total = await ListingHome.countDocuments(query);
+      const totalPages = Math.ceil(total / sizeNum);
 
-      if (!availabilityForListing) {
-        return res.status(204).json({ error: 'Availability not found for this listing' });
+      if (pageNum > totalPages && totalPages > 0) {
+        return res.status(404).json({ error: 'Page not found' });
       }
 
-      res.status(200).json({
-        status: 200,
-        message: 'Availability retrieved successfully',
-        data: availabilityForListing
-      });
+      const listings = await ListingHome.find(query)
+        .populate([
+          {
+            path: 'createdBy', select: '_id firstName lastName'
+          },
+          {
+            path: 'updatedBy', select: '_id firstName lastName'
+          }
+        ]) 
+        .sort({ updatedOn: -1 })
+        .skip(skip)
+        .limit(sizeNum)
+        .lean()
+        .exec();
 
-    } catch (error) {
-      console.error('Error fetching availability:', error);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        details: error.message 
-      });
-    }
-  };
-
-  const updateListingAvailability = async (req, res) => {
-    try {
-      const { listingId } = req.params;
-      const { updateType, from, to, reason, bookingId, reservationId } = req.body;
-      
-      if (!mongoose.Types.ObjectId.isValid(listingId)) {
-        return res.status(400).json({ error: 'Invalid listing ID' });
-      }
-      
-      if (!updateType || !from || !to) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-      
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-      
-      if (Number.isNaN(fromDate) || Number.isNaN(toDate)) {
-        return res.status(400).json({ error: 'Invalid date format' });
-      }
-      
-      if (toDate < fromDate) {
-        return res.status(400).json({ error: 'End date cannot be before start date' });
-      }
-      
-      let availabilityRecord = await Availability.findOne({ listingId });
-      
-      if (!availabilityRecord) {
-        // Create new availability record if one doesn't exist
-        availabilityRecord = new Availability({
-          listingId,
-          bookedDates: [],
-          pendingReservations: [],
-          blockedOutDates: []
+      if (!listings.length) {
+        return res.status(200).json({ 
+          status: 200,
+          message: 'No biddings found',
+          data: {
+            items: [],
+            pagination: {
+              total: 0,
+              totalPages: 0,
+              currentPage: pageNum,
+              pageSize: sizeNum
+            }
+          }
         });
       }
-      
-      switch(updateType) {
-        case 'book':
-          if (!bookingId || !mongoose.Types.ObjectId.isValid(bookingId)) {
-            return res.status(400).json({ error: 'Valid bookingId required for booking' });
+
+      // Process listings with error handling for image fetching
+      const processedBiddings = await Promise.all(listings.map(async listing => {
+        let images = [];
+        
+        // Try to fetch images from Azure with error handling
+        try {
+          if (listing.images && listing.images.length > 0) {
+            images = await fetchImagesFromAzureBlobStorage(listing.images);
           }
-          availabilityRecord.bookedDates.push({
-            from: fromDate,
-            to: toDate,
-            bookingId
-          });
-          break;
-          
-        case 'reserve':
-          if (!reservationId || !mongoose.Types.ObjectId.isValid(reservationId)) {
-            return res.status(400).json({ error: 'Valid reservationId required for reservation' });
+        } catch (error) {
+          console.error('Error fetching images from Azure:', error.message);
+          // Fallback to placeholder images
+          images = ['https://via.placeholder.com/300x200?text=Unit'];
+        }
+        
+        // Convert listings to biddings (with 80% price)
+        const processed = { 
+          ...listing,
+          price: Math.round(listing.price * 0.8 * 100) / 100, // 80% of original price, rounded to 2 decimals
+          images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
+          createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
+          updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
+          availableFrom: listing.availableFrom ? listing.availableFrom.toISOString().split('T')[0] : null,
+          availableTo: listing.availableTo ? listing.availableTo.toISOString().split('T')[0] : null,
+        };
+        return processed;
+      }));
+
+      const response = {
+        status: 200,
+        message: 'Biddings retrieved successfully',
+        data: {
+          items: processedBiddings,
+          pagination: {
+            total,
+            totalPages,
+            currentPage: pageNum,
+            pageSize: sizeNum
           }
-          availabilityRecord.pendingReservations.push({
-            from: fromDate,
-            to: toDate,
-            reservationId
-          });
-          break;
-          
-        case 'block':
-          availabilityRecord.blockedOutDates.push({
-            from: fromDate,
-            to: toDate,
-            reason: reason || 'Blocked by owner'
-          });
-          break;
-          
-        default:
-          return res.status(400).json({ error: 'Invalid update type' });
-      }
-      
-      availabilityRecord.lastUpdated = new Date();
-      const saved = await availabilityRecord.save();
-      
-      res.status(200).json({
-        status: 200,
-        message: 'Availability updated successfully',
-        data: saved
-      });
-      
-    } catch (error) {
-      console.error('Error updating availability:', error);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        details: error.message 
-      });
-    }
-  };
-
-  const getBookingHistory = async (req, res) => {
-    try {
-      const { listingId } = req.params;
-      const { type = 'all' } = req.query; // 'all', 'upcoming', or 'past'
-      
-      if (!mongoose.Types.ObjectId.isValid(listingId)) {
-        return res.status(400).json({ error: 'Invalid listing ID' });
-      }
-      
-      const availabilityRecord = await Availability.findOne({ listingId });
-      
-      if (!availabilityRecord) {
-        return res.status(204).json({ message: 'No booking history found for this listing' });
-      }
-      
-      const now = new Date();
-      let bookedDates = [...availabilityRecord.bookedDates];
-      
-      if (type === 'upcoming') {
-        bookedDates = bookedDates.filter(booking => new Date(booking.to) >= now);
-      } else if (type === 'past') {
-        bookedDates = bookedDates.filter(booking => new Date(booking.to) < now);
-      }
-      
-      // Sort by date (upcoming first)
-      bookedDates.sort((a, b) => new Date(a.from) - new Date(b.from));
-      
-      res.status(200).json({
-        status: 200,
-        message: 'Booking history retrieved successfully',
-        data: {
-          listingId,
-          bookings: bookedDates
         }
-      });
-      
+      };
+
+      res.json(response);
+
     } catch (error) {
-      console.error('Error fetching booking history:', error);
+      console.error('Error fetching biddings:', error);
       res.status(500).json({ 
         error: 'Internal server error',
         details: error.message 
       });
     }
   };
-
-  const cancelReservation = async (req, res) => {
+  
+  /**
+   * Get all unique villages from the database
+   * @param {Object} req - The request object
+   * @param {Object} res - The response object
+   */
+  const getVillages = async (req, res) => {
     try {
-      const { listingId } = req.params;
-      const { reservationId } = req.body;
+      // Default fixed villages that should always be included
+      const fixedVillages = [
+        "Earthbag", "Straw Bale", "Recycle Materials", "Cob", 
+        "Tree House", "Strawberry", "Sustainable Living", "City Center"
+      ];
       
-      if (!mongoose.Types.ObjectId.isValid(listingId) || !mongoose.Types.ObjectId.isValid(reservationId)) {
-        return res.status(400).json({ error: 'Invalid ID format' });
+      // Fetch distinct villages from database
+      let dbVillages = [];
+      try {
+        dbVillages = await ListingHome.distinct('village');
+      } catch (error) {
+        console.error('Error fetching villages from database:', error);
+        // If database query fails, continue with just fixed villages
       }
       
-      const result = await Availability.updateOne(
-        { listingId },
-        { $pull: { pendingReservations: { reservationId } } }
+      // Filter out null or empty values
+      const validDbVillages = dbVillages.filter(village => 
+        village && typeof village === 'string' && village.trim() !== ''
       );
       
-      if (result.modifiedCount === 0) {
-        return res.status(404).json({ error: 'Reservation not found' });
-      }
+      // Combine fixed and database villages, removing duplicates
+      const allVillages = [...new Set([...fixedVillages, ...validDbVillages])];
       
-      res.status(200).json({
+      // Sort alphabetically
+      allVillages.sort();
+      
+      res.json({
         status: 200,
-        message: 'Reservation cancelled successfully'
+        message: 'Villages retrieved successfully',
+        data: allVillages
       });
-      
     } catch (error) {
-      console.error('Error cancelling reservation:', error);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        details: error.message 
-      });
-    }
-  };
-
-  const confirmReservation = async (req, res) => {
-    try {
-      const { listingId } = req.params;
-      const { reservationId, bookingId } = req.body;
-      
-      if (!mongoose.Types.ObjectId.isValid(listingId) || 
-          !mongoose.Types.ObjectId.isValid(reservationId) || 
-          !mongoose.Types.ObjectId.isValid(bookingId)) {
-        return res.status(400).json({ error: 'Invalid ID format' });
-      }
-      
-      const availabilityRecord = await Availability.findOne({ 
-        listingId,
-        pendingReservations: { $elemMatch: { reservationId } }
-      });
-      
-      if (!availabilityRecord) {
-        return res.status(404).json({ error: 'Reservation not found' });
-      }
-      
-      const reservation = availabilityRecord.pendingReservations.find(
-        r => r.reservationId.toString() === reservationId
-      );
-      
-      // Add to booked dates
-      availabilityRecord.bookedDates.push({
-        from: reservation.from,
-        to: reservation.to,
-        bookingId
-      });
-      
-      // Remove from pending reservations
-      availabilityRecord.pendingReservations = availabilityRecord.pendingReservations.filter(
-        r => r.reservationId.toString() !== reservationId
-      );
-      
-      availabilityRecord.lastUpdated = new Date();
-      await availabilityRecord.save();
-      
-      res.status(200).json({
+      console.error('Error fetching villages:', error);
+      // Even if there's an error, return at least the fixed villages
+      res.status(200).json({ 
         status: 200,
-        message: 'Reservation confirmed successfully',
-        data: {
-          booking: availabilityRecord.bookedDates[availabilityRecord.bookedDates.length - 1]
-        }
-      });
-      
-    } catch (error) {
-      console.error('Error confirming reservation:', error);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        details: error.message 
+        message: 'Returning default villages due to error',
+        data: [
+          "Earthbag", "Straw Bale", "Recycle Materials", "Cob", 
+          "Tree House", "Strawberry", "Sustainable Living", "City Center"
+        ]
       });
     }
   };
@@ -469,11 +489,8 @@ const listingsController = (ListingHome) => {
   return { 
     getListings, 
     createListing, 
-    getAvailabilityForListing, 
-    updateListingAvailability, 
-    getBookingHistory,
-    cancelReservation,
-    confirmReservation
+    getBiddings,
+    getVillages
   };
 };
 
