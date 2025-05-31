@@ -173,6 +173,8 @@ const collaborationRouter=require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
+// community portal
+const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
 
 
 module.exports = function (app) {
@@ -242,4 +244,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api/communityportal', NoShowFollowUpRouter );
 };
