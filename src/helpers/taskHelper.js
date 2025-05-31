@@ -42,9 +42,11 @@ const taskHelper = function () {
       const isRequestorOwnerLike = await hasPermission(requestor, 'seeUsersInDashboard');
       const userAsRequestor = { role: userRole, requestorId: userId };
       const isUserOwnerLike = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
+       const elevatedRoles = ['Owner', 'Admin', 'coreteam'];
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
+          console.log('🔍 Case 1: Both requestor and user have owner-like permissions');
           teamMembers = await userProfile
             .find(
               { isActive: true },
@@ -67,9 +69,12 @@ const taskHelper = function () {
                 select: 'teamName',
               },
             ]);
+             console.log(`📊 Found ${teamMembers.length} ALL active users (full admin access)`);
           break;
         }
+      
         case isRequestorOwnerLike && !isUserOwnerLike: {
+            console.log('🔍 Case 2: Requestor has owner-like permissions but user does not');
           const teamsResult = await team.find(
             { 'members.userId': { $in: [userid] } },
             { members: 1 },
@@ -105,7 +110,11 @@ const taskHelper = function () {
             ]);
           break;
         }
-        default: {
+        
+          
+       default: {
+         console.log('🔍 Case 3: Default case - checking shared teams with visibility rules');
+  
           const sharedTeamsResult = await team.find(
             { 'members.userId': { $all: [userid, requestorId] } },
             { members: 1 },
@@ -116,12 +125,41 @@ const taskHelper = function () {
             _myTeam.members.forEach((teamMember) => {
               if (teamMember.userId.equals(userid) && teamMember.visible) hasTeamVisibility = true;
             });
-            if (hasTeamVisibility) {
+            
+    console.log('➡️ Team Visibility Toggle:', _myTeam.isTeamVisible);
+    console.log('🔍 Has Team Visibility:', hasTeamVisibility);
+    console.log('🧑‍💼 Requestor Role:', requestor.role);
+    if (elevatedRoles.includes(requestor.role) || hasTeamVisibility) {
+      console.log(`✅ Access granted to team members: hasTeamVisibility=${hasTeamVisibility}, requestorRole=${requestor.role}`);
+
               _myTeam.members.forEach((teamMember) => {
-                if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+                if (!teamMember.userId.equals(userid)) {
+                  teamMemberIds.push(teamMember.userId);
+                }
               });
             }
           });
+
+//      const elevatedRoles = ['owner', 'admin', 'coreteam'];
+//      if (hasTeamVisibility || elevatedRoles.includes(requestor.role)) {
+//   _myTeam.members.forEach((teamMember) => {
+//     if (!teamMember.userId.equals(userid)) {
+//       teamMemberIds.push(teamMember.userId);
+//     }
+//   });
+// }
+
+          //   if (hasTeamVisibility) {
+          //     _myTeam.members.forEach((teamMember) => {
+          //       if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+          //     });
+          //   }
+          // });
+         
+
+          // if (hasTeamVisibility || elevatedRoles.includes(requestor.role)) {
+
+          
 
           teamMembers = await userProfile
             .find(
