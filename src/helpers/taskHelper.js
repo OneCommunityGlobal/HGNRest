@@ -126,11 +126,8 @@ const taskHelper = function () {
               if (teamMember.userId.equals(userid) && teamMember.visible) hasTeamVisibility = true;
             });
             
-    console.log('➡️ Team Visibility Toggle:', _myTeam.isTeamVisible);
-    console.log('🔍 Has Team Visibility:', hasTeamVisibility);
-    console.log('🧑‍💼 Requestor Role:', requestor.role);
-    if (elevatedRoles.includes(requestor.role) || hasTeamVisibility) {
-      console.log(`✅ Access granted to team members: hasTeamVisibility=${hasTeamVisibility}, requestorRole=${requestor.role}`);
+            if (elevatedRoles.includes(requestor.role) || hasTeamVisibility) {
+              console.log(`✅ Access granted to team members: hasTeamVisibility=${hasTeamVisibility}, requestorRole=${requestor.role}`);
 
               _myTeam.members.forEach((teamMember) => {
                 if (!teamMember.userId.equals(userid)) {
@@ -140,26 +137,7 @@ const taskHelper = function () {
             }
           });
 
-//      const elevatedRoles = ['owner', 'admin', 'coreteam'];
-//      if (hasTeamVisibility || elevatedRoles.includes(requestor.role)) {
-//   _myTeam.members.forEach((teamMember) => {
-//     if (!teamMember.userId.equals(userid)) {
-//       teamMemberIds.push(teamMember.userId);
-//     }
-//   });
-// }
 
-          //   if (hasTeamVisibility) {
-          //     _myTeam.members.forEach((teamMember) => {
-          //       if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
-          //     });
-          //   }
-          // });
-         
-
-          // if (hasTeamVisibility || elevatedRoles.includes(requestor.role)) {
-
-          
 
           teamMembers = await userProfile
             .find(

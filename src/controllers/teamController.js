@@ -279,7 +279,7 @@ const teamcontroller = function (Team) {
     const { visibility, teamId, userId, requestor } = req.body;
 
     try {
-      const elevatedRoles = ['Owner', 'Admin', 'coreteam'];
+      const elevatedRoles = ['Owner', 'Admin', 'Core Team'];
 
       Team.findById(teamId, (error, team) => {
         if (error || team === null) {
@@ -308,18 +308,12 @@ const teamcontroller = function (Team) {
                 return;
               }
 
-              // if (visibility) {
-              //    console.log(`Assigning user: ${member.userId}`);
-              //   assignlist.push(member.userId);
-              // } else {
-              //   console.log('Visiblity set to false so removing it');
-              //   unassignlist.push(member.userId);
-              // }
+             
               if (visibility || elevatedRoles.includes(requestor.role)) {
-                console.log(`➕ Assigning user: ${member.userId}`);
+                console.log(`Assigning user: ${member.userId}`);
                 assignlist.push(member.userId);
-              } else if (!elevatedRoles.includes(requestor.role)) {
-                 console.log(`➖ Unassigning user: ${member.userId}`);
+              } else {
+                console.log(` Unassigning user: ${member.userId}`);
                 unassignlist.push(member.userId);
               }
 
