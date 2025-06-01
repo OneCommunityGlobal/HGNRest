@@ -1,17 +1,15 @@
-const FAQ = require('../models/faqs');
-const UnansweredFAQ = require('../models/unansweredFaqs');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const FAQ = require('../models/faqs');
+const UnansweredFAQ = require('../models/unansweredFaqs');
 const config = require('../config');
 const Role = require('../models/role');
 const UserProfile = require('../models/userProfile');
 const emailSender = require('../utilities/emailSender');
 
 const verifyToken = async (req) => {
-    console.log("Verifying token...");
-    const token = req.headers['authorization'];
+    const token = req.headers.authorization;
     if (!token) {
-        console.log("No token provided in the request headers.");
         throw new Error('No token provided');
     }
     try {
@@ -36,13 +34,12 @@ const verifyToken = async (req) => {
         };
         return req.user;
     } catch (error) {
-        console.error("Token verification error:", error.message);
         throw new Error('Invalid or expired token');
     }
 };
 
 const searchFAQs = async function (req, res) {
-    const searchQuery = req.query.q;
+    const searchQuery = req.query.q || '';
     try {
         const results = await FAQ.find({
             question: { $regex: searchQuery, $options: 'i' }
@@ -50,10 +47,9 @@ const searchFAQs = async function (req, res) {
         res.status(200).send(results);
     } catch (error) {
         console.error('Error searching FAQs:', error);
-        res.status(500).json({ message: 'Error searching FAQs', error });
+        res.status(500).json({ message: 'Error searching FAQs', error: error.message });
     }
 };
-
 
 const getAllFAQs = async function (req, res) {
     try {
@@ -66,7 +62,6 @@ const getAllFAQs = async function (req, res) {
 };
 
 const createFAQ = async function (req, res) {
-    console.log("Creating FAQ...");
     try {
         await verifyToken(req);
         if (!Array.isArray(req.user.permissions) || !req.user.permissions.includes('manageFAQs')) {
@@ -85,7 +80,6 @@ const createFAQ = async function (req, res) {
         });
 
         await newFAQ.save();
-        console.log("FAQ created and saved with initial change history:", newFAQ);
         res.status(201).json({ message: 'FAQ created successfully', newFAQ });
     } catch (error) {
         console.error('Error creating FAQ:', error);
@@ -167,23 +161,18 @@ const logUnansweredFAQ = async function (req, res) {
         });
         await newUnansweredFAQ.save();
 
-        let ownerEmails = []
+        let ownerEmails = [];
 
         if (process.env.TEST_MODE === 'true') {
             ownerEmails = [process.env.TEST_OWNER_EMAIL];
-            console.log("Test mode enabled. Using test owner email:", ownerEmails);
         } else {
             const owners = await UserProfile.find({ role: 'owner' }).select('email');
             ownerEmails = owners.map((owner) => owner.email);
 
             if (ownerEmails.length === 0) {
-                console.warn("No owner emails found in the database.");
                 return res.status(500).json({ message: 'No owner emails found' });
             }
-            console.log("Sending email to owners:", ownerEmails);
         }
-
-
 
         const emailMessage = `
             <p>A new unanswered question has been logged:</p>
@@ -191,18 +180,11 @@ const logUnansweredFAQ = async function (req, res) {
             <p>Please review and add an answer if necessary.</p>
         `;
 
-        try {
-            emailSender(
-                ownerEmails,
-                'New Unanswered FAQ Logged',
-                emailMessage
-            );
-            console.log("Email successfully sent.");
-        } catch (error) {
-            console.error("Error sending email:", error);
-        }
-
-        console.log("Email queued for sending.");
+        await emailSender(
+            ownerEmails,
+            'New Unanswered FAQ Logged',
+            emailMessage
+        );
 
         res.status(201).json({ message: 'Question logged successfully', newUnansweredFAQ });
     } catch (error) {
@@ -258,7 +240,7 @@ const getFAQHistory = async function (req, res) {
         });
     } catch (error) {
         console.error('Error fetching FAQ history:', error);
-        res.status(500).json({ message: 'Error fetching FAQ history' });
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -297,5 +279,6 @@ module.exports = {
     logUnansweredFAQ,
     getFAQHistory,
     getUnansweredFAQs,
-    deleteUnansweredFAQ
+    deleteUnansweredFAQ,
+    verifyToken
 };
