@@ -10,6 +10,13 @@ const bidsController = require('./bidsController');
 const bidsControllerInstance = bidsController(Bids);
 
 const { getPayPalAccessTokenl } = bidsControllerInstance;
+console.log("inside webhookcontroller.js ")
+console.log("typeof bidsController"); 
+console.log(typeof bidsController);
+
+console.log("typeof bidsControllerInstance"); 
+console.log(typeof bidsControllerInstance);
+console.log("inside webhookcontroller.js ")
 
 const webHookController = function (Bids) {
   // const webHookController = function () {

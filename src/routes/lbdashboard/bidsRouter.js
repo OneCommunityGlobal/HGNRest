@@ -8,7 +8,8 @@ bidsRouter.route('/bids').get(bidsController.getBids).post(bidsController.postBi
 bidsRouter.route('/getPaymentCardToken/').get(bidsController.getPaymentCardToken);
 
 bidsRouter.route('/getPayPalAccessToken/').get(bidsController.getPayPalAccessToken);
-bidsRouter.route('/createOrderWithCard').post(bidsController.createOrderWithCard);
+// bidsRouter.route('/createOrderWithCard').post(bidsController.createOrderWithCard);
+bidsRouter.route('/createOrderWithoutCard').post(bidsController.createOrderWithoutCard);
 
 bidsRouter.route('/createOrder').post(bidsController.createOrder);
 // bidsRouter.route('/postPaymentWithCard/').get(bidsController.postPaymentWithCard);

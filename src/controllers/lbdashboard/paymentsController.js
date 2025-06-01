@@ -81,24 +81,12 @@ const paymentsController = function (Payments) {
       console.log(paypalCheckoutNowLink)
       
       const status = 'Payment Authorizations Created';
-      //  const newPaymentsData = { ...req.body };
-
-      //   const newPayments = new Payments(newPaymentsData);
       const newPayments = new Payments({
         paypalOrderId,
         paypalCheckoutNowLink,
-        // authorizationsId,
-        /* payment_source: {
-          card: {
-            lastDigits,
-            expiry,
-            brand,
-          },
-        }, */
         purchase_units: {
           payments: {
             amount,
-           // expirationTime,
           },
         }, 
         userId,

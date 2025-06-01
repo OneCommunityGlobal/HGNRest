@@ -7,6 +7,12 @@ const {
 
 const { addBidToHistory } = require('../../controllers/lbdashboard/bidDeadlinesController')();
 
+console.log("inside connserver.js ") 
+
+console.log("typeof addBidToHistory"); 
+console.log(typeof addBidToHistory);
+
+
 const emailSender = require('../../utilities/emailSender');
 
 const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
@@ -71,7 +77,27 @@ function initSocket(server) {
   const Bids = require('../../models/lbdashboard/bids');
   const Users = require('../../models/lbdashboard/users');
 
-  // Load and apply socket auth middleware
+
+  const bidsController  = require('../../controllers/lbdashboard/bidsController');
+
+  const bidsControllerInstance = bidsController(Bids);
+
+  const { init, updateOrderLocal } = bidsControllerInstance;
+
+  init();
+
+   console.log("typeof bidsController"); 
+ console.log(typeof bidsController);
+
+ console.log('typeof bC:', typeof updateOrderLocal);
+ console.log('bC.default:', typeof bidsController.default);
+
+ console.log("typeof bidsControllerInstance"); 
+ console.log(typeof bidsControllerInstance);
+ 
+ console.log("inside connserver.js ") 
+
+ // Load and apply socket auth middleware
   const socketAuth = require('../../startup/socket-auth-middleware');
 
   io = socketIO(server, {
@@ -83,10 +109,8 @@ function initSocket(server) {
 
   io.engine.on('connection_error', (err) => {
     console.log('io.engine error');
-    // console.log(err.req); // the request object
-    // console.log(err.code); // the error code, for example 1
-    // console.log(err.message); // the error message, for example "Session ID unknown"
-    // console.log(err.context); // some additional error context
+     console.log(err.message); // the error message, for example "Session ID unknown"
+     console.log(err.context); // some additional error context
   });
 
   // Simple token validation function
@@ -113,10 +137,12 @@ function initSocket(server) {
     });
     console.log('now');
     console.log(onlineUsers);
-    socket.on('new-bid', async ({ listingId, amount }) => {
-      // const listingId = mongoose.Types.ObjectId('67da392415114d82e8f27727'); // 67dc4d543f1a8ec3a678fd70');
+    socket.on('new-bid', async ({ listingId, startDate, endDate,bidPrice }) => {
       console.log(`itemId is ${listingId}`);
-      console.log(`amount is ${amount}`);
+      console.log(`amount is ${bidPrice}`);
+      console.log(`startDate is ${startDate}`);
+      console.log(`endDate is ${endDate}`);
+      
       console.log(`user is ${socket.handshake.auth.email}`);
 
       const user = await Users.findOne({
@@ -150,41 +176,19 @@ function initSocket(server) {
         const lastBid = bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1];
         console.log(lastBid);
         console.log(!lastBid);
-        console.log(amount);
+        console.log(bidPrice);
         console.log(bidDeadlines);
         if (bidDeadlines)
           if (lastBid === undefined) {
-            await addBidToHistory(BidDeadlines, listingId, amount);
-            /* await BidDeadlines.updateOne(
-              { listingId },
-              {
-                $push: {
-                  biddingHistory: {
-                    bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
-                    createdDatetime: new Date(),
-                  },
-                },
-              },
-            ); */
-          } else if (parseFloat(amount) <= parseFloat(lastBid.bidPrice)) {
+            await addBidToHistory(BidDeadlines, listingId, bidPrice);
+          } else if (parseFloat(bidPrice) <= parseFloat(lastBid.bidPrice)) {
             io.emit('bid-not-updated', `bidPrice should be greater than ${lastBid.bidPrice}`);
 
             return `bidPrice should be greater than ${lastBid.bidPrice}`;
           } else {
-            await addBidToHistory(BidDeadlines, listingId, amount);
+            await addBidToHistory(BidDeadlines, listingId, bidPrice);
 
-            /* await BidDeadlines.updateOne(
-              { listingId },
-              {
-                $push: {
-                  biddingHistory: {
-                    bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
-                    createdDatetime: new Date(),
-                  },
-                },
-              },
-            );
-*/
+      
             console.log({
               listingId, // mongoose.Types.ObjectId(listingId),
               userId,
@@ -192,96 +196,41 @@ function initSocket(server) {
           }
         const matchBid = await Bids.findOne({
           listingId, // mongoose.Types.ObjectId(listingId),
+          startDate,endDate,
           userId,
         });
+        console.log("matched Bid details");        
         console.log(matchBid);
         console.log(matchBid.id);
-        console.log(mongoose.Types.Decimal128.fromString(amount.toString()));
-        /* await Bids.updateOne(
-          { listingId, userId },
-          {
-            $push: {
-              biddingHistory: {
-                bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
-                createdDatetime: new Date(),
-              },
-            },
-          },
-        ); */
-        await addBidToHistory(Bids, listingId, amount);
-      } catch (error) {
-        console.log("error 244");
-      }
-      console.log('Bid Received');
+    
+        await updateOrderLocal({listingId:matchBid.listingId,startDate: matchBid.startDate, 
+          endDate:matchBid.endDate,bidPrice, paypalOrderId:matchBid.paypalOrderId, email:socket.handshake.auth.email});
+        
+        // await controller.updateOrderLocal(matchBid.listingId, matchBid.startDate, matchBid.endDate,user.email, amount);
+        console.log(mongoose.Types.Decimal128.fromString(bidPrice.toString()));
+        await addBidToHistory(Bids, listingId, bidPrice);
+        console.log('Bid Received');
       console.log('before callback');
 
       console.log(userMobile);
       const smsMsg = `Thank you for your bid!
-  We have received your bid $${amount} successfully.
+  We have received your bid $${bidPrice} successfully.
   We'll get back to you shortly.
   Regards,<br>Team HGN`;
 
       SMSNotifications(smsMsg, userMobile);
-      /*       const smsMsg = `Thank you for your bid!
-  We have received your bid $${amount} successfully.
-  We'll get back to you shortly.
-  Regards,<br>Team HGN`;
-      // textBelt
-      const textBeltSMSSendRes = await TextbeltSender(smsMsg, userMobile);
-      console.log(textBeltSMSSendRes?.data);
-
-      // telesign
-      const telesignSMSSendRes = await TelesignSMSSender(smsMsg, userMobile);
-      console.log(telesignSMSSendRes);
-      console.log('telesignSMSSendRes above');
-      // Twilio
-      // const SMSBody = 'New Bid Received';
-      const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
-      const toMob = '+15005550006'; // Magic "to" number simulates success
-
-      const SMSSenderResp = await SMSSender(smsMsg, fromMob, toMob);
-      console.log('SMSSenderResp');
-      console.log(SMSSenderResp); */
-      emailNotifications(socket.handshake.auth.email, amount);
-      /*
-      const emailBidBody = `
-  <h2>Thank you for your bid!</h2>
-  <p>We have received your bid $${amount} successfully.</p>
-  <p>We'll get back to you shortly.</p>
-  <br>
-  <p>Regards,<br>Team HGN</p>
-`;
-      console.log(emailBidBody);
-      const mailOptions = {
-        from: process.env.REACT_APP_EMAIL,
-        subject: 'Test Email',
-        html: `
-            <h2>Thank you for your bid!</h2>
-            <p>We have received your bid $${amount} successfully.</p>
-            <p>We'll get back to you shortly.</p>
-            <br>
-            <p>Regards,<br>Team HGN</p>`,
-        // attachments: null,
-        // cc: null,
-        to: process.env.REACT_APP_EMAIL, // socket.handshake.auth.email,
-      };
-
-      emailSender(
-        'meenu.ajai@gmail.com', // recipents 'onecommunityglobal@gmail.com',
-        'Received Bid', // subject
-        emailBidBody, // message
-        null, // attachments
-        null, //  cc
-        'onecommunityglobal@gmail.com', // reply to
-      );
-      console.log('email sent');
-*/
-      // res.status(200).send("Success");
-
+      emailNotifications(socket.handshake.auth.email, bidPrice);
+      
+      } catch (error) {
+        console.log("error");
+        console.log(error);
+        
+      }
+      
       // Notify all connected clients
-      io.emit('bid-updated', `current bid price is ${amount}`);
+      io.emit('bid-updated', `current bid price is ${bidPrice}`);
 
-      socket.broadcast.emit('bid-updated', `current bid price is ${amount}`);
+      socket.broadcast.emit('bid-updated', `current bid price is ${bidPrice}`);
 
       socket.on('disconnect', () => {
         Object.entries(onlineUsers).forEach(([userEmail, sid]) => {
@@ -297,7 +246,7 @@ function initSocket(server) {
 }
 function sendNotifications(bodyS, toEmail) {
   if (io) {
-    io.to(toEmail).emit('someEvent', bodyS); // example of using the socket
+    io.to(toEmail).emit('someEvent', bodyS); 
   } else {
     console.error('Socket.io not initialized yet!');
   }

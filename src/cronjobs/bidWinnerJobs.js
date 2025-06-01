@@ -23,12 +23,20 @@ async function processBid(bid) {
 }
 
 const bidWinnerJobs = () => {
+const bidsController  = require('../controllers/lbdashboard/bidsController');
+
+const bidsControllerInstance = bidsController(Bids);
+
+ 
+const { init, orderCheckoutNowLocal } = bidsControllerInstance;
+
   const bidWinnerJob = new CronJob(
     '* * * * * ', // cronTime
     // '* * * * * *' // every second
     // '* * * * *', // every minute
     async () => {
       try {
+        init();
         console.log('You will see this message every minute');
         // const listingId = mongoose.Types.ObjectId('67db45973f1a8ec3a678fd57');
         const now = new Date();
@@ -52,6 +60,8 @@ const bidWinnerJobs = () => {
           console.log(matchingBids.length);
           let maxBidPrice = 0;
           let bidWinner = '';
+          let bidWinnerPaypalOrderId = '';
+          let bidWinnerPaypalCheckoutNowLink = '';
           // Use Promise.all if each operation is async
           await Promise.all(
             matchingBids.map(async (bid) => {
@@ -63,6 +73,8 @@ const bidWinnerJobs = () => {
               if (parseFloat(currPrice) > parseFloat(maxBidPrice)) {
                 maxBidPrice = currPrice;
                 bidWinner = bid.userId;
+                bidWinnerPaypalOrderId = bid.paypalOrderId;
+                bidWinnerPaypalCheckoutNowLink = bid.paypalCheckoutNowLink;
               }
               console.log('bidDeadlines bidprice');
               console.log(
@@ -72,6 +84,7 @@ const bidWinnerJobs = () => {
                 parseFloat(currPrice) ===
                 parseFloat(deadline.biddingHistory[deadline.biddingHistory.length - 1].bidPrice)
               ) {
+                console.log(`bidId is ${bid._id}`);
                 console.log(`winner is ${bid.userId}`);
                 const user = await Users.findById({
                   _id: bid.userId,
@@ -79,7 +92,61 @@ const bidWinnerJobs = () => {
                 const userId = user?._id;
                 console.log(userId);
                 console.log(user);
+
+                // send email
+         /*   const emailWinnerBody = `
+          subject: Test Email,
+          html: 
+            <h2>You have won the bid!!!!!!!!!</h2>
+            <p>Our Payment process for the amount $${maxBidPrice} will begin shortly.</p>
+            <p>And We'll let you know.</p>
+            <br>
+            <p>Regards,<br>Team HGN</p>`;
+            console.log(user.email);
+
+            emailSender(
+              user.email, // recipents ,
+              'You have won the bid!!!!!!!!!!', // subject
+              emailWinnerBody, // message
+              null, // attachments
+              null, //  cc
+              'onecommunityglobal@gmail.com', // reply to
+            );
+            console.log('email sent');
+            console.log("before orderCheckoutNowLocal");
+            console.log(`bid.paypalOrderId is ${bid.paypalOrderId}`);
+            console.log(`bid.paypalCheckoutNowLink is ${bid.paypalCheckoutNowLink}`);
+            try{
+            await orderCheckoutNowLocal({paypalOrderId:bid.paypalOrderId, paypalCheckoutNowLink:bid.paypalCheckoutNowLink}); // need to update the proc to send an email for approval
+            console.log("after checkoutnow");
+            }
+            catch(error){
+              console.log("error");
+              console.log(error);
+            }
+            // send sms
+            const SMSBody = 'Congratulations!!!! You have won the Bid';
+            const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
+            const toMob = '+15005550006'; // Magic "to" number simulates success
+            // const SMSResp = await SMSNotifications(SMSBody, fromMob, toMob);
+
+            const SMSResp = await SMSNotifications(SMSBody, toMob);
+            console.log('SMSResp from bidWinnerJobs Cron Jobs');
+            console.log(SMSResp);
+
+            // send in-app notification
+            // Notify all connected clients
+            console.log('Getting socket IO instance...');
+            const io = getIO();
+            console.log('io is', io);
+            if (io) {
+              io.emit('Bid-Won', 'You won the Bid!!!!!!');
+            }
+*/
               }
+        //  deadline.isClosed = true;
+        //  await deadline.save();
+        
             }),
           );
           if (maxBidPrice !== 0) {
@@ -103,15 +170,24 @@ const bidWinnerJobs = () => {
             console.log(user.email);
 
             emailSender(
-              user.email, // recipents 'onecommunityglobal@gmail.com',
-              'Received Bid', // subject
+              user.email, // recipents ,
+              'You have won the bid!!!!!!!!!!', // subject
               emailWinnerBody, // message
               null, // attachments
               null, //  cc
-              user.email, // reply to
+              'onecommunityglobal@gmail.com', // reply to
             );
             console.log('email sent');
-
+ 
+            console.log("before orderCheckoutNowLocal");
+            console.log(`bidWinnerPaypalOrderId is ${bidWinnerPaypalOrderId}`);
+            console.log(`bidWinnerPaypalCheckoutNowLink is ${bidWinnerPaypalCheckoutNowLink}`);
+            
+            
+            await orderCheckoutNowLocal({paypalOrderId:bidWinnerPaypalOrderId, 
+                                         hrefLink:bidWinnerPaypalCheckoutNowLink}); //need to update the proc to send an email for approval
+           console.log(`after orderCheckoutNowLocal`);
+            
             // send sms
             const SMSBody = 'Congratulations!!!! You have won the Bid';
             const fromMob = '+15005550006'; // Magic "from" number (valid for testing)

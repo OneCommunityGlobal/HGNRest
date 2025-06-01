@@ -1,3 +1,6 @@
+console.log('[bc.js] loaded');
+let ready = false;
+
 const axios = require('axios');
 const Payments = require('../../models/lbdashboard/payments');
 const Users = require('../../models/lbdashboard/users');
@@ -360,7 +363,7 @@ const bidsController = function (Bids) {
   
   // const checkoutOrderWithCard = async (req, res) => {
 
-  async function createOrderWithCardl(req) {
+  async function createOrderl(req) {
     console.log("createOrderWithCardl")
     console.log(req.body);
 
@@ -453,18 +456,18 @@ const bidsController = function (Bids) {
     }
   }
 
-  const createOrderWithCard = async (req, res) => {
+  const createOrder = async (req, res) => {
     try {
-      const constCreatOrderWithCard = await createOrderWithCardl(req);
+      const creatOrderC = await createOrderl(req);
       console.log('after local call');
-      console.log(constCreatOrderWithCard);
+      console.log(creatOrderC);
 
-      console.log(constCreatOrderWithCard.success === true);
-      if (constCreatOrderWithCard?.success) {
-        return res.status(201).json({ success: true, data: constCreatOrderWithCard });
+      console.log(creatOrderC.success === true);
+      if (creatOrderC?.success) {
+        return res.status(201).json({ success: true, data: creatOrderC });
       }
 
-      return res.status(500).json({ success: false, error: constCreatOrderWithCard.error });
+      return res.status(500).json({ success: false, error: creatOrderC.error });
     } catch (error) {
       console.log('error');
       console.log(error.response);
@@ -473,37 +476,30 @@ const bidsController = function (Bids) {
     }
   };
 
-  const createOrder = async (req, res) => {
-    try {
-      const constCreateOrder = await createOrderl(req);
-console.log("inside CreateOrder");
-      console.log(constCreateOrder.data);
-
- console.log(constCreateOrder.success === true);
- console.log(constCreateOrder.success);
- console.log(constCreateOrder.data);
-      if (constCreateOrder?.success) {
-        console.log("before return success")
-        return res.status(200).json({ success: true, data: constCreateOrder.data });
-      }
-
-      return res.status(500).json({ success: false, error: constCreateOrder.error });
-    } catch (error) {
-      console.log('error');
-      console.log(error);
-console.log(error.response);
-
-      return res.status(500).json({ success: false, error: error.response });
-    }
-  };
-
-  async function createOrderl(req) {
+  async function createOrderWithoutCardl(req) {
     const accessToken = await getPayPalAccessTokenl();
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    // const { amt } = req.body.data;
     const { bidPrice } = req.body.biddingHistory;
-    console.log(bidPrice);
-    const rentPeriod = await getRentalPeriod(req.body.startDate, req.body.endDate);
+    
+    const inStartDate = req.body.startDate;
+    const inEndDate = req.body.endDate;
+
+      
+
+     if (!inStartDate) {
+        return { status: 400, error: 'startDate cannot be empty' };
+      }
+      if (!inEndDate) {
+        return { status: 400, error: 'endDate cannot be empty' };
+      }
+      if (inEndDate <= inStartDate) {
+        return { status: 400, error: 'endDate should be greater than the startDate' };
+      }
+      if (!bidPrice) {
+        return { status: 400, error: 'Bid price should be greater than 0' };
+      }
+
+    const rentPeriod = await getRentalPeriod(inStartDate, inEndDate);
     console.log(rentPeriod)
 
     try {
@@ -544,6 +540,31 @@ console.log(error.response);
 
   }
 
+    const createOrderWithoutCard = async (req, res) => {
+    try {
+      const constCreateOrder = await createOrderWithoutCardl(req);
+console.log("inside CreateOrder");
+      console.log(constCreateOrder.data);
+
+ console.log(constCreateOrder.success === true);
+ console.log(constCreateOrder.success);
+ console.log(constCreateOrder.data);
+      if (constCreateOrder?.success) {
+        console.log("before return success")
+        return res.status(200).json({ success: true, data: constCreateOrder.data });
+      }
+
+      return res.status(500).json({ success: false, error: constCreateOrder.error });
+    } catch (error) {
+      console.log('error');
+      console.log(error);
+console.log(error.response);
+
+      return res.status(500).json({ success: false, error: error.response });
+    }
+  };
+
+
   const orderCapture = async (req, res) => {
     try {
       const orderCap = await orderCapturel(req);
@@ -558,7 +579,7 @@ console.log(error.response);
   async function orderCapturel(req) {
     console.log('inside orderCapture');
     console.log('before authorId');
-    // CreateOrderWithCard response body if sent
+    // CreateOrder response body if sent withCard is default
     /*
     const authorId = req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
       ? req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
@@ -606,7 +627,7 @@ console.log(error.response);
   async function voidPaymentl(req) {
     console.log('inside voidPaymentl');
     console.log('before authorId');
-    // CreateOrderWithCard response body if sent
+    // CreateOrder response body if sent default withCard
     /*
     const authorId = req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
       ? req.body?.purchase_units[0]?.payments?.authorizations[0]?.id
@@ -659,12 +680,17 @@ console.log(error.response);
     console.log('orderAuthorize');
     console.log('req.query.params.id');
     console.log(req.query);
+    console.log(req.query.id);
+    
     const orderId = req.query.id;
     const accessToken = await getPayPalAccessTokenl();
-    console.log(req.body.data.card);
+    console.log(req.body.card);
     // const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    const { cardNumber, expiry, cvv } = req.body.data.card;
-    const { amt } = req.body.data;
+    // const { cardNumber, expiry, cvv } = req.body.data.card;
+    // const { amt } = req.body.data;
+    
+    const { cardNumber, expiry, cvv } = req.body.card;
+    const { amt } = req.body;
     console.log(cardNumber, expiry, cvv, amt);
     const [expmm, , expyy] = expiry.split('/');
     console.log(`${expmm} - ${expyy}`);
@@ -870,22 +896,22 @@ console.log(error.response);
       }
       console.log(listingsExists);
 
-      console.log('before createOrdersWithCardl');
+      console.log('before create Orders With Cardl');
 
-      const createOrdersWithCardC = await createOrderWithCardl(req);
-      console.log('createOrdersWithCardC');
-      console.log(createOrdersWithCardC);
+      const createOrdersC = await createOrderl(req);
+      console.log('createOrdersC');
+      console.log(createOrdersC);
 
-      if (createOrdersWithCardC?.success === false) {
+      if (createOrdersC?.success === false) {
         console.log('inside 500');
         if (res.headersSent) return;
-        return res.status(500).json({ success: false, error: createOrdersWithCardC?.error });
+        return res.status(500).json({ success: false, error: createOrdersC?.error });
       }
       console.log(' condition false');
-      console.log(createOrdersWithCardC);
+      console.log(createOrdersC);
       // return res.status(201).json({ success: true, data: createOrdersWithCardC.data });
       console.log(req.body.requestor);
-      const postBidsResponse = await postBidsloc(req,createOrdersWithCardC.data);
+      const postBidsResponse = await postBidsloc(req,createOrdersC.data);
       console.log('postBidsResponse');
       console.log(postBidsResponse);
       if (postBidsResponse?.status !== 200) {
@@ -896,7 +922,7 @@ console.log(error.response);
 
       const postPaymnts = await postPayments(
         req,
-        createOrdersWithCardC.data,
+        createOrdersC.data,
         postBidsResponse?.data,
       );
       console.log('postPayments');
@@ -950,7 +976,7 @@ console.log(error.response);
 
     
       // const createOrdersWithoutCardC = await createOrder(req,res);
-      const createOrdersWithoutCardC = await createOrderl(req);
+      const createOrdersWithoutCardC = await createOrderWithoutCardl(req);
       
       console.log('createOrdersWithoutCardC');
       console.log(createOrdersWithoutCardC);
@@ -1003,26 +1029,34 @@ console.log(error.response);
     }
   };
 
-  async function updateOrderLocal(req) {
+  // async function updateOrderLocal(req) {
+  const updateOrderLocal = async  (req) => {
+    console.log("updateOrderLocal");
+    console.log(req);
+    if (!ready ) throw new Error('Bids Controllere Init not ready!');
     console.log(req.body);
 
     const accessToken = await getPayPalAccessTokenl();
 
     console.log(accessToken);
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    const { bidPrice,listingId,paypalOrderId } = req.body;
-    // const { listingId } = req.body;
+    const { bidPrice,listingId,startDate, endDate,paypalOrderId, email } = req ?? req.body;
+    console.log(listingId);
+    console.log(paypalOrderId);
+    const userExists = await Users.findOne({ email });
 
-    console.log(req.body);
-    const userExists = await Users.findOne({ email: req.body.email });
     if (!userExists) {
       return { status: 400, error: 'Invalid email' };
     }
     console.log(userExists);
-
-    const bidExists = await Bids.findOne({ paypalOrderId });
+    const bidExists = paypalOrderId ? await Bids.findOne({ paypalOrderId})
+                              : await Bids.findOne({ listingId, 
+                                           startDate,
+                                           endDate
+                                            });
+    
     if (!bidExists) {
-      return { status: 400, error: 'Invalid orderId' };
+      return { status: 400, error: 'Invalid matching details' };
     }
     console.log(bidExists);
     console.log(bidExists.biddingHistory.length);
@@ -1147,7 +1181,7 @@ console.log(error.response);
 
      console.log(afterPatchPaypalOrder.data);
 
-      return { success: true, data: paypalOrder.data }; 
+      return { success: true, data: afterPatchPaypalOrder.data }; 
     } catch (error) {
       console.log('error');
       console.log(error.response.data);
@@ -1167,70 +1201,94 @@ console.log(error.response);
     }
   };
 
-  const orderCheckoutNow = async (req, res) => {
-    const accessToken = await getPayPalAccessTokenl();
-    const myUrl = `${process.env.BASE_URL}/checkoutnow?token=${req.body.id}`;
-    const outUrl = req.body.hrefLink;
-    console.log(`myUrl is ${myUrl}`);
-    try {
+  // async function orderCheckoutNowLocal(req){
+  const  orderCheckoutNowLocal = async (req) => {
+  console.log("orderCheckoutNowLocal");
+    
+    if (!ready ) throw new Error('Bids Controllere Init not ready!');
+    console.log(req);
+    console.log(req.body)
+    const {paypalOrderId} = req ?? req.body;
+    const outUrl = req.hrefLink ?? req.body.hrefLink;
+    console.log("orderCheckoutNowLocal inside");
+    console.log(`paypalOrderId is ${paypalOrderId}`);
+    console.log(`outUrl is ${outUrl}`);
+    
+   
+   try
+    {
+    const bidExists = await Bids.findOne({ paypalOrderId });
+    if (!bidExists) {
+      return { status: 400, error: 'Invalid orderId' };
+    }
+    console.log(bidExists);
+    
+    const userExists = await Users.findOne({ _id: bidExists.userId });
+    if (!userExists) {
+      return { status: 400, error: 'Invalid email' };
+    }
+    console.log(userExists);
+
+console.log(userExists.name);
+    
       console.log('before checkoutnow post');
       const emailPaymentApprovalBody = `   
-    Body:Hi [User's First Name]
-Thank you for your order!
+    <p> Hi ${userExists.name} </p>
 
-To complete your payment securely through PayPal, please click the link below:
+<p> Thank you for your order!</p>
 
-<a href="${outUrl}">Click here to approve payment</a>
+<p> To complete your payment securely through PayPal, please click the link below:</p>
 
-👉 Complete Your Payment
+<p>👉 Complete Your Payment <a href="${outUrl}">Click here to approve payment</a> </p>
 
-This will open the PayPal checkout page where you can review and approve your payment.
+<p> This will open the PayPal checkout page where you can review and approve your payment.</p>
 
-If you have any questions or run into any issues, feel free to reply to this email and we’ll be happy to help.
+<p> If you have any questions or run into any issues, feel free to reply to this email and we’ll be happy to help.</p>
 
-Best regards,
-[Your Name]
-[Your Company Name]
-[Contact Information]
-`;
+<p>Best regards,</p>
+<p>One Community global</p>`;
 
 console.log(emailPaymentApprovalBody);
  
 
   await emailSender(
-    "meenu.ajai@gmail.com", // toEmailAddress, // recipents 'onecommunityglobal@gmail.com',
-    'Complete Your Payment via PayPal', // subject
+    userExists.email, // toEmailAddress
+    'Approve Your Payment via PayPal', // subject
     emailPaymentApprovalBody, // message
     null, // attachments
     null, //  cc
     'onecommunityglobal@gmail.com', // reply to
   );
-  console.log('email sent');
-
-        
-      // href: 'https://www.sandbox.paypal.com/checkoutnow?token=8TS64434HU813854C',
-      // rel: 'approve',
-      // method: 'GET'
-/*      const checkoutNowOrder = await axios.get(
-        `${process.env.BASE_URL}/checkoutnow?token=${req.id}`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      console.log('Order Manually Approved:', checkoutNowOrder); */
-    } catch (error) {
+    console.log('Email sent successfully.');
+     return { success: true, data: 'Email sent successfully.' }; 
+   
+     } catch (error) {
+      console.log('error');
+      console.log(error.response.data);
+     return { success: false, data: 'Error in sending the Email' }; 
+    } 
+    /* } catch (error) {
       console.log('error');
       console.error(
         'checkoutnow:',
         error.response?.data?.details?.description || error.message,
       );
       return error.response?.data;
+    } */
+  }
+  const orderCheckoutNow = async (req, res) => {
+      
+    console.log(req.body);
+    try {
+      const ordChkoutNow = await orderCheckoutNowLocal(req);
+
+      return res.status(200).json(ordChkoutNow.data);
+    } catch (error) {
+      console.log('error');
+      console.log(error.response.data);
+      return res.status(500).json(error.response.data);
     }
+    
   };
 
   // below this line not used
@@ -1242,7 +1300,7 @@ console.log(emailPaymentApprovalBody);
     console.log(req.body);
     console.log('before checkout/orders');
     //      res.status(200).json({ success: false, data: orderPayment.data });
-    const createOrdersWithCardC = await createOrderWithCard(req.body);
+    const createOrdersWithCardC = await createOrderWithoutCard(req.body);
     console.log('createOrdersWithCardC');
     console.log(createOrdersWithCardC);
     // return res.status(201).json(createOrdersWithCardC);
@@ -1397,6 +1455,10 @@ console.log(emailPaymentApprovalBody);
     }
   };
 
+function init() {
+  ready = true;
+}
+
   
   // above this line not used
   return {
@@ -1406,15 +1468,21 @@ console.log(emailPaymentApprovalBody);
     postBidsAndPay,
     postBidsAndPayWithoutCard,    
     getPayPalAccessToken,
-    createOrderWithCard,
+    createOrderWithoutCard,
     createOrder,
     orderAuthorize,
     orderAuthorizeWithoutCard,
     orderCapture,
     voidPayment,
     updateOrder,
-    orderCheckoutNow
+    updateOrderLocal,
+    orderCheckoutNow,
+    orderCheckoutNowLocal,    
+    init
   };
 };
 
 module.exports = bidsController;
+console.log('bidsController.js: typeof module.exports:', typeof module.exports);
+console.log('[bc.js] loaded completed');
+
