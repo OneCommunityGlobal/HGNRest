@@ -125,6 +125,9 @@ const reporthelper = function () {
           teamCode: {
             $ifNull: ['$teamCode', ''],
           },
+          teamCodeWarning: {
+            $ifNull: ['$teamCodeWarning', false],
+          },
           timeOffFrom: {
             $ifNull: ['$timeOffFrom', null],
           },
