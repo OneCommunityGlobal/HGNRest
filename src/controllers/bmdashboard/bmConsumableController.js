@@ -101,19 +101,15 @@ const bmConsumableController = function (BuildingConsumable) {
       unitsWasted > stockAvailable ||
       unitsUsed + unitsWasted > stockAvailable
     ) {
-      return res
-        .status(500)
-        .send({
-          message:
-            'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
-        });
+      return res.status(500).send({
+        message:
+          'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
+      });
     }
     if (unitsUsed < 0 || unitsWasted < 0) {
-      return res
-        .status(500)
-        .send({
-          message: 'Please check the used and wasted stock values. Negative numbers are invalid.',
-        });
+      return res.status(500).send({
+        message: 'Please check the used and wasted stock values. Negative numbers are invalid.',
+      });
     }
 
     const newStockUsed = parseFloat((consumable.stockUsed + unitsUsed).toFixed(4));
