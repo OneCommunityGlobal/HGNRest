@@ -1574,43 +1574,102 @@ const userHelper = function () {
   };
 
   // 'Personal Max',
-  const checkPersonalMax = async function (personId, user, badgeCollection) {
-    let badgeOfType;
-    const duplicateBadges = [];
-    const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
+  // const checkPersonalMax = async function (personId, user, badgeCollection) {
+  //   let badgeOfType;
+  //   const duplicateBadges = [];
+  //   const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
 
-    // verify that "personal max" badge exists in badgeCollection
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'Personal Max') {
-        if (!badgeOfType) {
-          badgeOfType = badgeCollection[i];
-        } else {
-          duplicateBadges.push(badgeCollection[i]);
-        }
-        break;
-      }
-    }
-    // check the badge collection for duplicates
-    for (const b of duplicateBadges) {
-      await removeDupBadge(personId, b._id);
-    }
+  //   // verify that "personal max" badge exists in badgeCollection
+  //   for (let i = 0; i < badgeCollection.length; i += 1) {
+  //     if (badgeCollection[i].badge?.type === 'Personal Max') {
+  //       if (!badgeOfType) {
+  //         badgeOfType = badgeCollection[i];
+  //       } else {
+  //         duplicateBadges.push(badgeCollection[i]);
+  //       }
+  //       break;
+  //     }
+  //   }
+  //   // check the badge collection for duplicates
+  //   for (const b of duplicateBadges) {
+  //     await removeDupBadge(personId, b._id);
+  //   }
 
-    if (!badgeOfType) {
-      addBadge(personId, mongoose.Types.ObjectId(badgeOfType.badge._id), );
-    }
+  //   if (!badgeOfType) {
+  //     addBadge(personId, mongoose.Types.ObjectId(badgeOfType.badge._id), );
+  //   }
     
-    if (
-      user.lastWeekTangibleHrs &&
-      user.savedTangibleHrs[user.savedTangibleHrs.length-1] > user.lastWeekTangibleHrs &&
-      user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
-      !badgeOfType.earnedDate.includes(currentDate)
-      ) {
-        if (badgeOfType) {
-          increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id)); 
-        } 
-    } 
-    await updatePersonalMax(personId, user);
-  };
+  //   if (
+  //     user.lastWeekTangibleHrs &&
+  //     user.savedTangibleHrs[user.savedTangibleHrs.length-1] > user.lastWeekTangibleHrs &&
+  //     user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
+  //     !badgeOfType.earnedDate.includes(currentDate)
+  //     ) {
+  //       if (badgeOfType) {
+  //         increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id)); 
+  //       } 
+  //   } 
+  //   await updatePersonalMax(personId, user);
+  // };
+const checkPersonalMax = async function (personId, user, badgeCollection) {
+  let badgeOfType;
+  const duplicateBadges = [];
+  const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
+
+  const masterBadges = await badge.find({ type: 'Personal Max' });
+  console.log(`[DEBUG] Found master badges: `);
+
+  
+  // Check for existing badge in badgeCollection
+  for (let i = 0; i < badgeCollection.length; i += 1) {
+    const b = badgeCollection[i];
+    if (b.badge?.type === 'Personal Max') {
+     console.log(`[DEBUG] Found Personal Max badge at index $`);
+      if (!badgeOfType) {
+        badgeOfType = b;
+      } else {
+        duplicateBadges.push(b);
+       console.log(`[DEBUG] Found duplicate Personal Max badge:)}`);
+      }
+      break;
+    }
+  }
+
+  // Remove duplicate badges
+  for (const b of duplicateBadges) {
+    //console.log(`[DEBUG] Removing duplicate badge with ID: ${b._id}`);
+    await removeDupBadge(personId, b._id);
+  }
+
+  // Add new badge if missing
+  if (!badgeOfType && masterBadges.length > 0) {
+    const newBadgeId = masterBadges[0]._id;
+    console.log(`[DEBUG] No existing badge found. Adding new badge ID: ${newBadgeId}`);
+    await addBadge(personId, newBadgeId);
+  }
+
+  const lastWeek = user.lastWeekTangibleHrs;
+  const savedHrs = user.savedTangibleHrs || [];
+  const lastSaved = savedHrs[savedHrs.length - 1];
+  const personalBest = user.personalBestMaxHrs;
+
+  if (
+    lastWeek &&
+    lastSaved > lastWeek &&
+    lastWeek >= personalBest &&
+    !badgeOfType?.earnedDate?.includes(currentDate)
+  ) {
+    console.log(`[DEBUG] Conditions met to increase badge count`);
+    if (badgeOfType) {
+      await increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
+    }
+  }
+
+  console.log(`[DEBUG] Updating personal max...`);
+  await updatePersonalMax(personId, user);
+  console.log(`[DEBUG] checkPersonalMax complete for personId: ${personId}`);
+};
+
 
   // 'Most Hrs in Week'
   const checkMostHrsWeek = async function (personId, user, badgeCollection) {
@@ -2032,19 +2091,19 @@ const userHelper = function () {
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
+      const users = await userProfile.find({email:"shraddha.owner@gmail.com" }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
         await checkPersonalMax(personId, user, badgeCollection);
-        await checkMostHrsWeek(personId, user, badgeCollection);
-        await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
-        await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        await checkXHrsForXWeeks(personId, user, badgeCollection);
-        await checkNoInfringementStreak(personId, user, badgeCollection);
+        // await checkMostHrsWeek(personId, user, badgeCollection);
+        // await checkMinHoursMultiple(personId, user, badgeCollection);
+        // await checkTotalHrsInCat(personId, user, badgeCollection);
+        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        // await checkXHrsForXWeeks(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
