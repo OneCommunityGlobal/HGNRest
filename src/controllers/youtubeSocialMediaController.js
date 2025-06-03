@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { google } = require('googleapis');
 const { hasPermission } = require('../utilities/permissions');
+const { getYoutubeAccountById } = require('../utilities/youtubeAccountUtil');
 
 // Read sensitive config from environment variables
 const CLIENT_ID = process.env.YT_CLIENT_ID;
@@ -11,13 +12,14 @@ const REFRESH_TOKEN = process.env.YT_REFRESH_TOKEN;
 
 const youtubeUploadController = () => {
   const uploadVideo = async (req, res) => {
+    console.log('==== uploadVideo controller called ====');
     try {
       console.log('===== Incoming Request =====');
       console.log('Headers:', req.headers);
       console.log('Body:', req.body);
 
       // Only allow Owner to upload
-      const requestor = req.body.requestor || req.requestor;
+      const requestor = req.requestor;
       if (!requestor || requestor.role !== 'Owner') {
         return res.status(403).json({ error: 'Only Owner can upload videos to YouTube' });
       }
@@ -27,6 +29,7 @@ const youtubeUploadController = () => {
       }
 
       const {
+        youtubeAccountId,
         title,
         description,
         tags,
@@ -34,14 +37,36 @@ const youtubeUploadController = () => {
         privacyStatus
       } = req.body;
 
+      if (!youtubeAccountId) {
+        return res.status(400).json({ 
+          error: 'Missing required parameter',
+          details: 'youtubeAccountId is required',
+          receivedParams: {
+            title,
+            description,
+            tags,
+            privacyStatus
+          }
+        });
+      }
+
+      // Lookup YouTube account info
+      const account = await getYoutubeAccountById(youtubeAccountId);
+      if (!account) {
+        return res.status(400).json({ 
+          error: 'Invalid YouTube account',
+          details: `No account found with id: ${youtubeAccountId}`
+        });
+      }
+
       // Use refresh token to automatically get access token
       const oauth2Client = new google.auth.OAuth2(
-        CLIENT_ID,
-        CLIENT_SECRET,
-        REDIRECT_URI
+        account.clientId,
+        account.clientSecret,
+        account.redirectUri
       );
-      oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
-      await oauth2Client.getAccessToken(); // Automatically refresh access token
+      oauth2Client.setCredentials({ refresh_token: account.refreshToken });
+      await oauth2Client.getAccessToken();
 
       const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
@@ -54,6 +79,8 @@ const youtubeUploadController = () => {
         tags,
         categoryId,
         privacyStatus,
+        youtubeAccountId,
+        accountName: account.displayName
       });
 
       const response = await youtube.videos.insert({
@@ -90,7 +117,11 @@ const youtubeUploadController = () => {
       });
     } catch (error) {
       console.error('Upload error:', error);
-      res.status(500).json({ error: 'Upload failed', details: error.message, stack: error.stack });
+      res.status(500).json({ 
+        error: 'Upload failed', 
+        details: error.message,
+        stack: error.stack 
+      });
     }
   };
 
