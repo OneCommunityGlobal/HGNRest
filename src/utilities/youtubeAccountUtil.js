@@ -1,7 +1,7 @@
 const YoutubeAccount = require('../models/youtubeAccount');
 let testAccounts = [];
 try {
-  testAccounts = require('../config/youtubeAccounts.test');
+  testAccounts = require('../config/youtubeAccounts.data');
 } catch (e) {
   // ignore if not exist
 }
