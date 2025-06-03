@@ -160,6 +160,7 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const youtubeSocialMediaRouter = require('../routes/youtubeSocialMediaRouter')();
+console.log('Registering youtubeSocialMediaRouter on /api');
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
@@ -174,7 +175,7 @@ const collaborationRouter=require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
-
+const youtubeAccountRouter = require('../routes/youtubeAccountRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -242,4 +243,5 @@ module.exports = function (app) {
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api', youtubeAccountRouter);
 };

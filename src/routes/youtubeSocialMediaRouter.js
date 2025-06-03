@@ -1,3 +1,4 @@
+console.log('youtubeSocialMediaRouter loaded');
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -31,7 +32,7 @@ const routes = function () {
   });
 
   youtubeRouter.route('/uploadYtVideo')
-    .post(authMiddleware, upload.single('file'), controller.uploadVideo);
+    .post(authMiddleware, upload.single('video'), controller.uploadVideo);
 
   return youtubeRouter;
 };
