@@ -1,17 +1,16 @@
 const mongoose = require('mongoose');
 
 const bmIssueController = function (BuildingIssue) {
-    const bmGetIssue = async (req, res) => {
-        try {
-            BuildingIssue
-            .find()
-            .populate()
-            .then((result) => res.status(200).send(result))
-            .catch((error) => res.status(500).send(error));
-        } catch (err) {
-            res.json(err);
-        }
-    };
+  const bmGetIssue = async (req, res) => {
+    try {
+      BuildingIssue.find()
+        .populate()
+        .then((result) => res.status(200).send(result))
+        .catch((error) => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
 
     const bmGetIssueChart = async (req, res) => {
         try {
@@ -82,6 +81,7 @@ const bmIssueController = function (BuildingIssue) {
     };
 
     return { bmGetIssue, bmPostIssue, bmGetIssueChart };
+
 };
 
 module.exports = bmIssueController;

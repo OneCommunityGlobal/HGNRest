@@ -1,8 +1,8 @@
 const express = require('express');
 
-const routes = function (buildingIssue) {
+const routes = function (metIssue) {
     const IssueRouter = express.Router();
-    const controller = require('../../controllers/bmdashboard/bmIssueController')(buildingIssue);
+    const controller = require('../../controllers/bmdashboard/bmIssueController')(metIssue);
 
     IssueRouter.route('/issues')
         .get(controller.bmGetIssue);
