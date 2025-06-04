@@ -215,7 +215,6 @@ module.exports = function (app) {
   app.use('/api/github', githubRouter);
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
-};
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
