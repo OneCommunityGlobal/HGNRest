@@ -283,7 +283,6 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'toggleInvisibility',
       'manageAdminLinks',
       'removeUserFromTask',
