@@ -197,6 +197,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -282,6 +283,7 @@ const permissionsRoles = [
       'seeUsersInDashboard',
 
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'toggleInvisibility',
       'manageAdminLinks',
       'removeUserFromTask',
