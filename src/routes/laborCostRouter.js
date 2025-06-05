@@ -1,13 +1,16 @@
-const express = require("express")
+const express = require('express');
+const laborCostController = require('../controllers/laborCostController');
 
-const routes = (LaborCost) => {
-  const laborCostRouter = express.Router()
-  const controller = require("../controllers/laborCostController")(LaborCost)
+const laborCostRouter = express.Router();
 
-  // Only keep the POST endpoint for adding labor costs
-  laborCostRouter.route("/").post(controller.addLaborCost)
+laborCostRouter.post('/labourCost', laborCostController.createLabourCost);
 
-  return laborCostRouter
-}
+laborCostRouter.get('/labourCost', laborCostController.getLabourCost);
 
-module.exports = routes
+laborCostRouter.get('/labourCost/filter', laborCostController.getLabourCostByDate);
+
+laborCostRouter.get('/labourCost/byProjectName', laborCostController.getLabourCostByProject);
+
+laborCostRouter.get('/labourCost/byTaskName', laborCostController.getLabourCostByTask);
+
+module.exports = laborCostRouter;

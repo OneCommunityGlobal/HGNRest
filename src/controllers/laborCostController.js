@@ -1,58 +1,98 @@
 const mongoose = require("mongoose")
-const LaborCost = require("../models/laborCost")
-const logger = require("../startup/logger")
+const Labour = require("../models/laborCost")
 
-const laborCostController = () => {
-  /**
-   * Add new labor cost entry
-   */
-  const addLaborCost = async (req, res) => {
-    try {
-      const { project_name, task, cost, date } = req.body
+const createLabourCost = async (req, res) => {
+  const labourCost = req.body;
 
-      // Validate required fields
-      if (!project_name || !task || !cost) {
-        return res.status(400).json({
-          error: "Project name, task, and cost are all required",
-        })
-      }
-
-      // Validate cost is a positive number
-      if (Number.isNaN(Number(cost)) || cost <= 0) {
-        return res.status(400).json({
-          error: "Cost must be a positive number",
-        })
-      }
-
-      // Create new labor cost entry
-      const newLaborCost = new LaborCost({
-        project_name,
-        task,
-        cost,
-        date: date ? new Date(date) : new Date(),
-      })
-
-      // Save to database
-      await newLaborCost.save()
-
-      // Return success response
-      res.status(201).json({
-        message: "Labor cost entry added successfully",
-        data: newLaborCost,
-      })
-    } catch (error) {
-      logger.logException(error)
-      res.status(500).json({
-        error: "Failed to add labor cost entry",
-        details: error.message,
-      })
-    }
+  if(!labourCost.project_name || !labourCost.task || !labourCost.cost || !labourCost.date){
+      return res.status(400).json({success:false, message: "Please provide all fields"});
+  }
+  if (Number.isNaN(Number(labourCost.cost)) || labourCost.cost <= 0){
+      return res.status(400).json({success:false, message: "Cost Cannot be less than or 0!"});
   }
 
-  // Only return the addLaborCost function
-  return {
-    addLaborCost,
+  const newLabourCost = new Labour(labourCost);
+
+  try{
+      await newLabourCost.save();
+      res.status(201).json({success: true, data: newLabourCost, message: "Labor cost entry added successfully",});
+  } catch(error){
+      console.error("Error in Adding Labour Cost:", error.message);
+      res.status(500).json({success: false, message: "Server Error"});
   }
 }
 
-module.exports = laborCostController
+const getLabourCost = async (req, res) => {
+  try {
+    const labourCost = await Labour.find({});
+    res.status(200).json({ success: true, data: labourCost });
+  } catch (error) {
+    console.log("error in fetching labour costs:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+}
+
+const getLabourCostByDate = async (req, res) => {
+  const {startDate, endDate} = req.query;
+
+  if(!startDate || !endDate){
+      res.status(500).json({success:false, message: "Both startdate and enddate are required"});
+  }
+  try{
+      const filteredData = await Labour.find({
+          date: {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate),
+          },
+        });
+      res.status(200).json({success: true, data: filteredData});
+  } catch(error){
+      console.log("error in fetching labour costs by date:", error.message);
+      res.status(500).json({ success: false, message: "Server Error" });
+  }
+}
+
+const getLabourCostByProject = async (req, res) => {
+  const {project_name} = req.query;
+
+  if(!project_name){
+      res.status(500).json({success:false, message: "Project Name not provided"});
+  }
+
+  try{
+      const filteredDatabyProject = await Labour.find({
+          project_name: { $regex: project_name, $options: "i" }
+      })
+      res.status(200).json({success: true, data: filteredDatabyProject});
+  } catch(error){
+      console.log("error in fetching data by project name:", error.message);
+      res.status(500).json({ success: false, message: "Server Error" });
+  }
+}
+
+const getLabourCostByTask = async (req, res) => {
+  const {task} = req.query;
+
+  if(!task){
+      res.status(500).json({success:false, message: "Task Name not provided"});
+  }
+
+  try{
+      const filteredDatabyTask = await Labour.find({
+          task: { $regex: task, $options: "i" }
+      })
+      res.status(200).json({success: true, data: filteredDatabyTask});
+  } catch(error){
+      console.log("error in fetching data by project name:", error.message);
+      res.status(500).json({ success: false, message: "Server Error" });
+  }
+}
+
+module.exports = {
+  createLabourCost, 
+  getLabourCost,
+  getLabourCostByDate,
+  getLabourCostByProject,
+  getLabourCostByTask
+};
+
