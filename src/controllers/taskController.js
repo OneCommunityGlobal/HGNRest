@@ -431,15 +431,13 @@ const taskController = function (Task) {
 
   const postTask = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'postTask'))) {
-      res.status(403).send({ error: 'You are not authorized to create new Task.' });
-      return;
+      return res.status(403).send({ error: 'You are not authorized to create new Task.' });
     }
 
     if (!req.body.taskName || !req.body.isActive) {
-      res.status(400).send({
-        error: 'Task Name, Active status, Task Number are mandatory fields',
+      return res.status(400).send({
+        error: 'Task Name, Active status are mandatory fields',
       });
-      return;
     }
 
     const wbsId = req.params.id;
@@ -447,31 +445,69 @@ const taskController = function (Task) {
     const createdDatetime = Date.now();
     const modifiedDatetime = Date.now();
 
-    const _task = new Task({
-      ...task,
-      wbsId,
-      createdDatetime,
-      modifiedDatetime,
-    });
+    const parentId = task.mother;
+    let level = 1;
+    let num = '';
 
-    const saveTask = _task.save();
-    const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
-      currentwbs.modifiedDatetime = Date.now();
-      return currentwbs.save();
-    });
-    // Posting a task will update the related project - Sucheta
-    const saveProject = WBS.findById(wbsId).then((currentwbs) => {
-      Project.findById(currentwbs.projectId).then((currentProject) => {
-        currentProject.modifiedDatetime = Date.now();
-        return currentProject.save();
-      });
-    });
+    try {
+      if (parentId) {
+        // This is a subtask — find its parent
+        const parentTask = await Task.findById(parentId);
+        if (!parentTask) {
+          return res.status(400).send({ error: 'Invalid parent task ID provided.' });
+        }
 
-    Promise.all([saveTask, saveWbs, saveProject])
-      .then((results) => res.status(201).send(results[0]))
-      .catch((errors) => {
-        res.status(400).send(errors);
+        level = parentTask.level + 1;
+        // Find siblings under same parent to generate WBS number
+        const siblings = await Task.find({ mother: parentId });
+        const nextIndex = siblings.length
+          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0))) + 1
+          : 1;
+
+        const baseNum = parentTask.num
+          .split('.')
+          .slice(0, level - 1)
+          .join('.');
+        num = baseNum ? `${baseNum}.${nextIndex}` : `${nextIndex}`;
+      } else {
+        const topTasks = await Task.find({ wbsId, level: 1 });
+        const nextTopNum = topTasks.length
+          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
+          : 1;
+        num = `${nextTopNum}`;
+      }
+
+      const _task = new Task({
+        ...task,
+        wbsId,
+        num, // Assign calculated num
+        level,
+        createdDatetime,
+        modifiedDatetime,
       });
+
+      const saveTask = _task.save();
+      const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
+        currentwbs.modifiedDatetime = Date.now();
+        return currentwbs.save();
+      });
+      // Posting a task will update the related project - Sucheta
+      const saveProject = WBS.findById(wbsId).then((currentwbs) => {
+        Project.findById(currentwbs.projectId).then((currentProject) => {
+          currentProject.modifiedDatetime = Date.now();
+          return currentProject.save();
+        });
+      });
+
+      Promise.all([saveTask, saveWbs, saveProject])
+        .then((results) => res.status(201).send(results[0])) // send task with generated num
+        .catch((errors) => {
+          res.status(400).send(errors);
+        });
+    } catch (err) {
+      console.error('Error creating task:', err);
+      return res.status(500).send({ error: 'Internal server error.', details: err.message });
+    }
   };
 
   const updateNum = async (req, res) => {
@@ -691,8 +727,19 @@ const taskController = function (Task) {
       return;
     }
 
-    if(req.body.hoursBest>0 && req.body.hoursWorst>0 && req.body.hoursMost>0 && req.body.hoursLogged>0 && req.body.estimatedHours>0){
-      return res.status(400).send({ error: 'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0' });
+    if (
+      req.body.hoursBest > 0 &&
+      req.body.hoursWorst > 0 &&
+      req.body.hoursMost > 0 &&
+      req.body.hoursLogged > 0 &&
+      req.body.estimatedHours > 0
+    ) {
+      return res
+        .status(400)
+        .send({
+          error:
+            'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
+        });
     }
 
     const { taskId } = req.params;

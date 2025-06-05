@@ -8,7 +8,7 @@ jest.mock('jsonwebtoken');
 jest.mock('bcryptjs');
 jest.mock('../../../models/userProfile');
 jest.mock('../../../config', () => ({
-  JWT_SECRET: 'test-secret'
+  JWT_SECRET: 'test-secret',
 }));
 
 describe('bmLoginController', () => {
@@ -56,7 +56,7 @@ describe('bmLoginController', () => {
           canAccessBMPortal: true,
         },
       },
-      config.JWT_SECRET
+      config.JWT_SECRET,
     );
     expect(res.json).toHaveBeenCalledWith({ token: 'newMockToken' });
   });
@@ -70,7 +70,10 @@ describe('bmLoginController', () => {
     await bmLogin(req, res);
 
     expect(res.status).toHaveBeenCalledWith(422);
-    expect(res.json).toHaveBeenCalledWith({ label: 'email', message: 'Email must match current login. Please try again.' });
+    expect(res.json).toHaveBeenCalledWith({
+      label: 'email',
+      message: 'Email must match current login. Please try again.',
+    });
   });
 
   it('should return 422 if password does not match', async () => {
@@ -83,12 +86,17 @@ describe('bmLoginController', () => {
     await bmLogin(req, res);
 
     expect(res.status).toHaveBeenCalledWith(422);
-    expect(res.json).toHaveBeenCalledWith({ label: 'password', message: 'Password must match current login. Please try again.' });
+    expect(res.json).toHaveBeenCalledWith({
+      label: 'password',
+      message: 'Password must match current login. Please try again.',
+    });
   });
 
   it('should return an error if token is invalid', async () => {
     const error = new Error('Invalid token');
-    jwt.verify.mockImplementation(() => { throw error; });
+    jwt.verify.mockImplementation(() => {
+      throw error;
+    });
 
     await bmLogin(req, res);
 
