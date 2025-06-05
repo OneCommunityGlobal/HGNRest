@@ -11,6 +11,9 @@ const logUserPermissionChangeByAccount = async (req) => {
     let permissionsRemoved = [];
     const { userId } = req.params;
     const Permissions = permissions.frontPermissions;
+    const removedPermissions = permissions.removedDefaultPermissions; // removed default permissions
+    const defaultPermissions = permissions.defaultPermissions; // default permissions for user provided by their role
+    const changedPermissions = [...Permissions, ...removedPermissions];
     const requestorEmailId = await UserProfile.findById(requestor.requestorId)
       .select('email')
       .exec();
@@ -19,13 +22,26 @@ const logUserPermissionChangeByAccount = async (req) => {
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
       // no new changes in permissions list from last update
-      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(Permissions.sort())) {
+      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(changedPermissions.sort())) {
         return;
       }
-      permissionsRemoved = docPermissions.filter((item) => !Permissions.includes(item));
-      permissionsAdded = Permissions.filter((item) => !docPermissions.includes(item));
+      permissionsRemoved = [
+        ...removedPermissions.filter((item) => !docPermissions.includes(item)), //saves new removed defaults
+        ...docPermissions.filter(
+          // saves changes of only removed non-default role permissions for user
+          (item) => !defaultPermissions.includes(item) && !Permissions.includes(item),
+        ),
+      ];
+      permissionsAdded = [
+        ...Permissions.filter((item) => !docPermissions.includes(item)), // saves new added permissions
+        ...docPermissions.filter(
+          // saves changes of only removed default permissions being added back
+          (item) => defaultPermissions.includes(item) && !removedPermissions.includes(item),
+        ),
+      ];
     } else {
       permissionsAdded = Permissions;
+      permissionsRemoved = removedPermissions; // adds removed default permissions to permissionsRemoved for inital log
     }
 
     // no permission added nor removed
@@ -36,7 +52,7 @@ const logUserPermissionChangeByAccount = async (req) => {
       logDateTime: dateTime,
       userId,
       individualName: `INDIVIDUAL: ${firstName} ${lastName}`,
-      permissions: Permissions,
+      permissions: changedPermissions, // changed from Permissions to changedPermissions, to track changes for default and non-default permissions
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
