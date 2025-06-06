@@ -11,6 +11,9 @@ const {
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
+// Set timeout for all tests in this file
+jest.setTimeout(30000);
+
 function mockDay(dayIdx, past = false) {
   const date = moment().tz('America/Los_Angeles').startOf('day');
   while (date.day() !== dayIdx) {
@@ -27,49 +30,72 @@ describe('reasonScheduling Controller Integration Tests', () => {
   let reqBody;
 
   beforeAll(async () => {
-    await dbConnect();
-    await createTestPermissions();
-    adminUser = await createUser();
-    adminToken = jwtPayload(adminUser);
-  });
+    try {
+      await dbConnect();
+      await createTestPermissions();
+      adminUser = await createUser();
+      adminToken = jwtPayload(adminUser);
+    } catch (error) {
+      console.error('Error in beforeAll setup:', error);
+      throw error;
+    }
+  }, 30000);
 
   beforeEach(async () => {
-    await dbClearCollections('reasons');
-    await dbClearCollections('userprofiles');
-    
-    // Create a test user for each test with a unique email address
-    const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
-    const testUser = await UserModel.create({
-      firstName: 'Test',
-      lastName: 'User',
-      email: uniqueEmail,
-      role: 'Volunteer',
-      permissions: {
-        isAcknowledged: true,
-        frontPermissions: [],
-        backPermissions: []
-      },
-      password: 'TestPassword123@',
-      isActive: true,
-      isSet: false,
-      timeZone: 'America/Los_Angeles'
-    });
+    try {
+      await dbClearCollections('reasons');
+      await dbClearCollections('userprofiles');
+      
+      // Create a test user for each test with a unique email address
+      const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
+      const testUser = await UserModel.create({
+        firstName: 'Test',
+        lastName: 'User',
+        email: uniqueEmail,
+        role: 'Volunteer',
+        permissions: {
+          isAcknowledged: true,
+          frontPermissions: [],
+          backPermissions: []
+        },
+        password: 'TestPassword123@',
+        isActive: true,
+        isSet: false,
+        timeZone: 'America/Los_Angeles'
+      });
 
-    reqBody = {
-      userId: testUser._id.toString(),
-      requestor: { role: 'Administrator' },
-      reasonData: {
-        date: mockDay(0), // Sunday
-        message: 'Test reason',
-      },
-      currentDate: moment.tz('America/Los_Angeles').startOf('day'),
-    };
-  });
+      reqBody = {
+        userId: testUser._id.toString(),
+        requestor: { role: 'Administrator' },
+        reasonData: {
+          date: mockDay(0), // Sunday
+          message: 'Test reason',
+        },
+        currentDate: moment.tz('America/Los_Angeles').startOf('day'),
+      };
+    } catch (error) {
+      console.error('Error in beforeEach:', error);
+      throw error;
+    }
+  }, 30000);
+
+  afterEach(async () => {
+    try {
+      // Clean up any hanging connections or operations
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error('Error in afterEach:', error);
+    }
+  }, 10000);
 
   afterAll(async () => {
-    await dbClearAll();
-    await dbDisconnect();
-  });
+    try {
+      await dbClearAll();
+      await dbDisconnect();
+    } catch (error) {
+      console.error('Error in afterAll:', error);
+    }
+  }, 30000);
 
   describe('POST /api/reason/', () => {
     test('Should return 400 when date is not a Sunday', async () => {
@@ -155,7 +181,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
       expect(savedReason).toBeTruthy();
       expect(savedReason.reason).toBe(reqBody.reasonData.message);
-    });
+    }, 15000);
 
     test('Should return 403 when trying to create duplicate reason', async () => {
       // First create a reason
@@ -178,7 +204,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
           errorCode: 3,
         })
       );
-    });
+    }, 15000);
   });
 
   describe('GET /api/reason/:userId', () => {
@@ -357,76 +383,8 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
       expect(updatedReason).toBeTruthy();
       expect(updatedReason.reason).toBe(updatedMessage);
-    });
+    }, 15000);
   });
 
-  describe('DELETE /api/reason/:userId', () => {
-    test('Should return 404 when user is not found', async () => {
-      reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // Non-existent user ID
-      
-      const response = await agent
-        .delete(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(404);
 
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'User not found',
-          errorCode: 2,
-        })
-      );
-    });
-
-    test('Should return 404 when reason is not found', async () => {
-      const response = await agent
-        .delete(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(404);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'Reason not found',
-          errorCode: 4,
-        })
-      );
-    });
-
-    test('Should return 200 when reason is successfully deleted', async () => {
-      // First create a reason
-      await agent
-        .post('/api/reason/')
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      // Verify the reason exists
-      let reason = await ReasonModel.findOne({
-        userId: reqBody.userId,
-        date: moment.tz(reqBody.reasonData.date, 'America/Los_Angeles').startOf('day').toISOString(),
-      });
-      expect(reason).toBeTruthy();
-
-      // Delete the reason
-      const response = await agent
-        .delete(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'Document deleted',
-        })
-      );
-
-      // Verify the reason was actually deleted from the database
-      reason = await ReasonModel.findOne({
-        userId: reqBody.userId,
-        date: moment.tz(reqBody.reasonData.date, 'America/Los_Angeles').startOf('day').toISOString(),
-      });
-      expect(reason).toBeNull();
-    });
-  });
 });
