@@ -22,6 +22,9 @@ const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
+
+const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
+
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
@@ -130,6 +133,9 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+
+const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(weeklySummaryEmailAssignment, userProfile);
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -168,6 +174,8 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
+  app.use('/api', weeklySummaryEmailAssignmentRouter);
+  
   app.use('/api/jobs', jobsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
