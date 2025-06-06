@@ -134,7 +134,6 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 const collaborationRouter=require('../routes/collaborationRouter');
 const templateRouter = require('../routes/templateRouter');
 
-
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
