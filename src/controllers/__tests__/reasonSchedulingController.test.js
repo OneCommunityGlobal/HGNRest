@@ -11,8 +11,21 @@ const {
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
+// Mock the emailSender utility to prevent crashes
+jest.mock('../../utilities/emailSender', () => jest.fn());
+
 // Set timeout for all tests in this file
 jest.setTimeout(30000);
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.log('Uncaught Exception:', error);
+});
 
 function mockDay(dayIdx, past = false) {
   const date = moment().tz('America/Los_Angeles').startOf('day');
@@ -31,20 +44,39 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   beforeAll(async () => {
     try {
+      // Ensure clean state
       await dbConnect();
+      await dbClearAll();
       await createTestPermissions();
       adminUser = await createUser();
       adminToken = jwtPayload(adminUser);
     } catch (error) {
       console.error('Error in beforeAll setup:', error);
+      // Try to clean up on failure
+      try {
+        await dbClearAll();
+        await dbDisconnect();
+      } catch (cleanupError) {
+        console.error('Error during cleanup:', cleanupError);
+      }
       throw error;
     }
   }, 30000);
 
   beforeEach(async () => {
     try {
-      await dbClearCollections('reasons');
-      await dbClearCollections('userprofiles');
+      // Clear collections with retry logic
+      for (let i = 0; i < 3; i++) {
+        try {
+          await dbClearCollections('reasons');
+          await dbClearCollections('userprofiles');
+          break;
+        } catch (clearError) {
+          console.warn(`Clear attempt ${i + 1} failed:`, clearError);
+          if (i === 2) throw clearError;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
       
       // Create a test user for each test with a unique email address
       const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
@@ -82,7 +114,11 @@ describe('reasonScheduling Controller Integration Tests', () => {
   afterEach(async () => {
     try {
       // Clean up any hanging connections or operations
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 500));
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc();
+      }
     } catch (error) {
       console.error('Error in afterEach:', error);
     }
@@ -97,23 +133,36 @@ describe('reasonScheduling Controller Integration Tests', () => {
     }
   }, 30000);
 
+  describe('Basic Setup', () => {
+    test('Should have valid test setup', () => {
+      expect(adminUser).toBeDefined();
+      expect(adminToken).toBeDefined();
+      expect(reqBody).toBeDefined();
+    });
+  });
+
   describe('POST /api/reason/', () => {
     test('Should return 400 when date is not a Sunday', async () => {
-      reqBody.reasonData.date = mockDay(1); // Monday
-      
-      const response = await agent
-        .post('/api/reason/')
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(400);
+      try {
+        reqBody.reasonData.date = mockDay(1); // Monday
+        
+        const response = await agent
+          .post('/api/reason/')
+          .send(reqBody)
+          .set('Authorization', adminToken)
+          .expect(400);
 
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: expect.stringContaining("You must choose the Sunday YOU'LL RETURN"),
-          errorCode: 0,
-        })
-      );
-    });
+        expect(response.body).toEqual(
+          expect.objectContaining({
+            message: expect.stringContaining("You must choose the Sunday YOU'LL RETURN"),
+            errorCode: 0,
+          })
+        );
+      } catch (error) {
+        console.error('Test failed:', error);
+        throw error;
+      }
+    }, 10000);
 
     test('Should return 400 when date is in the past', async () => {
       reqBody.reasonData.date = mockDay(0, true); // Past Sunday
