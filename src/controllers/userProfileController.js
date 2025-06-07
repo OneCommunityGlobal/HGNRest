@@ -173,7 +173,8 @@ const userProfileController = function (UserProfile, Project) {
 
     await UserProfile.find(
       {},
-      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate timeZone',
+      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate filterColor',
+
     )
       .sort({
         lastName: 1,
@@ -210,7 +211,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
 
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
+    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate filterColor')
       .sort({
         lastName: 1,
       })
@@ -575,6 +576,7 @@ const userProfileController = function (UserProfile, Project) {
         'jobTitle',
         'emailPubliclyAccessible',
         'phoneNumberPubliclyAccessible',
+        'filterColor',
         'profilePic',
         'firstName',
         'lastName',
