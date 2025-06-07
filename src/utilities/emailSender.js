@@ -35,11 +35,16 @@ const sendEmail = async (mailOptions) => {
   try {
     const { token } = await OAuth2Client.getAccessToken();
 
+    if (!mailOptions.html || typeof mailOptions.html !== 'string') {
+      throw new Error('Invalid email content');
+    }
+
     mailOptions.auth = {
       user: config.email,
       refreshToken: config.refreshToken,
       accessToken: token,
     };
+
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
@@ -127,11 +132,18 @@ const emailSender = (
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
+    
+    // 验证邮件内容
+    if (!message || typeof message !== 'string') {
+      reject(new Error('Invalid email content'));
+      return;
+    }
+
     for (let i = 0; i < recipients.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
         from: config.email,
-        to: batchRecipients ? batchRecipients.join(',') : [], // <-- use 'to' instead of 'bcc'
+        to: batchRecipients ? batchRecipients.join(',') : [],
         bcc: emailBccs ? emailBccs.join(',') : [],
         subject,
         html: message,
