@@ -18,6 +18,9 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const availability = require('../models/lbdashboard/availability');
+
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
 
 const hgnFormResponses = require('../models/hgnFormResponses');
 
@@ -236,10 +239,12 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmIssueRouter);
   app.use('api', bmIssueRouter);
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
-  app.use('/api/bm', bmIssueRouter);
-  app.use('/api/villages', require('../routes/lb_dashboard/villages'));
+  app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api', registrationRouter);
+  app.use('/api/lb', listingAvailablityRouter);
+
 };
