@@ -823,6 +823,10 @@ const userHelper = function () {
               'onecommunityglobal@gmail.com',
               status.email,
               null,
+             ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+              status.email,
+              [...new Set([...emailsBCCs])],
+
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -1222,8 +1226,10 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
+
         'onecommunityglobal@gmail.com',
         emailAddress,
+
       );
     });
   };
