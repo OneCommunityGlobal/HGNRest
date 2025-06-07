@@ -1577,3 +1577,7 @@ const timeEntrycontroller = function (TimeEntry) {
 };
 
 module.exports = timeEntrycontroller;
+module.exports = {
+  formatSeconds,
+  isGeneralTimeEntry
+};
