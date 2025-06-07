@@ -843,8 +843,9 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
-              emailsBCCs,
-              'onecommunityglobal@gmail.com',
+              ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+              status.email,
+              [...new Set([...emailsBCCs])],
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -1250,7 +1251,7 @@ const userHelper = function () {
     const bccEmails = assignments.map(a => a.email);
     newInfringements.forEach(async (element) => {
       emailSender(
-        [...bccEmails, 'onecommunityglobal@gmail.com'], // bcc
+        emailAddress,
         'New Infringement Assigned',
         getInfringementEmailBody(
           firstName,
@@ -1262,9 +1263,11 @@ const userHelper = function () {
           undefined,
           administrativeContent,
         ),
-        null, // attachments
-        [emailAddress, "jae@onecommunityglobal.org"], // cc
-        emailAddress, // reply-to
+        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        emailAddress,
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
       );
     });
   };
