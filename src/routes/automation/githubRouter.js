@@ -1,11 +1,11 @@
 const express = require('express');
-const dropboxController = require('../../controllers/automation/dropboxController');
-
 const router = express.Router();
+const githubController = require('../../controllers/automation/githubController');
 
-// Routes for Dropbox actions
-router.post('/create-folder', dropboxController.createFolder);
-router.post('/invite-user', dropboxController.inviteUserToFolder);
-router.post('/delete-folder', dropboxController.deleteFolder);
+// Route to send GitHub invitation
+router.post('/invite', githubController.inviteUser);
+
+// Route to remove a user from GitHub organization
+router.delete('/remove', githubController.removeUser);
 
 module.exports = router;

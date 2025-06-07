@@ -200,7 +200,7 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
-  app.use('/api/job-notification-list/', jobNotificationListRouter);
+  //app.use('/api/job-notification-list/', jobNotificationListRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -218,5 +218,5 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
-  app.use('/api', registrationRouter);
+  // app.use('/api', registrationRouter);
 };
