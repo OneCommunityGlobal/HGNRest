@@ -252,6 +252,27 @@ const userProfileController = function (UserProfile, Project) {
     );
   };
 
+  const searchUsersByName = async function (req, res) {
+    // if (!(await checkPermission(req, 'searchUserProfile'))) {
+    //   forbidden(res, 'You are not authorized to search for users');
+    //   return;
+    // }
+    const { name } = req.query;
+
+    const result = await UserProfile.find({
+      "$expr": {
+        "$regexMatch": {
+          "input": { "$concat": ["$firstName", " ", "$lastName"] },
+          "regex": name,  
+          "options": "i"
+        }
+      }
+    }).limit(10)
+      .select({ "firstName": 1, "lastName": 1, "_id": 1 })
+      .sort({'firstName': 1, 'lastName': 1});
+    res.json(result);
+  }
+
   const postUserProfile = async function (req, res) {
     if (!(await checkPermission(req, 'postUserProfile'))) {
       forbidden(res, 'You are not authorized to create new users');
@@ -487,13 +508,13 @@ const userProfileController = function (UserProfile, Project) {
 
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
-    );
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid));
+
+    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
 
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
 
-    if (!isRequestorAuthorized && !canManageAdminLinks) {
+    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -764,8 +785,8 @@ const userProfileController = function (UserProfile, Project) {
       }
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1678,8 +1699,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1730,8 +1751,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1771,8 +1792,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1960,9 +1981,11 @@ const userProfileController = function (UserProfile, Project) {
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
-      return res.status(400).send({
-        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
-      });
+      return res
+        .status(400)
+        .send({
+          error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+        });
     }
 
     try {
@@ -1992,6 +2015,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   return {
+    searchUsersByName,
     postUserProfile,
     getUserProfiles,
     putUserProfile,
