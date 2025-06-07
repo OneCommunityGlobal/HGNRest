@@ -5,9 +5,6 @@ describe('formatSeconds', () => {
     expect(formatSeconds(3661)).toEqual(['1', '1']); // 1 hour 1 min
   });
 
-  test.skip('formats 59 seconds as [0, 59]', () => {
-    expect(formatSeconds(59)).toEqual(['0', '59']); // 0 hour 59 min
-  });
 });
 
 describe('isGeneralTimeEntry', () => {
