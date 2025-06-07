@@ -64,6 +64,7 @@ const sendEmail = async (req, res) => {
   }
   try {
     const { to, subject, html } = req.body;
+    // Validate required fields
     if (!subject || !html || !to) {
       const missingFields = [];
       if (!subject) missingFields.push('Subject');
@@ -74,9 +75,7 @@ const sendEmail = async (req, res) => {
         .send(`${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`);
     }
 
-    const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
-
-    await emailSender(to, subject, processedHtml, attachments)
+    await emailSender(to, subject, html)
       .then(() => {
         res.status(200).send(`Email sent successfully to ${to}`);
       })

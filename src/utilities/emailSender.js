@@ -8,9 +8,9 @@ const config = {
   clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
   redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
   refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
-  batchSize: 50,
-  concurrency: 3,
-  rateLimitDelay: 1000,
+  batchSize: 90,
+  concurrency: 1,
+  rateLimitDelay: 2000,
 };
 
 const OAuth2Client = new google.auth.OAuth2(
@@ -139,7 +139,7 @@ const emailSender = (
       return;
     }
 
-    for (let i = 0; i < recipients.length; i += config.batchSize) {
+    for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
         from: config.email,
