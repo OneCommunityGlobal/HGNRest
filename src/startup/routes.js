@@ -160,6 +160,7 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -249,6 +250,7 @@ module.exports = function (app) {
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
 
