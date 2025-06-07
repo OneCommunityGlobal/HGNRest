@@ -845,6 +845,9 @@ const userHelper = function () {
               null,
               null,
               [...new Set([...emailsBCCs, 'onecommunityglobal@gmail.com'])],
+              ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+              status.email,
+              [...new Set([...emailsBCCs])],
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -1263,10 +1266,10 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
         emailAddress,
         // Don't change this is to CC!
-        [...new Set([...bccEmails, 'onecommunityglobal@gmail.com', "jae@onecommunityglobal.org"])],
+        [...new Set([...bccEmails])],
       );
     });
   };

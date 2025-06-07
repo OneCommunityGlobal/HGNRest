@@ -44,7 +44,6 @@ const sendEmail = async (mailOptions) => {
       refreshToken: config.refreshToken,
       accessToken: token,
     };
-
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
@@ -133,7 +132,6 @@ const emailSender = (
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
     
-    // 验证邮件内容
     if (!message || typeof message !== 'string') {
       reject(new Error('Invalid email content'));
       return;
