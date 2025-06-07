@@ -25,3 +25,6 @@ testem.log
 
 # OS specific
 .DS_Store
+
+uploads/
+*.mov
