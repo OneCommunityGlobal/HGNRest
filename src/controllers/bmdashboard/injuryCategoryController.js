@@ -64,3 +64,23 @@ exports.getCategoryBreakdown = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+exports.getUniqueSeverities = async (req, res) => {
+  try {
+    const severities = await InjuryCategory.distinct('severity');
+    res.status(200).json(severities.filter(Boolean));
+  } catch (err) {
+    console.error('[getUniqueSeverities] Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.getUniqueInjuryTypes = async (req, res) => {
+  try {
+    const types = await InjuryCategory.distinct('injuryType');
+    res.status(200).json(types.filter(Boolean));
+  } catch (err) {
+    console.error('[getUniqueInjuryTypes] Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

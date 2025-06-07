@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const injuryCategorySchema = new mongoose.Schema({
-  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'project' },
+  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'buildingProject' },
   projectName: String,
   date: Date,
   injuryType: String,
