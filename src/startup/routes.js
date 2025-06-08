@@ -58,6 +58,7 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+const toolsNeededReplacement = require('../models/bmdashboard/toolsNeededReplacement');
 const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
@@ -160,6 +161,7 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const toolReplacementRouter = require('../routes/bmdashboard/bmToolReplacementRouter')(toolsNeededReplacement);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -236,7 +238,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmTimeLoggerRouter);  
-  app.use('api', bmIssueRouter);
+  app.use('/api', bmIssueRouter);
+  app.use('/api', toolReplacementRouter);
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
