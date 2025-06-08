@@ -103,6 +103,101 @@ const paymentsController = function (Payments) {
     }
   };
 
+  const postPaymentUpdateOrderWithoutCard = async (ordAuthorizationDetails) => {
+    try {
+      console.log('ordAuthorizationDetails');
+      console.log(ordAuthorizationDetails);
+      const paypalOrderId = ordAuthorizationDetails.id;
+      console.log(`paypalOrderId is ${paypalOrderId}`);
+      console.log(ordAuthorizationDetails.purchase_units[0].amount);
+      console.log(ordAuthorizationDetails.purchase_units[0].amount.value);
+      
+      
+      const amount = ordAuthorizationDetails?.purchase_units[0]?.amount?.value;
+      console.log(amount);
+      const createTime =
+        ordAuthorizationDetails?.create_time;
+      console.log(createTime);
+      
+      
+      const status = 'Payment Updated';
+    const updateData = { 
+        purchase_units: {
+          payments: {
+            amount
+          },
+        },
+        status};
+     
+
+      const updatePayments = await Payments.findOneAndUpdate({
+        paypalOrderId:ordAuthorizationDetails.id },
+updateData, {new:true}
+         );
+if (!updatePayments) {
+      return { status: 400, error: 'Invalid Payment details' };
+    }
+    
+      
+      console.log(updatePayments);
+      return { status: 200, data: updatePayments };
+    } catch (error) {
+      return { status:500, error: error.response?.data?.error || error.message || 'postPaymentUpdateOrderWithoutCard error' };
+    }
+  };
+
+  const postPaymentAuthorizationsWithoutCard = async (ordAuthorizationDetails) => {
+    try {
+      console.log('ordAuthorizationDetails');
+      console.log(ordAuthorizationDetails);
+      const paypalOrderId = ordAuthorizationDetails.id;
+      console.log(`paypalOrderId is ${paypalOrderId}`);
+      
+       console.log(ordAuthorizationDetails.purchase_units[0]?.payments); 
+      
+       const paypalAuthorizationsId = ordAuthorizationDetails?.purchase_units[0]?.payments?.authorizations[0]?.id;
+       console.log(`authorizationsId is ${paypalAuthorizationsId}`);
+
+      const paypalCreateTime =        ordAuthorizationDetails?.purchase_units[0]?.payments?.authorizations[0]?.create_time;
+      console.log(paypalCreateTime);
+      const paypalExpirationTime =        ordAuthorizationDetails?.purchase_units[0]?.payments?.authorizations[0]?.expiration_time;
+      console.log(paypalExpirationTime);
+      
+      // const { expiry, brand } = ordAuthorizationDetails.payment_source.card;
+    //  const lastDigits = ordAuthorizationDetails.payment_source.card.last_digits;
+// console.log( lastDigits,expiry, brand);
+      
+      
+      
+      const status = 'Payment Authorization Completed';
+      const matchPayments = await Payments.findOne({paypalOrderId:ordAuthorizationDetails.id});
+
+    if (!matchPayments) {
+      return { status: 400, error: 'Invalid Payment details' };
+    }
+  const updateData = { 
+        paypalAuthorizationsId,
+        paypalCreateTime,
+        paypalExpirationTime,
+        status};
+     
+
+      const updatePayments = await Payments.findOneAndUpdate({
+        paypalOrderId:ordAuthorizationDetails.id },
+updateData, {new:true}
+         );
+if (!updatePayments) {
+      return { status: 400, error: 'Invalid Payment details' };
+    }
+    
+      
+      console.log(updatePayments);
+      return { status: 200, data: updatePayments };
+    } catch (error) {
+      return { status:500, error: error.response?.data?.error || error.message || 'postPaymentAuthorizationsWithoutCard error' };
+    }
+  };
+
   /*  const getPayments = async (req, res) => {
     try {
       console.log('inside getPayment');
@@ -122,7 +217,9 @@ const paymentsController = function (Payments) {
   };
 */
   return { postPayments,
-    postPaymentsWithoutCard
+    postPaymentsWithoutCard,
+    postPaymentUpdateOrderWithoutCard,
+    postPaymentAuthorizationsWithoutCard
    };
 };
 

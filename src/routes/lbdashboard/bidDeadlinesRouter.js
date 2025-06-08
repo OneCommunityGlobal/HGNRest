@@ -5,7 +5,6 @@ const bidDeadlinesController = require('../../controllers/lbdashboard/bidDeadlin
 );
 
 const bidDeadlinesRouter = express.Router();
-console.log('bidDeadlinesRouter');
 bidDeadlinesRouter
   .route('/bidDeadlines')
   .get(bidDeadlinesController.getBidDeadlines)

@@ -4,7 +4,9 @@ const { Schema } = mongoose;
 
 const paymentSchema = new Schema({
   paypalOrderId: { type: String, required: true },
-  authorizationsId: { type: String, required: false },
+  paypalAuthorizationsId: { type: String, required: false },
+  paypalExpirationTime:{ type: Date },
+  paypalCreateTime: { type: Date },    
   payment_source: {
     card: {
       lastDigits: { type: String, required: false },
@@ -15,8 +17,7 @@ const paymentSchema = new Schema({
   purchase_units: {
     payments: {
       amount: { type: mongoose.SchemaTypes.Decimal128, required: true },
-      expirationTime: { type: Date },
-    },
+      },
   },
   userId: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'users' }],
   bidId: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'bids' }],
@@ -24,6 +25,7 @@ const paymentSchema = new Schema({
   isActive: { type: Boolean, required: true, default: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
+
   status: { type: String, required: true },
 });
 
