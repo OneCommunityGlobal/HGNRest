@@ -179,7 +179,13 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
 const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(bidoverview_Bid, bidoverview_Listing, bidoverview_User, bidoverview_Notification);
 
+
+//commnunity portal
+const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
+
 
 
 const collaborationRouter=require('../routes/collaborationRouter');
@@ -256,9 +262,14 @@ module.exports = function (app) {
   app.use('/api/lb', bidPropertyRouter)
   app.use('/api/lb', userBidRouter)
 
+  //community portal
+  app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+
+
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
   app.use('/api', registrationRouter);
+
 };
