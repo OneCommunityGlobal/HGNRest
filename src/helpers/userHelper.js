@@ -823,10 +823,6 @@ const userHelper = function () {
               'onecommunityglobal@gmail.com',
               status.email,
               null,
-             ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
-              status.email,
-              [...new Set([...emailsBCCs])],
-
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -1226,10 +1222,8 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-
         'onecommunityglobal@gmail.com',
         emailAddress,
-
       );
     });
   };
@@ -1579,7 +1573,44 @@ const userHelper = function () {
     }
   };
 
+  // 'Personal Max',
+  // const checkPersonalMax = async function (personId, user, badgeCollection) {
+  //   let badgeOfType;
+  //   const duplicateBadges = [];
+  //   const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
 
+  //   // verify that "personal max" badge exists in badgeCollection
+  //   for (let i = 0; i < badgeCollection.length; i += 1) {
+  //     if (badgeCollection[i].badge?.type === 'Personal Max') {
+  //       if (!badgeOfType) {
+  //         badgeOfType = badgeCollection[i];
+  //       } else {
+  //         duplicateBadges.push(badgeCollection[i]);
+  //       }
+  //       break;
+  //     }
+  //   }
+  //   // check the badge collection for duplicates
+  //   for (const b of duplicateBadges) {
+  //     await removeDupBadge(personId, b._id);
+  //   }
+
+  //   if (!badgeOfType) {
+  //     addBadge(personId, mongoose.Types.ObjectId(badgeOfType.badge._id), );
+  //   }
+    
+  //   if (
+  //     user.lastWeekTangibleHrs &&
+  //     user.savedTangibleHrs[user.savedTangibleHrs.length-1] > user.lastWeekTangibleHrs &&
+  //     user.lastWeekTangibleHrs >= user.personalBestMaxHrs &&
+  //     !badgeOfType.earnedDate.includes(currentDate)
+  //     ) {
+  //       if (badgeOfType) {
+  //         increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id)); 
+  //       } 
+  //   } 
+  //   await updatePersonalMax(personId, user);
+  // };
 const checkPersonalMax = async function (personId, user, badgeCollection) {
   let badgeOfType;
   const duplicateBadges = [];
