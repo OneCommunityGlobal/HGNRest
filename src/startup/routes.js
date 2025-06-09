@@ -64,6 +64,7 @@ const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
 const jobsRouter = require('../routes/jobsRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
@@ -153,6 +154,7 @@ module.exports = function (app) {
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
   // app.use('/api', actionItemRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
