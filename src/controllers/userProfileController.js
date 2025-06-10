@@ -1351,8 +1351,9 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
-      .then((user) => {
+    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode')
+      .then(async (user) => {
+        const wasInactive = !user.isActive;
         user.set({
           isActive: activeStatus,
           reactivationDate: activationDate,
@@ -1360,6 +1361,17 @@ const userProfileController = function (UserProfile, Project) {
           isSet,
           finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
+
+        // if teamcode is invalid, flag warning
+        if (!activeStatus){
+            user.teamCodeWarning = false;
+        } else if (wasInactive) {
+            const mismatch = await userHelper.checkTeamCodeMismatch(user);
+            if (mismatch) {
+              user.teamCodeWarning = true;
+            }
+          }
+
         user
           .save()
           .then(() => {
@@ -1997,7 +2009,7 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
+        result[e.item] = e.value
         await result.save();
       });
       res.status(200).send({ message: 'Update successful' });
@@ -2008,7 +2020,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const replaceTeamCodeForUsers = async (req, res) => {
-    const { oldTeamCodes, newTeamCode } = req.body;
+    const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
 
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
@@ -2021,30 +2033,62 @@ const userProfileController = function (UserProfile, Project) {
     }
 
     try {
-      // Sanitize input
-      const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
-
-      // Find and update users
+        // Sanitize oldTeamCodes to ensure they are strings
+      const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
+  
+      // 1. Find all matching users first
       const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
 
       if (usersToUpdate.length === 0) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
-
-      const updateResult = await UserProfile.updateMany(
-        { teamCode: { $in: sanitizedOldTeamCodes } },
-        { $set: { teamCode: newTeamCode } },
-      );
-
+  
+      const updatedUsersInfo = [];
+      const bulkOps = [];
+  
+      for (const user of usersToUpdate) {
+        // Temporarily set new teamCode for validation
+        user.teamCode = newTeamCode;
+  
+        let teamCodeWarning = user.teamCodeWarning;
+        if (warningUsers && warningUsers.includes(user._id.toString())) {
+             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
+        }
+  
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: user._id },
+            update: {
+              $set: {
+                teamCode: newTeamCode,
+                teamCodeWarning: teamCodeWarning,
+              },
+            },
+          },
+        });
+  
+        updatedUsersInfo.push({
+          userId: user._id,
+          teamCodeWarning: teamCodeWarning,
+        });
+      }
+  
+      // 2. Execute all updates at once
+      if (bulkOps.length > 0) {
+        await UserProfile.bulkWrite(bulkOps);
+      }
+  
       return res.status(200).send({
         message: 'Team codes updated successfully.',
-        updatedCount: updateResult.nModified,
+        updatedUsers: updatedUsersInfo,
       });
+  
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
     }
   };
+  
 
   return {
     searchUsersByName,
