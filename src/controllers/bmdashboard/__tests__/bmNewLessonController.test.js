@@ -22,7 +22,10 @@ describe('Building New Lesson Controller', () => {
     // Setup MongoDB Memory Server
     mongoServer = await MongoMemoryServer.create();
     const uri = mongoServer.getUri();
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
 
     // Setup Express app
     app = express();
