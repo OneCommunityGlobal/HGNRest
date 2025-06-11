@@ -3,6 +3,7 @@ const path = require('path');
 const { google } = require('googleapis');
 const { hasPermission } = require('../utilities/permissions');
 const { getYoutubeAccountById } = require('../utilities/youtubeAccountUtil');
+const ScheduledYoutubeUpload = require('../models/scheduledYoutubeUpload');
 
 // Read sensitive config from environment variables
 const CLIENT_ID = process.env.YT_CLIENT_ID;
@@ -34,7 +35,8 @@ const youtubeUploadController = () => {
         description,
         tags,
         categoryId,
-        privacyStatus
+        privacyStatus,
+        scheduledTime
       } = req.body;
 
       if (!youtubeAccountId) {
@@ -59,7 +61,36 @@ const youtubeUploadController = () => {
         });
       }
 
-      // Use refresh token to automatically get access token
+      const filePath = req.file.path;
+
+      // 如果设置了定时发布
+      if (scheduledTime) {
+        const scheduledDate = new Date(scheduledTime);
+        if (scheduledDate < new Date()) {
+          return res.status(400).json({ error: 'Scheduled time cannot be earlier than current time' });
+        }
+
+        // 创建定时发布任务
+        const scheduledUpload = new ScheduledYoutubeUpload({
+          youtubeAccountId,
+          videoPath: filePath,
+          title,
+          description,
+          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+          privacyStatus: privacyStatus || 'private',
+          scheduledTime: scheduledDate
+        });
+
+        await scheduledUpload.save();
+
+        return res.status(200).json({
+          message: 'Video scheduled successfully',
+          scheduledTime: scheduledDate,
+          uploadId: scheduledUpload._id
+        });
+      }
+
+      // 立即上传视频
       const oauth2Client = new google.auth.OAuth2(
         account.clientId,
         account.clientSecret,
@@ -69,8 +100,6 @@ const youtubeUploadController = () => {
       await oauth2Client.getAccessToken();
 
       const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-
-      const filePath = req.file.path;
       const videoStream = fs.createReadStream(filePath);
 
       console.log('Uploading to YouTube with details:', {
@@ -111,14 +140,14 @@ const youtubeUploadController = () => {
       console.log('YouTube response:', response.data);
 
       res.status(200).json({
-        message: 'Video uploaded successfully',
+        message: '视频上传成功',
         videoId: response.data.id,
         url: `https://www.youtube.com/watch?v=${response.data.id}`,
       });
     } catch (error) {
       console.error('Upload error:', error);
       res.status(500).json({ 
-        error: 'Upload failed', 
+        error: '上传失败', 
         details: error.message,
         stack: error.stack 
       });
