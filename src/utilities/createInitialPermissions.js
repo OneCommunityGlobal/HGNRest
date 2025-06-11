@@ -9,6 +9,8 @@ const permissionsRoles = [
       // Reports
       'getWeeklySummaries',
       'getReports', // Doesn't do anything on back-end.
+      'totalValidWeeklySummaries',
+      'requestBio',
       // Badges
       'seeBadges',
       'assignBadges',
@@ -36,18 +38,39 @@ const permissionsRoles = [
       'putTeam',
       'assignTeamToUsers',
       // Time Entries
-      'editTimeEntry',
+      'editTimeEntryTime',
+      'editTimeEntryDescription',
+      'editTimeEntryDate',
+      'editTimeEntryToggleTangible',
       'deleteTimeEntry',
-      // 'postTimeEntry',?
+      'postTimeEntry',
       // User Profile
-      'putRole',
+      'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
       'changeUserStatus',
+      'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'toggleInvisibility',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
+      'manageAdminLinks',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
+      'updateSummaryRequirements',
+      // Tracking Management
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       // WBS
       'postWbs',
       'deleteWbs',
@@ -71,18 +94,28 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+
+      // Title
+      'seeQSC',
+      'addNewTitle',
+      'editTitle',
+      'assignTitle',
+
+      'seeUsersInDashboard',
+      'editTeamCode',
+
+      'manageFAQs',
     ],
   },
   {
     roleName: 'Volunteer',
-    permissions: [
-      'getReporteesLimitRoles',
-      'suggestTask',
-    ],
+    permissions: ['suggestTask'],
   },
   {
     roleName: 'Core Team',
     permissions: [
+      'getReports',
+      'getWeeklySummaries',
       'getUserProfiles',
       'getProjectMembers',
       'getAllInvInProjectWBS',
@@ -99,20 +132,19 @@ const permissionsRoles = [
       'getAllInvType',
       'postInvType',
       'getWeeklySummaries',
-      'getReports',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'seeUsersInDashboard',
     ],
   },
   {
     roleName: 'Manager',
     permissions: [
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'infringementAuthorizer',
       'getReporteesLimitRoles',
+      'postTask',
       'updateTask',
+      'suggestTask',
+      'putReviewStatus',
       'putTeam',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -135,10 +167,7 @@ const permissionsRoles = [
     roleName: 'Mentor',
     permissions: [
       'suggestTask',
-      'getUserProfiles',
-      'getProjectMembers',
-      'putUserProfile',
-      'infringementAuthorizer',
+      'putReviewStatus',
       'getReporteesLimitRoles',
       'getAllInvInProjectWBS',
       'postInvInProjectWBS',
@@ -165,7 +194,18 @@ const permissionsRoles = [
       'putRole',
       'addDeleteEditOwners',
       'putUserProfilePermissions',
+      'highlightEligibleBios',
+      'manageTimeOffRequests',
+      'changeUserRehireableStatus',
       'changeUserStatus',
+      'viewTrackingOverview',
+      'issueTrackingWarnings',
+      'issueBlueSquare',
+      'deleteWarning',
+      'addWarningTracker',
+      'deactivateWarningTracker',
+      'reactivateWarningTracker',
+      'deleteWarningTracker',
       'seeBadges',
       'assignBadges',
       'createBadges',
@@ -183,20 +223,33 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'resolveTask',
+      'suggestTask',
+      'putReviewStatus',
       'postTeam',
       'deleteTeam',
       'putTeam',
       'assignTeamToUsers',
-      'editTimeEntry',
+      'editTimeEntryTime',
+      'editTimeEntryDescription',
+      'editTimeEntryDate',
+      'editTimeEntryToggleTangible',
       'deleteTimeEntry',
+      'postTimeEntry',
+      'sendEmails',
+      'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
       'putUserProfile',
       'putUserProfileImportantInfo',
+      'updateSummaryRequirements',
       'deleteUserProfile',
-      'infringementAuthorizer',
+      'addInfringements',
+      'editInfringements',
+      'deleteInfringements',
       'postWbs',
       'deleteWbs',
       'getAllInvInProjectWBS',
@@ -217,6 +270,24 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'editTeamCode',
+      'totalValidWeeklySummaries',
+      'requestBio',
+
+      // Title
+      'seeQSC',
+      'addNewTitle',
+      'editTitle',
+      'assignTitle',
+
+      'seeUsersInDashboard',
+
+      'changeUserRehireableStatus',
+      'toggleInvisibility',
+      'manageAdminLinks',
+      'removeUserFromTask',
+      'editHeaderMessage',
+
+      'manageFAQs',
     ],
   },
 ];
@@ -247,40 +318,51 @@ const createInitialPermissions = async () => {
         role.permissions = permissions;
         role.save();
 
-      // If role exists in db and does not have every permission, add the missing permissions
+        // If role exists in db and does not have every permission, add the missing permissions
       } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
-        promises.push(Role.findById(roleId, (_, record) => {
-          permissions.forEach((perm) => {
-            if (!record.permissions.includes(perm)) {
-              record.permissions.push(perm);
-            }
-          });
-          record.save();
-        }));
+        promises.push(
+          Role.findById(roleId, (_, record) => {
+            permissions.forEach((perm) => {
+              if (!record.permissions.includes(perm)) {
+                record.permissions.push(perm);
+              }
+            });
+            record.save();
+          }),
+        );
       }
     }
 
     // Update Default presets
-    const presetDataBase = allPresets.find((preset) => preset.roleName === roleName && preset.presetName === 'default');
+    const defaultName = 'hard-coded default';
+
+    const presetDataBase = allPresets.find(
+      (preset) => preset.roleName === roleName && preset.presetName === defaultName,
+    );
 
     // If role does not exist in db, create it
     if (!presetDataBase) {
       const defaultPreset = new RolePreset();
       defaultPreset.roleName = roleName;
-      defaultPreset.presetName = 'default';
+      defaultPreset.presetName = defaultName;
       defaultPreset.permissions = permissions;
       defaultPreset.save();
 
-    // If role exists in db and is not updated, update default
-    } else if (!presetDataBase.permissions.every((perm) => permissions.includes(perm)) || !permissions.every((perm) => presetDataBase.permissions.includes(perm))) {
+      // If role exists in db and is not updated, update default
+    } else if (
+      !presetDataBase.permissions.every((perm) => permissions.includes(perm)) ||
+      !permissions.every((perm) => presetDataBase.permissions.includes(perm))
+    ) {
       const presetId = presetDataBase._id;
 
-      promises.push(RolePreset.findById(presetId, (_, record) => {
-        record.permissions = permissions;
-        record.save();
-      }));
+      promises.push(
+        RolePreset.findById(presetId, (_, record) => {
+          record.permissions = permissions;
+          record.save();
+        }),
+      );
     }
   }
   await Promise.all(promises);

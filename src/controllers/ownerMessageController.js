@@ -1,10 +1,11 @@
-const hasPermission = require("../utilities/permissions");
+const { hasPermission } = require("../utilities/permissions");
 
 const ownerMessageController = function (OwnerMessage) {
   const getOwnerMessage = async function (req, res) {
     try {
       const results = await OwnerMessage.find({});
-      if (results.length === 0) { // first time initialization
+      if (results.length === 0) {
+        // first time initialization
         const ownerMessage = new OwnerMessage();
         await ownerMessage.save();
         res.status(200).send({ ownerMessage });
@@ -18,7 +19,7 @@ const ownerMessageController = function (OwnerMessage) {
 
   const updateOwnerMessage = async function (req, res) {
     
-    const canEditHeaderMessage = hasPermission(req.body.requestor, 'editHeaderMessage');
+    const canEditHeaderMessage = await hasPermission(req.body.requestor, 'editHeaderMessage');
     
     if (!canEditHeaderMessage) {
       res.status(403).send('You are not authorized to create messages!');
@@ -45,7 +46,7 @@ const ownerMessageController = function (OwnerMessage) {
   };
 
   const deleteOwnerMessage = async function (req, res) {
-    if (req.body.requestor.role !== 'Owner') {
+    if (!(await helper.hasPermission(req.body.requestor, 'editHeaderMessage'))) {
       res.status(403).send('You are not authorized to delete messages!');
     }
     try {

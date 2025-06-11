@@ -1,5 +1,6 @@
-const moment = require('moment-timezone');
-const userProfile = require('../models/userProfile');
+/* eslint-disable quotes */
+const moment = require("moment-timezone");
+const userProfile = require("../models/userProfile");
 
 /**
  *
@@ -8,9 +9,9 @@ const userProfile = require('../models/userProfile');
  * @returns The absolute value of the difference in weeks between the two input dates.
  */
 const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
-  dateOfWork = moment(dateOfWork).endOf('week');
-  pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
-  return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
+  dateOfWork = moment(dateOfWork).endOf("week");
+  pstEnd = moment(pstEnd).tz("America/Los_Angeles").endOf("week");
+  return Math.abs(dateOfWork.diff(pstEnd, "weeks"));
 };
 
 const reporthelper = function () {
@@ -22,15 +23,16 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
+
     const pstStart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(startWeekIndex, 'week')
+      .tz("America/Los_Angeles")
+      .startOf("week")
+      .subtract(startWeekIndex, "week")
       .toDate();
     const pstEnd = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(endWeekIndex, 'week')
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .subtract(endWeekIndex, "week")
       .toDate();
 
     const results = await userProfile.aggregate([
@@ -39,33 +41,33 @@ const reporthelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntries',
+          from: "timeEntries",
+          localField: "_id",
+          foreignField: "personId",
+          as: "timeEntries",
         },
       },
       {
-        $set: { totalTangibleHrs: { $objectToArray: '$hoursByCategory' } },
+        $set: { totalTangibleHrs: { $objectToArray: "$hoursByCategory" } },
       },
       {
         $project: {
           timeEntries: {
             $filter: {
-              input: '$timeEntries',
-              as: 'timeEntry',
+              input: "$timeEntries",
+              as: "timeEntry",
               cond: {
                 $and: [
                   {
                     $gte: [
-                      '$$timeEntry.dateOfWork',
-                      moment(pstStart).format('YYYY-MM-DD'),
+                      "$$timeEntry.dateOfWork",
+                      moment(pstStart).format("YYYY-MM-DD"),
                     ],
                   },
                   {
                     $lte: [
-                      '$$timeEntry.dateOfWork',
-                      moment(pstEnd).format('YYYY-MM-DD'),
+                      "$$timeEntry.dateOfWork",
+                      moment(pstEnd).format("YYYY-MM-DD"),
                     ],
                   },
                 ],
@@ -84,24 +86,27 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          toggleTrophyIcon: 1,
+          startDate: 1,
+          trophyFollowedUp: 1,
           badgeCollection: {
             $filter: {
-              input: '$badgeCollection',
-              as: 'badge',
+              input: "$badgeCollection",
+              as: "badge",
               cond: {
                 $or: [
                   {
                     $and: [
                       {
                         $gte: [
-                          '$$badge.earnedDate',
-                          moment(pstStart).format('YYYY-MM-DD'),
+                          "$$badge.earnedDate",
+                          moment(pstStart).format("YYYY-MM-DD"),
                         ],
                       },
                       {
                         $lte: [
-                          '$$badge.earnedDate',
-                          moment(pstEnd).format('YYYY-MM-DD'),
+                          "$$badge.earnedDate",
+                          moment(pstEnd).format("YYYY-MM-DD"),
                         ],
                       },
                     ],
@@ -109,10 +114,10 @@ const reporthelper = function () {
                   {
                     $and: [
                       {
-                        $gte: ['$$badge.lastModified', pstStart],
+                        $gte: ["$$badge.lastModified", pstStart],
                       },
                       {
-                        $lte: ['$$badge.lastModified', pstEnd],
+                        $lte: ["$$badge.lastModified", pstEnd],
                       },
                     ],
                   },
@@ -123,6 +128,9 @@ const reporthelper = function () {
           teamCode: {
             $ifNull: ['$teamCode', ''],
           },
+          teamCodeWarning: {
+            $ifNull: ['$teamCodeWarning', false],
+          },
           timeOffFrom: {
             $ifNull: ['$timeOffFrom', null],
           },
@@ -132,15 +140,15 @@ const reporthelper = function () {
           role: 1,
           weeklySummaries: {
             $filter: {
-              input: '$weeklySummaries',
-              as: 'ws',
+              input: "$weeklySummaries",
+              as: "ws",
               cond: {
                 $and: [
                   {
-                    $gte: ['$$ws.dueDate', pstStart],
+                    $gte: ["$$ws.dueDate", pstStart],
                   },
                   {
-                    $lte: ['$$ws.dueDate', pstEnd],
+                    $lte: ["$$ws.dueDate", pstEnd],
                   },
                 ],
               },
@@ -148,13 +156,13 @@ const reporthelper = function () {
           },
           weeklySummariesCount: 1,
           isTangible: 1,
-          totalTangibleHrs: { $sum: '$totalTangibleHrs.v' },
+          totalTangibleHrs: { $sum: "$totalTangibleHrs.v" },
           daysInTeam: {
             $dateDiff: {
-              startDate: '$createdDate',
+              startDate: "$createdDate",
               endDate: new Date(),
-              unit: 'day',
-              timezone: 'America/Los_Angeles',
+              unit: "day",
+              timezone: "America/Los_Angeles",
             },
           },
         },
@@ -162,29 +170,42 @@ const reporthelper = function () {
     ]);
 
     // Logic too difficult to do using aggregation.
-    results.forEach((result) => {
-      result.totalSeconds = [];
+    results.forEach((result) => {    
+      // create Array(4) to hold totalSeconds for each week
+      result.totalSeconds = [0, 0, 0, 0];
 
       result.timeEntries.forEach((entry) => {
-        const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-        if (
-          result.totalSeconds[index] === undefined
-          || result.totalSeconds[index] === null
-        ) {
-          result.totalSeconds[index] = 0;
-        }
-
-        if (entry.isTangible === true) {
-          result.totalSeconds[index] += entry.totalSeconds;
+        const index = startWeekIndex === endWeekIndex ? startWeekIndex : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        
+        if (index >= 0 && index < 4) {
+          if (entry.isTangible === true) {
+            result.totalSeconds[index] += entry.totalSeconds;
+          }
         }
       });
+
+      result.totalSeconds = result.totalSeconds.map(seconds => seconds === 0 ? undefined : seconds);
 
       delete result.timeEntries;
     });
 
-    return results;
-  };
+      return results;
+    };
 
+  const getReportReceipents = () => {
+    let mappedResults;
+    userProfile
+      .find({ getWeeklyReport: true }, { email: 1, _id: 0 })
+      .then((results) => {
+        mappedResults = results.map((ele) => ele.email);
+        mappedResults.push(
+          "onecommunityglobal@gmail.com",
+          "onecommunityhospitality@gmail.com",
+        );
+        console.log("results:", mappedResults);
+      });
+    return mappedResults;
+  };
   /**
    * Checks whether a date belongs to a specific week based on week index.
    *
@@ -195,16 +216,16 @@ const reporthelper = function () {
    */
   const doesDateBelongToWeek = function (dueDate, weekIndex) {
     const pstStartOfWeek = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(weekIndex, 'week');
+      .tz("America/Los_Angeles")
+      .startOf("week")
+      .subtract(weekIndex, "week");
     const pstEndOfWeek = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(weekIndex, 'week');
+      .tz("America/Los_Angeles")
+      .endOf("week")
+      .subtract(weekIndex, "week");
     const fromDate = moment(pstStartOfWeek).toDate();
     const toDate = moment(pstEndOfWeek).toDate();
-    return moment(dueDate).isBetween(fromDate, toDate, undefined, '[]');
+    return moment(dueDate).isBetween(fromDate, toDate, undefined, "[]");
   };
 
   /**
@@ -268,6 +289,7 @@ const reporthelper = function () {
   return {
     weeklySummaries,
     formatSummaries,
+    getReportReceipents,
   };
 };
 
