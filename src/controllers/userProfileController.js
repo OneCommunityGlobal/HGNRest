@@ -540,7 +540,7 @@ const userProfileController = function (UserProfile, Project) {
 
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid) || (await hasPermission(req.body.requestor, "modifyBadgeAmount"));
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid) || (await hasPermission(req.body.requestor, "modifyBadgeAmount")));
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
 
