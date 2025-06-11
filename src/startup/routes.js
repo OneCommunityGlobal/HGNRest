@@ -240,6 +240,9 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
+
+  app.use('/api/bm', bmIssueRouter);
+
   app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('api', bmIssueRouter);
 
@@ -250,6 +253,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
+
   app.use('/api', registrationRouter);
 
 };
