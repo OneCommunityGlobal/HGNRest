@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const { getYoutubeAccountById } = require('./youtubeAccountUtil');
 const ScheduledYoutubeUpload = require('../models/scheduledYoutubeUpload');
+const YoutubeUploadHistory = require('../models/youtubeUploadHistory');
 
 async function processScheduledUploads() {
   try {
@@ -65,6 +66,18 @@ async function processScheduledUploads() {
         upload.status = 'completed';
         await upload.save();
 
+        // Record successful upload in history
+        await YoutubeUploadHistory.create({
+          youtubeAccountId: upload.youtubeAccountId,
+          title: upload.title,
+          description: upload.description,
+          tags: upload.tags,
+          privacyStatus: upload.privacyStatus,
+          videoId: response.data.id,
+          status: 'completed',
+          scheduledTime: upload.scheduledTime
+        });
+
         // Delete temporary file
         fs.unlink(upload.videoPath, (err) => {
           if (err) console.error('Failed to delete temporary file:', err);
@@ -76,6 +89,18 @@ async function processScheduledUploads() {
         upload.status = 'failed';
         upload.error = error.message;
         await upload.save();
+
+        // Record failed upload in history
+        await YoutubeUploadHistory.create({
+          youtubeAccountId: upload.youtubeAccountId,
+          title: upload.title,
+          description: upload.description,
+          tags: upload.tags,
+          privacyStatus: upload.privacyStatus,
+          status: 'failed',
+          error: error.message,
+          scheduledTime: upload.scheduledTime
+        });
       }
     }
   } catch (error) {

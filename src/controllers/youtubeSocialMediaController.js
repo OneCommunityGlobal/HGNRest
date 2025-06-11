@@ -4,6 +4,7 @@ const { google } = require('googleapis');
 const { hasPermission } = require('../utilities/permissions');
 const { getYoutubeAccountById } = require('../utilities/youtubeAccountUtil');
 const ScheduledYoutubeUpload = require('../models/scheduledYoutubeUpload');
+const YoutubeUploadHistory = require('../models/youtubeUploadHistory');
 
 // Read sensitive config from environment variables
 const CLIENT_ID = process.env.YT_CLIENT_ID;
@@ -63,14 +64,14 @@ const youtubeUploadController = () => {
 
       const filePath = req.file.path;
 
-      // 如果设置了定时发布
+      // If scheduled upload
       if (scheduledTime) {
         const scheduledDate = new Date(scheduledTime);
         if (scheduledDate < new Date()) {
           return res.status(400).json({ error: 'Scheduled time cannot be earlier than current time' });
         }
 
-        // 创建定时发布任务
+        // Create scheduled upload task
         const scheduledUpload = new ScheduledYoutubeUpload({
           youtubeAccountId,
           videoPath: filePath,
@@ -83,6 +84,17 @@ const youtubeUploadController = () => {
 
         await scheduledUpload.save();
 
+        // Record in history
+        await YoutubeUploadHistory.create({
+          youtubeAccountId,
+          title,
+          description,
+          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+          privacyStatus: privacyStatus || 'private',
+          status: 'scheduled',
+          scheduledTime: scheduledDate
+        });
+
         return res.status(200).json({
           message: 'Video scheduled successfully',
           scheduledTime: scheduledDate,
@@ -90,7 +102,7 @@ const youtubeUploadController = () => {
         });
       }
 
-      // 立即上传视频
+      // Immediate upload
       const oauth2Client = new google.auth.OAuth2(
         account.clientId,
         account.clientSecret,
@@ -139,22 +151,60 @@ const youtubeUploadController = () => {
 
       console.log('YouTube response:', response.data);
 
+      // Record successful upload in history
+      await YoutubeUploadHistory.create({
+        youtubeAccountId,
+        title,
+        description,
+        tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+        privacyStatus: privacyStatus || 'private',
+        videoId: response.data.id,
+        status: 'completed'
+      });
+
       res.status(200).json({
-        message: '视频上传成功',
+        message: 'Video uploaded successfully',
         videoId: response.data.id,
         url: `https://www.youtube.com/watch?v=${response.data.id}`,
       });
     } catch (error) {
       console.error('Upload error:', error);
+      
+      // Record failed upload in history
+      if (req.body.youtubeAccountId && req.body.title) {
+        await YoutubeUploadHistory.create({
+          youtubeAccountId: req.body.youtubeAccountId,
+          title: req.body.title,
+          description: req.body.description,
+          tags: req.body.tags ? req.body.tags.split(',').map(tag => tag.trim()) : [],
+          privacyStatus: req.body.privacyStatus || 'private',
+          status: 'failed',
+          error: error.message
+        });
+      }
+
       res.status(500).json({ 
-        error: '上传失败', 
+        error: 'Upload failed', 
         details: error.message,
         stack: error.stack 
       });
     }
   };
 
-  return { uploadVideo };
+  const getUploadHistory = async (req, res) => {
+    try {
+      const history = await YoutubeUploadHistory.find()
+        .sort({ uploadTime: -1 })
+        .limit(50);
+      
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching upload history:', error);
+      res.status(500).json({ error: 'Failed to fetch upload history' });
+    }
+  };
+
+  return { uploadVideo, getUploadHistory };
 };
 
 module.exports = youtubeUploadController;
