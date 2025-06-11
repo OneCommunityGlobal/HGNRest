@@ -72,19 +72,19 @@ const metIssue = require('../models/bmdashboard/metIssue');
 const projectStatus = require('../models/bmdashboard/project');
 
 const {
-  invTypeBase,
-  materialType,
-  consumableType,
-  reusableType,
-  toolType,
-  equipmentType,
+   invTypeBase,
+   materialType,
+   consumableType,
+   reusableType,
+   toolType,
+   equipmentType,
 } = require('../models/bmdashboard/buildingInventoryType');
 const {
-  buildingConsumable,
-  buildingReusable,
-  buildingMaterial,
-  buildingTool,
-  buildingEquipment,
+   buildingConsumable,
+   buildingReusable,
+   buildingMaterial,
+   buildingTool,
+   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
 const dashboardMetrics = require('../models/bmdashboard/dashboardMetrics');
 const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
@@ -146,20 +146,20 @@ const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
 const inventoryRouter = require('../routes/inventoryRouter')(
-  inventoryItem,
-  inventoryItemType,
-  project,
+   inventoryItem,
+   inventoryItemType,
+   project,
 );
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
-  profileInitialSetuptoken,
-  userProfile,
-  project,
-  mapLocations,
+   profileInitialSetuptoken,
+   userProfile,
+   project,
+   mapLocations,
 );
 const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
-  permissionChangeLog,
-  userPermissionChangeLog,
+   permissionChangeLog,
+   userPermissionChangeLog,
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
@@ -185,9 +185,9 @@ const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverTe
 
 const mapLocationRouter = require('../routes/mapLocationsRouter')(mapLocations);
 const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
-  timeOffRequest,
-  team,
-  userProfile,
+   timeOffRequest,
+   team,
+   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
 const communityRouter = require('../routes/communityRouter');
@@ -213,15 +213,15 @@ const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter')
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter');
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
-  buildingConsumable,
+   buildingConsumable,
 );
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
-  invTypeBase,
-  materialType,
-  consumableType,
-  reusableType,
-  toolType,
-  equipmentType,
+   invTypeBase,
+   materialType,
+   consumableType,
+   reusableType,
+   toolType,
+   equipmentType,
 );
 
 const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');
@@ -280,8 +280,8 @@ const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrac
 );
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
-  blueSquareEmailAssignment,
-  userProfile,
+blueSquareEmailAssignment,
+userProfile,
 );
 // PR Analytics
 const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
@@ -354,6 +354,7 @@ const webhookRouter = require('../routes/lbdashboard/webhookRouter');
 const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRouter');
 const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
+const blueskyRouter = require('../routes/blueskyRouter');
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
@@ -453,6 +454,7 @@ module.exports = function (app) {
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/bluesky', blueskyRouter);
 
   app.use('/api/projects', projectStatusRouter);
   app.use('/api', projectsGlobalDistributionRouter);
