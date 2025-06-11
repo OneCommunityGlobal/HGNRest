@@ -19,64 +19,136 @@ describe('Building New Lesson Controller', () => {
   let mockBuildingNewLesson;
 
   beforeAll(async () => {
-    // Setup MongoDB Memory Server
-    mongoServer = await MongoMemoryServer.create();
-    const uri = mongoServer.getUri();
-    await mongoose.connect(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    try {
+      // Setup MongoDB Memory Server
+      mongoServer = await MongoMemoryServer.create();
+      const uri = mongoServer.getUri();
+      await mongoose.connect(uri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
 
-    // Setup Express app
-    app = express();
-    app.use(bodyParser.json());
+      // Setup Express app
+      app = express();
+      app.use(bodyParser.json());
 
-    // Create mock for BuildingNewLesson model
-    mockBuildingNewLesson = {
-      find: jest.fn().mockReturnThis(),
-      populate: jest.fn().mockReturnThis(),
-      then: jest.fn().mockImplementation((callback) => {
-        callback([{ _id: 'lesson1', title: 'Test Lesson' }]);
-        return {
-          catch: jest.fn(),
-        };
-      }),
-      create: jest.fn().mockImplementation((data) => ({
+      // Create mock for BuildingNewLesson model
+      mockBuildingNewLesson = {
+        find: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
         then: jest.fn().mockImplementation((callback) => {
-          callback({ _id: 'newLesson', ...data });
+          callback([{ _id: 'lesson1', title: 'Test Lesson' }]);
           return {
             catch: jest.fn(),
           };
         }),
-      })),
-      findById: jest.fn(),
-      findByIdAndUpdate: jest.fn(),
-      findByIdAndDelete: jest.fn(),
-      findOne: jest.fn(),
-      updateMany: jest.fn(),
-      deleteMany: jest.fn(),
-      getAllTags: jest.fn(),
-    };
+        create: jest.fn().mockResolvedValue({ _id: 'newLesson' }),
+        findById: jest.fn(),
+        findByIdAndUpdate: jest.fn(),
+        findByIdAndDelete: jest.fn(),
+        findOne: jest.fn(),
+        updateMany: jest.fn(),
+        deleteMany: jest.fn(),
+        getAllTags: jest.fn(),
+      };
 
-    // Initialize controller
-    const bmNewLessonController = require('../bmNewLessonController')(mockBuildingNewLesson);
-    controller = bmNewLessonController;
+      // Initialize controller - handle case where controller might be a function factory
+      const bmNewLessonController = require('../bmNewLessonController');
+      if (typeof bmNewLessonController === 'function') {
+        controller = bmNewLessonController(mockBuildingNewLesson);
+      } else {
+        controller = bmNewLessonController;
+      }
 
-    // Setup routes
-    app.get('/lessons', controller.bmGetLessonList);
-    app.post('/lessons', controller.bmPostLessonList);
-    app.get('/lessons/:lessonId', controller.bmGetSingleLesson);
-    app.put('/lessons/:lessonId', controller.bmEditSingleLesson);
-    app.delete('/lessons/:lessonId', controller.bmDeleteSingleLesson);
-    app.post('/lessons/:lessonId/like', controller.likeLesson);
-    app.get('/tags', controller.getLessonTags);
-    app.post('/tags', controller.addNewTag);
-    app.delete('/tags/:tag', controller.deleteTag);
+      // Setup routes with error handling
+      app.get('/lessons', (req, res, next) => {
+        try {
+          controller.bmGetLessonList(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.post('/lessons', (req, res, next) => {
+        try {
+          controller.bmPostLessonList(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.get('/lessons/:lessonId', (req, res, next) => {
+        try {
+          controller.bmGetSingleLesson(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.put('/lessons/:lessonId', (req, res, next) => {
+        try {
+          controller.bmEditSingleLesson(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.delete('/lessons/:lessonId', (req, res, next) => {
+        try {
+          controller.bmDeleteSingleLesson(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.post('/lessons/:lessonId/like', (req, res, next) => {
+        try {
+          controller.likeLesson(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.get('/tags', (req, res, next) => {
+        try {
+          controller.getLessonTags(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.post('/tags', (req, res, next) => {
+        try {
+          controller.addNewTag(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+
+      app.delete('/tags/:tag', (req, res, next) => {
+        try {
+          controller.deleteTag(req, res, next);
+        } catch (error) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      });
+    } catch (error) {
+      console.error('Error in beforeAll setup:', error);
+      throw error;
+    }
   });
 
   afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+    try {
+      if (mongoose.connection.readyState !== 0) {
+        await mongoose.disconnect();
+      }
+      if (mongoServer) {
+        await mongoServer.stop();
+      }
+    } catch (error) {
+      console.error('Error in afterAll cleanup:', error);
+    }
   });
 
   beforeEach(() => {
@@ -103,6 +175,11 @@ describe('Building New Lesson Controller', () => {
         author: 'author1',
         relatedProject: 'project1',
       };
+
+      mockBuildingNewLesson.create.mockResolvedValueOnce({
+        _id: 'newLesson',
+        ...lessonData,
+      });
 
       const response = await request(app).post('/lessons').send(lessonData);
 
