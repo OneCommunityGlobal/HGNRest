@@ -151,6 +151,12 @@ const postReason = async (req, res) => {
     return res.sendStatus(200);
   } catch (error) {
     console.log(error);
+    if (error.errorCode) {
+      return res.status(400).json({
+        message: error.message,
+        errorCode: error.errorCode,
+      });
+    }
     return res.status(400).json({
       errMessage: 'Something went wrong',
     });
