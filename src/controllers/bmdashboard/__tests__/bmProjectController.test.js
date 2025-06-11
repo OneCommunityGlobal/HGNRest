@@ -1,9 +1,3 @@
-jest.mock('mongoose', () => ({
-  Types: {
-    ObjectId: jest.fn().mockImplementation((id) => id),
-  },
-}));
-
 // Mock the BuildingProject model
 const mockAggregate = jest.fn();
 const mockFindById = jest.fn();
