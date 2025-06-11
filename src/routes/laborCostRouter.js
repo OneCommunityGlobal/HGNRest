@@ -7,7 +7,7 @@ laborCostRouter.post('/labourCost', laborCostController.createLabourCost);
 
 laborCostRouter.get('/labourCost', laborCostController.getLabourCost);
 
-laborCostRouter.get('/labourCost/filter', laborCostController.getLabourCostByDate);
+laborCostRouter.get('/labourCost/byDate', laborCostController.getLabourCostByDate);
 
 laborCostRouter.get('/labourCost/byProjectName', laborCostController.getLabourCostByProject);
 
