@@ -158,7 +158,6 @@ describe('Building New Lesson Controller', () => {
         relatedProject: 'project1',
         allowedRoles: 'Admin',
         files: ['file1.pdf'],
-        // Fields that should be filtered out
         author: 'newAuthor',
         createdAt: new Date(),
       };
