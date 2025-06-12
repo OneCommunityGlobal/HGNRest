@@ -86,6 +86,9 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          toggleTrophyIcon: 1,
+          startDate: 1,
+          trophyFollowedUp: 1,
           badgeCollection: {
             $filter: {
               input: "$badgeCollection",
@@ -124,6 +127,9 @@ const reporthelper = function () {
           },
           teamCode: {
             $ifNull: ['$teamCode', ''],
+          },
+          teamCodeWarning: {
+            $ifNull: ['$teamCodeWarning', false],
           },
           timeOffFrom: {
             $ifNull: ['$timeOffFrom', null],
