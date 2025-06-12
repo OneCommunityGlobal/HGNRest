@@ -23,7 +23,6 @@ const listings = new Schema({
   status: { type: String, required: true, enum: ['draft', 'complete'], default: 'draft' },
 });
 listings.index({ price: -1 });
-listings.index({ price: 1 });
 listings.index({ createdOn: -1 });
-listings.index({ createdOn: 1 });
-module.exports = mongoose.model('listings', listings, 'listings');
+
+module.exports = mongoose.models.listings || mongoose.model('listings', listings, 'listings');
