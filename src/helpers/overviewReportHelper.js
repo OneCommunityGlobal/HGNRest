@@ -1586,6 +1586,7 @@ const overviewReportHelper = function () {
     // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
     let projectsComparisonPercentage;
+    let hoursSubmittedToTasksComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
       const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
@@ -1593,6 +1594,9 @@ const overviewReportHelper = function () {
       projectsComparisonPercentage = calculateGrowthPercentage(
         projectHours,
         comparisonProjectHours,
+      );
+      hoursSubmittedToTasksComparisonPercentage = Number(
+        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
       );
     }
 
@@ -1690,6 +1694,8 @@ const overviewReportHelper = function () {
         ),
         comparisonPercentage: projectsComparisonPercentage,
       },
+      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      hoursSubmittedToTasksComparisonPercentage,
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
