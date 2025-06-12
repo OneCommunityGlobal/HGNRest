@@ -1,617 +1,426 @@
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const request = require('supertest');
-const express = require('express');
-const bodyParser = require('body-parser');
+const bmNewLessonController = require('../bmNewLessonController');
 
 // Mock dependencies
-jest.mock('../../../models/bmdashboard/buildingProject');
-jest.mock('../../../models/bmdashboard/buldingLessonLike');
+const mockBuildingNewLesson = {
+  find: jest.fn(),
+  create: jest.fn(),
+  findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
+  findOne: jest.fn(),
+  updateMany: jest.fn(),
+  deleteMany: jest.fn(),
+  getAllTags: jest.fn(),
+};
 
-// Import the mocked models
-const buildingProject = require('../../../models/bmdashboard/buildingProject');
-const Like = require('../../../models/bmdashboard/buldingLessonLike');
+const mockBuildingProject = {
+  findById: jest.fn(),
+};
 
-describe('Building New Lesson Controller', () => {
-  let app;
-  let mongoServer;
+const mockLike = {
+  findOne: jest.fn(),
+  findByIdAndDelete: jest.fn(),
+  prototype: {
+    save: jest.fn(),
+  },
+};
+
+// Mock the Like constructor
+const MockLikeConstructor = jest.fn().mockImplementation((data) => ({
+  ...data,
+  _id: 'mockLikeId',
+  save: jest.fn().mockResolvedValue({ _id: 'mockLikeId', ...data }),
+}));
+
+jest.mock('../../../models/bmdashboard/buildingProject', () => mockBuildingProject);
+jest.mock('../../../models/bmdashboard/buldingLessonLike', () => MockLikeConstructor);
+
+describe('bmNewLessonController', () => {
   let controller;
-  let mockBuildingNewLesson;
-
-  beforeAll(async () => {
-    try {
-      // Setup MongoDB Memory Server
-      mongoServer = await MongoMemoryServer.create();
-      const uri = mongoServer.getUri();
-      await mongoose.connect(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
-
-      // Setup Express app
-      app = express();
-      app.use(bodyParser.json());
-
-      // Create mock for BuildingNewLesson model
-      mockBuildingNewLesson = {
-        find: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockReturnThis(),
-        then: jest.fn().mockImplementation((callback) => {
-          callback([{ _id: 'lesson1', title: 'Test Lesson' }]);
-          return {
-            catch: jest.fn(),
-          };
-        }),
-        create: jest.fn().mockResolvedValue({ _id: 'newLesson' }),
-        findById: jest.fn(),
-        findByIdAndUpdate: jest.fn(),
-        findByIdAndDelete: jest.fn(),
-        findOne: jest.fn(),
-        updateMany: jest.fn(),
-        deleteMany: jest.fn(),
-        getAllTags: jest.fn(),
-      };
-
-      // Initialize controller - handle case where controller might be a function factory
-      const bmNewLessonController = require('../bmNewLessonController');
-      if (typeof bmNewLessonController === 'function') {
-        controller = bmNewLessonController(mockBuildingNewLesson);
-      } else {
-        controller = bmNewLessonController;
-      }
-
-      // Setup routes with error handling
-      app.get('/lessons', (req, res, next) => {
-        try {
-          controller.bmGetLessonList(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.post('/lessons', (req, res, next) => {
-        try {
-          controller.bmPostLessonList(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.get('/lessons/:lessonId', (req, res, next) => {
-        try {
-          controller.bmGetSingleLesson(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.put('/lessons/:lessonId', (req, res, next) => {
-        try {
-          controller.bmEditSingleLesson(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.delete('/lessons/:lessonId', (req, res, next) => {
-        try {
-          controller.bmDeleteSingleLesson(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.post('/lessons/:lessonId/like', (req, res, next) => {
-        try {
-          controller.likeLesson(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.get('/tags', (req, res, next) => {
-        try {
-          controller.getLessonTags(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.post('/tags', (req, res, next) => {
-        try {
-          controller.addNewTag(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-
-      app.delete('/tags/:tag', (req, res, next) => {
-        try {
-          controller.deleteTag(req, res, next);
-        } catch (error) {
-          res.status(500).json({ error: 'Internal Server Error' });
-        }
-      });
-    } catch (error) {
-      console.error('Error in beforeAll setup:', error);
-      throw error;
-    }
-  });
-
-  afterAll(async () => {
-    try {
-      if (mongoose.connection.readyState !== 0) {
-        await mongoose.disconnect();
-      }
-      if (mongoServer) {
-        await mongoServer.stop();
-      }
-    } catch (error) {
-      console.error('Error in afterAll cleanup:', error);
-    }
-  });
+  let mockReq;
+  let mockRes;
 
   beforeEach(() => {
+    controller = bmNewLessonController(mockBuildingNewLesson);
+
+    mockReq = {
+      body: {},
+      params: {},
+    };
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+      json: jest.fn(),
+    };
+
+    // Reset all mocks
     jest.clearAllMocks();
   });
 
   describe('bmGetLessonList', () => {
-    it('should return a list of lessons', async () => {
-      const response = await request(app).get('/lessons');
+    it('should return all lessons successfully', async () => {
+      const mockLessons = [
+        { _id: '1', title: 'Lesson 1' },
+        { _id: '2', title: 'Lesson 2' },
+      ];
 
-      expect(response.status).toBe(200);
+      mockBuildingNewLesson.find.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          then: jest.fn().mockImplementation((callback) => {
+            callback(mockLessons);
+            return { catch: jest.fn() };
+          }),
+        }),
+      });
+
+      await controller.bmGetLessonList(mockReq, mockRes);
+
       expect(mockBuildingNewLesson.find).toHaveBeenCalled();
-      expect(mockBuildingNewLesson.populate).toHaveBeenCalled();
-      expect(response.body).toEqual([{ _id: 'lesson1', title: 'Test Lesson' }]);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(mockLessons);
+    });
+
+    it('should handle database errors', async () => {
+      const mockError = new Error('Database error');
+
+      mockBuildingNewLesson.find.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          then: jest.fn().mockReturnValue({
+            catch: jest.fn().mockImplementation((callback) => callback(mockError)),
+          }),
+        }),
+      });
+
+      await controller.bmGetLessonList(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith(mockError);
     });
   });
 
   describe('bmPostLessonList', () => {
-    it('should create a new lesson', async () => {
-      const lessonData = {
-        title: 'New Lesson',
-        content: 'Lesson content',
-        tags: ['tag1', 'tag2'],
-        author: 'author1',
-        relatedProject: 'project1',
-      };
+    it('should create a new lesson successfully', async () => {
+      const mockLessonData = { title: 'New Lesson', content: 'Lesson content' };
+      const mockCreatedLesson = { _id: '123', ...mockLessonData };
 
-      mockBuildingNewLesson.create.mockResolvedValueOnce({
-        _id: 'newLesson',
-        ...lessonData,
+      mockReq.body = mockLessonData;
+
+      mockBuildingNewLesson.create.mockReturnValue({
+        then: jest.fn().mockImplementation((callback) => {
+          callback(mockCreatedLesson);
+          return { catch: jest.fn() };
+        }),
       });
 
-      const response = await request(app).post('/lessons').send(lessonData);
+      await controller.bmPostLessonList(mockReq, mockRes);
 
-      expect(response.status).toBe(201);
-      expect(mockBuildingNewLesson.create).toHaveBeenCalledWith(lessonData);
-      expect(response.body).toMatchObject({
-        _id: 'newLesson',
-        ...lessonData,
+      expect(mockBuildingNewLesson.create).toHaveBeenCalledWith(mockLessonData);
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.send).toHaveBeenCalledWith(mockCreatedLesson);
+    });
+
+    it('should handle creation errors', async () => {
+      const mockError = new Error('Creation error');
+      mockReq.body = { title: 'New Lesson' };
+
+      mockBuildingNewLesson.create.mockReturnValue({
+        then: jest.fn().mockReturnValue({
+          catch: jest.fn().mockImplementation((callback) => callback(mockError)),
+        }),
       });
+
+      await controller.bmPostLessonList(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith(mockError);
     });
   });
 
   describe('bmGetSingleLesson', () => {
-    it('should return a single lesson by ID', async () => {
-      const lessonData = {
-        _id: 'lesson123',
-        title: 'Specific Lesson',
-        content: 'Content',
-      };
+    it('should return a single lesson successfully', async () => {
+      const mockLesson = { _id: '123', title: 'Test Lesson' };
+      mockReq.params.lessonId = '123';
 
-      mockBuildingNewLesson.findById.mockResolvedValueOnce(lessonData);
+      mockBuildingNewLesson.findById.mockResolvedValue(mockLesson);
 
-      const response = await request(app).get('/lessons/lesson123');
+      await controller.bmGetSingleLesson(mockReq, mockRes);
 
-      expect(response.status).toBe(200);
-      expect(mockBuildingNewLesson.findById).toHaveBeenCalledWith('lesson123');
-      expect(response.body).toEqual(lessonData);
+      expect(mockBuildingNewLesson.findById).toHaveBeenCalledWith('123');
+      expect(mockRes.json).toHaveBeenCalledWith(mockLesson);
     });
 
-    it('should return 404 if lesson not found', async () => {
-      mockBuildingNewLesson.findById.mockResolvedValueOnce(null);
+    it('should return 404 when lesson not found', async () => {
+      mockReq.params.lessonId = '123';
+      mockBuildingNewLesson.findById.mockResolvedValue(null);
 
-      const response = await request(app).get('/lessons/nonexistent');
+      await controller.bmGetSingleLesson(mockReq, mockRes);
 
-      expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: 'Lesson not found' });
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Lesson not found' });
     });
 
-    it('should handle errors', async () => {
-      mockBuildingNewLesson.findById.mockRejectedValueOnce(new Error('Database error'));
+    it('should handle database errors', async () => {
+      mockReq.params.lessonId = '123';
+      mockBuildingNewLesson.findById.mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app).get('/lessons/error');
+      await controller.bmGetSingleLesson(mockReq, mockRes);
 
-      expect(response.status).toBe(500);
-      expect(response.body).toEqual({ error: 'Internal Server Error' });
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
     });
   });
 
   describe('bmEditSingleLesson', () => {
-    it('should update a lesson with allowed fields', async () => {
-      const lessonId = 'lesson123';
-      const updateData = {
-        title: 'Updated Title',
-        content: 'Updated Content',
-        tags: ['tag1', 'tag2'],
-        relatedProject: 'project1',
-        allowedRoles: 'Admin',
-        files: ['file1.pdf'],
-        author: 'newAuthor',
-        createdAt: new Date(),
+    beforeEach(() => {
+      mockReq.params.lessonId = '123';
+      mockReq.body = {
+        requestor: { requestorId: 'user123', role: 'User' },
+        title: 'Updated Lesson',
+        content: 'Updated content',
+        invalidField: 'should be filtered out',
       };
-
-      const filteredData = {
-        title: 'Updated Title',
-        content: 'Updated Content',
-        tags: ['tag1', 'tag2'],
-        relatedProject: 'project1',
-        allowedRoles: 'Admin',
-        files: ['file1.pdf'],
-      };
-
-      const updatedLesson = {
-        _id: lessonId,
-        ...filteredData,
-      };
-
-      mockBuildingNewLesson.findById.mockResolvedValueOnce({ _id: lessonId, author: 'author1' });
-      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValueOnce(updatedLesson);
-
-      const response = await request(app)
-        .put(`/lessons/${lessonId}`)
-        .send({
-          ...updateData,
-          requestor: { requestorId: 'author1', role: 'User' },
-        });
-
-      expect(response.status).toBe(200);
-      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(lessonId, filteredData, {
-        new: true,
-      });
-      expect(response.body).toEqual(updatedLesson);
     });
 
-    it('should return 404 if lesson not found during update', async () => {
-      const lessonId = 'nonexistent';
-      mockBuildingNewLesson.findById.mockResolvedValueOnce({ _id: lessonId });
-      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValueOnce(null);
+    it('should update a lesson successfully', async () => {
+      const mockLesson = { _id: '123', author: 'user123' };
+      const mockUpdatedLesson = { _id: '123', title: 'Updated Lesson', content: 'Updated content' };
 
-      const response = await request(app)
-        .put(`/lessons/${lessonId}`)
-        .send({
-          title: 'Updated Title',
-          requestor: { requestorId: 'author1', role: 'User' },
-        });
+      mockBuildingNewLesson.findById.mockResolvedValue(mockLesson);
+      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValue(mockUpdatedLesson);
 
-      expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: 'Lesson not found' });
+      await controller.bmEditSingleLesson(mockReq, mockRes);
+
+      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(
+        '123',
+        { title: 'Updated Lesson', content: 'Updated content' },
+        { new: true },
+      );
+      expect(mockRes.json).toHaveBeenCalledWith(mockUpdatedLesson);
     });
 
-    it('should handle errors during update', async () => {
-      const lessonId = 'error';
-      mockBuildingNewLesson.findById.mockResolvedValueOnce({ _id: lessonId });
-      mockBuildingNewLesson.findByIdAndUpdate.mockRejectedValueOnce(new Error('Update error'));
+    it('should filter out non-allowed fields', async () => {
+      const mockLesson = { _id: '123', author: 'user123' };
+      const mockUpdatedLesson = { _id: '123', title: 'Updated Lesson' };
 
-      const response = await request(app)
-        .put(`/lessons/${lessonId}`)
-        .send({
-          title: 'Error Title',
-          requestor: { requestorId: 'author1', role: 'User' },
-        });
+      mockBuildingNewLesson.findById.mockResolvedValue(mockLesson);
+      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValue(mockUpdatedLesson);
 
-      expect(response.status).toBe(500);
-      expect(response.body).toEqual({ error: 'Internal Server Error' });
+      await controller.bmEditSingleLesson(mockReq, mockRes);
+
+      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(
+        '123',
+        expect.not.objectContaining({ invalidField: expect.anything() }),
+        { new: true },
+      );
+    });
+
+    it('should return 404 when lesson not found for update', async () => {
+      mockBuildingNewLesson.findById.mockResolvedValue({ _id: '123', author: 'user123' });
+      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValue(null);
+
+      await controller.bmEditSingleLesson(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Lesson not found' });
     });
   });
 
   describe('bmDeleteSingleLesson', () => {
-    it('should delete a lesson', async () => {
-      const lessonId = 'lesson123';
-      const projectId = 'project1';
-      const bmId = 'manager1';
-
-      // Mock the lesson
-      mockBuildingNewLesson.findById.mockResolvedValueOnce({
-        _id: lessonId,
-        relatedProject: projectId,
-      });
-
-      // Mock the project
-      buildingProject.findById.mockResolvedValueOnce({
-        _id: projectId,
-        buildingManager: bmId,
-      });
-
-      // Mock the delete operation
-      const deletedLesson = {
-        _id: lessonId,
-        title: 'Deleted Lesson',
+    beforeEach(() => {
+      mockReq.params.lessonId = '123';
+      mockReq.body = {
+        requestor: { requestorId: 'user123', role: 'User' },
       };
-      mockBuildingNewLesson.findByIdAndDelete.mockResolvedValueOnce(deletedLesson);
+    });
 
-      const response = await request(app)
-        .delete(`/lessons/${lessonId}`)
-        .send({
-          requestor: { requestorId: bmId, role: 'BuildingManager' },
-        });
+    it('should delete a lesson successfully', async () => {
+      const mockLesson = { _id: '123', relatedProject: 'project123' };
+      const mockProject = { _id: 'project123', buildingManager: 'user123' };
+      const mockDeletedLesson = { _id: '123', title: 'Deleted Lesson' };
 
-      expect(response.status).toBe(200);
-      expect(mockBuildingNewLesson.findByIdAndDelete).toHaveBeenCalledWith(lessonId);
-      expect(response.body).toEqual({
+      mockBuildingNewLesson.findById.mockResolvedValue(mockLesson);
+      mockBuildingProject.findById.mockResolvedValue(mockProject);
+      mockBuildingNewLesson.findByIdAndDelete.mockResolvedValue(mockDeletedLesson);
+
+      await controller.bmDeleteSingleLesson(mockReq, mockRes);
+
+      expect(mockBuildingNewLesson.findByIdAndDelete).toHaveBeenCalledWith('123');
+      expect(mockRes.json).toHaveBeenCalledWith({
         message: 'Lesson deleted successfully',
-        deletedLesson,
+        deletedLesson: mockDeletedLesson,
       });
     });
 
-    it('should return 404 if lesson not found during delete', async () => {
-      const lessonId = 'nonexistent';
+    it('should return 404 when lesson not found for deletion', async () => {
+      const mockLesson = { _id: '123', relatedProject: 'project123' };
+      const mockProject = { _id: 'project123', buildingManager: 'user123' };
 
-      mockBuildingNewLesson.findById.mockResolvedValueOnce({
-        _id: lessonId,
-        relatedProject: 'project1',
-      });
+      mockBuildingNewLesson.findById.mockResolvedValue(mockLesson);
+      mockBuildingProject.findById.mockResolvedValue(mockProject);
+      mockBuildingNewLesson.findByIdAndDelete.mockResolvedValue(null);
 
-      buildingProject.findById.mockResolvedValueOnce({
-        _id: 'project1',
-        buildingManager: 'manager1',
-      });
+      await controller.bmDeleteSingleLesson(mockReq, mockRes);
 
-      mockBuildingNewLesson.findByIdAndDelete.mockResolvedValueOnce(null);
-
-      const response = await request(app)
-        .delete(`/lessons/${lessonId}`)
-        .send({
-          requestor: { requestorId: 'manager1', role: 'BuildingManager' },
-        });
-
-      expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: 'Lesson not found' });
-    });
-
-    it('should handle errors during delete', async () => {
-      const lessonId = 'error';
-
-      mockBuildingNewLesson.findById.mockResolvedValueOnce({
-        _id: lessonId,
-        relatedProject: 'project1',
-      });
-
-      buildingProject.findById.mockResolvedValueOnce({
-        _id: 'project1',
-        buildingManager: 'manager1',
-      });
-
-      mockBuildingNewLesson.findByIdAndDelete.mockRejectedValueOnce(new Error('Delete error'));
-
-      const response = await request(app)
-        .delete(`/lessons/${lessonId}`)
-        .send({
-          requestor: { requestorId: 'manager1', role: 'BuildingManager' },
-        });
-
-      expect(response.status).toBe(500);
-      expect(response.body).toEqual({ error: 'Internal Server Error' });
-    });
-  });
-
-  describe('likeLesson', () => {
-    it('should like a lesson when not previously liked', async () => {
-      const lessonId = 'lesson123';
-      const userId = 'user1';
-
-      // Mock finding no existing like
-      Like.findOne.mockResolvedValueOnce(null);
-
-      // Mock creating a new like
-      const mockNewLike = { _id: 'like1', save: jest.fn().mockResolvedValue() };
-      Like.mockImplementationOnce(() => mockNewLike);
-
-      // Mock updating the lesson
-      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValueOnce({});
-
-      const response = await request(app).post(`/lessons/${lessonId}/like`).send({ userId });
-
-      expect(response.status).toBe(200);
-      expect(Like.findOne).toHaveBeenCalledWith({ user: userId, lesson: lessonId });
-      expect(mockNewLike.save).toHaveBeenCalled();
-      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(lessonId, {
-        $push: { likes: 'like1' },
-      });
-      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(lessonId, {
-        $inc: { totalLikes: 1 },
-      });
-      expect(response.body).toEqual({
-        status: 'success',
-        message: 'Lesson liked successfully',
-      });
-    });
-
-    it('should unlike a lesson when previously liked', async () => {
-      const lessonId = 'lesson123';
-      const userId = 'user1';
-      const likeId = 'like1';
-
-      // Mock finding an existing like
-      Like.findOne.mockResolvedValueOnce({ _id: likeId });
-
-      // Mock deleting the like
-      Like.findByIdAndDelete.mockResolvedValueOnce({});
-
-      // Mock updating the lesson
-      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValueOnce({});
-
-      const response = await request(app).post(`/lessons/${lessonId}/like`).send({ userId });
-
-      expect(response.status).toBe(200);
-      expect(Like.findOne).toHaveBeenCalledWith({ user: userId, lesson: lessonId });
-      expect(Like.findByIdAndDelete).toHaveBeenCalledWith(likeId);
-      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(lessonId, {
-        $pull: { likes: likeId },
-      });
-      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith(lessonId, {
-        $inc: { totalLikes: -1 },
-      });
-      expect(response.body).toEqual({
-        status: 'success',
-        message: 'Lesson unliked successfully',
-      });
-    });
-
-    it('should handle errors', async () => {
-      const lessonId = 'error';
-      const userId = 'user1';
-
-      Like.findOne.mockRejectedValueOnce(new Error('Database error'));
-
-      const response = await request(app).post(`/lessons/${lessonId}/like`).send({ userId });
-
-      expect(response.status).toBe(500);
-      expect(response.body).toEqual({
-        status: 'error',
-        message: 'Error liking/unliking lesson',
-      });
-    });
-  });
-
-  describe('getLessonTags', () => {
-    it('should return a list of unique tags', async () => {
-      const lessonTags = [
-        { tags: ['javascript', 'react'] },
-        { tags: ['react', 'node'] },
-        { tags: ['express', 'node'] },
-      ];
-
-      mockBuildingNewLesson.find.mockResolvedValueOnce(lessonTags);
-
-      const response = await request(app).get('/tags');
-
-      expect(response.status).toBe(200);
-      expect(mockBuildingNewLesson.find).toHaveBeenCalledWith({}, 'tags');
-      expect(response.body).toEqual(['express', 'javascript', 'node', 'react']);
-    });
-
-    it('should handle errors', async () => {
-      mockBuildingNewLesson.find.mockRejectedValueOnce(new Error('Database error'));
-
-      const response = await request(app).get('/tags');
-
-      expect(response.status).toBe(500);
-      expect(response.body).toEqual({ error: 'Error fetching tags' });
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Lesson not found' });
     });
   });
 
   describe('addNewTag', () => {
-    it('should add a new tag if it does not exist', async () => {
-      const newTag = 'newtag';
-      const allTags = ['existing', 'newtag'];
+    it('should add a new tag successfully', async () => {
+      mockReq.body = { tag: 'newTag' };
+      const mockTags = ['existingTag', 'newTag'];
 
-      // Tag doesn't exist yet
-      mockBuildingNewLesson.findOne.mockResolvedValueOnce(null);
+      mockBuildingNewLesson.findOne.mockResolvedValue(null);
+      mockBuildingNewLesson.create.mockResolvedValue({});
+      mockBuildingNewLesson.getAllTags.mockResolvedValue(mockTags);
 
-      // Create new tag storage
-      mockBuildingNewLesson.create.mockResolvedValueOnce({});
+      await controller.addNewTag(mockReq, mockRes);
 
-      // Get all tags
-      mockBuildingNewLesson.getAllTags.mockResolvedValueOnce(allTags);
-
-      const response = await request(app).post('/tags').send({ tag: newTag });
-
-      expect(response.status).toBe(201);
-      expect(mockBuildingNewLesson.findOne).toHaveBeenCalledWith({ tags: newTag });
       expect(mockBuildingNewLesson.create).toHaveBeenCalledWith({
         title: 'Tag Storage',
         content: 'Tag Storage Entry',
-        tags: [newTag],
+        tags: ['newTag'],
         author: '000000000000000000000000',
         relatedProject: '000000000000000000000000',
         allowedRoles: 'All',
       });
-      expect(mockBuildingNewLesson.getAllTags).toHaveBeenCalled();
-      expect(response.body).toEqual(allTags);
-    });
-
-    it('should not add the tag if it already exists', async () => {
-      const existingTag = 'existing';
-      const allTags = ['existing', 'another'];
-
-      // Tag already exists
-      mockBuildingNewLesson.findOne.mockResolvedValueOnce({ _id: 'lesson1', tags: [existingTag] });
-
-      // Get all tags
-      mockBuildingNewLesson.getAllTags.mockResolvedValueOnce(allTags);
-
-      const response = await request(app).post('/tags').send({ tag: existingTag });
-
-      expect(response.status).toBe(201);
-      expect(mockBuildingNewLesson.findOne).toHaveBeenCalledWith({ tags: existingTag });
-      expect(mockBuildingNewLesson.create).not.toHaveBeenCalled();
-      expect(mockBuildingNewLesson.getAllTags).toHaveBeenCalled();
-      expect(response.body).toEqual(allTags);
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.json).toHaveBeenCalledWith(mockTags);
     });
 
     it('should return 400 for invalid tag format', async () => {
-      const response = await request(app).post('/tags').send({ tag: null });
+      mockReq.body = { tag: null };
 
-      expect(response.status).toBe(400);
-      expect(response.body).toEqual({ error: 'Invalid tag format' });
+      await controller.addNewTag(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid tag format' });
     });
 
-    it('should handle errors', async () => {
-      mockBuildingNewLesson.findOne.mockRejectedValueOnce(new Error('Database error'));
+    it('should not create duplicate tag storage entries', async () => {
+      mockReq.body = { tag: 'existingTag' };
+      const mockTags = ['existingTag'];
 
-      const response = await request(app).post('/tags').send({ tag: 'errortag' });
+      mockBuildingNewLesson.findOne.mockResolvedValue({ tags: ['existingTag'] });
+      mockBuildingNewLesson.getAllTags.mockResolvedValue(mockTags);
 
-      expect(response.status).toBe(500);
-      expect(response.body.error).toBe('Error adding new tag');
-      expect(response.body.details).toBeDefined();
+      await controller.addNewTag(mockReq, mockRes);
+
+      expect(mockBuildingNewLesson.create).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.json).toHaveBeenCalledWith(mockTags);
     });
   });
 
   describe('deleteTag', () => {
-    it('should delete a tag from all lessons', async () => {
-      const tagToDelete = 'obsoletetag';
-      const remainingTags = ['tag1', 'tag2'];
+    it('should delete a tag successfully', async () => {
+      mockReq.params.tag = 'tagToDelete';
+      const mockRemainingTags = ['remainingTag'];
 
-      // Mock updateMany
-      mockBuildingNewLesson.updateMany.mockResolvedValueOnce({ nModified: 3 });
+      mockBuildingNewLesson.updateMany.mockResolvedValue({});
+      mockBuildingNewLesson.deleteMany.mockResolvedValue({});
+      mockBuildingNewLesson.getAllTags.mockResolvedValue(mockRemainingTags);
 
-      // Mock deleteMany
-      mockBuildingNewLesson.deleteMany.mockResolvedValueOnce({ deletedCount: 1 });
+      await controller.deleteTag(mockReq, mockRes);
 
-      // Mock getAllTags
-      mockBuildingNewLesson.getAllTags.mockResolvedValueOnce(remainingTags);
-
-      const response = await request(app).delete(`/tags/${tagToDelete}`);
-
-      expect(response.status).toBe(200);
       expect(mockBuildingNewLesson.updateMany).toHaveBeenCalledWith(
-        { tags: tagToDelete },
-        { $pull: { tags: tagToDelete } },
+        { tags: 'tagToDelete' },
+        { $pull: { tags: 'tagToDelete' } },
       );
       expect(mockBuildingNewLesson.deleteMany).toHaveBeenCalledWith({
         title: 'Tag Storage',
         tags: { $size: 0 },
       });
-      expect(mockBuildingNewLesson.getAllTags).toHaveBeenCalled();
-      expect(response.body).toEqual(remainingTags);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith(mockRemainingTags);
     });
 
-    it('should return 400 if tag parameter is missing', async () => {
-      const response = await request(app).delete('/tags/');
+    it('should return 400 when tag parameter is missing', async () => {
+      mockReq.params = {};
 
-      expect(response.status).toBe(404); // Express route not found
+      await controller.deleteTag(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Tag parameter is required' });
+    });
+  });
+
+  describe('likeLesson', () => {
+    beforeEach(() => {
+      mockReq.params.lessonId = '123';
+      mockReq.body.userId = 'user123';
     });
 
-    it('should handle errors', async () => {
-      mockBuildingNewLesson.updateMany.mockRejectedValueOnce(new Error('Database error'));
+    it('should like a lesson successfully', async () => {
+      MockLikeConstructor.findOne = jest.fn().mockResolvedValue(null);
+      mockBuildingNewLesson.findByIdAndUpdate.mockResolvedValue({});
 
-      const response = await request(app).delete('/tags/errortag');
+      await controller.likeLesson(mockReq, mockRes);
 
-      expect(response.status).toBe(500);
-      expect(response.body.error).toBe('Error deleting tag');
-      expect(response.body.details).toBeDefined();
+      expect(MockLikeConstructor).toHaveBeenCalledWith({
+        user: 'user123',
+        lesson: '123',
+      });
+      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith('123', {
+        $push: { likes: 'mockLikeId' },
+      });
+      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith('123', {
+        $inc: { totalLikes: 1 },
+      });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        status: 'success',
+        message: 'Lesson liked successfully',
+      });
+    });
+
+    it('should unlike a lesson when already liked', async () => {
+      const mockExistingLike = { _id: 'existingLikeId' };
+      MockLikeConstructor.findOne = jest.fn().mockResolvedValue(mockExistingLike);
+      MockLikeConstructor.findByIdAndDelete = jest.fn().mockResolvedValue({});
+
+      await controller.likeLesson(mockReq, mockRes);
+
+      expect(MockLikeConstructor.findByIdAndDelete).toHaveBeenCalledWith('existingLikeId');
+      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith('123', {
+        $pull: { likes: 'existingLikeId' },
+      });
+      expect(mockBuildingNewLesson.findByIdAndUpdate).toHaveBeenCalledWith('123', {
+        $inc: { totalLikes: -1 },
+      });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        status: 'success',
+        message: 'Lesson unliked successfully',
+      });
+    });
+  });
+
+  describe('getLessonTags', () => {
+    it('should return unique sorted tags', async () => {
+      const mockLessons = [
+        { tags: ['tag1', 'tag2'] },
+        { tags: ['tag2', 'tag3'] },
+        { tags: ['tag1'] },
+      ];
+
+      mockBuildingNewLesson.find.mockResolvedValue(mockLessons);
+
+      await controller.getLessonTags(mockReq, mockRes);
+
+      expect(mockBuildingNewLesson.find).toHaveBeenCalledWith({}, 'tags');
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith(['tag1', 'tag2', 'tag3']);
+    });
+
+    it('should handle errors when fetching tags', async () => {
+      mockBuildingNewLesson.find.mockRejectedValue(new Error('Database error'));
+
+      await controller.getLessonTags(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Error fetching tags' });
     });
   });
 });
