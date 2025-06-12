@@ -2318,7 +2318,7 @@ const userHelper = function () {
       } 
       // Check if today is after their end date 
       // This is the key change - removed adding an extra day
-      else if (moment().isAfter(moment(endDate))) {
+      else if (moment().isAfter(moment(endDate).add(1, 'day'))) {
         try {
           // Before deactivation, check when they last logged time
           const lastTimeEntry = await TimeEntry.findOne(
