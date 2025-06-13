@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
 
 const listingAvailablityController = (Availability) => {
-  // GET /availability?listingId=...
-  const getAvailability = async (req, res) => {
+  const getAvailabilities = async (req, res) => {
     try {
-      const { listingId } = req.query;
+      const listingId = req.headers['listingid'];
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
-        return res.status(400).json({ error: 'Valid listingId is required' });
+        return res.status(400).json({ error: 'Valid listingId is required in header' });
       }
       const availability = await Availability.findOne({ listingId });
       if (!availability) {
@@ -18,12 +17,11 @@ const listingAvailablityController = (Availability) => {
     }
   };
 
-  // GET /availability/:id
   const getAvailabilityById = async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.headers['id'];
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid availability id' });
+        return res.status(400).json({ error: 'Invalid availability id in header' });
       }
       const availability = await Availability.findById(id);
       if (!availability) {
@@ -35,7 +33,6 @@ const listingAvailablityController = (Availability) => {
     }
   };
 
-  // POST /availability
   const createAvailability = async (req, res) => {
     try {
       const data = req.body;
@@ -54,12 +51,11 @@ const listingAvailablityController = (Availability) => {
     }
   };
 
-  // PUT /availability/:id
   const updateAvailability = async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.headers['id'];
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid availability id' });
+        return res.status(400).json({ error: 'Invalid availability id in header' });
       }
       const updated = await Availability.findByIdAndUpdate(id, req.body, { new: true });
       if (!updated) {
@@ -71,12 +67,11 @@ const listingAvailablityController = (Availability) => {
     }
   };
 
-  // DELETE /availability/:id
   const deleteAvailability = async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.headers['id'];
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid availability id' });
+        return res.status(400).json({ error: 'Invalid availability id in header' });
       }
       const deleted = await Availability.findByIdAndDelete(id);
       if (!deleted) {
@@ -89,7 +84,7 @@ const listingAvailablityController = (Availability) => {
   };
 
   return {
-    getAvailability,
+    getAvailabilities,
     getAvailabilityById,
     createAvailability,
     updateAvailability,
