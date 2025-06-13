@@ -167,36 +167,68 @@ const userProfileController = function (UserProfile, Project) {
 
   const getUserProfiles = async function (req, res) {
     if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
+      return forbidden(res, 'You are not authorized to view all users');
     }
-
-    await UserProfile.find(
-      {},
-      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate timeZone',
-    )
-      .sort({
-        lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
+  
+    const cacheKey = 'allusers';
+    try {
+    // get user profiles using aggregate pipeline
+      const users = await UserProfile.aggregate([
+        {
+          $project: {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            role: 1,
+            weeklycommittedHours: 1,
+            email: 1,
+            permissions: 1,
+            isActive: 1,
+            reactivationDate: 1,
+            startDate: 1,
+            createdDate: 1,
+            endDate: 1,
+            timeZone: 1,
+            infringementCount: { $size: { $ifNull: ['$infringements', []] } },
+            jobTitle: {
+              $cond: {
+                if: { $isArray: '$jobTitle' },
+                then: {
+                  $reduce: {
+                    input: '$jobTitle',
+                    initialValue: '',
+                    in: {
+                      $cond: {
+                        if: { $eq: ['$$value', ''] },
+                        then: '$$this',
+                        else: { $concat: ['$$value', ', ', '$$this'] },
+                      },
+                    },
+                  },
+                },
+                else: '$jobTitle',
+              },
+            },
+          },
+        },
+        { $sort: { lastName: 1 } }
+      ]);
+  
+      if (!users || users.length === 0) {
+        const cachedData = cache.getCache(cacheKey);
+        if (cachedData) {
+          return res.status(200).send(JSON.parse(cachedData));
         }
-        const transformedResults = results.map((user) => ({
-          ...user.toObject(),
-          jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
-        }));
-        cache.setCache('allusers', JSON.stringify(transformedResults));
-        res.status(200).send(transformedResults);
-      })
-      .catch((error) => res.status(404).send(error));
+        return res.status(500).send({ error: 'User result was invalid' });
+      }
+  
+      cache.setCache(cacheKey, JSON.stringify(users));
+      return res.status(200).send(users);
+    } catch (error) {
+      return res.status(500).send({ error: 'Failed to fetch user profiles', details: error.message });
+    }
   };
+  
 
   /**
    * Controller function to retrieve basic user profile information.
