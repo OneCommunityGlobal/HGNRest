@@ -7,6 +7,7 @@
 # dependencies
 /node_modules
 /bower_components
+/uploads
 
 # misc
 /.sass-cache
@@ -25,3 +26,6 @@ testem.log
 
 # OS specific
 .DS_Store
+
+uploads/
+*.mov

@@ -843,6 +843,8 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
+              null,
+              [...new Set([...emailsBCCs, 'onecommunityglobal@gmail.com'])],
               ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
               status.email,
               [...new Set([...emailsBCCs])],
