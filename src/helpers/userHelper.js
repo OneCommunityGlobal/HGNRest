@@ -1661,88 +1661,88 @@ const userHelper = function () {
   
 
   // 'Minimum Hours Multiple',
-const checkMinHoursMultiple = async function (personId, user, badgeCollection) {
-  console.log('--- checkMinHoursMultiple START ---');
+  const checkMinHoursMultiple = async function (personId, user, badgeCollection) {
+    console.log('--- checkMinHoursMultiple START ---');
 
-  const ratio = user.lastWeekTangibleHrs / user.weeklycommittedHours;
-  console.log(`User tangible/committed hours ratio: ${ratio}`);
+    const ratio = user.lastWeekTangibleHrs / user.weeklycommittedHours;
+    console.log(`User tangible/committed hours ratio: ${ratio}`);
 
-  // Filter badges of this type from user's current badges
-  const badgesOfType = badgeCollection
-    .map(obj => obj.badge)
-    .filter(badge => badge.type === 'Minimum Hours Multiple');
+    // Filter badges of this type from user's current badges
+    const badgesOfType = badgeCollection
+      .map(obj => obj.badge)
+      .filter(badge => badge.type === 'Minimum Hours Multiple');
 
-  // Get all available badges of this type sorted descending by multiple
-  const availableBadges = await badge
-    .find({ type: 'Minimum Hours Multiple' })
-    .sort({ multiple: -1 });
+    // Get all available badges of this type sorted descending by multiple
+    const availableBadges = await badge
+      .find({ type: 'Minimum Hours Multiple' })
+      .sort({ multiple: -1 });
 
-  if (!availableBadges.length) {
-    console.log('No matching badges found in database.');
-    return;
-  }
-
-  for (const candidateBadge of availableBadges) {
-    if (ratio < candidateBadge.multiple) {
-      console.log(`Not eligible for badge ${candidateBadge._id} (requires multiple >= ${candidateBadge.multiple}, user ratio: ${ratio})`);
-      continue;
+    if (!availableBadges.length) {
+      console.log('No matching badges found in database.');
+      return;
     }
 
-    // Find user's existing badges of this type present in available badges list
-    const existingBadges = badgesOfType.filter(badge =>
-      availableBadges.some(ab => ab._id.toString() === badge._id.toString())
-    );
-
-    console.log(`Existing badges of this type: ${existingBadges.map(b => b.multiple).join(', ') || 'None'}`);
-
-    // Pick highest existing badge by multiple value
-    const highestExisting = existingBadges.sort((a, b) => b.multiple - a.multiple)[0];
-
-    console.log(`Candidate badge multiple: ${candidateBadge.multiple}`);
-    console.log(`Highest existing badge multiple: ${highestExisting ? highestExisting.multiple : 'None'}`);
-
-    // Check if candidate is same as highest existing badge (same _id)
-    const isSameAsHighest = highestExisting && candidateBadge._id.toString() === highestExisting._id.toString();
-
-    if (isSameAsHighest) {
-      console.log(`User already has highest badge ${candidateBadge._id} with multiple ${candidateBadge.multiple}. Increasing count.`);
-      return increaseBadgeCount(personId, mongoose.Types.ObjectId(candidateBadge._id));
-    }
-
-    if (highestExisting) {
-      // Candidate badge is higher or lower than highest existing, so decide replace or add
-      if (candidateBadge.multiple > highestExisting.multiple) {
-        console.log(`Eligible badge ${candidateBadge.multiple}x is higher than existing ${highestExisting.multiple}x. Replacing.`);
-
-        // Find user's badge entry for the highest existing badge
-        const existingBadgeEntry = badgeCollection.find(
-          entry => entry.badge._id.toString() === highestExisting._id.toString()
-        );
-
-        if (existingBadgeEntry?.count > 1) {
-          console.log(`Existing badge count is ${existingBadgeEntry.count}. Decreasing count.`);
-          await decreaseBadgeCount(personId, mongoose.Types.ObjectId(highestExisting._id));
-        } else {
-          console.log(`Existing badge count is 1. Removing badge.`);
-          await removeDupBadge(personId, mongoose.Types.ObjectId(highestExisting._id));
-        }
-
-        console.log(`Adding new higher badge ${candidateBadge._id}.`);
-        return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
-      } else {
-        // Candidate is lower than highest existing, so just add separately
-        console.log(`Eligible badge ${candidateBadge.multiple}x is lower than existing ${highestExisting.multiple}x. Adding separately.`);
-        return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
+    for (const candidateBadge of availableBadges) {
+      if (ratio < candidateBadge.multiple) {
+        console.log(`Not eligible for badge ${candidateBadge._id} (requires multiple >= ${candidateBadge.multiple}, user ratio: ${ratio})`);
+        continue;
       }
+
+      // Find user's existing badges of this type present in available badges list
+      const existingBadges = badgesOfType.filter(badge =>
+        availableBadges.some(ab => ab._id.toString() === badge._id.toString())
+      );
+
+      console.log(`Existing badges of this type: ${existingBadges.map(b => b.multiple).join(', ') || 'None'}`);
+
+      // Pick highest existing badge by multiple value
+      const highestExisting = existingBadges.sort((a, b) => b.multiple - a.multiple)[0];
+
+      console.log(`Candidate badge multiple: ${candidateBadge.multiple}`);
+      console.log(`Highest existing badge multiple: ${highestExisting ? highestExisting.multiple : 'None'}`);
+
+      // Check if candidate is same as highest existing badge (same _id)
+      const isSameAsHighest = highestExisting && candidateBadge._id.toString() === highestExisting._id.toString();
+
+      if (isSameAsHighest) {
+        console.log(`User already has highest badge ${candidateBadge._id} with multiple ${candidateBadge.multiple}. Increasing count.`);
+        return increaseBadgeCount(personId, mongoose.Types.ObjectId(candidateBadge._id));
+      }
+
+      if (highestExisting) {
+        // Candidate badge is higher or lower than highest existing, so decide replace or add
+        if (candidateBadge.multiple > highestExisting.multiple) {
+          console.log(`Eligible badge ${candidateBadge.multiple}x is higher than existing ${highestExisting.multiple}x. Replacing.`);
+
+          // Find user's badge entry for the highest existing badge
+          const existingBadgeEntry = badgeCollection.find(
+            entry => entry.badge._id.toString() === highestExisting._id.toString()
+          );
+
+          if (existingBadgeEntry?.count > 1) {
+            console.log(`Existing badge count is ${existingBadgeEntry.count}. Decreasing count.`);
+            await decreaseBadgeCount(personId, mongoose.Types.ObjectId(highestExisting._id));
+          } else {
+            console.log(`Existing badge count is 1. Removing badge.`);
+            await removeDupBadge(personId, mongoose.Types.ObjectId(highestExisting._id));
+          }
+
+          console.log(`Adding new higher badge ${candidateBadge._id}.`);
+          return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
+        } else {
+          // Candidate is lower than highest existing, so just add separately
+          console.log(`Eligible badge ${candidateBadge.multiple}x is lower than existing ${highestExisting.multiple}x. Adding separately.`);
+          return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
+        }
+      }
+
+      // No existing badge of this type found — add new
+      console.log(`No existing badges found of this type. Adding new badge ${candidateBadge._id} with multiple ${candidateBadge.multiple}.`);
+      return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
     }
 
-    // No existing badge of this type found — add new
-    console.log(`No existing badges found of this type. Adding new badge ${candidateBadge._id} with multiple ${candidateBadge.multiple}.`);
-    return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
-  }
-
-  console.log('--- checkMinHoursMultiple END ---');
-};
+    console.log('--- checkMinHoursMultiple END ---');
+  };
   
   
   
