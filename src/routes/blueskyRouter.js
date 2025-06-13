@@ -7,31 +7,31 @@ const router = express.Router();
 
 // Configure multer for image uploads
 const upload = multer({
-   storage: multer.memoryStorage(),
-   limits: {
-      fileSize: 1024 * 1024 // 1MB limit for images
-   },
-   fileFilter: (req, file, cb) => {
-      // Accept images only
-      if (!file.mimetype.startsWith('image/')) {
-         cb(new Error('Only image files are allowed'), false);
-         return;
-      }
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 1024 * 1024, // 1MB limit for images
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept images only
+    if (!file.mimetype.startsWith('image/')) {
+      cb(new Error('Only image files are allowed'), false);
+      return;
+    }
 
-      // Reject GIF files temporarily
-      if (file.mimetype === 'image/gif') {
-         cb(new Error('GIF files are temporarily not supported'), false);
-         return;
-      }
+    // Reject GIF files temporarily
+    if (file.mimetype === 'image/gif') {
+      cb(new Error('GIF files are temporarily not supported'), false);
+      return;
+    }
 
-      // Log file info
-      console.log('[Bluesky] Uploading file:', {
-         mimetype: file.mimetype,
-         size: req.headers['content-length']
-      });
+    // Log file info
+    console.log('[Bluesky] Uploading file:', {
+      mimetype: file.mimetype,
+      size: req.headers['content-length'],
+    });
 
-      cb(null, true);
-   }
+    cb(null, true);
+  },
 });
 
 // Authentication routes
@@ -48,21 +48,21 @@ router.delete('/post/:uri', blueskyController.deletePost);
 
 // Error handling middleware
 router.use((err, req, res, next) => {
-   if (err instanceof multer.MulterError) {
-      return res.status(400).json({
-         success: false,
-         error: 'Image upload failed: ' + err.message
-      });
-   }
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      success: false,
+      error: 'Image upload failed: ' + err.message,
+    });
+  }
 
-   if (err) {
-      return res.status(500).json({
-         success: false,
-         error: err.message
-      });
-   }
+  if (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
 
-   next();
+  next();
 });
 
 module.exports = router;
