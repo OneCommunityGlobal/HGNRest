@@ -112,4 +112,110 @@ describe('createExternalTeam', () => {
       message: 'Failed to create external team member'
     });
   });
+
+  it('should handle optional fields correctly', async () => {
+    const mockReq = {
+      body: {
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'Contractor',
+        roleSpecify: 'Senior Contractor',
+        team: 'Construction',
+        teamSpecify: 'Heavy Equipment',
+        email: 'john.doe@example.com',
+        countryCode: '+1',
+        phone: '1234567890'
+      }
+    };
+
+    const mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+
+    await createExternalTeam(mockReq, mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(201);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'Contractor',
+        roleSpecify: 'Senior Contractor',
+        team: 'Construction',
+        teamSpecify: 'Heavy Equipment',
+        email: 'john.doe@example.com',
+        countryCode: '+1',
+        phone: '1234567890'
+      })
+    });
+  });
+
+  it('should handle invalid email format', async () => {
+    const mockReq = {
+      body: {
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'Contractor',
+        team: 'Construction',
+        email: 'invalid-email-format' // Invalid email format
+      }
+    };
+
+    const mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+
+    await createExternalTeam(mockReq, mockRes);
+
+    // Currently, the controller accepts any string as email
+    expect(mockRes.status).toHaveBeenCalledWith(201);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'Contractor',
+        team: 'Construction',
+        email: 'invalid-email-format'
+      })
+    });
+  });
+
+  it('should handle phone number with country code', async () => {
+    const mockReq = {
+      body: {
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'Contractor',
+        team: 'Construction',
+        email: 'john.doe@example.com',
+        countryCode: '+44',
+        phone: '7911123456'
+      }
+    };
+
+    const mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+
+    await createExternalTeam(mockReq, mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(201);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'Contractor',
+        team: 'Construction',
+        email: 'john.doe@example.com',
+        countryCode: '+44',
+        phone: '7911123456'
+      })
+    });
+  });
 });
