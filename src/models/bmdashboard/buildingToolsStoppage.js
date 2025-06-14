@@ -33,7 +33,7 @@ const toolsStoppageReasonSchema = new Schema(
       default: Date.now,
     },
   },
-  { collection: 'toolsStoppageReason' },
+  { collection: 'toolStoppageReason' },
 );
 
-module.exports = mongoose.model('toolsStoppageReason', toolsStoppageReasonSchema);
+module.exports = mongoose.model('toolStoppageReason', toolsStoppageReasonSchema);

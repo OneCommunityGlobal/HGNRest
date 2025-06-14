@@ -2,7 +2,7 @@ const express = require('express');
 
 const routes = function (ToolStoppageReason) {
   const bmToolStoppageReasonRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/toolStoppageReasonController')(
+  const controller = require('../../controllers/bmdashboard/bmToolStoppageReasonController')(
     ToolStoppageReason,
   );
 

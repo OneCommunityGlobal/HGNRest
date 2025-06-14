@@ -36,78 +36,13 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       // If no dates are provided, don't filter by date at all
 
       // Query the database for tool availability data
-      const results = await ToolAvailability.aggregate([
+      const results = await ToolStoppageReason.aggregate([
         {
           $match: {
             projectId: new ObjectId(projectId),
             ...dateFilter,
           },
-        },
-        {
-          $group: {
-            _id: {
-              toolName: '$toolName',
-              status: '$status',
-            },
-            totalQuantity: { $sum: '$quantity' },
-          },
-        },
-        {
-          $group: {
-            _id: '$_id.toolName',
-            statusCounts: {
-              $push: {
-                status: '$_id.status',
-                quantity: '$totalQuantity',
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            toolName: '$_id',
-            inUse: {
-              $reduce: {
-                input: {
-                  $filter: {
-                    input: '$statusCounts',
-                    as: 'count',
-                    cond: { $eq: ['$$count.status', 'In Use'] },
-                  },
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this.quantity'] },
-              },
-            },
-            needsReplacement: {
-              $reduce: {
-                input: {
-                  $filter: {
-                    input: '$statusCounts',
-                    as: 'count',
-                    cond: { $eq: ['$$count.status', 'Needs to be replaced'] },
-                  },
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this.quantity'] },
-              },
-            },
-            yetToReceive: {
-              $reduce: {
-                input: {
-                  $filter: {
-                    input: '$statusCounts',
-                    as: 'count',
-                    cond: { $eq: ['$$count.status', 'Yet to receive'] },
-                  },
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this.quantity'] },
-              },
-            },
-          },
-        },
+        },     
       ]);
 
       // If no results found, return empty array
@@ -125,7 +60,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
   const getUniqueProjectIds = async (req, res) => {
     try {
       // Use aggregation to get distinct project IDs and lookup their names
-      const results = await ToolAvailability.aggregate([
+      const results = await ToolStoppageReason.aggregate([
         {
           $group: {
             _id: '$projectId',
@@ -133,7 +68,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         },
         {
           $lookup: {
-            from: 'buildingProject',
+            from: 'buildingProjects',
             localField: '_id',
             foreignField: '_id',
             as: 'projectDetails',
@@ -142,7 +77,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         {
           $project: {
             _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.projectName', 0] },
+            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
           },
         },
         {
