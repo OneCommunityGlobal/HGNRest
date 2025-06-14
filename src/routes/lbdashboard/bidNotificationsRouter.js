@@ -4,7 +4,6 @@ const bidNotificationsController =
   require('../../controllers/lbdashboard/bidNotificationsController')(BidNotifications);
 
 const bidNotificationsRouter = express.Router();
-console.log('BidNotificationsRouter');
 
 bidNotificationsRouter
   .route('/bidNotifications')

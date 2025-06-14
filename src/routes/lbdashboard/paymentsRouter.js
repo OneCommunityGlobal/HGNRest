@@ -6,7 +6,7 @@ const paymentsRouter = express.Router();
 
 paymentsRouter
   .route('/payments')
-  // .get(paymentsController.getPayments)
+  .get(paymentsController.getPayments)
   .post(paymentsController.postPayments);
 
 module.exports = paymentsRouter;

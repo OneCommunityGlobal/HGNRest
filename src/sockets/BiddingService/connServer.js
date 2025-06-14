@@ -7,10 +7,6 @@ const {
 
 const { addBidToHistory } = require('../../controllers/lbdashboard/bidDeadlinesController')();
 
-console.log("inside connserver.js ") 
-
-console.log("typeof addBidToHistory"); 
-console.log(typeof addBidToHistory);
 
 
 const emailSender = require('../../utilities/emailSender');
@@ -27,7 +23,6 @@ async function emailNotifications(toEmailAddress, amount) {
   <br>
   <p>Regards,<br>Team HGN</p>
 `;
-  console.log(emailBidBody);
   const mailOptions = {
     from: process.env.REACT_APP_EMAIL,
     subject: 'Test Email',
@@ -50,29 +45,22 @@ async function emailNotifications(toEmailAddress, amount) {
     null, //  cc
     'onecommunityglobal@gmail.com', // reply to
   );
-  console.log('email sent');
+   return { status: 200,    data: "email Sent" };
 }
 async function SMSNotifications(smsMsg, toMobile) {
   // textBelt
-  const textBeltSMSSendRes = await TextbeltSMSSender(smsMsg, toMobile);
-  console.log('textBeltSMSSendRes?.data below');
-
-  console.log(textBeltSMSSendRes?.data);
+//  const textBeltSMSSendRes = await TextbeltSMSSender(smsMsg, toMobile);
 
   // telesign
   const telesignSMSSendRes = await TelesignSMSSender(smsMsg, toMobile);
-  console.log(telesignSMSSendRes);
-  console.log('telesignSMSSendRes above');
+return { status: 200,    data: telesignSMSSendRes };
 
   // Twilio
-  const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
-  const toMob = '+15005550006'; // Magic "to" number simulates success
-  const twilioSMSSenderResp = await TwilioSMSSender(smsMsg, fromMob, toMob);
-  console.log('twilioSMSSenderResp below');
-  console.log(twilioSMSSenderResp);
+//  const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
+//  const toMob = '+15005550006'; // Magic "to" number simulates success
+//  const twilioSMSSenderResp = await TwilioSMSSender(smsMsg, fromMob, toMob);
 }
 function initSocket(server) {
-  console.log('socketIO inside');
   const socketIO = require('socket.io');
   const Bids = require('../../models/lbdashboard/bids');
   const Users = require('../../models/lbdashboard/users');
@@ -86,16 +74,6 @@ function initSocket(server) {
 
   init();
 
-   console.log("typeof bidsController"); 
- console.log(typeof bidsController);
-
- console.log('typeof bC:', typeof updateOrderLocal);
- console.log('bC.default:', typeof bidsController.default);
-
- console.log("typeof bidsControllerInstance"); 
- console.log(typeof bidsControllerInstance);
- 
- console.log("inside connserver.js ") 
 
  // Load and apply socket auth middleware
   const socketAuth = require('../../startup/socket-auth-middleware');
@@ -108,7 +86,6 @@ function initSocket(server) {
   io.use(socketAuth);
 
   io.engine.on('connection_error', (err) => {
-    console.log('io.engine error');
      console.log(err.message); // the error message, for example "Session ID unknown"
      console.log(err.context); // some additional error context
   });
@@ -119,7 +96,6 @@ function initSocket(server) {
     return token === process.env.socket_token;
   }
   io.use((socket, next) => {
-    console.log('before token');
     const token = socket.handshake.auth.token || socket.handshake.query.token;
     if (isValid(token)) {
       next();
@@ -133,51 +109,28 @@ function initSocket(server) {
   io.on('connection', (socket) => {
     socket.on('register', (userEmail) => {
       onlineUsers[userEmail] = socket.id;
-      console.log(userEmail);
     });
-    console.log('now');
-    console.log(onlineUsers);
     socket.on('new-bid', async ({ listingId, startDate, endDate,bidPrice }) => {
-      console.log(`itemId is ${listingId}`);
-      console.log(`amount is ${bidPrice}`);
-      console.log(`startDate is ${startDate}`);
-      console.log(`endDate is ${endDate}`);
-      
-      console.log(`user is ${socket.handshake.auth.email}`);
-
+   
       const user = await Users.findOne({
         email: socket.handshake.auth.email,
       });
-      console.log('user');
-      console.log(user);
-
+   
       const userId = user?._id;
-      console.log(userId);
-
+   
       const userMobile = user?.mobile;
-      console.log(userMobile);
-
+   
       try {
         const bidDeadlines = await BidDeadlines.findOne({
           listingId,
           isActive: true,
         });
-        console.log(bidDeadlines);
         const currDate = Date.now();
-        console.log('currDate');
-        console.log(currDate);
-        console.log(bidDeadlines.endDate.getTime());
         if (bidDeadlines && currDate > bidDeadlines.endDate.getTime()) {
           io.emit('bid-not-updated', 'Time Elapsed! Bidding is over');
           return 'Time Elapsed! Bidding is over';
         }
-        console.log('amount checking');
-        console.log(bidDeadlines.biddingHistory.length);
         const lastBid = bidDeadlines.biddingHistory[bidDeadlines.biddingHistory.length - 1];
-        console.log(lastBid);
-        console.log(!lastBid);
-        console.log(bidPrice);
-        console.log(bidDeadlines);
         if (bidDeadlines)
           if (lastBid === undefined) {
             await addBidToHistory(BidDeadlines, listingId, bidPrice);
@@ -189,41 +142,33 @@ function initSocket(server) {
             await addBidToHistory(BidDeadlines, listingId, bidPrice);
 
       
-            console.log({
-              listingId, // mongoose.Types.ObjectId(listingId),
-              userId,
-            });
           }
         const matchBid = await Bids.findOne({
           listingId, // mongoose.Types.ObjectId(listingId),
           startDate,endDate,
           userId,
+          isActive:true
         });
-        console.log("matched Bid details");        
-        console.log(matchBid);
-        console.log(matchBid.id);
-    
+        
         await updateOrderLocal({listingId:matchBid.listingId,startDate: matchBid.startDate, 
           endDate:matchBid.endDate,bidPrice, paypalOrderId:matchBid.paypalOrderId, email:socket.handshake.auth.email});
         
         // await controller.updateOrderLocal(matchBid.listingId, matchBid.startDate, matchBid.endDate,user.email, amount);
-        console.log(mongoose.Types.Decimal128.fromString(bidPrice.toString()));
         await addBidToHistory(Bids, listingId, bidPrice);
-        console.log('Bid Received');
-      console.log('before callback');
-
-      console.log(userMobile);
+        
       const smsMsg = `Thank you for your bid!
   We have received your bid $${bidPrice} successfully.
   We'll get back to you shortly.
   Regards,<br>Team HGN`;
 
-      SMSNotifications(smsMsg, userMobile);
-      emailNotifications(socket.handshake.auth.email, bidPrice);
+      await SMSNotifications(smsMsg, userMobile);
+      await emailNotifications(socket.handshake.auth.email, bidPrice);
       
       } catch (error) {
         console.log("error");
         console.log(error);
+        return error.response?.data?.error || error.message || 'Unknown error'
+
         
       }
       

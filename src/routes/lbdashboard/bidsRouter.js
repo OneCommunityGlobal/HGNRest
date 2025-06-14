@@ -24,4 +24,6 @@ bidsRouter.route('/updateOrder/').patch(bidsController.updateOrder);
 
 bidsRouter.route('/orderCheckoutNow/').get(bidsController.orderCheckoutNow);
 
+bidsRouter.route('/orderDetails/:orderId').get(bidsController.getOrderDetails);
+
 module.exports = bidsRouter;

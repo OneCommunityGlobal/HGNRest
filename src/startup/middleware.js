@@ -20,7 +20,6 @@ const paypalAuthMiddleware = (req, res, next) => {
 // Socket.IO middleware
 function socketMiddleware(socket, next) {
   const { token } = socket.handshake.auth;
-  console.log(' Token received socketMiddleware :', token);
 
   if (token === 'secret123') {
     return next();
@@ -32,12 +31,6 @@ module.exports = function (app) {
   app.all('*', (req, res, next) => {
     const openPaths = ['/api/lb/myWebhooks'];
 
-    console.log(req.path);
-    console.log(req.header);
-    console.log(req.body);
-    console.log('Middleware running for path:', req.path);
-    console.log('openPaths:', openPaths);
-    console.log('Path match check:', openPaths.includes(req.path));
 
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
@@ -82,13 +75,8 @@ module.exports = function (app) {
     // Skip auth check for PayPal webhook route
 
     if (openPaths.includes(req.path)) {
-      console.log('included before next');
-      // res.status(200).send({ 'Success:': 'True' });
-
       return next(); // Allow PayPal requests through
-      // return;
     }
-    console.log('before Authorization ');
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
@@ -123,20 +111,5 @@ module.exports = function (app) {
     next();
   });
   // Apply PayPal middleware only to specific route
-  console.log('before api/lb/myWebhooks');
   app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };
-/* module.exports = function (socket, next) {
-  // socket('io', (next) => {
-  // console.log(socket);
-  const { token } = socket.handshake.auth;
-  console.log(' Token received:');
-
-  if (token === 'secret123') {
-    // return true;
-    next();
-  } else {
-    next(new Error('Unauthorized'));
-  }
-  // return false; // next(new Error('Invalid token'));
-}; */

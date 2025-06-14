@@ -19,9 +19,7 @@ logger.logInfo(`Started server on port ${port}`);
 // // 👈 this is important
 const { initSocket } = require('./sockets/BiddingService/connServer');
 
-console.log('Calling initSocket...');
 initSocket(server);
-console.log('initSocket initialized');
 
 // Start the actual server
 server.listen(port, () => {
@@ -31,19 +29,4 @@ server.listen(port, () => {
 (async () => {
   await websockets(server);
 })();
-/*
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-  console.log('Headers:', req.headers);
-  next();
-});
-
-app.get('/', (req, res) => {
-  res.send('Hello from the root route!');
-});
-// Optional catch-all for 404s
-app.use((req, res) => {
-  res.status(404).send(`Not found: ${req.method} ${req.originalUrl}`);
-});
-*/
 module.exports = server;
