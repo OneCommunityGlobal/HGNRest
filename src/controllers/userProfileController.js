@@ -169,7 +169,7 @@ const userProfileController = function (UserProfile, Project) {
     if (!(await checkPermission(req, 'getUserProfiles'))) {
       return forbidden(res, 'You are not authorized to view all users');
     }
-  
+
     const cacheKey = 'allusers';
     try {
     // get user profiles using aggregate pipeline
@@ -213,7 +213,7 @@ const userProfileController = function (UserProfile, Project) {
         },
         { $sort: { lastName: 1 } }
       ]);
-  
+
       if (!users || users.length === 0) {
         const cachedData = cache.getCache(cacheKey);
         if (cachedData) {
@@ -221,23 +221,28 @@ const userProfileController = function (UserProfile, Project) {
         }
         return res.status(500).send({ error: 'User result was invalid' });
       }
-  
+
       cache.setCache(cacheKey, JSON.stringify(users));
       return res.status(200).send(users);
     } catch (error) {
       return res.status(500).send({ error: 'Failed to fetch user profiles', details: error.message });
     }
   };
-  
+
 
   /**
    * Controller function to retrieve basic user profile information.
    * This endpoint checks if the user has the necessary permissions to access user profiles.
+   * If the source is "report", it checks for "getReport" permission.
+   * For other sources, it checks for "getUserProfiles" permission.
    * If authorized, it queries the database to fetch only the required fields:
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
+   *
    */
   const getUserProfileBasicInfo = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
+    const {source}=req.params;
+    const permission = source === 'Report' ? 'getReports' : 'getUserProfiles';
+    if (!(await checkPermission(req, permission))) {
       forbidden(res, 'You are not authorized to view all users');
       return;
     }
@@ -295,7 +300,7 @@ const userProfileController = function (UserProfile, Project) {
       "$expr": {
         "$regexMatch": {
           "input": { "$concat": ["$firstName", " ", "$lastName"] },
-          "regex": name,  
+          "regex": name,
           "options": "i"
         }
       }
@@ -2035,26 +2040,26 @@ const userProfileController = function (UserProfile, Project) {
     try {
         // Sanitize oldTeamCodes to ensure they are strings
       const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
-  
+
       // 1. Find all matching users first
       const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
 
       if (usersToUpdate.length === 0) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
-  
+
       const updatedUsersInfo = [];
       const bulkOps = [];
-  
+
       for (const user of usersToUpdate) {
         // Temporarily set new teamCode for validation
         user.teamCode = newTeamCode;
-  
+
         let teamCodeWarning = user.teamCodeWarning;
         if (warningUsers && warningUsers.includes(user._id.toString())) {
              teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
         }
-  
+
         bulkOps.push({
           updateOne: {
             filter: { _id: user._id },
@@ -2066,29 +2071,29 @@ const userProfileController = function (UserProfile, Project) {
             },
           },
         });
-  
+
         updatedUsersInfo.push({
           userId: user._id,
           teamCodeWarning: teamCodeWarning,
         });
       }
-  
+
       // 2. Execute all updates at once
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
-  
+
       return res.status(200).send({
         message: 'Team codes updated successfully.',
         updatedUsers: updatedUsersInfo,
       });
-  
+
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
     }
   };
-  
+
 
   return {
     searchUsersByName,
