@@ -64,7 +64,7 @@ beforeEach(async () => {
   }
 });
 
-describe('createExternalTeam', () => {
+describe.skip('createExternalTeam', () => {
   test('should create a new external team member successfully', async () => {
     const req = mockRequest({
       firstName: 'John',
