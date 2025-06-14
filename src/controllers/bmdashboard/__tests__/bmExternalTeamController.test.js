@@ -18,18 +18,45 @@ const mockResponse = () => {
 };
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  await mongoose.connect(mongoUri);
+  try {
+    mongoServer = await MongoMemoryServer.create({
+      instance: {
+        dbName: 'jest',
+        port: 27017,
+      },
+    });
+    const mongoUri = mongoServer.getUri();
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+  } catch (error) {
+    console.error('Error setting up MongoDB Memory Server:', error);
+    throw error;
+  }
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  try {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
+  } catch (error) {
+    console.error('Error cleaning up MongoDB Memory Server:', error);
+    throw error;
+  }
 });
 
 beforeEach(async () => {
-  await ExternalTeam.deleteMany({});
+  try {
+    await ExternalTeam.deleteMany({});
+  } catch (error) {
+    console.error('Error cleaning up test data:', error);
+    throw error;
+  }
 });
 
 describe('createExternalTeam', () => {
