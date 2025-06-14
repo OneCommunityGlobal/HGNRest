@@ -102,6 +102,7 @@ const permissionsRoles = [
       'assignTitle',
 
       'seeUsersInDashboard',
+      'accessHGNSkillDashboard',
       'editTeamCode',
 
       'manageFAQs',
@@ -135,6 +136,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'seeUsersInDashboard',
+      'accessHGNSkillDashboard',
     ],
   },
   {
@@ -280,6 +282,7 @@ const permissionsRoles = [
       'assignTitle',
 
       'seeUsersInDashboard',
+      'accessHGNSkillDashboard',
 
       'changeUserRehireableStatus',
       'toggleInvisibility',
