@@ -5,7 +5,6 @@ const userProfile = require('../../models/userProfile');
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
     try {
-      // Read from headers instead of query
       const page = req.headers['page'] || 1;
       const size = req.headers['size'] || 10;
       const village = req.headers['village'];
@@ -22,11 +21,9 @@ const listingsController = (ListingHome) => {
 
       const skip = (pageNum - 1) * sizeNum;
 
-      // Build query based on filters
       const query = {};
       if (village) query.village = village;
 
-      // Handle date range filtering
       if (availableFrom || availableTo) {
         query.$and = [];
         if (availableFrom) {
@@ -287,7 +284,6 @@ const listingsController = (ListingHome) => {
     }
   };
 
-  // GET endpoint for retrieving biddings
   const getBiddings = async (req, res) => {
     try {
       // Read from headers instead of query

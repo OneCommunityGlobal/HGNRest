@@ -22,7 +22,6 @@ const routes = function (ListingHome) {
     .put(upload.array('images', 10), controller.updateListing)
     .delete(controller.deleteListing);
 
-  // Additional endpoints
   listingRouter.route('/biddings').get(controller.getBiddings);
   listingRouter.route('/villages').get(controller.getVillages);
 
