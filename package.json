@@ -48,7 +48,8 @@
     "supertest": "^6.3.4"
   },
   "dependencies": {
-    "@azure/storage-blob": "^12.26.0",
+    "@azure/core-lro": "^3.2.0",
+    "@azure/storage-blob": "^12.13.0",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
