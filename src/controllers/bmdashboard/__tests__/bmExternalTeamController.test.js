@@ -19,42 +19,47 @@ const mockResponse = () => {
 
 beforeAll(async () => {
   try {
-    mongoServer = await MongoMemoryServer.create({
-      instance: {
-        dbName: 'jest',
-        port: 27017,
-      },
-    });
+    console.log('Starting MongoDB Memory Server...');
+    mongoServer = await MongoMemoryServer.create();
+    console.log('MongoDB Memory Server created');
+    
     const mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    console.log('MongoDB URI:', mongoUri);
+    
+    await mongoose.connect(mongoUri);
+    console.log('Mongoose connected');
   } catch (error) {
-    console.error('Error setting up MongoDB Memory Server:', error);
+    console.error('Error in beforeAll:', error);
     throw error;
   }
 });
 
 afterAll(async () => {
   try {
+    console.log('Cleaning up...');
     if (mongoose.connection.readyState !== 0) {
+      console.log('Disconnecting mongoose...');
       await mongoose.disconnect();
+      console.log('Mongoose disconnected');
     }
     if (mongoServer) {
+      console.log('Stopping MongoDB Memory Server...');
       await mongoServer.stop();
+      console.log('MongoDB Memory Server stopped');
     }
   } catch (error) {
-    console.error('Error cleaning up MongoDB Memory Server:', error);
+    console.error('Error in afterAll:', error);
     throw error;
   }
 });
 
 beforeEach(async () => {
   try {
+    console.log('Cleaning up test data...');
     await ExternalTeam.deleteMany({});
+    console.log('Test data cleaned up');
   } catch (error) {
-    console.error('Error cleaning up test data:', error);
+    console.error('Error in beforeEach:', error);
     throw error;
   }
 });
