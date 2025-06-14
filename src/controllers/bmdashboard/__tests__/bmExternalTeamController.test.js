@@ -60,7 +60,7 @@ describe('createExternalTeam', () => {
     const mockReq = {
       body: {
         firstName: 'John',
-        lastName: 'Doe'
+        lastName: 'Doe',
         // Missing required fields: role, team, email
       }
     };
