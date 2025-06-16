@@ -211,7 +211,7 @@ const userProfileController = function (UserProfile, Project) {
             },
           },
         },
-        { $sort: { lastName: 1 } }
+        { $sort: { startDate: -1, createdDate: -1 } }
       ]);
   
       if (!users || users.length === 0) {
