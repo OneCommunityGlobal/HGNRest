@@ -81,8 +81,8 @@ const reportsController = function () {
       isoComparisonEndDate = new Date(comparisonEndDate);
     }
 
-    const isoStartDate = new Date(startDate);
-    const isoEndDate = new Date(endDate);
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
 
     try {
       const [
