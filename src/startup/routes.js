@@ -169,7 +169,12 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+
+//commnunity portal
+const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
+
 
 
 const collaborationRouter=require('../routes/collaborationRouter');
@@ -238,13 +243,22 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
+
+  app.use('/api/bm', bmIssueRouter);
+
   app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('/api/bm', bmIssueRouter);
   app.use('api', bmIssueRouter);
+
+  //community portal
+  app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
+
   app.use('/api', registrationRouter);
+
   app.use('/api/lb', listingAvailablityRouter);
 
 };

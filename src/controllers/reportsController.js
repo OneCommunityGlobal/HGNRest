@@ -208,6 +208,7 @@ const reportsController = function () {
   };
 
   const getWeeklySummaries = async function (req, res) {
+  
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
@@ -234,19 +235,6 @@ const reportsController = function () {
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
-    }
-
-    // Check if we have cached data
-    if (cacheUtil.hasCache(cacheKey)) {
-      const cacheAge = Math.round((Date.now() - cacheUtil.getCacheTime(cacheKey)) / 1000);
-      console.log(`Cache hit for ${cacheKey}, serving from cache (age: ${cacheAge}s)`);
-      return res.status(200).send({
-        data: cacheUtil.getCache(cacheKey),
-        cacheInfo: { 
-          fromCache: true, 
-          cacheAge
-        }
-      });
     }
     
     // Determine cache duration based on week
