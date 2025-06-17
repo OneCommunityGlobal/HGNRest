@@ -4,12 +4,11 @@ module.exports = function (Availability) {
   const router = express.Router();
   const controller = require('../../controllers/lbdashboard/listingAvailablityController')(Availability);
 
-  router.get('/availability', controller.getAvailabilities);
-
-  router.post('/availability', controller.createAvailability);
-  router.get('/availability/:id', controller.getAvailabilityById);
-  router.put('/availability/:id', controller.updateAvailability);
-  router.delete('/availability/:id', controller.deleteAvailability);
+  router.get('/listing/availablity', controller.getListingAvailablity);
+  router.post('/listing/availablity', controller.createListingAvailability);
+  router.put('/listing/availablity/booking', controller.updateListingBooking);
+  router.put('/listing/availablity/block', controller.updateListingBlockedDates);
+  router.delete('/listing/availablity', controller.deleteListingAvailability);
 
   return router;
 };

@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
+const Listing = require('../../models/lbdashboard/listings');
 
 const listingAvailablityController = (Availability) => {
-  const getAvailabilities = async (req, res) => {
+  const getListingAvailablity = async (req, res) => {
     try {
-      const listingId = req.headers['listingid'];
+      const listingId = req.body.listingId;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
-        return res.status(400).json({ error: 'Valid listingId is required in header' });
+        return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
       const availability = await Availability.findOne({ listingId });
       if (!availability) {
@@ -17,33 +18,18 @@ const listingAvailablityController = (Availability) => {
     }
   };
 
-  const getAvailabilityById = async (req, res) => {
-    try {
-      const id = req.headers['id'];
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid availability id in header' });
-      }
-      const availability = await Availability.findById(id);
-      if (!availability) {
-        return res.status(404).json({ error: 'Availability not found' });
-      }
-      res.json({ status: 200, data: availability });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  };
-
-  const createAvailability = async (req, res) => {
+  const createListingAvailability = async (req, res) => {
     try {
       const data = req.body;
-      if (!data.listingId || !mongoose.Types.ObjectId.isValid(data.listingId)) {
-        return res.status(400).json({ error: 'Valid listingId is required' });
+      const listingId = data.listingId;
+      if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
-      let availability = await Availability.findOne({ listingId: data.listingId });
+      let availability = await Availability.findOne({ listingId });
       if (availability) {
         return res.status(409).json({ error: 'Availability already exists for this listing' });
       }
-      availability = new Availability(data);
+      availability = new Availability({ ...data, listingId });
       await availability.save();
       res.status(201).json({ status: 201, data: availability });
     } catch (err) {
@@ -51,29 +37,97 @@ const listingAvailablityController = (Availability) => {
     }
   };
 
-  const updateAvailability = async (req, res) => {
+  const updateListingBooking = async (req, res) => {
     try {
-      const id = req.headers['id'];
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid availability id in header' });
+      const { from, to, userId, bookingId, listingId } = req.body;
+      if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
-      const updated = await Availability.findByIdAndUpdate(id, req.body, { new: true });
-      if (!updated) {
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ error: 'Valid userId is required in body' });
+      }
+      if (!from || !to) {
+        return res.status(400).json({ error: 'from and to dates are required' });
+      }
+      const availability = await Availability.findOne({ listingId });
+      if (!availability) {
         return res.status(404).json({ error: 'Availability not found' });
       }
-      res.json({ status: 200, data: updated });
+      availability.bookedDates.push({
+        from: new Date(from),
+        to: new Date(to),
+        bookingUserId: userId,
+        bookingId: bookingId || undefined,
+      });
+      availability.lastUpdated = new Date();
+      await availability.save();
+      res.json({ status: 200, data: availability });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   };
 
-  const deleteAvailability = async (req, res) => {
+  const updateListingBlockedDates = async (req, res) => {
     try {
-      const id = req.headers['id'];
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid availability id in header' });
+      const { from, to, reason, userId, listingId } = req.body;
+      if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
-      const deleted = await Availability.findByIdAndDelete(id);
+      if (!from || !to) {
+        return res.status(400).json({ error: 'from and to dates are required' });
+      }
+      const listing = await Listing.findById(listingId);
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+      const allowedUser = userId || req.headers['userid'];
+      if (
+        !allowedUser ||
+        (
+          allowedUser !== String(listing.createdBy) &&
+          allowedUser !== String(listing.updatedBy)
+        )
+      ) {
+        return res.status(403).json({ error: 'Not authorized to block dates for this listing' });
+      }
+      const availability = await Availability.findOne({ listingId });
+      if (!availability) {
+        return res.status(404).json({ error: 'Availability not found' });
+      }
+      availability.blockedOutDates.push({
+        from: new Date(from),
+        to: new Date(to),
+        reason: reason || '',
+        blockedBy: allowedUser,
+      });
+      availability.lastUpdated = new Date();
+      await availability.save();
+      res.json({ status: 200, data: availability });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
+  const deleteListingAvailability = async (req, res) => {
+    try {
+      const {userId, listingId} = req.body;
+      if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ error: 'Valid listingId is required in header or body' });
+      }
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ error: 'Valid userId is required in header or body' });
+      }
+      const listing = await Listing.findById(listingId);
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+      if (
+        userId !== String(listing.createdBy) &&
+        userId !== String(listing.updatedBy)
+      ) {
+        return res.status(403).json({ error: 'Not authorized to delete availability for this listing' });
+      }
+      const deleted = await Availability.findOneAndDelete({ listingId });
       if (!deleted) {
         return res.status(404).json({ error: 'Availability not found' });
       }
@@ -84,11 +138,11 @@ const listingAvailablityController = (Availability) => {
   };
 
   return {
-    getAvailabilities,
-    getAvailabilityById,
-    createAvailability,
-    updateAvailability,
-    deleteAvailability,
+    getListingAvailablity,
+    createListingAvailability,
+    updateListingBooking,
+    updateListingBlockedDates,
+    deleteListingAvailability,
   };
 };
 

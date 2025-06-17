@@ -13,14 +13,8 @@ const availabilityCalendar = new Schema({
     {
       from: { type: Date, required: true },
       to: { type: Date, required: true },
-      bookingId: { type: mongoose.SchemaTypes.ObjectId, ref: 'bookings' }, 
-    }
-  ],
-  pendingReservations: [
-    {
-      from: { type: Date, required: true },
-      to: { type: Date, required: true },
-      reservationId: { type: mongoose.SchemaTypes.ObjectId, ref: 'reservations' }, 
+      bookingId: { type: ObjectId },
+      bookingUserId: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     }
   ],
   blockedOutDates: [
@@ -28,6 +22,7 @@ const availabilityCalendar = new Schema({
       from: { type: Date, required: true },
       to: { type: Date, required: true },
       reason: { type: String }, 
+      blockedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     }
   ],
   lastUpdated: {
@@ -35,7 +30,5 @@ const availabilityCalendar = new Schema({
     default: Date.now,
   }
 });
-
-availabilityCalendar.index({ listingId: 1 });
 
 module.exports = mongoose.model('availabilityCalendar', availabilityCalendar, 'availabilityCalendar');
