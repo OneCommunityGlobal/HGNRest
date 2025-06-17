@@ -15,8 +15,6 @@ const listings = new Schema({
   description: { type: String },
   images: { type: [String] },
   amenities: { type: [String] },
-  availableFrom: { type: Date },
-  availableTo: { type: Date },
   updatedOn: { type: Date, required: true, default: Date.now },
   updatedBy: {
     type: mongoose.SchemaTypes.ObjectId,

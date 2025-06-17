@@ -232,6 +232,8 @@ module.exports = function (app) {
   app.use('/api/job-notification-list/', jobNotificationListRouter);
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api', registrationRouter);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -256,9 +258,6 @@ module.exports = function (app) {
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
-
-  app.use('/api', registrationRouter);
-
   app.use('/api/lb', listingAvailablityRouter);
 
 };

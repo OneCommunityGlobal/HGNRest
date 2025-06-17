@@ -139,8 +139,6 @@ const listingsController = (ListingHome) => {
         perUnit, 
         createdBy,
         updatedBy, 
-        availableFrom,
-        availableTo,
         village,
         coordinates,
         amenities, 
@@ -155,7 +153,7 @@ const listingsController = (ListingHome) => {
       }
 
       if (isComplete) {
-        if (!title || !description || !price || !perUnit || !createdBy || !availableFrom || !availableTo || !village || !amenities || !updatedBy) {
+        if (!title || !description || !price || !perUnit || !createdBy || !village || !amenities || !updatedBy) {
           return res.status(400).json({
             error: 'Missing required fields for complete listing',
             details: {
@@ -164,8 +162,6 @@ const listingsController = (ListingHome) => {
               price: !price ? 'Required' : null,
               perUnit: !perUnit ? 'Required' : null,
               createdBy: !createdBy ? 'Required' : null,
-              availableFrom: !availableFrom ? 'Required' : null,
-              availableTo: !availableTo ? 'Required' : null,
               village: !village ? 'Required' : null,
               amenities: !amenities ? 'Required' : null,
               updatedBy: !updatedBy ? 'Required' : null
@@ -223,7 +219,7 @@ const listingsController = (ListingHome) => {
         updatedBy,
         status
       };
-
+      console.log(listingData);
       // Handle image uploads with error handling
       if (images && images.length) {
         try {
@@ -235,8 +231,6 @@ const listingsController = (ListingHome) => {
         }
       }
       
-      if (availableFrom) listingData.availableFrom = new Date(availableFrom);
-      if (availableTo) listingData.availableTo = new Date(availableTo);
       if (village) listingData.village = village;
       if (parsedCoordinates) listingData.coordinates = parsedCoordinates;
       if (amenities) {
@@ -289,8 +283,6 @@ const listingsController = (ListingHome) => {
           createdBy: savedListing.createdBy,
           status: savedListing.status,
           images: savedListing.images,
-          availableFrom: savedListing.availableFrom,
-          availableTo: savedListing.availableTo,
           village: savedListing.village,
           coordinates: savedListing.coordinates,
           amenities: savedListing.amenities

@@ -13,7 +13,6 @@ const availabilityCalendar = new Schema({
     {
       from: { type: Date, required: true },
       to: { type: Date, required: true },
-      bookingId: { type: ObjectId },
       bookingUserId: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
     }
   ],

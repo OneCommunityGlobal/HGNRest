@@ -39,7 +39,7 @@ const listingAvailablityController = (Availability) => {
 
   const updateListingBooking = async (req, res) => {
     try {
-      const { from, to, userId, bookingId, listingId } = req.body;
+      const { from, to, userId, listingId } = req.body;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
@@ -57,11 +57,86 @@ const listingAvailablityController = (Availability) => {
         from: new Date(from),
         to: new Date(to),
         bookingUserId: userId,
-        bookingId: bookingId || undefined,
       });
       availability.lastUpdated = new Date();
       await availability.save();
       res.json({ status: 200, data: availability });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
+  const updateBookedDate = async (req, res) => {
+    try {
+      const { listingId, bookingId, bookingUserId, from, to } = req.body;
+      if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ error: 'Valid listingId is required' });
+      }
+      if (!bookingId || !mongoose.Types.ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ error: 'Valid bookingId is required' });
+      }
+      if (!bookingUserId || !mongoose.Types.ObjectId.isValid(bookingUserId)) {
+        return res.status(400).json({ error: 'Valid bookingUserId is required' });
+      }
+      if (!from || !to) {
+        return res.status(400).json({ error: 'from and to dates are required' });
+      }
+
+      const availability = await Availability.findOne({ listingId });
+      if (!availability) {
+        return res.status(404).json({ error: 'Availability not found' });
+      }
+
+      const bookedDate = availability.bookedDates.id(bookingId);
+      if (!bookedDate) {
+        return res.status(404).json({ error: 'Booked date not found' });
+      }
+      if (String(bookedDate.bookingUserId) !== String(bookingUserId)) {
+        return res.status(403).json({ error: 'Not authorized to update this booking' });
+      }
+
+      bookedDate.from = new Date(from);
+      bookedDate.to = new Date(to);
+      availability.lastUpdated = new Date();
+      await availability.save();
+
+      res.json({ status: 200, message: 'Booked date updated', data: availability });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
+  const deleteBookedDate = async (req, res) => {
+    try {
+      const { listingId, bookingId, bookingUserId } = req.body;
+      if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ error: 'Valid listingId is required' });
+      }
+      if (!bookingId || !mongoose.Types.ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ error: 'Valid bookingId is required' });
+      }
+      if (!bookingUserId || !mongoose.Types.ObjectId.isValid(bookingUserId)) {
+        return res.status(400).json({ error: 'Valid bookingUserId is required' });
+      }
+
+      const availability = await Availability.findOne({ listingId });
+      if (!availability) {
+        return res.status(404).json({ error: 'Availability not found' });
+      }
+
+      const bookedDate = availability.bookedDates.id(bookingId);
+      if (!bookedDate) {
+        return res.status(404).json({ error: 'Booked date not found' });
+      }
+      if (String(bookedDate.bookingUserId) !== String(bookingUserId)) {
+        return res.status(403).json({ error: 'Not authorized to delete this booking' });
+      }
+
+      bookedDate.remove();
+      availability.lastUpdated = new Date();
+      await availability.save();
+
+      res.json({ status: 200, message: 'Booked date deleted', data: availability });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -141,6 +216,8 @@ const listingAvailablityController = (Availability) => {
     getListingAvailablity,
     createListingAvailability,
     updateListingBooking,
+    updateBookedDate,
+    deleteBookedDate,
     updateListingBlockedDates,
     deleteListingAvailability,
   };
