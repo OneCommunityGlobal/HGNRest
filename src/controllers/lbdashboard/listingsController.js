@@ -129,6 +129,25 @@ const listingsController = (ListingHome) => {
       });
     }
   };
+
+  const getListingById = async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: 'Missing listing id in body' });
+    const listing = await ListingHome.findById(id)
+      .populate([
+        { path: 'createdBy', select: '_id firstName lastName' },
+        { path: 'updatedBy', select: '_id firstName lastName' }
+      ])
+      .lean();
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    res.json({ status: 200, data: listing });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+};
   
   const createListing = async (req, res) => {
     try {
@@ -482,7 +501,8 @@ const listingsController = (ListingHome) => {
     getListings, 
     createListing, 
     getBiddings,
-    getVillages
+    getVillages,
+    getListingById,
   };
 };
 

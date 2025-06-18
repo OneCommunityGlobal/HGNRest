@@ -17,6 +17,8 @@ const routes = function (ListingHome) {
     .get(controller.getListings)
     .post(upload.array('images', 10), controller.createListing);
 
+  listingRouter.post('/listing/getById', controller.getListingById);
+
   // Additional endpoints
   listingRouter.route('/biddings').get(controller.getBiddings);
   listingRouter.route('/villages').get(controller.getVillages);
