@@ -430,8 +430,8 @@ const overviewReportHelper = function () {
         },
       ]);
       const data = {};
-      data.current = res[0].current[0].activeTeams;
-      data.comparison = res[0].comparison[0].activeTeams;
+      data.current = res[0]?.current[0]?.activeTeams || 0;
+      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
       data.percentage = calculateGrowthPercentage(data.current, data.comparison);
       return data;
     }
@@ -447,7 +447,7 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    return { current: res[0].activeTeams };
+    return { current: res[0]?.activeTeams || 0 };
   }
 
   /**
@@ -1586,6 +1586,7 @@ const overviewReportHelper = function () {
     // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
     let projectsComparisonPercentage;
+    let hoursSubmittedToTasksComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
       const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
@@ -1593,6 +1594,9 @@ const overviewReportHelper = function () {
       projectsComparisonPercentage = calculateGrowthPercentage(
         projectHours,
         comparisonProjectHours,
+      );
+      hoursSubmittedToTasksComparisonPercentage = Number(
+        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
       );
     }
 
@@ -1690,6 +1694,8 @@ const overviewReportHelper = function () {
         ),
         comparisonPercentage: projectsComparisonPercentage,
       },
+      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      hoursSubmittedToTasksComparisonPercentage,
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
