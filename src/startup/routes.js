@@ -138,7 +138,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const collaborationRouter=require('../routes/collaborationRouter');
-
+const injuryRoutes = require("../routes/injuryRoutes");
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -195,6 +195,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('api', bmIssueRouter);
+  app.use('/api', bmIssueRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', injuryRoutes);
 };
