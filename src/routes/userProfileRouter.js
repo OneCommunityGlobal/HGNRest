@@ -1,4 +1,4 @@
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
@@ -23,8 +23,11 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
+    userProfileRouter
+      .route('/users/search')
+      .get(param('name').exists(), controller.searchUsersByName);
+
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);  
-  
   // Endpoint to retrieve basic user profile information
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
   userProfileRouter
@@ -129,6 +132,8 @@ const routes = function (userProfile, project) {
     .get(controller.getUserByAutocomplete);
 
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
+  
+  userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
   return userProfileRouter;
 };
