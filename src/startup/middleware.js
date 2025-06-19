@@ -43,37 +43,39 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (!req.header('Authorization')) {
-      res.status(401).send({ 'error:': 'Unauthorized request' });
+
+    // Get authentication token
+    const authToken = req.header('Authorization');
+    if (!authToken) {
+      res.status(401).send({ error: 'Unauthorized request - No token provided' });
       return;
     }
-    const authToken = req.header(config.REQUEST_AUTHKEY);
-
-    let payload = '';
 
     try {
-      payload = jwt.verify(authToken, config.JWT_SECRET);
+      const payload = jwt.verify(authToken, config.JWT_SECRET);
+      
+      if (
+        !payload ||
+        !payload.expiryTimestamp ||
+        !payload.userid ||
+        !payload.role ||
+        moment().isAfter(payload.expiryTimestamp)
+      ) {
+        res.status(401).send({ error: 'Unauthorized request - Invalid token payload' });
+        return;
+      }
+
+      // Add requestor information to request body
+      req.body.requestor = {
+        requestorId: payload.userid,
+        role: payload.role,
+        permissions: payload.permissions
+      };
+      
+      next();
     } catch (error) {
-      res.status(401).send('Invalid token');
-      return;
+      console.error('Token verification error:', error);
+      res.status(401).send({ error: 'Invalid token' });
     }
-    if (
-      !payload ||
-      !payload.expiryTimestamp ||
-      !payload.userid ||
-      !payload.role ||
-      moment().isAfter(payload.expiryTimestamp)
-    ) {
-      res.status(401).send('Unauthorized request');
-      return;
-    }
-
-    const requestor = {};
-    requestor.requestorId = payload.userid;
-    requestor.role = payload.role;
-    requestor.permissions = payload.permissions;
-
-    req.body.requestor = requestor;
-    next();
   });
 };
