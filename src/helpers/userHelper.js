@@ -326,7 +326,10 @@ const userHelper = function () {
           emails.push(email);
         }
 
-        const hoursLogged = result.totalSeconds[weekIndex] / 3600 || 0;
+        // weeklySummaries array will have only one item fetched (if present),
+        // consequently totalSeconds array will also have only one item in the array (if present)
+        // hence totalSeconds[0] should be used
+        const hoursLogged = result.totalSeconds[0] / 3600 || 0;
 
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
         const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
@@ -352,7 +355,6 @@ const userHelper = function () {
               return result.weeklySummaryNotReq ? 'style="color: green"' : '';
           }
         })();
-        console.log(`[EMAIL DEBUG] User: ${firstName} ${lastName}, WeekIndex: ${weekIndex}, Hours logged: ${hoursLogged}, Committed: ${weeklycommittedHours}`);
         // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
         if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
           const { dueDate, summary } = weeklySummaries[0];

@@ -5,24 +5,18 @@ const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
-    '* * * * *', // Comment out for testing. Run Every minute.
-    // '1 0 * * 0', // Every Sunday, 1 minute past midnight.
+    // '* * * * *', // Comment out for testing. Run Every minute.
+    '1 0 * * 0', // Every Sunday, 1 minute past midnight.
 
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
-      // Temporarily bypass Sunday check for testing
-      if (true || moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        console.log('[CRON DEBUG] Testing ONLY email function...');
-        // Skip other jobs that are causing issues
-        // await userhelper.getProfileImagesFromWebsite();
-        // await userhelper.assignBlueSquareForTimeNotMet();
-        // await userhelper.applyMissedHourForCoreTeam();
-        console.log('[CRON DEBUG] Starting emailWeeklySummariesForAllUsers...');
+      if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
+        await userhelper.getProfileImagesFromWebsite();
+        await userhelper.assignBlueSquareForTimeNotMet();
+        await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();
-        console.log('[CRON DEBUG] Completed emailWeeklySummariesForAllUsers');
-        // await userhelper.deleteBlueSquareAfterYear();
-        // await userhelper.deleteExpiredTokens();
-        console.log('[CRON DEBUG] Email test completed');
+        await userhelper.deleteBlueSquareAfterYear();
+        await userhelper.deleteExpiredTokens();
       }
       await userhelper.awardNewBadges();
     },
