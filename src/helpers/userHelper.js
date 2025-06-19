@@ -352,7 +352,6 @@ const userHelper = function () {
               return result.weeklySummaryNotReq ? 'style="color: green"' : '';
           }
         })();
-        console.log(`[EMAIL DEBUG] User: ${firstName} ${lastName}, WeekIndex: ${weekIndex}, Hours logged: ${hoursLogged}, Committed: ${weeklycommittedHours}`);
         // weeklySummaries array should only have one item if any, hence weeklySummaries[0] needs be used to access it.
         if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
           const { dueDate, summary } = weeklySummaries[0];
