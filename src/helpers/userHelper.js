@@ -1502,31 +1502,81 @@ const userHelper = function () {
 
   // 'Minimum Hours Multiple',
   const checkMinHoursMultiple = async function (personId, user, badgeCollection) {
-    const badgesOfType = badgeCollection
-      .map((obj) => obj.badge)
-      .filter((badgeItem) => badgeItem.type === 'Minimum Hours Multiple');
-    await badge
-      .find({ type: 'Minimum Hours Multiple' })
-      .sort({ multiple: -1 })
-      .then((results) => {
-        if (!Array.isArray(results) || !results.length) {
-          return;
-        }
-        for (let i = 0; i < results.length; i += 1) {
-          // this needs to be a for loop so that the returns break before assigning badges for lower multiples
-          const elem = results[i]; // making variable elem accessible for below code
+  console.log('--- checkMinHoursMultiple START ---');
 
-          if (user.lastWeekTangibleHrs / user.weeklycommittedHours >= elem.multiple) {
-            const theBadge = badgesOfType.find(
-              (badgeItem) => badgeItem._id.toString() === elem._id.toString(),
-            );
-            return theBadge
-              ? increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge._id))
-              : addBadge(personId, mongoose.Types.ObjectId(elem._id));
-          }
+  const ratio = user.lastWeekTangibleHrs / user.weeklycommittedHours;
+  console.log(`User tangible/committed hours ratio: ${ratio}`);
+
+  const badgesOfType = badgeCollection
+    .map(obj => obj.badge)
+    .filter(badge => badge.type === 'Minimum Hours Multiple');
+
+  const availableBadges = await badge
+    .find({ type: 'Minimum Hours Multiple' })
+    .sort({ multiple: -1 });
+
+  if (!availableBadges.length) {
+    console.log('No matching badges found in database.');
+    return;
+  }
+
+  for (const candidateBadge of availableBadges) {
+    if (ratio < candidateBadge.multiple) {
+      console.log(`Not eligible for badge ${candidateBadge._id} (requires multiple >= ${candidateBadge.multiple}, user ratio: ${ratio})`);
+      continue;
+    }
+
+    const existingBadges = badgesOfType.filter(badge =>
+      availableBadges.some(ab => ab._id.toString() === badge._id.toString())
+    );
+
+    const highestExisting = existingBadges.sort((a, b) => b.multiple - a.multiple)[0];
+
+    const isSameAsHighest = highestExisting && candidateBadge._id.toString() === highestExisting._id.toString();
+
+    if (isSameAsHighest) {
+      console.log(`User already has highest badge ${candidateBadge._id} with multiple ${candidateBadge.multiple}. Increasing count.`);
+      return increaseBadgeCount(personId, mongoose.Types.ObjectId(candidateBadge._id));
+    }
+
+    if (highestExisting) {
+      if (candidateBadge.multiple > highestExisting.multiple) {
+        console.log(`Eligible badge ${candidateBadge.multiple}x is higher than existing ${highestExisting.multiple}x. Replacing.`);
+
+        const existingBadgeEntry = badgeCollection.find(
+          entry => entry.badge._id.toString() === highestExisting._id.toString()
+        );
+
+        if (existingBadgeEntry?.count > 1) {
+          console.log(`Existing badge count is ${existingBadgeEntry.count}. Decreasing count.`);
+          await decreaseBadgeCount(personId, mongoose.Types.ObjectId(highestExisting._id));
+        } else {
+          console.log(`Existing badge count is 1. Removing badge.`);
+          await removeDupBadge(personId, mongoose.Types.ObjectId(highestExisting._id));
         }
-      });
-  };
+
+        console.log(`Adding new higher badge ${candidateBadge._id}.`);
+        return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
+      } else {
+        // Lower badge — check if already present
+        const alreadyHasBadge = badgesOfType.some(b => b._id.toString() === candidateBadge._id.toString());
+        if (alreadyHasBadge) {
+          console.log(`User already has badge ${candidateBadge.multiple}x. Increasing count.`);
+          return increaseBadgeCount(personId, mongoose.Types.ObjectId(candidateBadge._id));
+        }
+
+        console.log(`Eligible badge ${candidateBadge.multiple}x is lower than existing ${highestExisting.multiple}x. Adding separately.`);
+        return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
+      }
+    }
+
+    // No existing badge of this type found — add new
+    console.log(`No existing badges found of this type. Adding new badge ${candidateBadge._id} with multiple ${candidateBadge.multiple}.`);
+    return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
+  }
+
+  console.log('--- checkMinHoursMultiple END ---');
+};
 
   const getAllWeeksData = async (personId, user) => {
     const userId = mongoose.Types.ObjectId(personId);
@@ -1717,219 +1767,10 @@ const checkPersonalMax = async function (personId, user, badgeCollection) {
 
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
-    const badgesOfType = [];
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
-        badgesOfType.push(badgeCollection[i].badge);
-      }
-    }
-    await badge
-      .find({ type: 'X Hours for X Week Streak', weeks: 1 })
-      .sort({ totalHrs: -1 })
-      .then((results) => {
-        results.every((elem) => {
-          if (elem.totalHrs <= user.lastWeekTangibleHrs) {
-            let theBadge;
-            for (let i = 0; i < badgesOfType.length; i += 1) {
-              if (badgesOfType[i]._id.toString() === elem._id.toString()) {
-                theBadge = badgesOfType[i]._id;
-                break;
-              }
-            }
-            if (theBadge) {
-              increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
-              return false;
-            }
-            addBadge(personId, mongoose.Types.ObjectId(elem._id));
-            return false;
-          }
-          return true;
-        });
-      });
   };
-
-  // 'X Hours for X Week Streak',
-  const checkXHrsForXWeeks = async function (personId, user, badgeCollection) {
-    let higherBadge = false;
-    // Check each Streak Greater than One to check if it works
-    await badge
-      .aggregate([
-        { $match: { type: 'X Hours for X Week Streak', weeks: { $gt: 1 } } },
-        // Group by 'week' property and sorting groups in descending order by 'week', then sorting badges within groups by 'totalHrs' in descending order.
-        {
-          $group: {
-            _id: '$weeks',
-            badges: {
-              $push: { _id: '$_id', hrs: '$totalHrs', weeks: '$weeks' },
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            badges: {
-              $slice: [
-                {
-                  $map: {
-                    input: '$badges',
-                    in: {
-                      _id: '$$this._id',
-                      hrs: '$$this.hrs',
-                      weeks: '$$this.weeks',
-                    },
-                  },
-                },
-                { $size: '$badges' },
-              ],
-            },
-          },
-        },
-        { $unwind: '$badges' },
-        { $sort: { _id: -1, 'badges.hrs': -1 } }, // Primary sort on _id, secondary sort on badges.hrs
-        {
-          $group: {
-            _id: '$_id',
-            badges: {
-              $push: {
-                _id: '$badges._id',
-                hrs: '$badges.hrs',
-                weeks: '$badges.weeks',
-              },
-            },
-          },
-        },
-        { $sort: { _id: -1 } }, // Add this $sort stage for the final sorting by _id
-      ])
-      .then((results) => {
-        let lastHr = -1;
-        results.forEach((streak) => {
-          streak.badges.every((bdge) => {
-            let badgeOfType;
-            for (let i = 0; i < badgeCollection.length; i += 1) {
-              if (
-                badgeCollection[i].badge?.type === 'X Hours for X Week Streak' &&
-                badgeCollection[i].badge?.weeks === bdge.weeks
-              ) {
-                if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-                  removeDupBadge(personId, badgeOfType._id);
-                  badgeOfType = badgeCollection[i].badge;
-                } else if (
-                  badgeOfType &&
-                  badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs
-                ) {
-                  removeDupBadge(personId, badgeCollection[i].badge._id);
-                } else if (!badgeOfType) {
-                  badgeOfType = badgeCollection[i].badge;
-                }
-              }
-            }
-            // check if it is possible to earn this streak
-            if (user.savedTangibleHrs.length >= bdge.weeks) {
-              let awardBadge = true;
-              const endOfArr = user.savedTangibleHrs.length - 1;
-              for (let i = endOfArr; i >= endOfArr - bdge.weeks + 1; i -= 1) {
-                if (user.savedTangibleHrs[i] < bdge.hrs) {
-                  awardBadge = false;
-                  return true;
-                }
-              }
-              // if all checks for award badge are green double check that we havent already awarded a higher streak for the same number of hours
-              if (awardBadge && bdge.hrs > lastHr) {
-                higherBadge = true;
-                lastHr = bdge.hrs;
-                if (badgeOfType && badgeOfType.totalHrs < bdge.hrs) {
-                  replaceBadge(
-                    personId,
-                    mongoose.Types.ObjectId(badgeOfType._id),
-                    mongoose.Types.ObjectId(bdge._id),
-                  );
-
-                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-                } else if (!badgeOfType) {
-                  addBadge(personId, mongoose.Types.ObjectId(bdge._id));
-                  removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-                } else if (badgeOfType && badgeOfType.totalHrs === bdge.hrs) {
-                  const lowerBound = badgeOfType.weeks;
-                  let upperBound;
-                  streak = 0;
-
-                  switch (bdge.weeks) {
-                    case 2:
-                      // In between 2Wk and 3Wk
-                      upperBound = 3;
-                      break;
-                    case 3:
-                      // In between 3Wk and 4Wk
-                      upperBound = 4;
-                      break;
-                    case 4:
-                      // In between 4Wk and 6Wk
-                      upperBound = 6;
-                      break;
-                    case 6:
-                      // In between 6Wk and 10Wk
-                      upperBound = 10;
-                      break;
-                    case 10:
-                      // In between 10Wk and 15Wk
-                      upperBound = 15;
-                      break;
-                    case 15:
-                      // In between 50Wk and 20Wk
-                      upperBound = 20;
-                      break;
-                    case 20:
-                      // In between 20Wk and 40Wk
-                      upperBound = 40;
-                      break;
-                    case 40:
-                      // In between 40Wk and 60Wk
-                      upperBound = 60;
-                      break;
-                    case 60:
-                      // In between 60Wk and 80Wk
-                      upperBound = 80;
-                      break;
-                    case 80:
-                      // In between 80Wk and 100Wk
-                      upperBound = 100;
-                      break;
-                    case 100:
-                      // In between 100Wk and 150Wk
-                      upperBound = 150;
-                      break;
-                    case 150:
-                      // In between 150Wk and 200Wk
-                      upperBound = 200;
-                      break;
-                    default:
-                      // Default case. Exiting function.
-                      return;
-                  }
-                  for (let i = endOfArr; i >= endOfArr - upperBound + 1; i -= 1) {
-                    if (user.savedTangibleHrs[i] >= bdge.hrs) {
-                      streak += 1;
-                    }
-                  }
-                  if (streak > lowerBound && streak < upperBound) {
-                    higherBadge = false;
-                    console.log('You are currently building an existing streak, no badge awarded.');
-                  } else {
-                    console.log('You are currently building a new streak, new badge awarded');
-                    increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType._id));
-                    removePrevHrBadge(personId, user, badgeCollection, bdge.hrs, bdge.weeks);
-                  }
-                }
-                return false;
-              }
-            }
-            return true;
-          });
-        });
-      });
-
-    // Handle Increasing the 1 week streak badges
-    if (!higherBadge) await checkXHrsInOneWeek(personId, user, badgeCollection);
+  
+    // 'X Hours for X Week Streak',
+  const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
   };
 
   // 'Lead a team of X+'
@@ -2004,94 +1845,85 @@ const checkPersonalMax = async function (personId, user, badgeCollection) {
   };
 
   // 'Total Hrs in Category'
-  const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
+  
+   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
-    const categories = [
-      'food',
-      'energy',
-      'housing',
-      'education',
-      'society',
-      'economics',
-      'stewardship',
-    ];
-
-    const badgesOfType = badgeCollection
-      .filter((object) => object.badge.type === 'Total Hrs in Category')
-      .map((object) => object.badge);
-
-    categories.forEach(async (category) => {
-      const categoryHrs = Object.keys(hoursByCategory).find((elem) => elem === category);
-
-      let badgeOfType;
-      for (let i = 0; i < badgeCollection.length; i += 1) {
-        if (
-          badgeCollection[i].badge?.type === 'Total Hrs in Category' &&
-          badgeCollection[i].badge?.category === category
-        ) {
-          if (badgeOfType && badgeOfType.totalHrs <= badgeCollection[i].badge.totalHrs) {
-            removeDupBadge(personId, badgeOfType._id);
-            badgeOfType = badgeCollection[i].badge;
-          } else if (badgeOfType && badgeOfType.totalHrs > badgeCollection[i].badge.totalHrs) {
-            removeDupBadge(personId, badgeCollection[i].badge._id);
-          } else if (!badgeOfType) {
-            badgeOfType = badgeCollection[i].badge;
+    const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
+  
+    for (const category of categories) {
+        
+      const categoryHrs = hoursByCategory[category];
+        
+      const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
+      const badgesInCat = badgeCollection.filter(
+        (obj) => obj.badge?.type === 'Total Hrs in Category' && obj.badge?.category === newCatg
+      );
+  
+      let badgeOfType = badgesInCat.length ? badgesInCat[0].badge : null;
+  
+      // Only process one badge per category
+      for (const current of badgesInCat) {
+        const currBadge = current.badge;
+  
+        if (current.count > 1) {
+          console.log(`Decreasing count for badge ${currBadge._id}`);
+          decreaseBadgeCount(personId, currBadge._id);
+          console.log(`Adding badge ${currBadge._id}`);
+          addBadge(personId, currBadge._id);
+          badgeOfType = currBadge;
+          break;
+        } else if (badgeOfType && badgeOfType.totalHrs > currBadge.totalHrs) {
+          console.log(`Removing lower badge ${currBadge._id}`);
+          removeDupBadge(personId, currBadge._id);
+        } else if (!badgeOfType) {
+          badgeOfType = currBadge;
+        }
+      }
+  
+        
+      const results = await badge
+        .find({ type: 'Total Hrs in Category', category: newCatg })
+        .sort({ totalHrs: -1 });
+  
+      if (!Array.isArray(results) || !results.length || !categoryHrs) {
+        console.log(`No valid badge results or category hours missing for ${newCatg}`);
+        continue;
+      }
+  
+      for (const elem of results) {
+        if (categoryHrs >= 100 && categoryHrs >= elem.totalHrs) {
+          //console.log(`Badge criteria met for ${newCatg}, checking badges...`);
+  
+          const alreadyHas = badgesInCat.find(b => b.badge._id.toString() === elem._id.toString());
+  
+          if (alreadyHas) {
+            console.log(`Increasing badge count for ${elem._id}`);
+            increaseBadgeCount(personId, elem._id);
+            break;
+          }
+  
+          if (badgeOfType && badgeOfType.totalHrs < elem.totalHrs) {
+            console.log(`Replacing badge ${badgeOfType._id} with ${elem._id}`);
+            replaceBadge(personId, badgeOfType._id, elem._id);
+            break;
+          }
+  
+          if (!badgeOfType) {
+            console.log(`Adding new badge ${elem._id}`);
+            addBadge(personId, elem._id);
+            break;
           }
         }
       }
-
-      const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
-
-      await badge
-        .find({ type: 'Total Hrs in Category', category: newCatg })
-
-        .sort({ totalHrs: -1 })
-        .then((results) => {
-          if (!Array.isArray(results) || !results.length || !categoryHrs) {
-            return;
-          }
-
-          results.every((elem) => {
-            if (
-              hoursByCategory[categoryHrs] >= 100 &&
-              hoursByCategory[categoryHrs] >= elem.totalHrs
-            ) {
-              let theBadge;
-              for (let i = 0; i < badgesOfType.length; i += 1) {
-                if (badgesOfType[i]._id.toString() === elem._id.toString()) {
-                  theBadge = badgesOfType[i]._id;
-                  break;
-                }
-              }
-              if (theBadge) {
-                increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
-                return false;
-              }
-              if (badgeOfType) {
-                if (
-                  badgeOfType._id.toString() !== elem._id.toString() &&
-                  badgeOfType.totalHrs < elem.totalHrs
-                ) {
-                  replaceBadge(
-                    personId,
-                    mongoose.Types.ObjectId(badgeOfType._id),
-                    mongoose.Types.ObjectId(elem._id),
-                  );
-                }
-                return false;
-              }
-              addBadge(personId, mongoose.Types.ObjectId(elem._id));
-              return false;
-            }
-            return true;
-          });
-        });
-    });
+    }
   };
+  
+  
+
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({email:"shraddha.owner@gmail.com" }).populate('badgeCollection.badge');
+      const users = await userProfile.find({email: "yourEmail@gmail.com"}).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
