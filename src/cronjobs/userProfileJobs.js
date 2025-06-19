@@ -11,7 +11,6 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0; // will change back to 0 after fix
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        console.log('[CRON DEBUG] Testing ONLY email function...');
         await userhelper.getProfileImagesFromWebsite();
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();
