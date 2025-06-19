@@ -430,8 +430,8 @@ const overviewReportHelper = function () {
         },
       ]);
       const data = {};
-      data.current = res[0].current[0].activeTeams;
-      data.comparison = res[0].comparison[0].activeTeams;
+      data.current = res[0]?.current[0]?.activeTeams || 0;
+      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
       data.percentage = calculateGrowthPercentage(data.current, data.comparison);
       return data;
     }
@@ -447,7 +447,7 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    return { current: res[0].activeTeams };
+    return { current: res[0]?.activeTeams || 0 };
   }
 
   /**

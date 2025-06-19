@@ -326,10 +326,7 @@ const userHelper = function () {
           emails.push(email);
         }
 
-        // weeklySummaries array will have only one item fetched (if present),
-        // consequently totalSeconds array will also have only one item in the array (if present)
-        // hence totalSeconds[0] should be used
-        const hoursLogged = result.totalSeconds[0] / 3600 || 0;
+        const hoursLogged = result.totalSeconds[weekIndex] / 3600 || 0;
 
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
         const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
@@ -843,8 +840,9 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
-              null,
-              [...new Set([...emailsBCCs, 'onecommunityglobal@gmail.com'])],
+              ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+              status.email,
+              [...new Set([...emailsBCCs])],
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -1263,10 +1261,10 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
         emailAddress,
         // Don't change this is to CC!
-        [...new Set([...bccEmails, 'onecommunityglobal@gmail.com', "jae@onecommunityglobal.org"])],
+        [...new Set([...bccEmails])],
       );
     });
   };
@@ -2423,6 +2421,39 @@ const userHelper = function () {
     return false;
   }
 
+  async function getCurrentTeamCode(teamId) {
+    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+  
+    const result = await userProfile.aggregate([
+      { $match: { teams: mongoose.Types.ObjectId(teamId), isActive: true } },
+      { $limit: 1 },
+      { $project: { teamCode: 1 } },
+    ]);
+  
+    return result.length > 0 ? result[0].teamCode : null;
+  }
+  
+  async function checkTeamCodeMismatch(user) {
+    try{
+        if (!user || !user.teams.length) {
+            return false
+        };
+  
+        const latestTeamId = user.teams[0];
+        const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
+        if (!teamCodeFromFirstActive) {
+            return false
+        };
+      
+        return teamCodeFromFirstActive !== user.teamCode;
+    } catch(error) {
+        logger.logException(error);
+        return false;
+    }
+
+  }
+  
+
   async function imageUrlToPngBase64(url, maxSizeKB = 45) {
     try {
       // Fetch the image as a buffer
@@ -2551,6 +2582,7 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
+    checkTeamCodeMismatch
   };
 };
 
