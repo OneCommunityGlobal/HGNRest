@@ -1,6 +1,7 @@
 const moment = require('moment');
+const mongoose = require('mongoose');
 
-const injuriesController = (injury) => {
+const injuriesController = (Injury) => {
   /**
    * Get injuries over time with filters
    * @param {Object} req - Express request object
@@ -17,14 +18,21 @@ const injuriesController = (injury) => {
         });
       }
 
-      // Build the filter object
+      // If projectId is not 'all', validate and filter by projectId
       const filter = {
-        projectId: projectId,
         date: {
           $gte: new Date(startDate),
           $lte: new Date(endDate)
         }
       };
+      if (projectId !== 'all') {
+        if (!mongoose.Types.ObjectId.isValid(projectId)) {
+          return res.status(400).json({
+            error: 'Invalid projectId. Must be a 24-character hex string or "all".'
+          });
+        }
+        filter.projectId = mongoose.Types.ObjectId(projectId);
+      }
 
       // Add optional filters
       if (types) {
@@ -42,15 +50,15 @@ const injuriesController = (injury) => {
         filter.severity = { $in: sevArray };
       }
 
-      // Aggregate injuries by date
-      const injuriesData = await injury.aggregate([
+      // Aggregate injuries by date, summing the 'count' field
+      const injuriesData = await Injury.aggregate([
         { $match: filter },
         {
           $group: {
             _id: {
               $dateToString: { format: "%Y-%m-%d", date: "$date" }
             },
-            totalInjuries: { $sum: 1 }
+            totalInjuries: { $sum: "$count" }
           }
         },
         {
@@ -89,7 +97,7 @@ const injuriesController = (injury) => {
       res.json(completeData);
     } catch (error) {
       console.error('Error fetching injuries over time:', error);
-      res.status(500).json({ error: 'Failed to fetch injuries data' });
+      res.status(500).json({ error: 'Failed to fetch injuries data', details: error.message });
     }
   };
 
@@ -100,8 +108,9 @@ const injuriesController = (injury) => {
    */
   const getFilterOptions = async (req, res) => {
     try {
+      // Expanded filter options to include 'Carpentry' and more if needed
       const injuryTypes = ['Cut', 'Burn', 'Fall', 'Strain', 'Fracture', 'Bruise', 'Other'];
-      const departments = ['Plumbing', 'Electrical', 'Structural', 'Mechanical', 'General'];
+      const departments = ['Plumbing', 'Electrical', 'Structural', 'Mechanical', 'General', 'Carpentry'];
       const severityLevels = ['Minor', 'Moderate', 'Severe', 'Critical'];
 
       res.json({
@@ -123,18 +132,15 @@ const injuriesController = (injury) => {
   const createInjury = async (req, res) => {
     try {
       const injuryData = req.body;
-      
       // Validate required fields
       if (!injuryData.projectId || !injuryData.date || !injuryData.injuryType || 
-          !injuryData.department || !injuryData.severity) {
+          !injuryData.department || !injuryData.severity || typeof injuryData.count !== 'number') {
         return res.status(400).json({
-          error: 'Missing required fields: projectId, date, injuryType, department, and severity are required'
+          error: 'Missing required fields: projectId, date, injuryType, department, severity, and count are required'
         });
       }
-
-      const newInjury = new injury(injuryData);
+      const newInjury = new Injury(injuryData);
       await newInjury.save();
-
       res.status(201).json({
         success: true,
         data: newInjury
@@ -153,13 +159,7 @@ const injuriesController = (injury) => {
   const getProjectInjuries = async (req, res) => {
     try {
       const { projectId } = req.params;
-      
-      const injuries = await injury.find({ projectId })
-        .populate('employeeId', 'firstName lastName')
-        .populate('reportedBy', 'firstName lastName')
-        .sort({ date: -1 })
-        .lean();
-
+      const injuries = await Injury.find({ projectId }).sort({ date: -1 }).lean();
       res.json({
         success: true,
         data: injuries

@@ -6,46 +6,29 @@ const injurySchema = new mongoose.Schema({
     ref: 'buildingProject',
     required: true
   },
+  projectName: {
+    type: String
+  },
   date: {
     type: Date,
     required: true
   },
   injuryType: {
     type: String,
-    required: true,
-    enum: ['Cut', 'Burn', 'Fall', 'Strain', 'Fracture', 'Bruise', 'Other']
+    required: true
   },
   department: {
     type: String,
-    required: true,
-    enum: ['Plumbing', 'Electrical', 'Structural', 'Mechanical', 'General']
+    required: true
   },
   severity: {
     type: String,
-    required: true,
-    enum: ['Minor', 'Moderate', 'Severe', 'Critical']
+    required: true
   },
-  description: {
-    type: String
-  },
-  employeeId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'userProfile'
-  },
-  reportedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'userProfile'
-  },
-  treatmentRequired: {
-    type: Boolean,
-    default: false
-  },
-  daysLost: {
+  count: {
     type: Number,
-    default: 0
+    required: true
   }
-}, {
-  timestamps: true
 });
 
 // Indexes for better query performance
@@ -54,4 +37,4 @@ injurySchema.index({ injuryType: 1 });
 injurySchema.index({ department: 1 });
 injurySchema.index({ severity: 1 });
 
-module.exports = mongoose.model('injury', injurySchema);
+module.exports = mongoose.model('Injury', injurySchema, 'injurySeverity');
