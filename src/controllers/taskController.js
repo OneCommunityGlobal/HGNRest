@@ -8,28 +8,44 @@ const emailSender = require('../utilities/emailSender');
 const followUp = require('../models/followUp');
 
 const taskController = function (Task) {
-  const getTasks = (req, res) => {
-    const { level } = req.params;
+  const getTasks = async (req, res) => {
+    const level = parseInt(req.params.level);
+    const { mother } = req.params;
 
     let query = {
       wbsId: { $in: [req.params.wbsId] },
-      level: { $in: [level] },
+      level: level,
       isActive: { $ne: false },
     };
 
-    const { mother } = req.params;
-
-    if (mother !== '0') {
-      query = {
-        wbsId: { $in: [req.params.wbsId] },
-        level: { $in: [level] },
-        mother: { $in: [mother] },
-      };
+    // Handle mother parameter
+    if (mother && mother !== 'null' && mother !== '0') {
+      query.mother = mother;
+    } else if (mother === 'null' || mother === '0') {
+      query.mother = null; // Find top-level tasks
     }
 
-    Task.find(query)
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+    try {
+      const results = await Task.find(query);
+      
+      // Add creator information for each task
+      const tasksWithCreator = await Promise.all(
+        results.map(async (task) => {
+          if (task.createdBy) {
+            const creatorName = await taskHelper.getUserProfileFirstAndLastName(task.createdBy);
+            task.creatorName = creatorName !== ' ' ? creatorName : 'Unknown';
+          } else {
+            task.creatorName = 'Unknown';
+          }
+          return task;
+        })
+      );
+
+      res.status(200).send(tasksWithCreator);
+    } catch (error) {
+      console.error('Error in getTasks:', error);
+      res.status(404).send(error);
+    }
   };
 
   const getWBSId = (req, res) => {
@@ -416,6 +432,7 @@ const taskController = function (Task) {
         wbsId,
         createdDatetime,
         modifiedDatetime,
+        createdBy: req.body.requestor.requestorId, // Add creator information
       });
 
       _task
@@ -441,6 +458,10 @@ const taskController = function (Task) {
     }
 
     const wbsId = req.params.id;
+    if (!wbsId) {
+      return res.status(400).send({ error: 'WBS ID is required' });
+    }
+
     const task = req.body;
     const createdDatetime = Date.now();
     const modifiedDatetime = Date.now();
@@ -458,6 +479,10 @@ const taskController = function (Task) {
         }
 
         level = parentTask.level + 1;
+        if (level > 4) {
+          return res.status(400).send({ error: 'Maximum task level (4) exceeded.' });
+        }
+
         // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
@@ -470,6 +495,7 @@ const taskController = function (Task) {
           .join('.');
         num = baseNum ? `${baseNum}.${nextIndex}` : `${nextIndex}`;
       } else {
+        // This is a top-level task
         const topTasks = await Task.find({ wbsId, level: 1 });
         const nextTopNum = topTasks.length
           ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
@@ -480,10 +506,12 @@ const taskController = function (Task) {
       const _task = new Task({
         ...task,
         wbsId,
-        num, // Assign calculated num
+        num,
         level,
         createdDatetime,
         modifiedDatetime,
+        createdBy: req.body.requestor.requestorId,
+        mother: parentId || null // Ensure top-level tasks have null mother field
       });
 
       const saveTask = _task.save();
@@ -500,7 +528,9 @@ const taskController = function (Task) {
       });
 
       Promise.all([saveTask, saveWbs, saveProject])
-        .then((results) => res.status(201).send(results[0])) // send task with generated num
+        .then((results) => {
+          res.status(201).send(results[0]);
+        })
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -846,6 +876,14 @@ const taskController = function (Task) {
       task.resources.forEach((resource, index) => {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
+
+      // Fetch creator information if createdBy exists
+      if (task.createdBy) {
+        const creatorName = await taskHelper.getUserProfileFirstAndLastName(task.createdBy);
+        task.creatorName = creatorName !== ' ' ? creatorName : 'Unknown';
+      } else {
+        task.creatorName = 'Unknown';
+      }
 
       return res.status(200).send(task);
     } catch (error) {
