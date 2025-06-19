@@ -1285,6 +1285,23 @@ const userHelper = function () {
     );
   };
 
+
+  const decreaseBadgeCount = async function (personId, badgeId) {
+    try {
+        const result = await userProfile.updateOne(
+            { _id: personId, 'badgeCollection.badge': badgeId,},
+            {
+                $inc: { 'badgeCollection.$.count': -1 },
+                $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
+            }
+        );
+      
+    } catch (error) {
+        console.error("Error decrementing badge count:", error);
+    }
+  };
+
+  
   const removeDupBadge = async function (personId, badgeId) {
     userProfile.findByIdAndUpdate(
       personId,
