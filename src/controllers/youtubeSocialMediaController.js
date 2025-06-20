@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { google } = require('googleapis');
 const { getYoutubeAccountById } = require('../utilities/youtubeAccountUtil');
-const ScheduledYoutubeUpload = require('../models/scheduledYoutubeUpload');
 const YoutubeUploadHistory = require('../models/youtubeUploadHistory');
 
 // Read sensitive config from environment variables
@@ -35,8 +34,7 @@ const youtubeUploadController = () => {
         description,
         tags,
         categoryId,
-        privacyStatus,
-        scheduledTime
+        privacyStatus
       } = req.body;
 
       if (!youtubeAccountId) {
@@ -61,47 +59,7 @@ const youtubeUploadController = () => {
         });
       }
 
-      const filePath = req.file.path;
-
-      // If scheduled upload
-      if (scheduledTime) {
-        const scheduledDate = new Date(scheduledTime);
-        if (scheduledDate < new Date()) {
-          return res.status(400).json({ error: 'Scheduled time cannot be earlier than current time' });
-        }
-
-        // Create scheduled upload task
-        const scheduledUpload = new ScheduledYoutubeUpload({
-          youtubeAccountId,
-          videoPath: filePath,
-          title,
-          description,
-          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-          privacyStatus: privacyStatus || 'private',
-          scheduledTime: scheduledDate
-        });
-
-        await scheduledUpload.save();
-
-        // Record in history
-        await YoutubeUploadHistory.create({
-          youtubeAccountId,
-          title,
-          description,
-          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-          privacyStatus: privacyStatus || 'private',
-          status: 'scheduled',
-          scheduledTime: scheduledDate
-        });
-
-        return res.status(200).json({
-          message: 'Video scheduled successfully',
-          scheduledTime: scheduledDate,
-          uploadId: scheduledUpload._id
-        });
-      }
-
-      // Immediate upload
+      // Use refresh token to automatically get access token
       const oauth2Client = new google.auth.OAuth2(
         account.clientId,
         account.clientSecret,
@@ -111,6 +69,8 @@ const youtubeUploadController = () => {
       await oauth2Client.getAccessToken();
 
       const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+      const filePath = req.file.path;
       const videoStream = fs.createReadStream(filePath);
 
       console.log('Uploading to YouTube with details:', {
@@ -150,7 +110,7 @@ const youtubeUploadController = () => {
 
       console.log('YouTube response:', response.data);
 
-      // Store upload history in database with enhanced details
+      // Store upload history in database
       const uploadHistory = new YoutubeUploadHistory({
         youtubeAccountId,
         videoId: response.data.id,
@@ -165,8 +125,7 @@ const youtubeUploadController = () => {
         thumbnailUrl: response.data.snippet.thumbnails?.default?.url,
         uploadedBy: requestor.requestorId,
         youtubeUrl: `https://www.youtube.com/watch?v=${response.data.id}`,
-        status: 'completed',
-        uploadTime: new Date()
+        status: response.data.status.uploadStatus
       });
 
       await uploadHistory.save();
@@ -178,20 +137,6 @@ const youtubeUploadController = () => {
       });
     } catch (error) {
       console.error('Upload error:', error);
-      
-      // Record failed upload in history
-      if (req.body.youtubeAccountId && req.body.title) {
-        await YoutubeUploadHistory.create({
-          youtubeAccountId: req.body.youtubeAccountId,
-          title: req.body.title,
-          description: req.body.description,
-          tags: req.body.tags ? req.body.tags.split(',').map(tag => tag.trim()) : [],
-          privacyStatus: req.body.privacyStatus || 'private',
-          status: 'failed',
-          error: error.message
-        });
-      }
-      
       res.status(500).json({ 
         error: 'Upload failed', 
         details: error.message,
@@ -249,7 +194,7 @@ const youtubeUploadController = () => {
         // If no account found, assume it might be a test account or fallback for any other reason.
         console.log(`No real account found for "${youtubeAccountId}". Falling back to database history.`);
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadTime: -1 })
+          .sort({ uploadDate: -1 })
           .limit(25);
         
         return res.status(200).json(history);
@@ -258,7 +203,7 @@ const youtubeUploadController = () => {
         console.log('YouTube API failed or other error, falling back to database:', apiError.message);
         // Fallback to database
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadTime: -1 })
+          .sort({ uploadDate: -1 })
           .limit(25);
         
         res.status(200).json(history);
