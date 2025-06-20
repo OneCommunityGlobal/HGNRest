@@ -63,6 +63,14 @@ const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
 
+const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing')
+
+const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid')
+
+const bidoverview_User = require('../models/lbdashboard/bidoverview/User')
+
+const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification')
+
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
@@ -168,9 +176,15 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+//lbdashboard_bidoverview
+
+const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
+const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(bidoverview_Bid, bidoverview_Listing, bidoverview_User, bidoverview_Notification);
+
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -181,6 +195,7 @@ const collaborationRouter=require('../routes/collaborationRouter');
 const tagRouter = require('../routes/tagRouter')(tag);
 
 const youtubeAccountRouter = require('../routes/youtubeAccountRouter');
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -250,6 +265,8 @@ module.exports = function (app) {
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
+  app.use('/api/lb', bidPropertyRouter);
+  app.use('/api/lb', userBidRouter);
 
   app.use('/api', youtubeSocialMediaRouter);
   app.use('/api', registrationRouter);
