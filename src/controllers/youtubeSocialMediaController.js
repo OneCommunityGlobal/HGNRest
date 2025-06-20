@@ -165,7 +165,8 @@ const youtubeUploadController = () => {
         thumbnailUrl: response.data.snippet.thumbnails?.default?.url,
         uploadedBy: requestor.requestorId,
         youtubeUrl: `https://www.youtube.com/watch?v=${response.data.id}`,
-        status: response.data.status.uploadStatus
+        status: response.data.status.uploadStatus || 'completed',
+        uploadTime: new Date()
       });
 
       await uploadHistory.save();
@@ -190,7 +191,6 @@ const youtubeUploadController = () => {
           error: error.message
         });
       }
-      
       res.status(500).json({ 
         error: 'Upload failed', 
         details: error.message,
@@ -248,7 +248,7 @@ const youtubeUploadController = () => {
         // If no account found, assume it might be a test account or fallback for any other reason.
         console.log(`No real account found for "${youtubeAccountId}". Falling back to database history.`);
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadDate: -1 })
+          .sort({ uploadTime: -1 })
           .limit(25);
         
         return res.status(200).json(history);
@@ -257,7 +257,7 @@ const youtubeUploadController = () => {
         console.log('YouTube API failed or other error, falling back to database:', apiError.message);
         // Fallback to database
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadDate: -1 })
+          .sort({ uploadTime: -1 })
           .limit(25);
         
         res.status(200).json(history);

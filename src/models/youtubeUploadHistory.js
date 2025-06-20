@@ -25,7 +25,7 @@ const youtubeUploadHistorySchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// 创建复合索引
+
 youtubeUploadHistorySchema.index({ youtubeAccountId: 1, uploadTime: -1 });
 
 youtubeUploadHistorySchema.pre('save', function(next) {
