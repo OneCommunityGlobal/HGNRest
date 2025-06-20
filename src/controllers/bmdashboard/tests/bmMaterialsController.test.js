@@ -21,20 +21,6 @@ const bmMaterialsController = require('../bmMaterialsController')(
 );
 
 describe('bmMaterialsController', () => {
-  let mongoServer;
-
-  beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    await mongoose.connect(mongoServer.getUri());
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect();
-    if (mongoServer && typeof mongoServer.stop === 'function') {
-      await mongoServer.stop();
-    }
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
   });
