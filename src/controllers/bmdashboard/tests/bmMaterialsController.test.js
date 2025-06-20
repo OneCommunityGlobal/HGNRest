@@ -30,7 +30,9 @@ describe('bmMaterialsController', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer && typeof mongoServer.stop === 'function') {
+      await mongoServer.stop();
+    }
   });
 
   beforeEach(() => {
