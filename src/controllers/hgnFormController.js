@@ -43,7 +43,7 @@ const hgnFormController = function () {
       await question.save();
       res.status(201).json(question);
     } catch (err) {
-      res.status(500).json({ error: 'Failed to create question: ' + err.message });
+      res.status(500).json({ error: `Failed to create question: ${  err.message}` });
     }
   };
 
@@ -63,7 +63,7 @@ const hgnFormController = function () {
 
       res.json(updatedQuestion);
     } catch (err) {
-      res.status(500).json({ error: 'Failed to update question: ' + err.message });
+      res.status(500).json({ error: `Failed to update question: ${  err.message}` });
     }
   };
   const deleteQuestion = async function (req, res) {
@@ -76,7 +76,7 @@ const hgnFormController = function () {
 
       res.json({ message: 'Question deleted successfully' });
     } catch (err) {
-      res.status(500).json({ error: 'Failed to delete question: ' + err.message });
+      res.status(500).json({ error: `Failed to delete question: ${  err.message}` });
     }
   };
   return {

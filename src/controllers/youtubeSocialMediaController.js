@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { google } = require('googleapis');
 const { getYoutubeAccountById } = require('../utilities/youtubeAccountUtil');
-const ScheduledYoutubeUpload = require('../models/scheduledYoutubeUpload');
 const YoutubeUploadHistory = require('../models/youtubeUploadHistory');
+const ScheduledYoutubeUpload = require('../models/scheduledYoutubeUpload');
 
 // Read sensitive config from environment variables
 const CLIENT_ID = process.env.YT_CLIENT_ID;
@@ -20,7 +20,7 @@ const youtubeUploadController = () => {
       console.log('Body:', req.body);
 
       // Only allow Owner to upload
-      const requestor = req.requestor;
+      const {requestor} = req;
       if (!requestor || requestor.role !== 'Owner') {
         return res.status(403).json({ error: 'Only Owner can upload videos to YouTube' });
       }
@@ -35,8 +35,7 @@ const youtubeUploadController = () => {
         description,
         tags,
         categoryId,
-        privacyStatus,
-        scheduledTime
+        privacyStatus
       } = req.body;
 
       if (!youtubeAccountId) {
@@ -61,47 +60,7 @@ const youtubeUploadController = () => {
         });
       }
 
-      const filePath = req.file.path;
-
-      // If scheduled upload
-      if (scheduledTime) {
-        const scheduledDate = new Date(scheduledTime);
-        if (scheduledDate < new Date()) {
-          return res.status(400).json({ error: 'Scheduled time cannot be earlier than current time' });
-        }
-
-        // Create scheduled upload task
-        const scheduledUpload = new ScheduledYoutubeUpload({
-          youtubeAccountId,
-          videoPath: filePath,
-          title,
-          description,
-          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-          privacyStatus: privacyStatus || 'private',
-          scheduledTime: scheduledDate
-        });
-
-        await scheduledUpload.save();
-
-        // Record in history
-        await YoutubeUploadHistory.create({
-          youtubeAccountId,
-          title,
-          description,
-          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-          privacyStatus: privacyStatus || 'private',
-          status: 'scheduled',
-          scheduledTime: scheduledDate
-        });
-
-        return res.status(200).json({
-          message: 'Video scheduled successfully',
-          scheduledTime: scheduledDate,
-          uploadId: scheduledUpload._id
-        });
-      }
-
-      // Immediate upload
+      // Use refresh token to automatically get access token
       const oauth2Client = new google.auth.OAuth2(
         account.clientId,
         account.clientSecret,
@@ -111,6 +70,8 @@ const youtubeUploadController = () => {
       await oauth2Client.getAccessToken();
 
       const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+      const filePath = req.file.path;
       const videoStream = fs.createReadStream(filePath);
 
       console.log('Uploading to YouTube with details:', {
@@ -165,8 +126,7 @@ const youtubeUploadController = () => {
         thumbnailUrl: response.data.snippet.thumbnails?.default?.url,
         uploadedBy: requestor.requestorId,
         youtubeUrl: `https://www.youtube.com/watch?v=${response.data.id}`,
-        status: response.data.status.uploadStatus || 'completed',
-        uploadTime: new Date()
+        status: response.data.status.uploadStatus
       });
 
       await uploadHistory.save();
@@ -178,19 +138,6 @@ const youtubeUploadController = () => {
       });
     } catch (error) {
       console.error('Upload error:', error);
-      
-      // Record failed upload in history
-      if (req.body.youtubeAccountId && req.body.title) {
-        await YoutubeUploadHistory.create({
-          youtubeAccountId: req.body.youtubeAccountId,
-          title: req.body.title,
-          description: req.body.description,
-          tags: req.body.tags ? req.body.tags.split(',').map(tag => tag.trim()) : [],
-          privacyStatus: req.body.privacyStatus || 'private',
-          status: 'failed',
-          error: error.message
-        });
-      }
       res.status(500).json({ 
         error: 'Upload failed', 
         details: error.message,
@@ -248,7 +195,7 @@ const youtubeUploadController = () => {
         // If no account found, assume it might be a test account or fallback for any other reason.
         console.log(`No real account found for "${youtubeAccountId}". Falling back to database history.`);
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadTime: -1 })
+          .sort({ uploadDate: -1 })
           .limit(25);
         
         return res.status(200).json(history);
@@ -257,7 +204,7 @@ const youtubeUploadController = () => {
         console.log('YouTube API failed or other error, falling back to database:', apiError.message);
         // Fallback to database
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadTime: -1 })
+          .sort({ uploadDate: -1 })
           .limit(25);
         
         res.status(200).json(history);
@@ -272,7 +219,40 @@ const youtubeUploadController = () => {
     }
   };
 
-  return { uploadVideo, getUploadHistory };
+  const getScheduledUploads = async (req, res) => {
+    console.log('==== getScheduledUploads controller called ====');
+    try {
+      const { youtubeAccountId } = req.query;
+
+      if (!youtubeAccountId) {
+        return res.status(400).json({ error: 'youtubeAccountId is required' });
+      }
+
+      // Only allow Owner to get scheduled uploads
+      const {requestor} = req;
+      if (!requestor || requestor.role !== 'Owner') {
+        return res.status(403).json({ error: 'Only Owner can get YouTube scheduled uploads' });
+      }
+
+      const scheduledUploads = await ScheduledYoutubeUpload.find({ 
+        youtubeAccountId,
+        status: { $in: ['pending', 'processing'] }
+      })
+        .sort({ scheduledTime: 1 })
+        .limit(25);
+
+      res.status(200).json(scheduledUploads);
+
+    } catch (error) {
+      console.error('Get scheduled uploads error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch scheduled uploads', 
+        details: error.message 
+      });
+    }
+  };
+
+  return { uploadVideo, getUploadHistory, getScheduledUploads };
 };
 
 module.exports = youtubeUploadController;

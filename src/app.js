@@ -5,6 +5,7 @@ const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
 const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
+
 logger.init();
 
 // The request handler must be the first middleware on the app

@@ -1,7 +1,7 @@
-const profileInitialSetupController = require('../profileInitialSetupController');
 const jwt = require('jsonwebtoken');
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const profileInitialSetupController = require('../profileInitialSetupController');
 
 // Mock dependencies
 jest.mock('jsonwebtoken');

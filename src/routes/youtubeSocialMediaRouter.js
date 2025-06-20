@@ -1,7 +1,7 @@
 console.log('youtubeSocialMediaRouter loaded');
+const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 const authMiddleware = require('../middleware/authMiddleware');
 
 const routes = function () {
@@ -10,17 +10,17 @@ const routes = function () {
 
   // Configure multer for video file uploads
   const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
+    destination (req, file, cb) {
       cb(null, 'uploads/');
     },
-    filename: function (req, file, cb) {
+    filename (req, file, cb) {
       cb(null, Date.now() + path.extname(file.originalname));
     }
   });
 
   const upload = multer({
-    storage: storage,
-    fileFilter: function (req, file, cb) {
+    storage,
+    fileFilter (req, file, cb) {
       if (!file.mimetype.startsWith('video/')) {
         return cb(new Error('Only video files are allowed!'), false);
       }
@@ -36,6 +36,9 @@ const routes = function () {
 
   youtubeRouter.route('/youtubeUploadHistory')
     .get(authMiddleware, controller.getUploadHistory);
+
+  youtubeRouter.route('/youtubeScheduledUploads')
+    .get(authMiddleware, controller.getScheduledUploads);
 
   return youtubeRouter;
 };
