@@ -13,6 +13,8 @@ const routes = function (WeeklySummaryEmailAssignment, userProfile) {
 
   WeeklySummaryEmailAssignmentRouter.route('/AssignWeeklySummaryEmail/:id')
     .delete(controller.deleteWeeklySummaryEmailAssignment);
+  WeeklySummaryEmailAssignmentRouter.route('/AssignWeeklySummaryEmail/:id')
+    .put(controller.updateWeeklySummaryEmailAssignment);
 
   return WeeklySummaryEmailAssignmentRouter;
 };

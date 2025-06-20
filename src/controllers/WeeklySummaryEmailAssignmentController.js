@@ -4,7 +4,6 @@ const WeeklySummaryEmailAssignmentController = function (WeeklySummaryEmailAssig
         const assignments = await WeeklySummaryEmailAssignment.find().populate('assignedTo').exec();
         res.status(200).send(assignments);
       } catch (error) {
-        console.log(error);
         res.status(500).send(error);
       }
     };
@@ -57,11 +56,51 @@ const WeeklySummaryEmailAssignmentController = function (WeeklySummaryEmailAssig
         res.status(500).send(error);
       }
     };
+
+    const updateWeeklySummaryEmailAssignment = async function (req, res) {
+      try{
+        const { id } = req.params;
+        const { email } = req.body;
+        
+        if (!id || (!email)) {
+          res.status(400).send('bad request');
+          return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          return res.status(400).json({
+            error: 'Invalid email format'
+          });
+        }
+        
+        const updateAssignment = await WeeklySummaryEmailAssignment.findOneAndUpdate(
+          { _id: id },
+          { 
+            email,
+          },
+          {
+            new: true
+          }
+        );
+        
+        if (!updateAssignment) {
+          res.status(404).send('Assignment not found');
+          return;
+        }
+        
+        res.status(200).send(updateAssignment);
+
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    };
   
     return {
       getWeeklySummaryEmailAssignment,
       setWeeklySummaryEmailAssignment,
       deleteWeeklySummaryEmailAssignment,
+      updateWeeklySummaryEmailAssignment
     };
   };
   
