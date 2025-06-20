@@ -34,6 +34,9 @@ const routes = function () {
   youtubeRouter.route('/uploadYtVideo')
     .post(authMiddleware, upload.single('video'), controller.uploadVideo);
 
+  youtubeRouter.route('/youtubeUploadHistory')
+    .get(authMiddleware, controller.getUploadHistory);
+
   return youtubeRouter;
 };
 
