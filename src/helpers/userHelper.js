@@ -326,10 +326,7 @@ const userHelper = function () {
           emails.push(email);
         }
 
-        // weeklySummaries array will have only one item fetched (if present),
-        // consequently totalSeconds array will also have only one item in the array (if present)
-        // hence totalSeconds[0] should be used
-        const hoursLogged = result.totalSeconds[0] / 3600 || 0;
+        const hoursLogged = result.totalSeconds[weekIndex] / 3600 || 0;
 
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
         const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
