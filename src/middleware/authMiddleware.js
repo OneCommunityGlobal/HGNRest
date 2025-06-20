@@ -3,13 +3,13 @@ const moment = require('moment');
 const config = require('../config');
 
 module.exports = function (req, res, next) {
-  console.log('==== authMiddleware called ====');
-  console.log('=== Auth Middleware Start ===');
-  console.log('Request URL:', req.originalUrl);
-  console.log('Request Method:', req.method);
-  console.log('HEADERS:', req.headers);
-  console.log('Authorization header:', req.header('Authorization'));
-  console.log('JWT_SECRET:', config.JWT_SECRET);
+  // console.log('==== authMiddleware called ====');
+  // console.log('=== Auth Middleware Start ===');
+  // console.log('Request URL:', req.originalUrl);
+  // console.log('Request Method:', req.method);
+  // console.log('HEADERS:', req.headers);
+  // console.log('Authorization header:', req.header('Authorization'));
+  // console.log('JWT_SECRET:', config.JWT_SECRET);
   
   const authHeader = req.header('Authorization');
   console.log('Auth Header:', authHeader ? 'Present' : 'Missing');

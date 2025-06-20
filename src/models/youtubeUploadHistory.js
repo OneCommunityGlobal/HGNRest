@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const youtubeUploadHistorySchema = new mongoose.Schema({
   youtubeAccountId: { type: String, required: true, index: true },
-  videoId: { type: String, required: true, unique: true },
+  videoId: { type: String, unique: true },
   title: { type: String, required: true },
   description: { type: String },
   tags: [{ type: String }],
@@ -13,12 +13,24 @@ const youtubeUploadHistorySchema = new mongoose.Schema({
   publishedAt: { type: Date },
   thumbnailUrl: { type: String },
   uploadedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-  uploadDate: { type: Date, default: Date.now },
+  uploadTime: { type: Date, default: Date.now },
   youtubeUrl: { type: String },
-  status: { type: String, enum: ['uploaded', 'processing', 'failed'], default: 'uploaded' }
+  status: { 
+    type: String, 
+    enum: ['completed', 'failed', 'scheduled', 'uploaded', 'processing'],
+    default: 'completed'
+  },
+  error: { type: String },
+  scheduledTime: { type: Date },
+  updatedAt: { type: Date, default: Date.now }
 });
 
 // 创建复合索引
-youtubeUploadHistorySchema.index({ youtubeAccountId: 1, uploadDate: -1 });
+youtubeUploadHistorySchema.index({ youtubeAccountId: 1, uploadTime: -1 });
+
+youtubeUploadHistorySchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
 
 module.exports = mongoose.model('YoutubeUploadHistory', youtubeUploadHistorySchema); 
