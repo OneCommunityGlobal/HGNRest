@@ -4,7 +4,7 @@ const bmMaterialsController = require('../bmMaterialsController');
 
 // Mock mongoose models
 const mockExec = jest.fn();
-const mockThen = jest.fn().mockImplementation(function (callback) {
+const mockThen = jest.fn().mockImplementation((callback) => {
   callback();
   return { catch: jest.fn() };
 });
@@ -43,19 +43,17 @@ describe('bmMaterialsController', () => {
     it('should fetch and return materials list', async () => {
       const mockResults = [{ name: 'Cement', quantity: 100 }];
       // Fix the chaining of populate calls
-      mockPopulate.mockImplementation(function () {
-        return {
+      mockPopulate.mockImplementation(() => ({
           populate: mockPopulate,
-          exec: function () {
+          exec () {
             return {
-              then: function (callback) {
+              then (callback) {
                 callback(mockResults);
                 return { catch: mockCatch };
               },
             };
           },
-        };
-      });
+        }));
 
       const req = {};
       const res = {
@@ -74,13 +72,11 @@ describe('bmMaterialsController', () => {
 
     it('should handle errors during fetch', async () => {
       const mockError = new Error('Database error');
-      mockThen.mockImplementation(function () {
-        return {
-          catch: function (callback) {
+      mockThen.mockImplementation(() => ({
+          catch (callback) {
             callback(mockError);
           },
-        };
-      });
+        }));
 
       const req = {};
       const res = {
@@ -99,14 +95,12 @@ describe('bmMaterialsController', () => {
   describe('bmPurchaseMaterials', () => {
     it('should create a new material if not found', async () => {
       mockFindOne.mockResolvedValue(null);
-      mockCreate.mockImplementation(() => {
-        return {
-          then: function (callback) {
+      mockCreate.mockImplementation(() => ({
+          then (callback) {
             callback();
             return { catch: jest.fn() };
           },
-        };
-      });
+        }));
 
       const req = {
         body: {
@@ -142,7 +136,7 @@ describe('bmMaterialsController', () => {
 
       mockFindOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockReturnValue({
-          then: jest.fn().mockImplementation(function (callback) {
+          then: jest.fn().mockImplementation((callback) => {
             callback();
             return { catch: jest.fn() };
           }),
@@ -203,7 +197,7 @@ describe('bmMaterialsController', () => {
   describe('bmPostMaterialUpdateRecord', () => {
     it('should update material stock and add update record', async () => {
       mockUpdateOne.mockReturnValue({
-        then: function (callback) {
+        then (callback) {
           callback({ nModified: 1 });
           return { catch: jest.fn() };
         },

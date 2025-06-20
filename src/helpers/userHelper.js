@@ -13,6 +13,9 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
+const cheerio = require('cheerio');
+const axios=require('axios');
+const sharp = require("sharp");
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
@@ -29,9 +32,6 @@ const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 const fs = require('fs');
-const cheerio = require('cheerio');
-const axios=require('axios');
-const sharp = require("sharp");
 const Team=require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 
@@ -1823,7 +1823,7 @@ const userHelper = function () {
 
         // Loop through badgeCollection to find and handle replacements or downgrades
         for (let j = badgeCollection.length - 1; j >= 0; j--) {
-            let lastBadge = badgeCollection[j];
+            const lastBadge = badgeCollection[j];
 
 
             if (!lastBadge || !lastBadge.badge) {
@@ -1872,9 +1872,9 @@ const userHelper = function () {
     const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
     const approvedRoles = ['Mentor', 'Manager'];
     if (!approvedRoles.includes(user.role)) return;
-    var teams=await getAllTeamMembers(personId);
+    const teams=await getAllTeamMembers(personId);
     // Calculate total unique non-leader members across all teams
-    let uniqueMembers = new Set();
+    const uniqueMembers = new Set();
     let totalNonLeaderMembers = 0;
 
     teams.forEach(team => {
@@ -2020,7 +2020,7 @@ const userHelper = function () {
   const getAllTeamMembers = async (userId) => {
     try {
         // Add match stage to filter teams containing the specified user
-        let results = await Team.aggregate([
+        const results = await Team.aggregate([
             {
                 $match: {
                     'members.userId': mongoose.Types.ObjectId(userId)
@@ -2120,7 +2120,7 @@ const userHelper = function () {
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
         await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        //remove cache after badge asssignment.
+        // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
         }
@@ -2350,8 +2350,8 @@ const userHelper = function () {
     const lowerCaseTerm1 = term1.toLowerCase();
     const lowerCaseTerm2 = term2.toLowerCase();
 
-    let bothTermsMatches = [];
-    let term2Matches = [];
+    const bothTermsMatches = [];
+    const term2Matches = [];
 
     // Check if the current data is an array
     if (Array.isArray(data)) {
@@ -2374,9 +2374,9 @@ const userHelper = function () {
       //  else if (term2Matches.length > 0) {
       //     return term2Matches;
       // }
-      else {
+      
         return []; // No match found, return empty array
-      }
+      
     }
 
     // Recursion case for nested objects
@@ -2463,7 +2463,7 @@ const userHelper = function () {
         throw new Error(`Failed to fetch the image: ${response.statusText}`);
       }
 
-      let imageBuffer = Buffer.from(response.data);
+      const imageBuffer = Buffer.from(response.data);
 
       let quality = 100; // Start with max quality
       let width = 1200; // Start with a reasonable large width
@@ -2534,7 +2534,7 @@ const userHelper = function () {
       await Promise.all(
         users.map(async (u) => {
           if (!u.profilePic) {
-            var result = searchForTermsInFields(imgData, u.firstName, u.lastName);
+            const result = searchForTermsInFields(imgData, u.firstName, u.lastName);
             try {
               if (result.length === 1) {
                 if (result[0].nitro_src !== undefined && result[0].nitro_src !== null) {

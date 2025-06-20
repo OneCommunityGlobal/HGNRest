@@ -1,5 +1,5 @@
 /* eslint-disable quotes */
-require('dotenv').load();
+require('dotenv').config();
 const { app, logger } = require('./app');
 const websockets = require('./websockets').default;
 require('./startup/db')();

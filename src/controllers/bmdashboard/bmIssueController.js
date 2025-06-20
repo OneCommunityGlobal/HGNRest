@@ -15,7 +15,7 @@ const bmIssueController = function (BuildingIssue) {
     const bmGetIssueChart = async (req, res) => {
         try {
             const { issueType, year } = req.query;
-            let matchQuery = {}; // Initialize an empty match query object
+            const matchQuery = {}; // Initialize an empty match query object
     
             // Apply filters if provided
             if (issueType) {
