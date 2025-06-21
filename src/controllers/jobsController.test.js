@@ -1,20 +1,32 @@
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
-const Job = require('../models/jobs');
-const { app } = require('../app');
+const Job = require('../models/jobs'); // Ensure this path is correct
+const { app } = require('../app'); // Ensure this path correctly exports your Express app
 
-let mongoServer;
+let mongoServer; // Declared outside to ensure scope for afterAll
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  await mongoose.connect(mongoUri);
+  try {
+    mongoServer = await MongoMemoryServer.create();
+    const mongoUri = mongoServer.getUri();
+    await mongoose.connect(mongoUri); // Removed deprecated options
+  } catch (error) {
+    console.error('Error during Jobs Controller setup:', error);
+    throw error; // Re-throw to fail early if setup fails
+  }
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  try {
+    await mongoose.disconnect();
+    if (mongoServer) { // Ensure mongoServer is defined before stopping
+      await mongoServer.stop();
+    }
+  } catch (error) {
+    console.error('Error during Jobs Controller teardown:', error);
+    throw error;
+  }
 });
 
 beforeEach(async () => {
@@ -52,6 +64,9 @@ describe('Jobs Controller', () => {
         imageUrl: 'https://example.com/image.jpg',
         applyLink: 'https://example.com/apply',
         jobDetailsLink: 'https://example.com/details',
+        // Add datePosted and featured if your Job model expects them and they are used in sorting/filtering
+        datePosted: new Date(),
+        featured: false,
       });
       await testJob.save();
 
@@ -77,6 +92,8 @@ describe('Jobs Controller', () => {
         imageUrl: 'https://example.com/data-scientist.jpg',
         applyLink: 'https://example.com/apply-data',
         jobDetailsLink: 'https://example.com/details-data',
+        datePosted: new Date(),
+        featured: false,
       });
       const savedJob = await testJob.save();
 
@@ -90,7 +107,7 @@ describe('Jobs Controller', () => {
 
     test('should return 404 when job does not exist', async () => {
       const fakeId = new mongoose.Types.ObjectId();
-      
+
       const response = await request(app)
         .get(`/api/jobs/${fakeId}`)
         .expect(404);
