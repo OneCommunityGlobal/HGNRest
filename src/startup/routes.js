@@ -70,6 +70,7 @@ const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid')
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User')
 
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification')
+const meeting = require('../models/meeting');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -141,6 +142,14 @@ const followUpRouter = require('../routes/followUpRouter')(followUp);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
+
+const meetingRouter = require('../routes/meetingRouter')(meeting);
+
+
+const form=require('../models/forms')
+const formResponse=require('../models/formResponse')
+const formRouter=require('../routes/formRouter')(form,formResponse);
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -235,6 +244,12 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', formRouter);
+
+  app.use('/api', meetingRouter);
+  app.use('/api/jobs', jobsRouter)
+
+  app.use('/api',formRouter);
+
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api/jobs', jobsRouter);
@@ -244,6 +259,7 @@ module.exports = function (app) {
   app.use('/api/job-notification-list/', jobNotificationListRouter);
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -258,7 +274,7 @@ module.exports = function (app) {
 
   app.use('/api/bm', bmIssueRouter);
 
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
 
 
