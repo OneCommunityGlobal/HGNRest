@@ -973,11 +973,38 @@ const taskController = function (Task) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     try {
       const teamsData = await taskHelper.getTasksForTeams(userId, req.body.requestor);
+
+      const populateCreatorName = (data) =>
+        Promise.all(
+          data.map(async (user) => {
+            const userObj = user.toObject ? user.toObject() : { ...user };
+            if (userObj.tasks && Array.isArray(userObj.tasks)) {
+              userObj.tasks = await Promise.all(
+                userObj.tasks.map(async (task) => {
+                  const taskObj = task.toObject ? task.toObject() : { ...task };
+                  if (taskObj.createdBy) {
+                    const creatorName = await taskHelper.getUserProfileFirstAndLastName(
+                      taskObj.createdBy,
+                    );
+                    taskObj.creatorName = creatorName.trim() ? creatorName.trim() : 'Unknown';
+                  } else {
+                    taskObj.creatorName = 'Unknown';
+                  }
+                  return taskObj;
+                }),
+              );
+            }
+            return userObj;
+          }),
+        );
+
       if (teamsData.length > 0) {
-        res.status(200).send(teamsData);
+        const populatedData = await populateCreatorName(teamsData);
+        res.status(200).send(populatedData);
       } else {
         const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
-        res.status(200).send(singleUserData);
+        const populatedSingleUserData = await populateCreatorName(singleUserData);
+        res.status(200).send(populatedSingleUserData);
       }
     } catch (error) {
       console.log(error);
