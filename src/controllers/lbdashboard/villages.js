@@ -54,12 +54,22 @@ const villagesController = () => {
             .trim()
             .matches(/^\d+(\.\d+)?%$/)
             .withMessage('Top position must be a percentage value (e.g., "100%" or "48%")'),
-            
-        body('properties.*.name')
+        
+        body('properties')
             .optional()
-            .trim()
+            .isArray()
+            .withMessage('Properties must be an array'),
+
+        body('properties.*.unit')
+            .optional()
+            .isInt()
             .notEmpty()
-            .withMessage('Property name cannot be empty'),
+            .withMessage('Property unit must be an integer'),
+
+        body('properties.*.currentBid')
+            .optional()
+            .isInt()
+            .withMessage('Property bidding must be an integer'),
             
         body('properties.*.description')
             .optional()
@@ -69,64 +79,83 @@ const villagesController = () => {
             .optional()
             .trim()
             .isURL()
-            .withMessage('Property link must be a valid URL')
+            .withMessage('Property link must be a valid URL'),
+
+        // Validate villageMapLink (optional URL)
+        body('villageMapLink')
+        .optional()
+        .trim()
+        .isURL()
+        .withMessage('Village map link must be a valid URL'),
+
+        // Validate amenities array and each amenity
+        body('amenities')
+        .optional()
+        .isArray()
+        .withMessage('Amenities must be an array'),
+        
+        body('amenities.*')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Each amenity must be a non‑empty string'),
     ];
 
-    // Get all villages
-    const getAllVillages = async(req,res)=>{
-        try{
-            const villages = await Village.find();
-            res.json(villages);
-        }catch(error){
-            res.status(500).json({message:error.message});
-        }
+  // Get all villages
+  const getAllVillages = async (req, res) => {
+    try {
+      const villages = await Village.find();
+      res.json(villages);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  };
+
+  // Get village by region ID
+  const getVillageByRegion = async (req, res) => {
+    try {
+      const village = await Village.findOne({ regionId: req.params.regionId });
+      if (!village) {
+        return res.status(404).json({ message: 'Village not found' });
+      }
+      res.json(village);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  };
+
+  // Create a new village
+  const createVillage = async (req, res) => {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: 'Validation Error',
+        errors: errors.array(),
+      });
     }
 
-    // Get village by region ID
-    const getVillageByRegion = async(req,res)=>{
-        try{
-            const village = await Village.findOne({ regionId: req.params.regionId });
-            if (!village) {
-                return res.status(404).json({ message: 'Village not found' });
-            }
-            res.json(village);
-        }catch(error){
-            res.status(500).json({message:error.message});
-        }
+    const village = new Village(req.body);
+    try {
+      const newVillage = await village.save();
+      res.status(201).json(newVillage);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
     }
+  };
 
-    // Create a new village
-    const createVillage = async(req,res)=>{
-        // Validate input
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                message: 'Validation Error',
-                errors: errors.array() 
-            });
-        }
-
-        const village = new Village(req.body);
-        try{
-            const newVillage = await village.save();
-            res.status(201).json(newVillage);
-        }catch(error){
-            res.status(400).json({message:error.message});
-        }
+  // Get a single village by ID
+  const getVillageById = async (req, res) => {
+    try {
+      const village = await Village.findById(req.params.id);
+      if (!village) {
+        return res.status(404).json({ message: 'Village not found' });
+      }
+      res.json(village);
+    } catch (error) {
+      res.status(404).json({ message: error.message });
     }
-    
-    // Get a single village by ID
-    const getVillageById = async(req,res)=>{
-        try{
-            const village = await Village.findById(req.params.id);
-            if (!village) {
-                return res.status(404).json({ message: 'Village not found' });
-            }
-            res.json(village);
-        }catch(error){
-            res.status(404).json({message:error.message});
-        }
-    }
+  };
 
     // Update a village
     const updateVillage = async(req,res)=>{
@@ -153,6 +182,9 @@ const villagesController = () => {
             if (req.body.imageLink !== undefined) village.imageLink = req.body.imageLink;
             if (req.body.position !== undefined) village.position = req.body.position;
             if (req.body.properties !== undefined) village.properties = req.body.properties;
+            if (req.body.villageMapLink !== undefined) village.villageMapLink = req.body.villageMapLink;
+            if (req.body.amenities !== undefined)      
+            village.amenities = req.body.amenities;
 
             const updatedVillage = await village.save();
             res.json(updatedVillage);
