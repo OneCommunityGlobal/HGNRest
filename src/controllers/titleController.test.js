@@ -167,10 +167,7 @@ describe('Title Controller', () => {
         send: jest.fn()
       };
 
-      await new Promise((resolve) => {
-        controller.deleteAllTitles(req, res);
-        resolve();
-      });
+      await controller.deleteAllTitles(req, res);
 
       const count = await Title.countDocuments();
       expect(count).toBe(0);
