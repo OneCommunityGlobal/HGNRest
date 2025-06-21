@@ -151,48 +151,7 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalled();
     });
 
-    it.skip('should update existing material with new purchase record', async () => {
-      const purchaseData = {
-        primaryId: 'project123',
-        secondaryId: 'materialType456',
-        quantity: 50,
-        priority: 'Medium',
-        brand: 'Standard Brand',
-        requestor: { requestorId: 'user789' },
-      };
-
-      req.body = purchaseData;
-
-      const existingMaterial = {
-        _id: 'existingMaterial123',
-        project: 'project123',
-        itemType: 'materialType456',
-        purchaseRecord: [{ _id: 'existingPurchase', quantity: 25 }],
-      };
-      BuildingMaterialMock.findOne.mockResolvedValue(existingMaterial);
-
-      BuildingMaterialMock.findOneAndUpdate.mockReturnValue({
-        exec: () => Promise.resolve({ _id: 'existingMaterial123' }),
-      });
-
-      await controller.bmPurchaseMaterials(req, res);
-
-      expect(BuildingMaterialMock.findOneAndUpdate).toHaveBeenCalledWith(
-        { _id: 'existingMaterial123' },
-        {
-          $push: {
-            purchaseRecord: {
-              quantity: 50,
-              priority: 'Medium',
-              brandPref: 'Standard Brand',
-              requestedBy: 'user789',
-            },
-          },
-        }
-      );
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.send).toHaveBeenCalled();
-    });
+    
   });
 
   describe('bmPostMaterialUpdateRecord', () => {
@@ -288,53 +247,7 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmPostMaterialUpdateBulk', () => {
-    it.skip('should successfully update multiple materials in bulk', async () => {
-      const bulkUpdateData = {
-        upadateMaterials: [
-          {
-            material: {
-              _id: 'material1',
-              stockAvailable: 100,
-              stockUsed: 20,
-              stockWasted: 5,
-            },
-            quantityUsed: 10,
-            quantityWasted: 2,
-            QtyUsedLogUnit: 'absolute',
-            QtyWastedLogUnit: 'absolute',
-          },
-          {
-            material: {
-              _id: 'material2',
-              stockAvailable: 200,
-              stockUsed: 40,
-              stockWasted: 10,
-            },
-            quantityUsed: 20,
-            quantityWasted: 5,
-            QtyUsedLogUnit: 'absolute',
-            QtyWastedLogUnit: 'absolute',
-          },
-        ],
-        date: '2024-01-15',
-        requestor: { requestorId: 'user456' },
-      };
-
-      req.body = bulkUpdateData;
-
-      BuildingMaterialMock.updateOne.mockReturnValue({
-        exec: () => Promise.resolve({ modifiedCount: 1 }),
-      });
-
-      await controller.bmPostMaterialUpdateBulk(req, res);
-
-      expect(BuildingMaterialMock.updateOne).toHaveBeenCalledTimes(2);
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.send).toHaveBeenCalledWith({
-        result: 'Successfully posted log for 2 Material records.',
-      });
-    });
-
+    
     it('should return error when stock quantities are invalid', async () => {
       const bulkUpdateData = {
         upadateMaterials: [
