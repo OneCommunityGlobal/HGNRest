@@ -412,7 +412,7 @@ const addEditHistory = async (
     `;
 
     const infringementNotificationToUserEmailBody = `Dear <b>${userprofile.firstName} ${userprofile.lastName}</b>,
-        <p>Oops, it looks like you chose to edit your time entries too many times and you’ve managed to get a blue square.</p>
+        <p>Oops, it looks like you chose to edit your time entries too many times and you've managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment().tz('America/Los_Angeles').format('M-D-YYYY')}</p>\
         <p><b>Description:</b> System auto-assigned infringement for editing your time entries <b>${totalRecentEdits} times</b> within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
@@ -440,7 +440,7 @@ const addEditHistory = async (
       emailSender.bind(
         null,
         userprofile.email,
-        'You’ve been issued a blue square for editing your time entries too many times',
+        'You\'ve been issued a blue square for editing your time entries too many times',
         infringementNotificationToUserEmailBody,
       ),
     );
@@ -1653,7 +1653,5 @@ const timeEntrycontroller = function (TimeEntry) {
 };
 
 module.exports = timeEntrycontroller;
-module.exports = {
-  formatSeconds,
-  isGeneralTimeEntry
-};
+module.exports.formatSeconds = formatSeconds;
+module.exports.isGeneralTimeEntry = isGeneralTimeEntry;
