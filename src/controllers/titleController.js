@@ -238,18 +238,17 @@ const titlecontroller = function (Title) {
   };
 
   const deleteAllTitles = async function (req, res) {
-    Title.deleteMany({})
-      .then((result) => {
-        if (result.deletedCount === 0) {
-          res.send({ message: 'No titles found to delete.' });
-        } else {
-          res.send({ message: `${result.deletedCount} titles were deleted successfully.` });
-        }
-      })
-      .catch((error) => {
-        console.log(error);
-        res.status(500).send(error);
-      });
+    try {
+      const result = await Title.deleteMany({});
+      if (result.deletedCount === 0) {
+        res.send({ message: 'No titles found to delete.' });
+      } else {
+        res.send({ message: `${result.deletedCount} titles were deleted successfully.` });
+      }
+    } catch (error) {
+      console.log(error);
+      res.status(500).send(error);
+    }
   };
   // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
   async function checkTeamCodeExists(teamCode) {
