@@ -486,6 +486,103 @@ const listingsController = (ListingHome) => {
     }
   };
 
+
+  const fetchFilteredListings = async (req, res) => {
+  try {
+    const { page = 1, size = 10, village, availableFrom, availableTo } = req.query;
+
+    const currentPage = parseInt(page, 10);
+    const pageSize = parseInt(size, 10);
+
+    if (Number.isNaN(currentPage)) {
+      return res.status(400).json({ error: 'Invalid page number' });
+    }
+
+    if (Number.isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
+      return res.status(400).json({ error: 'Invalid page size (1-100)' });
+    }
+
+    const offset = (currentPage - 1) * pageSize;
+
+    // Construct MongoDB query
+    const filter = {};
+    if (village) filter.village = village;
+
+    if (availableFrom || availableTo) {
+      filter.$and = [];
+      if (availableFrom) {
+        filter.$and.push({ availableTo: { $gte: new Date(availableFrom) } });
+      }
+      if (availableTo) {
+        filter.$and.push({ availableFrom: { $lte: new Date(availableTo) } });
+      }
+    }
+
+    const totalListings = await ListingHome.countDocuments(filter);
+    const totalPages = Math.ceil(totalListings / pageSize);
+
+    if (currentPage > totalPages && totalPages > 0) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    const listingResults = await ListingHome.find(filter)
+      .populate([
+        { path: 'createdBy', select: '_id firstName lastName' },
+        { path: 'updatedBy', select: '_id firstName lastName' }
+      ])
+      .sort({ updatedOn: -1 })
+      .skip(offset)
+      .limit(pageSize)
+      .lean();
+
+    const resultsWithImages = await Promise.all(
+      listingResults.map(async (item) => {
+        let imageUrls = [];
+
+        try {
+          if (item.images?.length) {
+            imageUrls = await fetchImagesFromAzureBlobStorage(item.images);
+          }
+        } catch (err) {
+          console.error('Image fetch error:', err.message);
+          imageUrls = ['https://via.placeholder.com/300x200?text=Unit'];
+        }
+
+        return {
+          ...item,
+          images: imageUrls.length ? imageUrls : ['https://via.placeholder.com/300x200?text=Unit'],
+          createdOn: item.createdOn?.toISOString().split('T')[0] || null,
+          updatedOn: item.updatedOn?.toISOString().split('T')[0] || null,
+          availableFrom: item.availableFrom?.toISOString().split('T')[0] || null,
+          availableTo: item.availableTo?.toISOString().split('T')[0] || null,
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: 200,
+      message: 'Listings retrieved successfully',
+      data: {
+        items: resultsWithImages,
+        pagination: {
+          total: totalListings,
+          totalPages,
+          currentPage,
+          pageSize
+        }
+      }
+    });
+
+  } catch (err) {
+    console.error('Failed to retrieve listings:', err);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: err.message
+    });
+  }
+};
+
+
   return { 
     getListings, 
     createListing, 
