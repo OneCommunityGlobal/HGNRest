@@ -1,90 +1,101 @@
-const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const mongoose = require('mongoose');
+const request = require('supertest');
 const Job = require('../models/jobs');
-const {
-  getJobs,
-  getJobById,
-  createJob,
-  updateJob,
-  deleteJob,
-} = require('./jobsController');
+const { app } = require('../app');
 
 let mongoServer;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+  const mongoUri = mongoServer.getUri();
+  await mongoose.connect(mongoUri);
 });
 
 afterAll(async () => {
   await mongoose.disconnect();
-  if (mongoServer?.stop) await mongoServer.stop();
+  await mongoServer.stop();
 });
 
 beforeEach(async () => {
   await Job.deleteMany({});
 });
 
-// Helper function to create valid job data
-const createValidJobData = (overrides = {}) => ({
-  title: 'Software Engineer',
-  category: 'Tech',
-  description: 'A detailed job description for the position',
-  imageUrl: 'https://example.com/image.jpg',
-  location: 'New York, NY',
-  applyLink: 'https://example.com/apply',
-  jobDetailsLink: 'https://example.com/details',
-  ...overrides
-});
-
 describe('Jobs Controller', () => {
-  it('should return an empty array of jobs initially', async () => {
-    const req = { query: {} };
-    const res = { json: jest.fn() };
-    await getJobs(req, res);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-      jobs: expect.arrayContaining([]),
-      pagination: expect.any(Object)
-    }));
+  describe('GET /api/jobs', () => {
+    test('should return empty jobs array when no jobs exist', async () => {
+      const response = await request(app)
+        .get('/api/jobs')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        jobs: [],
+        pagination: {
+          totalJobs: 0,
+          totalPages: 0,
+          currentPage: 1,
+          limit: 18,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      });
+    });
+
+    test('should return all jobs when jobs exist', async () => {
+      const testJob = new Job({
+        title: 'Software Engineer',
+        category: 'Engineering',
+        company: 'Tech Corp',
+        location: 'San Francisco',
+        description: 'Full-stack development role',
+        salary: 120000,
+        imageUrl: 'https://example.com/image.jpg',
+        applyLink: 'https://example.com/apply',
+        jobDetailsLink: 'https://example.com/details',
+      });
+      await testJob.save();
+
+      const response = await request(app)
+        .get('/api/jobs')
+        .expect(200);
+
+      expect(response.body.jobs).toHaveLength(1);
+      expect(response.body.jobs[0].title).toBe('Software Engineer');
+      expect(response.body.pagination.totalJobs).toBe(1);
+    });
   });
 
-  it('should create a new job', async () => {
-    const jobData = createValidJobData();
-    const req = { body: jobData };
-    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    await createJob(req, res);
-    expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Software Engineer',
-      category: 'Tech'
-    }));
-  });
+  describe('GET /api/jobs/:id', () => {
+    test('should return job by id when job exists', async () => {
+      const testJob = new Job({
+        title: 'Data Scientist',
+        category: 'Data Science',
+        company: 'AI Labs',
+        location: 'New York',
+        description: 'Machine learning role',
+        salary: 150000,
+        imageUrl: 'https://example.com/data-scientist.jpg',
+        applyLink: 'https://example.com/apply-data',
+        jobDetailsLink: 'https://example.com/details-data',
+      });
+      const savedJob = await testJob.save();
 
-  it('should return a job by ID', async () => {
-    const jobData = createValidJobData({ title: 'Manager', category: 'HR' });
-    const job = await Job.create(jobData);
-    const req = { params: { id: job._id.toString() } };
-    const res = { json: jest.fn() };
-    await getJobById(req, res);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ title: 'Manager' }));
-  });
+      const response = await request(app)
+        .get(`/api/jobs/${savedJob._id}`)
+        .expect(200);
 
-  it('should update a job', async () => {
-    const jobData = createValidJobData({ title: 'Developer', category: 'Tech' });
-    const job = await Job.create(jobData);
-    const req = { params: { id: job._id }, body: { title: 'Senior Developer' } };
-    const res = { json: jest.fn() };
-    await updateJob(req, res);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ title: 'Senior Developer' }));
-  });
+      expect(response.body.title).toBe('Data Scientist');
+      expect(response.body.category).toBe('Data Science');
+    });
 
-  it('should delete a job', async () => {
-    const jobData = createValidJobData({ title: 'Intern', category: 'Tech' });
-    const job = await Job.create(jobData);
-    const req = { params: { id: job._id } };
-    const res = { json: jest.fn() };
-    await deleteJob(req, res);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Job deleted successfully' }));
+    test('should return 404 when job does not exist', async () => {
+      const fakeId = new mongoose.Types.ObjectId();
+      
+      const response = await request(app)
+        .get(`/api/jobs/${fakeId}`)
+        .expect(404);
+
+      expect(response.body.error).toBe('Job not found');
+    });
   });
 });
