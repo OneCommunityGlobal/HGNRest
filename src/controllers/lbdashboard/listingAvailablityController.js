@@ -4,7 +4,7 @@ const Listing = require('../../models/lbdashboard/listings');
 const listingAvailablityController = (Availability) => {
   const getListingAvailablity = async (req, res) => {
     try {
-      const listingId = req.body.listingId;
+      const listingId = req.headers['listingid'];
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
