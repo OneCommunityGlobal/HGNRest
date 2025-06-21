@@ -18,7 +18,7 @@ const scheduledYoutubeUploadSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// 更新时间中间件
+// update time middleware
 scheduledYoutubeUploadSchema.pre('save', function(next) {
   this.updatedAt = new Date();
   next();

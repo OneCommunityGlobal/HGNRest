@@ -35,7 +35,8 @@ const youtubeUploadController = () => {
         description,
         tags,
         categoryId,
-        privacyStatus
+        privacyStatus,
+        scheduledTime,
       } = req.body;
 
       if (!youtubeAccountId) {
@@ -48,6 +49,36 @@ const youtubeUploadController = () => {
             tags,
             privacyStatus
           }
+        });
+      }
+
+      // If scheduledTime is provided, save as a scheduled upload and return
+      if (scheduledTime) {
+        const scheduleDate = new Date(scheduledTime);
+        if (isNaN(scheduleDate.getTime()) || scheduleDate <= new Date()) {
+          return res.status(400).json({
+            error: 'Invalid scheduled time.',
+            details: `The scheduled time must be in the future. You provided (UTC): ${scheduleDate.toUTCString()}. The current server time (UTC) is: ${new Date().toUTCString()}.`,
+          });
+        }
+
+        const newScheduledUpload = new ScheduledYoutubeUpload({
+          youtubeAccountId,
+          videoPath: req.file.path,
+          title,
+          description,
+          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+          privacyStatus: privacyStatus || 'private',
+          scheduledTime: scheduleDate,
+          status: 'pending',
+          uploadedBy: requestor.requestorId,
+        });
+
+        await newScheduledUpload.save();
+
+        return res.status(200).json({
+          message: 'Video scheduled for upload successfully',
+          details: newScheduledUpload,
         });
       }
 
@@ -126,7 +157,7 @@ const youtubeUploadController = () => {
         thumbnailUrl: response.data.snippet.thumbnails?.default?.url,
         uploadedBy: requestor.requestorId,
         youtubeUrl: `https://www.youtube.com/watch?v=${response.data.id}`,
-        status: response.data.status.uploadStatus
+        status: response.data.status.uploadStatus,
       });
 
       await uploadHistory.save();
@@ -155,66 +186,84 @@ const youtubeUploadController = () => {
         return res.status(400).json({ error: 'youtubeAccountId is required' });
       }
 
-      // Only allow Owner to get upload history (same as upload video)
-      const requestor = req.requestor;
+      const { requestor } = req;
       if (!requestor || requestor.role !== 'Owner') {
         return res.status(403).json({ error: 'Only Owner can get YouTube upload history' });
       }
 
-      try {
-        const account = await getYoutubeAccountById(youtubeAccountId);
+      const account = await getYoutubeAccountById(youtubeAccountId);
 
-        if (account) {
-          // Real account logic
-          const oauth2Client = new google.auth.OAuth2(
-            account.clientId,
-            account.clientSecret,
-            account.redirectUri
-          );
-          oauth2Client.setCredentials({ refresh_token: account.refreshToken });
-          await oauth2Client.getAccessToken();
-
-          const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-
-          const response = await youtube.channels.list({
-            part: 'contentDetails',
-            mine: true
-          });
-          
-          const uploadsPlaylistId = response.data.items[0].contentDetails.relatedPlaylists.uploads;
-
-          const playlistResponse = await youtube.playlistItems.list({
-            playlistId: uploadsPlaylistId,
-            part: 'snippet',
-            maxResults: 25
-          });
-          
-          return res.status(200).json(playlistResponse.data.items);
-        }
-
-        // If no account found, assume it might be a test account or fallback for any other reason.
-        console.log(`No real account found for "${youtubeAccountId}". Falling back to database history.`);
+      // If no real account is found in DB, it might be a test account.
+      // For test accounts, we fetch history from our local DB.
+      if (!account) {
+        console.log(
+          `No real account found for "${youtubeAccountId}". Assuming it's a test account and fetching from local DB.`,
+        );
         const history = await YoutubeUploadHistory.find({ youtubeAccountId })
           .sort({ uploadDate: -1 })
           .limit(25);
-        
         return res.status(200).json(history);
-
-      } catch (apiError) {
-        console.log('YouTube API failed or other error, falling back to database:', apiError.message);
-        // Fallback to database
-        const history = await YoutubeUploadHistory.find({ youtubeAccountId })
-          .sort({ uploadDate: -1 })
-          .limit(25);
-        
-        res.status(200).json(history);
       }
 
+      // If it IS a real account, we MUST fetch from the YouTube API.
+      // Do not fall back to local DB on failure.
+      try {
+        const oauth2Client = new google.auth.OAuth2(
+          account.clientId,
+          account.clientSecret,
+          account.redirectUri,
+        );
+        oauth2Client.setCredentials({ refresh_token: account.refreshToken });
+        await oauth2Client.getAccessToken();
+
+        const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+        const channelsResponse = await youtube.channels.list({
+          part: 'contentDetails',
+          mine: true,
+        });
+
+        if (!channelsResponse.data.items || channelsResponse.data.items.length === 0) {
+          return res.status(200).json([]);
+        }
+
+        const uploadsPlaylistId =
+          channelsResponse.data.items[0].contentDetails.relatedPlaylists.uploads;
+
+        const playlistResponse = await youtube.playlistItems.list({
+          playlistId: uploadsPlaylistId,
+          part: 'snippet',
+          maxResults: 50,
+        });
+
+        // The YouTube API response for playlistItems needs to be mapped to match the schema
+        // our frontend expects (which is based on our YoutubeUploadHistory model)
+        const formattedHistory = playlistResponse.data.items.map(item => ({
+          _id: item.id,
+          videoId: item.snippet.resourceId.videoId,
+          title: item.snippet.title,
+          description: item.snippet.description,
+          publishedAt: item.snippet.publishedAt,
+          thumbnailUrl:
+            item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+          status: 'completed',
+          youtubeAccountId,
+        }));
+
+        return res.status(200).json(formattedHistory);
+      } catch (apiError) {
+        console.error('YouTube API call failed for real account:', apiError.message);
+        // Do NOT fall back to local DB. Return an error.
+        return res.status(500).json({
+          error: 'Failed to fetch video history from YouTube.',
+          details: `The API call failed with message: ${apiError.message}. This could be due to an issue with API permissions.`,
+        });
+      }
     } catch (error) {
       console.error('Get upload history error:', error);
-      res.status(500).json({ 
-        error: 'Failed to fetch upload history', 
-        details: error.message 
+      res.status(500).json({
+        error: 'Failed to fetch upload history',
+        details: error.message,
       });
     }
   };
@@ -234,9 +283,10 @@ const youtubeUploadController = () => {
         return res.status(403).json({ error: 'Only Owner can get YouTube scheduled uploads' });
       }
 
-      const scheduledUploads = await ScheduledYoutubeUpload.find({ 
+      const scheduledUploads = await ScheduledYoutubeUpload.find({
         youtubeAccountId,
-        status: { $in: ['pending', 'processing'] }
+        status: 'pending',
+        scheduledTime: { $gt: new Date() },
       })
         .sort({ scheduledTime: 1 })
         .limit(25);

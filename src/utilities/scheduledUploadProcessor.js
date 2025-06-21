@@ -6,10 +6,10 @@ const YoutubeUploadHistory = require('../models/youtubeUploadHistory');
 
 async function processScheduledUploads() {
   try {
-    // Find all pending scheduled upload tasks
+    // Find all pending scheduled upload tasks that are due
     const pendingUploads = await ScheduledYoutubeUpload.find({
       status: 'pending',
-      scheduledTime: { $lte: new Date() }
+      scheduledTime: { $lte: new Date() },
     });
 
     for (const upload of pendingUploads) {
@@ -67,19 +67,27 @@ async function processScheduledUploads() {
         await upload.save();
 
         // Record successful upload in history
+        const youtubeData = response.data;
         await YoutubeUploadHistory.create({
           youtubeAccountId: upload.youtubeAccountId,
-          title: upload.title,
-          description: upload.description,
-          tags: upload.tags,
-          privacyStatus: upload.privacyStatus,
-          videoId: response.data.id,
+          title: youtubeData.snippet.title,
+          description: youtubeData.snippet.description,
+          tags: youtubeData.snippet.tags || [],
+          privacyStatus: youtubeData.status.privacyStatus,
+          videoId: youtubeData.id,
+          categoryId: youtubeData.snippet.categoryId,
+          channelId: youtubeData.snippet.channelId,
+          channelTitle: youtubeData.snippet.channelTitle,
+          publishedAt: youtubeData.snippet.publishedAt,
+          thumbnailUrl: youtubeData.snippet.thumbnails?.default?.url,
+          youtubeUrl: `https://www.youtube.com/watch?v=${youtubeData.id}`,
           status: 'completed',
-          scheduledTime: upload.scheduledTime
+          scheduledTime: upload.scheduledTime,
+          uploadedBy: upload.uploadedBy,
         });
 
         // Delete temporary file
-        fs.unlink(upload.videoPath, (err) => {
+        fs.unlink(upload.videoPath, err => {
           if (err) console.error('Failed to delete temporary file:', err);
         });
 
@@ -99,7 +107,8 @@ async function processScheduledUploads() {
           privacyStatus: upload.privacyStatus,
           status: 'failed',
           error: error.message,
-          scheduledTime: upload.scheduledTime
+          scheduledTime: upload.scheduledTime,
+          uploadedBy: upload.uploadedBy,
         });
       }
     }
@@ -111,4 +120,4 @@ async function processScheduledUploads() {
 // Check for pending scheduled uploads every minute
 setInterval(processScheduledUploads, 60000);
 
-module.exports = { processScheduledUploads }; 
+module.exports = { processScheduledUploads };
