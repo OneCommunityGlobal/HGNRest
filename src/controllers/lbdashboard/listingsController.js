@@ -284,114 +284,6 @@ const listingsController = (ListingHome) => {
     }
   };
 
-  const getBiddings = async (req, res) => {
-    try {
-      // Read from headers instead of query
-      const page = req.headers['page'] || 1;
-      const size = req.headers['size'] || 10;
-      const village = req.headers['village'];
-      const availableFrom = req.headers['availablefrom'];
-      const availableTo = req.headers['availableto'];
-
-      const pageNum = parseInt(page, 10);
-      const sizeNum = parseInt(size, 10);
-
-      if (Number.isNaN(pageNum)) return res.status(400).json({ error: 'Invalid page number' });
-      if (Number.isNaN(sizeNum) || sizeNum < 1 || sizeNum > 100) {
-        return res.status(400).json({ error: 'Invalid page size (1-100)' });
-      }
-
-      const skip = (pageNum - 1) * sizeNum;
-
-      const query = {};
-      if (village) query.village = village;
-
-      if (availableFrom || availableTo) {
-        query.$and = [];
-        if (availableFrom) {
-          query.$and.push({ availableTo: { $gte: new Date(availableFrom) } });
-        }
-        if (availableTo) {
-          query.$and.push({ availableFrom: { $lte: new Date(availableTo) } });
-        }
-      }
-
-      const total = await ListingHome.countDocuments(query);
-      const totalPages = Math.ceil(total / sizeNum);
-
-      if (pageNum > totalPages && totalPages > 0) {
-        return res.status(404).json({ error: 'Page not found' });
-      }
-
-      const listings = await ListingHome.find(query)
-        .populate([
-          { path: 'createdBy', select: '_id firstName lastName' },
-          { path: 'updatedBy', select: '_id firstName lastName' }
-        ])
-        .sort({ updatedOn: -1 })
-        .skip(skip)
-        .limit(sizeNum)
-        .lean()
-        .exec();
-
-      if (!listings.length) {
-        return res.status(200).json({
-          status: 200,
-          message: 'No biddings found',
-          data: {
-            items: [],
-            pagination: {
-              total: 0,
-              totalPages: 0,
-              currentPage: pageNum,
-              pageSize: sizeNum
-            }
-          }
-        });
-      }
-
-      const processedBiddings = await Promise.all(listings.map(async listing => {
-        let images = [];
-        try {
-          if (listing.images && listing.images.length > 0) {
-            images = await fetchImagesFromAzureBlobStorage(listing.images);
-          }
-        } catch (error) {
-          images = ['https://via.placeholder.com/300x200?text=Unit'];
-        }
-        return {
-          ...listing,
-          price: Math.round(listing.price * 0.8 * 100) / 100,
-          images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
-          createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
-          updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
-          availableFrom: listing.availableFrom ? listing.availableFrom.toISOString().split('T')[0] : null,
-          availableTo: listing.availableTo ? listing.availableTo.toISOString().split('T')[0] : null,
-        };
-      }));
-
-      res.json({
-        status: 200,
-        message: 'Biddings retrieved successfully',
-        data: {
-          items: processedBiddings,
-          pagination: {
-            total,
-            totalPages,
-            currentPage: pageNum,
-            pageSize: sizeNum
-          }
-        }
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        error: 'Internal server error',
-        details: error.message
-      });
-    }
-  };
-
   const getListingById = async (req, res) => {
     try {
       const id = req.headers['id'];
@@ -447,8 +339,6 @@ const listingsController = (ListingHome) => {
   return {
     getListings,
     createListing,
-    getBiddings,
-    getVillages,
     deleteListing,
     updateListing,
     getListingById

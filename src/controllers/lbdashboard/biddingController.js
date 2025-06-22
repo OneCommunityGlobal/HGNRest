@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
 const userProfile = require('../../models/userProfile');
 
-const biddingHomeController = (BiddingHome) => {
-  const getBiddings = async (req, res) => {
+const biddingController = (Bidding) => {
+  const getBidListings = async (req, res) => {
     try {
       const page = req.headers['page'] || 1;
       const size = req.headers['size'] || 10;
@@ -20,19 +20,25 @@ const biddingHomeController = (BiddingHome) => {
 
       const skip = (pageNum - 1) * sizeNum;
       const query = {};
-      if (village) query.village = village;
+      if (village) {
+        if (!mongoose.Types.ObjectId.isValid(village)) {
+          return res.status(400).json({ error: 'Invalid village id' });
+        }
+        query.village = mongoose.Types.ObjectId(village);
+      }
 
-      const total = await BiddingHome.countDocuments(query);
+      const total = await Bidding.countDocuments(query);
       const totalPages = Math.ceil(total / sizeNum);
 
       if (pageNum > totalPages && totalPages > 0) {
         return res.status(404).json({ error: 'Page not found' });
       }
 
-      const listings = await BiddingHome.find(query)
+      const listings = await Bidding.find(query)
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
-          { path: 'updatedBy', select: '_id firstName lastName' }
+          { path: 'updatedBy', select: '_id firstName lastName' },
+          { path: 'village' }
         ])
         .sort({ updatedOn: -1 })
         .skip(skip)
@@ -56,21 +62,10 @@ const biddingHomeController = (BiddingHome) => {
         });
       }
 
-      const processedBiddings = await Promise.all(listings.map(async listing => {
-        let images = [];
-        try {
-          if (listing.images && listing.images.length > 0) {
-            images = await fetchImagesFromAzureBlobStorage(listing.images);
-          }
-        } catch (error) {
-          images = ['https://via.placeholder.com/300x200?text=Unit'];
-        }
-        return {
-          ...listing,
-          images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
-          createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
-          updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
-        };
+      const processedBiddings = listings.map(listing => ({
+        ...listing,
+        createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
+        updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
       }));
 
       res.json({
@@ -95,14 +90,15 @@ const biddingHomeController = (BiddingHome) => {
     }
   };
 
-  const getListingById = async (req, res) => {
+  const getBidListingById = async (req, res) => {
     try {
       const id = req.headers['id'];
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
-      const listing = await BiddingHome.findById(id)
+      const listing = await Bidding.findById(id)
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
-          { path: 'updatedBy', select: '_id firstName lastName' }
+          { path: 'updatedBy', select: '_id firstName lastName' },
+          { path: 'village' }
         ])
         .lean();
       if (!listing) {
@@ -114,7 +110,7 @@ const biddingHomeController = (BiddingHome) => {
     }
   };
 
-  const createListing = async (req, res) => {
+  const createBidListing = async (req, res) => {
     try {
       const {
         title,
@@ -125,16 +121,21 @@ const biddingHomeController = (BiddingHome) => {
         village,
         amenities,
         status,
-        location
+        location,
+        finalPrice,
+        images
       } = req.body;
-      const images = req.files;
 
-      if (!title || !initialPrice || !createdBy || !updatedBy || !location) {
+      if (!title || !initialPrice || !createdBy || !updatedBy || !location || !finalPrice || !village) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      if (!mongoose.Types.ObjectId.isValid(createdBy) || !mongoose.Types.ObjectId.isValid(updatedBy)) {
-        return res.status(400).json({ error: 'Invalid user ID' });
+      if (
+        !mongoose.Types.ObjectId.isValid(createdBy) ||
+        !mongoose.Types.ObjectId.isValid(updatedBy) ||
+        !mongoose.Types.ObjectId.isValid(village)
+      ) {
+        return res.status(400).json({ error: 'Invalid user or village ID' });
       }
 
       let listingData = {
@@ -142,24 +143,17 @@ const biddingHomeController = (BiddingHome) => {
         description,
         initialPrice: parseFloat(initialPrice),
         currentPrice: parseFloat(initialPrice),
-        finalPrice: null,
+        finalPrice: parseFloat(finalPrice),
         createdBy,
         updatedBy,
         status: status || 'draft',
         village,
         amenities: Array.isArray(amenities) ? amenities : (amenities ? [amenities] : []),
-        location
+        location,
+        images: Array.isArray(images) ? images : (images ? [images] : [])
       };
 
-      if (images && images.length) {
-        try {
-          listingData.images = await saveImagestoAzureBlobStorage(images, title);
-        } catch (error) {
-          listingData.images = images.map((image, idx) => `image-${idx}-${Date.now()}`);
-        }
-      }
-
-      const newListing = new BiddingHome(listingData);
+      const newListing = new Bidding(listingData);
       const savedListing = await newListing.save();
 
       res.status(201).json({
@@ -176,16 +170,18 @@ const biddingHomeController = (BiddingHome) => {
     }
   };
 
-  const updateListing = async (req, res) => {
+  const updateBidListing = async (req, res) => {
     try {
       const id = req.headers['id'];
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const updateData = req.body;
-      if (req.files && req.files.length) {
-        // Save images to Azure or your storage and update updateData.images
-        // Example: updateData.images = await saveImagestoAzureBlobStorage(req.files);
+
+      // Expecting images as URLs/keys from frontend
+      if (updateData.images && !Array.isArray(updateData.images)) {
+        updateData.images = [updateData.images];
       }
-      const updated = await BiddingHome.findByIdAndUpdate(id, updateData, { new: true });
+
+      const updated = await Bidding.findByIdAndUpdate(id, updateData, { new: true });
       if (!updated) {
         return res.status(404).json({ error: 'Listing not found' });
       }
@@ -195,11 +191,11 @@ const biddingHomeController = (BiddingHome) => {
     }
   };
 
-  const deleteListing = async (req, res) => {
+  const deleteBidListing = async (req, res) => {
     try {
       const id = req.headers['id'];
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
-      const deleted = await BiddingHome.findByIdAndDelete(id);
+      const deleted = await Bidding.findByIdAndDelete(id);
       if (!deleted) {
         return res.status(404).json({ error: 'Listing not found' });
       }
@@ -210,12 +206,12 @@ const biddingHomeController = (BiddingHome) => {
   };
 
   return {
-    getBiddings,
-    getListingById,
-    createListing,
-    updateListing,
-    deleteListing
+    getBidListings,
+    getBidListingById,
+    createBidListing,
+    updateBidListing,
+    deleteBidListing
   };
 };
 
-module.exports
+module.exports = biddingController;
