@@ -196,19 +196,33 @@ const updateTaskLoggedHours = async (
     // only remove hours from the old task or add hours to the new task
     // in this case, only one of fromTaskId or toTaskId will be truthy, and only one of secondsToBeRemoved or secondsToBeAdded will be truthy
     try {
-      const updatedTask = await Task.findOneAndUpdate(
-        { _id: fromTaskId || toTaskId },
-        { $inc: { hoursLogged: -hoursToBeRemoved || hoursToBeAdded } },
-        { new: true, session },
-      );
-      if (
-        toTaskId &&
-        updatedTask.hoursLogged > updatedTask.estimatedHours &&
-        pendingEmailCollection
-      ) {
-        pendingEmailCollection.push(
-          notifyTaskOvertimeEmailBody.bind(null, userprofile, updatedTask),
+      let updatedTask;
+      if (fromTaskId) {
+        // only remove hours from the old task
+        updatedTask = await Task.findOneAndUpdate(
+          { _id: fromTaskId },
+          { $inc: { hoursLogged: -hoursToBeRemoved } },
+          { new: true, session },
         );
+      } else if (toTaskId) {
+        // only add hours to the new task
+        updatedTask = await Task.findOneAndUpdate(
+          { _id: toTaskId },
+          { $inc: { hoursLogged: hoursToBeAdded } },
+          { new: true, session },
+        );
+
+        if (
+          toTaskId &&
+          updatedTask.hoursLogged > updatedTask.estimatedHours &&
+          pendingEmailCollection
+        ) {
+          pendingEmailCollection.push(
+            notifyTaskOvertimeEmailBody.bind(null, userprofile, updatedTask),
+          );
+        }
+      } else {
+        throw new Error('Both fromTaskId and toTaskId are null or undefined');
       }
     } catch (error) {
       throw new Error(
