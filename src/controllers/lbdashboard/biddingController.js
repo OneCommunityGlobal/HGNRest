@@ -38,7 +38,7 @@ const biddingController = (Bidding) => {
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
           { path: 'updatedBy', select: '_id firstName lastName' },
-          { path: 'village' }
+          { path: 'villages' }
         ])
         .sort({ updatedOn: -1 })
         .skip(skip)
@@ -98,7 +98,7 @@ const biddingController = (Bidding) => {
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
           { path: 'updatedBy', select: '_id firstName lastName' },
-          { path: 'village' }
+          { path: 'villages' }
         ])
         .lean();
       if (!listing) {

@@ -274,7 +274,7 @@ module.exports = function (app) {
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
-  app.use('/api', biddingRouter());
+  app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
 
 };

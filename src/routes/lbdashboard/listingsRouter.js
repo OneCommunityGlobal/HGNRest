@@ -22,10 +22,8 @@ const routes = function (ListingHome) {
     .put(upload.array('images', 10), controller.updateListing)
     .delete(controller.deleteListing);
 
-  listingRouter.route('/biddings').get(controller.getBiddings);
-  listingRouter.route('/villages').get(controller.getVillages);
 
-  return listingHomeRouter;
+  return listingRouter;
 };
 
 module.exports = routes;

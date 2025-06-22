@@ -14,11 +14,11 @@ const routes = function () {
   const biddingRouter = express.Router();
   const controller = require('../../controllers/lbdashboard/biddingController')(BiddingHome);
 
-  biddingRouter.get('/biddings', controller.getBiddings);
-  biddingRouter.get('/bidding/id', controller.getListingById);
-  biddingRouter.post('/bidding', upload.array('images', 10), controller.createListing);
-  biddingRouter.put('/bidding', upload.array('images', 10), controller.updateListing);
-  biddingRouter.delete('/bidding', controller.deleteListing);
+  biddingRouter.get('/biddings', controller.getBidListings);
+  biddingRouter.get('/bidding/id', controller.getBidListingById);
+  biddingRouter.post('/bidding', upload.array('images', 10), controller.createBidListing);
+  biddingRouter.put('/bidding', upload.array('images', 10), controller.updateBidListing);
+  biddingRouter.delete('/bidding', controller.deleteBidListing);
 
   return biddingRouter;
 };
