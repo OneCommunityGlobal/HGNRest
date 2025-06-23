@@ -272,6 +272,7 @@ const permissionsRoles = [
       'editTeamCode',
       'totalValidWeeklySummaries',
       'requestBio',
+      'uploadToYoutube',
 
       // Title
       'seeQSC',

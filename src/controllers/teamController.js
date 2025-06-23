@@ -359,7 +359,7 @@ const teamcontroller = function (Team) {
       const teamIds = req.body;
       const cacheKey = 'teamMembersCache';
       if (cache.hasCache(cacheKey)) {
-        let data = cache.getCache('teamMembersCache');
+        const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
       if (
@@ -373,7 +373,7 @@ const teamcontroller = function (Team) {
             error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
           });
       }
-      let data = await Team.aggregate([
+      const data = await Team.aggregate([
         {
           $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team._id)) } },
         },

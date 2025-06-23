@@ -1941,7 +1941,7 @@ const userProfileController = function (UserProfile, Project) {
 
   const removeProfileImage = async (req, res) => {
     try {
-      var user_id = req.body.user_id;
+      const {user_id} = req.body;
       await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: '' } });
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
@@ -1952,7 +1952,7 @@ const userProfileController = function (UserProfile, Project) {
   };
   const updateProfileImageFromWebsite = async (req, res) => {
     try {
-      var user = req.body;
+      const user = req.body;
       await UserProfile.updateOne(
         { _id: user.user_id },
         {
@@ -2050,7 +2050,7 @@ const userProfileController = function (UserProfile, Project) {
         // Temporarily set new teamCode for validation
         user.teamCode = newTeamCode;
   
-        let teamCodeWarning = user.teamCodeWarning;
+        let {teamCodeWarning} = user;
         if (warningUsers && warningUsers.includes(user._id.toString())) {
              teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
         }
@@ -2061,7 +2061,7 @@ const userProfileController = function (UserProfile, Project) {
             update: {
               $set: {
                 teamCode: newTeamCode,
-                teamCodeWarning: teamCodeWarning,
+                teamCodeWarning,
               },
             },
           },
@@ -2069,7 +2069,7 @@ const userProfileController = function (UserProfile, Project) {
   
         updatedUsersInfo.push({
           userId: user._id,
-          teamCodeWarning: teamCodeWarning,
+          teamCodeWarning,
         });
       }
   

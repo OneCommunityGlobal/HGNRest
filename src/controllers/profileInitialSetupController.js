@@ -541,7 +541,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = [
+    const user_permissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
