@@ -430,8 +430,8 @@ const overviewReportHelper = function () {
         },
       ]);
       const data = {};
-      data.current = res[0].current[0].activeTeams;
-      data.comparison = res[0].comparison[0].activeTeams;
+      data.current = res[0]?.current[0]?.activeTeams || 0;
+      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
       data.percentage = calculateGrowthPercentage(data.current, data.comparison);
       return data;
     }
@@ -447,7 +447,7 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    return { current: res[0].activeTeams };
+    return { current: res[0]?.activeTeams || 0 };
   }
 
   /**
@@ -571,31 +571,108 @@ const overviewReportHelper = function () {
   }
 
   /**
-   * Get the number of Blue Square infringements between the two input dates.
-   * @param {*} startDate
-   * @param {*} endDate
-   * @returns
+   * Get the data for Blue Square infringements between the two input dates.
+   * @param {Date} isoStartDate
+   * @param {Date} isoEndDate
+   * @param {Date} isoComparisonStartDate
+   * @param {Date} isoComparisonEndDate
    */
-  async function getBlueSquareStats(startDate, endDate) {
-    return UserProfile.aggregate([
-      {
-        $unwind: '$infringements',
-      },
-      {
-        $match: {
-          'infringements.date': {
-            $gte: startDate,
-            $lte: endDate,
+  async function getBlueSquareStats(
+    isoStartDate,
+    isoEndDate,
+    isoComparisonStartDate,
+    isoComparisonEndDate,
+  ) {
+    const getData = async (startDate, endDate) =>
+      UserProfile.aggregate([
+        {
+          $unwind: {
+            path: '$infringementsNew',
           },
         },
-      },
-      {
-        $group: {
-          _id: '$infringements.description',
-          count: { $sum: 1 },
+        {
+          $match: {
+            'infringementsNew.createdDate': {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
         },
-      },
-    ]);
+        {
+          $group: {
+            _id: '$infringementsNew.reason',
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $cond: [
+                {
+                  $in: [
+                    '$_id',
+                    ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
+                  ],
+                },
+                '$_id',
+                'other',
+              ],
+            },
+            count: {
+              $sum: '$count',
+            },
+          },
+        },
+      ]);
+
+    const currData = await getData(isoStartDate, isoEndDate);
+
+    const currTotalInfringements = currData.reduce((total, item) => {
+      const currTotal = total + item.count;
+      return currTotal;
+    }, 0);
+
+    const formattedData = currData.reduce((accum, item) => {
+      accum[item._id] = {
+        count: item.count,
+        percentageOutOfTotal: Math.round((item.count / currTotalInfringements) * 100) / 100,
+      };
+      return accum;
+    }, {});
+
+    // fill missing fields
+    const reasons = [
+      'missingHours',
+      'missingSummary',
+      'missingHoursAndSummary',
+      'vacationTime',
+      'other',
+    ];
+    reasons.forEach((reason) => {
+      if (!formattedData[reason]) {
+        formattedData[reason] = { count: 0, percentageOutOfTotal: 0 };
+      }
+    });
+
+    formattedData.totalBlueSquares = {
+      count: currTotalInfringements,
+    };
+
+    if (isoComparisonStartDate && isoComparisonEndDate) {
+      const comparisonData = await getData(isoComparisonStartDate, isoComparisonEndDate);
+
+      const comparisonTotalInfringements = comparisonData.reduce((total, item) => {
+        const currTotal = total + item.count;
+        return currTotal;
+      }, 0);
+
+      formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
+        currTotalInfringements,
+        comparisonTotalInfringements,
+      );
+    }
+
+    return formattedData;
   }
 
   /**
@@ -1509,6 +1586,7 @@ const overviewReportHelper = function () {
     // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
     let projectsComparisonPercentage;
+    let hoursSubmittedToTasksComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
       const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
@@ -1516,6 +1594,9 @@ const overviewReportHelper = function () {
       projectsComparisonPercentage = calculateGrowthPercentage(
         projectHours,
         comparisonProjectHours,
+      );
+      hoursSubmittedToTasksComparisonPercentage = Number(
+        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
       );
     }
 
@@ -1613,6 +1694,8 @@ const overviewReportHelper = function () {
         ),
         comparisonPercentage: projectsComparisonPercentage,
       },
+      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      hoursSubmittedToTasksComparisonPercentage,
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
@@ -1822,6 +1905,71 @@ const overviewReportHelper = function () {
     return { count: currentCount };
   }
 
+  const getTotalSummariesSubmitted = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
+    // Helper function to count summaries submitted within a date range
+    const getSummariesCount = async (start, end) =>
+      UserProfile.aggregate([
+        {
+          $match: {
+            summarySubmissionDates: {
+              $elemMatch: {
+                $gte: new Date(start),
+                $lte: new Date(end),
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            totalSummaries: {
+              $size: {
+                $filter: {
+                  input: '$summarySubmissionDates',
+                  as: 'date',
+                  cond: {
+                    $and: [
+                      { $gte: ['$$date', new Date(start)] },
+                      { $lte: ['$$date', new Date(end)] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSummaries: { $sum: '$totalSummaries' },
+          },
+        },
+      ]);
+
+    // Get summaries count for the current date range
+    const currentSummaries = await getSummariesCount(startDate, endDate);
+    const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
+
+    // If comparison dates are provided, calculate the comparison percentage
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
+      const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
+      const comparisonPercentage = calculateGrowthPercentage(
+        totalCurrentSummaries,
+        totalComparisonSummaries,
+      );
+
+      return { count: totalCurrentSummaries, comparisonPercentage };
+    }
+
+    // If no comparison dates, return only the count
+    return { count: totalCurrentSummaries };
+  };
+
   return {
     getVolunteerTrends,
     getMapLocations,
@@ -1846,6 +1994,7 @@ const overviewReportHelper = function () {
     getTeamsWithActiveMembers,
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
+    getTotalSummariesSubmitted,
   };
 };
 

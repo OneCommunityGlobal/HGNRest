@@ -9,6 +9,9 @@ const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
+const cacheModule = require('../utilities/nodeCache');
+
+const cacheUtil = cacheModule();
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -115,10 +118,9 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       userProfile.email,
       'Logged more hours than estimated for a task',
       text,
+      null,
+      null,
       'onecommunityglobal@gmail.com',
-      null,
-      userProfile.email,
-      null,
     );
   } catch (error) {
     throw new Error(
@@ -471,6 +473,15 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
+
+  const invalidateWeeklySummariesCache = (weekIndex) => {
+    const cacheKey = `weeklySummaries_${weekIndex}`;
+    cacheUtil.removeCache(cacheKey);
+    
+    // Also invalidate the "all weeks" cache
+    cacheUtil.removeCache('weeklySummaries_all');
+  };
+  
   /**
    * Helper func: Check if this is the first time entry for the given user id
    *
@@ -568,7 +579,7 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (timeEntry.taskId) {
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               timeEntry.taskId,
               0,
               timeEntry.taskId,
@@ -597,6 +608,21 @@ const timeEntrycontroller = function (TimeEntry) {
         await userprofile.save({ session, validateModifiedOnly: true });
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
+
+        // Add cache invalidation for weekly summaries here
+        const dateOfWork = new Date(timeEntry.dateOfWork);
+        const today = new Date();
+        const diffTime = today - dateOfWork;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Calculate which week this entry belongs to (0 = this week, 1 = last week, etc.)
+        const weekIndex = Math.floor(diffDays / 7);
+        
+        // Only invalidate cache for entries in the last 4 weeks
+        if (weekIndex >= 0 && weekIndex <= 3) {
+          // Call the invalidation function
+          invalidateWeeklySummariesCache(weekIndex);
+        }
       }
 
       await session.commitTransaction();
@@ -758,7 +784,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // change from tangible to intangible
           if (initialIsTangible) {
             // subtract initial logged hours from old task (if not null)
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               initialTaskId,
               initialTotalSeconds,
               null,
@@ -784,7 +810,7 @@ const timeEntrycontroller = function (TimeEntry) {
             );
           } else {
             // from intangible to tangible
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               null,
               null,
               newTaskId,
@@ -813,7 +839,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
 
           // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
-          updateTaskLoggedHours(
+          await updateTaskLoggedHours(
             initialTaskId,
             initialTotalSeconds,
             newTaskId,
@@ -931,7 +957,7 @@ const timeEntrycontroller = function (TimeEntry) {
           await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
@@ -1015,6 +1041,54 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  
+  /**
+   * Get total hours for a specified period for multiple users at once
+   */
+  const getUsersTotalHoursForSpecifiedPeriod = async function (req, res) {
+    const { userIds, fromDate, toDate } = req.body;
+
+    if (
+      !fromDate ||
+      !toDate ||
+      !userIds ||
+      !moment(fromDate).isValid() ||
+      !moment(toDate).isValid()
+    ) {
+      return res.status(400).send({ error: 'Invalid request' });
+    }
+
+    const startDate = moment(fromDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const endDate = moment(toDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+    try {
+      // g total hours
+      const userHoursSummary = await TimeEntry.aggregate([
+        {
+          $match: {
+            entryType: { $in: ['default', 'person', null] },
+            personId: { $in:  userIds.map(id => mongoose.Types.ObjectId(id)) },
+            dateOfWork: { $gte: startDate, $lte: endDate }
+          }
+        },
+        {
+          $group: {
+            _id: '$personId',
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } }
+          }
+        }
+      ]);
+      const result = userHoursSummary.map(entry => ({
+        userId: entry._id,
+        totalHours: Math.round(entry.totalHours * 10) / 10 //round
+      }));
+      res.status(200).send(result);
+    } catch (error) {
+      logger.logException(error); // Log exception using consistent logger
+      res.status(400).send({ error: 'Failed to calculate total hours', details: error.message });
+    }
+  };
+
   /**
    * Get time entries for a specified period for a list of users
    */
@@ -1063,12 +1137,12 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const getTimeEntriesForReports =async function (req, res) {
+  const getTimeEntriesForReports = async function (req, res) {
     const { users, fromDate, toDate } = req.body;
     const cacheKey = `timeEntry_${fromDate}_${toDate}`;
-    const timeentryCache=cacheClosure();
-    const cacheData=timeentryCache.hasCache(cacheKey)
-    if(cacheData){
+    const timeentryCache = cacheClosure();
+    const cacheData = timeentryCache.hasCache(cacheKey);
+    if (cacheData) {
       const data = timeentryCache.getCache(cacheKey);
       return res.status(200).send(data);
     }
@@ -1078,7 +1152,7 @@ const timeEntrycontroller = function (TimeEntry) {
           personId: { $in: users },
           dateOfWork: { $gte: fromDate, $lte: toDate },
         },
-        '-createdDateTime' // Exclude unnecessary fields
+        '-createdDateTime', // Exclude unnecessary fields
       )
         .lean() // Returns plain JavaScript objects, not Mongoose documents
         .populate({
@@ -1086,7 +1160,7 @@ const timeEntrycontroller = function (TimeEntry) {
           select: '_id projectName', // Only return necessary fields from the project
         })
         .exec(); // Executes the query
-      const data = results.map(element => {
+      const data = results.map((element) => {
         const record = {
           _id: element._id,
           isTangible: element.isTangible,
@@ -1099,7 +1173,7 @@ const timeEntrycontroller = function (TimeEntry) {
         };
         return record;
       });
-      timeentryCache.setCache(cacheKey,data);
+      timeentryCache.setCache(cacheKey, data);
       return res.status(200).send(data);
     } catch (error) {
       res.status(400).send(error);
@@ -1284,11 +1358,11 @@ const timeEntrycontroller = function (TimeEntry) {
    */
   const getLostTimeEntriesForTeamList = function (req, res) {
     const { teams, fromDate, toDate } = req.body;
-    const lostteamentryCache=cacheClosure()
+    const lostteamentryCache = cacheClosure();
     const cacheKey = `LostTeamEntry_${fromDate}_${toDate}`;
-    const cacheData=lostteamentryCache.getCache(cacheKey)
-    if(cacheData){
-      return res.status(200).send(cacheData)
+    const cacheData = lostteamentryCache.getCache(cacheKey);
+    if (cacheData) {
+      return res.status(200).send(cacheData);
     }
     TimeEntry.find(
       {
@@ -1298,7 +1372,8 @@ const timeEntrycontroller = function (TimeEntry) {
         isActive: { $ne: false },
       },
       ' -createdDateTime',
-    ).lean()
+    )
+      .lean()
       .populate('teamId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
@@ -1315,7 +1390,7 @@ const timeEntrycontroller = function (TimeEntry) {
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
           data.push(record);
         });
-        lostteamentryCache.setCache(cacheKey,data);
+        lostteamentryCache.setCache(cacheKey, data);
         return res.status(200).send(data);
       })
       .catch((error) => {
@@ -1560,6 +1635,7 @@ const timeEntrycontroller = function (TimeEntry) {
     editTimeEntry,
     deleteTimeEntry,
     getTimeEntriesForSpecifiedPeriod,
+    getUsersTotalHoursForSpecifiedPeriod,
     getTimeEntriesForUsersList,
     getTimeEntriesForSpecifiedProject,
     getLostTimeEntriesForUserList,

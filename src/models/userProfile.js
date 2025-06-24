@@ -12,6 +12,8 @@ const SALT_ROUNDS = 10;
 const today = new Date();
 
 const userProfileSchema = new Schema({
+  // Updated filed
+  summarySubmissionDates: [{ type: Date }],
   password: {
     type: String,
     required: true,
@@ -33,8 +35,10 @@ const userProfileSchema = new Schema({
     required: true,
   },
   permissions: {
+    isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
+    removedDefaultPermissions: [String]
   },
   firstName: {
     type: String,
@@ -50,7 +54,7 @@ const userProfileSchema = new Schema({
     index: true,
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
-  jobTitle: [{ type: String, jobTitle: String, required: true }],
+  jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
   email: {
     type: String,
@@ -101,6 +105,10 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
   infringements: [
     {
       date: { type: String, required: true },
@@ -114,13 +122,6 @@ const userProfileSchema = new Schema({
       description: {
         type: String,
         required: true,
-        enum: [
-          'Better Descriptions',
-          'Log Time to Tasks',
-          'Log Time as You Go',
-          'Log Time to Action Items',
-          'Intangible Time Log w/o Reason',
-        ],
       },
       color: {
         type: String,
@@ -231,8 +232,10 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
+  teamCodeWarning: { type: Boolean, default: false},
   teamCode: {
     type: String,
     default: '',
@@ -257,6 +260,19 @@ const userProfileSchema = new Schema({
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
   permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
+  questionaireFeedback: {
+    haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
+    peopleYouContacted: [
+      {
+        fullName: { type: String, required: true },
+        rating: { type: Number, min: 1, max: 5 },
+        isActive: { type: Boolean, default: false },
+      }
+    ],
+    additionalComments: { type: String },
+    daterequestedFeedback: { type: Date, default: Date.now },
+    foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
+  }
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -275,5 +291,20 @@ userProfileSchema.pre('save', function (next) {
 
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ projects: 1, firstName: 1 });
+userProfileSchema.index({ projects: 1, lastName: 1 });
+userProfileSchema.index({ isActive: 1 });
+// Add index for weeklySummaries.dueDate to speed up filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Add compound index for isActive and createdDate
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for weekly summaries date filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Compound index for isActive and createdDate (for filtering and sorting)
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for total hours calculation and filtering
+userProfileSchema.index({ totalTangibleHrs: 1 });
+// Index to help with bio status filtering
+userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
