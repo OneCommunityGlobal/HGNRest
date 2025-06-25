@@ -8,7 +8,7 @@ const projectRiskProfile = new Schema({
     endDate: { type: Date, required: true },
     initialCostEstimate: { type: Number, required: true },
     currentCostIncurred: { type: Number, required: false },
-    issues: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'issue' }],
+    issues: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'Issue' }],
 });
 
 module.exports = mongoose.model('projectRiskProfile', projectRiskProfile, 'projectRiskProfiles');

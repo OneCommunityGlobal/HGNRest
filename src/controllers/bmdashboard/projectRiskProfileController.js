@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
+const Issue = require('../../models/bmdashboard/Issues');
 
 const projectRiskProfileController = {
   // Get all risk profiles
@@ -130,6 +131,59 @@ const projectRiskProfileController = {
       res.status(200).json(riskProfile);
     } catch (error) {
       res.status(400).json({ message: error.message });
+    }
+  },
+
+  // Get risk profile summary for dashboard
+  getRiskProfileSummary: async (req, res) => {
+    try {
+      const { dates, projects } = req.query;
+      const filter = {};
+      if (projects) {
+        // projects can be a comma-separated list of Issue IDs
+        const projectIds = projects.split(',').map(id => id.trim());
+        filter.projectId = { $in: projectIds };
+      }
+      if (dates) {
+        // dates can be a comma-separated pair: start,end
+        const [start, end] = dates.split(',');
+        filter.startDate = { $gte: new Date(start) };
+        filter.endDate = { $lte: new Date(end) };
+      }
+      // No population needed; projectId is the Issue _id
+      const riskProfiles = await ProjectRiskProfile.find(filter).lean();
+      const now = new Date();
+      const results = await Promise.all(riskProfiles.map(async (profile) => {
+        // Cost Overrun Calculation
+        const initialCost = profile.initialCostEstimate || 0;
+        const currentCost = profile.currentCostIncurred || 0;
+        const startDate = new Date(profile.startDate);
+        const endDate = new Date(profile.endDate);
+        const totalDuration = endDate - startDate;
+        const elapsed = now - startDate;
+        const percentElapsed = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
+        let predictedCostOverrun = null;
+        if (initialCost > 0 && percentElapsed > 0) {
+          predictedCostOverrun = ((currentCost / initialCost) * (100 / percentElapsed)) - 100;
+        }
+        // Time Delay Calculation (placeholder)
+        let predictedTimeDelay = null;
+        // Fetch Issue document by its _id
+        const issueDoc = await Issue.findById(profile.projectId);
+        // Calculate total open issues by summing all issue counts
+        const totalOpenIssues = issueDoc 
+          ? (issueDoc.equipmentIssues || 0) + (issueDoc.laborIssues || 0) + (issueDoc.materialIssues || 0)
+          : 0;
+        return {
+          projectName: issueDoc ? issueDoc.projectName : '',
+          predictedCostOverrun: predictedCostOverrun !== null ? Number(predictedCostOverrun.toFixed(2)) : null,
+          predictedTimeDelay,
+          totalOpenIssues,
+        };
+      }));
+      res.status(200).json(results);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
     }
   }
 };
