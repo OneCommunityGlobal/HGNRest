@@ -1912,43 +1912,41 @@ const overviewReportHelper = function () {
     comparisonEndDate,
   ) => {
     // Helper function to count summaries submitted within a date range
-    const getSummariesCount = async (start, end) =>
-      UserProfile.aggregate([
-        {
-          $match: {
-            summarySubmissionDates: {
-              $elemMatch: {
-                $gte: new Date(start),
-                $lte: new Date(end),
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            totalSummaries: {
-              $size: {
-                $filter: {
-                  input: '$summarySubmissionDates',
-                  as: 'date',
-                  cond: {
-                    $and: [
-                      { $gte: ['$$date', new Date(start)] },
-                      { $lte: ['$$date', new Date(end)] },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalSummaries: { $sum: '$totalSummaries' },
-          },
-        },
-      ]);
+   const getSummariesCount = async (start, end) => {
+    return await UserProfile.aggregate([
+      {
+        $project: {
+          summaryEntries: { $objectToArray: "$summarySubmissionDates" }
+        }
+      },
+      {
+        $project: {
+          matchedEntries: {
+            $filter: {
+              input: "$summaryEntries",
+              as: "entry",
+              cond: {
+                $and: [
+                  { $gte: ["$$entry.v", new Date(start)] },
+                  { $lte: ["$$entry.v", new Date(end)] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          totalSummaries: { $size: "$matchedEntries" }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalSummaries: { $sum: "$totalSummaries" }
+        }
+      }
+    ]);}
 
     // Get summaries count for the current date range
     const currentSummaries = await getSummariesCount(startDate, endDate);
