@@ -4,12 +4,6 @@ const routes = function (wishlist) {
   const wishlistRouter = express.Router();
   const controller = require('../../controllers/lbdashboard/wishlistsController')(wishlist);
 
-  // Test route
-  wishlistRouter.route('/wishlist/test').get((req, res) => {
-    res.status(200).send('Test route is working again!');
-  });
-
-
   // Route to create a new wishlist
   wishlistRouter.route('/wishlist').post(controller.createWishlist);
 
