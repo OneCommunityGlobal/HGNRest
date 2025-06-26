@@ -26,6 +26,8 @@ const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 const helpCategory = require('../models/helpCategory');
 
+const wishlists = require('../models/lbdashboard/wishlists');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -161,6 +163,8 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
+const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
+
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
@@ -271,8 +275,9 @@ module.exports = function (app) {
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
-  app.use('/api/villages', require('../routes/lb_dashboard/villages'));
+  app.use('/api/villages', require('../routes/lbdashboard/villages'));
 
   app.use('/api', registrationRouter);
 
+  app.use('/api/lb', lbWishlistsRouter);
 };
