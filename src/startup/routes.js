@@ -172,6 +172,15 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+
+
+// Automations
+const appAccessRouter = require('../routes/automation/appAccessRouter');
+const dropboxRouter = require('../routes/automation/dropboxRouter');
+const githubRouter = require('../routes/automation/githubRouter');
+const sentryRouter = require('../routes/automation/sentryRouter');
+const slackRouter = require('../routes/automation/slackRouter')
+
 //lbdashboard_bidoverview
 
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
@@ -189,8 +198,6 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 const collaborationRouter=require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
-
-
 
 
 module.exports = function (app) {
@@ -253,6 +260,11 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
+  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
 
   app.use('/api/bm', bmIssueRouter);
