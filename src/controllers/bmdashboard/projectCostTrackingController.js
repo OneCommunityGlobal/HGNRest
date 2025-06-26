@@ -42,8 +42,19 @@ const projectCostTrackingController = function (ProjectCostTracking) {
         });
       });
 
+      // Calculate cumulative costs for each category
+      Object.keys(categorizedData).forEach((category) => {
+        let cumulativeCost = 0;
+        categorizedData[category] = categorizedData[category].map((item) => {
+          cumulativeCost += item.cost;
+          return {
+            date: item.date,
+            cost: cumulativeCost,
+          };
+        });
+      });
+
       // Calculate total costs
-      categorizedData.Total = [];
       const dateMap = new Map();
 
       costData.forEach((entry) => {
@@ -54,34 +65,76 @@ const projectCostTrackingController = function (ProjectCostTracking) {
         dateMap.get(dateStr).cost += entry.cost;
       });
 
-      categorizedData.Total = Array.from(dateMap.values());
+      // Convert to array and calculate cumulative total
+      let totalCumulative = 0;
+      const totalCosts = Array.from(dateMap.values())
+        .sort((a, b) => a.date - b.date)
+        .map((item) => {
+          totalCumulative += item.cost;
+          return {
+            date: item.date,
+            cost: totalCumulative,
+          };
+        });
+
+      if (totalCosts.length > 0) {
+        categorizedData.Total = totalCosts;
+      }
 
       // Format actual data
       result.actual = categorizedData;
 
-      // Generate simple prediction data (for demonstration)
-      // In a real app, this would use a more sophisticated prediction algorithm
+      // Generate prediction data using linear regression
       if (costData.length > 0) {
-        const lastDate = new Date(Math.max(...costData.map((entry) => entry.date)));
         const predictedData = {};
 
+        // For each category, perform linear regression
         Object.keys(categorizedData).forEach((category) => {
           if (categorizedData[category].length > 0) {
-            // Simple linear projection for next 3 months
             const categoryData = categorizedData[category];
+
+            // Get the last actual data point
             const lastEntry = categoryData[categoryData.length - 1];
 
-            // Calculate average daily cost
-            const avgDailyCost = lastEntry.cost / 30; // Simplified assumption
+            // Prepare data for linear regression
+            const xValues = categoryData.map((item, index) => index); // Use indices as x values
+            const yValues = categoryData.map((item) => item.cost);
 
+            // Simple linear regression
+            // Calculate slope and intercept
+            const n = xValues.length;
+            const sumX = xValues.reduce((a, b) => a + b, 0);
+            const sumY = yValues.reduce((a, b) => a + b, 0);
+            const sumXY = xValues.reduce((a, b, i) => a + b * yValues[i], 0);
+            const sumXX = xValues.reduce((a, b) => a + b * b, 0);
+
+            const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+
+            // Function to predict value
+            const predict = (x) => slope * x + intercept;
+
+            // Generate predictions for next 3 months
             predictedData[category] = [];
+
+            // Get the last date
+            const lastDate = new Date(lastEntry.date);
+
+            // Generate predictions for the next 3 months
             for (let i = 1; i <= 3; i++) {
               const predictedDate = new Date(lastDate);
               predictedDate.setMonth(lastDate.getMonth() + i);
 
+              // Predict the value (using the index after the last known point)
+              const predictedValue = predict(xValues.length - 1 + i);
+
+              // Ensure predicted value is not less than the last actual value
+              // This prevents negative growth which doesn't make sense for cumulative costs
+              const predictedCost = Math.max(predictedValue, lastEntry.cost);
+
               predictedData[category].push({
                 date: predictedDate,
-                cost: lastEntry.cost + avgDailyCost * 30 * i,
+                cost: predictedCost,
               });
             }
           }
