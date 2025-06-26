@@ -11,7 +11,7 @@ async function createFolder(req, res) {
     const { parentFolderResponse, subfolderResponse } = await dropboxService.createFolderWithSubfolder(folderName);
     const { requestor } = req.body;
     if (!checkAppAccess(requestor.role)) {
-      res.status(403).send({ error: 'Unauthorized request' });
+      res.status(403).send({ message: 'Unauthorized request' });
       return;
     } 
 
@@ -29,7 +29,7 @@ async function createFolderAndInvite(req, res) {
   try {
     const { requestor, folderPath } = req.body;
     if (!checkAppAccess(requestor.role)) {
-      res.status(403).send({ error: 'Unauthorized request' });
+      res.status(403).send({ message: 'Unauthorized request' });
       return;
     } 
     const user = await UserProfile.findById(requestor.requestorId);
@@ -58,7 +58,7 @@ async function inviteUserToFolder(req, res) {
     await appAccessService.upsertAppAccess(userId, 'dropbox', 'invited', folderPath);
     const { requestor } = req.body;
     if (!checkAppAccess(requestor.role)) {
-      res.status(403).send({ error: 'Unauthorized request' });
+      res.status(403).send({ message: 'Unauthorized request' });
       return;
     }
     res.status(200).json({ message: 'User invited successfully' });
@@ -73,7 +73,7 @@ async function deleteFolder(req, res) {
     const { requestor, folderPath } = req.body;
 
     if (!checkAppAccess(requestor.role)) {
-      res.status(403).send({ error: 'Unauthorized request' });
+      res.status(403).send({ message: 'Unauthorized request' });
       return;
     }
 

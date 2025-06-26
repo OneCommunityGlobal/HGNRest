@@ -9,11 +9,11 @@ async function inviteUser(req, res) {
   const { email, role } = req.body;
 
   if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    return res.status(400).json({ message: 'Email is required' });
   }
   const { requestor } = req.body;
   if (!checkAppAccess(requestor.role)) {
-    res.status(403).send({ error: 'Unauthorized request' });
+    res.status(403).send({ message: 'Unauthorized request' });
     return;
   } 
 
@@ -22,7 +22,7 @@ async function inviteUser(req, res) {
     await appAccessService.upsertAppAccess(requestor.requestorId, 'sentry', 'invited', email);
     res.status(201).json({ message: 'Invitation sent', data: invitation });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 }
 
@@ -31,13 +31,13 @@ async function removeUser(req, res) {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    return res.status(400).json({ message: 'Email is required' });
   }
 
   const { requestor } = req.body;
 
   if (!checkAppAccess(requestor.role)) {
-    return res.status(403).json({ error: 'Unauthorized request' });
+    return res.status(403).json({ message: 'Unauthorized request' });
   }
 
   try {
@@ -50,10 +50,10 @@ async function removeUser(req, res) {
       await appAccessService.revokeAppAccess(requestor.requestorId, 'sentry');
       res.status(200).json({ message });
     } else {
-      res.status(404).json({ error: `User with email ${email} not found.` });
+      res.status(404).json({ message: `User with email ${email} not found.` });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 }
 

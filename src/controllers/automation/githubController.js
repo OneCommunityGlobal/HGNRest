@@ -6,12 +6,12 @@ async function inviteUser(req, res) {
   const { username } = req.body;
   const { requestor } = req.body;
   if (!checkAppAccess(requestor.role)) {
-    res.status(403).send({ error: 'Unauthorized request' });
+    res.status(403).send({ message: 'Unauthorized request' });
     return;
   }
 
   if (!username) {
-    return res.status(400).json({ error: 'Username is required' });
+    return res.status(400).json({ message: 'Username is required' });
   }
 
   try {
@@ -19,7 +19,7 @@ async function inviteUser(req, res) {
     await appAccessService.upsertAppAccess(requestor.requestorId, 'github', 'invited', username);
     res.status(201).json({ message });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 }
 
@@ -27,12 +27,12 @@ async function removeUser(req, res) {
   const { username } = req.body;
   const { requestor } = req.body;
   if (!checkAppAccess(requestor.role)) {
-    res.status(403).send({ error: 'Unauthorized request' });
+    res.status(403).send({ message: 'Unauthorized request' });
     return;
   }
 
   if (!username) {
-    return res.status(400).json({ error: 'Username is required' });
+    return res.status(400).json({ message: 'Username is required' });
   }
 
   try {
@@ -40,7 +40,7 @@ async function removeUser(req, res) {
     await appAccessService.revokeAppAccess(requestor.requestorId, 'github');
     res.status(200).json({ message });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 }
 

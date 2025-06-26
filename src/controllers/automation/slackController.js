@@ -8,11 +8,11 @@ async function inviteUser(req, res) {
   const { requestor } = req.body;
   // Validate email input
   if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    return res.status(400).json({ message: 'Email is required' });
   }
 
   if (!checkAppAccess(requestor.role)) {
-    res.status(403).send({ error: 'Unauthorized request' });
+    res.status(403).send({ message: 'Unauthorized request' });
     return;
   }
 
@@ -21,7 +21,7 @@ async function inviteUser(req, res) {
     await appAccessService.upsertAppAccess(requestor.requestorId, 'slack', 'invited', email);
     return res.status(201).json({ message: `Invitation sent successfully to ${email}` });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ message: error.message });
   }
 }
 
