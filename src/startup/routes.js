@@ -148,7 +148,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 
 
 // Automations
-
+const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
@@ -215,6 +215,7 @@ module.exports = function (app) {
   app.use('/api/github', githubRouter);
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
+  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));

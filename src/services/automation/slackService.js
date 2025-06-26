@@ -1,10 +1,8 @@
-import { constants } from 'buffer';
-// services/slackService.js
-import emailSender from '../../utilities/emailSender'; // Import your existing email service
+const emailSender = require('../../utilities/emailSender');
 
 // Service function to send a Slack invite email
 const sendSlackInvite = async (recipientEmail) => {
-  const slackWorkspaceUrl = process.env.SLACK_WORKSPACE_URL; // Slack workspace invite URL from environment variable
+  const slackWorkspaceUrl = process.env.SLACK_WORKSPACE_URL; 
   if (!slackWorkspaceUrl) {
     throw new Error('Slack workspace URL is not set in the environment variables');
   }
@@ -18,7 +16,11 @@ const sendSlackInvite = async (recipientEmail) => {
   `;
 
   // Send the email using your existing emailSender function
-  await emailSender([recipientEmail], subject, message);
+  try {
+    await emailSender([recipientEmail], subject, message);
+  } catch (error) {
+    throw new Error('Slack: Error sending invite email');
+  }
 };
 
 module.exports = { sendSlackInvite };

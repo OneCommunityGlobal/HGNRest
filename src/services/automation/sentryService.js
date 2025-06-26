@@ -1,4 +1,4 @@
-const { request } = require('gaxios');  // Use gaxios instead of axios
+const axios = require('axios');  // Use gaxios instead of axios
 require('dotenv').config();
 
 const sentryApiToken = process.env.SENTRY_API_TOKEN;  // Sentry API Token from .env file
@@ -16,16 +16,16 @@ async function getMembers() {
   let nextUrl = url;
 
   try {
-    while (nextUrl) {
-      const response = await request({ url: nextUrl, headers });
+    if (nextUrl) {
+      const response = await axios({ url: nextUrl, headers });
       members.push(...response.data);  // Add members to the array
-      nextUrl = response.headers['link'] && response.headers['link'].includes('rel="next"') 
-                ? response.headers['link'].match(/<([^>]+)>; rel="next"/)[1]
+      nextUrl = response.headers.link && response.headers.link.includes('rel="next"') 
+                ? response.headers.link.match(/<([^>]+)>; rel="next"/)[1]
                 : null;  // Extract next URL from 'link' header if available
     }
     return members;
   } catch (error) {
-    throw new Error('Error fetching organization members: ' + error.message);
+    throw new Error('Sentry: Error fetching organization members');
   }
 }
 
@@ -41,7 +41,7 @@ async function inviteUser(email, role = 'member') {
   };
 
   try {
-    const response = await request({
+    const response = await axios({
       url,
       method: 'POST',
       headers,
@@ -49,7 +49,7 @@ async function inviteUser(email, role = 'member') {
     });
     return response.data;  // Return the invitation details
   } catch (error) {
-    throw new Error('Error sending invitation: ' + error.message);
+    throw new Error(`Error sending invitation: ${error.message}`);
   }
 }
 
@@ -58,14 +58,14 @@ async function removeUser(userId) {
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/${userId}/`;
 
   try {
-    const response = await request({
+    await axios({
       url,
       method: 'DELETE',
       headers,
     });
     return `Successfully removed user with ID ${userId} from the organization.`;
   } catch (error) {
-    throw new Error('Error removing user: ' + error.message);
+    throw new Error(`Error removing user: ${error.message}`);
   }
 }
 

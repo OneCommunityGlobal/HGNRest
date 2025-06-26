@@ -1,12 +1,11 @@
 const githubService = require('../../services/automation/githubService');
+const { checkAppAccess } = require('./utils');
+const appAccessService = require('../../services/automation/appAccessService');
 
 async function inviteUser(req, res) {
   const { username } = req.body;
   const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
+  if (!checkAppAccess(requestor.role)) {
     res.status(403).send({ error: 'Unauthorized request' });
     return;
   }
@@ -16,7 +15,8 @@ async function inviteUser(req, res) {
   }
 
   try {
-    const message = await githubService.sendInvitation(username);  // Call service to send invitation
+    const message = await githubService.sendInvitation(username); 
+    await appAccessService.upsertAppAccess(requestor.requestorId, 'github', 'invited', username);
     res.status(201).json({ message });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -26,10 +26,7 @@ async function inviteUser(req, res) {
 async function removeUser(req, res) {
   const { username } = req.body;
   const { requestor } = req.body;
-  if (
-    requestor.requestorId !== userId &&
-    (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  ) {
+  if (!checkAppAccess(requestor.role)) {
     res.status(403).send({ error: 'Unauthorized request' });
     return;
   }
@@ -39,7 +36,8 @@ async function removeUser(req, res) {
   }
 
   try {
-    const message = await githubService.removeUser(username);  // Call service to remove user
+    const message = await githubService.removeUser(username);  
+    await appAccessService.revokeAppAccess(requestor.requestorId, 'github');
     res.status(200).json({ message });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -1,5 +1,9 @@
 const sentryService = require('../../services/automation/sentryService');
 
+const appAccessService = require('../../services/automation/appAccessService');
+const { checkAppAccess } = require('./utils');
+
+
 // Controller function to invite a user
 async function inviteUser(req, res) {
   const { email, role } = req.body;
@@ -8,13 +12,14 @@ async function inviteUser(req, res) {
     return res.status(400).json({ error: 'Email is required' });
   }
   const { requestor } = req.body;
-  // if (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
-  //  {
-  //   res.status(403).send({ error: 'Unauthorized request' });
-  //   return;
-  // }
+  if (!checkAppAccess(requestor.role)) {
+    res.status(403).send({ error: 'Unauthorized request' });
+    return;
+  } 
+
   try {
-    const invitation = await sentryService.inviteUser(email, role);  // Call the service to invite the user
+    const invitation = await sentryService.inviteUser(email, role);
+    await appAccessService.upsertAppAccess(requestor.requestorId, 'sentry', 'invited', email);
     res.status(201).json({ message: 'Invitation sent', data: invitation });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -31,19 +36,18 @@ async function removeUser(req, res) {
 
   const { requestor } = req.body;
 
-  // if(requestor.role !== 'Administrator' || requestor.role !== 'Owner') {
-  //   return res.status(403).json({ error: 'Unauthorized request' });
-  // }
+  if (!checkAppAccess(requestor.role)) {
+    return res.status(403).json({ error: 'Unauthorized request' });
+  }
 
   try {
     const members = await sentryService.getMembers();
-    console.log('Members:', members);  // Debugging log
 
     const userToRemove = members.find(member => member.email === email);
-    console.log('User to remove:', userToRemove);  // Debugging log
 
     if (userToRemove) {
-      const message = await sentryService.removeUser(userToRemove.id);  // Call the service to remove the user
+      const message = await sentryService.removeUser(userToRemove.id);
+      await appAccessService.revokeAppAccess(requestor.requestorId, 'sentry');
       res.status(200).json({ message });
     } else {
       res.status(404).json({ error: `User with email ${email} not found.` });
