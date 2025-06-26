@@ -97,10 +97,14 @@ exports.getAllFormsFormat = async (req, res) => {
     if (forms.length === 0) {
       return res.status(404).json({ message: 'No forms found.' });
     }
+    res.status(200).json({ forms });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error fetching all forms format.', error });
+  }
+};
 
-  };  
-
-//..
+// ..
 exports.addQuestion = async (req, res) => {
   try {
     const { formId } = req.params;
@@ -108,13 +112,13 @@ exports.addQuestion = async (req, res) => {
 
     // Validate input
     if (!question || !question.questionText || !question.questionType) {
-      return res.status(400).json({ message: "Question text and type are required." });
+      return res.status(400).json({ message: 'Question text and type are required.' });
     }
 
     // Find the form
     const form = await Form.findById(formId);
     if (!form) {
-      return res.status(404).json({ message: "Form not found." });
+      return res.status(404).json({ message: 'Form not found.' });
     }
 
     // Insert the question at the specified position or append to the end
@@ -125,13 +129,13 @@ exports.addQuestion = async (req, res) => {
     }
 
     await form.save();
-    res.status(200).json({ 
-      message: "Question added successfully.", 
-      form 
+    res.status(200).json({
+      message: 'Question added successfully.',
+      form,
     });
   } catch (error) {
-    console.error("Error adding question:", error);
-    res.status(500).json({ message: "Error adding question.", error: error.message });
+    console.error('Error adding question:', error);
+    res.status(500).json({ message: 'Error adding question.', error: error.message });
   }
 };
 
@@ -144,25 +148,25 @@ exports.updateQuestion = async (req, res) => {
     // Find the form
     const form = await Form.findById(formId);
     if (!form) {
-      return res.status(404).json({ message: "Form not found." });
+      return res.status(404).json({ message: 'Form not found.' });
     }
 
     // Check if question index is valid
     if (questionIndex < 0 || questionIndex >= form.questions.length) {
-      return res.status(400).json({ message: "Invalid question index." });
+      return res.status(400).json({ message: 'Invalid question index.' });
     }
 
     // Update the question
     form.questions[questionIndex] = updatedQuestion;
     await form.save();
 
-    res.status(200).json({ 
-      message: "Question updated successfully.", 
-      form 
+    res.status(200).json({
+      message: 'Question updated successfully.',
+      form,
     });
   } catch (error) {
-    console.error("Error updating question:", error);
-    res.status(500).json({ message: "Error updating question.", error: error.message });
+    console.error('Error updating question:', error);
+    res.status(500).json({ message: 'Error updating question.', error: error.message });
   }
 };
 
@@ -174,25 +178,25 @@ exports.deleteQuestion = async (req, res) => {
     // Find the form
     const form = await Form.findById(formId);
     if (!form) {
-      return res.status(404).json({ message: "Form not found." });
+      return res.status(404).json({ message: 'Form not found.' });
     }
 
     // Check if question index is valid
     if (questionIndex < 0 || questionIndex >= form.questions.length) {
-      return res.status(400).json({ message: "Invalid question index." });
+      return res.status(400).json({ message: 'Invalid question index.' });
     }
 
     // Remove the question
     form.questions.splice(questionIndex, 1);
     await form.save();
 
-    res.status(200).json({ 
-      message: "Question deleted successfully.", 
-      form 
+    res.status(200).json({
+      message: 'Question deleted successfully.',
+      form,
     });
   } catch (error) {
-    console.error("Error deleting question:", error);
-    res.status(500).json({ message: "Error deleting question.", error: error.message });
+    console.error('Error deleting question:', error);
+    res.status(500).json({ message: 'Error deleting question.', error: error.message });
   }
 };
 
@@ -204,23 +208,23 @@ exports.reorderQuestions = async (req, res) => {
 
     // Validate input
     if (fromIndex === undefined || toIndex === undefined) {
-      return res.status(400).json({ message: "From and to indices are required." });
+      return res.status(400).json({ message: 'From and to indices are required.' });
     }
 
     // Find the form
     const form = await Form.findById(formId);
     if (!form) {
-      return res.status(404).json({ message: "Form not found." });
+      return res.status(404).json({ message: 'Form not found.' });
     }
 
     // Check if indices are valid
     if (
-      fromIndex < 0 || 
+      fromIndex < 0 ||
       fromIndex >= form.questions.length ||
       toIndex < 0 ||
       toIndex >= form.questions.length
     ) {
-      return res.status(400).json({ message: "Invalid indices." });
+      return res.status(400).json({ message: 'Invalid indices.' });
     }
 
     // Reorder the questions
@@ -228,20 +232,12 @@ exports.reorderQuestions = async (req, res) => {
     form.questions.splice(toIndex, 0, movedQuestion);
 
     await form.save();
-    res.status(200).json({ 
-      message: "Questions reordered successfully.", 
-      form 
+    res.status(200).json({
+      message: 'Questions reordered successfully.',
+      form,
     });
   } catch (error) {
-    console.error("Error reordering questions:", error);
-    res.status(500).json({ message: "Error reordering questions.", error: error.message });
+    console.error('Error reordering questions:', error);
+    res.status(500).json({ message: 'Error reordering questions.', error: error.message });
   }
 };
-
-    res.status(200).json({ forms });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error fetching all forms format.', error });
-  }
-};
-
