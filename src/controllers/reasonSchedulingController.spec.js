@@ -7,6 +7,8 @@ const ReasonModel = require('../models/reason');
 jest.mock('../utilities/emailSender', () => jest.fn());
 const emailSender = require('../utilities/emailSender');
 
+jest.mock('../utilities/emailSender');
+const emailSender = require('../utilities/emailSender');
 
 const {
   postReason,
@@ -112,9 +114,9 @@ describe('reasonScheduling Controller', () => {
     });
 
     test('Ensure postReason returns 404 when error in finding user Id', async () => {
-      const mockFindUser = jest.spyOn(UserModel, 'findById').mockImplementationOnce(() =>
-        Promise.resolve(null),
-      );
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => Promise.resolve(null));
 
       await postReason(mockReq, mockRes);
       await flushPromises();

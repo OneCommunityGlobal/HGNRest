@@ -7,9 +7,7 @@ const postReason = async (req, res) => {
   try {
     const { userId, requestor, reasonData } = req.body;
 
-    const newDate = moment
-      .tz(reasonData.date, 'America/Los_Angeles')
-      .startOf('day');
+    const newDate = moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day');
     const currentDate = moment.tz('America/Los_Angeles').startOf('day');
 
     // error case 0: Ensure the selected date is a Sunday
@@ -47,11 +45,10 @@ const postReason = async (req, res) => {
       });
     }
 
-    // Update timeOffFrom and timeOffTill fields for the user
-    if (
-      foundUser.hasOwnProperty('timeOffFrom') &&
-      foundUser.hasOwnProperty('timeOffTill')
-    ) {
+    // conditions added to check if timeOffFrom and timeOffTill fields existed
+
+    if (foundUser.hasOwnProperty('timeOffFrom') && foundUser.hasOwnProperty('timeOffTill')) {
+      // if currentDate is greater than or equal to the last timeOffTill date then both the fields will be updated
       if (currentDate >= foundUser.timeOffTill) {
         await UserModel.findOneAndUpdate(
           { _id: userId },
@@ -86,10 +83,7 @@ const postReason = async (req, res) => {
 
     // Check if a reason already exists for the selected date
     const foundReason = await ReasonModel.findOne({
-      date: moment
-        .tz(reasonData.date, 'America/Los_Angeles')
-        .startOf('day')
-        .toISOString(),
+      date: moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day').toISOString(),
       userId,
     });
 
@@ -200,10 +194,7 @@ const getSingleReason = async (req, res) => {
     }
 
     const foundReason = await ReasonModel.findOne({
-      date: moment
-        .tz(queryDate, 'America/Los_Angeles')
-        .startOf('day')
-        .toISOString(),
+      date: moment.tz(queryDate, 'America/Los_Angeles').startOf('day').toISOString(),
       userId,
     });
 
@@ -257,10 +248,7 @@ const patchReason = async (req, res) => {
     }
 
     const foundReason = await ReasonModel.findOne({
-      date: moment
-        .tz(reasonData.date, 'America/Los_Angeles')
-        .startOf('day')
-        .toISOString(),
+      date: moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day').toISOString(),
       userId,
     });
     // error case 4
@@ -316,8 +304,7 @@ const deleteReason = async (req, res) => {
     // error case 1
     if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
       return res.status(403).json({
-        message:
-          'You must be an Owner or Administrator to schedule a reason for a Blue Square',
+        message: 'You must be an Owner or Administrator to schedule a reason for a Blue Square',
 
         errorCode: 1,
       });
@@ -334,10 +321,7 @@ const deleteReason = async (req, res) => {
     }
 
     const foundReason = await ReasonModel.findOne({
-      date: moment
-        .tz(reasonData.date, 'America/Los_Angeles')
-        .startOf('day')
-        .toISOString(),
+      date: moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day').toISOString(),
     });
 
     if (!foundReason) {

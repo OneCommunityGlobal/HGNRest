@@ -20,31 +20,41 @@ const forgotPwdController = function (userProfile) {
     const _firstName = req.body.firstName;
     const _lastName = req.body.lastName;
 
-    try {
-      const user = await userProfile.findOne({
+    const user = await userProfile
+      .findOne({
         email: { $regex: escapeRegex(_email), $options: 'i' },
         firstName: { $regex: escapeRegex(_firstName), $options: 'i' },
         lastName: { $regex: escapeRegex(_lastName), $options: 'i' },
+      })
+      .catch((error) => {
+        res.status(500).send(error);
+        logger.logException(error);
       });
 
-      if (!user) {
-        return res.status(400).send({ error: 'No Valid user was found' });
-      }
-
-      const ranPwd = uuidv4().concat('TEMP');
-      user.set({ resetPwd: ranPwd });
-
-      await user.save();
-
-      const emailMessage = getEmailMessageForForgotPassword(user, ranPwd);
-      await emailSender.sendEmail(user.email, 'Account Password change', emailMessage, null, null);
-
-      logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
-      return res.status(200).send({ message: 'generated new password' });
-    } catch (error) {
-      logger.logException(error);
-      return res.status(500).send(error);
+    if (!user) {
+      res.status(400).send({ error: 'No Valid user was found' });
+      return;
     }
+    const ranPwd = uuidv4().concat('TEMP');
+    user.set({ resetPwd: ranPwd });
+    user
+      .save()
+      .then(() => {
+        emailSender(
+          user.email,
+          'Account Password change',
+          getEmailMessageForForgotPassword(user, ranPwd),
+          null,
+          null,
+        );
+        logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
+
+        res.status(200).send({ message: 'generated new password' });
+      })
+      .catch((error) => {
+        logger.logException(error);
+        res.status(500).send(error);
+      });
   };
 
   return { forgotPwd };

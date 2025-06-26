@@ -72,7 +72,7 @@ describe('profileInitialSetupController', () => {
       mockProfileInitialSetupToken,
       mockUserProfile,
       mockProject,
-      mockMapLocation
+      mockMapLocation,
     );
   });
 
@@ -144,7 +144,9 @@ describe('profileInitialSetupController', () => {
       // Skip session handling and just mock the function calls
       mockUserProfile.findOne = jest.fn().mockResolvedValue(null);
       mockProfileInitialSetupToken.findOneAndDelete = jest.fn().mockResolvedValue(null);
-      mockProfileInitialSetupToken.prototype.save = jest.fn().mockResolvedValue({ token: 'test-token' });
+      mockProfileInitialSetupToken.prototype.save = jest
+        .fn()
+        .mockResolvedValue({ token: 'test-token' });
 
       try {
         await controller.getSetupToken(req, res);
@@ -274,4 +276,4 @@ describe('profileInitialSetupController', () => {
       expect(mockProfileInitialSetupToken.findOneAndUpdate).toHaveBeenCalled();
     });
   });
-}); 
+});

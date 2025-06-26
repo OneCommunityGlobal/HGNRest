@@ -87,13 +87,13 @@ const userHelper = function () {
               },
           },
       ]);
-      return results;      
+      return results;
       }catch(error){
         console.log(error);
         return error;
       }
   };
-  
+
 
   const getTeamManagementEmail = function (teamId) {
     const parsedTeamId = mongoose.Types.ObjectId(teamId);
@@ -326,10 +326,7 @@ const userHelper = function () {
           emails.push(email);
         }
 
-        // weeklySummaries array will have only one item fetched (if present),
-        // consequently totalSeconds array will also have only one item in the array (if present)
-        // hence totalSeconds[0] should be used
-        const hoursLogged = result.totalSeconds[0] / 3600 || 0;
+        const hoursLogged = result.totalSeconds[weekIndex] / 3600 || 0;
 
         const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
         const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
@@ -482,24 +479,24 @@ const userHelper = function () {
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
-  
+
   const assignBlueSquareForTimeNotMet = async () => {
     try {
       console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
-  
+
       logger.logInfo(
         `Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`,
       );
-  
+
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-  
+
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-  
+
       const usersRequiringBlueSqNotification = [];
 
       /**
@@ -510,45 +507,45 @@ const userHelper = function () {
       const emailQueue = [];
       const batchSize = 500;
       let skip = 0;
-  
+
       while (true) {
         const users = await userProfile.find(
           { isActive: true },
           '_id weeklycommittedHours weeklySummaries missedHours'
         ).skip(skip).limit(batchSize);
-  
+
         if (!users.length) break;
 
         await Promise.allSettled(users.map(async (user) => {
           try {
             const person = await userProfile.findById(user._id);
             const personId = mongoose.Types.ObjectId(user._id);
-        
+
             let hasWeeklySummary = false;
-        
+
             if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
               const { summary } = user.weeklySummaries[0];
               if (summary) {
                 hasWeeklySummary = true;
               }
             }
-        
+
             await processWeeklySummariesByUserId(personId);
-        
+
             const results = await dashboardHelper.laborthisweek(
               personId,
               pdtStartOfLastWeek,
               pdtEndOfLastWeek,
             );
-        
+
             const { timeSpent_hrs: timeSpent } = results[0];
             const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
             const timeNotMet = timeSpent < weeklycommittedHours;
             const timeRemaining = weeklycommittedHours - timeSpent;
-        
+
             let isNewUser = false;
             const userStartDate = moment.tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles');
-        
+
             if (
               person.totalTangibleHrs === 0 &&
               person.totalIntangibleHrs === 0 &&
@@ -558,7 +555,7 @@ const userHelper = function () {
               console.log('1');
               isNewUser = true;
             }
-        
+
             if (
               userStartDate.isAfter(pdtEndOfLastWeek) ||
               (userStartDate.isAfter(pdtStartOfLastWeek) &&
@@ -568,7 +565,7 @@ const userHelper = function () {
               console.log('2');
               isNewUser = true;
             }
-        
+
             const updateResult = await userProfile.findByIdAndUpdate(
               personId,
               {
@@ -587,14 +584,14 @@ const userHelper = function () {
               },
               { new: true },
             );
-        
+
             if (
               updateResult?.weeklySummaryOption === 'Not Required' ||
               updateResult?.weeklySummaryNotReq
             ) {
               hasWeeklySummary = true;
             }
-        
+
             const cutOffDate = moment().subtract(1, 'year');
 
             const oldInfringements = [];
@@ -619,7 +616,7 @@ const userHelper = function () {
                 },
                 { new: true },
               );
-        
+
               historyInfringements = oldInfringements
                 .map((item, index) => {
                   let enhancedDescription;
@@ -838,16 +835,15 @@ const userHelper = function () {
               emailsBCCs = null;
             }
 
-            emailQueue.push({
-              to: person.email,
-              subject: 'New Infringement Assigned',
-              body: emailBody,
-              bcc: emailsBCCs,
-              from: 'onecommunityglobal@gmail.com',
-              replyTo: person.email,
-              attachments: null,
-            });
-
+            emailSender(
+              status.email,
+              'New Infringement Assigned',
+              emailBody,
+              null,
+              ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+              status.email,
+              [...new Set([...emailsBCCs])],
+            );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
@@ -903,8 +899,8 @@ const userHelper = function () {
             logger.logException(err);
           }
         }));
-        
-  
+
+
         skip += batchSize;
       }
 
@@ -919,9 +915,9 @@ const userHelper = function () {
           email.attachments
         );
       }
-  
+
       await deleteOldTimeOffRequests();
-  
+
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -935,7 +931,7 @@ const userHelper = function () {
     } catch (err) {
       logger.logException(err);
     }
-  
+
     try {
       const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
@@ -946,7 +942,7 @@ const userHelper = function () {
       logger.logException(err);
     }
 
-   
+
   };
 
   const applyMissedHourForCoreTeam = async () => {
@@ -1161,7 +1157,7 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (
+  const notifyInfringements = async (
     original,
     current,
     firstName,
@@ -1170,7 +1166,7 @@ const userHelper = function () {
     role,
     startDate,
     jobTitle,
-  ) {
+  ) => {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
@@ -1247,7 +1243,10 @@ const userHelper = function () {
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
     );
-    newInfringements.forEach((element) => {
+
+    const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+    const bccEmails = assignments.map(a => a.email);
+    newInfringements.forEach(async (element) => {
       emailSender(
         emailAddress,
         'New Infringement Assigned',
@@ -1262,8 +1261,10 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        'onecommunityglobal@gmail.com',
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
         emailAddress,
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
       );
     });
   };
@@ -1312,7 +1313,7 @@ const userHelper = function () {
                 $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
             }
         );
-      
+
     } catch (error) {
         console.error("Error decrementing badge count:", error);
     }
@@ -1708,7 +1709,7 @@ const userHelper = function () {
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
         // Set lastWeek value
     const lastWeek = user.savedTangibleHrs[user.savedTangibleHrs.length-1];
-      
+
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
@@ -1717,14 +1718,14 @@ const userHelper = function () {
     }
 
     await badge
-      .find({ type: 'X Hours for X Week Streak', weeks: 1 }) 
+      .find({ type: 'X Hours for X Week Streak', weeks: 1 })
       .sort({ totalHrs: -1 })
       .then((results) => {
         results.every((elem) => {
-          const badgeName = `${elem.totalHrs} Hours in 1 Week`; 
-           
+          const badgeName = `${elem.totalHrs} Hours in 1 Week`;
+
           if (elem.totalHrs=== lastWeek) {
-         
+
             let theBadge = null;
             for (let i = 0; i < badgesOfType.length; i += 1) {
               if (badgesOfType[i]._id.toString() === elem._id.toString()) {
@@ -1732,7 +1733,7 @@ const userHelper = function () {
                 break;
               }
             }
-  
+
             if (theBadge) {
               increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
             } else {
@@ -1740,14 +1741,14 @@ const userHelper = function () {
             }
             return false; // Exit the loop early
           }
-        return true; 
+        return true;
         });
       })
       .catch((error) => {
         console.error("Error while fetching badges or processing results:", error);
       });
   };
-  
+
     // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
     try {
@@ -1806,7 +1807,7 @@ const userHelper = function () {
         for (let i = 0; i < badgeCollection.length; i++) {
             if (!badgeCollection[i] || !badgeCollection[i].badge) continue; // Skip invalid entries
 
-        
+
             if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
                 badgeInCollection = badgeCollection[i];
                 break;
@@ -1824,7 +1825,7 @@ const userHelper = function () {
         for (let j = badgeCollection.length - 1; j >= 0; j--) {
             let lastBadge = badgeCollection[j];
 
-            
+
             if (!lastBadge || !lastBadge.badge) {
                 continue;
             }
@@ -1864,7 +1865,7 @@ const userHelper = function () {
         console.error("Error in checkXHrsForXWeeks function:", error);
     }
   };
- 
+
   // 'Lead a team of X+'
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
@@ -1886,7 +1887,7 @@ const userHelper = function () {
         });
         totalNonLeaderMembers += nonLeaderMembers.length;
     });
-    
+
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
@@ -1902,7 +1903,7 @@ const userHelper = function () {
     }
     // Get all available team size badges, sorted by people count descending
       await badge
-      .find({ 
+      .find({
           type: 'Lead a team of X+',
           people: { $lte: totalNonLeaderMembers }  // Only get badges where requirement is <= team size
       })
@@ -1910,12 +1911,12 @@ const userHelper = function () {
       .limit(1)  // Get only the highest qualifying badge
       .then((results) => {
           if (!Array.isArray(results) || !results.length) return;
-          
+
           const qualifyingBadge = results[0];  // This will be the 60+ badge for a team of 65
-          
+
           if (badgeOfType) {
               // If user has an existing badge
-              if (badgeOfType._id.toString() !== qualifyingBadge._id.toString() && 
+              if (badgeOfType._id.toString() !== qualifyingBadge._id.toString() &&
                   badgeOfType.people < qualifyingBadge.people) {
                   replaceBadge(
                       personId,
@@ -2420,22 +2421,55 @@ const userHelper = function () {
     return false;
   }
 
+  async function getCurrentTeamCode(teamId) {
+    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+  
+    const result = await userProfile.aggregate([
+      { $match: { teams: mongoose.Types.ObjectId(teamId), isActive: true } },
+      { $limit: 1 },
+      { $project: { teamCode: 1 } },
+    ]);
+  
+    return result.length > 0 ? result[0].teamCode : null;
+  }
+  
+  async function checkTeamCodeMismatch(user) {
+    try{
+        if (!user || !user.teams.length) {
+            return false
+        };
+  
+        const latestTeamId = user.teams[0];
+        const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
+        if (!teamCodeFromFirstActive) {
+            return false
+        };
+      
+        return teamCodeFromFirstActive !== user.teamCode;
+    } catch(error) {
+        logger.logException(error);
+        return false;
+    }
+
+  }
+  
+
   async function imageUrlToPngBase64(url, maxSizeKB = 45) {
     try {
       // Fetch the image as a buffer
       const response = await axios.get(url, { responseType: "arraybuffer" });
-  
+
       if (response.status !== 200) {
         throw new Error(`Failed to fetch the image: ${response.statusText}`);
       }
-  
+
       let imageBuffer = Buffer.from(response.data);
-  
+
       let quality = 100; // Start with max quality
       let width = 1200; // Start with a reasonable large width
       let pngBuffer = await sharp(imageBuffer).resize({ width }).png({ quality }).toBuffer();
       let imageSizeKB = pngBuffer.length / 1024; // Convert bytes to KB
-  
+
       // Try to optimize while keeping best quality
       while (imageSizeKB > maxSizeKB) {
         if (quality > 10) {
@@ -2443,15 +2477,15 @@ const userHelper = function () {
         } else {
           width = Math.max(100, Math.round(width * 0.9)); // Reduce width gradually
         }
-  
+
         pngBuffer = await sharp(imageBuffer)
           .resize({ width }) // Adjust width
           .png({ quality }) // Adjust quality
           .toBuffer();
-  
+
         imageSizeKB = pngBuffer.length / 1024;
       }
-  
+
       // Convert to Base64 and return
       return `data:image/png;base64,${pngBuffer.toString("base64")}`;
     } catch (error) {
@@ -2548,6 +2582,7 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
+    checkTeamCodeMismatch
   };
 };
 
