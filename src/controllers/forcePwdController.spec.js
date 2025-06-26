@@ -30,7 +30,7 @@ describe('ForcePwdController Unit Tests', () => {
 
   test('Returns a 500 Internal Error if finding userProfile throws an error', async () => {
     const { forcePwd } = makeSut();
-    const errorMsg = 'Error happened when finding user';
+    const errorMsg = {"error": "Error happened when finding user"};
     jest.spyOn(userProfile, 'findById')
       .mockImplementationOnce(() => Promise.reject(errorMsg));
     const response = forcePwd(mockReq, mockRes);
@@ -59,7 +59,7 @@ describe('ForcePwdController Unit Tests', () => {
   });
   test('Returns a 500 Internal Error status if new password fails to save', async () => {
     const { forcePwd } = makeSut();
-    const errorMsg = 'Error happened when saving user';
+    const errorMsg = {"error": "Error happened when saving user"};
     const mockUser = {
       set: jest.fn(),
       save: jest.fn().mockRejectedValue(errorMsg),

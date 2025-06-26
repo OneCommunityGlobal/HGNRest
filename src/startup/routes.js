@@ -26,7 +26,6 @@ const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
-const notification = require('../models/notification');
 const helpCategory = require('../models/helpCategory');
 
 // Title
