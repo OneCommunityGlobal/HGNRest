@@ -180,7 +180,6 @@ const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
 const slackRouter = require('../routes/automation/slackRouter')
-const collaborationRouter = require('../routes/collaborationRouter');
 
 //lbdashboard_bidoverview
 
