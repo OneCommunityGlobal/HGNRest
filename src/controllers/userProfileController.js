@@ -169,10 +169,10 @@ const userProfileController = function (UserProfile, Project) {
     if (!(await checkPermission(req, 'getUserProfiles'))) {
       return forbidden(res, 'You are not authorized to view all users');
     }
-  
+
     const cacheKey = 'allusers';
     try {
-    // get user profiles using aggregate pipeline
+      // get user profiles using aggregate pipeline
       const users = await UserProfile.aggregate([
         {
           $project: {
@@ -211,9 +211,9 @@ const userProfileController = function (UserProfile, Project) {
             },
           },
         },
-        { $sort: { startDate: -1, createdDate: -1 } }
+        { $sort: { startDate: -1, createdDate: -1 } },
       ]);
-  
+
       if (!users || users.length === 0) {
         const cachedData = cache.getCache(cacheKey);
         if (cachedData) {
@@ -221,14 +221,15 @@ const userProfileController = function (UserProfile, Project) {
         }
         return res.status(500).send({ error: 'User result was invalid' });
       }
-  
+
       cache.setCache(cacheKey, JSON.stringify(users));
       return res.status(200).send(users);
     } catch (error) {
-      return res.status(500).send({ error: 'Failed to fetch user profiles', details: error.message });
+      return res
+        .status(500)
+        .send({ error: 'Failed to fetch user profiles', details: error.message });
     }
   };
-  
 
   /**
    * Controller function to retrieve basic user profile information.
@@ -286,18 +287,19 @@ const userProfileController = function (UserProfile, Project) {
     const { name } = req.query;
 
     const result = await UserProfile.find({
-      "$expr": {
-        "$regexMatch": {
-          "input": { "$concat": ["$firstName", " ", "$lastName"] },
-          "regex": name,  
-          "options": "i"
-        }
-      }
-    }).limit(10)
-      .select({ "firstName": 1, "lastName": 1, "_id": 1 })
-      .sort({'firstName': 1, 'lastName': 1});
+      $expr: {
+        $regexMatch: {
+          input: { $concat: ['$firstName', ' ', '$lastName'] },
+          regex: name,
+          options: 'i',
+        },
+      },
+    })
+      .limit(10)
+      .select({ firstName: 1, lastName: 1, _id: 1 })
+      .sort({ firstName: 1, lastName: 1 });
     res.json(result);
-  }
+  };
 
   const postUserProfile = async function (req, res) {
     if (!(await checkPermission(req, 'postUserProfile'))) {
@@ -534,10 +536,11 @@ const userProfileController = function (UserProfile, Project) {
 
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid));
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        req.body.requestor.requestorId === userid)
+    );
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
-
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
 
     if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
@@ -639,6 +642,7 @@ const userProfileController = function (UserProfile, Project) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
       if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
         const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
         summaryFields.forEach((fieldName) => {
@@ -854,6 +858,45 @@ const userProfileController = function (UserProfile, Project) {
           return res.status(400).json({ error: 'Failed to save record.' });
         });
     });
+  };
+
+  const updateWeeklySummarySubmission = async function (req, res) {
+    const userId = req.params.userId;
+    const { activeTab } = req.body;
+    if (![1, 2, 3, 4].includes(activeTab)) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid activeTab. Must be 1 (this week) to 4 (three weeks ago).' });
+    }
+    try {
+      const record = await UserProfile.findById(userId);
+      if (!record) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      const today = moment_();
+      const startOfWeek = today
+        .clone()
+        .startOf('isoWeek')
+        .subtract(activeTab - 1, 'weeks');
+      const weekKey = startOfWeek.format('YYYY-[W]WW');
+      const now = new Date();
+      if (
+        !record.summarySubmissionDates ||
+        typeof record.summarySubmissionDates.set !== 'function'
+      ) {
+        record.summarySubmissionDates = new Map();
+      }
+      record.summarySubmissionDates.set(weekKey, now);
+      record.markModified('summarySubmissionDates');
+      await record.save();
+      return res.status(200).json({
+        message: `Summary submission for ${weekKey} updated.`,
+        updatedTime: now,
+      });
+    } catch (err) {
+      console.error('Error updating weekly summary submission time:', err);
+      return res.status(500).json({ error: 'Server error updating submission time.' });
+    }
   };
 
   const deleteUserProfile = async function (req, res) {
@@ -1345,7 +1388,10 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode')
+    UserProfile.findById(
+      userId,
+      'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode',
+    )
       .then(async (user) => {
         const wasInactive = !user.isActive;
         user.set({
@@ -1357,14 +1403,14 @@ const userProfileController = function (UserProfile, Project) {
         });
 
         // if teamcode is invalid, flag warning
-        if (!activeStatus){
-            user.teamCodeWarning = false;
+        if (!activeStatus) {
+          user.teamCodeWarning = false;
         } else if (wasInactive) {
-            const mismatch = await userHelper.checkTeamCodeMismatch(user);
-            if (mismatch) {
-              user.teamCodeWarning = true;
-            }
+          const mismatch = await userHelper.checkTeamCodeMismatch(user);
+          if (mismatch) {
+            user.teamCodeWarning = true;
           }
+        }
 
         user
           .save()
@@ -2003,7 +2049,7 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value
+        result[e.item] = e.value;
         await result.save();
       });
       res.status(200).send({ message: 'Update successful' });
@@ -2019,36 +2065,34 @@ const userProfileController = function (UserProfile, Project) {
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
-      return res
-        .status(400)
-        .send({
-          error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
-        });
+      return res.status(400).send({
+        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+      });
     }
 
     try {
-        // Sanitize oldTeamCodes to ensure they are strings
-      const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
-  
+      // Sanitize oldTeamCodes to ensure they are strings
+      const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
+
       // 1. Find all matching users first
       const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
 
       if (usersToUpdate.length === 0) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
-  
+
       const updatedUsersInfo = [];
       const bulkOps = [];
-  
+
       for (const user of usersToUpdate) {
         // Temporarily set new teamCode for validation
         user.teamCode = newTeamCode;
-  
+
         let teamCodeWarning = user.teamCodeWarning;
         if (warningUsers && warningUsers.includes(user._id.toString())) {
-             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
+          teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
         }
-  
+
         bulkOps.push({
           updateOne: {
             filter: { _id: user._id },
@@ -2060,35 +2104,34 @@ const userProfileController = function (UserProfile, Project) {
             },
           },
         });
-  
+
         updatedUsersInfo.push({
           userId: user._id,
           teamCodeWarning: teamCodeWarning,
         });
       }
-  
+
       // 2. Execute all updates at once
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
-  
+
       return res.status(200).send({
         message: 'Team codes updated successfully.',
         updatedUsers: updatedUsersInfo,
       });
-  
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
     }
   };
-  
 
   return {
     searchUsersByName,
     postUserProfile,
     getUserProfiles,
     putUserProfile,
+    updateWeeklySummarySubmission,
     toggleUserBioPosted,
     deleteUserProfile,
     getUserById,
