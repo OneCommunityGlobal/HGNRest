@@ -30,21 +30,23 @@ describe('ForcePwdController Unit Tests', () => {
 
   test('Returns a 500 Internal Error if finding userProfile throws an error', async () => {
     const { forcePwd } = makeSut();
-    const errorMsg = {"error": "Error happened when finding user"};
+    const errorMsg = { "error": "Error happened when finding user" };
     jest.spyOn(userProfile, 'findById')
       .mockImplementationOnce(() => Promise.reject(errorMsg));
-    const response = forcePwd(mockReq, mockRes);
-    await flushPromises();
-    assertResMock(500, errorMsg, response, mockRes);
+    await forcePwd(mockReq, mockRes);
+
+    assertResMock(500, errorMsg, undefined, mockRes);
+
   });
 
   test('Returns a 200 OK status with a success message "password Reset"', async () => {
     const { forcePwd } = makeSut();
+    const successMsg = { message: 'password Reset' };
 
-    // 1) Mock bcrypt.compare to resolve false so we go down the "save" path
+    // Mock bcrypt.compare to resolve false so we go down the "save" path
     jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
 
-    // 2) Provide a fake hashed password on the user
+    // Provide a fake hashed password on the user
     const mockUser = {
       password: 'fakeHash',
       set: jest.fn(),
@@ -53,13 +55,13 @@ describe('ForcePwdController Unit Tests', () => {
 
     jest.spyOn(userProfile, 'findById').mockResolvedValue(mockUser);
 
-    const response = forcePwd(mockReq, mockRes);
-    await flushPromises();
-    assertResMock(200, successMsg, response, mockRes);
+    await forcePwd(mockReq, mockRes); // Await the function call
+
+    assertResMock(200, successMsg, undefined, mockRes); // Ensure the response is mocked correctly
   });
   test('Returns a 500 Internal Error status if new password fails to save', async () => {
     const { forcePwd } = makeSut();
-    const errorMsg = {"error": "Error happened when saving user"};
+    const errorMsg = { "error": "Error happened when saving user" };
     const mockUser = {
       set: jest.fn(),
       save: jest.fn().mockRejectedValue(errorMsg),
@@ -67,7 +69,7 @@ describe('ForcePwdController Unit Tests', () => {
 
     jest.spyOn(userProfile, 'findById').mockResolvedValue(mockUser);
 
-    const response = forcePwd(mockReq, mockRes);
+    const response = await forcePwd(mockReq, mockRes);
     await flushPromises();
     assertResMock(500, errorMsg, response, mockRes);
   });
