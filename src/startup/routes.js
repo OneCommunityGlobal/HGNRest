@@ -28,6 +28,8 @@ const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 
+const wishlists = require('../models/lbdashboard/wishlists');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -163,6 +165,8 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
+const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
+
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
@@ -282,4 +286,5 @@ module.exports = function (app) {
   app.use('/api/lb',lbUserPrefRouter);
   app.use('/api', registrationRouter);
 
+  app.use('/api/lb', lbWishlistsRouter);
 };
