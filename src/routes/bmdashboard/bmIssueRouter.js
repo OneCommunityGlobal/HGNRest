@@ -8,6 +8,8 @@ const routes = function (buildingIssue) {
         .get(controller.bmGetIssue);
     IssueRouter.route('/issue/add')
         .post(controller.bmPostIssue);
+    IssueRouter.route('/issues/longest-open')
+        .get(controller.getLongestOpenIssues);
     return IssueRouter;
 };
 module.exports = routes;

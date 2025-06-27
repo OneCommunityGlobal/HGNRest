@@ -10,8 +10,15 @@ const buildingIssue = new Schema({
     issueTitle: [{ type: String, required: true, maxLength: 50 }],
     issueText: [{ type: String, required: true, maxLength: 500 }],
     imageUrl: [{ type: String }],
+    projectId: { type: Schema.Types.ObjectId, ref: 'buildingProject', required: true },
+    status: {
+        type: String,
+        enum: ['open', 'closed'],
+        default: 'open'
+    },
     // not sure if we still need related lesson here:
     // relatedLesson: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingNewLesson', required: true },
 });
 
 module.exports = mongoose.model('buildingIssue', buildingIssue, 'buildingIssues');
+
