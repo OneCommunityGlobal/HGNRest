@@ -6,7 +6,11 @@ const mongoose = require('mongoose');
 // Mock dependencies
 jest.mock('jsonwebtoken');
 jest.mock('moment-timezone');
-jest.mock('../../utilities/emailSender');
+jest.mock('../../utilities/emailSender', () =>
+  jest.fn((email, subject, message, _, __, ___, callback) => {
+    callback(null, 'Email sent successfully'); // Simulate successful email sending
+  })
+);
 jest.mock('../../utilities/nodeCache', () => () => ({
   getCache: jest.fn().mockReturnValue('[]'),
   setCache: jest.fn(),
@@ -68,7 +72,7 @@ describe('profileInitialSetupController', () => {
       mockProfileInitialSetupToken,
       mockUserProfile,
       mockProject,
-      mockMapLocation
+      mockMapLocation,
     );
   });
 
@@ -140,7 +144,9 @@ describe('profileInitialSetupController', () => {
       // Skip session handling and just mock the function calls
       mockUserProfile.findOne = jest.fn().mockResolvedValue(null);
       mockProfileInitialSetupToken.findOneAndDelete = jest.fn().mockResolvedValue(null);
-      mockProfileInitialSetupToken.prototype.save = jest.fn().mockResolvedValue({ token: 'test-token' });
+      mockProfileInitialSetupToken.prototype.save = jest
+        .fn()
+        .mockResolvedValue({ token: 'test-token' });
 
       try {
         await controller.getSetupToken(req, res);
@@ -270,4 +276,4 @@ describe('profileInitialSetupController', () => {
       expect(mockProfileInitialSetupToken.findOneAndUpdate).toHaveBeenCalled();
     });
   });
-}); 
+});

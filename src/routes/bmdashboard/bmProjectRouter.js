@@ -10,6 +10,9 @@ projectRouter.route('/projects')
 projectRouter.route('/project/:projectId')
   .get(controller.fetchSingleProject);
 
+  projectRouter.route('/project/:projectId/users')
+  .get(controller.fetchProjectMembers);
+  
   return projectRouter;
 };
 

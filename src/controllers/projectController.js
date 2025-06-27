@@ -11,12 +11,14 @@ const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
 const cache = require('../utilities/nodeCache')();
 
+// Shit code included.
+
 const projectController = function (Project) {
   const getAllProjects = async function (req, res) {
     try {
       const projects = await Project.find(
         { isArchived: { $ne: true } },
-        'projectName isActive category modifiedDatetime',
+        'projectName isActive category modifiedDatetime membersModifiedDatetime inventoryModifiedDatetime',
       ).sort({ modifiedDatetime: -1 });
       res.status(200).send(projects);
     } catch (error) {
@@ -76,11 +78,11 @@ const projectController = function (Project) {
     if (!(await helper.hasPermission(req.body.requestor, 'postProject'))) {
       return res.status(401).send('You are not authorized to create new projects.');
     }
-
+  
     if (!req.body.projectName) {
       return res.status(400).send('Project Name is mandatory fields.');
     }
-
+  
     try {
       const projectWithRepeatedName = await Project.find({
         projectName: {
@@ -89,13 +91,11 @@ const projectController = function (Project) {
         },
       });
       if (projectWithRepeatedName.length > 0) {
-        res
-          .status(400)
-          .send(
-            `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
-          );
-        return;
+        return res.status(400).send(
+          `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
+        );
       }
+  
       const _project = new Project();
       const now = new Date();
       _project.projectName = req.body.projectName;
@@ -103,10 +103,10 @@ const projectController = function (Project) {
       _project.isActive = true;
       _project.createdDatetime = now;
       _project.modifiedDatetime = now;
+  
       const savedProject = await _project.save();
       return res.status(200).send(savedProject);
     } catch (error) {
-      logger.logException(error);
       res.status(400).send('Error creating project. Please try again.');
     }
   };
@@ -271,19 +271,20 @@ const projectController = function (Project) {
   };
 
   const getprojectMembership = async function (req, res) {
+    if (!(await helper.hasPermission(req.body.requestor, 'getProjectMembers'))) {
+      res.status(403).send('You are not authorized to perform this operation');
+      return;
+    }
     const { projectId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       res.status(400).send('Invalid request');
       return;
     }
-    const getId = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
-
     userProfile
       .find(
-        { projects: projectId },
-        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+        { projects: projectId, isActive: true },
+        { firstName: 1, lastName: 1, profilePic: 1 },
       )
-      .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
         console.log(results);
         res.status(200).send(results);
@@ -293,13 +294,50 @@ const projectController = function (Project) {
       });
   };
 
+  function escapeRegExp(string) {
+    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
+
+  const searchProjectMembers = async function (req, res) {
+    const { projectId, query } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).send('Invalid project ID');
+    }
+    // Sanitize user input and escape special characters
+    const sanitizedQuery = escapeRegExp(query.trim());
+    // case-insensitive search
+    const searchRegex = new RegExp(sanitizedQuery, 'i');
+    
+    try {
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
+      const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
+      
+      const results = await userProfile.find({
+        projects: projectId,
+        $or: [
+          { firstName: { $regex: searchRegex } }, 
+          { lastName: { $regex: searchRegex } }
+        ]
+      })
+      .select(`firstName lastName isActive ${canGetId ? '_id' : ''}`)
+      .sort({ firstName: 1, lastName: 1 })
+      .limit(30);
+      res.status(200).send(results);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
 
   const getProjectsWithActiveUserCounts = async function (req, res) {
     try {
       const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
-  
+
       const projectIds = projects.map(project => project._id);
-  
+
       const userCounts = await userProfile.aggregate([
         { $match: { projects: { $in: projectIds }, isActive: true } },
         { $unwind: '$projects' },
@@ -311,19 +349,18 @@ const projectController = function (Project) {
           },
         },
       ]);
-  
+
       const result = userCounts.reduce((acc, curr) => {
         acc[curr._id.toString()] = curr.activeUserCount;
         return acc;
       }, {});
-  
+
       res.status(200).send(result);
     } catch (error) {
       console.error(error);
       res.status(500).send('Error fetching active member counts');
     }
   };
-  
 
   return {
     getAllProjects,
@@ -334,6 +371,7 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    searchProjectMembers,
     getProjectsWithActiveUserCounts,
   };
 };

@@ -103,6 +103,8 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+
+      'manageFAQs',
     ],
   },
   {
@@ -195,6 +197,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -284,6 +287,8 @@ const permissionsRoles = [
       'manageAdminLinks',
       'removeUserFromTask',
       'editHeaderMessage',
+
+      'manageFAQs',
     ],
   },
 ];

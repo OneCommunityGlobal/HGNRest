@@ -24,6 +24,8 @@ const routes = function (project) {
     .post(controller.assignProjectToUsers)
     .get(controller.getprojectMembership);
 
+  projectRouter.route('/projects/:projectId/users/search/:query')
+    .get(controller.searchProjectMembers);
   return projectRouter;
 };
 
