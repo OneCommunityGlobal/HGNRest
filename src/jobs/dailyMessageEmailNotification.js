@@ -5,7 +5,7 @@ const UserProfile = require('../models/userProfile');
 const { sendSummaryNotification } = require('../utilities/emailSender');
 
 // Set test mode and test email
-const TEST_MODE = false; // Set to false to disable test mode
+const TEST_MODE = true; // Set to false to disable test mode
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
