@@ -24,7 +24,11 @@ const hgnFormResponses = require('../models/hgnFormResponses');
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const userPreferences = require('../models/lbdashboard/userPreferences');
+const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
+
+const wishlists = require('../models/lbdashboard/wishlists');
 
 // Title
 const title = require('../models/title');
@@ -63,7 +67,13 @@ const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
 
+const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
+const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
+const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
+const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
+const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
 const badgeRouter = require('../routes/badgeRouter')(badge);
@@ -104,14 +114,12 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
   hgnFormResponses,
   userProfile,
 );
 
 const faqRouter = require('../routes/faqRouter');
-
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -155,21 +163,41 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
+const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
+
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 
+const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
+const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
+  userPreferences,
+  notification,
+);
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
 );
 
+//lbdashboard_bidoverview
+
+const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
+const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
+  bidoverview_Bid,
+  bidoverview_Listing,
+  bidoverview_User,
+  bidoverview_Notification,
+);
+
+//commnunity portal
+const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
-
-const collaborationRouter=require('../routes/collaborationRouter');
+const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
@@ -222,6 +250,7 @@ module.exports = function (app) {
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
+  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
   app.use('/api/help-categories', helpCategoryRouter);
@@ -237,11 +266,28 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('/api/bm', bmTimeLoggerRouter);  
+
+  app.use('/api/bm', bmIssueRouter);
+
+  app.use('/api/bm', bmIssueRouter);
+
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
+
+  app.use('/api/lb', bidPropertyRouter);
+  app.use('/api/lb', userBidRouter);
+
+  //community portal
+  app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
-  app.use('/api/villages', require('../routes/lb_dashboard/villages'));
+  // lb dashboard
+  app.use('/api/villages', require('../routes/lbdashboard/villages'));
+  app.use('/api/lb', lbMessageRouter);
+  app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
+
+  app.use('/api/lb', lbWishlistsRouter);
 };
