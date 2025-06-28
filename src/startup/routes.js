@@ -152,6 +152,7 @@ const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(bui
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
+const bmExpenditurecRouter = require('../routes/bmdashboard/bmExpenditureRouter')();
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
   invTypeBase,
   materialType,
@@ -263,9 +264,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExternalTeam);
-
+  app.use('/api/bm', bmExpenditurecRouter);
   app.use('/api/bm', bmIssueRouter);
-
   app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('api', bmIssueRouter);
 
