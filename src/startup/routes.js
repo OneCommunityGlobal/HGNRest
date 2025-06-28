@@ -181,15 +181,9 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-//lbdashboard_bidoverview
-
-const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
-const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(bidoverview_Bid, bidoverview_Listing, bidoverview_User, bidoverview_Notification);
-
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
-
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -269,22 +263,14 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('api', bmIssueRouter);
 
-
-  app.use('/api/lb', bidPropertyRouter)
-  app.use('/api/lb', userBidRouter)
-
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
-
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
-  // lb dashboard
-  app.use('/api/villages', require('../routes/lbdashboard/villages'));
-  app.use('/api/lb',lbMessageRouter);
-  app.use('/api/lb',lbUserPrefRouter);
+  app.use('/api/villages', require('../routes/lb_dashboard/villages'));
+
   app.use('/api', registrationRouter);
 
-  app.use('/api/lb', lbWishlistsRouter);
 };

@@ -208,6 +208,7 @@ const reportsController = function () {
   };
 
   const getWeeklySummaries = async function (req, res) {
+  
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
@@ -235,7 +236,7 @@ const reportsController = function () {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
-
+    
     // Determine cache duration based on week
     let cacheTTL = 3600; // 1 hour default
     if (week === 0) {
