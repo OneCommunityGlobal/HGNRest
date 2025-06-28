@@ -55,7 +55,7 @@ export async function handleCallback(req, res) {
 
     // Redirect back to your front-end. For example:
     // return res.redirect(`https://sabithanazareth.github.io?bitly=success`);
-    return res.json({token})
+    return res.json(token);
   } catch (err) {
     console.error('Bitly callback error:', err.message);
     const msg = encodeURIComponent(err.message);
