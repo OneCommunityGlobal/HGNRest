@@ -1272,7 +1272,6 @@ const userHelper = function () {
     newInfringements.forEach(async (element) => {
       emailSender(
         emailAddress,
-        emailAddress,
         'New Infringement Assigned',
         getInfringementEmailBody(
           firstName,
