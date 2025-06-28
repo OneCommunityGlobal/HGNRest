@@ -265,6 +265,8 @@ module.exports = function (app) {
 
   app.use('/api/bm', bmIssueRouter);
 
+  app.use('/api/bm', bmIssueRouter);
+
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
 
