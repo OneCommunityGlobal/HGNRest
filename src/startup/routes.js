@@ -196,7 +196,7 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 
 const collaborationRouter=require('../routes/collaborationRouter');
-
+const injuryRoutes = require("../routes/injuryRoutes");
 const tagRouter = require('../routes/tagRouter')(tag);
 
 
@@ -267,7 +267,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
 
   app.use('/api/bm', bmTimeLoggerRouter);  
-  app.use('api', bmIssueRouter);
+  app.use('/api', bmIssueRouter);
 
 
   app.use('/api/lb', bidPropertyRouter)
@@ -286,5 +286,7 @@ module.exports = function (app) {
   app.use('/api/lb',lbUserPrefRouter);
   app.use('/api', registrationRouter);
 
+
+  app.use('/api', injuryRoutes);
   app.use('/api/lb', lbWishlistsRouter);
 };
