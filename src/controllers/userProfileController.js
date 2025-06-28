@@ -2023,7 +2023,6 @@ const userProfileController = function (UserProfile, Project) {
 
   const replaceTeamCodeForUsers = async (req, res) => {
     const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
-    const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
 
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
