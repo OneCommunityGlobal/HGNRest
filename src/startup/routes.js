@@ -19,7 +19,6 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 
-// const hgnFormResponses = require('../models/hgnFormResponses');
 const hgnFormResponses = require('../models/hgnFormResponse');
 
 const listings = require('../models/lbdashboard/listings');
@@ -115,7 +114,6 @@ const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
 
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
-  // hgnFormResponses,
   userProfile,
 );
 

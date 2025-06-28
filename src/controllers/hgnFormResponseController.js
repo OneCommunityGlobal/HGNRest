@@ -4,8 +4,6 @@ const FormResponse = require('../models/hgnFormResponse');
 const hgnFormController = function () {
   const submitFormResponse = async function (req, res) {
     const { userInfo, general, frontend, backend, followUp, user_id } = req.body;
-    console.log("req.body");
-    console.log(req.body);
     
     if (!userInfo || !general || !frontend || !backend || !followUp || !user_id) {
       return res

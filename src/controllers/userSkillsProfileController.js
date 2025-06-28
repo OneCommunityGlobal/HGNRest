@@ -7,14 +7,11 @@ const HgnFormResponses = require('../models/hgnFormResponse');
 /**
  * Controller for user skills profile operations
  *
- * @param {Object} HgnFormResponses - The HgnFormResponses model
  * @param {Object} UserProfile - The UserProfile model
  * @returns {Object} Controller methods
  */
-// const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
 
- const userSkillsProfileController = function (// HgnFormResponses, 
-                                   UserProfile) {
+ const userSkillsProfileController = function (UserProfile) {
   /**
    * Get user profile with skills data
    * Returns consistent structure regardless of data availability
@@ -85,13 +82,9 @@ const HgnFormResponses = require('../models/hgnFormResponse');
       }
 
       // Get skills data - use default values if not found
-      // const formResponses = await HgnFormResponses.findOne({ user_id: userId })
-      console.log(`userProfile._id is ${userProfile._id}`);
       const formResponses = await HgnFormResponses.findOne({ user_id: userId })
         .sort({ _id: -1 })
         .lean();
-      console.log("formResponses");        
-      console.log(formResponses);
       // Flag if we're using real or placeholder data
       const isProfilePlaceholder = !(await UserProfile.findById(userId));
       const isSkillsPlaceholder = !formResponses;
@@ -199,8 +192,6 @@ const HgnFormResponses = require('../models/hgnFormResponse');
         isSkillsPlaceholder,
         timestamp: new Date().toISOString(),
       });
-      Logger.logInfo("result");
-      Logger.logInfo(result);
       return res.status(200).json(result);
     } catch (error) {
       // Log exceptions with transaction name and relevant data
