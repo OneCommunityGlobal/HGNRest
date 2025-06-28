@@ -8,9 +8,12 @@ const express = require('express');
  * @param {Object} UserProfile - The UserProfile model
  * @returns {Object} Express router
  */
-const routes = function (HgnFormResponses, UserProfile) {
+// const routes = function (HgnFormResponses, UserProfile) {
+const routes = function ( // HgnFormResponses, 
+                      UserProfile) {
+
   const controller = require('../controllers/userSkillsProfileController')(
-    HgnFormResponses,
+   // HgnFormResponses,
     UserProfile,
   );
   const userSkillsProfileRouter = express.Router();

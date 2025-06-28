@@ -2,15 +2,16 @@ const mongoose = require('mongoose');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 const { hasPermission } = require('../utilities/permissions');
 const Logger = require('../startup/logger');
+const HgnFormResponses = require('../models/hgnFormResponse');
 
 /**
  * Controller for user skills profile operations
  *
- * @param {Object} HgnFormResponses - The HgnFormResponses model
  * @param {Object} UserProfile - The UserProfile model
  * @returns {Object} Controller methods
  */
-const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
+
+ const userSkillsProfileController = function (UserProfile) {
   /**
    * Get user profile with skills data
    * Returns consistent structure regardless of data availability
@@ -84,7 +85,6 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       const formResponses = await HgnFormResponses.findOne({ user_id: userId })
         .sort({ _id: -1 })
         .lean();
-
       // Flag if we're using real or placeholder data
       const isProfilePlaceholder = !(await UserProfile.findById(userId));
       const isSkillsPlaceholder = !formResponses;
@@ -164,8 +164,9 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
             leadership_experience: 'No data available',
             combined_frontend_backend: '0',
           },
-          followup: formResponses?.followup || {
+          followUp: formResponses?.followUp || {
             platform: 'N/A',
+            mern_work_experience: 'N/A',
             other_skills: 'N/A',
             suggestion: 'N/A',
             additional_info: 'No followup data available',
@@ -191,7 +192,6 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         isSkillsPlaceholder,
         timestamp: new Date().toISOString(),
       });
-
       return res.status(200).json(result);
     } catch (error) {
       // Log exceptions with transaction name and relevant data
