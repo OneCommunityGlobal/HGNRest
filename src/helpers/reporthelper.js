@@ -23,6 +23,7 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
+
     const pstStart = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
@@ -81,6 +82,9 @@ const reporthelper = function () {
           weeklySummaryOption: 1,
           adminLinks: 1,
           bioPosted: 1,
+          toggleTrophyIcon: 1,
+          startDate: 1,
+          trophyFollowedUp: 1,
           badgeCollection: {
             $filter: {
               input: '$badgeCollection',
@@ -113,6 +117,9 @@ const reporthelper = function () {
           },
           teamCode: {
             $ifNull: ['$teamCode', ''],
+          },
+          teamCodeWarning: {
+            $ifNull: ['$teamCodeWarning', false],
           },
           timeOffFrom: {
             $ifNull: ['$timeOffFrom', null],
@@ -153,25 +160,33 @@ const reporthelper = function () {
     ]);
 
     // Logic too difficult to do using aggregation.
-    results.forEach((result) => {
-      result.totalSeconds = [];
+    results.forEach((result) => {    
+      // create Array(4) to hold totalSeconds for each week
+      result.totalSeconds = [0, 0, 0, 0];
 
       result.timeEntries.forEach((entry) => {
-        const index = absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        const index = startWeekIndex === endWeekIndex ? startWeekIndex : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
         if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
           result.totalSeconds[index] = 0;
         }
 
         if (entry.isTangible === true) {
           result.totalSeconds[index] += entry.totalSeconds;
+        if (index >= 0 && index < 4) {
+          if (entry.isTangible === true) {
+            result.totalSeconds[index] += entry.totalSeconds;
+          }
         }
       });
+
+      result.totalSeconds = result.totalSeconds.map(seconds => seconds === 0 ? undefined : seconds);
 
       delete result.timeEntries;
     });
 
-    return results;
-  };
+      return results;
+    };
+
   const getReportReceipents = () => {
     let mappedResults;
     userProfile.find({ getWeeklyReport: true }, { email: 1, _id: 0 }).then((results) => {
