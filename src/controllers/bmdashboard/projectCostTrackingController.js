@@ -119,22 +119,31 @@ const projectCostTrackingController = function (ProjectCostTracking) {
 
             // Get the last date
             const lastDate = new Date(lastEntry.date);
+            const lastValue = lastEntry.cost;
 
-            // Generate predictions for the next 3 months
+            // Calculate the final predicted value for 3 months ahead
+            // This ensures we have a perfect linear growth between the last actual point
+            // and the final prediction point
+            const finalPredictedValue = predict(xValues.length + 2); // +2 for 3 months ahead (0-indexed)
+
+            // Calculate the monthly growth rate for a perfect straight line
+            const monthlyGrowth = (finalPredictedValue - lastValue) / 3;
+
+            // Generate predictions for the next 3 months with perfect linear growth
             for (let i = 1; i <= 3; i++) {
               const predictedDate = new Date(lastDate);
               predictedDate.setMonth(lastDate.getMonth() + i);
 
-              // Predict the value (using the index after the last known point)
-              const predictedValue = predict(xValues.length - 1 + i);
+              // Apply perfect linear growth
+              const predictedCost = lastValue + monthlyGrowth * i;
 
               // Ensure predicted value is not less than the last actual value
               // This prevents negative growth which doesn't make sense for cumulative costs
-              const predictedCost = Math.max(predictedValue, lastEntry.cost);
+              const finalCost = Math.max(predictedCost, lastValue);
 
               predictedData[category].push({
                 date: predictedDate,
-                cost: predictedCost,
+                cost: finalCost,
               });
             }
           }
