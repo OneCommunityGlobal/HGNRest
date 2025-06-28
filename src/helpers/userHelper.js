@@ -1272,6 +1272,7 @@ const userHelper = function () {
     newInfringements.forEach(async (element) => {
       emailSender(
         emailAddress,
+        emailAddress,
         'New Infringement Assigned',
         getInfringementEmailBody(
           firstName,
@@ -1283,6 +1284,11 @@ const userHelper = function () {
           undefined,
           administrativeContent,
         ),
+        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        emailAddress,
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
         null,
         ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
         emailAddress,
