@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "This module is the REST module built on NodeJS to support MongoDB activities, Since EmberData has no direct adapters for MongoDB. This module will later be intergrated with EmberJS HGN project to maintain singularity.",
   "main": "restapp",
+    "engines": {
+    "node": ">=14.0.0 <15"
+  },
   "scripts": {
     "test": "jest --passWithNoTests --silent --noStackTrace --runInBand --forceExit  --detectOpenHandles",
     "test:verbose": "jest --passWithNoTests --runInBand",
@@ -16,7 +19,8 @@
     "start": "node dist/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
     "serve": "babel-node src/server.js",
-    "prepare-macos-linux": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*"
+    "prepare-macos-linux": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*",
+    "prepare": "husky install"
   },
   "author": "AK",
   "license": "ISC",
@@ -42,13 +46,13 @@
     "jest": "^29.7.0",
     "lint-staged": "^13.0.3",
     "mongodb-memory-server": "^7.6.3",
-    "mongoose": "^5.13.23",
     "nodemon": "^3.0.1",
     "prettier": "3.2.5",
     "supertest": "^6.3.4"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
+    "mongoose": "^5.13.23",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
@@ -70,6 +74,7 @@
     "dotenv": "^5.0.1",
     "express": "^4.17.1",
     "express-validator": "^7.0.1",
+    "express-ws": "^5.0.2",
     "googleapis": "^100.0.0",
     "jsonwebtoken": "^9.0.0",
     "lodash": "^4.17.21",
@@ -79,11 +84,14 @@
     "mongoose-validator": "^2.1.0",
     "multer": "^1.4.5-lts.1",
     "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.4.16",
     "redis": "^4.2.0",
     "sanitize-html": "^2.16.0",
     "sharp": "^0.28.3",
+    "socket.io": "^4.8.1",
+    "supertest": "^6.3.4",
     "uuid": "^3.4.0",
     "ws": "^8.17.1"
   },
