@@ -2011,7 +2011,7 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
+        result[e.item] = e.value
         await result.save();
       });
       res.status(200).send({ message: 'Update successful' });
@@ -2022,6 +2022,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const replaceTeamCodeForUsers = async (req, res) => {
+    const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
     const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
 
     // Validate input
@@ -2081,12 +2082,15 @@ const userProfileController = function (UserProfile, Project) {
       return res.status(200).send({
         message: 'Team codes updated successfully.',
         updatedUsers: updatedUsersInfo,
+        updatedUsers: updatedUsersInfo,
       });
+  
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
     }
   };
+  
 
   return {
     searchUsersByName,
