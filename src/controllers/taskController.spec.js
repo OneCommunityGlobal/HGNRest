@@ -10,6 +10,7 @@ jest.mock('../utilities/emailSender', () => jest.fn());
 const taskHelperMethods = {
   getTasksForTeams: jest.fn(),
   getTasksForSingleUser: jest.fn(),
+  getUserProfileFirstAndLastName: jest.fn(),
 };
 jest.mock('../helpers/taskHelper', () => () => ({ ...taskHelperMethods }));
 
@@ -82,9 +83,25 @@ describe('Unit Tests for taskController.js', () => {
 
     test('Returns 200 on successfully querying the document', async () => {
       const { getTasks } = makeSut();
-      const mockData = 'some random data';
+      const mockData = [
+        { 
+          _id: 'task1', 
+          createdBy: 'user1',
+          creatorName: undefined 
+        },
+        { 
+          _id: 'task2', 
+          createdBy: 'user2',
+          creatorName: undefined 
+        }
+      ];
 
       const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce(mockData);
+      
+      // Mock getUserProfileFirstAndLastName to return creator names
+      taskHelperMethods.getUserProfileFirstAndLastName
+        .mockResolvedValueOnce('John Doe')
+        .mockResolvedValueOnce('Jane Smith');
 
       const response = await getTasks(mockReq, mockRes);
       await flushPromises();
@@ -92,6 +109,7 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(200, mockData, response, mockRes);
       expect(taskFindSpy).toHaveBeenCalled();
       expect(taskFindSpy).toHaveBeenCalledTimes(1);
+      expect(taskHelperMethods.getUserProfileFirstAndLastName).toHaveBeenCalledTimes(2);
     });
 
     test('Returns 200 on successfully querying the document', async () => {
@@ -1434,9 +1452,24 @@ describe('Unit Tests for taskController.js', () => {
 
     test('Returns 200 on success - getTasksForTeams', async () => {
       mockReq.params.userId = 1234;
-      const mockData = ['mockData'];
+      const mockData = [
+        {
+          personId: 'user123',
+          name: 'John Doe',
+          role: 'Manager',
+          tasks: [
+            {
+              _id: 'task1',
+              taskName: 'Test Task 1',
+              createdBy: 'user123',
+              creatorName: 'John Doe'
+            }
+          ]
+        }
+      ];
 
       taskHelperMethods.getTasksForTeams.mockResolvedValueOnce(mockData);
+      taskHelperMethods.getUserProfileFirstAndLastName.mockResolvedValueOnce('John Doe');
 
       const { getTasksForTeamsByUser } = makeSut();
 
@@ -1448,7 +1481,21 @@ describe('Unit Tests for taskController.js', () => {
 
     test('Returns 200 on success - getTasksForTeamsByUser', async () => {
       mockReq.params.userId = 1234;
-      const mockData = ['mockData'];
+      const mockData = [
+        {
+          personId: 'user123',
+          name: 'John Doe',
+          role: 'Manager',
+          tasks: [
+            {
+              _id: 'task1',
+              taskName: 'Test Task 1',
+              createdBy: 'user123',
+              creatorName: 'John Doe'
+            }
+          ]
+        }
+      ];
 
       const execMock = {
         exec: jest.fn().mockResolvedValueOnce(mockData),
@@ -1456,6 +1503,7 @@ describe('Unit Tests for taskController.js', () => {
 
       taskHelperMethods.getTasksForTeams.mockResolvedValueOnce([]);
       taskHelperMethods.getTasksForSingleUser.mockImplementation(() => execMock);
+      taskHelperMethods.getUserProfileFirstAndLastName.mockResolvedValueOnce('John Doe');
 
       const { getTasksForTeamsByUser } = makeSut();
 
