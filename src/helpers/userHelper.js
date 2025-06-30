@@ -10,9 +10,13 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
+const fs = require('fs');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
+const cheerio = require('cheerio');
+const axios = require('axios');
+const sharp = require('sharp');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
@@ -28,13 +32,10 @@ const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
-const fs = require('fs');
-const cheerio = require('cheerio');
-const axios=require('axios');
-const sharp = require("sharp");
-const Team=require('../models/team');
+const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 
+// eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
@@ -56,44 +57,42 @@ const userHelper = function () {
   };
 
   const getTeamMembersForBadge = async function (user) {
-
-      try{
-        const results = await Team.aggregate([
-          {
-              $match: {
-                  "members.userId": mongoose.Types.ObjectId(user._id)
-              }
+    try {
+      const results = await Team.aggregate([
+        {
+          $match: {
+            'members.userId': mongoose.Types.ObjectId(user._id),
           },
-          { $unwind: "$members" }, // Deconstructs the 'members' array to get each member as a separate document
-          {
-              $lookup: {
-                  from: "userProfiles", // Joining with 'userProfiles' collection
-                  localField: "members.userId",
-                  foreignField: "_id",
-                  as: "userProfile",
-              },
+        },
+        { $unwind: '$members' }, // Deconstructs the 'members' array to get each member as a separate document
+        {
+          $lookup: {
+            from: 'userProfiles', // Joining with 'userProfiles' collection
+            localField: 'members.userId',
+            foreignField: '_id',
+            as: 'userProfile',
           },
-          { $unwind: { path: "$userProfile", preserveNullAndEmptyArrays: true } }, // Preserves members even if they have no profile
-          {
-              $project: {
-                  team_id: "$_id", // Keeping team ID
-                  _id: "$members.userId", // Member ID
-                  role: "$userProfile.role", // Role from user profile
-                  firstName: "$userProfile.firstName", // First name from user profile
-                  lastName: "$userProfile.lastName", // Last name from user profile
-                  fullName:"$userProfile.fullName",
-                  addDateTime: "$members.addDateTime", // Date they joined the team
-                  teamName: "$teamName", // Team name
-              },
+        },
+        { $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true } }, // Preserves members even if they have no profile
+        {
+          $project: {
+            team_id: '$_id', // Keeping team ID
+            _id: '$members.userId', // Member ID
+            role: '$userProfile.role', // Role from user profile
+            firstName: '$userProfile.firstName', // First name from user profile
+            lastName: '$userProfile.lastName', // Last name from user profile
+            fullName: '$userProfile.fullName',
+            addDateTime: '$members.addDateTime', // Date they joined the team
+            teamName: '$teamName', // Team name
           },
+        },
       ]);
-      return results;      
-      }catch(error){
-        console.log(error);
-        return error;
-      }
+      return results;
+    } catch (error) {
+      console.log(error);
+      return error;
+    }
   };
-  
 
   const getTeamManagementEmail = function (teamId) {
     const parsedTeamId = mongoose.Types.ObjectId(teamId);
@@ -1308,18 +1307,17 @@ const userHelper = function () {
 
   const decreaseBadgeCount = async function (personId, badgeId) {
     try {
-        const result = await userProfile.updateOne(
-            { _id: personId, 'badgeCollection.badge': badgeId,},
-            {
-                $inc: { 'badgeCollection.$.count': -1 },
-                $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
-            }
-        );
-      
+      const result = await userProfile.updateOne(
+        { _id: personId, 'badgeCollection.badge': badgeId },
+        {
+          $inc: { 'badgeCollection.$.count': -1 },
+          $set: { 'badgeCollection.$.lastModified': Date.now().toString() },
+        },
+      );
     } catch (error) {
-        console.error("Error decrementing badge count:", error);
+      console.error('Error decrementing badge count:', error);
     }
-};
+  };
 
   const addBadge = async function (personId, badgeId, count = 1, featured = false) {
     userProfile.findByIdAndUpdate(
@@ -1709,9 +1707,9 @@ const userHelper = function () {
   };
   // 'X Hours in one week',
   const checkXHrsInOneWeek = async function (personId, user, badgeCollection) {
-        // Set lastWeek value
-    const lastWeek = user.savedTangibleHrs[user.savedTangibleHrs.length-1];
-      
+    // Set lastWeek value
+    const lastWeek = user.savedTangibleHrs[user.savedTangibleHrs.length - 1];
+
     const badgesOfType = [];
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'X Hours for X Week Streak') {
@@ -1720,14 +1718,13 @@ const userHelper = function () {
     }
 
     await badge
-      .find({ type: 'X Hours for X Week Streak', weeks: 1 }) 
+      .find({ type: 'X Hours for X Week Streak', weeks: 1 })
       .sort({ totalHrs: -1 })
       .then((results) => {
         results.every((elem) => {
-          const badgeName = `${elem.totalHrs} Hours in 1 Week`; 
-           
-          if (elem.totalHrs=== lastWeek) {
-         
+          const badgeName = `${elem.totalHrs} Hours in 1 Week`;
+
+          if (elem.totalHrs === lastWeek) {
             let theBadge = null;
             for (let i = 0; i < badgesOfType.length; i += 1) {
               if (badgesOfType[i]._id.toString() === elem._id.toString()) {
@@ -1735,7 +1732,7 @@ const userHelper = function () {
                 break;
               }
             }
-  
+
             if (theBadge) {
               increaseBadgeCount(personId, mongoose.Types.ObjectId(theBadge));
             } else {
@@ -1743,153 +1740,149 @@ const userHelper = function () {
             }
             return false; // Exit the loop early
           }
-        return true; 
+          return true;
         });
       })
       .catch((error) => {
-        console.error("Error while fetching badges or processing results:", error);
+        console.error('Error while fetching badges or processing results:', error);
       });
   };
-  
-    // 'X Hours for X Week Streak',
+
+  // 'X Hours for X Week Streak',
   const checkXHrsForXWeeks = async (personId, user, badgeCollection) => {
     try {
-        if (user.savedTangibleHrs.length === 0) {
-            console.log("No tangible hours available.");
+      if (user.savedTangibleHrs.length === 0) {
+        console.log('No tangible hours available.');
+        return;
+      }
+
+      const savedTangibleHrs = user.savedTangibleHrs;
+      const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
+      let streak = 0;
+
+      for (let i = savedTangibleHrs.length - 1; i >= 0; i -= 1) {
+        if (savedTangibleHrs[i] === currentMaxHours) {
+          streak += 1;
+        } else {
+          break;
+        }
+      }
+
+      console.log('Calculated streak:', streak);
+
+      if (streak === 0) {
+        console.log('No valid streak found.');
+        return;
+      }
+
+      if (streak === 1) {
+        await checkXHrsInOneWeek(personId, user, badgeCollection);
+        return;
+      }
+
+      // Fetch matching badges
+      const allBadges = await badge.find({
+        badgeName: {
+          $in: [
+            `${currentMaxHours} HOURS ${streak}-WEEK STREAK`,
+            `${currentMaxHours}-Hours Streak ${streak} Weeks in a Row`,
+            `${currentMaxHours} Hours Streak ${streak}-WEEk STREAK`,
+            `${currentMaxHours} Hours Streak ${streak}-WEEK STREAK`,
+          ],
+        },
+      });
+
+      if (allBadges.length === 0) {
+        return;
+      }
+
+      const newBadge = allBadges[0];
+
+      if (!badgeCollection || !Array.isArray(badgeCollection)) {
+        return;
+      }
+
+      let badgeInCollection = null;
+      for (let i = 0; i < badgeCollection.length; i += 1) {
+        if (!badgeCollection[i] || !badgeCollection[i].badge) continue; // Skip invalid entries
+
+        if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
+          badgeInCollection = badgeCollection[i];
+          break;
+        }
+      }
+
+      if (badgeInCollection) {
+        console.log(`Badge already exists: ${newBadge.badgeName}, increasing count.`);
+        await increaseBadgeCount(personId, newBadge._id);
+        return;
+      }
+
+      // Loop through badgeCollection to find and handle replacements or downgrades
+      for (let j = badgeCollection.length - 1; j >= 0; j -= 1) {
+        const lastBadge = badgeCollection[j];
+
+        if (!lastBadge || !lastBadge.badge) {
+          continue;
+        }
+
+        console.log('lastBadge.badge.totalHrs ::', lastBadge.badge.totalHrs === currentMaxHours);
+
+        if (lastBadge.badge.totalHrs === currentMaxHours) {
+          // Check if the badge is eligible for downgrade or replacement
+          if (lastBadge.badge.weeks < streak && lastBadge.count > 1) {
+            await decreaseBadgeCount(personId, lastBadge.badge._id);
+
+            console.log(`Adding new badge: ${newBadge.badgeName}`);
+            await addBadge(personId, newBadge._id);
             return;
-        }
+          }
 
-        const savedTangibleHrs = user.savedTangibleHrs;
-        const currentMaxHours = savedTangibleHrs[savedTangibleHrs.length - 1];
-        let streak = 0;
-
-        for (let i = savedTangibleHrs.length - 1; i >= 0; i--) {
-            if (savedTangibleHrs[i] === currentMaxHours) {
-                streak++;
-            } else {
-                break;
-            }
-        }
-
-        console.log("Calculated streak:", streak);
-
-        if (streak === 0) {
-            console.log("No valid streak found.");
+          if (lastBadge.badge.weeks < streak) {
+            await userProfile.updateOne(
+              { _id: personId, 'badgeCollection.badge': lastBadge.badge._id },
+              {
+                $set: {
+                  'badgeCollection.$.badge': newBadge._id,
+                  'badgeCollection.$.lastModified': Date.now().toString(),
+                  'badgeCollection.$.count': 1,
+                  'badgeCollection.$.earnedDate': [earnedDateBadge()],
+                },
+              },
+            );
             return;
+          }
         }
+      }
 
-        if (streak === 1) {
-            await checkXHrsInOneWeek(personId, user, badgeCollection);
-            return;
-        }
-
-        // Fetch matching badges
-        const allBadges = await badge.find({
-            badgeName: {
-                $in: [
-                    `${currentMaxHours} HOURS ${streak}-WEEK STREAK`,
-                    `${currentMaxHours}-Hours Streak ${streak} Weeks in a Row`,
-                    `${currentMaxHours} Hours Streak ${streak}-WEEk STREAK`,
-                    `${currentMaxHours} Hours Streak ${streak}-WEEK STREAK`
-                ]
-            }
-        });
-
-        if (allBadges.length === 0) {
-            return;
-        }
-
-        const newBadge = allBadges[0];
-
-        if (!badgeCollection || !Array.isArray(badgeCollection)) {
-            return;
-        }
-
-        let badgeInCollection = null;
-        for (let i = 0; i < badgeCollection.length; i++) {
-            if (!badgeCollection[i] || !badgeCollection[i].badge) continue; // Skip invalid entries
-
-        
-            if (badgeCollection[i].badge.badgeName === newBadge.badgeName) {
-                badgeInCollection = badgeCollection[i];
-                break;
-            }
-        }
-
-        if (badgeInCollection) {
-            console.log(`Badge already exists: ${newBadge.badgeName}, increasing count.`);
-            await increaseBadgeCount(personId, newBadge._id);
-            return;
-        }
-
-
-        // Loop through badgeCollection to find and handle replacements or downgrades
-        for (let j = badgeCollection.length - 1; j >= 0; j--) {
-            let lastBadge = badgeCollection[j];
-
-            
-            if (!lastBadge || !lastBadge.badge) {
-                continue;
-            }
-
-            console.log("lastBadge.badge.totalHrs ::", lastBadge.badge.totalHrs === currentMaxHours);
-
-            if (lastBadge.badge.totalHrs === currentMaxHours) {
-                // Check if the badge is eligible for downgrade or replacement
-                if (lastBadge.badge.weeks < streak && lastBadge.count > 1) {
-                    await decreaseBadgeCount(personId, lastBadge.badge._id);
-
-                    console.log(`Adding new badge: ${newBadge.badgeName}`);
-                    await addBadge(personId, newBadge._id);
-                    return;
-                }
-
-                if (lastBadge.badge.weeks < streak) {
-                    await userProfile.updateOne(
-                        { _id: personId, "badgeCollection.badge": lastBadge.badge._id },
-                        {
-                            $set: {
-                                "badgeCollection.$.badge": newBadge._id,
-                                "badgeCollection.$.lastModified": Date.now().toString(),
-                                "badgeCollection.$.count": 1,
-                                "badgeCollection.$.earnedDate": [earnedDateBadge()],
-                            },
-                        }
-                    );
-                    return;
-                }
-            }
-        }
-
-        await addBadge(personId, newBadge._id);
-
+      await addBadge(personId, newBadge._id);
     } catch (error) {
-        console.error("Error in checkXHrsForXWeeks function:", error);
+      console.error('Error in checkXHrsForXWeeks function:', error);
     }
   };
- 
+
   // 'Lead a team of X+'
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
     const approvedRoles = ['Mentor', 'Manager'];
     if (!approvedRoles.includes(user.role)) return;
-    var teams=await getAllTeamMembers(personId);
+    const teams = await getAllTeamMembers(personId);
     // Calculate total unique non-leader members across all teams
-    let uniqueMembers = new Set();
+    const uniqueMembers = new Set();
     let totalNonLeaderMembers = 0;
 
-    teams.forEach(team => {
-        // Filter out leaders and duplicates from each team
-        const nonLeaderMembers = team.members.filter(member => {
-            if (leaderRoles.includes(member.role)) return false;
-            if (uniqueMembers.has(member.userId.toString())) return false;
-            uniqueMembers.add(member.userId.toString());
-            return true;
-        });
-        totalNonLeaderMembers += nonLeaderMembers.length;
+    teams.forEach((team) => {
+      // Filter out leaders and duplicates from each team
+      const nonLeaderMembers = team.members.filter((member) => {
+        if (leaderRoles.includes(member.role)) return false;
+        if (uniqueMembers.has(member.userId.toString())) return false;
+        uniqueMembers.add(member.userId.toString());
+        return true;
+      });
+      totalNonLeaderMembers += nonLeaderMembers.length;
     });
-    
+
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
@@ -1904,32 +1897,34 @@ const userHelper = function () {
       }
     }
     // Get all available team size badges, sorted by people count descending
-      await badge
-      .find({ 
-          type: 'Lead a team of X+',
-          people: { $lte: totalNonLeaderMembers }  // Only get badges where requirement is <= team size
+    await badge
+      .find({
+        type: 'Lead a team of X+',
+        people: { $lte: totalNonLeaderMembers }, // Only get badges where requirement is <= team size
       })
-      .sort({ people: -1 })  // Sort descending
-      .limit(1)  // Get only the highest qualifying badge
+      .sort({ people: -1 }) // Sort descending
+      .limit(1) // Get only the highest qualifying badge
       .then((results) => {
-          if (!Array.isArray(results) || !results.length) return;
-          
-          const qualifyingBadge = results[0];  // This will be the 60+ badge for a team of 65
-          
-          if (badgeOfType) {
-              // If user has an existing badge
-              if (badgeOfType._id.toString() !== qualifyingBadge._id.toString() && 
-                  badgeOfType.people < qualifyingBadge.people) {
-                  replaceBadge(
-                      personId,
-                      mongoose.Types.ObjectId(badgeOfType._id),
-                      mongoose.Types.ObjectId(qualifyingBadge._id)
-                  );
-              }
-          } else {
-              // If user doesn't have a badge yet
-              addBadge(personId, mongoose.Types.ObjectId(qualifyingBadge._id));
+        if (!Array.isArray(results) || !results.length) return;
+
+        const qualifyingBadge = results[0]; // This will be the 60+ badge for a team of 65
+
+        if (badgeOfType) {
+          // If user has an existing badge
+          if (
+            badgeOfType._id.toString() !== qualifyingBadge._id.toString() &&
+            badgeOfType.people < qualifyingBadge.people
+          ) {
+            replaceBadge(
+              personId,
+              mongoose.Types.ObjectId(badgeOfType._id),
+              mongoose.Types.ObjectId(qualifyingBadge._id),
+            );
           }
+        } else {
+          // If user doesn't have a badge yet
+          addBadge(personId, mongoose.Types.ObjectId(qualifyingBadge._id));
+        }
       });
   };
 
@@ -2021,94 +2016,95 @@ const userHelper = function () {
 
   const getAllTeamMembers = async (userId) => {
     try {
-        // Add match stage to filter teams containing the specified user
-        let results = await Team.aggregate([
-            {
-                $match: {
-                    'members.userId': mongoose.Types.ObjectId(userId)
-                }
+      // Add match stage to filter teams containing the specified user
+      const results = await Team.aggregate([
+        {
+          $match: {
+            'members.userId': mongoose.Types.ObjectId(userId),
+          },
+        },
+        // Unwind members to process each team member
+        { $unwind: '$members' },
+        {
+          $lookup: {
+            from: 'userProfiles',
+            localField: 'members.userId',
+            foreignField: '_id',
+            as: 'userProfile',
+          },
+        },
+        { $unwind: '$userProfile' },
+        // Lookup badges
+        {
+          $lookup: {
+            from: 'badges',
+            localField: 'userProfile.badgeCollection.badge',
+            foreignField: '_id',
+            as: 'badgeDetails',
+          },
+        },
+        // Group back by team to get team structure
+        {
+          $group: {
+            _id: '$_id',
+            teamName: { $first: '$teamName' },
+            members: {
+              $push: {
+                userId: '$userProfile._id',
+                role: '$userProfile.role',
+                firstName: '$userProfile.firstName',
+                lastName: '$userProfile.lastName',
+                addDateTime: '$members.addDateTime',
+                badgeCollection: {
+                  $map: {
+                    input: '$userProfile.badgeCollection',
+                    as: 'badgeItem',
+                    in: {
+                      $mergeObjects: [
+                        '$$badgeItem',
+                        {
+                          badge: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: '$badgeDetails',
+                                  as: 'badge',
+                                  cond: { $eq: ['$$badge._id', '$$badgeItem.badge'] },
+                                },
+                              },
+                              0,
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
             },
-            // Unwind members to process each team member
-            { $unwind: '$members' },
-            {
-                $lookup: {
-                    from: 'userProfiles',
-                    localField: 'members.userId',
-                    foreignField: '_id',
-                    as: 'userProfile'
-                }
-            },
-            { $unwind: '$userProfile' },
-            // Lookup badges
-            {
-                $lookup: {
-                    from: 'badges',
-                    localField: 'userProfile.badgeCollection.badge',
-                    foreignField: '_id',
-                    as: 'badgeDetails'
-                }
-            },
-            // Group back by team to get team structure
-            {
-                $group: {
-                    _id: '$_id',
-                    teamName: { $first: '$teamName' },
-                    members: {
-                        $push: {
-                            userId: '$userProfile._id',
-                            role: '$userProfile.role',
-                            firstName: '$userProfile.firstName',
-                            lastName: '$userProfile.lastName',
-                            addDateTime: '$members.addDateTime',
-                            badgeCollection: {
-                                $map: {
-                                    input: '$userProfile.badgeCollection',
-                                    as: 'badgeItem',
-                                    in: {
-                                        $mergeObjects: [
-                                            '$$badgeItem',
-                                            {
-                                                badge: {
-                                                    $arrayElemAt: [
-                                                        {
-                                                            $filter: {
-                                                                input: '$badgeDetails',
-                                                                as: 'badge',
-                                                                cond: { $eq: ['$$badge._id', '$$badgeItem.badge'] }
-                                                            }
-                                                        },
-                                                        0
-                                                    ]
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        ]);
+          },
+        },
+      ]);
 
-        return results; // Returns array of teams the user is in with all members
-
+      return results; // Returns array of teams the user is in with all members
     } catch (error) {
-        console.error("Error fetching team members:", error);
-        throw error;
+      console.error('Error fetching team members:', error);
+      throw error;
     }
-};
+  };
 
   const awardNewBadges = async () => {
     try {
-      const users = await userProfile.find({
-            isActive: true,
-            $or: [
-                { 'badgeCollection.badge': { $exists: true }},
-                { badgeCollection: { $size: 0 }},
-                { badgeCollection: { $exists: false }}
-            ]
-        }).populate('badgeCollection.badge');
+      const users = await userProfile
+        .find({
+          isActive: true,
+          $or: [
+            { 'badgeCollection.badge': { $exists: true } },
+            { badgeCollection: { $size: 0 } },
+            { badgeCollection: { $exists: false } },
+          ],
+        })
+        .populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
@@ -2122,13 +2118,13 @@ const userHelper = function () {
         await checkXHrsForXWeeks(personId, user, badgeCollection);
         await checkNoInfringementStreak(personId, user, badgeCollection);
         await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        //remove cache after badge asssignment.
+        // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
         }
       }
     } catch (err) {
-      console.log(err)
+      console.log(err);
       logger.logException(err);
     }
   };
@@ -2173,17 +2169,7 @@ const userHelper = function () {
     recipients.push('onecommunityglobal@gmail.com');
     recipients = recipients.toString();
 
-    console.log(`[sendDeactivateEmailBody] Received endDate: ${endDate}`);
-    console.log(`[sendDeactivateEmailBody] endDate as object:`, new Date(endDate));
-
-
     if (reactivationDate) {
-
-      const formattedDate = moment(endDate).format('M-D-YYYY');
-      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
-      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
-
-
       subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
@@ -2195,12 +2181,6 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && sendThreeWeeks) {
-
-      const formattedDate = moment(endDate).format('M-D-YYYY');
-      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
-      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
-
-
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
@@ -2214,12 +2194,6 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && followup) {
-
-      const formattedDate = moment(endDate).format('M-D-YYYY');
-      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
-      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
-
-
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
@@ -2231,12 +2205,6 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet) {
-
-      const formattedDate = moment(endDate).format('M-D-YYYY');
-      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
-      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
-
-
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
@@ -2248,12 +2216,6 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate) {
-
-      const formattedDate = moment(endDate).format('M-D-YYYY');
-      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
-      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
-
-
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
@@ -2268,107 +2230,34 @@ const userHelper = function () {
   };
 
   const deActivateUser = async () => {
-  try {
-    const emailReceivers = await UserProfile.find(
-      { isActive: true, role: { $in: ['Owner'] } },
-      '_id isActive role email',
-    );
-    const recipients = emailReceivers.map((receiver) => receiver.email);
-    
-    // Find users with set end dates who are still active
-    const users = await UserProfile.find(
-      { isActive: true, endDate: { $exists: true } },
-      '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
-    );
-    
-    for (let i = 0; i < users.length; i += 1) {
-      const user = users[i];
-      const { endDate, finalEmailThreeWeeksSent } = user;
-      endDate.setHours(endDate.getHours() + 7);
+    try {
+      const emailReceivers = await UserProfile.find(
+        { isActive: true, role: { $in: ['Owner'] } },
+        '_id isActive role email',
+      );
+      const recipients = emailReceivers.map((receiver) => receiver.email);
 
-      // Notify reminder set final day before 2 weeks
-      if (
-        finalEmailThreeWeeksSent &&
-        moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
-        moment().isAfter(moment(endDate).subtract(3, 'weeks'))
-      ) {
-        const id = user._id;
-        const person = await UserProfile.findById(id);
-        const lastDay = moment(person.endDate).format('YYYY-MM-DD');
-        logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
-        person.teams.map(async (teamId) => {
-          const managementEmails = await userHelper.getTeamManagementEmail(teamId);
-          if (Array.isArray(managementEmails) && managementEmails.length > 0) {
-            managementEmails.forEach((management) => {
-              recipients.push(management.email);
-            });
-          }
-        });
-        sendDeactivateEmailBody(
-          person.firstName,
-          person.lastName,
-          lastDay,
-          person.email,
-          recipients,
-          person.isSet,
-          person.reactivationDate,
-          false,
-          true,
-        );
-      } 
-      // Check if today is after their end date 
-      // This is the key change - removed adding an extra day
-      else if (moment().isAfter(moment(endDate).add(1, 'day'))) {
-        try {
-          // Before deactivation, check when they last logged time
-          const lastTimeEntry = await TimeEntry.findOne(
-            { personId: user._id, isTangible: true },
-            {},
-            { sort: { 'dateOfWork': -1 } }
-          );
-          
-          let updatedEndDate = endDate; // Default to the original end date
-          let earlyDeactivation = false;
-          
-          // If they have a time entry and it's before their final day
-          if (lastTimeEntry) {
-            const lastActivityDate = moment(lastTimeEntry.dateOfWork);
-            const finalDayDate = moment(endDate);
-            
-            // If their last activity was more than 1 day before their final day
-            if (lastActivityDate.isBefore(finalDayDate, 'day') && 
-                finalDayDate.diff(lastActivityDate, 'days') >= 1) {
-              
-              // Update their end date to their last activity date
-              updatedEndDate = lastActivityDate.toDate();
-              earlyDeactivation = true;
-              
-              // Update the user record with the adjusted end date
-              await UserProfile.findByIdAndUpdate(
-                user._id,
-                { $set: { endDate: updatedEndDate } },
-                { new: true }
-              );
-              
-              logger.logInfo(
-                `User with id: ${user._id} had their end date adjusted from ${finalDayDate.format('YYYY-MM-DD')} to ${lastActivityDate.format('YYYY-MM-DD')} because that was their last active day.`
-              );
-            }
-          }
+      // Find users with set end dates who are still active
+      const users = await UserProfile.find(
+        { isActive: true, endDate: { $exists: true } },
+        '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
+      );
 
-          await UserProfile.findByIdAndUpdate(
-            user._id,
-            {
-              $set: {
-                isActive: false,
-              },
-            },
-            { new: true },
-          );
-          logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+        const { endDate, finalEmailThreeWeeksSent } = user;
+        endDate.setHours(endDate.getHours() + 7);
+
+        // Notify reminder set final day before 2 weeks
+        if (
+          finalEmailThreeWeeksSent &&
+          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
+          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
+        ) {
           const id = user._id;
           const person = await UserProfile.findById(id);
-
+          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
+          logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
             const managementEmails = await userHelper.getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
@@ -2377,30 +2266,104 @@ const userHelper = function () {
               });
             }
           });
-
-          // Use the potentially adjusted end date for the email
-          const formattedEndDate = moment(updatedEndDate).format('YYYY-MM-DD');
           sendDeactivateEmailBody(
             person.firstName,
             person.lastName,
-            formattedEndDate, // Use adjusted end date if applicable
+            lastDay,
             person.email,
             recipients,
             person.isSet,
             person.reactivationDate,
-            undefined,
-            earlyDeactivation // Flag for early deactivation if applicable
+            false,
+            true,
           );
-        } catch (err) {
-          logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
-          continue;
+        }
+        // Check if today is after their end date
+        // This is the key change - removed adding an extra day
+        else if (moment().isAfter(moment(endDate).add(1, 'day'))) {
+          try {
+            // Before deactivation, check when they last logged time
+            const lastTimeEntry = await TimeEntry.findOne(
+              { personId: user._id, isTangible: true },
+              {},
+              { sort: { dateOfWork: -1 } },
+            );
+
+            let updatedEndDate = endDate; // Default to the original end date
+            let earlyDeactivation = false;
+
+            // If they have a time entry and it's before their final day
+            if (lastTimeEntry) {
+              const lastActivityDate = moment(lastTimeEntry.dateOfWork);
+              const finalDayDate = moment(endDate);
+
+              // If their last activity was more than 1 day before their final day
+              if (
+                lastActivityDate.isBefore(finalDayDate, 'day') &&
+                finalDayDate.diff(lastActivityDate, 'days') >= 1
+              ) {
+                // Update their end date to their last activity date
+                updatedEndDate = lastActivityDate.toDate();
+                earlyDeactivation = true;
+
+                // Update the user record with the adjusted end date
+                await UserProfile.findByIdAndUpdate(
+                  user._id,
+                  { $set: { endDate: updatedEndDate } },
+                  { new: true },
+                );
+
+                logger.logInfo(
+                  `User with id: ${user._id} had their end date adjusted from ${finalDayDate.format('YYYY-MM-DD')} to ${lastActivityDate.format('YYYY-MM-DD')} because that was their last active day.`,
+                );
+              }
+            }
+
+            await UserProfile.findByIdAndUpdate(
+              user._id,
+              {
+                $set: {
+                  isActive: false,
+                },
+              },
+              { new: true },
+            );
+            logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
+            const id = user._id;
+            const person = await UserProfile.findById(id);
+
+            person.teams.map(async (teamId) => {
+              const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+              if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+                managementEmails.forEach((management) => {
+                  recipients.push(management.email);
+                });
+              }
+            });
+
+            // Use the potentially adjusted end date for the email
+            const formattedEndDate = moment(updatedEndDate).format('YYYY-MM-DD');
+            sendDeactivateEmailBody(
+              person.firstName,
+              person.lastName,
+              formattedEndDate, // Use adjusted end date if applicable
+              person.email,
+              recipients,
+              person.isSet,
+              person.reactivationDate,
+              undefined,
+              earlyDeactivation, // Flag for early deactivation if applicable
+            );
+          } catch (err) {
+            logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
+            continue;
+          }
         }
       }
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in deActivateUser');
     }
-  } catch (err) {
-    logger.logException(err, 'Unexpected error in deActivateUser');
-  }
-};
+  };
 
   // Update by Shengwei/Peter PR767:
   /**
@@ -2435,8 +2398,8 @@ const userHelper = function () {
     const lowerCaseTerm1 = term1.toLowerCase();
     const lowerCaseTerm2 = term2.toLowerCase();
 
-    let bothTermsMatches = [];
-    let term2Matches = [];
+    const bothTermsMatches = [];
+    const term2Matches = [];
 
     // Check if the current data is an array
     if (Array.isArray(data)) {
@@ -2459,9 +2422,8 @@ const userHelper = function () {
       //  else if (term2Matches.length > 0) {
       //     return term2Matches;
       // }
-      else {
-        return []; // No match found, return empty array
-      }
+
+      return []; // No match found, return empty array
     }
 
     // Recursion case for nested objects
@@ -2509,19 +2471,19 @@ const userHelper = function () {
   async function imageUrlToPngBase64(url, maxSizeKB = 45) {
     try {
       // Fetch the image as a buffer
-      const response = await axios.get(url, { responseType: "arraybuffer" });
-  
+      const response = await axios.get(url, { responseType: 'arraybuffer' });
+
       if (response.status !== 200) {
         throw new Error(`Failed to fetch the image: ${response.statusText}`);
       }
-  
-      let imageBuffer = Buffer.from(response.data);
-  
+
+      const imageBuffer = Buffer.from(response.data);
+
       let quality = 100; // Start with max quality
       let width = 1200; // Start with a reasonable large width
       let pngBuffer = await sharp(imageBuffer).resize({ width }).png({ quality }).toBuffer();
       let imageSizeKB = pngBuffer.length / 1024; // Convert bytes to KB
-  
+
       // Try to optimize while keeping best quality
       while (imageSizeKB > maxSizeKB) {
         if (quality > 10) {
@@ -2529,17 +2491,17 @@ const userHelper = function () {
         } else {
           width = Math.max(100, Math.round(width * 0.9)); // Reduce width gradually
         }
-  
+
         pngBuffer = await sharp(imageBuffer)
           .resize({ width }) // Adjust width
           .png({ quality }) // Adjust quality
           .toBuffer();
-  
+
         imageSizeKB = pngBuffer.length / 1024;
       }
-  
+
       // Convert to Base64 and return
-      return `data:image/png;base64,${pngBuffer.toString("base64")}`;
+      return `data:image/png;base64,${pngBuffer.toString('base64')}`;
     } catch (error) {
       console.error(`An error occurred: ${error.message}`);
       return null;
@@ -2553,7 +2515,7 @@ const userHelper = function () {
         const response = await axios.get(url);
         return response.data; // Return data if the request succeeds
       } catch (error) {
-        attempts++;
+        attempts += 1;
         // console.error(`Attempt ${attempts} failed: ${error.message}`);
         if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
         // console.log(`Retrying in ${delayTime / 1000} seconds...`);
@@ -2579,14 +2541,14 @@ const userHelper = function () {
         });
       });
       const users = await userProfile.find(
-        { isActive: true, bioPosted: "posted" },
+        { isActive: true, bioPosted: 'posted' },
         'firstName lastName email profilePic suggestedProfilePics',
       );
 
       await Promise.all(
         users.map(async (u) => {
           if (!u.profilePic) {
-            var result = searchForTermsInFields(imgData, u.firstName, u.lastName);
+            const result = searchForTermsInFields(imgData, u.firstName, u.lastName);
             try {
               if (result.length === 1) {
                 if (result[0].nitro_src !== undefined && result[0].nitro_src !== null) {
