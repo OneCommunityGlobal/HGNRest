@@ -623,6 +623,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
       ];
 
       commonFields.forEach((fieldName) => {
@@ -1741,6 +1742,7 @@ const userProfileController = function (UserProfile, Project) {
 
       const originalinfringements = record?.infringements ?? [];
       record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringementCount += 1;
 
       record
         .save()
@@ -1834,6 +1836,7 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()
