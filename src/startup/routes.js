@@ -198,6 +198,8 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
+const templateRouter = require('../routes/templateRouter');
+
 const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
@@ -250,8 +252,12 @@ module.exports = function (app) {
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+
+  app.use('/api', templateRouter);
+
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
