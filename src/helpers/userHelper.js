@@ -23,7 +23,7 @@ const badge = require('../models/badge');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
-const emailSender = require('../utilities/emailSender');
+const { emailSender } = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -186,9 +186,8 @@ const userHelper = function () {
       let hrThisweek = weeklycommittedHours || 0 + coreTeamExtraHour;
       const remainHr = timeRemaining || 0;
       hrThisweek += remainHr;
-      finalParagraph = `Please complete ALL owed time this week (${
-        hrThisweek + totalInfringements - 5
-      } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
+      finalParagraph = `Please complete ALL owed time this week (${hrThisweek + totalInfringements - 5
+        } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
       descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(
@@ -197,10 +196,10 @@ const userHelper = function () {
           requirement this week. This is in addition to any hours missed for last week:
           ${weeklycommittedHours} hours commitment + ${remainHr} hours owed for last week + ${totalInfringements - 5} hours
           owed for this being your <b>${moment
-            .localeData()
-            .ordinal(
-              totalInfringements,
-            )} blue square = ${hrThisweek + totalInfringements - 5} hours required for this week.
+          .localeData()
+          .ordinal(
+            totalInfringements,
+          )} blue square = ${hrThisweek + totalInfringements - 5} hours required for this week.
           .</p>`;
     }
     // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
@@ -359,8 +358,8 @@ const userHelper = function () {
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate)
-                  .tz('America/Los_Angeles')
-                  .format('YYYY-MMM-DD')}</b>):
+                .tz('America/Los_Angeles')
+                .format('YYYY-MMM-DD')}</b>):
               </div>
               <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
                 ${summary}
@@ -389,24 +388,20 @@ const userHelper = function () {
           </p>
           <p>
 
-          <b>Google Doc Link:</b> ${
-            googleDocLink || '<span style="color: red;">Not provided!</span>'
+          <b>Google Doc Link:</b> ${googleDocLink || '<span style="color: red;">Not provided!</span>'
           }
 
         </p>
-          ${
-            weeklySummariesCount === 8
-              ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
-              : `<p><b>Total Valid Weekly Summaries</b>: ${
-                  weeklySummariesCount || 'No valid submissions yet!'
-                }</p>`
+          ${weeklySummariesCount === 8
+            ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
+            : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'
+            }</p>`
           }
-          ${
-            hoursLogged >= weeklycommittedHours
-              ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
-              : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
-                  2,
-                )} / ${weeklycommittedHours}</p>`
+          ${hoursLogged >= weeklycommittedHours
+            ? `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
+            : `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(
+              2,
+            )} / ${weeklycommittedHours}</p>`
           }
           ${weeklySummaryMessage}
         </div>`;
@@ -736,17 +731,15 @@ const userHelper = function () {
                       'dddd M-D-YYYY',
                     )} and ending ${pdtEndOfLastWeek.format(
                       'dddd M-D-YYYY',
-                    )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
-                      person.weeklycommittedHours
-                    } hours + ${
-                      person.missedHours ?? 0
-                    } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
-                      .localeData()
-                      .ordinal(
-                        oldInfringements.length + 1,
-                      )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
-                      2,
-                    )} hours.`;
+                    )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${person.weeklycommittedHours
+                      } hours + ${person.missedHours ?? 0
+                      } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
+                        .localeData()
+                        .ordinal(
+                          oldInfringements.length + 1,
+                        )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
+                          2,
+                        )} hours.`;
                   } else {
                     description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
                       2,
@@ -760,17 +753,15 @@ const userHelper = function () {
                       'dddd M-D-YYYY',
                     )} and ending ${pdtEndOfLastWeek.format(
                       'dddd M-D-YYYY',
-                    )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
-                      user.weeklycommittedHours
-                    } hours + ${
-                      person.missedHours ?? 0
-                    } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
-                      .localeData()
-                      .ordinal(
-                        oldInfringements.length + 1,
-                      )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
-                      2,
-                    )} hours.`;
+                    )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${user.weeklycommittedHours
+                      } hours + ${person.missedHours ?? 0
+                      } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
+                        .localeData()
+                        .ordinal(
+                          oldInfringements.length + 1,
+                        )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
+                          2,
+                        )} hours.`;
                   } else {
                     description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
                       2,
@@ -789,11 +780,11 @@ const userHelper = function () {
                   description,
                   createdDate: hasTimeOffRequest
                     ? moment
-                        .tz(
-                          new Date(requestForTimeOff.createdAt).toISOString(),
-                          'America/Los_Angeles',
-                        )
-                        .format('YYYY-MM-DD')
+                      .tz(
+                        new Date(requestForTimeOff.createdAt).toISOString(),
+                        'America/Los_Angeles',
+                      )
+                      .format('YYYY-MM-DD')
                     : null,
                 };
 
@@ -1561,7 +1552,7 @@ const userHelper = function () {
                     true,
                   ),
                 ) >=
-                  elem.months - 12
+                elem.months - 12
               ) {
                 if (badgeOfType) {
                   if (badgeOfType._id.toString() !== elem._id.toString()) {

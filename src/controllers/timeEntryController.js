@@ -6,7 +6,7 @@ const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
 const Task = require('../models/task');
 const WBS = require('../models/wbs');
-const emailSender = require('../utilities/emailSender');
+const { emailSender } = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
 const cacheModule = require('../utilities/nodeCache');
@@ -416,8 +416,8 @@ const addEditHistory = async (
         <p><b>Date Assigned:</b> ${moment().tz('America/Los_Angeles').format('M-D-YYYY')}</p>\
         <p><b>Description:</b> System auto-assigned infringement for editing your time entries <b>${totalRecentEdits} times</b> within the last 365 days, exceeding the limit of 4 times per year you can edit them without penalty.</p>
         <p><b>Total Infringements:</b> This is your <b>${moment
-          .localeData()
-          .ordinal(recentInfringements.length)}</b> blue square of 5.</p>
+        .localeData()
+        .ordinal(recentInfringements.length)}</b> blue square of 5.</p>
         <p>Thank you,<p>
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
@@ -477,11 +477,11 @@ const timeEntrycontroller = function (TimeEntry) {
   const invalidateWeeklySummariesCache = (weekIndex) => {
     const cacheKey = `weeklySummaries_${weekIndex}`;
     cacheUtil.removeCache(cacheKey);
-    
+
     // Also invalidate the "all weeks" cache
     cacheUtil.removeCache('weeklySummaries_all');
   };
-  
+
   /**
    * Helper func: Check if this is the first time entry for the given user id
    *
@@ -614,10 +614,10 @@ const timeEntrycontroller = function (TimeEntry) {
         const today = new Date();
         const diffTime = today - dateOfWork;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         // Calculate which week this entry belongs to (0 = this week, 1 = last week, etc.)
         const weekIndex = Math.floor(diffDays / 7);
-        
+
         // Only invalidate cache for entries in the last 4 weeks
         if (weekIndex >= 0 && weekIndex <= 3) {
           // Call the invalidation function
@@ -1041,7 +1041,7 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
-  
+
   /**
    * Get total hours for a specified period for multiple users at once
    */
@@ -1067,7 +1067,7 @@ const timeEntrycontroller = function (TimeEntry) {
         {
           $match: {
             entryType: { $in: ['default', 'person', null] },
-            personId: { $in:  userIds.map(id => mongoose.Types.ObjectId(id)) },
+            personId: { $in: userIds.map(id => mongoose.Types.ObjectId(id)) },
             dateOfWork: { $gte: startDate, $lte: endDate }
           }
         },
