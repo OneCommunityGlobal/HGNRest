@@ -1,124 +1,102 @@
 // controllers/bitlyController.js
 
 const {
+  generateAuthUrl,
+  exchangeCodeForToken,
   getTokens,
-  generateAuthUrlService,
-  exchangeCodeForTokenService,
-  shortenLinkService,
-  generateQrCodeService
+  shortenLink,
+  generateQrCode,
+  clearTokens,
 } = require('../services/bitlyService');
 
-//
-// 1) checkStatus → returns { connected: true/false } based on stored tokens
-//
-export function checkStatus(req, res) {
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+/** 1) GET /api/bitly/status */
+function checkStatus(req, res) {
   try {
     const tokens = getTokens();
-    if (!tokens || !tokens.access_token) {
-      return res.json({ connected: false });
-    }
-    return res.json({ connected: true });
+    return res.json({ connected: Boolean(tokens && tokens.access_token) });
   } catch (err) {
-    console.error('Error in checkStatus:', err.message);
-    return res.status(500).json({ error: 'Failed to check Bitly status' });
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to check status' });
   }
 }
 
-//
-// 2) getAuthUrl → returns the URL your front-end should redirect the user to
-//
-export function getAuthUrl(req, res) {
+/** 2) GET /api/bitly/auth-url */
+function getAuthUrl(req, res) {
   try {
-    const url = generateAuthUrlService();
-    // (If you want to keep a state value for CSRF, you could store it in session here.)
+    const url = generateAuthUrl();
     return res.json({ url });
   } catch (err) {
-    console.error('Error generating auth URL:', err.message);
-    return res.status(500).json({ error: 'Failed to generate Bitly auth URL' });
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to generate auth URL' });
   }
 }
 
-//
-// 3) handleCallback → Bitly will redirect here with ?code=...&state=...
-//
-export async function handleCallback(req, res) {
-  const { code } = req.query;
-
+/** 3) GET /api/bitly/callback?code=...&state=... */
+async function handleCallback(req, res) {
+  const { code, state } = req.query;
   try {
-    if (!code) {
-      throw new Error('Missing code from Bitly callback');
-    }
-    // (Optional) If you generated a state in getAuthUrl, verify it against session here.
-
-    // Exchange “code” for access_token & store it in your service
-    const token = await exchangeCodeForTokenService(code);
-
-    // Redirect back to your front-end. For example:
-    // return res.redirect(`https://sabithanazareth.github.io?bitly=success`);
-    return res.json(token);
+    if (!code) throw new Error('Missing code');
+    await exchangeCodeForToken(code);
+    const redirectUrl = new URL(FRONTEND_URL);
+    redirectUrl.searchParams.set('bitly', 'success');
+    if (state) redirectUrl.searchParams.set('state', state);
+    return res.redirect(redirectUrl.toString());
   } catch (err) {
-    console.error('Bitly callback error:', err.message);
-    const msg = encodeURIComponent(err.message);
-    return res.redirect(`http://sabithanazareth.github.io?bitly=error&error=${msg}`);
+    console.error(err);
+    const redirectUrl = new URL(FRONTEND_URL);
+    redirectUrl.searchParams.set('bitly', 'error');
+    redirectUrl.searchParams.set('error', err.message);
+    return res.redirect(redirectUrl.toString());
   }
 }
 
-//
-// 4) shortenLink → POST /bitly/shorten { longUrl: 'https://...' }
-//
-//    Checks that the user is “connected” (i.e. getTokens().access_token exists),
-//    then calls the service helper to actually shorten the URL.
-//
-export async function shortenLink(req, res) {
+/** 4) POST /api/bitly/shorten */
+async function shortenLinkHandler(req, res) {
   try {
     const tokens = getTokens();
-    if (!tokens || !tokens.access_token) {
-      return res.status(401).json({ error: 'Not authenticated with Bitly' });
-    }
-
+    if (!tokens || !tokens.access_token)
+      return res.status(401).json({ error: 'Not authenticated' });
     const { longUrl } = req.body;
-    if (!longUrl) {
-      return res.status(400).json({ error: 'longUrl is required' });
-    }
-
-    // Call the service method (renamed to avoid collision)
-    const shortened = await shortenLinkService(longUrl);
-    // Example response: { id: 'bit.ly/abc123', link: 'https://bit.ly/abc123', … }
-    return res.json(shortened);
+    if (!longUrl) return res.status(400).json({ error: 'longUrl is required' });
+    const data = await shortenLink(longUrl);
+    return res.json(data);
   } catch (err) {
-    console.error('Error in shortenLink:', err.message);
+    console.error(err);
     return res.status(500).json({ error: 'Failed to shorten URL', details: err.message });
   }
 }
 
-//
-// 5) generateQr → POST /bitly/qr { bitlinkId: 'bit.ly/abc123' }
-//
-//    Similar pattern: verify tokens, then call the service helper.
-//
-export async function generateQr(req, res) {
+/** 5) POST /api/bitly/qr */
+async function generateQrHandler(req, res) {
   try {
     const tokens = getTokens();
-    if (!tokens || !tokens.access_token) {
-      return res.status(401).json({ error: 'Not authenticated with Bitly' });
-    }
-
+    if (!tokens || !tokens.access_token)
+      return res.status(401).json({ error: 'Not authenticated' });
     const { bitlinkId } = req.body;
-    if (!bitlinkId) {
-      return res.status(400).json({ error: 'bitlinkId is required' });
-    }
-
-    // Call the service method (renamed to avoid collision)
-    const qrObj = await generateQrCodeService(bitlinkId);
-    // qrObj = { mimeType: 'image/svg+xml', data: <Buffer> }
-
-    // Return raw image buffer
-    res.set('Content-Type', qrObj.mimeType);
-    return res.send(qrObj.data);
+    if (!bitlinkId) return res.status(400).json({ error: 'bitlinkId is required' });
+    const qr = await generateQrCode(bitlinkId);
+    res.set('Content-Type', qr.mimeType);
+    return res.send(qr.data);
   } catch (err) {
-    console.error('Error in generateQr:', err.message);
-    return res
-      .status(500)
-      .json({ error: 'Failed to generate QR code', details: err.message });
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to generate QR', details: err.message });
   }
 }
+
+/** 6) GET /api/bitly/logout */
+function disconnect(req, res) {
+  const cleared = clearTokens();
+  if (!cleared) return res.status(400).json({ error: 'No Bitly connection to clear' });
+  return res.json({ disconnected: true });
+}
+
+module.exports = {
+  checkStatus,
+  getAuthUrl,
+  handleCallback,
+  shortenLinkHandler,
+  generateQrHandler,
+  disconnect,
+};
