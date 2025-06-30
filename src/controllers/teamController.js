@@ -11,7 +11,12 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
-        $unwind: '$members',
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $unwind: { path: '$members', preserveNullAndEmptyArrays: true },
       },
       {
         $lookup: {
@@ -22,13 +27,9 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $unwind: '$userProfile',
+        $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true },
       },
-      {
-        $match: {
-          isActive: true,
-        },
-      },
+
       {
         $group: {
           _id: {
@@ -296,7 +297,7 @@ const teamcontroller = function (Team) {
 
         team
           .save()
-          .then((updatedTeam) => {
+          .then(() => {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
@@ -325,6 +326,7 @@ const teamcontroller = function (Team) {
               .then(() => {
                 res.status(200).send({ result: 'Done' });
               })
+              // eslint-disable-next-line no-shadow
               .catch((error) => {
                 res.status(500).send({ error });
               });
@@ -348,7 +350,7 @@ const teamcontroller = function (Team) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => {
+      .catch(() => {
         // logger.logException(`Fetch team code failed: ${error}`);
         res.status(500).send('Fetch team code failed.');
       });
@@ -359,7 +361,7 @@ const teamcontroller = function (Team) {
       const teamIds = req.body;
       const cacheKey = 'teamMembersCache';
       if (cache.hasCache(cacheKey)) {
-        let data = cache.getCache('teamMembersCache');
+        const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
       if (
@@ -367,13 +369,11 @@ const teamcontroller = function (Team) {
         teamIds.length === 0 ||
         !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team._id))
       ) {
-        return res
-          .status(400)
-          .send({
-            error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
-          });
+        return res.status(400).send({
+          error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
+        });
       }
-      let data = await Team.aggregate([
+      const data = await Team.aggregate([
         {
           $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team._id)) } },
         },
