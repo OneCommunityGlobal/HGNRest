@@ -2219,11 +2219,22 @@ const userHelper = function () {
     let emailBody;
     recipients.push('onecommunityglobal@gmail.com');
     recipients = recipients.toString();
+
+    console.log(`[sendDeactivateEmailBody] Received endDate: ${endDate}`);
+    console.log(`[sendDeactivateEmailBody] endDate as object:`, new Date(endDate));
+
+
     if (reactivationDate) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part until they return on ${moment(reactivationDate).format('M-D-YYYY')}. </p>
 
       <p>With Gratitude, </p>
@@ -2231,10 +2242,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && sendThreeWeeks) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       const emailBody = `<p>Management, </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p>This is more than 3 weeks from now, but you should still start confirming all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
 
       <p>An additional reminder email will be sent in their final 2 weeks.</p>
@@ -2244,10 +2261,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && followup) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p> This is coming up soon. For a smooth transition, please confirm all your work is wrapped up with this individual and nothing further will be needed on their part after this date. </p>
 
       <p>With Gratitude, </p>
@@ -2255,10 +2278,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p> For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
 
       <p>With Gratitude, </p>
@@ -2266,10 +2295,16 @@ const userHelper = function () {
       <p>One Community</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate) {
+
+      const formattedDate = moment(endDate).format('M-D-YYYY');
+      console.log(`[sendDeactivateEmailBody] Formatted date (M-D-YYYY): ${formattedDate}`);
+      console.log(`[sendDeactivateEmailBody] Formatted with UTC (M-D-YYYY): ${moment.utc(endDate).format('M-D-YYYY')}`);
+
+
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
       emailBody = `<p>Management, </p>
 
-      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
+      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as ${moment.utc(endDate).format('M-D-YYYY')}.</p>
       <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
 
       <p>With Gratitude, </p>
@@ -2280,67 +2315,107 @@ const userHelper = function () {
   };
 
   const deActivateUser = async () => {
-    try {
-      const emailReceivers = await userProfile.find(
-        { isActive: true, role: { $in: ['Owner'] } },
-        '_id isActive role email',
-      );
-      const recipients = emailReceivers.map((receiver) => receiver.email);
-      const users = await userProfile.find(
-        { isActive: true, endDate: { $exists: true } },
-        '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
-      );
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        const { endDate, finalEmailThreeWeeksSent } = user;
-        endDate.setHours(endDate.getHours() + 7);
-        // notify reminder set final day before 2 weeks
-        if (
-          finalEmailThreeWeeksSent &&
-          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
-          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
-        ) {
-          const id = user._id;
-          const person = await userProfile.findById(id);
-          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
-          person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
-            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
-              managementEmails.forEach((management) => {
-                recipients.push(management.email);
-              });
-            }
-          });
-          sendDeactivateEmailBody(
-            person.firstName,
-            person.lastName,
-            lastDay,
-            person.email,
-            recipients,
-            person.isSet,
-            person.reactivationDate,
-            false,
-            true,
-          );
-        } else if (moment().isAfter(moment(endDate).add(1, 'days'))) {
-          try {
-            await userProfile.findByIdAndUpdate(
-              user._id,
-              user.set({
-                isActive: false,
-              }),
-              { new: true },
-            );
-          } catch (err) {
-            // Log the error and continue to the next user
-            logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
-            continue;
+  try {
+    const emailReceivers = await UserProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+    
+    // Find users with set end dates who are still active
+    const users = await UserProfile.find(
+      { isActive: true, endDate: { $exists: true } },
+      '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
+    );
+    
+    for (let i = 0; i < users.length; i += 1) {
+      const user = users[i];
+      const { endDate, finalEmailThreeWeeksSent } = user;
+      endDate.setHours(endDate.getHours() + 7);
+
+      // Notify reminder set final day before 2 weeks
+      if (
+        finalEmailThreeWeeksSent &&
+        moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
+        moment().isAfter(moment(endDate).subtract(3, 'weeks'))
+      ) {
+        const id = user._id;
+        const person = await UserProfile.findById(id);
+        const lastDay = moment(person.endDate).format('YYYY-MM-DD');
+        logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
+        person.teams.map(async (teamId) => {
+          const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+          if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+            managementEmails.forEach((management) => {
+              recipients.push(management.email);
+            });
           }
-          const id = user._id;
-          const person = await userProfile.findById(id);
-          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
+        });
+        sendDeactivateEmailBody(
+          person.firstName,
+          person.lastName,
+          lastDay,
+          person.email,
+          recipients,
+          person.isSet,
+          person.reactivationDate,
+          false,
+          true,
+        );
+      } 
+      // Check if today is after their end date 
+      // This is the key change - removed adding an extra day
+      else if (moment().isAfter(moment(endDate).add(1, 'day'))) {
+        try {
+          // Before deactivation, check when they last logged time
+          const lastTimeEntry = await TimeEntry.findOne(
+            { personId: user._id, isTangible: true },
+            {},
+            { sort: { 'dateOfWork': -1 } }
+          );
+          
+          let updatedEndDate = endDate; // Default to the original end date
+          let earlyDeactivation = false;
+          
+          // If they have a time entry and it's before their final day
+          if (lastTimeEntry) {
+            const lastActivityDate = moment(lastTimeEntry.dateOfWork);
+            const finalDayDate = moment(endDate);
+            
+            // If their last activity was more than 1 day before their final day
+            if (lastActivityDate.isBefore(finalDayDate, 'day') && 
+                finalDayDate.diff(lastActivityDate, 'days') >= 1) {
+              
+              // Update their end date to their last activity date
+              updatedEndDate = lastActivityDate.toDate();
+              earlyDeactivation = true;
+              
+              // Update the user record with the adjusted end date
+              await UserProfile.findByIdAndUpdate(
+                user._id,
+                { $set: { endDate: updatedEndDate } },
+                { new: true }
+              );
+              
+              logger.logInfo(
+                `User with id: ${user._id} had their end date adjusted from ${finalDayDate.format('YYYY-MM-DD')} to ${lastActivityDate.format('YYYY-MM-DD')} because that was their last active day.`
+              );
+            }
+          }
+
+          await UserProfile.findByIdAndUpdate(
+            user._id,
+            {
+              $set: {
+                isActive: false,
+              },
+            },
+            { new: true },
+          );
           logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
+          const id = user._id;
+          const person = await UserProfile.findById(id);
+
           person.teams.map(async (teamId) => {
             const managementEmails = await userHelper.getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
@@ -2349,22 +2424,30 @@ const userHelper = function () {
               });
             }
           });
+
+          // Use the potentially adjusted end date for the email
+          const formattedEndDate = moment(updatedEndDate).format('YYYY-MM-DD');
           sendDeactivateEmailBody(
             person.firstName,
             person.lastName,
-            lastDay,
+            formattedEndDate, // Use adjusted end date if applicable
             person.email,
             recipients,
             person.isSet,
             person.reactivationDate,
             undefined,
+            earlyDeactivation // Flag for early deactivation if applicable
           );
+        } catch (err) {
+          logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
+          continue;
         }
       }
-    } catch (err) {
-      logger.logException(err, 'Unexpected error in deActivateUser');
     }
-  };
+  } catch (err) {
+    logger.logException(err, 'Unexpected error in deActivateUser');
+  }
+};
 
   // Update by Shengwei/Peter PR767:
   /**
