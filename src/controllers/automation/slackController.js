@@ -4,10 +4,11 @@ const appAccessService = require('../../services/automation/appAccessService');
 
 // Controller function to invite a user
 async function inviteUser(req, res) {
-  const { email } = req.body;
+  const { targetUser } = req.body;
   const { requestor } = req.body;
+
   // Validate email input
-  if (!email) {
+  if (!targetUser.email) {
     return res.status(400).json({ message: 'Email is required' });
   }
 
@@ -17,9 +18,9 @@ async function inviteUser(req, res) {
   }
 
   try {
-    await slackService.sendSlackInvite(email);
-    await appAccessService.upsertAppAccess(requestor.requestorId, 'slack', 'invited', email);
-    return res.status(201).json({ message: `Invitation sent successfully to ${email}` });
+    await slackService.sendSlackInvite(targetUser.email);
+    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'slack', 'invited', targetUser.email);
+    return res.status(201).json({ message: `Invitation sent successfully to ${targetUser.email}` });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

@@ -6,9 +6,9 @@ const { checkAppAccess } = require('./utils');
 
 // Controller function to invite a user
 async function inviteUser(req, res) {
-  const { email, role } = req.body;
+  const { targetUser } = req.body;
 
-  if (!email) {
+  if (!targetUser.email) {
     return res.status(400).json({ message: 'Email is required' });
   }
   const { requestor } = req.body;
@@ -18,8 +18,8 @@ async function inviteUser(req, res) {
   } 
 
   try {
-    const invitation = await sentryService.inviteUser(email, role);
-    await appAccessService.upsertAppAccess(requestor.requestorId, 'sentry', 'invited', email);
+    const invitation = await sentryService.inviteUser(targetUser.email);
+    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'sentry', 'invited', targetUser.email);
     res.status(201).json({ message: 'Invitation sent', data: invitation });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -28,9 +28,9 @@ async function inviteUser(req, res) {
 
 // Controller function to remove a user by email
 async function removeUser(req, res) {
-  const { email } = req.body;
+  const { targetUser } = req.body;
 
-  if (!email) {
+  if (!targetUser.email) {
     return res.status(400).json({ message: 'Email is required' });
   }
 
@@ -43,14 +43,14 @@ async function removeUser(req, res) {
   try {
     const members = await sentryService.getMembers();
 
-    const userToRemove = members.find(member => member.email === email);
+    const userToRemove = members.find(member => member.email === targetUser.email);
 
     if (userToRemove) {
       const message = await sentryService.removeUser(userToRemove.id);
-      await appAccessService.revokeAppAccess(requestor.requestorId, 'sentry');
+      await appAccessService.revokeAppAccess(targetUser.targetUserId, 'sentry');
       res.status(200).json({ message });
     } else {
-      res.status(404).json({ message: `User with email ${email} not found.` });
+      res.status(404).json({ message: `User with email ${targetUser.email} not found.` });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });

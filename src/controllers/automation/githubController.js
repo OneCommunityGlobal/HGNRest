@@ -3,7 +3,7 @@ const { checkAppAccess } = require('./utils');
 const appAccessService = require('../../services/automation/appAccessService');
 
 async function inviteUser(req, res) {
-  const { username } = req.body;
+  const { username, targetUser } = req.body;
   const { requestor } = req.body;
   if (!checkAppAccess(requestor.role)) {
     res.status(403).send({ message: 'Unauthorized request' });
@@ -16,7 +16,7 @@ async function inviteUser(req, res) {
 
   try {
     const message = await githubService.sendInvitation(username); 
-    await appAccessService.upsertAppAccess(requestor.requestorId, 'github', 'invited', username);
+    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'github', 'invited', username);
     res.status(201).json({ message });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -24,7 +24,7 @@ async function inviteUser(req, res) {
 }
 
 async function removeUser(req, res) {
-  const { username } = req.body;
+  const { username, targetUser } = req.body;
   const { requestor } = req.body;
   if (!checkAppAccess(requestor.role)) {
     res.status(403).send({ message: 'Unauthorized request' });
@@ -37,7 +37,7 @@ async function removeUser(req, res) {
 
   try {
     const message = await githubService.removeUser(username);  
-    await appAccessService.revokeAppAccess(requestor.requestorId, 'github');
+    await appAccessService.revokeAppAccess(targetUser.targetUserId, 'github');
     res.status(200).json({ message });
   } catch (error) {
     res.status(500).json({ message: error.message });

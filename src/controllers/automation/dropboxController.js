@@ -27,19 +27,20 @@ async function createFolder(req, res) {
 
 async function createFolderAndInvite(req, res) {
   try {
-    const { requestor, folderPath } = req.body;
+    const { requestor, folderPath, targetUser } = req.body;
+
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
       return;
     } 
-    const user = await UserProfile.findById(requestor.requestorId);
+    const user = await UserProfile.findById(targetUser.targetUserId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await dropboxService.createFolderAndInvite(user.email, folderPath);
+    await dropboxService.createFolderAndInvite(targetUser.email, folderPath);
 
-    await appAccessService.upsertAppAccess(requestor.requestorId, 'dropbox', 'invited', user.email);
+    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'dropbox', 'invited', targetUser.email);
     res.status(200).json({ message: 'User invited successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -70,14 +71,14 @@ async function inviteUserToFolder(req, res) {
 // Delete a folder
 async function deleteFolder(req, res) {
   try {
-    const { requestor, folderPath } = req.body;
+    const { requestor, folderPath, targetUser } = req.body;
 
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
       return;
     }
 
-    const appAccess = await ApplicationAccess.findOne({ userId: requestor.requestorId });
+    const appAccess = await ApplicationAccess.findOne({ userId: targetUser.targetUserId });
     const dropboxApp = appAccess && appAccess.apps.find((app) => app.app === 'dropbox');
 
     if (!dropboxApp || !dropboxApp.credentials) {
@@ -85,7 +86,7 @@ async function deleteFolder(req, res) {
     }
 
     await dropboxService.deleteFolder(folderPath);
-    await appAccessService.revokeAppAccess(requestor.requestorId, 'dropbox');
+    await appAccessService.revokeAppAccess(targetUser.targetUserId, 'dropbox');
 
     res.status(200).json({ message: 'Folder deleted successfully' });
   } catch (error) {
