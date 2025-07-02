@@ -11,7 +11,8 @@ const bidSchema = new Schema({
   termsAgreed: { type: Boolean, required: true, default: false },
  //   orderId: { type: String, required: true },
  
-  paypalOrderId: { type: String, required: true },
+  paypalOrderId: { type: String // , required: true 
+  },
   paypalCheckoutNowLink: {type:String},
   biddingHistory: [
     {

@@ -143,6 +143,10 @@ const bidsController = function (Bids) {
         `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`,
       ).toString('base64');
 
+      if (!process.env.BASE_URL)
+      {
+      return {status:500, error:  "Missing required environment variable BASE_URL "  };
+      }
       const response = await axios.post(
         `${process.env.BASE_URL}/v1/oauth2/token`,
         'grant_type=client_credentials',
@@ -153,15 +157,24 @@ const bidsController = function (Bids) {
           },
         },
       );
-      return response.data.access_token;
+      
+      return { status:200, data :response.data.access_token};
+
+      // return response.data.access_token;
 
     } catch (error) {
-      return error.response?.data?.error || error.message || 'PayPalAccessToken error' ;
+      return {status:500, error:  `PayPalAccessToken error :${  error.response?.data?.error || error.message }`  };
+    
+      // return error.response?.data?.error || error.message || 'PayPalAccessToken error' ;
     }
   }
   const getPayPalAccessToken = async (req, res) => {
     try {
       const payPalAccessToken = await getPayPalAccessTokenl();
+      if (payPalAccessToken?.status !== 200) {
+         if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: payPalAccessToken?.error });
+       }
       return res.status(200).json({"paypalAccessToken": payPalAccessToken});
     } catch (error) {
       return res
@@ -219,6 +232,9 @@ const bidsController = function (Bids) {
     }
     
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      return { status: 500, error: accessToken.error }; }
+    
    
     const paymentCardToken = {
       payment_source: {
@@ -238,7 +254,7 @@ const bidsController = function (Bids) {
         paymentCardToken,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
           },
         },
@@ -250,6 +266,12 @@ const bidsController = function (Bids) {
   };
   const getPaymentCardToken = async (req, res) => {
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: accessToken?.error });
+    }
+    
+    
     const setupToken = await getSetupCardToken(req);
     if (setupToken.status !== 200) return res.status(500).json({ success: false, error: setupToken.error });
     try {
@@ -268,7 +290,7 @@ const bidsController = function (Bids) {
         paymentCardToken,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
           },
         },
@@ -288,9 +310,11 @@ const bidsController = function (Bids) {
   async function createOrderl(req) {
     
     const accessToken = await getPayPalAccessTokenl();
-
+    
+    if (accessToken?.status !== 200) {
+      return { status: 500, error: accessToken.error }; }
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    const { cardNumber, expiry, cvv } = req.body;
+    const { cardNumber, expiry, cvv } = req.body.card;
     const { bidPrice } = req.body.biddingHistory;
     const payerEmailAddress = req.body.email;
     
@@ -353,8 +377,7 @@ const bidsController = function (Bids) {
       if (!bidPrice) {
         return { status: 400, error: 'Bid price should be greater than 0' };
       }
-
-   
+     console.log("before checkout paypal post");
     try {
       const checkoutOrder = await axios.post(
         `${process.env.BASE_URL}/v2/checkout/orders`,
@@ -363,7 +386,7 @@ const bidsController = function (Bids) {
 
           purchase_units: [
             {
-              reference_id: bidPrice, //listingId,
+              reference_id: bidPrice, // listingId,
               amount: {
                 currency_code: 'USD',
                 value: rentalPeriod * bidPrice,
@@ -406,16 +429,20 @@ const bidsController = function (Bids) {
         },
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
             'PayPal-Request-Id': paypalRequestId,
           },
         },
       );
+    console.log("checkoutOrder.data");
+    console.log(checkoutOrder.data);  
     return { status: 200, data: checkoutOrder.data };
       
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || 'Unknown error in createOrderl'  };
+      console.log("createORderl error")
+      console.log(error);
+      return { status: 500, error: `Unknown error in createOrderl ${error.response?.data?.error || error.message}`    };
     
     }
   }
@@ -437,6 +464,10 @@ const bidsController = function (Bids) {
 
   async function createOrderWithoutCardl(req) {
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      console.log(accessToken.status);
+      return { status: 500, error: accessToken.error }; }
+    
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const { bidPrice } = req.body.biddingHistory;
     
@@ -479,7 +510,7 @@ const bidsController = function (Bids) {
         },
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
             'PayPal-Request-Id': paypalRequestId,
           },
@@ -530,13 +561,17 @@ const bidsController = function (Bids) {
     const authorId = req.body?.authorId;
     
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      console.log(accessToken.status);
+      return { status: 500, error: accessToken.error }; }
+    
     try {
       const capturePayment = await axios.post(
         `${process.env.BASE_URL}/v2/payments/authorizations/${authorId}/capture`,
         {},
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
           },
         },
@@ -564,13 +599,17 @@ const bidsController = function (Bids) {
   async function voidPaymentl(req) {
     const authorId = req.body?.authorId;
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      console.log(accessToken.status);
+      return { status: 500, error: accessToken.error }; }
+    
     try {
       const voidPyment = await axios.post(
         `${process.env.BASE_URL}/v2/payments/authorizations/${authorId}/void`,
         {},
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
           },
         },
@@ -648,6 +687,9 @@ const bidsController = function (Bids) {
     
     const orderId = req.query.id;
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      console.log(accessToken.status);
+      return { status: 500, error: accessToken.error }; }
     
 
     const cardValid = await cardValidation(req);
@@ -675,7 +717,7 @@ const bidsController = function (Bids) {
         },
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
           },
         },
@@ -692,6 +734,10 @@ const bidsController = function (Bids) {
   async function orderAuthorizeWithoutCardl(req) {
     const orderId = req.body.id;
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      console.log(accessToken.status);
+      return { status: 500, error: accessToken.error }; }
+    
  
     try {
       const authoriseOrderWithoutCard = await axios.post(
@@ -700,7 +746,7 @@ const bidsController = function (Bids) {
         {},
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
           },
         },
@@ -742,9 +788,15 @@ const bidsController = function (Bids) {
 
   const postBidsAndPay = async (req, res) => {
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: accessToken?.error });
+    }
     
     try {
       const isValidCard = await cardValidation(req);
+      console.log("isValidCard")
+      console.log(isValidCard)
       if (isValidCard?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: isValidCard?.error });
@@ -766,8 +818,10 @@ const bidsController = function (Bids) {
       }
 
       const createOrdersC = await createOrderl(req);
-
-      if (createOrdersC?.success === false) {
+      console.log("createOrdersC.data");    
+      console.log(createOrdersC.data)
+      
+      if (createOrdersC?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: createOrdersC?.error });
       }
@@ -843,6 +897,10 @@ const bidsController = function (Bids) {
     if (!ready ) throw new Error('Bids Controllere Init not ready!');
 
     const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      console.log(accessToken.status);
+      return { status: 500, error: accessToken.error }; }
+    
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const { bidPrice,listingId,startDate, endDate,paypalOrderId, email } = req.body || req;
     const userExists = await Users.findOne({ email });
@@ -882,7 +940,7 @@ const bidsController = function (Bids) {
         `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
           },
         },
       );
@@ -915,7 +973,7 @@ const bidsController = function (Bids) {
         ],
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json',
             'PayPal-Request-Id': paypalRequestId,
           },
@@ -927,7 +985,7 @@ const bidsController = function (Bids) {
         `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
           },
         },
       );
@@ -1042,13 +1100,17 @@ if (updOrd?.status !== 200) {
   };
     const getOrderDetails = async (req, res) => {
           const accessToken = await getPayPalAccessTokenl();
+          if (accessToken?.status !== 200) {
+    if (res.headersSent) 
+        return res.status(500).json({ success: false, error: accessToken?.error });
+  }
           const paypalOrderId = req.params.orderId;
  try {
   const orderDet = await axios.get(
           `${process.env.BASE_URL}/v2/checkout/orders/${paypalOrderId}`,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken.data}`,
             'Content-Type': 'application/json'
           },
         },
