@@ -18,6 +18,7 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponses');
 
@@ -200,6 +201,7 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
+const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -243,6 +245,7 @@ module.exports = function (app) {
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
+  app.use('/api', savedFilterRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
