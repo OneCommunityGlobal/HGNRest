@@ -1,31 +1,28 @@
 const mongoose = require('mongoose');
 
-const projectMaterialSchema = new mongoose.Schema({
-    projectId: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    project: {
-        type: Date,
-        required: true,
-    },
-    tool: {
-        type: String,
-        required: true,
-    },
-    inUse: {
-        type: Number, 
-        required: true
-    },
-    needsReplacement: {
-        type: Number, 
-        required: true
-    },
-    yetToReceive:{
-        type: Number, 
-        required: true
-    }
-})
+const { Schema } = mongoose;
+const projectMaterialSchema = new Schema({
+//   projectId: {
+//     type: String,
+//     required: true,
+//     unique: true,
+//   },
+  projectName: {
+    type: String,
+    required: true,
+  },
+  toolName: {
+    type: String,
+    required: true,
+  },
+  replacedPercentage: {
+    type: Number,
+    required: true,
+  },
+  date: {
+    type: Date,
+    required: true,
+  },
+});
 
-module.exports = mongoose.model('ExpenditureCost', projectMaterialSchema, 'expenditure');
+module.exports = mongoose.model('ProjectMaterial', projectMaterialSchema, 'projectmaterialcosts');

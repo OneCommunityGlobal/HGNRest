@@ -1,11 +1,15 @@
 const express = require("express");
+
 const controller = require('../controllers/materialSusceptibleController');
 
-const routes = function() {
+const router = express.Router();
 
-    const newMaterialRouter = express.Router();
-    newMaterialRouter.route('/projectMaterial').get(controller.getAllMaterial);
-    return newMaterialRouter;
-};
+router.post('/projectMaterial', controller.createProjectMaterial);
 
-module.exports = routes;
+router.get('/projectMaterial', controller.getProjectMaterial);
+
+router.get('/projectMaterial/byDate', controller.getProjectMaterialByDate);
+
+router.get('/projectMaterial/byProjectName', controller.getProjectMaterialByProject);
+
+module.exports = router;
