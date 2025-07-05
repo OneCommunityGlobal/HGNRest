@@ -1,6 +1,5 @@
 const axios = require('axios');
 
-// Replace with your GitHub token or store in env file for security
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const BASE_URL = 'https://api.github.com';
 
