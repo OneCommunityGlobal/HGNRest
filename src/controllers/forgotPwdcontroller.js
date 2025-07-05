@@ -37,7 +37,7 @@ const forgotPwdController = function (userProfile) {
       try {
         await user.save();
 
-        await emailSender.sendEmail(
+        await emailSender(
           user.email,
           'Account Password change',
           getEmailMessageForForgotPassword(user, ranPwd),
