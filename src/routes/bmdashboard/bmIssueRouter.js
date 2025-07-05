@@ -6,10 +6,9 @@ const routes = function (metIssue, injuryIssue) {
 
     // Met Issues
     IssueRouter.route('/issues')
-        .get(controller.bmGetMetIssue);
+        .get(controller.bmGetIssue);
     IssueRouter.route('/issue/add')
-<<<<<<< HEAD
-        .post(controller.bmPostMetIssue);
+        .post(controller.bmPostIssue);
 
     // Injury Issue
     IssueRouter.route('/issues/add')
@@ -22,11 +21,9 @@ const routes = function (metIssue, injuryIssue) {
         .put(controller.bmRenameInjuryIssue);
     IssueRouter.route('/issues/:id/copy')
         .post(controller.bmCopyInjuryIssue);
-=======
-        .post(controller.bmPostIssue);
     IssueRouter.route('/issue/issue-chart')
         .get(controller.bmGetIssueChart); 
->>>>>>> a60a9519836095a66b2ff7f922c5211ca37adc8c
+
     return IssueRouter;
 };
 module.exports = routes;

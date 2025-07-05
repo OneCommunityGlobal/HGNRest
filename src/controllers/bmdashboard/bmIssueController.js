@@ -175,7 +175,6 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         bmGetIssueChart,
         bmPostIssue
     };
-
 };
 
 module.exports = bmIssueController;
