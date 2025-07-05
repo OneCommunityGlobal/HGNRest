@@ -246,6 +246,7 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
+const collaborationRouter = require('../routes/collaborationRouter');
 const templateRouter = require('../routes/templateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
@@ -253,6 +254,7 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
+const jobAnalyticsRoute = require('../routes/jobAnalytics');
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
@@ -317,6 +319,7 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api/job-analytics', jobAnalyticsRoute);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
 
@@ -343,8 +346,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
 
-
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
