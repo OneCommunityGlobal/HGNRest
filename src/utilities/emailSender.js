@@ -114,6 +114,36 @@ const processQueue = async () => {
  * .catch(console.error);
  */
 
+/**
+ * Sends an email to one or more recipients, optionally including CC, BCC, attachments, and a reply-to address.
+ * Emails are processed in batches and pushed to a queue for asynchronous sending.
+ *
+ * @param {string|string[]} recipients - The primary recipient(s) of the email. Can be a single email string or an array of email addresses.
+ * @param {string} subject - The subject line of the email.
+ * @param {string} message - The HTML body content of the email.
+ * @param {Object[]|null} [attachments=null] - Optional array of attachment objects as expected by the email service.
+ * @param {string[]|null} [cc=null] - Optional array of CC (carbon copy) email addresses.
+ * @param {string|null} [replyTo=null] - Optional reply-to email address.
+ * @param {string[]|null} [emailBccs=null] - Optional array of BCC (blind carbon copy) email addresses.
+ *
+ * @returns {Promise<string>} A promise that resolves when the email queue has been processed successfully or rejects on error.
+ *
+ * @throws {Error} Will reject the promise if there is an error processing the email queue.
+ *
+ * @example
+ * emailSender(
+ *   ['user@example.com'],
+ *   'Welcome!',
+ *   '<p>Hello, welcome to our platform.</p>',
+ *   null,
+ *   ['cc@example.com'],
+ *   'noreply@example.com',
+ *   ['bcc@example.com']
+ * )
+ * .then(console.log)
+ * .catch(console.error);
+ */
+
 const emailSender = (
   recipients,
   subject,
