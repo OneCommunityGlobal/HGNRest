@@ -170,6 +170,7 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
 const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
@@ -181,6 +182,15 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   blueSquareEmailAssignment,
   userProfile,
 );
+
+
+
+// Automations
+const appAccessRouter = require('../routes/automation/appAccessRouter');
+const dropboxRouter = require('../routes/automation/dropboxRouter');
+const githubRouter = require('../routes/automation/githubRouter');
+const sentryRouter = require('../routes/automation/sentryRouter');
+const slackRouter = require('../routes/automation/slackRouter')
 
 //lbdashboard_bidoverview
 
@@ -196,6 +206,8 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
+
+const templateRouter = require('../routes/templateRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
@@ -249,8 +261,12 @@ module.exports = function (app) {
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+
+  app.use('/api', templateRouter);
+
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -261,6 +277,11 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
+  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
 
   app.use('/api/bm', bmIssueRouter);
@@ -284,6 +305,6 @@ module.exports = function (app) {
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
-
+  app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
 };
