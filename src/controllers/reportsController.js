@@ -15,7 +15,7 @@ const reportsController = function () {
   const invalidateWeeklySummariesCache = (weekIndex) => {
     const cacheKey = `weeklySummaries_${weekIndex}`;
     cacheUtil.removeCache(cacheKey);
-    
+
     // Also invalidate the "all weeks" cache
     cacheUtil.removeCache('weeklySummaries_all');
   };
@@ -81,8 +81,8 @@ const reportsController = function () {
       isoComparisonEndDate = new Date(comparisonEndDate);
     }
 
-    const isoStartDate = new Date(startDate);
-    const isoEndDate = new Date(endDate);
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
 
     try {
       const [
@@ -212,9 +212,9 @@ const reportsController = function () {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
-      // Extract forceRefresh parameter
+    // Extract forceRefresh parameter
     const forceRefresh = req.query.forceRefresh === 'true';
-      // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
+    // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
     const week = req.query.week !== undefined ? parseInt(req.query.week, 10) : null;
 
     // Generate cache key based on week
@@ -236,19 +236,6 @@ const reportsController = function () {
       return;
     }
 
-    // Check if we have cached data
-    if (cacheUtil.hasCache(cacheKey)) {
-      const cacheAge = Math.round((Date.now() - cacheUtil.getCacheTime(cacheKey)) / 1000);
-      console.log(`Cache hit for ${cacheKey}, serving from cache (age: ${cacheAge}s)`);
-      return res.status(200).send({
-        data: cacheUtil.getCache(cacheKey),
-        cacheInfo: { 
-          fromCache: true, 
-          cacheAge
-        }
-      });
-    }
-    
     // Determine cache duration based on week
     let cacheTTL = 3600; // 1 hour default
     if (week === 0) {
@@ -262,7 +249,7 @@ const reportsController = function () {
     try {
       let results;
       let summaries;
-      
+
       if (week !== null) {
         // Get data for only the requested week
         results = await reporthelper.weeklySummaries(week, week);
@@ -272,13 +259,16 @@ const reportsController = function () {
         results = await reporthelper.weeklySummaries(3, 0);
         summaries = reporthelper.formatSummaries(results);
       }
-      
+
       // Cache the results
       cacheUtil.setCache(cacheKey, summaries);
       cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
-      
+
       res.set('Cache-Control', `public, max-age=${cacheTTL}`);
-      res.set('ETag', require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'));
+      res.set(
+        'ETag',
+        require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
+      );
 
       res.status(200).send(summaries);
     } catch (error) {
