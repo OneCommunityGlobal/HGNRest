@@ -183,6 +183,9 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+const githubAnalyticsRouter = require('../routes/githubAnalyticsRouter');
+
+
 
 
 // Automations
@@ -307,4 +310,6 @@ module.exports = function (app) {
   app.use('/api', registrationRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api/analytics', githubAnalyticsRouter);
 };

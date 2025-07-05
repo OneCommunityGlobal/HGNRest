@@ -1,17 +1,12 @@
-require('dotenv').config();
-const fetchGitHubReviews = require('./src/services/analytics/fetchGitHubReviews');
+const axios = require('axios');
 
-(async () => {
-  const org = 'OneCommunityGlobal';
-  const repos = ['HighestGoodNetworkApp', 'HGNRest'];
-
-  let combinedResults = [];
-
-  for (const repo of repos) {
-    console.log(`Fetching data from ${repo}`);
-    const data = await fetchGitHubReviews(org, repo);
-    combinedResults = combinedResults.concat(data); 
+const testGitHub = async () => {
+  try {
+    const response = await axios.get('http://localhost:4500/api/analytics/github-reviews');
+    console.log(8response.data);
+  } catch (error) {
+    console.error(error.response?.data || error.message);
   }
+};
 
-  console.log('Combined Review Data:\n', JSON.stringify(combinedResults, null, 2));
-})();
+testGitHub();
