@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "This module is the REST module built on NodeJS to support MongoDB activities, Since EmberData has no direct adapters for MongoDB. This module will later be intergrated with EmberJS HGN project to maintain singularity.",
   "main": "restapp",
-    "engines": {
+  "engines": {
     "node": ">=14.0.0 <15"
   },
   "scripts": {
@@ -52,7 +52,6 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
-    "mongoose": "^5.13.23",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
@@ -83,6 +82,7 @@
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.35",
     "mongodb": "^3.7.3",
+    "mongoose": "^5.13.23",
     "mongoose-validator": "^2.1.0",
     "multer": "^1.4.5-lts.1",
     "node-cache": "^5.1.2",
