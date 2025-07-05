@@ -273,6 +273,66 @@ const userProfileSchema = new Schema({
     additionalComments: { type: String },
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
+  },
+  // Education-specific profiles
+  educationProfiles: {
+    student: {
+      cohortId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cohort'
+      },
+      enrollmentDate: {
+        type: Date
+      },
+      learningLevel: {
+        type: String,
+        enum: ['beginner', 'intermediate', 'advanced'],
+        default: 'beginner'
+      },
+      strengths: [{
+        type: String,
+        trim: true
+      }],
+      challengingAreas: [{
+        type: String,
+        trim: true
+      }]
+    },
+    teacher: {
+      subjects: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Subject'
+      }],
+      officeHours: {
+        type: String,
+        trim: true
+      },
+      assignedStudents: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }]
+    },
+    programManager: {
+      managedPrograms: [{
+        type: String,
+        trim: true
+      }],
+      region: {
+        type: String,
+        trim: true
+      }
+    },
+    learningSupport: {
+      level: {
+        type: String,
+        enum: ['junior', 'senior', 'lead'],
+        default: 'junior'
+      },
+      assignedTeachers: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }]
+    }
   }
 });
 
