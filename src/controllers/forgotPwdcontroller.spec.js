@@ -1,7 +1,5 @@
 jest.mock('uuid/v4');
-jest.mock('../utilities/emailSender', () => ({
-  sendEmail: jest.fn(() => Promise.resolve()), // Mock the sendEmail function
-}));
+jest.mock('../utilities/emailSender', () => jest.fn());
 
 const uuidv4 = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
@@ -11,7 +9,7 @@ const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
 
 uuidv4.mockReturnValue('');
-emailSender.sendEmail.mockImplementation(() => Promise.resolve());
+emailSender.mockImplementation(() => Promise.resolve());
 
 const flushPromises = () => new Promise(setImmediate);
 
@@ -131,7 +129,7 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
 
       expect(mockUser.set).toHaveBeenCalledWith({ resetPwd: temporaryPassword });
       expect(mockUser.save).toHaveBeenCalled();
-      expect(emailSender.sendEmail).toHaveBeenCalledWith(
+      expect(emailSender).toHaveBeenCalledWith(
         mockUser.email,
         'Account Password change',
         expectedEmailMessage,
