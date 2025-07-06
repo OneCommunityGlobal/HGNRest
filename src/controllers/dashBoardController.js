@@ -205,7 +205,7 @@ const dashboardcontroller = function () {
     return text;
   };
 
-  const sendBugReport = async function (req, res) {
+  const sendBugReport = function (req, res) {
     const {
       firstName,
       lastName,
@@ -231,7 +231,7 @@ const dashboardcontroller = function () {
     );
   
     try {
-      await emailSender.sendEmail(
+      emailSender(
         'onecommunityglobal@gmail.com',
         `Bug Report from ${firstName} ${lastName}`,
         emailBody,
@@ -297,7 +297,7 @@ const dashboardcontroller = function () {
       email,
     );
     try {
-      await emailSender.sendEmail(
+      emailSender(
         'onecommunityglobal@gmail.com',
         'A new suggestion',
         emailBody,
