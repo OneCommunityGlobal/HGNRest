@@ -66,6 +66,8 @@ const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
+const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
+
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -169,6 +171,7 @@ const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
+const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 
@@ -290,12 +293,15 @@ module.exports = function (app) {
 
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
+  app.use('/api/bm', bmInjuryRouter);
+
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
 
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
