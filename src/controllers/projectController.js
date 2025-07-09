@@ -1,4 +1,3 @@
-
 /* eslint-disable quotes */
 /* eslint-disable arrow-parens */
 const mongoose = require('mongoose');
@@ -6,17 +5,20 @@ const timeentry = require('../models/timeentry');
 const task = require('../models/task');
 const wbs = require('../models/wbs');
 const userProfile = require('../models/userProfile');
-const { hasPermission } = require('../utilities/permissions');
+// const { hasPermission } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
 const cache = require('../utilities/nodeCache')();
+
+// Shit code included.
 
 const projectController = function (Project) {
   const getAllProjects = async function (req, res) {
     try {
       const projects = await Project.find(
         { isArchived: { $ne: true } },
-        'projectName isActive category modifiedDatetime membersModifiedDatetime',
+        'projectName isActive category modifiedDatetime membersModifiedDatetime inventoryModifiedDatetime',
       ).sort({ modifiedDatetime: -1 });
       res.status(200).send(projects);
     } catch (error) {
@@ -26,62 +28,61 @@ const projectController = function (Project) {
   };
 
   const deleteProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteProject'))) {
       res.status(403).send({ error: 'You are not authorized to delete projects.' });
       return;
     }
     const { projectId } = req.params;
     Project.findById(projectId, (error, record) => {
       if (error || !record || record === null || record.length === 0) {
-
         res.status(400).send({ error: 'No valid records found' });
-
         return;
       }
       // find if project has any time entries associated with it
 
-
-      timeentry.find({ projectId: record._id }, '_id').then((timeentries) => {
-        if (timeentries.length > 0) {
-          res.status(400).send({
-            error:
-              'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
-          });
-
-        } else {
-          const removeprojectfromprofile = userProfile
-            .updateMany({}, { $pull: { projects: record._id } })
-            .exec();
-          const removeproject = record.remove();
-
-          Promise.all([removeprojectfromprofile, removeproject])
-            .then(
-
-              res.status(200).send({
-                message: 'Project successfully deleted and user profiles updated.',
-              }),
-
-            )
-            .catch((errors) => {
-              res.status(400).send(errors);
+      timeentry
+        .find({ projectId: record._id }, '_id')
+        .then((timeentries) => {
+          if (timeentries.length > 0) {
+            res.status(400).send({
+              error:
+                'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
             });
-        }
-      });
-    }).catch((errors) => {
-      res.status(400).send(errors);
+          } else {
+            const removeprojectfromprofile = userProfile
+              .updateMany({}, { $pull: { projects: record._id } })
+              .exec();
+            const removeproject = record.remove();
+
+            Promise.all([removeprojectfromprofile, removeproject])
+              .then(() => {
+                res.status(200).send({
+                  message: 'Project successfully deleted and user profiles updated.',
+                });
+              })
+              .catch((errors) => {
+                res.status(400).send(errors);
+              });
+          }
+        })
+        .catch((errors) => {
+          res.status(400).send(errors);
+        });
     });
+    // .catch((errors) => {
+    //   res.status(400).send(errors);
+    // });
   };
 
   const postProject = async function (req, res) {
-
-    if (!(await hasPermission(req.body.requestor, 'postProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postProject'))) {
       return res.status(401).send('You are not authorized to create new projects.');
     }
-
+  
     if (!req.body.projectName) {
       return res.status(400).send('Project Name is mandatory fields.');
     }
-
+  
     try {
       const projectWithRepeatedName = await Project.find({
         projectName: {
@@ -90,13 +91,11 @@ const projectController = function (Project) {
         },
       });
       if (projectWithRepeatedName.length > 0) {
-        res
-          .status(400)
-          .send(
-            `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
-          );
-        return;
+        return res.status(400).send(
+          `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
+        );
       }
+  
       const _project = new Project();
       const now = new Date();
       _project.projectName = req.body.projectName;
@@ -104,20 +103,18 @@ const projectController = function (Project) {
       _project.isActive = true;
       _project.createdDatetime = now;
       _project.modifiedDatetime = now;
+  
       const savedProject = await _project.save();
       return res.status(200).send(savedProject);
     } catch (error) {
-      logger.logException(error);
       res.status(400).send('Error creating project. Please try again.');
     }
   };
 
   const putProject = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "editProject"))) {
-      if (!(await hasPermission(req.body.requestor, 'putProject'))) {
-        res.status(403).send('You are not authorized to make changes in the projects.');
-        return;
-      }
+    if (!(await helper.hasPermission(req.body.requestor, 'putProject'))) {
+      res.status(403).send('You are not authorized to make changes in the projects.');
+      return;
     }
     const { projectName, category, isActive, _id: projectId, isArchived } = req.body;
     const sameNameProejct = await Project.find({
@@ -174,7 +171,6 @@ const projectController = function (Project) {
 
   const getProjectById = function (req, res) {
     const { projectId } = req.params;
-
     Project.findById(projectId, '-__v  -createdDatetime -modifiedDatetime')
       .then((results) => res.status(200).send(results))
       .catch((err) => {
@@ -213,36 +209,25 @@ const projectController = function (Project) {
       logger.logException(error);
       res.status(400).send('Error fetching projects. Please try again.');
     }
-
   };
 
   const assignProjectToUsers = async function (req, res) {
     // verify requestor is administrator, projectId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
-
-    if (!(await hasPermission(req.body.requestor, 'assignProjectToUsers'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'assignProjectToUsers'))) {
       res.status(403).send('You are not authorized to perform this operation');
       return;
     }
-
     if (
       !req.params.projectId ||
       !mongoose.Types.ObjectId.isValid(req.params.projectId) ||
       !req.body.users ||
       req.body.users.length === 0
     ) {
-
       res.status(400).send('Invalid request');
       return;
     }
-    const now = new Date();
     // verify project exists
-    Project.findByIdAndUpdate(
-      req.params.projectId,
-      {
-        $set: { membersModifiedDatetime: now },
-      },
-      { new: true },
-    )
+    Project.findById(req.params.projectId)
       .then((project) => {
         if (!project || project.length === 0) {
           res.status(400).send('Invalid project');
@@ -273,7 +258,7 @@ const projectController = function (Project) {
 
         Promise.all([assignPromise, unassignPromise])
           .then(() => {
-            res.status(200).send({ result: "Done" });
+            res.status(200).send({ result: 'Done' });
           })
           .catch((error) => {
             res.status(500).send({ error });
@@ -286,34 +271,95 @@ const projectController = function (Project) {
   };
 
   const getprojectMembership = async function (req, res) {
+    if (!(await helper.hasPermission(req.body.requestor, 'getProjectMembers'))) {
+      res.status(403).send('You are not authorized to perform this operation');
+      return;
+    }
     const { projectId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       res.status(400).send('Invalid request');
       return;
     }
-
-    const getProjMembers = await hasPermission(req.body.requestor, 'getProjectMembers');
-
-    // If a user has permission to post, edit, or suggest tasks, they also have the ability to assign resources to those tasks. 
-    // Therefore, the _id field must be included when retrieving the user profile for project members (resources).
-    const postTask = await hasPermission(req.body.requestor, 'postTask');
-    const updateTask = await hasPermission(req.body.requestor, 'updateTask');
-    const suggestTask = await hasPermission(req.body.requestor, 'suggestTask');
-
-    const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
-    
     userProfile
       .find(
-        { projects: projectId },
-        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: canGetId },
+        { projects: projectId, isActive: true },
+        { firstName: 1, lastName: 1, profilePic: 1 },
       )
-      .sort({ firstName: 1, lastName: 1 })
       .then((results) => {
+        console.log(results);
         res.status(200).send(results);
       })
       .catch((error) => {
         res.status(500).send(error);
       });
+  };
+
+  function escapeRegExp(string) {
+    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
+
+  const searchProjectMembers = async function (req, res) {
+    const { projectId, query } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).send('Invalid project ID');
+    }
+    // Sanitize user input and escape special characters
+    const sanitizedQuery = escapeRegExp(query.trim());
+    // case-insensitive search
+    const searchRegex = new RegExp(sanitizedQuery, 'i');
+    
+    try {
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
+      const canGetId = (getProjMembers || postTask || updateTask || suggestTask);
+      
+      const results = await userProfile.find({
+        projects: projectId,
+        $or: [
+          { firstName: { $regex: searchRegex } }, 
+          { lastName: { $regex: searchRegex } }
+        ]
+      })
+      .select(`firstName lastName isActive ${canGetId ? '_id' : ''}`)
+      .sort({ firstName: 1, lastName: 1 })
+      .limit(30);
+      res.status(200).send(results);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const getProjectsWithActiveUserCounts = async function (req, res) {
+    try {
+      const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
+
+      const projectIds = projects.map(project => project._id);
+
+      const userCounts = await userProfile.aggregate([
+        { $match: { projects: { $in: projectIds }, isActive: true } },
+        { $unwind: '$projects' },
+        { $match: { projects: { $in: projectIds } } },
+        {
+          $group: {
+            _id: '$projects',
+            activeUserCount: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const result = userCounts.reduce((acc, curr) => {
+        acc[curr._id.toString()] = curr.activeUserCount;
+        return acc;
+      }, {});
+
+      res.status(200).send(result);
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Error fetching active member counts');
+    }
   };
 
   return {
@@ -325,6 +371,8 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    searchProjectMembers,
+    getProjectsWithActiveUserCounts,
   };
 };
 
