@@ -1,4 +1,26 @@
 const projectCostTrackingController = function (ProjectCostTracking) {
+  // Simple linear regression class compatible with older Node.js versions
+  class SimpleLinearRegression {
+    constructor(x, y) {
+      if (x.length !== y.length) {
+        throw new Error('X and Y arrays must have the same length');
+      }
+
+      const n = x.length;
+      const sumX = x.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const sumXY = x.reduce((acc, xi, i) => acc + xi * y[i], 0);
+      const sumXX = x.reduce((a, b) => a + b * b, 0);
+
+      // Calculate slope and intercept
+      this.slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+      this.intercept = (sumY - this.slope * sumX) / n;
+    }
+
+    predict(x) {
+      return this.slope * x + this.intercept;
+    }
+  }
   const getProjectCosts = async (req, res) => {
     try {
       const { id } = req.params;
@@ -100,19 +122,11 @@ const projectCostTrackingController = function (ProjectCostTracking) {
             const xValues = categoryData.map((item, index) => index); // Use indices as x values
             const yValues = categoryData.map((item) => item.cost);
 
-            // Simple linear regression
-            // Calculate slope and intercept
-            const n = xValues.length;
-            const sumX = xValues.reduce((a, b) => a + b, 0);
-            const sumY = yValues.reduce((a, b) => a + b, 0);
-            const sumXY = xValues.reduce((a, b, i) => a + b * yValues[i], 0);
-            const sumXX = xValues.reduce((a, b) => a + b * b, 0);
-
-            const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-            const intercept = (sumY - slope * sumX) / n;
+            // Linear regression using ml-regression library
+            const regression = new SimpleLinearRegression(xValues, yValues);
 
             // Function to predict value
-            const predict = (x) => slope * x + intercept;
+            const predict = (x) => regression.predict(x);
 
             // Generate predictions for next 3 months
             predictedData[category] = [];
