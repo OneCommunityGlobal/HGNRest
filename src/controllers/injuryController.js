@@ -5,17 +5,17 @@ const Project = require('../models/project');
 
 // Severity mapping for transition
 const severityMapping = {
-  'Minor': 'Low',
-  'Major': 'Serious',
-  'Medium': 'Medium',
-  'Low': 'Low',
-  'Serious': 'Serious'
+  Minor: 'Low',
+  Major: 'Serious',
+  Medium: 'Medium',
+  Low: 'Low',
+  Serious: 'Serious',
 };
 
 const getInjuries = async (req, res) => {
   try {
     const { projectId, startDate, endDate } = req.query;
-    
+
     const query = {};
 
     // Build query based on filters
@@ -25,21 +25,20 @@ const getInjuries = async (req, res) => {
       }
       query.projectId = new mongoose.Types.ObjectId(projectId);
     }
-    
+
     if (startDate || endDate) {
       query.date = {};
-      
+
       if (startDate) {
         const startDateTime = moment(startDate).startOf('day').toDate();
         query.date.$gte = startDateTime;
       }
-      
+
       if (endDate) {
         const endDateTime = moment(endDate).endOf('day').toDate();
         query.date.$lte = endDateTime;
       }
     }
-
 
     const injuries = await InjurySeverity.find(query).sort({ date: 1 });
 
@@ -49,7 +48,7 @@ const getInjuries = async (req, res) => {
         months: [],
         serious: [],
         medium: [],
-        low: []
+        low: [],
       });
     }
 
@@ -58,37 +57,56 @@ const getInjuries = async (req, res) => {
       months: [],
       serious: [],
       medium: [],
-      low: []
+      low: [],
     };
 
     const monthsSet = new Set();
-    injuries.forEach(injury => {
+    injuries.forEach((injury) => {
       const month = moment(injury.date).format('MMM'); // Only month without year
       monthsSet.add(month);
     });
 
     const months = Array.from(monthsSet);
     // Sort months in chronological order
-    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthOrder = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const sortedMonths = months.sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
     groupedData.months = sortedMonths;
 
-    sortedMonths.forEach(month => {
+    sortedMonths.forEach((month) => {
       // Handle both old and new severity levels
-      const seriousCount = injuries.filter(injury => {
-        const mappedSeverity = severityMapping[injury.severity] || injury.severity;
-        return moment(injury.date).format('MMM') === month && mappedSeverity === 'Serious';
-      }).reduce((sum, injury) => sum + (injury.count || 0), 0);
+      const seriousCount = injuries
+        .filter((injury) => {
+          const mappedSeverity = severityMapping[injury.severity] || injury.severity;
+          return moment(injury.date).format('MMM') === month && mappedSeverity === 'Serious';
+        })
+        .reduce((sum, injury) => sum + (injury.count || 0), 0);
 
-      const mediumCount = injuries.filter(injury => {
-        const mappedSeverity = severityMapping[injury.severity] || injury.severity;
-        return moment(injury.date).format('MMM') === month && mappedSeverity === 'Medium';
-      }).reduce((sum, injury) => sum + (injury.count || 0), 0);
+      const mediumCount = injuries
+        .filter((injury) => {
+          const mappedSeverity = severityMapping[injury.severity] || injury.severity;
+          return moment(injury.date).format('MMM') === month && mappedSeverity === 'Medium';
+        })
+        .reduce((sum, injury) => sum + (injury.count || 0), 0);
 
-      const lowCount = injuries.filter(injury => {
-        const mappedSeverity = severityMapping[injury.severity] || injury.severity;
-        return moment(injury.date).format('MMM') === month && mappedSeverity === 'Low';
-      }).reduce((sum, injury) => sum + (injury.count || 0), 0);
+      const lowCount = injuries
+        .filter((injury) => {
+          const mappedSeverity = severityMapping[injury.severity] || injury.severity;
+          return moment(injury.date).format('MMM') === month && mappedSeverity === 'Low';
+        })
+        .reduce((sum, injury) => sum + (injury.count || 0), 0);
 
       groupedData.serious.push(seriousCount);
       groupedData.medium.push(mediumCount);
@@ -97,10 +115,8 @@ const getInjuries = async (req, res) => {
 
     res.status(200).json(groupedData);
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error',
-      error: error.message,
-      stack: error.stack
+    res.status(500).json({
+      message: 'Internal server error',
     });
   }
 };
@@ -110,9 +126,9 @@ const getProjects = async (req, res) => {
     const projects = await Project.find().sort({ projectName: 1 });
     res.status(200).json(projects);
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Server error',
-      error: error.message 
+      error: error.message,
     });
   }
 };
@@ -139,16 +155,15 @@ const createInjury = async (req, res) => {
       date,
       injuryType,
       department,
-      severity
+      severity,
     });
 
     await injury.save();
     res.status(201).json(injury);
   } catch (error) {
-    
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Server error',
-      error: error.message 
+      error: error.message,
     });
   }
 };
@@ -171,9 +186,9 @@ const updateInjury = async (req, res) => {
 
     res.status(200).json(injury);
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Server error',
-      error: error.message 
+      error: error.message,
     });
   }
 };
@@ -183,16 +198,16 @@ const deleteInjury = async (req, res) => {
   try {
     const { id } = req.params;
     const injury = await InjurySeverity.findByIdAndDelete(id);
-    
+
     if (!injury) {
       return res.status(404).json({ message: 'Injury record not found' });
     }
 
     res.status(200).json({ message: 'Injury record deleted successfully' });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Server error',
-      error: error.message 
+      error: error.message,
     });
   }
 };
@@ -202,5 +217,5 @@ module.exports = {
   getProjects,
   createInjury,
   updateInjury,
-  deleteInjury
+  deleteInjury,
 };
