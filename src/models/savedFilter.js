@@ -6,19 +6,11 @@ const savedFilterSchema = new Schema({
   name: {
     type: String,
     required: true,
-    maxlength: 5,
+    maxlength: 7,
     trim: true,
   },
   filterConfig: {
     selectedCodes: [{ type: String }],
-    selectedOverTime: { type: Boolean, default: false },
-    selectedBioStatus: { type: Boolean, default: false },
-    selectedTrophies: { type: Boolean, default: false },
-    selectedSpecialColors: {
-      purple: { type: Boolean, default: false },
-      green: { type: Boolean, default: false },
-      navy: { type: Boolean, default: false },
-    },
   },
   createdBy: {
     type: Schema.Types.ObjectId,

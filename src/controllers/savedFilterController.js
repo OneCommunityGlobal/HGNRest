@@ -1,8 +1,16 @@
 const mongoose = require('mongoose');
 const SavedFilter = require('../models/savedFilter');
-const helper = require('../utilities/permissions');
 
 const savedFilterController = function () {
+  /**
+   * Helper function to check if user has admin role
+   * @param {Object} user - User object
+   * @returns {boolean} - True if user is Owner or Administrator
+   */
+  const hasAdminRole = function (user) {
+    return user && user.role && (user.role === 'Owner' || user.role === 'Administrator');
+  };
+
   /**
    * Get all saved filters
    * @param {Object} req - Request object
@@ -10,13 +18,13 @@ const savedFilterController = function () {
    */
   const getAllSavedFilters = async function (req, res) {
     try {
-      // Check if user has permission to see saved filters
-      if (
-        !(await helper.hasPermission(req.body.requestor, 'seeSavedFilters')) &&
-        !(await helper.hasPermission(req.body.requestor, 'createSavedFilters')) &&
-        !(await helper.hasPermission(req.body.requestor, 'deleteSavedFilters'))
-      ) {
-        res.status(403).send('You are not authorized to view saved filters.');
+      // Check if user has admin role
+      if (!hasAdminRole(req.body.requestor)) {
+        res
+          .status(403)
+          .send(
+            'You are not authorized to view saved filters. Only Owners and Administrators can access saved filters.',
+          );
         return;
       }
 
@@ -37,17 +45,21 @@ const savedFilterController = function () {
    */
   const createSavedFilter = async function (req, res) {
     try {
-      // Check if user has permission to create saved filters
-      if (!(await helper.hasPermission(req.body.requestor, 'createSavedFilters'))) {
-        res.status(403).send('You are not authorized to create saved filters.');
+      // Check if user has admin role
+      if (!hasAdminRole(req.body.requestor)) {
+        res
+          .status(403)
+          .send(
+            'You are not authorized to create saved filters. Only Owners and Administrators can create saved filters.',
+          );
         return;
       }
 
       const { name, filterConfig } = req.body;
 
       // Validate filter name length
-      if (!name || name.trim().length > 5) {
-        res.status(400).send('Filter name must be 5 characters or less.');
+      if (!name || name.trim().length > 7) {
+        res.status(400).send('Filter name must be 7 characters or less.');
         return;
       }
 
@@ -61,11 +73,11 @@ const savedFilterController = function () {
       const newFilter = new SavedFilter({
         name: name.trim(),
         filterConfig,
-        createdBy: req.body.requestor._id,
+        createdBy: req.body.requestor.requestorId,
       });
 
-      const savedFilter = await newFilter.save();
-      const populatedFilter = await SavedFilter.findById(savedFilter._id).populate(
+      const savedFilterDoc = await newFilter.save();
+      const populatedFilter = await SavedFilter.findById(savedFilterDoc._id).populate(
         'createdBy',
         'firstName lastName',
       );
@@ -87,9 +99,13 @@ const savedFilterController = function () {
    */
   const deleteSavedFilter = async function (req, res) {
     try {
-      // Check if user has permission to delete saved filters
-      if (!(await helper.hasPermission(req.body.requestor, 'deleteSavedFilters'))) {
-        res.status(403).send('You are not authorized to delete saved filters.');
+      // Check if user has admin role
+      if (!hasAdminRole(req.body.requestor)) {
+        res
+          .status(403)
+          .send(
+            'You are not authorized to delete saved filters. Only Owners and Administrators can delete saved filters.',
+          );
         return;
       }
 
@@ -120,9 +136,13 @@ const savedFilterController = function () {
    */
   const updateSavedFilter = async function (req, res) {
     try {
-      // Check if user has permission to update saved filters
-      if (!(await helper.hasPermission(req.body.requestor, 'createSavedFilters'))) {
-        res.status(403).send('You are not authorized to update saved filters.');
+      // Check if user has admin role
+      if (!hasAdminRole(req.body.requestor)) {
+        res
+          .status(403)
+          .send(
+            'You are not authorized to update saved filters. Only Owners and Administrators can update saved filters.',
+          );
         return;
       }
 
@@ -141,8 +161,8 @@ const savedFilterController = function () {
       }
 
       // Validate filter name length if provided
-      if (name && name.trim().length > 5) {
-        res.status(400).send('Filter name must be 5 characters or less.');
+      if (name && name.trim().length > 7) {
+        res.status(400).send('Filter name must be 7 characters or less.');
         return;
       }
 
@@ -224,12 +244,62 @@ const savedFilterController = function () {
     }
   };
 
+  /**
+   * Update saved filters when individual team code changes
+   * @param {Object} req - Request object
+   * @param {Object} res - Response object
+   */
+  const updateSavedFiltersForIndividualTeamCodeChange = async function (req, res) {
+    try {
+      const { oldTeamCode, newTeamCode, userId } = req.body;
+
+      if (!oldTeamCode || !newTeamCode || !userId) {
+        res.status(400).send('Invalid request: oldTeamCode, newTeamCode, and userId are required.');
+        return;
+      }
+
+      // Find all saved filters that contain the old team code
+      const filtersToUpdate = await SavedFilter.find({
+        'filterConfig.selectedCodes': oldTeamCode,
+      });
+
+      if (filtersToUpdate.length === 0) {
+        res.status(200).send({ message: 'No saved filters found with the specified team code.' });
+        return;
+      }
+
+      // Update each filter by adding the new team code to the existing codes
+      const updatePromises = filtersToUpdate.map(async (filter) => {
+        // Add the new team code to the existing codes (don't replace, just add)
+        const updatedSelectedCodes = [...filter.filterConfig.selectedCodes, newTeamCode];
+
+        // Remove duplicates
+        const uniqueCodes = [...new Set(updatedSelectedCodes)];
+
+        filter.filterConfig.selectedCodes = uniqueCodes;
+        filter.updatedAt = Date.now();
+
+        return filter.save();
+      });
+
+      await Promise.all(updatePromises);
+
+      res.status(200).send({
+        message: `Updated ${filtersToUpdate.length} saved filters with new team code.`,
+        updatedFilters: filtersToUpdate.length,
+      });
+    } catch (error) {
+      res.status(500).send(`Internal Error: ${error.message}`);
+    }
+  };
+
   return {
     getAllSavedFilters,
     createSavedFilter,
     deleteSavedFilter,
     updateSavedFilter,
     updateSavedFiltersForTeamCodeChange,
+    updateSavedFiltersForIndividualTeamCodeChange,
   };
 };
 

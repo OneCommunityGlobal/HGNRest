@@ -23,6 +23,12 @@ const routes = function (savedFilter) {
     controller.updateSavedFiltersForTeamCodeChange,
   );
 
+  // Update saved filters when individual team code changes
+  savedFilterRouter.patch(
+    '/savedFilters/updateIndividualTeamCode',
+    controller.updateSavedFiltersForIndividualTeamCodeChange,
+  );
+
   return savedFilterRouter;
 };
 
