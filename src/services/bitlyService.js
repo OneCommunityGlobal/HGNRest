@@ -1,7 +1,7 @@
 // services/bitlyService.js
 
 const { stringify } = require('querystring');
-const { post, get } = require('axios');
+const { post, get, patch, delete: del } = require('axios');
 
 let _tokens = null;
 const { BITLY_CLIENT_ID, BITLY_CLIENT_SECRET, BITLY_REDIRECT_URI } = process.env;
@@ -42,7 +42,16 @@ async function getFirstGroupGuid(accessToken) {
   });
   const groups = resp.data.groups || [];
   if (groups.length === 0) throw new Error('No groups found');
+  console.log('GROUPS', groups[0].guid);
   return groups[0].guid;
+}
+
+async function getOrgGuid(accessToken) {
+  const { data } = await get('https://api-ssl.bitly.com/v4/organizations', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!data.organizations?.length) throw new Error('No organizations found');
+  return data.organizations[0].guid;
 }
 
 async function shortenLink(longUrl) {
@@ -64,30 +73,109 @@ async function shortenLink(longUrl) {
   return resp.data;
 }
 
+async function fetchQuota(accessToken) {
+  if (!accessToken) throw new Error('accessToken required');
+
+  const orgGuid = await getOrgGuid(accessToken);
+
+  const { data } = await get(`https://api-ssl.bitly.com/v4/organizations/${orgGuid}/plan_limits`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  const pick = (name) => data.plan_limits.find((p) => p.name === name) ?? { limit: 0, count: 0 };
+
+  const shorten = pick('encodes');
+  const qr = pick('qr_codes');
+
+  return {
+    shortLinks: {
+      total: shorten.limit,
+      used: shorten.count,
+      remaining: shorten.limit - shorten.count,
+    },
+    qrCodes: {
+      total: qr.limit,
+      used: qr.count,
+      remaining: qr.limit - qr.count,
+    },
+  };
+}
+
+async function getQrCodeImage(qrCodeId, accessToken, format = 'png') {
+  const { data } = await get(
+    `https://api-ssl.bitly.com/v4/qr-codes/${qrCodeId}/image?format=${format}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+
+  return data.qr_code_image;
+}
+
 async function generateQrCode(bitlinkId) {
   if (!bitlinkId) throw new Error('bitlinkId is required');
-  const tokens = getTokens();
-  if (!tokens || !tokens.accessToken) throw new Error('Not authenticated');
-  const groupGuid = await getFirstGroupGuid(tokens.accessToken);
+  const { accessToken } = getTokens() ?? {};
+  if (!accessToken) throw new Error('Not authenticated');
 
-  const qrResp = await post(
+  const quota = await fetchQuota(accessToken);
+  if (quota.qrCodes.remaining === 0) {
+    throw new Error('QR-code quota exhausted');
+  }
+
+  const groupGuid = await getFirstGroupGuid(accessToken);
+
+  const { data: qr } = await post(
     'https://api-ssl.bitly.com/v4/qr-codes',
     {
       title: `QR for ${bitlinkId}`,
       group_guid: groupGuid,
       destination: { bitlink_id: bitlinkId },
     },
-    { headers: { Authorization: `Bearer ${tokens.accessToken}` } },
+    { headers: { Authorization: `Bearer ${accessToken}` } },
   );
-  // rename locally
-  const { qrcode_id: qrCodeId } = qrResp.data;
-  if (!qrCodeId) throw new Error('Failed to get qrcode_id');
 
-  const imageResp = await get(`https://api-ssl.bitly.com/v4/qr-codes/${qrCodeId}/image`, {
-    headers: { Authorization: `Bearer ${tokens.accessToken}` },
-    responseType: 'arraybuffer',
+  const imageData = await getQrCodeImage(qr.qrcode_id, accessToken);
+
+  return { qrCodeId: qr.qrcode_id, imageData };
+}
+
+async function updateBitlinkTitle(bitlinkId, title) {
+  if (!bitlinkId || !title) throw new Error('bitlinkId and title required');
+  const { accessToken } = getTokens() ?? {};
+  if (!accessToken) throw new Error('Not authenticated');
+
+  // PATCH /v4/bitlinks/{bitlink}  (Bitly API) :contentReference[oaicite:0]{index=0}
+  await patch(
+    `https://api-ssl.bitly.com/v4/bitlinks/${bitlinkId}`,
+    { title },
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  return { ok: true };
+}
+
+async function deleteBitlink(bitlinkId) {
+  const { accessToken } = getTokens() ?? {};
+  if (!accessToken) throw new Error('Not authenticated');
+
+  // Bitly: DELETE /v4/bitlinks/{bitlink}
+  await del(`https://api-ssl.bitly.com/v4/bitlinks/${bitlinkId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
-  return { mimeType: imageResp.headers['content-type'], data: imageResp.data };
+  return { ok: true };
+}
+
+async function deleteQrCode(qrCodeId) {
+  const { accessToken } = getTokens() ?? {};
+  if (!accessToken) throw new Error('Not authenticated');
+
+  // Bitly: DELETE /v4/qr-codes/{qrcode_id}
+  await del(`https://api-ssl.bitly.com/v4/qr-codes/${qrCodeId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return { ok: true };
 }
 
 function clearTokens() {
@@ -101,6 +189,13 @@ module.exports = {
   exchangeCodeForToken,
   getTokens,
   shortenLink,
+  getFirstGroupGuid,
+  getOrgGuid,
   generateQrCode,
+  getQrCodeImage,
+  fetchQuota,
   clearTokens,
+  updateBitlinkTitle,
+  deleteBitlink,
+  deleteQrCode,
 };
