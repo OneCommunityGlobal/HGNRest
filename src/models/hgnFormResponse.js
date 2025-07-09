@@ -59,6 +59,7 @@ const backendSchema = new mongoose.Schema({
 
 const followupSchema = new mongoose.Schema({
   platform: { type: String },
+  mern_work_experience:{type:String},  
   other_skills: { type: String },
   suggestion: { type: String },
   additional_info: { type: String },
