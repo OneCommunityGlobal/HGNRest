@@ -1288,6 +1288,11 @@ const userHelper = function () {
         emailAddress,
         // Don't change this is to CC!
         [...new Set([...bccEmails])],
+        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        emailAddress,
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
       );
     });
   };
@@ -2602,6 +2607,104 @@ const userHelper = function () {
     }
   };
 
+  const resendBlueSquareEmailsOnlyForLastWeek = async () => {
+    try {
+      console.log('[Manual Resend] Starting email-only blue square resend...');
+
+      const startOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week')
+        .toDate();
+      const endOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .endOf('week')
+        .subtract(1, 'week')
+        .toDate();
+
+      const usersWithInfringements = await userProfile.find({
+        infringements: {
+          $elemMatch: {
+            date: {
+              $gte: moment(startOfLastWeek).format('YYYY-MM-DD'),
+              $lte: moment(endOfLastWeek).format('YYYY-MM-DD'),
+            },
+          },
+        },
+        isActive: true,
+      });
+
+      for (const user of usersWithInfringements) {
+        const infringement = user.infringements.find((inf) =>
+          moment(inf.date).isBetween(startOfLastWeek, endOfLastWeek, null, '[]'),
+        );
+        if (!infringement) continue;
+
+        // Fetch weekly logs for this user
+        const timeLogs = await TimeLog.find({
+          userId: user._id,
+          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
+        });
+
+        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
+        const hoursLogged = totalSeconds / 3600;
+        const weeklycommittedHours = user.weeklyComittedHours || 0;
+        const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
+
+        const administrativeContent = {
+          startDate: moment(user.startDate).format('M-D-YYYY'),
+          role: user.role,
+          userTitle: user.jobTitle?.[0] || 'Volunteer',
+          historyInfringements: 'Previously assigned blue square – resend only.',
+        };
+
+        let emailBody;
+        if (user.role === 'Core Team' && timeRemaining > 0) {
+          emailBody = getInfringementEmailBody(
+            user.firstName,
+            user.lastName,
+            infringement,
+            user.infringements.length,
+            timeRemaining,
+            0, // Assuming coreTeamExtraHour is not needed here or is 0
+            null,
+            administrativeContent,
+            weeklycommittedHours,
+          );
+        } else {
+          emailBody = getInfringementEmailBody(
+            user.firstName,
+            user.lastName,
+            infringement,
+            user.infringements.length,
+            undefined,
+            null,
+            null,
+            administrativeContent,
+          );
+        }
+
+        const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+        const emailsBCCs = blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email);
+
+        await emailSender(
+          user.email,
+          '[RESEND] Blue Square Notification',
+          emailBody,
+          null,
+          ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+          user.email,
+          [...new Set(emailsBCCs)],
+        );
+      }
+
+      console.log('[Manual Resend] Emails successfully resent for existing blue squares.');
+    } catch (err) {
+      console.error('[Manual Resend] Error while resending:', err);
+      logger.logException(err);
+    }
+  };
+
   return {
     changeBadgeCount,
     getUserName,
@@ -2624,6 +2727,7 @@ const userHelper = function () {
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
     checkTeamCodeMismatch,
+    resendBlueSquareEmailsOnlyForLastWeek,
   };
 };
 
