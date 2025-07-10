@@ -42,7 +42,6 @@ async function getFirstGroupGuid(accessToken) {
   });
   const groups = resp.data.groups || [];
   if (groups.length === 0) throw new Error('No groups found');
-  console.log('GROUPS', groups[0].guid);
   return groups[0].guid;
 }
 
