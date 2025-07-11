@@ -4,13 +4,16 @@ const getGitHubReviews = async (req, res) => {
   const org = 'OneCommunityGlobal';
   const repos = ['HighestGoodNetworkApp', 'HGNRest'];
 
+  const { duration = 'allTime', sort = 'desc', team = null } = req.query;
+
   try {
     let combinedResults = [];
 
-    for (const repo of repos) {
-      const data = await fetchGitHubReviews(org, repo);
-      combinedResults = combinedResults.concat(data);
-    }
+    const allData = await Promise.all(
+      repos.map((repo) => fetchGitHubReviews(org, repo, duration, sort, team))
+    );
+
+    combinedResults = allData.flat();
 
     res.status(200).json(combinedResults);
   } catch (err) {
