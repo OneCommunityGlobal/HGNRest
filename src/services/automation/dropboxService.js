@@ -33,8 +33,6 @@ async function createFolderWithSubfolder(parentFolderName) {
   }
 }
 
-
-
 async function createFolderAndInvite(email, folderName) {
   try {
     const { parentFolderResponse } = await createFolderWithSubfolder(folderName);
@@ -50,7 +48,6 @@ async function createFolderAndInvite(email, folderName) {
     });
     return { inviteResponse, folderPath };
   } catch (error) {
-    console.log(error);
     throw new Error(`Dropbox: Error inviting user: ${error.message}`);
   }
 }
