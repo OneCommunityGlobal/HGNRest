@@ -11,20 +11,29 @@ const dbx = new Dropbox({
   fetch,
 });
 
-// Function to create a folder and a "Week 1" subfolder inside it
+const hgnFolder = 'Highest Good Network Team';
+
 async function createFolderWithSubfolder(parentFolderName) {
   try {
-    const parentFolderResponse = await dbx.filesCreateFolderV2({ path: `/${parentFolderName}` });
-    
-    // Create the "Week 1" subfolder inside the parent folder
-    const week1FolderPath = `${parentFolderResponse.result.metadata.path_display}/Week 1`;
-    const subfolderResponse = await dbx.filesCreateFolderV2({ path: week1FolderPath });
+    // Create Parent Folder inside Highest Good Network
+    const parentFolderPath = `/${hgnFolder}/${parentFolderName}`;
+    const parentFolderResponse = await dbx.filesCreateFolderV2({
+      path: parentFolderPath,
+    });
+
+    // Then create Week 1 inside it
+    const subfolderResponse = await dbx.filesCreateFolderV2({
+      path: `${parentFolderPath}/Week 1`,
+    });
 
     return { parentFolderResponse, subfolderResponse };
   } catch (error) {
+    console.error(error);
     throw new Error('folder creation failed');
   }
 }
+
+
 
 async function createFolderAndInvite(email, folderName) {
   try {
@@ -41,6 +50,7 @@ async function createFolderAndInvite(email, folderName) {
     });
     return { inviteResponse, folderPath };
   } catch (error) {
+    console.log(error);
     throw new Error(`Dropbox: Error inviting user: ${error.message}`);
   }
 }

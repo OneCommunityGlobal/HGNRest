@@ -42,16 +42,9 @@ async function removeUser(req, res) {
 
   try {
     const members = await sentryService.getMembers();
-
-    const userToRemove = members.find(member => member.email === targetUser.email);
-
-    if (userToRemove) {
-      const message = await sentryService.removeUser(userToRemove.id);
-      await appAccessService.revokeAppAccess(targetUser.targetUserId, 'sentry');
-      res.status(200).json({ message });
-    } else {
-      res.status(404).json({ message: `User with email ${targetUser.email} not found.` });
-    }
+    const message = await sentryService.removeUser(targetUser.email, members);
+    await appAccessService.revokeAppAccess(targetUser.targetUserId, 'sentry');
+    res.status(200).json({ message });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
