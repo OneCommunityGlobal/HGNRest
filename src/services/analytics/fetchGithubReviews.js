@@ -1,10 +1,18 @@
 const axios = require('axios');
 const dayjs = require('dayjs');
+const NodeCache = require('node-cache');
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const BASE_URL = 'https://api.github.com';
+const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 
 const fetchGitHubReviews = async (org, repo, duration = 'allTime', sort = 'desc') => {
+  const cacheKey = `${org}_${repo}_${duration}_${sort}`;
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) {
+    return cachedData;
+  }
+
   const headers = {
     Authorization: `token ${GITHUB_TOKEN}`,
     Accept: 'application/vnd.github+json',
@@ -36,35 +44,36 @@ const fetchGitHubReviews = async (org, repo, duration = 'allTime', sort = 'desc'
       hasMore = prData.length === 100;
       page++;
     }
-    allPRs = allPRs.slice(0, maxPRs); 
+    allPRs = allPRs.slice(0, maxPRs);
 
-    const allReviewData = [];
-
-    // Fetch reviews for each PR
-    for (const pr of allPRs) {
+    // Use Promise.all to fetch reviews in parallel
+    const reviewPromises = allPRs.map(async (pr) => {
       try {
         const reviewsResponse = await axios.get(
           `${BASE_URL}/repos/${org}/${repo}/pulls/${pr.number}/reviews`,
           { headers }
         );
-
         const reviews = reviewsResponse.data;
-        for (const review of reviews) {
+        return reviews.map((review) => {
           const reviewer = review.user?.login || 'Unknown';
           const state = review.state;
           const submittedAt = review.submitted_at;
 
-          if (!reviewer || !submittedAt || !state) continue;
+          if (!reviewer || !submittedAt || !state) return null;
 
           const reviewDate = dayjs(submittedAt);
-          if (reviewDate.isBefore(startDate)) continue;
+          if (reviewDate.isBefore(startDate)) return null;
 
-          allReviewData.push({ reviewer, state });
-        }
-      } catch (reviewErr) {
-        console.error(`Failed to fetch reviews for PR #${pr.number}`, reviewErr.message);
+          return { reviewer, state };
+        }).filter(Boolean);
+      } catch (err) {
+        console.error(`Failed to fetch reviews for PR #${pr.number}:`, err.message);
+        return [];
       }
-    }
+    });
+
+    const reviewArrays = await Promise.all(reviewPromises);
+    const allReviewData = reviewArrays.flat();
 
     const reviewerSummary = {};
     allReviewData.forEach(({ reviewer, state }) => {
@@ -72,7 +81,7 @@ const fetchGitHubReviews = async (org, repo, duration = 'allTime', sort = 'desc'
         reviewerSummary[reviewer] = {
           reviewer,
           isMentor: null, 
-          team: null,      
+          team: null,     
           counts: {
             Exceptional: 0,
             Sufficient: 0,
@@ -97,6 +106,7 @@ const fetchGitHubReviews = async (org, repo, duration = 'allTime', sort = 'desc'
       return sort === 'asc' ? aTotal - bTotal : bTotal - aTotal;
     });
 
+    cache.set(cacheKey, result);
     return result;
   } catch (err) {
     console.error('Error fetching data from GitHub:', err.response?.data || err.message);
