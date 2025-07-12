@@ -7,6 +7,10 @@ jest.mock('../utilities/permissions', () => ({
 
 jest.mock('../utilities/emailSender', () => jest.fn());
 
+jest.mock('../middleware/taskChangeTracker', () => ({
+  logChanges: jest.fn(),
+}));
+
 const taskHelperMethods = {
   getTasksForTeams: jest.fn(),
   getTasksForSingleUser: jest.fn(),
@@ -839,7 +843,7 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(403, error, response, mockRes);
     });
 
-    test('Return 200 on successful update', async () => {
+    test('Return 201 on successful update', async () => {
       const { updateTask } = makeSut();
 
       hasPermission.mockResolvedValueOnce(true);
@@ -848,21 +852,31 @@ describe('Unit Tests for taskController.js', () => {
         ...mockReq.params,
         taskId: 456,
       };
+      mockReq.body = {
+        ...mockReq.body,
+        requestor: {
+          requestorId: 'userId123',
+        },
+      };
 
-      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const mockUser = { _id: 'userId123', firstName: 'Test', lastName: 'User' };
+      const mockUpdatedTask = { ...mockedTask, toObject: () => mockedTask };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue({ ...mockedTask, toObject: () => mockedTask });
+      const userProfileFindByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(mockUser);
       const taskFindOneAndUpdateSpy = jest
         .spyOn(Task, 'findOneAndUpdate')
-        .mockResolvedValueOnce(true);
+        .mockResolvedValueOnce(mockUpdatedTask);
       const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
       const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
 
       const response = await updateTask(mockReq, mockRes);
       await flushPromises();
 
-      // assertResMock(201, null, response, mockRes);
       expect(mockRes.status).toBeCalledWith(201);
       expect(response).toBeUndefined();
       expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(userProfileFindByIdSpy).toHaveBeenCalled();
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
       expect(wbsFindByIdSpy).toHaveBeenCalled();
       expect(projectFindByIdSpy).toHaveBeenCalled();
@@ -871,15 +885,22 @@ describe('Unit Tests for taskController.js', () => {
     test('Return 404 on encountering error', async () => {
       const { updateTask } = makeSut();
 
-      const error = { error: 'No valid records found' };
       hasPermission.mockResolvedValueOnce(true);
 
       mockReq.params = {
         ...mockReq.params,
         taskId: 456,
       };
+      mockReq.body = {
+        ...mockReq.body,
+        requestor: {
+          requestorId: 'userId123',
+        },
+      };
 
-      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const error = { error: 'No valid records found' };
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue({ ...mockedTask, toObject: () => mockedTask });
+      const userProfileFindByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue({ _id: 'userId123' });
       const taskFindOneAndUpdateSpy = jest
         .spyOn(Task, 'findOneAndUpdate')
         .mockRejectedValueOnce(error);
@@ -891,9 +912,11 @@ describe('Unit Tests for taskController.js', () => {
 
       assertResMock(404, error, response, mockRes);
       expect(taskFindByIdSpy).toHaveBeenCalled();
+      expect(userProfileFindByIdSpy).toHaveBeenCalled();
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
-      expect(wbsFindByIdSpy).toHaveBeenCalled();
-      expect(projectFindByIdSpy).toHaveBeenCalled();
+      // WBS and Project operations only happen on successful update, not on error
+      expect(wbsFindByIdSpy).not.toHaveBeenCalled();
+      expect(projectFindByIdSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -1526,9 +1549,9 @@ describe('Unit Tests for taskController.js', () => {
       expect(projectFindByIdSpy).toHaveBeenCalled();
     });
 
-    test('Returns 400 on error', async () => {
+    test('Returns 404 on error', async () => {
       const { updateTaskStatus } = makeSut();
-      const error = new Error('some error');
+      const error = { error: 'No valid records found' };
 
       mockReq.params = {
         ...mockReq.params,
