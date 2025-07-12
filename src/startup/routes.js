@@ -182,6 +182,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   blueSquareEmailAssignment,
   userProfile,
 );
+// PR Analytics
+const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter');
 
 
 
@@ -307,4 +309,7 @@ module.exports = function (app) {
   app.use('/api', registrationRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  // PR Analytics
+  app.use('/api', prInsightsRouter);
 };
