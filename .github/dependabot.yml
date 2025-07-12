@@ -1,7 +1,23 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/"  # since your package.json is in the root
+    directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+      day: "monday"
+      time: "08:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "rimraf"
+        versions: ["^3.x"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
