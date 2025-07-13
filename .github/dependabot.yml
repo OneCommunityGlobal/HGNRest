@@ -4,9 +4,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "08:00"
-      timezone: "America/New_York"
+      day: "sunday"
+      time: "00:00"
+      timezone: "America/Los_Angeles"
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: "rimraf"
