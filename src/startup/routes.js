@@ -168,7 +168,8 @@ const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishl
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue);
+const buildingIssue = require('../models/bmdashboard/buildingIssue');
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 
@@ -183,14 +184,12 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
-const slackRouter = require('../routes/automation/slackRouter')
+const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
@@ -286,10 +285,7 @@ module.exports = function (app) {
 
   app.use('/api/bm', bmIssueRouter);
 
-  app.use('/api/bm', bmIssueRouter);
-
   app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('api', bmIssueRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
@@ -299,7 +295,6 @@ module.exports = function (app) {
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
-  app.use('/api/bm', bmIssueRouter);
   // lb dashboard
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
