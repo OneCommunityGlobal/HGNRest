@@ -37,6 +37,7 @@ const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
+const promotionTableRouter = require('../routes/promotionTableRoutes');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
@@ -183,14 +184,12 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
-const slackRouter = require('../routes/automation/slackRouter')
+const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
@@ -260,6 +259,7 @@ module.exports = function (app) {
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
+  app.use('/api/promotion-table', promotionTableRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
 
   app.use('/api', templateRouter);
