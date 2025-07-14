@@ -232,8 +232,10 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
+  teamCodeWarning: { type: Boolean, default: false},
   teamCode: {
     type: String,
     default: '',
@@ -258,6 +260,7 @@ const userProfileSchema = new Schema({
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
   permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
+  applicationAccess: { type: mongoose.Schema.Types.ObjectId, ref: 'applicationAccess' },
   questionaireFeedback: {
     haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
     peopleYouContacted: [
