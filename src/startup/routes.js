@@ -18,6 +18,7 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponses');
 
@@ -171,7 +172,6 @@ const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(bui
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
-const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
 const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
@@ -206,11 +206,10 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
-const templateRouter = require('../routes/templateRouter');
-
 const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
+const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -254,18 +253,15 @@ module.exports = function (app) {
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
+  app.use('/api', savedFilterRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
-
-  app.use('/api', templateRouter);
-
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
-
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -300,6 +296,6 @@ module.exports = function (app) {
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
-  app.use('/api/bm', bmRentalChart);
+
   app.use('/api/lb', lbWishlistsRouter);
 };
