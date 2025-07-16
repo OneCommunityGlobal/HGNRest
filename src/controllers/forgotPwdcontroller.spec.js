@@ -129,7 +129,7 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
 
       expect(mockUser.set).toHaveBeenCalledWith({ resetPwd: temporaryPassword });
       expect(mockUser.save).toHaveBeenCalled();
-      expect(emailSender).toHaveBeenCalledWith(
+      expect(emailSender.sendEmail).toHaveBeenCalledWith(
         mockUser.email,
         'Account Password change',
         expectedEmailMessage,

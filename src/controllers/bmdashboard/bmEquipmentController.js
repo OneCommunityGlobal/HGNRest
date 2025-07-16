@@ -56,7 +56,10 @@ const bmEquipmentController = (BuildingEquipment) => {
 
   const fetchBMEquipments = async (req, res) => {
     try {
-      BuildingEquipment.find()
+      const { project: projectId } = req.query;
+
+      const mongoFilter = projectId ? { project: projectId } : {};
+      BuildingEquipment.find(mongoFilter)
         .populate([
           {
             path: 'project',

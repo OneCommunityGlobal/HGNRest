@@ -5,6 +5,10 @@ const UserProfile = require('../models/userProfile');
 
 jest.mock('../utilities/emailSender', () => jest.fn());
 const emailSender = require('../utilities/emailSender');
+jest.mock('../utilities/emailSender', () => ({
+  sendEmail: jest.fn(),
+}));
+const { sendEmail } = require('../utilities/emailSender');
 
 jest.mock('../helpers/dashboardhelper');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
@@ -539,7 +543,7 @@ describe('Dashboard Controller tests', () => {
         },
       };
 
-      const { sendMakeSuggestion } = makeSut();
+      const { sendBugReport } = makeSut();
 
       await sendMakeSuggestion(mockRequest, mockRes);
 
