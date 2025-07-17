@@ -183,14 +183,12 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
-const slackRouter = require('../routes/automation/slackRouter')
+const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
@@ -212,6 +210,8 @@ const templateRouter = require('../routes/templateRouter');
 const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
+
+const analyticsRouter = require('../routes/optAnalyticsRoutes');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -307,4 +307,7 @@ module.exports = function (app) {
   app.use('/api', registrationRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  //analytics page
+  app.use('/api/analytics', analyticsRouter);
 };
