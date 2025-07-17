@@ -159,6 +159,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   equipmentType,
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -257,6 +258,7 @@ module.exports = function (app) {
   app.use('/api', userSkillsProfileRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
+  app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
