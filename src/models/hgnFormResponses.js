@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
 
 const hgnformresponsesSchema = new Schema(
@@ -61,7 +62,10 @@ const hgnformresponsesSchema = new Schema(
       suggestion: String,
       additional_info: String,
     },
-    user_id: String,
+    user_id: {
+      type: Schema.Types.ObjectId,
+      auto: true,
+    },
     _v: Number,
   },
   {
