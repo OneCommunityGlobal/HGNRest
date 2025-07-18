@@ -178,7 +178,7 @@ const userHelper = function () {
     let descrInfringement = '';
     if (timeRemaining === undefined) {
       finalParagraph =
-        '<p>Life happens and we understand that. Thats why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
+        '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
       descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
@@ -242,7 +242,7 @@ const userHelper = function () {
     }
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
-        <p>Oops, it looks like something happened and you've managed to get a blue square.</p>
+        <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
