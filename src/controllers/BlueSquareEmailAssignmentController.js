@@ -85,6 +85,34 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
     }
   };
 
+  const testWeeklySummariesEmail = async function (req, res) {
+    try {
+      console.log(`[Test Email] Triggered at ${new Date().toISOString()}`);
+
+      // Respond immediately
+      res.status(202).json({ message: '🔄 Test weekly summaries email started in background.' });
+
+      // Run the actual logic in the background
+      setImmediate(async () => {
+        try {
+          await connectDB();
+
+          // Check if sendEmail environment variable is set
+          console.log('[Test] sendEmail env var:', process.env.sendEmail);
+          console.log('[Test] REACT_APP_EMAIL env var:', process.env.REACT_APP_EMAIL);
+
+          await userHelper.emailWeeklySummariesForAllUsers();
+          console.log('[Background] ✅ Test weekly summaries email sent.');
+        } catch (err) {
+          console.error('[Background] ❌ Error sending test weekly summaries:', err);
+        }
+      });
+    } catch (error) {
+      console.error('[API Trigger] ❌ Immediate failure:', error);
+      res.status(500).json({ error: '❌ Failed to initiate test weekly summary email.' });
+    }
+  };
+
   const runManualBlueSquareEmailResend = async function (req, res) {
     try {
       console.log('[API Trigger] Manual blue square email resend');
@@ -112,6 +140,7 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
     setBlueSquareEmailAssignment,
     deleteBlueSquareEmailAssignment,
     runManuallyResendWeeklySummaries,
+    testWeeklySummariesEmail,
     runManualBlueSquareEmailResend,
   };
 };

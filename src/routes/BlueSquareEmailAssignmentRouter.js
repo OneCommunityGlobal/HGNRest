@@ -21,6 +21,11 @@ const routes = function (BlueSquareEmailAssignment, userProfile) {
   );
 
   BlueSquareEmailAssignmentRouter.post(
+    '/blueSquare/test-weekly-summary-emails',
+    controller.testWeeklySummariesEmail,
+  );
+
+  BlueSquareEmailAssignmentRouter.post(
     '/blueSquare/resend-infringement-emails-only',
     controller.runManualBlueSquareEmailResend,
   );

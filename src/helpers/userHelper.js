@@ -178,7 +178,7 @@ const userHelper = function () {
     let descrInfringement = '';
     if (timeRemaining === undefined) {
       finalParagraph =
-        '<p>Life happens and we understand that. That’s why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
+        '<p>Life happens and we understand that. Thats why we allow 5 of them before taking action. This action usually includes removal from our team though, so please let your direct supervisor know what happened and do your best to avoid future blue squares if you are getting close to 5 and wish to avoid termination. Each blue square drops off after a year.</p>';
       descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
@@ -242,7 +242,7 @@ const userHelper = function () {
     }
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
-        <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
+        <p>Oops, it looks like something happened and you've managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
@@ -279,19 +279,27 @@ const userHelper = function () {
       `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`,
     );
 
+    console.log('[Weekly Summaries Email] Starting emailWeeklySummariesForAllUsers...');
+    console.log('[Weekly Summaries Email] sendEmail env var:', process.env.sendEmail);
+    console.log('[Weekly Summaries Email] REACT_APP_EMAIL env var:', process.env.REACT_APP_EMAIL);
+
     const emails = [];
-    let mappedResults; // this contains the emails
+    let mappedResults;
 
     try {
+      console.log('[Weekly Summaries Email] Getting weekly summaries data...');
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      console.log('[Weekly Summaries Email] Found', results.length, 'users with data');
+
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
+      console.log('[Weekly Summaries Email] Getting email recipients...');
       await userProfile
         .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
         // eslint-disable-next-line no-shadow
         .then((results) => {
           mappedResults = results.map((ele) => ele.email);
           mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-          mappedResults = mappedResults.toString();
+          console.log('[Weekly Summaries Email] Recipients:', mappedResults);
         });
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
@@ -431,17 +439,31 @@ const userHelper = function () {
         </div>
       `;
 
-      const mailList = mappedResults;
+      // Convert mappedResults to array if it's not already
+      const recipientEmails = Array.isArray(mappedResults) ? mappedResults : [mappedResults];
+
+      // Use all recipient emails as reply-to field as per requirements
+      const replyToEmails = recipientEmails.join(', ');
+
+      console.log(
+        '[Weekly Summaries Email] About to send email to:',
+        recipientEmails.length,
+        'recipients',
+      );
+      console.log('[Weekly Summaries Email] Reply-to:', replyToEmails);
 
       emailSender(
-        mailList,
+        recipientEmails,
         'Weekly Summaries for all active users...',
         emailBody,
         null,
         null,
-        emailString,
+        replyToEmails,
       );
+
+      console.log('[Weekly Summaries Email] Email sent successfully');
     } catch (err) {
+      console.error('[Weekly Summaries Email] Error:', err);
       logger.logException(err);
     }
   };
