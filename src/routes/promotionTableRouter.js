@@ -1,0 +1,8 @@
+const express = require('express');
+
+const promotionTableRouter = express.Router();
+const controller = require('../controllers/promotionTableController')();
+
+promotionTableRouter.route('/').get(controller.getPromotionEligibility);
+
+module.exports = promotionTableRouter;
