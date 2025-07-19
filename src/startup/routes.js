@@ -158,6 +158,9 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
+
+const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');
+
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
 // lb dashboard
@@ -300,6 +303,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', toolAvailabilityRoutes);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
 };
