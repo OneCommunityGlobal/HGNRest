@@ -4,7 +4,7 @@ const moment = require('moment');
 const Timer = require('../../models/timer');
 const logger = require('../../startup/logger');
 
-export const getClient = async (clients, userId) => {
+const getClient = async (clients, userId) => {
   // In case of there is already a connection that is open for this user
   // for example user open a new connection
   if (!clients.has(userId)) {
@@ -14,36 +14,34 @@ export const getClient = async (clients, userId) => {
       clients.set(userId, timer);
     } catch (e) {
       logger.logException(e);
-      throw new Error(
-        'Something happened when trying to retrieve timer from mongo',
-      );
+      throw new Error('Something happened when trying to retrieve timer from mongo');
     }
   }
   return clients.get(userId);
 };
 
-export const saveClient = async (client) => {
+const saveClient = async (client) => {
   try {
     await Timer.findOneAndUpdate({ userId: client.userId }, client);
   } catch (e) {
     logger.logException(e);
-    throw new Error(
-      `Something happened when trying to save user timer to mongo, Error: ${e}`,
-    );
+    throw new Error(`Something happened when trying to save user timer to mongo, Error: ${e}`);
   }
 };
 
-export const action = {
+const action = {
   START_TIMER: 'START_TIMER',
   PAUSE_TIMER: 'PAUSE_TIMER',
   STOP_TIMER: 'STOP_TIMER',
   CLEAR_TIMER: 'CLEAR_TIMER',
-  SET_GOAL: 'SET_GOAL=',
-  ADD_GOAL: 'ADD_TO_GOAL=',
-  REMOVE_GOAL: 'REMOVE_FROM_GOAL=',
+  GET_TIMER: 'GET_TIMER',
+  SET_GOAL: 'SET_GOAL',
+  ADD_GOAL: 'ADD_TO_GOAL',
+  REMOVE_GOAL: 'REMOVE_FROM_GOAL',
   FORCED_PAUSE: 'FORCED_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
+  HEARTBEAT: 'ping',
 };
 
 const MAX_HOURS = 5;
@@ -69,6 +67,8 @@ const startTimer = (client) => {
 };
 
 const pauseTimer = (client, forced = false) => {
+  if (client.paused) return;
+
   client.time = updatedTimeSinceStart(client);
   if (client.time === 0) client.chiming = true;
   client.startAt = moment.invalid(); // invalid can not be saved in database
@@ -77,8 +77,8 @@ const pauseTimer = (client, forced = false) => {
 };
 
 const startChime = (client, msg) => {
-  const state = msg.split('=')[1];
-  client.chiming = state === 'true';
+  const state = msg.value;
+  client.chiming = state === true;
 };
 
 const ackForcedPause = (client) => {
@@ -110,20 +110,27 @@ const clearTimer = (client) => {
 };
 
 const setGoal = (client, msg) => {
-  const newGoal = parseInt(msg.split('=')[1]);
+  const newGoal = parseInt(msg.value);
   client.goal = newGoal;
   client.time = newGoal;
   client.initialGoal = newGoal;
 };
 
 const addGoal = (client, msg) => {
-  const duration = parseInt(msg.split('=')[1]);
-  const goalAfterAddition = moment
-    .duration(client.goal)
-    .add(duration, 'milliseconds')
-    .asHours();
+  const duration = parseInt(msg.value);
+  const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
 
-  if (goalAfterAddition > MAX_HOURS) return;
+  if (goalAfterAddition >= MAX_HOURS) {
+    const oldGoal = client.goal;
+    client.goal = MAX_HOURS * 60 * 60 * 1000;
+    client.time = moment
+      .duration(client.time)
+      .add(client.goal - oldGoal, 'milliseconds')
+      .asMilliseconds()
+      .toFixed();
+
+    return;
+  }
 
   client.goal = moment
     .duration(client.goal)
@@ -138,7 +145,7 @@ const addGoal = (client, msg) => {
 };
 
 const removeGoal = (client, msg) => {
-  const duration = parseInt(msg.split('=')[1]);
+  const duration = parseInt(msg.value);
   const goalAfterRemoval = moment
     .duration(client.goal)
     .subtract(duration, 'milliseconds')
@@ -162,30 +169,32 @@ const removeGoal = (client, msg) => {
     .toFixed();
 };
 
-export const handleMessage = async (msg, clients, userId) => {
-  if (!clients.has(userId)) {
-    throw new Error('It should have this user in memory');
-  }
+const handleMessage = async (msg, clients, userId) => {
+  // if (!clients.has(userId)) {
+  //   throw new Error('It should have this user in memory');
+  // }
 
-  const client = clients.get(userId);
+  const client = await getClient(clients, userId);
   let resp = null;
 
-  const req = msg.toString();
-  switch (req) {
+  switch (msg.action) {
     case action.START_TIMER:
       startTimer(client);
       break;
-    case req.match(/SET_GOAL=/i)?.input:
-      setGoal(client, req);
+    case action.GET_TIMER:
+      resp = client;
       break;
-    case req.match(/ADD_TO_GOAL=/i)?.input:
-      addGoal(client, req);
+    case action.SET_GOAL:
+      setGoal(client, msg);
       break;
-    case req.match(/REMOVE_FROM_GOAL=/i)?.input:
-      removeGoal(client, req);
+    case action.ADD_GOAL:
+      addGoal(client, msg);
       break;
-    case req.match(/START_CHIME=/i)?.input:
-      startChime(client, req);
+    case action.REMOVE_GOAL:
+      removeGoal(client, msg);
+      break;
+    case action.START_CHIME:
+      startChime(client, msg);
       break;
     case action.PAUSE_TIMER:
       pauseTimer(client);
@@ -202,11 +211,10 @@ export const handleMessage = async (msg, clients, userId) => {
     case action.STOP_TIMER:
       stopTimer(client);
       break;
-
     default:
       resp = {
         ...client,
-        error: `Unknown operation ${req}, please use one of ${action}`,
+        error: `Unknown operation ${msg.action}, please use one from { ${Object.values(action).join(', ')} }`,
       };
       break;
   }
@@ -215,4 +223,14 @@ export const handleMessage = async (msg, clients, userId) => {
   clients.set(userId, client);
   if (resp === null) resp = client;
   return JSON.stringify(resp);
+};
+
+module.exports = {
+  getClient,
+  handleMessage,
+  action,
+  MAX_HOURS,
+  MIN_MINS,
+  saveClient,
+  updatedTimeSinceStart,
 };

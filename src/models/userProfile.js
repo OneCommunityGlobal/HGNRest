@@ -6,10 +6,14 @@ const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
-const nextDay = new Date();
-nextDay.setDate(nextDay.getDate() + 1);
+// Update createdDate to be the current date from the next day
+// const nextDay = new Date();
+// nextDay.setDate(nextDay.getDate() + 1);
+const today = new Date();
 
 const userProfileSchema = new Schema({
+  // Updated filed
+  summarySubmissionDates: [{ type: Date }],
   password: {
     type: String,
     required: true,
@@ -23,23 +27,32 @@ const userProfileSchema = new Schema({
     },
   },
   isActive: { type: Boolean, required: true, default: true },
-  isRehireable: { type: Boolean, default: false },
+  isRehireable: { type: Boolean, default: true },
   isSet: { type: Boolean, required: true, default: false },
+  finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
     type: String,
     required: true,
   },
   permissions: {
+    isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
+    removedDefaultPermissions: [String]
   },
   firstName: {
     type: String,
     required: true,
     trim: true,
     minlength: 2,
+    index: true,
   },
-  lastName: { type: String, required: true, minlength: 2 },
+  lastName: {
+    type: String,
+    required: true,
+    minlength: 2,
+    index: true,
+  },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
   bio: { type: String },
@@ -47,9 +60,12 @@ const userProfileSchema = new Schema({
     type: String,
     required: true,
     unique: true,
-    validate: [
-      validate({ validator: 'isEmail', message: 'Email address is invalid' }),
-    ],
+    validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
+  },
+  copiedAiPrompt: { type: Date, default: Date.now() },
+  emailSubscriptions: {
+    type: Boolean,
+    default: false,
   },
   weeklycommittedHours: { type: Number, default: 10 },
   weeklycommittedHoursHistory: [
@@ -59,12 +75,18 @@ const userProfileSchema = new Schema({
     },
   ],
   missedHours: { type: Number, default: 0 },
-  createdDate: { type: Date, required: true, default: nextDay },
+  createdDate: { type: Date, required: true, default: today },
+  // eslint-disable-next-line object-shorthand
+  startDate: {
+    type: Date,
+    required: true,
+    default() {
+      return this.createdDate;
+    },
+  },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
-  personalLinks: [
-    { _id: Schema.Types.ObjectId, Name: String, Link: { type: String } },
-  ],
+  personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
@@ -73,7 +95,8 @@ const userProfileSchema = new Schema({
       badge: { type: mongoose.SchemaTypes.ObjectId, ref: 'badge' },
       count: { type: Number, default: 0 },
       earnedDate: { type: Array, default: [] },
-      lastModified: { type: Date, required: true, default: Date.now() },
+      lastModified: { type: Date, required: true, default: new Date() },
+      hasBadgeDeletionImpact: { type: Boolean, default: false },
       featured: {
         type: Boolean,
         required: true,
@@ -82,13 +105,43 @@ const userProfileSchema = new Schema({
     },
   ],
   profilePic: { type: String },
+  suggestedProfilePics: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
   infringements: [
     {
       date: { type: String, required: true },
       description: { type: String, required: true },
+      createdDate: { type: String },
+    },
+  ],
+  warnings: [
+    {
+      date: { type: String, required: true },
+      description: {
+        type: String,
+        required: true,
+      },
+      color: {
+        type: String,
+        enum: ['red', 'blue', 'white', 'yellow'],
+        required: true,
+        default: 'white',
+      },
+      iconId: { type: String, required: false },
     },
   ],
   location: {
+    userProvided: { type: String, default: '' },
+    coords: {
+      lat: { type: Number, default: '' },
+      lng: { type: Number, default: '' },
+    },
+    country: { type: String, default: '' },
+    city: { type: String, default: '' },
+  },
+  homeCountry: {
     userProvided: { type: String, default: '' },
     coords: {
       lat: { type: Number, default: '' },
@@ -176,19 +229,23 @@ const userProfileSchema = new Schema({
   ],
   weeklySummaryNotReq: { type: Boolean, default: false },
   timeZone: { type: String, required: true, default: 'America/Los_Angeles' },
-  isVisible: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
+  badgeCount: { type: Number, default: 0 },
+  teamCodeWarning: { type: Boolean, default: false},
   teamCode: {
     type: String,
     default: '',
     validate: {
       validator(v) {
-        const teamCoderegex = /^([a-zA-Z]-[a-zA-Z]{3}|[a-zA-Z]{5})$|^$/;
+        const teamCoderegex = /^(.{5,7}|^$)$/;
         return teamCoderegex.test(v);
       },
-      message: 'Please enter a code in the format of A-AAA or AAAAA',
+      message:
+        'Please enter a code in the format of A-AAAA or AAAAA, with optional numbers, and a total length between 5 and 7 characters.',
     },
   },
   infoCollections: [
@@ -201,6 +258,22 @@ const userProfileSchema = new Schema({
   actualEmail: { type: String },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
+  getWeeklyReport: { type: Boolean },
+  permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
+  applicationAccess: { type: mongoose.Schema.Types.ObjectId, ref: 'applicationAccess' },
+  questionaireFeedback: {
+    haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
+    peopleYouContacted: [
+      {
+        fullName: { type: String, required: true },
+        rating: { type: Number, min: 1, max: 5 },
+        isActive: { type: Boolean, default: false },
+      }
+    ],
+    additionalComments: { type: String },
+    daterequestedFeedback: { type: Date, default: Date.now },
+    foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
+  }
 });
 
 userProfileSchema.pre('save', function (next) {
@@ -209,16 +282,30 @@ userProfileSchema.pre('save', function (next) {
 
   return bcrypt
     .genSalt(SALT_ROUNDS)
-    .then(result => bcrypt.hash(user.password, result))
+    .then((result) => bcrypt.hash(user.password, result))
     .then((hash) => {
       user.password = hash;
       return next();
     })
-    .catch(error => next(error));
+    .catch((error) => next(error));
 });
 
-module.exports = mongoose.model(
-  'userProfile',
-  userProfileSchema,
-  'userProfiles',
-);
+userProfileSchema.index({ teamCode: 1 });
+userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ projects: 1, firstName: 1 });
+userProfileSchema.index({ projects: 1, lastName: 1 });
+userProfileSchema.index({ isActive: 1 });
+// Add index for weeklySummaries.dueDate to speed up filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Add compound index for isActive and createdDate
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for weekly summaries date filtering
+userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
+// Compound index for isActive and createdDate (for filtering and sorting)
+userProfileSchema.index({ isActive: 1, createdDate: 1 });
+// Index for total hours calculation and filtering
+userProfileSchema.index({ totalTangibleHrs: 1 });
+// Index to help with bio status filtering
+userProfileSchema.index({ bioPosted: 1 });
+
+module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');

@@ -1,11 +1,17 @@
+/* eslint-disable quotes */
 const path = require('path');
 const fs = require('fs/promises');
 const mongoose = require('mongoose');
-const dashboardhelper = require('../helpers/dashboardhelper')();
+const userProfile = require('../models/userProfile');
+const actionItem = require('../models/actionItem');
+const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
+const User = require('../models/userProfile');
+
 
 const dashboardcontroller = function () {
+  const dashboardhelper = dashboardHelperClosure();
   const dashboarddata = function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
@@ -15,38 +21,72 @@ const dashboardcontroller = function () {
       res.status(200).send(results);
     });
   };
-
+  // The Code below updates the time the AiPrompt was copied by the user - Sucheta
+  // eslint-disable-next-line space-before-blocks
+  const updateCopiedPrompt = function (req, res) {
+    return User.findOneAndUpdate(
+      { _id: req.params.userId },
+      { copiedAiPrompt: Date.now() },
+      { new: true },
+    )
+      .then((user) => {
+        if (user) {
+          res.status(200).send('Copied AI prompt');
+        } else {
+          res.status(404).send({ message: 'User not found ' });
+        }
+      })
+      .catch((error) => {
+        res.status(500).send(error);
+      });
+  };
+  const getPromptCopiedDate = function (req, res) {
+    return User.findOne({ _id: req.params.userId }).then((user) => {
+      if (user) {
+        res.status(200).send({ message: user.copiedAiPrompt });
+      }
+    });
+  };
   const updateAIPrompt = function (req, res) {
     if (req.body.requestor.role === 'Owner') {
-      AIPrompt.findOneAndUpdate({ _id: 'ai-prompt' }, { ...req.body, aIPromptText: req.body.aIPromptText })
-      .then(() => {
-        res.status(200).send('Successfully saved AI prompt.');
-      }).catch(error => res.status(500).send(error));
+      AIPrompt.findOneAndUpdate(
+        { _id: 'ai-prompt' },
+        {
+          ...req.body,
+          aIPromptText: req.body.aIPromptText,
+          modifiedDatetime: Date.now(),
+        },
+      )
+        .then(() => {
+          res.status(200).send('Successfully saved AI prompt.');
+        })
+        .catch((error) => res.status(500).send(error));
     }
   };
 
   const getAIPrompt = function (req, res) {
     AIPrompt.findById({ _id: 'ai-prompt' })
-    .then((result) => {
-      if (result) {
-        // If the GPT prompt exists, send it back.
-        res.status(200).send(result);
-      } else {
-        // If the GPT prompt does not exist, create it.
-        const defaultPrompt = {
-          _id: 'ai-prompt',
-          aIPromptText: "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:",
-        };
-        AIPrompt.create(defaultPrompt)
-        .then((newResult) => {
-          res.status(200).send(newResult);
-        })
-        .catch((creationError) => {
-          res.status(500).send(creationError);
-        });
-      }
-    })
-    .catch(error => res.status(500).send(error));
+      .then((result) => {
+        if (result) {
+          // If the GPT prompt exists, send it back.
+          res.status(200).send(result);
+        } else {
+          // If the GPT prompt does not exist, create it.
+          const defaultPrompt = {
+            _id: 'ai-prompt',
+            aIPromptText:
+              "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:",
+          };
+          AIPrompt.create(defaultPrompt)
+            .then((newResult) => {
+              res.status(200).send(newResult);
+            })
+            .catch((creationError) => {
+              res.status(500).send(creationError);
+            });
+        }
+      })
+      .catch((error) => res.status(500).send(error));
   };
 
   const monthlydata = function (req, res) {
@@ -100,6 +140,29 @@ const dashboardcontroller = function () {
       .catch(error => res.status(400).send(error));
   };
 
+  // 6th month and yearly anniversaries
+  const postTrophyIcon = function (req, res) {
+    console.log("API called with params:", req.params);
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+    const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
+
+    userProfile.findByIdAndUpdate(
+      userId,
+      { trophyFollowedUp },
+      { new: true }
+    )
+      .then((updatedRecord) => {
+        if (!updatedRecord) {
+          return res.status(404).send('No valid records found');
+        }
+        res.status(200).send(updatedRecord);
+      })
+      .catch((error) => {
+        console.error("Error updating trophy icon:", error);
+        res.status(500).send(error);
+      });
+  };
+
   const orgData = function (req, res) {
     const fullOrgData = dashboardhelper.getOrgData();
 
@@ -107,7 +170,7 @@ const dashboardcontroller = function () {
       .then((results) => {
         res.status(200).send(results[0]);
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   const getBugReportEmailBody = function (
@@ -166,17 +229,17 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-
+  
     try {
       emailSender(
         'onecommunityglobal@gmail.com',
-        `Bug Rport from ${firstName} ${lastName}`,
+        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -198,13 +261,11 @@ const dashboardcontroller = function () {
     let fieldaaray = [];
     if (suggestionData.field.length) {
       fieldaaray = suggestionData.field.map(
-        item => `<p>${item}</p>
+        (item) => `<p>${item}</p>
                    <p>${args[3][item]}</p>`,
       );
     }
-    const text = `New Suggestion From <b>${args[3].firstName} ${
-      args[3].lastName
-    }
+    const text = `New Suggestion From <b>${args[3].firstName} ${args[3].lastName}
     </b>:
     <br>
     <br> 
@@ -227,9 +288,7 @@ const dashboardcontroller = function () {
 
   // send suggestion email
   const sendMakeSuggestion = async (req, res) => {
-    const {
- suggestioncate, suggestion, confirm, email, ...rest
-} = req.body;
+    const { suggestioncate, suggestion, confirm, email, ...rest } = req.body;
     const emailBody = await getsuggestionEmailBody(
       suggestioncate,
       suggestion,
@@ -248,8 +307,8 @@ const dashboardcontroller = function () {
         null,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -282,9 +341,7 @@ const dashboardcontroller = function () {
           suggestionData.field.unshift(req.body.newField);
         }
         if (req.body.action === 'delete') {
-          suggestionData.field = suggestionData.field.filter(
-            item => item !== req.body.newField,
-          );
+          suggestionData.field = suggestionData.field.filter((item) => item !== req.body.newField);
         }
       }
 
@@ -294,6 +351,64 @@ const dashboardcontroller = function () {
       res.status(500).send('Internal Server Error');
     }
   };
+  const requestFeedbackModal = async function (req, res) {
+   /** request structure -  pass with userId fetched from initial load response.
+
+    {
+      "haveYouRecievedHelpLastWeek": "Yes", //no
+      "peopleYouContacted":[
+          {"fullName": "ABCD", "rating": 3, "isActive": false}
+      ],
+      "additionalComments": "Here is the text you entered",
+      "daterequestedFeedback": "2025-04-20T04:04:40.189Z",
+      "foundHelpSomeWhereClosePermanently": false,
+      "userId": "5baac381e16814009017678c"
+  }*/
+    try {
+      const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
+      return res.status(200).json({ savingRequestFeedbackData });
+    } catch (err) {
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+ 
+  const getUserNames = async function (req, res) {
+    /** Call this api once and show in frontend.
+     * this will be the response structure
+     * {
+    "users": [
+        {
+            "isActive": true,   based on this value segregate whether the user is active or inactive user.
+            "firstName": "Jaeaa",
+            "lastName": "Test5"
+        }
+    ]
+  }
+     */
+    try {
+      const usersList = await dashboardhelper.getNamesFromProfiles();
+      return res.status(200).json({ users : usersList });
+    } catch (err) {
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const checkUserFoundHelpSomewhere = async function (req, res) {
+/** request structure -  pass with userId fetched from initial load response.
+    Only call this api, when clicking found help permanentely
+    {
+    "foundHelpSomeWhereClosePermanently": true,
+    "userId": "5baac381e16814009017678c"
+}*/
+    try {
+      const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
+      return res.status(200).json({ foundHelp });
+    } catch (err) {
+      console.log(err)
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
 
   return {
     dashboarddata,
@@ -307,6 +422,12 @@ const dashboardcontroller = function () {
     getSuggestionOption,
     editSuggestionOption,
     sendMakeSuggestion,
+    updateCopiedPrompt,
+    getPromptCopiedDate,
+    postTrophyIcon,
+    requestFeedbackModal,
+    getUserNames,
+    checkUserFoundHelpSomewhere
   };
 };
 
