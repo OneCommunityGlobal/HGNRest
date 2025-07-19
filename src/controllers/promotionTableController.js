@@ -2,6 +2,58 @@ const userProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 
 const promotionTableController = function () {
+  const reviewForThisWeek = async (req, res) => {
+    try {
+      const users = await userProfile.find({ isActive: true });
+
+      const result = users.map((user) => {
+        const hasMet = user.weeklySummariesCount >= 1; // example condition
+        const weeksSinceStart = Math.floor(
+          (Date.now() - new Date(user.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000),
+        );
+        const remainingWeeks = Math.max(0, 4 - weeksSinceStart);
+        const eligible = user.isNewMember && hasMet && remainingWeeks <= 0;
+
+        return {
+          userId: user._id,
+          name: `${user.firstName} ${user.lastName}`,
+          reviewer: user.reviewerName || 'Unassigned',
+          weeklyStatus: hasMet ? '✓Has Met' : '✕Has not Met',
+          requiredPRs: 5,
+          totalReviews: user.weeklySummariesCount,
+          remainingWeeks,
+          promote: eligible,
+        };
+      });
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('reviewForThisWeek error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  const processPromotions = async (req, res) => {
+    try {
+      const { promotions } = req.body;
+
+      const promoteOps = promotions
+        .filter((p) => p.promote)
+        .map((p) =>
+          userProfile.findByIdAndUpdate(p.userId, {
+            isNewMember: false,
+            promotionDate: new Date(),
+          }),
+        );
+
+      await Promise.all(promoteOps);
+      res.status(200).json({ message: 'Users promoted successfully' });
+    } catch (error) {
+      console.error('processPromotions error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   const getPromotionEligibility = async (req, res) => {
     try {
       const requester = req.user;
@@ -38,6 +90,8 @@ const promotionTableController = function () {
   };
 
   return {
+    reviewForThisWeek,
+    processPromotions,
     getPromotionEligibility,
   };
 };
