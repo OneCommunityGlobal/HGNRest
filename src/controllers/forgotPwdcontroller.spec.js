@@ -1,5 +1,5 @@
 jest.mock('uuid/v4');
-jest.mock('../utilities/emailSender');
+jest.mock('../utilities/emailSender', () => jest.fn());
 
 const uuidv4 = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
@@ -9,9 +9,7 @@ const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
 
 uuidv4.mockReturnValue('');
-emailSender.mockImplementation(() => undefined);
-
-const flushPromises = () => new Promise(setImmediate);
+emailSender.mockImplementation(() => Promise.resolve());
 
 // Positive
 // ✅ Return 200 if successfully generated temporary User password.
@@ -38,68 +36,49 @@ const makeSut = () => {
 };
 
 describe('Unit Tests for forgotPwdcontroller.js', () => {
-  beforeAll(() => {
+  beforeEach(() => {
+    jest.clearAllMocks();
     mockReq.body.email = 'parthgrads@gmail.com';
     mockReq.body.firstName = 'Parth';
     mockReq.body.lastName = 'Jangid';
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
   describe('Forgot Pwd Function', () => {
-    test('Returns 500 if any error encountered while fetching user.', async () => {
+    test('Return 500 if encountered any error while saving temporary password', async () => {
       const { forgotPwd } = makeSut();
 
-      const error = new Error('Database error');
-      const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockRejectedValueOnce(error);
+      const error = new Error('Error Saving User Details');
+      const mockUser = {
+        set: jest.fn(),
+        save: jest.fn().mockRejectedValueOnce(error),
+      };
+
+      const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockResolvedValueOnce(mockUser);
 
       const response = await forgotPwd(mockReq, mockRes);
 
+      expect(mockUser.set).toHaveBeenCalled();
+      expect(mockUser.save).toHaveBeenCalled();
       assertResMock(500, error, response, mockRes);
       expect(findOneSpy).toHaveBeenCalledWith({
-        // Check Parameters to findOne
-        email: {
-          $regex: escapeRegex(mockReq.body.email),
-          $options: 'i',
-        },
-        firstName: {
-          $regex: escapeRegex(mockReq.body.firstName),
-          $options: 'i',
-        },
-        lastName: {
-          $regex: escapeRegex(mockReq.body.lastName),
-          $options: 'i',
-        },
+        email: { $regex: escapeRegex(mockReq.body.email), $options: 'i' },
+        firstName: { $regex: escapeRegex(mockReq.body.firstName), $options: 'i' },
+        lastName: { $regex: escapeRegex(mockReq.body.lastName), $options: 'i' },
       });
     });
 
     test('Returns 400 if No Valid User found', async () => {
       const { forgotPwd } = makeSut();
 
-      const userObject = null; // or undefined
-      const error = { error: 'No Valid user was found' };
-
-      const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockResolvedValueOnce(userObject);
+      const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockResolvedValueOnce(null);
 
       const response = await forgotPwd(mockReq, mockRes);
 
-      assertResMock(400, error, response, mockRes);
-
+      assertResMock(400, { error: 'No Valid user was found' }, response, mockRes);
       expect(findOneSpy).toHaveBeenCalledWith({
-        email: {
-          $regex: escapeRegex(mockReq.body.email),
-          $options: 'i',
-        },
-        firstName: {
-          $regex: escapeRegex(mockReq.body.firstName),
-          $options: 'i',
-        },
-        lastName: {
-          $regex: escapeRegex(mockReq.body.lastName),
-          $options: 'i',
-        },
+        email: { $regex: escapeRegex(mockReq.body.email), $options: 'i' },
+        firstName: { $regex: escapeRegex(mockReq.body.firstName), $options: 'i' },
+        lastName: { $regex: escapeRegex(mockReq.body.lastName), $options: 'i' },
       });
     });
 
@@ -107,32 +86,22 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
       const { forgotPwd } = makeSut();
 
       const error = new Error('Error Saving User Details');
-
       const mockUser = {
-        set: jest.fn(), // Mocking the set method
-        save: jest.fn().mockRejectedValueOnce(error), // Mocked below using spyOn
+        set: jest.fn(),
+        save: jest.fn().mockRejectedValueOnce(error),
       };
 
       const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockResolvedValueOnce(mockUser);
 
       const response = await forgotPwd(mockReq, mockRes);
-      await flushPromises();
+
       expect(mockUser.set).toHaveBeenCalled();
       expect(mockUser.save).toHaveBeenCalled();
       assertResMock(500, error, response, mockRes);
       expect(findOneSpy).toHaveBeenCalledWith({
-        email: {
-          $regex: escapeRegex(mockReq.body.email),
-          $options: 'i',
-        },
-        firstName: {
-          $regex: escapeRegex(mockReq.body.firstName),
-          $options: 'i',
-        },
-        lastName: {
-          $regex: escapeRegex(mockReq.body.lastName),
-          $options: 'i',
-        },
+        email: { $regex: escapeRegex(mockReq.body.email), $options: 'i' },
+        firstName: { $regex: escapeRegex(mockReq.body.firstName), $options: 'i' },
+        lastName: { $regex: escapeRegex(mockReq.body.lastName), $options: 'i' },
       });
     });
 
@@ -140,43 +109,36 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
       const { forgotPwd } = makeSut();
 
       const mockUser = {
-        // denote the User object obtained by find operation on MongoDB
         email: mockReq.body.email,
         firstName: mockReq.body.firstName,
         lastName: mockReq.body.lastName,
-        set: jest.fn(), // Mocking the set method
-        save: jest.fn().mockResolvedValueOnce(), // Mocking the save method
+        set: jest.fn(),
+        save: jest.fn().mockResolvedValueOnce(),
       };
 
-      const message = { message: 'generated new password' };
       const findOneSpy = jest.spyOn(UserProfile, 'findOne').mockResolvedValueOnce(mockUser);
 
-      const response = await forgotPwd(mockReq, mockRes);
-      const temporaryPassword = uuidv4().concat('TEMP'); // The source code appends "TEMP" so does this line
+      uuidv4.mockReturnValue('mocked-uuid');
 
-      expect(mockUser.set).toHaveBeenCalled();
+      const response = await forgotPwd(mockReq, mockRes);
+
+      const temporaryPassword = 'mocked-uuidTEMP';
+      const expectedEmailMessage = getEmailMessageForForgotPassword(mockUser, temporaryPassword);
+
+      expect(mockUser.set).toHaveBeenCalledWith({ resetPwd: temporaryPassword });
       expect(mockUser.save).toHaveBeenCalled();
       expect(emailSender).toHaveBeenCalledWith(
         mockUser.email,
         'Account Password change',
-        getEmailMessageForForgotPassword(mockUser, temporaryPassword),
+        expectedEmailMessage,
         null,
         null,
       );
-      assertResMock(200, message, response, mockRes);
+      assertResMock(200, { message: 'generated new password' }, response, mockRes);
       expect(findOneSpy).toHaveBeenCalledWith({
-        email: {
-          $regex: escapeRegex(mockReq.body.email),
-          $options: 'i',
-        },
-        firstName: {
-          $regex: escapeRegex(mockReq.body.firstName),
-          $options: 'i',
-        },
-        lastName: {
-          $regex: escapeRegex(mockReq.body.lastName),
-          $options: 'i',
-        },
+        email: { $regex: escapeRegex(mockReq.body.email), $options: 'i' },
+        firstName: { $regex: escapeRegex(mockReq.body.firstName), $options: 'i' },
+        lastName: { $regex: escapeRegex(mockReq.body.lastName), $options: 'i' },
       });
     });
   });
