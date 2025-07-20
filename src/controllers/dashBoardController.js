@@ -1,9 +1,6 @@
 /* eslint-disable quotes */
-const path = require('path');
-const fs = require('fs/promises');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
-const actionItem = require('../models/actionItem');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
@@ -229,17 +226,17 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-
+  
     try {
       emailSender(
         'onecommunityglobal@gmail.com',
-        `Bug Rport from ${firstName} ${lastName}`,
+        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -307,8 +304,8 @@ const dashboardcontroller = function () {
         null,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
