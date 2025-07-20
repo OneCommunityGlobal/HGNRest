@@ -12,52 +12,44 @@ const TEST_EMAIL = 'test@example.com';
 cron.schedule('0 0 * * *', async () => {
   try {
     const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
+    // eslint-disable-next-line no-restricted-syntax
+    for (const preference of userPreferences) {
+      const { user, users } = preference;
+      let summary = '';
+      // eslint-disable-next-line no-restricted-syntax
+      for (const { userNotifyingFor, notifyEmail } of users) {
+        if (!notifyEmail) continue; // Skip if no email notification
 
-    await Promise.all(
-      userPreferences.map(async (preference) => {
-        const { user, users } = preference;
+        // Fetch unread messages from the specific sender
+        const unreadMessages = await Message.find({
+          receiver: user._id,
+          sender: userNotifyingFor._id,
+          status: { $ne: 'read' },
+        });
 
-        let summary = '';
-        const userSummaries = await Promise.all(
-          users.map(async ({ userNotifyingFor, notifyEmail }) => {
-            if (!notifyEmail) return ''; // Skip if no email notification
-
-            // Fetch unread messages from the specific sender
-            const unreadMessages = await Message.find({
-              receiver: user._id,
-              sender: userNotifyingFor._id,
-              status: { $ne: 'read' },
-            });
-
-            const userNotifyingForProfile = await UserProfile.findById(userNotifyingFor._id).select(
-              'firstName lastName',
-            );
-
-            if (unreadMessages.length > 0) {
-              if (unreadMessages.length > 5) {
-                return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
-              }
-              const messageList = unreadMessages
-                .map(
-                  (msg) =>
-                    `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
-                )
-                .join('');
-              return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
-            }
-
-            return '';
-          }),
+        const userNotifyingForProfile = await UserProfile.findById(userNotifyingFor._id).select(
+          'firstName lastName',
         );
 
-        summary = userSummaries.filter(Boolean).join('');
-
-        if (summary) {
-          const recipientEmail = TEST_MODE ? TEST_EMAIL : user.email;
-          await emailSender.sendSummaryNotification(recipientEmail, summary);
+        if (unreadMessages.length > 0) {
+          if (unreadMessages.length > 5) {
+            summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
+          } else {
+            const messageList = unreadMessages
+              .map(
+                (msg) =>
+                  `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
+              )
+              .join('');
+            summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
+          }
         }
-      }),
-    );
+      }
+      if (summary) {
+        const recipientEmail = TEST_MODE ? TEST_EMAIL : user.email;
+        await emailSender.sendSummaryNotification(recipientEmail, summary);
+      }
+    }
   } catch (error) {
     console.error('❌ Error running daily email notification job:', error);
   }
