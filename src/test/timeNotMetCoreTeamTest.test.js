@@ -51,7 +51,6 @@ describe('Time Not Met Core Team Test', () => {
       // 2. Get exact PDT date range (as strings to match schema)
       const pdt = moment.tz('America/Los_Angeles');
       const queryStart = pdt.clone().startOf('week').subtract(1, 'week');
-      const queryEnd = pdt.clone().endOf('week').subtract(1, 'week');
 
       // Format dates exactly as stored in the schema
       const formatDate = (date) => moment(date).format('YYYY-MM-DD');
@@ -95,7 +94,68 @@ describe('Time Not Met Core Team Test', () => {
       expect(updatedUser.missedHours).toBe(0);
     });
 
-    it.todo('should only carry forward missed hours without additional hours');
+    it('should assign first blue square when 2 hours missed (8/10)', async () => {
+      // 1. Create test user with no existing infringements
+      const user = await createUser();
+      user.infringements = []; // No existing blue squares
+      user.weeklycommittedHours = 10; // 10 hour commitment
+      user.role = 'Core Team';
+      user.missedHours = 0;
+      await user.save();
+
+      // 2. Setup last week's date range (PDT)
+      const pdt = moment.tz('America/Los_Angeles');
+      const lastWeekStart = pdt.clone().startOf('week').subtract(1, 'week');
+      const lastWeekEnd = pdt.clone().endOf('week').subtract(1, 'week');
+
+      // 3. Create time entries totaling 8 hours (2 hours short)
+      await TimeEntry.create([
+        {
+          personId: user._id,
+          dateOfWork: lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
+          isTangible: true,
+          entryType: 'task',
+          totalSeconds: 3 * 3600, // 3 hours
+          createdDateTime: new Date(),
+          isActive: true,
+        },
+        {
+          personId: user._id,
+          dateOfWork: lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'),
+          isTangible: true,
+          entryType: 'task',
+          totalSeconds: 5 * 3600, // 5 hours
+          createdDateTime: new Date(),
+          isActive: true,
+        },
+      ]);
+
+      // 4. Execute the blue square assignment
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
+
+      // 5. Verify results
+      const updatedUser = await UserProfile.findById(user._id);
+      console.log('INFO: User Profile Infringements: ', updatedUser.infringements);
+
+      // Should have exactly 1 new infringement (blue square)
+      expect(updatedUser.infringements.length).toBe(1);
+
+      // Should show 2 missed hours (10 committed - 8 worked)
+      expect(updatedUser.missedHours).toBe(2);
+
+      // Verify infringement details
+      // const newInfringement = updatedUser.infringements[0];
+      // expect(newInfringement.date).toBe(moment().format('YYYY-MM-DD'));
+      // expect(newInfringement.description).toContain('Missed 2 hours');
+      // expect(newInfringement.description).toContain(lastWeekStart.format('YYYY-MM-DD'));
+      // expect(newInfringement.description).toContain(lastWeekEnd.format('YYYY-MM-DD'));
+
+      // For Core Team, missed hours should carry forward
+      await userHelper.applyMissedHourForCoreTeam();
+      const finalUser = await UserProfile.findById(user._id);
+      expect(finalUser.missedHours).toBe(2); // Should carry forward the 2 missed hours
+    });
   });
   describe('More than 5 Blue Squares ', () => {
     it.todo('should not assign blue square if no missed hours');
