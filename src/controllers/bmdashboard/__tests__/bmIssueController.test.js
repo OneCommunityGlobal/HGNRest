@@ -1,4 +1,4 @@
-const bmIssueController = require('../bmIssueController');
+const bmIssueController = require('../bmMostExpensiveIssueController');
 
 // Mocking the BuildingIssue Model
 const mockBuildingIssue = {

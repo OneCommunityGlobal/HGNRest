@@ -1,10 +1,10 @@
 const { ObjectId } = require('mongoose').Types;
 
-const bmIssueController = function (buildingIssue) {
+const bmMostExpensiveIssueController = function (buildingIssue) {
     //fetch open issues with optional date range and tag filtering and project ID
     const bmGetIssue = async (req, res) => {
         try {
-            const { projectIds, startDate, endDate, tag } = req.query;
+            const { projectIds, startDate, endDate } = req.query;
 
             let query = { status: 'open' }; // Always filter for open issues
 
@@ -27,11 +27,6 @@ const bmIssueController = function (buildingIssue) {
                 query.createdDate = { $gte: new Date(startDate) };
             } else if (endDate) {
                 query.createdDate = { $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) };
-            }
-
-            // Add tag filter if provided
-            if (tag) {
-                query.tag = tag;
             }
 
             // Fetch open issues
@@ -87,63 +82,7 @@ const bmIssueController = function (buildingIssue) {
         }
     };
 
-
-    const bmPostIssue = async (req, res) => {
-        try {
-            buildingIssue.create(req.body)
-                .then((result) => {
-                    res.status(201).send(result)
-                })
-                .catch((error) => {
-                    res.status(500).send(error)
-                });
-        } catch (err) {
-            res.json(err);
-        }
-    };
-
-    // Update an existing issue
-    const bmUpdateIssue = async (req, res) => {
-        try {
-
-            const updates = req.body;
-
-            if (!updates || typeof updates !== 'object') {
-                return res.status(400).json({ message: 'Invalid update data.' });
-            }
-
-            buildingIssue.findByIdAndUpdate(
-                req.params.id,
-                { $set: updates },
-                { new: true }
-            )
-                .then(updatedIssue => {
-                    if (!updatedIssue) {
-                        return res.status(404).json({ message: 'Issue not found.' });
-                    }
-                    res.json(updatedIssue);
-                })
-                .catch(err => res.status(500).json({ error: err.message }));
-        } catch (error) {
-            res.json({ error: error.message });
-        }
-    };
-
-    // Delete an issue by ID
-    const bmDeleteIssue = (req, res) => {
-        const { id } = req.params;
-
-        buildingIssue.findByIdAndDelete(id)
-            .then((deletedIssue) => {
-                if (!deletedIssue) {
-                    return res.status(404).json({ message: 'Issue not found.' });
-                }
-                res.json({ message: 'Issue deleted successfully.' });
-            })
-            .catch((err) => res.status(500).json({ error: err.message }));
-    };
-
-    return { bmGetIssue, bmPostIssue, bmUpdateIssue, bmDeleteIssue, getUniqueProjectIds };
+    return { bmGetIssue, getUniqueProjectIds };
 };
 
-module.exports = bmIssueController;
+module.exports = bmMostExpensiveIssueController;
