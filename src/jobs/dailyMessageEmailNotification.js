@@ -20,31 +20,32 @@ cron.schedule('0 0 * * *', async () => {
         let summary = '';
         const userSummaries = await Promise.all(
           users.map(async ({ userNotifyingFor, notifyEmail }) => {
-            if (notifyEmail) {
-              // Fetch unread messages from the specific sender
-              const unreadMessages = await Message.find({
-                receiver: user._id,
-                sender: userNotifyingFor._id,
-                status: { $ne: 'read' },
-              });
+            if (!notifyEmail) return ''; // Skip if no email notification
 
-              const userNotifyingForProfile = await UserProfile.findById(
-                userNotifyingFor._id,
-              ).select('firstName lastName');
+            // Fetch unread messages from the specific sender
+            const unreadMessages = await Message.find({
+              receiver: user._id,
+              sender: userNotifyingFor._id,
+              status: { $ne: 'read' },
+            });
 
-              if (unreadMessages.length > 0) {
-                if (unreadMessages.length > 5) {
-                  return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
-                }
-                const messageList = unreadMessages
-                  .map(
-                    (msg) =>
-                      `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
-                  )
-                  .join('');
-                return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
+            const userNotifyingForProfile = await UserProfile.findById(userNotifyingFor._id).select(
+              'firstName lastName',
+            );
+
+            if (unreadMessages.length > 0) {
+              if (unreadMessages.length > 5) {
+                return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
               }
+              const messageList = unreadMessages
+                .map(
+                  (msg) =>
+                    `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
+                )
+                .join('');
+              return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
             }
+
             return '';
           }),
         );
