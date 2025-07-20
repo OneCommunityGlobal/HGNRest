@@ -1,6 +1,5 @@
 /* eslint-disable quotes */
 const mongoose = require('mongoose');
-const userProfile = require('../models/userProfile');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
@@ -142,8 +141,7 @@ const dashboardcontroller = function () {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
 
-    userProfile
-      .findByIdAndUpdate(userId, { trophyFollowedUp }, { new: true })
+    User.findByIdAndUpdate(userId, { trophyFollowedUp }, { new: true })
       .then((updatedRecord) => {
         if (!updatedRecord) {
           return res.status(404).send('No valid records found');
