@@ -6,7 +6,6 @@ const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
-
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
   const dashboarddata = function (req, res) {
@@ -37,6 +36,7 @@ const dashboardcontroller = function () {
         res.status(500).send(error);
       });
   };
+
   const getPromptCopiedDate = function (req, res) {
     return User.findOne({ _id: req.params.userId }).then((user) => {
       if (user) {
@@ -44,6 +44,7 @@ const dashboardcontroller = function () {
       }
     });
   };
+
   const updateAIPrompt = function (req, res) {
     if (req.body.requestor.role === 'Owner') {
       AIPrompt.findOneAndUpdate(
@@ -58,6 +59,8 @@ const dashboardcontroller = function () {
           res.status(200).send('Successfully saved AI prompt.');
         })
         .catch((error) => res.status(500).send(error));
+    } else {
+      res.status(403).send({ message: 'Unauthorized' });
     }
   };
 
@@ -65,10 +68,8 @@ const dashboardcontroller = function () {
     AIPrompt.findById({ _id: 'ai-prompt' })
       .then((result) => {
         if (result) {
-          // If the GPT prompt exists, send it back.
           res.status(200).send(result);
         } else {
-          // If the GPT prompt does not exist, create it.
           const defaultPrompt = {
             _id: 'ai-prompt',
             aIPromptText:
@@ -134,20 +135,17 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch(error => res.status(400).send(error));
+      .catch((error) => res.status(400).send(error));
   };
 
   // 6th month and yearly anniversaries
   const postTrophyIcon = function (req, res) {
-    console.log("API called with params:", req.params);
+    console.log('API called with params:', req.params);
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
 
-    userProfile.findByIdAndUpdate(
-      userId,
-      { trophyFollowedUp },
-      { new: true }
-    )
+    userProfile
+      .findByIdAndUpdate(userId, { trophyFollowedUp }, { new: true })
       .then((updatedRecord) => {
         if (!updatedRecord) {
           return res.status(404).send('No valid records found');
@@ -155,7 +153,7 @@ const dashboardcontroller = function () {
         res.status(200).send(updatedRecord);
       })
       .catch((error) => {
-        console.error("Error updating trophy icon:", error);
+        console.error('Error updating trophy icon:', error);
         res.status(500).send(error);
       });
   };
@@ -226,7 +224,7 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-  
+
     try {
       emailSender(
         'onecommunityglobal@gmail.com',
@@ -236,7 +234,7 @@ const dashboardcontroller = function () {
       );
       res.status(200).send('Success');
     } catch (error) {
-      res.status(500).send("Failed to send email");
+      res.status(500).send('Failed to send email');
     }
   };
 
@@ -305,7 +303,7 @@ const dashboardcontroller = function () {
       );
       res.status(200).send('Success');
     } catch (error) {
-      res.status(500).send("Failed to send email");
+      res.status(500).send('Failed to send email');
     }
   };
 
@@ -349,7 +347,7 @@ const dashboardcontroller = function () {
     }
   };
   const requestFeedbackModal = async function (req, res) {
-   /** request structure -  pass with userId fetched from initial load response.
+    /** request structure -  pass with userId fetched from initial load response.
 
     {
       "haveYouRecievedHelpLastWeek": "Yes", //no
@@ -368,7 +366,7 @@ const dashboardcontroller = function () {
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
- 
+
   const getUserNames = async function (req, res) {
     /** Call this api once and show in frontend.
      * this will be the response structure
@@ -384,14 +382,14 @@ const dashboardcontroller = function () {
      */
     try {
       const usersList = await dashboardhelper.getNamesFromProfiles();
-      return res.status(200).json({ users : usersList });
+      return res.status(200).json({ users: usersList });
     } catch (err) {
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
 
   const checkUserFoundHelpSomewhere = async function (req, res) {
-/** request structure -  pass with userId fetched from initial load response.
+    /** request structure -  pass with userId fetched from initial load response.
     Only call this api, when clicking found help permanentely
     {
     "foundHelpSomeWhereClosePermanently": true,
@@ -401,11 +399,10 @@ const dashboardcontroller = function () {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });
     } catch (err) {
-      console.log(err)
+      console.log(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
-
 
   return {
     dashboarddata,
@@ -424,7 +421,7 @@ const dashboardcontroller = function () {
     postTrophyIcon,
     requestFeedbackModal,
     getUserNames,
-    checkUserFoundHelpSomewhere
+    checkUserFoundHelpSomewhere,
   };
 };
 
