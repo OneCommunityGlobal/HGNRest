@@ -24,6 +24,7 @@ const reporthelper = function () {
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
     const pstStart = moment()
+      // .tz('America/Los_Angeles')
       .tz('America/Los_Angeles')
       .startOf('week')
       .subtract(startWeekIndex, 'week')
@@ -36,7 +37,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -126,7 +127,7 @@ const reporthelper = function () {
           timeOffTill: {
             $ifNull: ['$timeOffTill', null],
           },
-          // role:1 duplicate entry removed
+          // role: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -168,16 +169,10 @@ const reporthelper = function () {
           startWeekIndex === endWeekIndex
             ? startWeekIndex
             : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
-          result.totalSeconds[index] = 0;
-        }
 
-        if (entry.isTangible === true) {
-          result.totalSeconds[index] += entry.totalSeconds;
-          if (index >= 0 && index < 4) {
-            if (entry.isTangible === true) {
-              result.totalSeconds[index] += entry.totalSeconds;
-            }
+        if (index >= 0 && index < 4) {
+          if (entry.isTangible === true) {
+            result.totalSeconds[index] += entry.totalSeconds;
           }
         }
       });
