@@ -150,8 +150,6 @@ const bmMProjectController = function (BuildingProject) {
     }
   };
 
-  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames };
-  
   const fetchProjectMembers = async (req, res) => {
     const { projectId } = req.params;
     try {
@@ -201,8 +199,7 @@ const bmMProjectController = function (BuildingProject) {
     }
   };
 
-  return { fetchAllProjects, fetchSingleProject, fetchProjectMembers };
-
+  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames, fetchProjectMembers };
 };
 
 module.exports = bmMProjectController;

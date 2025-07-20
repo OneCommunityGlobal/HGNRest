@@ -1,21 +1,20 @@
-const { participants, events, attendance } = require('./AttendanceMockData');
+const { participants, events, attendance } = require('./AttendanceMockData.jsx');
 
 const noShowVizController = function () {
-
   // Async function to get no-shows data
   const getNoShowsData = async (req, res) => {
-    const { period } = req.query;  // Get period from request query
+    const { period } = req.query; // Get period from request query
 
     try {
       const groupedData = {};
-      const eventMap = Object.fromEntries(events.map(event => [event.eventID, event.eventType]));
-      const allEventTypes = [...new Set(events.map(event => event.eventType))];
+      const eventMap = Object.fromEntries(events.map((event) => [event.eventID, event.eventType]));
+      const allEventTypes = [...new Set(events.map((event) => event.eventType))];
 
-      attendance.forEach(record => {
+      attendance.forEach((record) => {
         const eventType = eventMap[record.eventID];
-        const eventDate = events.find(event => event.eventID === record.eventID)?.date;
+        const eventDate = events.find((event) => event.eventID === record.eventID)?.date;
         const parsedDate = new Date(eventDate);
-        
+
         // Format date using JavaScript's native Date functions
         const formattedDate =
           period === 'year'
@@ -43,10 +42,10 @@ const noShowVizController = function () {
           const dateB = period === 'year' ? new Date(b) : new Date(Date.parse(b));
           return dateA - dateB;
         })
-        .map(date => {
+        .map((date) => {
           const entry = { date };
 
-          allEventTypes.forEach(event => {
+          allEventTypes.forEach((event) => {
             entry[event] = groupedData[date][event] || { attended: 0, notAttended: 0 };
           });
 
@@ -54,7 +53,6 @@ const noShowVizController = function () {
         });
 
       res.status(200).json(result); // Send the result as a JSON response
-
     } catch (error) {
       console.error('Error fetching no-shows data:', error);
       res.status(500).json({ message: 'Error fetching no-shows data', error });
@@ -65,11 +63,11 @@ const noShowVizController = function () {
   const getNoShowsByLocation = async (req, res) => {
     try {
       const groupedData = {};
-      const eventTypes = [...new Set(events.map(event => event.eventType))];
+      const eventTypes = [...new Set(events.map((event) => event.eventType))];
 
-      attendance.forEach(record => {
-        const participant = participants.find(p => p.participantID === record.participantID);
-        const event = events.find(e => e.eventID === record.eventID);
+      attendance.forEach((record) => {
+        const participant = participants.find((p) => p.participantID === record.participantID);
+        const event = events.find((e) => e.eventID === record.eventID);
 
         if (participant && event) {
           const { location } = event;
@@ -89,21 +87,20 @@ const noShowVizController = function () {
         }
       });
 
-      Object.keys(groupedData).forEach(location => {
-        eventTypes.forEach(eventType => {
+      Object.keys(groupedData).forEach((location) => {
+        eventTypes.forEach((eventType) => {
           if (!groupedData[location][eventType]) {
             groupedData[location][eventType] = 0;
           }
         });
       });
 
-      const result = Object.keys(groupedData).map(location => ({
+      const result = Object.keys(groupedData).map((location) => ({
         location,
         ...groupedData[location],
       }));
 
       res.status(200).json(result); // Send the result as a JSON response
-
     } catch (error) {
       console.error('Error fetching no-shows by location:', error);
       res.status(500).json({ message: 'Error fetching no-shows by location', error });
@@ -125,10 +122,10 @@ const noShowVizController = function () {
       const groupedData = {};
       const genderTypes = new Set();
 
-      attendance.forEach(item => {
-        const participant = participants.find(p => p.participantID === item.participantID);
+      attendance.forEach((item) => {
+        const participant = participants.find((p) => p.participantID === item.participantID);
         if (participant && !item.attended) {
-          const ageGroup = Object.keys(ageGroups).find(group => {
+          const ageGroup = Object.keys(ageGroups).find((group) => {
             const [min, max] = ageGroups[group];
             return participant.age >= min && participant.age <= max;
           });
@@ -147,11 +144,11 @@ const noShowVizController = function () {
         }
       });
 
-      const resultData = Object.keys(ageGroups).map(ageGroup => {
+      const resultData = Object.keys(ageGroups).map((ageGroup) => {
         const groupData = groupedData[ageGroup] || {};
         const result = { ageGroup };
 
-        [...genderTypes].forEach(gender => {
+        [...genderTypes].forEach((gender) => {
           result[gender] = groupData[gender] || 0;
         });
 
@@ -159,7 +156,6 @@ const noShowVizController = function () {
       });
 
       res.status(200).json({ ageGroupData: resultData, genderTypes: Array.from(genderTypes) });
-
     } catch (error) {
       console.error('Error fetching no-shows by age group:', error);
       res.status(500).json({ message: 'Error fetching no-shows by age group', error });
@@ -167,81 +163,82 @@ const noShowVizController = function () {
   };
 
   // Async function to get no-show proportions
-const getNoShowProportions = async (req, res) => {
-  try {
-    const genderCounts = {};
+  const getNoShowProportions = async (req, res) => {
+    try {
+      const genderCounts = {};
 
-    attendance.forEach(item => {
-      const participant = participants.find(p => p.participantID === item.participantID);
+      attendance.forEach((item) => {
+        const participant = participants.find((p) => p.participantID === item.participantID);
 
-      if (participant && !item.attended) {
-        genderCounts[participant.gender] = (genderCounts[participant.gender] || 0) + 1;
-      }
-    });
+        if (participant && !item.attended) {
+          genderCounts[participant.gender] = (genderCounts[participant.gender] || 0) + 1;
+        }
+      });
 
-    const result = Object.keys(genderCounts).map(gender => ({
-      name: gender,
-      value: genderCounts[gender],
-    }));
+      const result = Object.keys(genderCounts).map((gender) => ({
+        name: gender,
+        value: genderCounts[gender],
+      }));
 
-    res.status(200).json(result); // Send the result as a JSON response
+      res.status(200).json(result); // Send the result as a JSON response
+    } catch (error) {
+      console.error('Error fetching no-show proportions:', error);
+      res.status(500).json({ message: 'Error fetching no-show proportions', error });
+    }
+  };
 
-  } catch (error) {
-    console.error('Error fetching no-show proportions:', error);
-    res.status(500).json({ message: 'Error fetching no-show proportions', error });
-  }
-};
+  // Async function to get unique event types
+  const getUniqueEventTypes = async (req, res) => {
+    try {
+      const eventTypes = new Set(events.map((event) => event.eventType));
+      const result = [...Array.from(eventTypes)];
 
-// Async function to get unique event types
-const getUniqueEventTypes = async (req, res) => {
-  try {
-    const eventTypes = new Set(events.map(event => event.eventType));
-    const result = [...Array.from(eventTypes)];
+      res.status(200).json(result); // Send the result as a JSON response
+    } catch (error) {
+      console.error('Error fetching unique event types:', error);
+      res.status(500).json({ message: 'Error fetching unique event types', error });
+    }
+  };
 
-    res.status(200).json(result); // Send the result as a JSON response
+  // Async function to get attendance by day, based on event type
+  const getAttendanceByDay = async (req, res) => {
+    const { selectedEventType } = req.query; // Get selected event type from request query
 
-  } catch (error) {
-    console.error('Error fetching unique event types:', error);
-    res.status(500).json({ message: 'Error fetching unique event types', error });
-  }
-};
+    try {
+      const groupedData = {
+        Sunday: 0,
+        Monday: 0,
+        Tuesday: 0,
+        Wednesday: 0,
+        Thursday: 0,
+        Friday: 0,
+        Saturday: 0,
+      };
 
-// Async function to get attendance by day, based on event type
-const getAttendanceByDay = async (req, res) => {
-  const { selectedEventType } = req.query;  // Get selected event type from request query
+      attendance.forEach((item) => {
+        const event = events.find((e) => e.eventID === item.eventID);
 
-  try {
-    const groupedData = {
-      Sunday: 0,
-      Monday: 0,
-      Tuesday: 0,
-      Wednesday: 0,
-      Thursday: 0,
-      Friday: 0,
-      Saturday: 0,
-    };
+        if (
+          event &&
+          item.attended &&
+          (selectedEventType === 'All' || event.eventType === selectedEventType)
+        ) {
+          const day = new Date(event.date).toLocaleString('en-US', { weekday: 'long' });
+          groupedData[day] += 1;
+        }
+      });
 
-    attendance.forEach(item => {
-      const event = events.find(e => e.eventID === item.eventID);
+      const result = Object.keys(groupedData).map((day) => ({
+        day,
+        attended: groupedData[day],
+      }));
 
-      if (event && item.attended && (selectedEventType === 'All' || event.eventType === selectedEventType)) {
-        const day = new Date(event.date).toLocaleString('en-US', { weekday: 'long' });
-        groupedData[day] += 1;
-      }
-    });
-
-    const result = Object.keys(groupedData).map(day => ({
-      day,
-      attended: groupedData[day],
-    }));
-
-    res.status(200).json(result); // Send the result as a JSON response
-
-  } catch (error) {
-    console.error('Error fetching attendance by day:', error);
-    res.status(500).json({ message: 'Error fetching attendance by day', error });
-  }
-};
+      res.status(200).json(result); // Send the result as a JSON response
+    } catch (error) {
+      console.error('Error fetching attendance by day:', error);
+      res.status(500).json({ message: 'Error fetching attendance by day', error });
+    }
+  };
 
   return {
     getNoShowsData,
@@ -252,6 +249,5 @@ const getAttendanceByDay = async (req, res) => {
     getNoShowProportions,
   };
 };
-
 
 module.exports = noShowVizController;
