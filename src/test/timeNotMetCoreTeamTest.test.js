@@ -16,16 +16,6 @@ jest.mock('../helpers/dashboardHelper');
 jest.mock('../utilities/emailSender');
 jest.mock('../startup/logger');
 
-// Helper function to generate random dates in last week (PDT)
-function getRandomDateInLastWeekPDT() {
-  const pdtStartOfLastWeek = moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week');
-  const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
-  const randomTime =
-    pdtStartOfLastWeek.valueOf() +
-    Math.random() * (pdtEndOfLastWeek.valueOf() - pdtStartOfLastWeek.valueOf());
-  return new Date(randomTime);
-}
-
 describe('Time Not Met Core Team Test', () => {
   let mongoServer;
   let userProfileModel;
@@ -51,47 +41,58 @@ describe('Time Not Met Core Team Test', () => {
   });
 
   describe('Less than 5 Blue Squares', () => {
-    it('should not assign blue square if no missed hours and no entry exceeds 5 hrs', async () => {
-      // Create test user with createUser function
+    it('should not assign blue square if no missed hours', async () => {
+      // 1. Create test user
       const user = await createUser();
       user.weeklycommittedHours = 10;
       user.role = 'Core Team';
-      user.infringements = []; // Empty array for no blue squares
-      user.missedHours = 0; // Also include this since it's used in the logic
       await user.save();
 
-      // Create time entries totaling exactly committed hours
+      // 2. Get exact PDT date range (as strings to match schema)
+      const pdt = moment.tz('America/Los_Angeles');
+      const queryStart = pdt.clone().startOf('week').subtract(1, 'week');
+      const queryEnd = pdt.clone().endOf('week').subtract(1, 'week');
+
+      // Format dates exactly as stored in the schema
+      const formatDate = (date) => moment(date).format('YYYY-MM-DD');
+
+      // 3. Create test entries with properly formatted string dates
       await TimeEntry.create([
         {
           personId: user._id,
-          dateOfWork: getRandomDateInLastWeekPDT(),
-          isTangible: true,
-          entryType: 'task',
-          totalSeconds: 3 * 3600,
-        },
-        {
-          personId: user._id,
-          dateOfWork: getRandomDateInLastWeekPDT(),
+          dateOfWork: formatDate(queryStart.clone().add(1, 'day')),
           isTangible: true,
           entryType: 'task',
           totalSeconds: 4 * 3600,
+          createdDateTime: new Date(),
+          isActive: true,
         },
         {
           personId: user._id,
-          dateOfWork: getRandomDateInLastWeekPDT(),
+          dateOfWork: formatDate(queryStart.clone().add(3, 'days')), // Thursday
           isTangible: true,
           entryType: 'task',
-          totalSeconds: 3 * 3600,
+          totalSeconds: 4 * 3600,
+          createdDateTime: new Date(),
+          isActive: true,
+        },
+        {
+          personId: user._id,
+          dateOfWork: formatDate(queryStart.clone().add(5, 'days')), // Saturday
+          isTangible: true,
+          entryType: 'task',
+          totalSeconds: 2 * 3600,
+          createdDateTime: new Date(),
+          isActive: true,
         },
       ]);
 
-      // Execute the functions
+      // 4. Final assertions
       await userHelper.assignBlueSquareForTimeNotMet();
       await userHelper.applyMissedHourForCoreTeam();
-
-      // Verify results
       const updatedUser = await UserProfile.findById(user._id);
       expect(updatedUser.infringements.length).toBe(0);
+      expect(updatedUser.missedHours).toBe(0);
     });
 
     it.todo('should only carry forward missed hours without additional hours');
