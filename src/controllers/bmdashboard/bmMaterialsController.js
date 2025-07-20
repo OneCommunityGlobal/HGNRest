@@ -254,7 +254,6 @@ const bmMaterialsController = function (BuildingMaterial) {
       //   updateObject,
       //   { new: true },
       // );
-
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
       res.status(500).send(error.message);
