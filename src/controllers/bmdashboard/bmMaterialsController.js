@@ -250,7 +250,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         // Only apply $inc if status is Approved
         updateObject.$inc = { stockBought: quantity };
       }
-
+      
       // FIX: UNCOMMENT THIS LINE AND AWAIT THE OPERATION
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
         { 'purchaseRecord._id': purchaseId },
