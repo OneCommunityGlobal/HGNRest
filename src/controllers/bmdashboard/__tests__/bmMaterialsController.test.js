@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-// const { MongoMemoryServer } = require('mongodb-memory-server');
+// eslint-disable-next-line no-unused-vars
+const { MongoMemoryServer } = require('mongodb-memory-server');
 const bmMaterialsController = require('../bmMaterialsController');
 
 // Mock mongoose models
