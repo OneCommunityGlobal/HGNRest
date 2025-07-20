@@ -225,8 +225,6 @@ const dashboardcontroller = function () {
       await emailSender.sendEmail(
         'onecommunityglobal@gmail.com',
         `Bug Report from ${firstName} ${lastName}`,
-        `Bug Report from ${firstName} ${lastName}`,
-        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
       );
