@@ -1,10 +1,10 @@
 /* eslint-disable quotes */
 const mongoose = require('mongoose');
+const User = require('../models/userProfile');
 const userProfile = require('../models/userProfile');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
-const User = require('../models/userProfile');
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
