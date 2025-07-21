@@ -213,6 +213,7 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
+const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -307,4 +308,6 @@ module.exports = function (app) {
   app.use('/api', registrationRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api/analytics', applicantAnalyticsRouter);
 };
