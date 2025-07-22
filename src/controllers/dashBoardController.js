@@ -7,7 +7,7 @@ const actionItem = require('../models/actionItem');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
-// const User = require('../models/userProfile');
+const User = require('../models/userProfile');
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
@@ -23,8 +23,11 @@ const dashboardcontroller = function () {
   // The Code below updates the time the AiPrompt was copied by the user - Sucheta
   // eslint-disable-next-line space-before-blocks
   const updateCopiedPrompt = function (req, res) {
-    return userProfile
-      .findOneAndUpdate({ _id: req.params.userId }, { copiedAiPrompt: Date.now() }, { new: true })
+    return User.findOneAndUpdate(
+      { _id: req.params.userId },
+      { copiedAiPrompt: Date.now() },
+      { new: true },
+    )
       .then((user) => {
         if (user) {
           res.status(200).send('Copied AI prompt');
@@ -37,7 +40,7 @@ const dashboardcontroller = function () {
       });
   };
   const getPromptCopiedDate = function (req, res) {
-    return userProfile.findOne({ _id: req.params.userId }).then((user) => {
+    return User.findOne({ _id: req.params.userId }).then((user) => {
       if (user) {
         res.status(200).send({ message: user.copiedAiPrompt });
       }
@@ -142,8 +145,7 @@ const dashboardcontroller = function () {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
 
-    userProfile
-      .findByIdAndUpdate(userId, { trophyFollowedUp }, { new: true })
+    User.findByIdAndUpdate(userId, { trophyFollowedUp }, { new: true })
       .then((updatedRecord) => {
         if (!updatedRecord) {
           return res.status(404).send('No valid records found');
