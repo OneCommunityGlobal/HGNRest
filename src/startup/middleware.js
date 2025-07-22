@@ -43,6 +43,12 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/lbdashboard/register' && req.method === 'POST') {
+  next();
+  return;
+}
+
+
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;

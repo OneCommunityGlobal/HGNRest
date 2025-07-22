@@ -229,17 +229,17 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-
+  
     try {
       emailSender(
         'onecommunityglobal@gmail.com',
-        `Bug Rport from ${firstName} ${lastName}`,
+        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -307,8 +307,8 @@ const dashboardcontroller = function () {
         null,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -363,7 +363,7 @@ const dashboardcontroller = function () {
       "daterequestedFeedback": "2025-04-20T04:04:40.189Z",
       "foundHelpSomeWhereClosePermanently": false,
       "userId": "5baac381e16814009017678c"
-  }*/
+  } */
     try {
       const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
       return res.status(200).json({ savingRequestFeedbackData });
@@ -399,7 +399,7 @@ const dashboardcontroller = function () {
     {
     "foundHelpSomeWhereClosePermanently": true,
     "userId": "5baac381e16814009017678c"
-}*/
+} */
     try {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });

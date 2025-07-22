@@ -3,7 +3,7 @@ const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const UserProfile = require('../models/userProfile');
 
-jest.mock('../utilities/emailSender');
+jest.mock('../utilities/emailSender', () => jest.fn());
 const emailSender = require('../utilities/emailSender');
 
 jest.mock('../helpers/dashboardhelper');
@@ -49,9 +49,9 @@ const makeSut = () => {
 const flushPromises = async () => new Promise(setImmediate);
 
 describe('Dashboard Controller tests', () => {
-  beforeAll(() => {});
+  beforeAll(() => { });
   beforeEach(() => {
-    // dashboardhelper = dashboardHelperClosure();
+    jest.clearAllMocks();
   });
   afterEach(() => {
     jest.clearAllMocks();
@@ -439,110 +439,109 @@ describe('Dashboard Controller tests', () => {
   });
 
   describe('sendBugReport Tests', () => {
-    test('Returns 200 if the bug report email is sent ', async () => {
-      mockReq.body = {
-        ...mockReq.body,
-        firstName: 'Lin',
-        lastName: 'Test',
-        title: 'Bug in feature X',
-        environment: 'macOS 10.15, Chrome 89, App version 1.2.3',
-        reproduction: '1. Click on button A\n2. Enter valid data\n3. Click submit',
-        expected: 'The app should not display an error message',
-        actual: 'The app',
-        visual: 'Screenshot attached',
-        severity: 'High',
-        email: 'lin.test@example.com',
+    test('Returns 200 if the bug report email is sent', async () => {
+      emailSender.mockResolvedValueOnce('Success');
+
+      const mockRequest = {
+        ...mockReq,
+        body: {
+          firstName: 'Lin',
+          lastName: 'Test',
+          title: 'Bug in feature X',
+          environment: 'macOS 10.15, Chrome 89, App version 1.2.3',
+          reproduction: '1. Click on button A\n2. Enter valid data\n3. Click submit',
+          expected: 'The app should not display an error message',
+          actual: 'The app crashes',
+          visual: 'Screenshot attached',
+          severity: 'High',
+          email: 'lin.test@example.com',
+        },
       };
 
       const { sendBugReport } = makeSut();
 
-      sendBugReport(mockReq, mockRes);
-
-      await flushPromises();
+      await sendBugReport(mockRequest, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith('Success');
     });
 
     test('Returns 500 if the email fails to send', async () => {
-      mockReq.body = {
-        ...mockReq.body,
-        firstName: 'Lin',
-        lastName: 'Test',
-        title: 'Bug in feature X',
-        environment: 'macOS 10.15, Chrome 89, App version 1.2.3',
-        reproduction: '1. Click on button A\n2. Enter valid data\n3. Click submit',
-        expected: 'The app should not display an error message',
-        actual: 'The app',
-        visual: 'Screenshot attached',
-        severity: 'High',
-        email: 'lin.test@example.com',
-      };
-
       emailSender.mockImplementation(() => {
         throw new Error('Failed to send email');
       });
 
+      const mockRequest = {
+        ...mockReq,
+        body: {
+          firstName: 'Lin',
+          lastName: 'Test',
+          title: 'Bug in feature X',
+          environment: 'macOS 10.15, Chrome 89, App version 1.2.3',
+          reproduction: '1. Click on button A\n2. Enter valid data\n3. Click submit',
+          expected: 'The app should not display an error message',
+          actual: 'The app crashes',
+          visual: 'Screenshot attached',
+          severity: 'High',
+          email: 'lin.test@example.com',
+        },
+      };
+
       const { sendBugReport } = makeSut();
 
-      sendBugReport(mockReq, mockRes);
-
-      emailSender.mockRejectedValue(new Error('Failed'));
-
-      await flushPromises();
+      await sendBugReport(mockRequest, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.send).toHaveBeenCalledWith('Failed');
+      expect(mockRes.send).toHaveBeenCalledWith('Failed to send email');
     });
   });
 
   describe('sendMakeSuggestion Tests', () => {
     test('Returns 500 if the suggestion email fails to send', async () => {
-      mockReq.body = {
-        suggestioncate: 'Identify and remedy poor client and/or user service experiences',
-        suggestion: 'This is a sample suggestion',
-        confirm: 'true',
-        email: 'test@example.com',
-        firstName: 'Lin',
-        lastName: 'Test',
-        field: ['field1', 'field2'],
-      };
-
       emailSender.mockImplementation(() => {
-        throw new Error('Failed');
+        throw new Error('Failed to send email');
       });
+
+      const mockRequest = {
+        ...mockReq,
+        body: {
+          suggestioncate: 'Identify and remedy poor client and/or user service experiences',
+          suggestion: 'This is a sample suggestion',
+          confirm: 'true',
+          email: 'test@example.com',
+          firstName: 'Lin',
+          lastName: 'Test',
+          field: ['field1', 'field2'],
+        },
+      };
 
       const { sendMakeSuggestion } = makeSut();
 
-      sendMakeSuggestion(mockReq, mockRes);
-
-      await flushPromises();
+      await sendMakeSuggestion(mockRequest, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.send).toHaveBeenCalledWith('Failed');
+      expect(mockRes.send).toHaveBeenCalledWith('Failed to send email');
     });
 
     test('Returns 200 if the suggestion email is sent successfully', async () => {
-      mockReq.body = {
-        ...mockReq.body,
-        suggestioncate: 'Identify and remedy poor client and/or user service experiences',
-        suggestion: 'This is a sample suggestion',
-        confirm: 'true',
-        email: 'john.doe@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        field: ['field1', 'field2'],
-      };
+      emailSender.mockResolvedValueOnce('Success');
 
-      emailSender.mockImplementation(() => {
-        Promise.resolve();
-      });
+      const mockRequest = {
+        ...mockReq,
+        body: {
+          suggestioncate: 'Identify and remedy poor client and/or user service experiences',
+          suggestion: 'This is a sample suggestion',
+          confirm: 'true',
+          email: 'john.doe@example.com',
+          firstName: 'John',
+          lastName: 'Doe',
+          field: ['field1', 'field2'],
+        },
+      };
 
       const { sendMakeSuggestion } = makeSut();
 
-      sendMakeSuggestion(mockReq, mockRes);
-
-      await flushPromises();
+      await sendMakeSuggestion(mockRequest, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith('Success');

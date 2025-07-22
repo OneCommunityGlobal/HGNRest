@@ -5,6 +5,7 @@ const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
 const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
+
 logger.init();
 
 // The request handler must be the first middleware on the app
@@ -23,4 +24,9 @@ app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
 app.use(express.json());
 app.use('/api', experienceRoutes); // Mounts at /api
+
+const lbRegisterRouter = require('./routes/lbdashboard/lbdashboardRoutes')();
+
+app.use('/lbdashboard', lbRegisterRouter);
+
 module.exports = { app, logger };
