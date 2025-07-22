@@ -4,6 +4,13 @@ const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
+// Import configuration to avoid hardcoded conflicts
+// const dashboardConfig = require('../config/dashboardConfig');
+
+// Configuration constants to prevent conflicts
+const EMAIL_CONFIG = {
+  SUPPORT_EMAIL: 'onecommunityglobal@gmail.com',
+};
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
@@ -137,7 +144,7 @@ const dashboardcontroller = function () {
 
   // 6th month and yearly anniversaries
   const postTrophyIcon = function (req, res) {
-    console.log('API called with params:', req.params);
+    // console.log('API called with params:', req.params);
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
 
@@ -223,7 +230,7 @@ const dashboardcontroller = function () {
 
     try {
       await emailSender.sendEmail(
-        'onecommunityglobal@gmail.com',
+        EMAIL_CONFIG.SUPPORT_EMAIL,
         `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
@@ -289,7 +296,7 @@ const dashboardcontroller = function () {
     );
     try {
       await emailSender.sendEmail(
-        'onecommunityglobal@gmail.com',
+        EMAIL_CONFIG.SUPPORT_EMAIL,
         'A new suggestion',
         emailBody,
         null,
@@ -359,7 +366,7 @@ const dashboardcontroller = function () {
       const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
       return res.status(200).json({ savingRequestFeedbackData });
     } catch (err) {
-      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+      return res.status(500).send({ msg: 'Error occurred while fetching data. Please try again!' });
     }
   };
 
@@ -380,7 +387,7 @@ const dashboardcontroller = function () {
       const usersList = await dashboardhelper.getNamesFromProfiles();
       return res.status(200).json({ users: usersList });
     } catch (err) {
-      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+      return res.status(500).send({ msg: 'Error occurred while fetching data. Please try again!' });
     }
   };
 
@@ -395,8 +402,8 @@ const dashboardcontroller = function () {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });
     } catch (err) {
-      console.log(err);
-      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+      // console.log(err);
+      return res.status(500).send({ msg: 'Error occurred while fetching data. Please try again!' });
     }
   };
 
