@@ -1,7 +1,9 @@
 /* eslint-disable quotes */
 const mongoose = require('mongoose');
-// const userProfile = require('../models/userProfile');
-// const actionItem = require('../models/actionItem');
+// eslint-disable-next-line no-unused-vars
+const userProfile = require('../models/userProfile');
+// eslint-disable-next-line no-unused-vars
+const actionItem = require('../models/actionItem');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
