@@ -7,4 +7,4 @@ const applicantSchema = new mongoose.Schema({
   endDate: Date,
 });
 
-module.exports = mongoose.model('jobapplicants', applicantSchema);
+module.exports = mongoose.model('Applicant', applicantSchema, 'jobapplicants');
