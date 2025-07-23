@@ -7,4 +7,6 @@ hgnFormResponseRouter
   .post(controller.submitFormResponse)
   .get(controller.getAllFormResponses);
 
+hgnFormResponseRouter.route('/ranked').get(controller.getRankedResponses);
+
 module.exports = hgnFormResponseRouter;
