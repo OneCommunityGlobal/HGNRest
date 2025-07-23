@@ -1,0 +1,16 @@
+const mongoose = require('mongoose');
+
+const { Schema } = mongoose;
+
+const pullRequest = new Schema(
+  {
+    prNumber: { type: Number, unique: true },
+    prTitle: String,
+    prRepo: String,
+  },
+  { timestamps: true },
+);
+
+pullRequest.index({ prNumber: 1 });
+
+module.export = mongoose.model('PullRequest', pullRequest);
