@@ -17,4 +17,10 @@ router.get("/jobforms/:formId", formController.getFormFormat);
 // Get all responses of a form
 router.get("/jobforms/:formId/responses", formController.getFormResponses);
 
+// Question management routes
+router.post("/jobforms/:formId/questions", formController.addQuestion);
+router.patch("/jobforms/:formId/questions/:questionIndex", formController.updateQuestion);
+router.delete("/jobforms/:formId/questions/:questionIndex", formController.deleteQuestion);
+router.put("/jobforms/:formId/questions/reorder", formController.reorderQuestions);
+
 module.exports = router;
