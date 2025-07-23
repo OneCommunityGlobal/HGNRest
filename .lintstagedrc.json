@@ -1,3 +1,0 @@
-{
-  "*.js": ["eslint --fix", "npm run test:staged", "prettier --write --ignore-unknown"]
-}
