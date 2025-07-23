@@ -213,6 +213,9 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
+// Analytics
+const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -302,4 +305,5 @@ module.exports = function (app) {
   app.use('/api', registrationRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/analytics', analyticsPopularPRsRouter);
 };
