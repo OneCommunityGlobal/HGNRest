@@ -9,6 +9,7 @@ const projectschema = new Schema({
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
   membersModifiedDatetime: { type: Date, default: Date.now() },
+  inventoryModifiedDatetime: { type: Date, default: Date.now() },
   category: {
     type: String,
     enum: [
