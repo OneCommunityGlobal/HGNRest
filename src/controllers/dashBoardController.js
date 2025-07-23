@@ -145,7 +145,7 @@ const dashboardcontroller = function () {
   };
 
   // 6th month and yearly anniversaries
-    postTrophyIcon = function (req, res) {
+    const postTrophyIcon = function (req, res) {
     console.log("API called with params:", req.params);
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
