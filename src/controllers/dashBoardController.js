@@ -146,11 +146,15 @@ const dashboardcontroller = function () {
 
   // 6th month and yearly anniversaries
   const postTrophyIcon = function (req, res) {
-    // console.log('API called with params:', req.params);
+    console.log("API called with params:", req.params);
     const userId = mongoose.Types.ObjectId(req.params.userId);
     const trophyFollowedUp = req.params.trophyFollowedUp === 'true';
 
-    User.findByIdAndUpdate(userId, { trophyFollowedUp }, { new: true })
+    userProfile.findByIdAndUpdate(
+      userId,
+      { trophyFollowedUp },
+      { new: true }
+    )
       .then((updatedRecord) => {
         if (!updatedRecord) {
           return res.status(404).send('No valid records found');
@@ -158,10 +162,13 @@ const dashboardcontroller = function () {
         res.status(200).send(updatedRecord);
       })
       .catch((error) => {
-        console.error('Error updating trophy icon:', error);
+        console.error("Error updating trophy icon:", error);
         res.status(500).send(error);
       });
   };
+
+  // 6th month and yearly anniversaries
+
 
   const orgData = function (req, res) {
     const fullOrgData = dashboardhelper.getOrgData();
