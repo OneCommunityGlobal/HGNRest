@@ -11,15 +11,15 @@ const HgnFormResponses = require('../models/hgnFormResponse');
  * @returns {Object} Controller methods
  */
 
- const userSkillsProfileController = function (UserProfile) {
+const userSkillsProfileController = function (UserProfile) {
   /**
    * Get user profile with skills data
    * Returns consistent structure regardless of data availability
    */
   const getUserSkillsProfile = async (req, res, next) => {
-    console.log("req.body.requestor");    
+    console.log('req.body.requestor');
     console.log(req.body.requestor);
-    
+
     try {
       // Check if user has permission to view user profiles
       const hasAccess = await hasPermission(req.body.requestor, 'getUserProfiles');
@@ -207,18 +207,32 @@ const HgnFormResponses = require('../models/hgnFormResponse');
     }
   };
 
+  function getWordCount(input) {
+    const excludedSymbols = new Set(['.', '#', '$', '*', '-', '–', '—', '_']);
+
+    const wordCount = input
+      .trim()
+      .split(/\s+/) // still use this to handle any whitespace
+      .filter((word) => {
+        // Remove empty strings and standalone symbols
+        const cleanedWord = word.trim();
+        return cleanedWord && !excludedSymbols.has(cleanedWord);
+      }).length;
+
+    return wordCount;
+  }
   //
   const updateUserSkillsProfileFollowUp = async (req, res, next) => {
-    console.log("updateUserSkillsProfileFollowUp");    
-    
-    console.log("req.body.requestor");    
+    console.log('updateUserSkillsProfileFollowUp');
+
+    console.log('req.body.requestor');
     console.log(req.body);
 
-    console.log(req.params?.userId)
+    console.log(req.params?.userId);
     try {
       // Check if user has permission to view user profiles
       const hasAccess = await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp');
-      
+
       // Log access attempt for tracking
       Logger.logInfo(`User skills profile access attempt`, {
         requestorId: req.body.requestor.requestorId,
@@ -243,68 +257,67 @@ const HgnFormResponses = require('../models/hgnFormResponse');
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         throw new ValidationError('Invalid user ID format');
       }
-    
-      if (req.body.platform == null || 
-        req.body.platform === '')
-        return res
-          .status(400)
-          .json({ error: 'Please enter valid value for followUp.platform ' });
-    
-      if (req.body.other_skills == null || 
-        req.body.other_skills === '')
+
+      if (req.body.platform == null || req.body.platform === '')
+        return res.status(400).json({ error: 'Please enter valid value for followUp.platform ' });
+
+      if (req.body.other_skills == null || req.body.other_skills === '')
         return res
           .status(400)
           .json({ error: 'Please enter valid value for followUp.other_skills ' });
-    
-    
+
       if (req.body.mern_work_experience == null || req.body.mern_work_experience === '')
         return res
           .status(400)
           .json({ error: 'Please enter valid value for mern_work_experience ' });
-      
-        //  word count should be >= 20
-      const workWordCount = req.body.mern_work_experience
+
+      //  word count should be >= 20
+      const workWordCount = getWordCount(req.body.mern_work_experience);
+
+      /* const workWordCount = req.body.mern_work_experience
       .trim()
       .split(' ') // split by space
       .filter(word => word !== '' && word !== '\n' && word !== '\t').length; // remove empty strings and tabs/newlines
+      */
       if (workWordCount < 20) {
         return res
           .status(403)
-          .json({ error: 'Please enter a minimum of Twenty words for followUp.mern_work_experience ' });
+          .json({
+            error: 'Please enter a minimum of Twenty words for followUp.mern_work_experience ',
+          });
       }
-    
-//
-       const updateData = {
-        followUp: {
-          platform:req.body.platform,
-          other_skills:req.body.other_skills,
-          mern_work_experience:req.body.mern_work_experience,
-        }}
-        ;
 
-        
+      //
+      const updateData = {
+        followUp: {
+          platform: req.body.platform,
+          other_skills: req.body.other_skills,
+          mern_work_experience: req.body.mern_work_experience,
+        },
+      };
       // Update skills followUp data - use default values if not found
-      const formResponsesUpd = await HgnFormResponses.findOneAndUpdate({ user_id:userId },
-      updateData, {new:true}
-         );
-if (!formResponsesUpd) {
-      return res.status(400).json({error: 'Invalid formResponsesUpd details' });
-    }
-// Log successful profile retrieval
+      const formResponsesUpd = await HgnFormResponses.findOneAndUpdate(
+        { user_id: userId },
+        updateData,
+        {
+          new: true,
+          sort: { _id: -1 }, // sort by newest first
+        },
+      );
+      if (!formResponsesUpd) {
+        return res.status(400).json({ error: 'Invalid formResponsesUpd details' });
+      }
+      // Log successful profile retrieval
       Logger.logInfo(`User skills profile successfully updated`, {
         requestorId: req.body.requestor.requestorId,
         targetUserId: userId,
         timestamp: new Date().toISOString(),
       });
-      
-      return res
-          .status(200)
-          .json({ data: formResponsesUpd });
-      
-      
+
+      return res.status(200).json({ data: formResponsesUpd });
     } catch (error) {
-      console.log("error");
-      console.log(error)
+      console.log('error');
+      console.log(error);
       // Log exceptions with transaction name and relevant data
       Logger.logException(error, 'updateUserSkillsProfileFollowUp', {
         requestorId: req.body.requestor?.requestorId,
@@ -318,7 +331,7 @@ if (!formResponsesUpd) {
   //
   return {
     getUserSkillsProfile,
-    updateUserSkillsProfileFollowUp
+    updateUserSkillsProfileFollowUp,
   };
 };
 
