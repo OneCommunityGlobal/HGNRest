@@ -35,14 +35,17 @@ cron.schedule('0 0 * * *', async () => {
                 if (unreadMessages.length > 5) {
                   return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
                 }
+
                 const messageList = unreadMessages
                   .map(
                     (msg) =>
                       `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
                   )
                   .join('');
+
                 return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
               }
+
               return '';
             }),
         );
