@@ -53,7 +53,7 @@ cron.schedule('0 0 * * *', async () => {
                 const messageList = unreadMessages
                   .map(
                     (msg) =>
-                      `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
+                      `<li>${msg.content} <span style='color: #888'>(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
                   )
                   .join('');
                 return `<li>${unreadMessages.length} messages from ${senderName}<ul>${messageList}</ul></li>`;
@@ -73,17 +73,17 @@ cron.schedule('0 0 * * *', async () => {
                 return;
               }
               await emailSender.sendSummaryNotification(recipientEmail, summary);
-              console.log(`✅ Email sent successfully to ${recipientEmail}`);
+              console.log(`Email sent successfully to ${recipientEmail}`);
             } catch (emailError) {
-              console.error(`❌ Failed to send email to user ${user._id}:`, emailError);
+              console.error(`Failed to send email to user ${user._id}:`, emailError);
             }
           }
         } catch (preferenceError) {
-          console.error(`❌ Error processing preference ${preference._id}:`, preferenceError);
+          console.error(`Error processing preference ${preference._id}:`, preferenceError);
         }
       }),
     );
   } catch (error) {
-    console.error('❌ Error running daily email notification job:', error);
+    console.error('Error running daily email notification job:', error);
   }
 });
