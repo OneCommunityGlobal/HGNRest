@@ -1,3 +1,5 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
 const cron = require('node-cron');
 const UserPreferences = require('../models/lbdashboard/userPreferences');
 const Message = require('../models/lbdashboard/message');
@@ -26,14 +28,19 @@ cron.schedule('0 0 * * *', async () => {
             status: { $ne: 'read' },
           });
 
-          const userNotifyingForProfile = await UserProfile.findById(userNotifyingFor._id).select('firstName lastName');
+          const userNotifyingForProfile = await UserProfile.findById(userNotifyingFor._id).select(
+            'firstName lastName',
+          );
 
           if (unreadMessages.length > 0) {
             if (unreadMessages.length > 5) {
               summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
             } else {
               const messageList = unreadMessages
-                .map((msg) => `<li>${msg.content} <span style=\"color: #888;\">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`)
+                .map(
+                  (msg) =>
+                    `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
+                )
                 .join('');
               summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
             }
