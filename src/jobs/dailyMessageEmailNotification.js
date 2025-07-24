@@ -8,7 +8,6 @@ const TEST_MODE = true; // Set to false to disable test mode
 const TEST_EMAIL = 'test@example.com';
 
 cron.schedule('0 0 * * *', async () => {
-  console.log('Starting daily email notification job...');
   try {
     const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
 
