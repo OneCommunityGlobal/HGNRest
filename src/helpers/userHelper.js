@@ -510,6 +510,7 @@ const userHelper = function () {
       while (true) {
         const users = await userProfile
           .find({ isActive: true }, '_id weeklycommittedHours weeklySummaries missedHours')
+          .sort({ createdDate: 1 }) // Ensure oldest-to-newest order
           .skip(skip)
           .limit(batchSize);
 
