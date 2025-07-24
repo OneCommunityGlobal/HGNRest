@@ -9,7 +9,6 @@ const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
-
 // Configuration constants to prevent conflicts
 const EMAIL_CONFIG = {
   SUPPORT_EMAIL: 'onecommunityglobal@gmail.com',
@@ -167,9 +166,6 @@ const dashboardcontroller = function () {
         res.status(500).send(error);
       });
   };
-
-  // 6th month and yearly anniversaries
-
 
   const orgData = function (req, res) {
     const fullOrgData = dashboardhelper.getOrgData();
@@ -412,6 +408,7 @@ const dashboardcontroller = function () {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });
     } catch (err) {
+      console.log(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
