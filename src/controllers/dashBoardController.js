@@ -10,6 +10,11 @@ const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
 
+// Configuration constants to prevent conflicts
+const EMAIL_CONFIG = {
+  SUPPORT_EMAIL: 'onecommunityglobal@gmail.com',
+};
+
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
   const dashboarddata = function (req, res) {
@@ -162,6 +167,9 @@ const dashboardcontroller = function () {
         res.status(500).send(error);
       });
   };
+
+  // 6th month and yearly anniversaries
+
 
   const orgData = function (req, res) {
     const fullOrgData = dashboardhelper.getOrgData();
