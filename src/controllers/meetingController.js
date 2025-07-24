@@ -19,7 +19,6 @@ const meetingController = function (Meeting) {
       req.body.participantList.length === 0 ||
       (req.body.location && !['Zoom', 'Phone call', 'On-site'].includes(req.body.location));
 
-
     if (isInvalid) {
       return res.status(400).send({ error: 'Bad request: Invalid form values' });
     }
@@ -108,8 +107,8 @@ const meetingController = function (Meeting) {
           },
         },
       ]);
-      console.log(meetings[meetings.length-1]);
-      
+      console.log(meetings[meetings.length - 1]);
+
       res.status(200).json(meetings);
     } catch (error) {
       console.error('Error fetching meetings:', error);
@@ -185,7 +184,11 @@ const meetingController = function (Meeting) {
       const organizerFullName = `${meeting.organizer.firstName} ${meeting.organizer.lastName}`;
       const startDate = new Date(meeting.dateTime);
       const endDate = new Date(startDate.getTime() + meeting.duration * 1000);
-      const formatDate = (date) => date.toISOString().replace(/-|:|\.\d+/g, '').toUpperCase();
+      const formatDate = (date) =>
+        date
+          .toISOString()
+          .replace(/-|:|\.\d+/g, '')
+          .toUpperCase();
 
       const googleCalendarLink = `https://calendar.google.com/calendar/u/0/r/eventedit?action=TEMPLATE&dates=${formatDate(startDate)}/${formatDate(endDate)}&details=${encodeURIComponent(meeting.notes)}&location=${encodeURIComponent(meeting.locationDetails)}&text=Meeting%20with%20${encodeURIComponent(organizerFullName)}`;
 
@@ -212,68 +215,79 @@ const meetingController = function (Meeting) {
     }
   };
 
-  const getUpcomingMeetingForParticipant = async function (req, res) {
+  const getUpcomingMeetingForParticipant = async (req, res) => {
     try {
       const { participantId } = req.params;
-  
-      // Use aggregate pipeline to fetch meetings for the participant
+
+      // First, fetch meetings for this participant from your collection (you can adjust this query to your schema)
       const meetings = await Meeting.aggregate([
-        { $unwind: '$participantList' }, // Must unwind before matching on nested field
+        { $unwind: '$participantList' },
         {
           $match: {
             'participantList.participant': mongoose.Types.ObjectId(participantId),
+            'participantList.notificationIsRead': false,
           },
         },
         {
           $project: {
-            _id: 1, // this is the meeting ID
+            _id: 1,
             dateTime: 1,
             duration: 1,
-            organizer: 1,
             location: 1,
             locationDetails: 1,
             notes: 1,
-            recipient: '$participantList.participant',
+            participant: '$participantList.participant',
             isRead: '$participantList.notificationIsRead',
           },
         },
-       // optional: ensures the list is sorted chronologically
       ]);
-  
-      if (meetings.length === 0) {
-        return res.status(404).json({ error: 'No meetings found for this participant' });
+
+      if (!meetings.length) {
+        return res.status(404).json({ error: 'No upcoming unread meetings found' });
       }
-  
-      const lastMeeting = meetings[meetings.length - 1];
-  
-      // Fetch full meeting document with organizer populated
-      const meeting = await Meeting.findById(lastMeeting._id).populate('organizer');
-  
-      if (!meeting || !meeting.organizer) {
-        return res.status(404).json({ error: 'Organizer information not found' });
+
+      // Filter for meetings in the next 3 days
+      const now = new Date();
+      const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+      const upcomingUnreadMeetings = meetings.filter((meeting) => {
+        const meetingDate = new Date(meeting.dateTime);
+        return meetingDate >= now && meetingDate <= threeDaysLater;
+      });
+
+      if (!upcomingUnreadMeetings.length) {
+        return res.status(404).json({ error: 'No upcoming unread meetings within next 3 days' });
       }
-  
-      const organizerName = `${meeting.organizer.firstName} ${meeting.organizer.lastName}`;
-  
-      // Send the last meeting and organizer name as response
-      res.status(200).json({ lastMeeting, organizerName });
-  
+
+      // Get meeting IDs
+      const meetingIds = upcomingUnreadMeetings.map((m) => m._id);
+
+      // Fetch full meeting docs with populated organizer names
+      const meetingsWithOrganizer = await Meeting.find({ _id: { $in: meetingIds } }).populate(
+        'organizer',
+        'firstName lastName',
+      );
+
+      // Prepare result with organizer full names
+      const result = meetingsWithOrganizer.map((meeting) => ({
+        _id: meeting._id,
+        dateTime: meeting.dateTime,
+        organizerName: meeting.organizer
+          ? `${meeting.organizer.firstName} ${meeting.organizer.lastName}`
+          : 'N/A',
+        duration: meeting.duration,
+        location: meeting.location,
+        locationDetails: meeting.locationDetails,
+        notes: meeting.notes,
+        participant:meeting.participant
+      }));
+
+      return res.status(200).json({ upComingMeetings: result });
     } catch (error) {
-      console.error('Error fetching meetings:', error);
-      res.status(500).json({ error: 'Failed to fetch meetings' });
+      console.error('Error fetching upcoming meetings:', error);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   };
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
 
   return {
     postMeeting,
