@@ -10,10 +10,10 @@ const TEST_EMAIL = 'test@example.com';
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
-  console.log('🔄 Starting daily email notification job...');
+  console.log('Starting daily email notification job...');
   try {
     const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
-    console.log(`📊 Processing ${userPreferences.length} user preferences`);
+    console.log(`Processing ${userPreferences.length} user preferences`);
 
     await Promise.all(
       userPreferences.map(async (preference) => {
