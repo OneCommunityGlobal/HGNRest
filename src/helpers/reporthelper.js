@@ -165,16 +165,27 @@ const reporthelper = function () {
       result.totalSeconds = [0, 0, 0, 0];
 
       result.timeEntries.forEach((entry) => {
-        const index = startWeekIndex === endWeekIndex ? startWeekIndex : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        const index =
+          startWeekIndex === endWeekIndex
+            ? startWeekIndex
+            : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
+          result.totalSeconds[index] = 0;
+        }
 
-        if (index >= 0 && index < 4) {
-          if (entry.isTangible === true) {
-            result.totalSeconds[index] += entry.totalSeconds;
+        if (entry.isTangible === true) {
+          result.totalSeconds[index] += entry.totalSeconds;
+          if (index >= 0 && index < 4) {
+            if (entry.isTangible === true) {
+              result.totalSeconds[index] += entry.totalSeconds;
+            }
           }
         }
       });
 
-      result.totalSeconds = result.totalSeconds.map(seconds => seconds === 0 ? undefined : seconds);
+      result.totalSeconds = result.totalSeconds.map((seconds) =>
+        seconds === 0 ? undefined : seconds,
+      );
 
       delete result.timeEntries;
     });

@@ -236,10 +236,10 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-
+  
     try {
       await emailSender.sendEmail(
-        EMAIL_CONFIG.SUPPORT_EMAIL,
+        'onecommunityglobal@gmail.com',
         `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
@@ -305,7 +305,7 @@ const dashboardcontroller = function () {
     );
     try {
       await emailSender.sendEmail(
-        EMAIL_CONFIG.SUPPORT_EMAIL,
+        'onecommunityglobal@gmail.com',
         'A new suggestion',
         emailBody,
         null,
