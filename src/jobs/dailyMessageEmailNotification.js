@@ -10,6 +10,7 @@ const TEST_EMAIL = 'test@example.com';
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
+
   try {
     const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
 
@@ -33,7 +34,7 @@ cron.schedule('0 0 * * *', async () => {
               summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
             } else {
               const messageList = unreadMessages
-                .map((msg) => `<li>${msg.content} <span style=\"color: #888;\">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`)
+                .map((msg) => `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`)
                 .join('');
               summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
             }
