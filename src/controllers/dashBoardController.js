@@ -1,5 +1,7 @@
 /* eslint-disable quotes */
 const mongoose = require('mongoose');
+const userProfile = require('../models/userProfile');
+const actionItem = require('../models/actionItem');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
@@ -139,7 +141,7 @@ const dashboardcontroller = function () {
           });
         }
       })
-      .catch((error) => res.status(400).send(error));
+      .catch(error => res.status(400).send(error));
   };
 
   // 6th month and yearly anniversaries
@@ -227,10 +229,10 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-
+  
     try {
       await emailSender.sendEmail(
-        EMAIL_CONFIG.SUPPORT_EMAIL,
+        'onecommunityglobal@gmail.com',
         `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
@@ -296,7 +298,7 @@ const dashboardcontroller = function () {
     );
     try {
       await emailSender.sendEmail(
-        EMAIL_CONFIG.SUPPORT_EMAIL,
+        'onecommunityglobal@gmail.com',
         'A new suggestion',
         emailBody,
         null,
@@ -306,7 +308,7 @@ const dashboardcontroller = function () {
       );
       res.status(200).send('Success');
     } catch (error) {
-      res.status(500).send('Failed to send email');
+      res.status(500).send("Failed to send email");
     }
   };
 
