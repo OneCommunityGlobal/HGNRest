@@ -10,8 +10,10 @@ const TEST_EMAIL = 'test@example.com';
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
+  console.log('🔄 Starting daily email notification job...');
   try {
     const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
+    console.log(`📊 Processing ${userPreferences.length} user preferences`);
 
     await Promise.all(
       userPreferences.map(async (preference) => {
@@ -51,10 +53,13 @@ cron.schedule('0 0 * * *', async () => {
                   return `<li>${unreadMessages.length} messages from ${senderName}</li>`;
                 }
                 const messageList = unreadMessages
-                  .map(
-                    (msg) =>
-                      `<li>${msg.content} <span style='color: #888;'>(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
-                  )
+                  .map((msg) => {
+                    const content = msg.content || 'No content';
+                    const timestamp = msg.timestamp
+                      ? msg.timestamp.toLocaleString()
+                      : 'Unknown time';
+                    return `<li>${content} <span style='color: #888;'>(Sent: ${timestamp})</span></li>`;
+                  })
                   .join('');
                 return `<li>${unreadMessages.length} messages from ${senderName}<ul>${messageList}</ul></li>`;
               } catch (error) {
@@ -73,17 +78,20 @@ cron.schedule('0 0 * * *', async () => {
                 return;
               }
               await emailSender.sendSummaryNotification(recipientEmail, summary);
-              console.log(`Email sent successfully to ${recipientEmail}`);
+              console.log(`✅ Email sent successfully to ${recipientEmail}`);
             } catch (emailError) {
-              console.error(`Failed to send email to user ${user._id}:`, emailError);
+              console.error(`❌ Failed to send email to user ${user._id}:`, emailError);
             }
           }
         } catch (preferenceError) {
-          console.error(`Error processing preference ${preference._id}:`, preferenceError);
+          console.error(`❌ Error processing preference ${preference._id}:`, preferenceError);
         }
       }),
     );
+
+    console.log('✅ Daily email notification job completed successfully');
   } catch (error) {
-    console.error('Error running daily email notification job:', error);
+    console.error('❌ Error running daily email notification job:', error);
+    console.error('❌ Stack trace:', error.stack);
   }
 });
