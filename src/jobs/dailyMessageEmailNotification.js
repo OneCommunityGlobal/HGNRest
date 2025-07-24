@@ -44,11 +44,9 @@ cron.schedule('0 0 * * *', async () => {
 
                 return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
               }
-
               return '';
             }),
         );
-
         const summary = summaries.filter(Boolean).join('');
         if (summary) {
           const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
