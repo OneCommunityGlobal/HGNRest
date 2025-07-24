@@ -200,6 +200,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
