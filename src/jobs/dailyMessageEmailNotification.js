@@ -52,6 +52,7 @@ cron.schedule('0 0 * * *', async () => {
                 if (unreadMessages.length > 5) {
                   return `<li>${unreadMessages.length} messages from ${senderName}</li>`;
                 }
+
                 const messageList = unreadMessages
                   .map((msg) => {
                     const content = msg.content || 'No content';
@@ -61,6 +62,7 @@ cron.schedule('0 0 * * *', async () => {
                     return `<li>${content} <span style='color: #888;'>(Sent: ${timestamp})</span></li>`;
                   })
                   .join('');
+
                 return `<li>${unreadMessages.length} messages from ${senderName}<ul>${messageList}</ul></li>`;
               } catch (error) {
                 console.error(`Error processing user ${userNotifyingFor._id}:`, error);
