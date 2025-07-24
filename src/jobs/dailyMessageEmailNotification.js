@@ -6,7 +6,6 @@ const emailSender = require('../utilities/emailSender');
 
 // Set test mode and test email
 const TEST_MODE = true; // Set to false to disable test mode
-const TEST_EMAIL = 'test@example.com';
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
