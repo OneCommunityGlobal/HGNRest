@@ -53,7 +53,7 @@ cron.schedule('0 0 * * *', async () => {
                 const messageList = unreadMessages
                   .map(
                     (msg) =>
-                      `<li>${msg.content} <span style='color: #888'>(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
+                      `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
                   )
                   .join('');
                 return `<li>${unreadMessages.length} messages from ${senderName}<ul>${messageList}</ul></li>`;
