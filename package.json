@@ -88,7 +88,7 @@
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
-    "nodemailer": "^6.4.16",
+    "nodemailer": "^6.10.0",
     "redis": "^4.2.0",
     "sanitize-html": "^2.16.0",
     "sharp": "^0.28.3",
