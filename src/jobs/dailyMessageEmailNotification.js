@@ -49,7 +49,6 @@ cron.schedule('0 0 * * *', async () => {
         );
 
         summary = userSummaries.filter(Boolean).join('');
-
         if (summary) {
           const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
           await emailSender.sendSummaryNotification(recipientEmail, summary);
