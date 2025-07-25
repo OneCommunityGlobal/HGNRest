@@ -6,6 +6,7 @@ const emailSender = require('../utilities/emailSender');
 
 // Set test mode and test email
 const TEST_MODE = true; // Set to false to disable test mode
+const TEST_EMAIL = 'test@example.com';
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
@@ -16,12 +17,10 @@ cron.schedule('0 0 * * *', async () => {
       userPreferences.map(async (preference) => {
         const { user, users } = preference;
 
-        let summary = '';
         const userSummaries = await Promise.all(
           users.map(async ({ userNotifyingFor, notifyEmail }) => {
             if (!notifyEmail) return '';
 
-            // Fetch unread messages from the specific sender
             const unreadMessages = await Message.find({
               receiver: user._id,
               sender: userNotifyingFor._id,
@@ -36,21 +35,24 @@ cron.schedule('0 0 * * *', async () => {
               if (unreadMessages.length > 5) {
                 return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
               }
+
               const messageList = unreadMessages
                 .map(
                   (msg) =>
                     `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
                 )
                 .join('');
+
               return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
             }
+
             return '';
           }),
         );
 
-        summary = userSummaries.filter(Boolean).join('');
+        const summary = userSummaries.filter(Boolean).join('');
         if (summary) {
-          const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
+          const recipientEmail = TEST_MODE ? TEST_EMAIL : user.email;
           await emailSender.sendSummaryNotification(recipientEmail, summary);
         }
       }),
