@@ -115,10 +115,24 @@ const titlecontroller = function (Title) {
       return;
     }
 
-    title
-      .save()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+    // title
+    //   .save()
+    //   .then((results) => res.status(200).send(results))
+    //   .catch((error) => res.status(404).send(error));
+
+    try {
+      const savedTitle = await title.save();
+  
+     
+      await userProfile.updateMany(
+        {}, 
+        { $addToSet: { teamCodes: title.teamCode } } 
+      );
+  
+      res.status(200).send(savedTitle);
+    } catch (error) {
+      res.status(500).send(error);
+    }
   };
 
   const updateTitlesOrder = async function (req, res) {
