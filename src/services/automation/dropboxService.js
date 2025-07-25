@@ -11,7 +11,7 @@ const dbx = new Dropbox({
   fetch,
 });
 
-const hgnFolder = 'Highest Good Network Team';
+const hgnFolder = '_Highest Good Network Team';
 
 async function createFolderWithSubfolder(parentFolderName) {
   try {
