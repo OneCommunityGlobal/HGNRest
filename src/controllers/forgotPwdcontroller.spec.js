@@ -11,6 +11,8 @@ const escapeRegex = require('../utilities/escapeRegex');
 uuidv4.mockReturnValue('');
 emailSender.mockImplementation(() => Promise.resolve());
 
+const flushPromises = () => new Promise(setImmediate);
+
 // Positive
 // ✅ Return 200 if successfully generated temporary User password.
 
