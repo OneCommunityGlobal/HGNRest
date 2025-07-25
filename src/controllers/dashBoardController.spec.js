@@ -9,7 +9,7 @@ const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
 
 jest.mock('../utilities/emailSender', () => jest.fn());
-const emailSender = require('../utilities/emailSender');
+// const emailSender = require('../utilities/emailSender');
 jest.mock('../utilities/emailSender', () => ({
   sendEmail: jest.fn(),
 }));

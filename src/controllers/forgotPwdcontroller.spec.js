@@ -51,7 +51,7 @@ const makeSut = () => {
 const flushPromises = async () => new Promise(setImmediate);
 
 describe('Dashboard Controller tests', () => {
-  beforeAll(() => {});
+  beforeAll(() => { });
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -253,7 +253,8 @@ describe('Dashboard Controller tests', () => {
         'Account Password change',
         expectedEmailMessage,
         null,
-        null,
+        null
+      );
       assertResMock(500, new Error(errorMessage), response, mockRes);
     });
 
