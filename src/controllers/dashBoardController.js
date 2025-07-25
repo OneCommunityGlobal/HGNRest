@@ -9,6 +9,10 @@ const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
+// Configuration constants to prevent conflicts
+const EMAIL_CONFIG = {
+  SUPPORT_EMAIL: 'onecommunityglobal@gmail.com',
+};
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
@@ -205,7 +209,7 @@ const dashboardcontroller = function () {
     return text;
   };
 
-  const sendBugReport = function (req, res) {
+  const sendBugReport = async function (req, res) {
     const {
       firstName,
       lastName,
@@ -229,17 +233,17 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-
+  
     try {
-      emailSender(
+      await emailSender.sendEmail(
         'onecommunityglobal@gmail.com',
-        `Bug Rport from ${firstName} ${lastName}`,
+        `Bug Report from ${firstName} ${lastName}`,
         emailBody,
         email,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -297,7 +301,7 @@ const dashboardcontroller = function () {
       email,
     );
     try {
-      emailSender(
+      await emailSender.sendEmail(
         'onecommunityglobal@gmail.com',
         'A new suggestion',
         emailBody,
@@ -307,8 +311,8 @@ const dashboardcontroller = function () {
         null,
       );
       res.status(200).send('Success');
-    } catch {
-      res.status(500).send('Failed');
+    } catch (error) {
+      res.status(500).send("Failed to send email");
     }
   };
 
@@ -404,7 +408,7 @@ const dashboardcontroller = function () {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });
     } catch (err) {
-      console.log(err)
+      console.log(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
