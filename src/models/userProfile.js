@@ -84,6 +84,7 @@ const userProfileSchema = new Schema({
       return this.createdDate;
     },
   },
+  isStartDateManuallyModified: { type: Boolean, default: false },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],

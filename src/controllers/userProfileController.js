@@ -623,6 +623,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'isStartDateManuallyModified',
       ];
 
       commonFields.forEach((fieldName) => {
