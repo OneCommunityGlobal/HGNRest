@@ -9,6 +9,10 @@ const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
+// Configuration constants to prevent conflicts
+const EMAIL_CONFIG = {
+  SUPPORT_EMAIL: 'onecommunityglobal@gmail.com',
+};
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
@@ -404,7 +408,7 @@ const dashboardcontroller = function () {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });
     } catch (err) {
-      console.log(err)
+      console.log(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
