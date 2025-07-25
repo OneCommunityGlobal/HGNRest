@@ -18,7 +18,7 @@ const { sendEmail } = require('../utilities/emailSender');
 uuidv4.mockReturnValue('');
 emailSender.mockImplementation(() => Promise.resolve());
 
-// const flushPromises = () => new Promise(setImmediate);
+const flushPromises = () => new Promise(setImmediate);
 
 
 function getEmailMessageForForgotPassword(user, ranPwd) {
@@ -32,8 +32,21 @@ function getEmailMessageForForgotPassword(user, ranPwd) {
 }
 
 const makeSut = () => {
-  const { forgotPwd } = forgotPwdController(UserProfile);
-  return { forgotPwd };
+  const {
+    forgotPwd,
+    sendBugReport,
+    sendMakeSuggestion,
+    getSuggestionOption,
+    editSuggestionOption,
+  } = forgotPwdController(UserProfile);
+
+  return {
+    forgotPwd,
+    sendBugReport,
+    sendMakeSuggestion,
+    getSuggestionOption,
+    editSuggestionOption,
+  };
 };
 
 describe('Unit Tests for forgotPwdcontroller.js', () => {
@@ -135,7 +148,13 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
         firstName: { $regex: escapeRegex(mockReq.body.firstName), $options: 'i' },
         lastName: { $regex: escapeRegex(mockReq.body.lastName), $options: 'i' },
       });
+    });
 
+    test('sendBugReport returns 500 on email failure', async () => {
+      // Mock emailSender to throw an error
+      emailSender.mockImplementation(() => {
+        throw new Error('Failed to send email');
+      });
 
       const mockRequest = {
         ...mockReq,
@@ -205,7 +224,7 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
         },
       };
 
-      const { sendBugReport } = makeSut();
+      const { sendMakeSuggestion } = makeSut();
 
       await sendMakeSuggestion(mockRequest, mockRes);
 

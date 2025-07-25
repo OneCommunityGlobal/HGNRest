@@ -3,6 +3,7 @@ const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const escapeRegex = require('../utilities/escapeRegex');
 
+
 function getEmailMessageForForgotPassword(user, ranPwd) {
   const message = `<b> Hello ${user.firstName} ${user.lastName},</b>
     <p>Congratulations on successfully completing the Highest Good Network 3-question Change My Password Challenge. Your reward is this NEW PASSWORD! </p>
@@ -56,8 +57,93 @@ const forgotPwdController = function (userProfile) {
       return res.status(500).send(error);
     }
   };
+  const sendBugReport = async (req, res) => {
+    try {
+      await emailSender(
+        'suggestion@onecommunityglobal.org',
+        'Bug Reported',
+        JSON.stringify(req.body, null, 2),
+      );
+      res.status(200).send('Success');
+    } catch (error) {
+      logger.logException(error);
+      res.status(500).send('Failed to send email');
+    }
+  };
 
-  return { forgotPwd };
+  const sendMakeSuggestion = async (req, res) => {
+    try {
+      await emailSender(
+        'suggestion@onecommunityglobal.org',
+        'New Suggestion',
+        JSON.stringify(req.body, null, 2),
+      );
+      res.status(200).send('Success');
+    } catch (error) {
+      logger.logException(error);
+      res.status(500).send('Failed to send email');
+    }
+  };
+
+  const getSuggestionOption = async (_req, res) => {
+    try {
+      const suggestionData = {
+        field: [],
+        suggestion: [
+          'Identify and remedy poor client and/or user service experiences',
+          'Identify bright spots and enhance positive service experiences',
+          'Make fundamental changes to our programs and/or operations',
+          'Inform the development of new programs/projects',
+          'Identify where we are less inclusive or equitable across demographic groups',
+          'Strengthen relationships with the people we serve',
+          "Understand people's needs and how we can help them achieve their goals",
+          'Other',
+        ],
+      };
+      res.status(200).send(suggestionData);
+    } catch (error) {
+      logger.logException(error);
+      res.status(404).send('Suggestion Data Not Found');
+    }
+  };
+
+  const editSuggestionOption = async (req, res) => {
+    try {
+      const { action, newField, suggestion } = req.body;
+      const suggestionData = {
+        suggestion: ['newSuggestion'],
+        field: ['newField'],
+      };
+
+      if (action === 'add') {
+        if (suggestion) {
+          suggestionData.suggestion.push(newField);
+        } else {
+          suggestionData.field.push(newField);
+        }
+      } else if (action === 'delete') {
+        if (suggestion) {
+          suggestionData.suggestion = suggestionData.suggestion.filter(s => s !== newField);
+        } else {
+          suggestionData.field = suggestionData.field.filter(f => f !== newField);
+        }
+      }
+
+      res.status(200).send('success');
+    } catch (error) {
+      logger.logException(error);
+      res.status(500).send('Error updating suggestion data');
+    }
+  };
+
+  return { forgotPwd, sendBugReport, sendMakeSuggestion, getSuggestionOption, editSuggestionOption };
 };
 
 module.exports = forgotPwdController;
+// module.exports = (UserProfile) => ({
+//   forgotPwd,
+//   sendBugReport,
+//   sendMakeSuggestion,
+//   getSuggestionOption,
+//   editSuggestionOption,
+// });
