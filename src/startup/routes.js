@@ -7,15 +7,18 @@ const team = require('../models/team');
 /* eslint-disable */
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
+console.log('DEBUG: WBS model:', wbs);
 const task = require('../models/task');
 const popup = require('../models/popupEditor');
 const popupBackup = require('../models/popupEditorBackup');
+console.log('DEBUG: popupEditorBackup model:', popupBackup);
 const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
+console.log('DEBUG: rolePreset model:', rolePreset);
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 
@@ -40,6 +43,7 @@ const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
+console.log('DEBUG: mapLocation model:', mapLocations);
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 const metIssue = require('../models/bmdashboard/metIssue');
@@ -104,14 +108,12 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
   hgnFormResponses,
   userProfile,
 );
 
 const faqRouter = require('../routes/faqRouter');
-
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -166,19 +168,14 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
-
-
-const collaborationRouter=require('../routes/collaborationRouter');
+const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
-
-
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -243,7 +240,7 @@ module.exports = function (app) {
 
   app.use('/api/bm', bmIssueRouter);
 
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
 
   //community portal
@@ -255,5 +252,4 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lb_dashboard/villages'));
 
   app.use('/api', registrationRouter);
-
 };
