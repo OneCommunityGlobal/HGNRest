@@ -7,18 +7,15 @@ const team = require('../models/team');
 /* eslint-disable */
 const notification = require('../models/notification');
 const wbs = require('../models/wbs');
-console.log('DEBUG: WBS model:', wbs);
 const task = require('../models/task');
 const popup = require('../models/popupEditor');
 const popupBackup = require('../models/popupEditorBackup');
-console.log('DEBUG: popupEditorBackup model:', popupBackup);
 const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
-console.log('DEBUG: rolePreset model:', rolePreset);
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 
@@ -43,7 +40,6 @@ const mouseoverText = require('../models/mouseoverText');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
-console.log('DEBUG: mapLocation model:', mapLocations);
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 const metIssue = require('../models/bmdashboard/metIssue');
