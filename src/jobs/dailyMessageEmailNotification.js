@@ -42,7 +42,7 @@ cron.schedule('0 0 * * *', async () => {
             }
 
             if (summary) {
-                const recipientEmail = TEST_MODE ? TEST_EMAIL : user.email;
+                const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
                 await emailSender.sendSummaryNotification(recipientEmail, summary);
             }
         }

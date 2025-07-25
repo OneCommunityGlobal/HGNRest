@@ -2046,35 +2046,72 @@ const userProfileController = function (UserProfile, Project) {
 
       const updatedUsersInfo = await Promise.all(
         usersToUpdate.map(async (user) => {
-          user.teamCode = newTeamCode;
-          let { teamCodeWarning } = user;
+          // if (!user || !user._id || !newTeamCode) {
+          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
+          //   return null;
+          // }
+          // user.teamCode = newTeamCode;
+          // let { teamCodeWarning } = user;
+          let teamCodeWarning = user.teamCodeWarning ?? false;
 
           if (warningUsers && warningUsers.includes(user._id.toString())) {
             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
           }
 
+          // return {
+          //   updateOne: {
+          //     // filter: { _id: user._id },
+          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
+          //     update: {
+          //       $set: {
+          //         teamCode: newTeamCode,
+          //         // teamCodeWarning: teamCodeWarning ?? false,
+          //         teamCodeWarning,
+          //       },
+          //     },
+          //   },
+          //   userInfo: {
+          //     userId: user._id,
+          //     teamCodeWarning,
+          //   },
+          // };
           return {
-            updateOne: {
-              filter: { _id: user._id },
-              update: {
-                $set: {
-                  teamCode: newTeamCode,
-                  teamCodeWarning,
-                },
-              },
-            },
-            userInfo: {
-              userId: user._id,
-              teamCodeWarning,
-            },
+            userId: user._id,
+            teamCodeWarning,
           };
         }),
       );
 
+      // Filter out null entries
+      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
+      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
 
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
       // 2. Execute all updates at once
+      // if (bulkOps.length > 0) {
+      //   await UserProfile.bulkWrite(bulkOps);
+      // } else {
+      //   console.warn('Invalid bulkOps detected. Aborting write.');
+      // }
+
+      // ✅ Build the proper bulkWrite payload
+      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+        updateOne: {
+          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
+          update: {
+            $set: {
+              teamCode: newTeamCode,
+              teamCodeWarning,
+            },
+          },
+        },
+      }));
+
+      // // ✅ Log structure
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
