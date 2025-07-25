@@ -63,6 +63,10 @@ const {
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
 const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
+
+const buildingToolModel = require('../models/bmdashboard/buildingTool');
+const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
+
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
@@ -179,6 +183,7 @@ const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   userPreferences,
   notification,
 );
+const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(buildingProject, buildingMaterialModel, buildingToolModel);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -205,11 +210,11 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
+const collaborationRouter = require('../routes/collaborationRouter');
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
-
-const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
@@ -299,6 +304,9 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
+  
+  app.use('/api/financials', bmFinancialRouter);
+  
   app.use('/api', registrationRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
