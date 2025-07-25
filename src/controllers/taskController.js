@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
 const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
+const TaskChangeLog = require('../models/taskChangeLog');
+const TaskChangeTracker = require('../middleware/taskChangeTracker');
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
@@ -461,7 +463,7 @@ const taskController = function (Task) {
         // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
-          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0))) + 1
+          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0, 10))) + 1
           : 1;
 
         const baseNum = parentTask.num
@@ -472,7 +474,7 @@ const taskController = function (Task) {
       } else {
         const topTasks = await Task.find({ wbsId, level: 1 });
         const nextTopNum = topTasks.length
-          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
+          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0, 10))) + 1
           : 1;
         num = `${nextTopNum}`;
       }
@@ -719,52 +721,76 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    if (
-      !(await hasPermission(req.body.requestor, 'updateTask')) &&
-      !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
-    ) {
-      res.status(403).send({ error: 'You are not authorized to update Task.' });
-      return;
-    }
+    try {
+      if (
+        !(await hasPermission(req.body.requestor, 'updateTask')) &&
+        !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
+      ) {
+        res.status(403).send({ error: 'You are not authorized to update Task.' });
+        return;
+      }
 
-    if (
-      req.body.hoursBest > 0 &&
-      req.body.hoursWorst > 0 &&
-      req.body.hoursMost > 0 &&
-      req.body.hoursLogged > 0 &&
-      req.body.estimatedHours > 0
-    ) {
-      return res
-        .status(400)
-        .send({
+      if (
+        req.body.hoursBest > 0 &&
+        req.body.hoursWorst > 0 &&
+        req.body.hoursMost > 0 &&
+        req.body.hoursLogged > 0 &&
+        req.body.estimatedHours > 0
+      ) {
+        return res.status(400).send({
           error:
             'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
         });
-    }
+      }
 
-    const { taskId } = req.params;
-    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+      const { taskId } = req.params;
+
+      // Get current task state before update for change logging
+      const oldTask = await Task.findById(taskId);
+      if (!oldTask) {
+        return res.status(404).send({ error: 'Task not found' });
+      }
+
+      // Get user information for change logging
+      const user = await UserProfile.findById(req.body.requestor.requestorId);
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      // Update the task
+      const updatedTask = await Task.findOneAndUpdate(
+        { _id: taskId },
+        { ...req.body, modifiedDatetime: Date.now() },
+        { new: true, runValidators: true },
+      );
+
+      // Log the changes
+      await TaskChangeTracker.logChanges(
+        taskId,
+        oldTask.toObject(),
+        updatedTask.toObject(),
+        user,
+        req,
+      );
+
+      // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
+      const currentwbs = await WBS.findById(oldTask.wbsId);
+      if (currentwbs) {
         currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-    });
+        await currentwbs.save();
 
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
+        const currentProject = await Project.findById(currentwbs.projectId);
+        if (currentProject) {
           currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
-    });
-    Task.findOneAndUpdate(
-      { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() },
-    )
-      .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
+          await currentProject.save();
+        }
+      }
+
+      res.status(201).send(updatedTask);
+    } catch (error) {
+      console.error('Error updating task:', error);
+      res.status(404).send(error);
+    }
   };
 
   const swap = async function (req, res) {
@@ -965,10 +991,7 @@ const taskController = function (Task) {
         });
       });
     });
-    Task.findOneAndUpdate(
-      { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() },
-    )
+    Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() })
       .then(() => res.status(201).send())
       .catch((error) => res.status(404).send(error));
   };
@@ -990,12 +1013,12 @@ const taskController = function (Task) {
       membership = await UserProfile.find({
         role: { $in: ['Administrator', 'Manager', 'Mentor'] },
         isActive: true,
-      }).maxTimeMS(5000); 
+      }).maxTimeMS(5000);
     } catch (error) {
-      console.error("Error fetching membership:", error);
-      return []; 
+      console.error('Error fetching membership:', error);
+      return [];
     }
-    for (const member of membership) {
+    membership.forEach((member) => {
       if (
         Array.isArray(member.teams) &&
         Array.isArray(user.teams) &&
@@ -1003,29 +1026,91 @@ const taskController = function (Task) {
       ) {
         recipients.push(member.email);
       }
-    }
-  
+    });
+
     return recipients;
   };
-  
+
   const sendReviewReq = async function (req, res) {
     const { myUserId, name, taskName } = req.body;
     const emailBody = getReviewReqEmailBody(name, taskName);
     try {
       const recipients = await getRecipients(myUserId);
-      console.log("Recipients list:", recipients);
-      console.log("Email subject:", `Review Request from ${name}`);
+      console.log('Recipients list:', recipients);
+      console.log('Email subject:', `Review Request from ${name}`);
       await emailSender(recipients, `Review Request from ${name}`, emailBody, null, null);
       res.status(200).send('Success');
     } catch (err) {
-      console.error("Error in sendReviewReq:", err);
+      console.error('Error in sendReviewReq:', err);
       res.status(500).send('Failed');
     }
-
-   
   };
 
- 
+  // New endpoint to get change logs for a specific task
+  const getTaskChangeLogs = async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({ taskId })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('userId', 'firstName lastName email profilePic')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({ taskId });
+
+      res.status(200).json({
+        changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching task change logs:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  // New endpoint to get change logs for a user across all tasks
+  const getUserTaskChangeLogs = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({ userId })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('taskId', 'taskName num')
+        .populate('userId', 'firstName lastName email profilePic')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({ userId });
+
+      res.status(200).json({
+        changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching user task change logs:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1044,6 +1129,8 @@ const taskController = function (Task) {
     getTasksForTeamsByUser,
     updateTaskStatus,
     sendReviewReq,
+    getTaskChangeLogs,
+    getUserTaskChangeLogs,
   };
 };
 
