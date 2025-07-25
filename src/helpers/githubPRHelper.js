@@ -12,13 +12,16 @@ function createGitHubClient({ owner, repo }) {
   async function fetchAllPages(url, isListResponse = true) {
     const result = [];
     while (url) {
+      // eslint-disable-next-line no-await-in-loop
       const res = await fetch(url, { headers });
 
       if (!res.ok) {
+        // eslint-disable-next-line no-await-in-loop
         const errorBody = await res.text();
         throw new Error(`GitHub API error ${res.status}: ${res.statusText} - ${errorBody}`);
       }
 
+      // eslint-disable-next-line no-await-in-loop
       const data = await res.json();
 
       if (isListResponse) {
@@ -57,7 +60,6 @@ function createGitHubClient({ owner, repo }) {
 
     try {
       const data = await fetchAllPages(url);
-      console.log(data.length);
       return data;
     } catch (err) {
       console.error(`Failed to fetch pull requests for repo ${repo}:`, err.message);

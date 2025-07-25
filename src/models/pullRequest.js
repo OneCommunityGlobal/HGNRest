@@ -4,7 +4,8 @@ const { Schema } = mongoose;
 
 const pullRequest = new Schema(
   {
-    prNumber: { type: Number, unique: true },
+    // PR Number is FE-PRNumber and BE-PRNumber
+    prNumber: { type: String, unique: true },
     prTitle: String,
     prRepo: String,
   },
