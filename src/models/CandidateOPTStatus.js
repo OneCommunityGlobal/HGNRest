@@ -1,4 +1,3 @@
-// alisha
 const mongoose = require('mongoose');
 
 const CandidateOPTStatusSchema = new mongoose.Schema({
@@ -7,6 +6,7 @@ const CandidateOPTStatusSchema = new mongoose.Schema({
   optStatus: {
     type: String,
     enum: ['OPT started', 'CPT not eligible', 'Citizen', 'OPT not yet started', 'N/A'],
+    required: true,
   },
   applicationDate: { type: Date, required: true },
 });

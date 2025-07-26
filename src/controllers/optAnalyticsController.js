@@ -1,38 +1,44 @@
+// controllers/optAnalyticsController.js
+
 const optAnalyticsController = function (CandidateOPTStatus) {
   const getOPTStatusBreakdown = async (req, res) => {
     try {
-      const { startDate, endDate, roles } = req.query;
+      const { startDate, endDate, role } = req.query;
       const match = {};
 
       if (startDate || endDate) {
-        match.startDate = {};
-        if (startDate) match.startDate.$gte = new Date(startDate);
-        if (endDate) match.endDate.$gte = new Date(endDate);
-      }
-      if (roles) {
-        const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
-        match.roles = { $in: rolesArray };
+        match.applicationDate = {};
+        if (startDate) match.applicationDate.$gte = new Date(startDate);
+        if (endDate) match.applicationDate.$lte = new Date(endDate);
       }
 
+      if (role) {
+        const rolesArray = Array.isArray(role) ? role : role.split(',');
+        match.role = { $in: rolesArray };
+      }
+
+      // Aggregate the data from the database
       const breakdown = await CandidateOPTStatus.aggregate([
         { $match: match },
         {
           $group: {
-            _id: '$roles',
+            _id: '$optStatus',
             count: { $sum: 1 },
           },
         },
         {
           $project: {
             _id: 0,
-            roles: '$_id',
+            optStatus: '$_id',
             count: 1,
           },
         },
       ]);
-      if (!breakdown) {
-        return res.status(404).json({ message: 'Data not found' });
+
+      if (!breakdown || breakdown.length === 0) {
+        return res.status(404).json({ message: 'No data found for the given filters' });
       }
+
       const total = breakdown.reduce((sum, item) => sum + item.count, 0);
       const data = breakdown.map((item) => ({
         ...item,
@@ -49,4 +55,5 @@ const optAnalyticsController = function (CandidateOPTStatus) {
     getOPTStatusBreakdown,
   };
 };
+
 module.exports = optAnalyticsController;
