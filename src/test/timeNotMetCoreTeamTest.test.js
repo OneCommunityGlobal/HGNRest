@@ -315,5 +315,117 @@ describe('Time Not Met Core Team Test', () => {
       // Missed hours: 10 - 7 = 3
       expect(updatedUser.missedHours).toBe(3);
     });
+
+    describe('Edge Cases', () => {
+      it('should handle zero committed hours scenario', async () => {
+        // User with 0 committed hours shouldn't get infringements
+        const user = await createUser();
+        user.weeklycommittedHours = 0;
+        user.role = 'Core Team';
+        await user.save();
+
+        await userHelper.assignBlueSquareForTimeNotMet();
+        await userHelper.applyMissedHourForCoreTeam();
+
+        const updatedUser = await UserProfile.findById(user._id);
+        expect(updatedUser.infringements.length).toBe(0);
+        expect(updatedUser.missedHours).toBe(0);
+      });
+
+      it('should handle user with no time entries at all', async () => {
+        // User with no time entries should get full missed hours
+        const user = await createUser();
+        user.weeklycommittedHours = 10;
+        user.role = 'Core Team';
+        await user.save();
+
+        await userHelper.assignBlueSquareForTimeNotMet();
+        await userHelper.applyMissedHourForCoreTeam();
+
+        const updatedUser = await UserProfile.findById(user._id);
+        expect(updatedUser.infringements.length).toBe(1);
+        expect(updatedUser.missedHours).toBe(10);
+      });
+
+      it('should not assign additional hours for non-Core Team members', async () => {
+        const user = await createUser();
+        user.weeklycommittedHours = 10;
+        user.role = 'Volunteer'; // Not Core Team
+        await user.save();
+
+        // No time entries = would normally trigger blue square
+        await userHelper.assignBlueSquareForTimeNotMet();
+        await userHelper.applyMissedHourForCoreTeam();
+
+        const updatedUser = await UserProfile.findById(user._id);
+        expect(updatedUser.infringements.length).toBe(1);
+        expect(updatedUser.missedHours).toBe(0);
+      });
+
+      it('should not assign blues sqaures and missed hours when commited hours are 0', async () => {
+        const user = await createUser();
+        user.weeklycommittedHours = 0;
+        await user.save();
+
+        // No time entries = would normally trigger blue square
+        await userHelper.assignBlueSquareForTimeNotMet();
+        await userHelper.applyMissedHourForCoreTeam();
+
+        const updatedUser = await UserProfile.findById(user._id);
+        expect(updatedUser.infringements.length).toBe(0);
+        expect(updatedUser.missedHours).toBe(0);
+      });
+
+      it('should not assign penalty hours when blue squares > 5 but time entries meet committed hours', async () => {
+        // Create user with 5 existing blue squares
+        const user = await createUser();
+        user.infringements = Array(5)
+          .fill()
+          .map((_, i) => ({
+            date: moment()
+              .subtract(i + 1, 'weeks')
+              .format('YYYY-MM-DD'),
+            description: `Infringement ${i + 1}`,
+          }));
+        user.weeklycommittedHours = 10;
+        user.role = 'Core Team';
+        user.missedHours = 0;
+        await user.save();
+
+        // Create time entries that exactly meet the committed hours (10 hours)
+        const pdt = moment.tz('America/Los_Angeles');
+        const lastWeekStart = pdt.clone().startOf('week').subtract(1, 'week');
+
+        await TimeEntry.create([
+          {
+            personId: user._id,
+            dateOfWork: lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
+            isTangible: true,
+            entryType: 'task',
+            totalSeconds: 5 * 3600, // 5 hours
+            createdDateTime: new Date(),
+            isActive: true,
+          },
+          {
+            personId: user._id,
+            dateOfWork: lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'),
+            isTangible: true,
+            entryType: 'task',
+            totalSeconds: 5 * 3600, // 5 hours
+            createdDateTime: new Date(),
+            isActive: true,
+          },
+        ]);
+
+        await userHelper.assignBlueSquareForTimeNotMet();
+        await userHelper.applyMissedHourForCoreTeam();
+
+        const updatedUser = await UserProfile.findById(user._id);
+
+        // Should not get a new blue square since hours were met
+        expect(updatedUser.infringements.length).toBe(5);
+        expect(updatedUser.missedHours).toBe(0);
+      });
+    });
   });
 });
