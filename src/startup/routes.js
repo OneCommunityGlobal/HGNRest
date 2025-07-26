@@ -120,6 +120,7 @@ const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
 );
 
 const faqRouter = require('../routes/faqRouter');
+const weeklyEmailRouter = require('../routes/weeklyEmailRouter')();
 
 const taskEditSuggestion = require('../models/taskEditSuggestion');
 const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(taskEditSuggestion);
@@ -253,6 +254,7 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', formRouter);
+  app.use('/api', weeklyEmailRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api/jobs', jobsRouter);
