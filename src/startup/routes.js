@@ -141,6 +141,8 @@ const followUpRouter = require('../routes/followUpRouter')(followUp);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
+
+const wastedMaterialRouter = require('../routes/mostWastedRouter');
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -222,6 +224,7 @@ module.exports = function (app) {
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
+  app.use('/api', wastedMaterialRouter);
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
