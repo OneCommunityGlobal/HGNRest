@@ -1,3 +1,34 @@
 #!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
 
+echo "✅ Husky pre-commit is running..."
 npx lint-staged --allow-empty
+
+PROTECTED_METHODS="checkPersonalMax|checkMinHoursMultiple|checkTotalHrsInCat|checkXHrsForXWeeks|checkNoInfringementStreak"
+TARGET_FILE="src/helpers/userHelper.js"
+DIFF=$(git diff --cached "$TARGET_FILE")
+
+# Block calls to protected methods being added or removed
+echo "$DIFF" | grep -E "^[+-].*(${PROTECTED_METHODS})\s*\(" && {
+  echo "❌ Commit blocked: Protected badge method calls cannot be added, changed, or removed."
+  exit 1
+}
+
+# Block any changes within protected method declarations
+echo "$DIFF" | awk -v methods="$PROTECTED_METHODS" '
+  BEGIN { in_protected = 0; }
+  {
+    if ($0 ~ "^@@") {
+      in_protected = 0;
+    }
+    if ($0 ~ "^[ +-].*(function|const)[ \t]+(" methods ")[ \t]*[=(]") {
+      in_protected = 1;
+    }
+    if (in_protected && $0 ~ "^[+-]") {
+      print "\n❌ Commit blocked: You cannot modify, rename, or delete any of the protected badge methods.";
+      print "🔒 Protected functions: checkPersonalMax, checkMinHoursMultiple, checkTotalHrsInCat, checkXHrsForXWeeks, checkNoInfringementStreak";
+      print "💡 Please undo changes to these functions before committing.\n";
+      exit 1;
+    }
+  }
+'

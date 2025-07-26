@@ -28,6 +28,9 @@ const route = function () {
   Dashboardrouter.route('/dashboard/leaderboard/org/data')
     .get(controller.orgData);
 
+  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId/:trophyFollowedUp')
+    .post(controller.postTrophyIcon);  
+
   Dashboardrouter.route('/dashboard/suggestionoption/:userId')
     .get(controller.getSuggestionOption);
 
@@ -39,6 +42,15 @@ const route = function () {
 
   Dashboardrouter.route('/dashboard/makesuggestion/:userId')
     .post(controller.sendMakeSuggestion);
+    
+  Dashboardrouter.route('/dashboard/questionaire/feedbackrequest')
+    .post(controller.requestFeedbackModal);
+
+    Dashboardrouter.route('/dashboard/questionaire/userNamesList')
+    .get(controller.getUserNames);
+
+    Dashboardrouter.route('/dashboard/questionaire/checkUserFoundHelpSomewhere')
+    .post(controller.checkUserFoundHelpSomewhere);
 
   return Dashboardrouter;
 };

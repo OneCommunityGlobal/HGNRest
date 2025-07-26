@@ -1,4 +1,7 @@
 /* eslint-disable prefer-destructuring */
+const mongoose = require('mongoose');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const Task = require('../../models/task');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
@@ -67,18 +70,24 @@ const bmMProjectController = function (BuildingProject) {
             // cost values can be calculated once a process for purchasing inventory is created
             totalMaterialsCost: { $sum: 1500 },
             totalEquipmentCost: { $sum: 3000 },
+          },
         },
-      },
       ])
-      .then((results) => {
-        results.forEach((proj) => {
-          proj.mostMaterialWaste = proj.materials.sort((a, b) => b.stockWasted - a.stockWasted)[0];
-          proj.leastMaterialAvailable = proj.materials.sort((a, b) => a.stockAvailable - b.stockAvailable)[0];
-          proj.mostMaterialBought = proj.materials.sort((a, b) => b.stockBought - a.stockBought)[0];
-        });
-        res.status(200).send(results);
-      })
-      .catch(error => res.status(500).send(error));
+        .then((results) => {
+          results.forEach((proj) => {
+            proj.mostMaterialWaste = proj.materials.sort(
+              (a, b) => b.stockWasted - a.stockWasted,
+            )[0];
+            proj.leastMaterialAvailable = proj.materials.sort(
+              (a, b) => a.stockAvailable - b.stockAvailable,
+            )[0];
+            proj.mostMaterialBought = proj.materials.sort(
+              (a, b) => b.stockBought - a.stockBought,
+            )[0];
+          });
+          res.status(200).send(results);
+        })
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.status(500).send(err);
     }
@@ -92,8 +101,7 @@ const bmMProjectController = function (BuildingProject) {
     // const { userid } = jwt.verify(token, JWT_SECRET);
     const { projectId } = req.params;
     try {
-      BuildingProject
-        .findById(projectId)
+      BuildingProject.findById(projectId)
         .populate([
           {
             path: 'buildingManager',
@@ -105,7 +113,7 @@ const bmMProjectController = function (BuildingProject) {
           },
         ])
         .exec()
-        .then(project => res.status(200).send(project))
+        .then((project) => res.status(200).send(project))
         // TODO: uncomment this block to execute the auth check
         // authenticate request by comparing userId param with buildingManager id field
         // Note: _id has type object and must be converted to string
@@ -117,12 +125,62 @@ const bmMProjectController = function (BuildingProject) {
         //   }
         //   return res.status(200).send(project);
         // })
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
   };
-  return { fetchAllProjects, fetchSingleProject };
+
+  const fetchProjectMembers = async (req, res) => {
+    const { projectId } = req.params;
+    try {
+      BuildingProject.findById(projectId)
+        .populate({ path: 'buildingManager', select: '_id firstName lastName email' })
+        // .populate({
+        //   path: 'teams',
+        //   select: '_id teamName'
+        // })
+        .populate({
+          path: 'members',
+          populate: [
+            {
+              path: 'user',
+              select: '_id firstName lastName email role teams',
+            },
+          ],
+        })
+        .exec()
+        .then((project) => {
+          project.members.forEach((member) => {
+            const userId = member.user._id;
+            try {
+              Task.find({
+                'resources.userID': mongoose.Types.ObjectId(userId),
+              }).then((results) => {
+                // console.log("results", results);
+                if (results[0]?.taskName) {
+                  const memberTaskName = results[0].taskName;
+                  // console.log("memberTaskName: ", memberTaskName);
+                  // Not working because of db access latency, maybe need to implement separate signaling to fetch task name
+                  // also needs to add 'task' field to insert memberTaskName rather than using teams field
+                  member.user.teams[0] = memberTaskName;
+                  // console.log("member: ", member);
+                }
+              });
+            } catch (error) {
+              console.log('error');
+            }
+          });
+          return project;
+        })
+        .then((project) => res.status(200).send(project))
+        .catch((error) => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
+
+  return { fetchAllProjects, fetchSingleProject, fetchProjectMembers };
 };
 
 module.exports = bmMProjectController;

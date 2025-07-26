@@ -56,42 +56,43 @@ const bmEquipmentController = (BuildingEquipment) => {
 
   const fetchBMEquipments = async (req, res) => {
     try {
-        BuildingEquipment
-            .find()
-            .populate([
-                {
-                    path: 'project',
-                    select: '_id name',
-                },
-                {
-                    path: 'itemType',
-                    select: '_id name',
-                },
-                {
-                    path: 'updateRecord',
-                    populate: {
-                        path: 'createdBy',
-                        select: '_id firstName lastName',
-                    },
-                },
-                {
-                    path: 'purchaseRecord',
-                    populate: {
-                        path: 'requestedBy',
-                        select: '_id firstName lastName',
-                    },
-                },
-            ])
-            .exec()
-            .then((result) => {
-                res.status(200).send(result);
-            })
-            .catch((error) => res.status(500).send(error));
-    } catch (err) {
-        res.json(err);
-    }
-};
+      const { project: projectId } = req.query;
 
+      const mongoFilter = projectId ? { project: projectId } : {};
+      BuildingEquipment.find(mongoFilter)
+        .populate([
+          {
+            path: 'project',
+            select: '_id name',
+          },
+          {
+            path: 'itemType',
+            select: '_id name',
+          },
+          {
+            path: 'updateRecord',
+            populate: {
+              path: 'createdBy',
+              select: '_id firstName lastName',
+            },
+          },
+          {
+            path: 'purchaseRecord',
+            populate: {
+              path: 'requestedBy',
+              select: '_id firstName lastName',
+            },
+          },
+        ])
+        .exec()
+        .then((result) => {
+          res.status(200).send(result);
+        })
+        .catch((error) => res.status(500).send(error));
+    } catch (err) {
+      res.json(err);
+    }
+  };
 
   const bmPurchaseEquipments = async function (req, res) {
     const {
@@ -139,10 +140,85 @@ const bmEquipmentController = (BuildingEquipment) => {
     }
   };
 
+  const updateLogRecords = async (req, res) => {
+    const { project: projectId } = req.query;
+    const updates = req.body;
+
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).send({ error: 'Request body must be a non-empty array.' });
+    }
+
+    const invalid = updates.some(item => {
+      if (!item.equipmentId || !mongoose.Types.ObjectId.isValid(item.equipmentId)) {
+        res.status(400).send({ error: 'Invalid or missing equipmentId.' });
+        return true;
+      }
+      const { createdBy, type } = item.logEntry || {};
+      if (!createdBy || !type) {
+        res.status(400).send({
+          error: 'Each logEntry must include "createdBy" and "type".',
+        });
+        return true;
+      }
+      return false;
+    });
+
+    if (invalid) return;
+
+    try {
+      await Promise.all(
+        updates.map(({ equipmentId, logEntry }) => {
+          const logDocument = {
+            date: logEntry.date || Date.now(),
+            createdBy: logEntry.createdBy,
+            responsibleUser: logEntry.responsibleUser || null,
+            type: logEntry.type,
+            quantity: logEntry.quantity || 1,
+          };
+
+          return BuildingEquipment.findByIdAndUpdate(
+            equipmentId,
+            { $push: { logRecord: logDocument } },
+            { new: false },
+          ).exec();
+        }),
+      );
+
+      const queryFilter = projectId ? { project: projectId } : {};
+
+      const equipmentList = await BuildingEquipment.find(queryFilter)
+        .populate([
+          { path: 'project', select: '_id name' },
+          { path: 'itemType', select: '_id name' },
+          {
+            path: 'logRecord',
+            populate: [
+              { path: 'createdBy', select: '_id firstName lastName' },
+              { path: 'responsibleUser', select: '_id firstName lastName' },
+            ],
+          },
+          {
+            path: 'purchaseRecord',
+            populate: {
+              path: 'requestedBy',
+              select: '_id firstName lastName',
+            },
+          },
+        ])
+        .exec();
+
+      return res.status(200).send(equipmentList);
+    } catch (error) {
+      console.error('[updateMultipleLogRecords] ', error);
+      return res.status(500).send(error);
+    }
+  };
+
   return {
     fetchSingleEquipment,
     bmPurchaseEquipments,
     fetchBMEquipments,
+    updateLogRecords,
   };
 };
 

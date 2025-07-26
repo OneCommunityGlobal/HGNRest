@@ -1,6 +1,6 @@
 // TODO: Fix whole file
 describe('ownerMessageControler tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 // const OwnerMessage = require('../models/ownerMessage');
 // const ownerMessageController = require('./ownerMessageController');
