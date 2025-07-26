@@ -4,44 +4,45 @@ const { app } = require('../../app');
 const {
   mockReq,
   createUser,
-  mongoHelper: { dbConnect, dbDisconnect, dbClearAll },
+  createRole,
+  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
 const MapLocation = require('../../models/mapLocation');
 
 const agent = request.agent(app);
 
 describe('mapLocations routes', () => {
-  let ownerUser;
+  let adminUser;
+  let adminToken;
   let volunteerUser;
   let volunteerToken;
   let reqBody = {
     ...mockReq.body,
   };
+
   beforeAll(async () => {
-    await dbConnect();
-    ownerUser = await createUser();
-    volunteerUser = await createUser();
-    ownerUser.role = 'Owner';
-    volunteerUser.role = 'Volunteer';
-    volunteerToken = jwtPayload(volunteerUser);
-    reqBody = {
-      ...reqBody,
-      firstName: volunteerUser.firstName,
-      lastName: volunteerUser.lastName,
-      jobTitle: 'Software Engineer',
-      location: {
-        userProvided: 'A',
-        coords: {
-          lat: '51',
-          lng: '110',
-        },
-        country: 'Test',
-        city: 'Usa',
-      },
-      _id: volunteerUser._id,
-      type: 'user',
-    };
-  });
+    // Increase timeout for MongoDB connection in CI
+    jest.setTimeout(60000); // 60 seconds
+
+    try {
+      console.log('Connecting to MongoDB...');
+      await dbConnect();
+      console.log('MongoDB connected successfully');
+
+      adminUser = await createUser();
+      volunteerUser = await createUser();
+      volunteerUser.role = 'Volunteer';
+      adminToken = jwtPayload(adminUser);
+      volunteerToken = jwtPayload(volunteerUser);
+      await createRole('Administrator', ['putUserLocation']);
+      await createRole('Volunteer', []);
+      console.log('Test setup completed');
+    } catch (error) {
+      console.error('Error in beforeAll:', error);
+      throw error;
+    }
+  }, 60000); // 60 second timeout for beforeAll
+
   afterAll(async () => {
     await dbClearAll();
     await dbDisconnect();

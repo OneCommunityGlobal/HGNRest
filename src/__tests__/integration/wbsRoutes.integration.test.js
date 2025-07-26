@@ -21,21 +21,33 @@ describe('wbsRouter tests', () => {
   };
 
   beforeAll(async () => {
-    await dbConnect();
-    adminUser = await createUser();
-    volunteerUser = await createUser();
-    volunteerUser.role = 'Volunteer';
-    volunteerToken = jwtPayload(volunteerUser);
-    await createRole('Administrator', ['postWbs', 'deleteWbs']);
-    await createRole('Volunteer', []);
-    const _project = new Project();
-    _project.projectName = 'Test project';
-    _project.isActive = true;
-    _project.createdDatetime = new Date('2024-05-01');
-    _project.modifiedDatetime = new Date('2024-05-01');
-    _project.category = 'Food';
-    project = await _project.save();
-  });
+    // Increase timeout for MongoDB connection in CI
+    jest.setTimeout(60000); // 60 seconds
+
+    try {
+      console.log('Connecting to MongoDB...');
+      await dbConnect();
+      console.log('MongoDB connected successfully');
+
+      adminUser = await createUser();
+      volunteerUser = await createUser();
+      volunteerUser.role = 'Volunteer';
+      volunteerToken = jwtPayload(volunteerUser);
+      await createRole('Administrator', ['postWbs', 'deleteWbs']);
+      await createRole('Volunteer', []);
+      const _project = new Project();
+      _project.projectName = 'Test project';
+      _project.isActive = true;
+      _project.createdDatetime = new Date('2024-05-01');
+      _project.modifiedDatetime = new Date('2024-05-01');
+      _project.category = 'Food';
+      project = await _project.save();
+      console.log('Test setup completed');
+    } catch (error) {
+      console.error('Error in beforeAll:', error);
+      throw error;
+    }
+  }, 60000); // 60 second timeout for beforeAll
 
   beforeEach(async () => {
     await dbClearCollections('wbs');

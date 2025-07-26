@@ -18,16 +18,30 @@ describe('rolePreset routes', () => {
   let reqBody = {
     ...mockReq.body,
   };
+
   beforeAll(async () => {
-    await dbConnect();
-    adminUser = await createUser();
-    volunteerUser = await createUser();
-    volunteerUser.role = 'Volunteer';
-    adminToken = jwtPayload(adminUser);
-    volunteerToken = jwtPayload(volunteerUser);
-    await createRole('Administrator', ['putRole']);
-    await createRole('Volunteer', []);
-  });
+    // Increase timeout for MongoDB connection in CI
+    jest.setTimeout(60000); // 60 seconds
+
+    try {
+      console.log('Connecting to MongoDB...');
+      await dbConnect();
+      console.log('MongoDB connected successfully');
+
+      adminUser = await createUser();
+      volunteerUser = await createUser();
+      volunteerUser.role = 'Volunteer';
+      adminToken = jwtPayload(adminUser);
+      volunteerToken = jwtPayload(volunteerUser);
+      await createRole('Administrator', ['putRole']);
+      await createRole('Volunteer', []);
+      console.log('Test setup completed');
+    } catch (error) {
+      console.error('Error in beforeAll:', error);
+      throw error;
+    }
+  }, 60000); // 60 second timeout for beforeAll
+
   beforeEach(async () => {
     await dbClearCollections('rolePreset');
     reqBody = {
@@ -37,10 +51,12 @@ describe('rolePreset routes', () => {
       permissions: ['test', 'write'],
     };
   });
+
   afterAll(async () => {
     await dbClearAll();
     await dbDisconnect();
   });
+
   it('should return 401 if authorization header is not present', async () => {
     await agent.post('/api/rolePreset').send(reqBody).expect(401);
     await agent.get('/api/rolePreset/randomRoleName').send(reqBody).expect(401);

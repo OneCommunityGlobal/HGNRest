@@ -4,49 +4,56 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 
 let mongoServer;
 
-module.exports.dbConnect = async () => {
-  await mongoose.disconnect();
-
-  mongoServer = await MongoMemoryServer.create({
-    instance: {
-      dbName: 'test',
-    },
-    binary: {
-      version: '4.0.27',
-    },
-  });
-
-  const uri = mongoServer.getUri();
-
-  const mongooseOpts = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 30000, // 30 seconds
-    socketTimeoutMS: 30000, // 30 seconds
-    connectTimeoutMS: 30000, // 30 seconds
-    maxPoolSize: 10,
-    retryWrites: true,
-  };
-
-  await mongoose.connect(uri, mongooseOpts, (err) => {
-    if (err) {
-      console.error('MongoDB connection error:', err);
+const waitForConnection = async (maxAttempts = 10) => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (mongoose.connection.readyState === 1) {
+      console.log(`MongoDB connection ready on attempt ${attempt}`);
+      return;
     }
-  });
+    console.log(`Waiting for MongoDB connection... (attempt ${attempt}/${maxAttempts})`);
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
+  }
+  throw new Error('MongoDB connection failed to establish after multiple attempts');
+};
 
-  // Wait for connection to be fully established
-  if (mongoose.connection.readyState !== 1) {
-    console.log('Waiting for MongoDB connection to be fully established...');
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('MongoDB connection timeout'));
-      }, 30000);
+module.exports.dbConnect = async () => {
+  try {
+    console.log('Starting MongoDB connection...');
+    await mongoose.disconnect();
 
-      mongoose.connection.once('connected', () => {
-        clearTimeout(timeout);
-        resolve();
-      });
+    console.log('Creating MongoDB Memory Server...');
+    mongoServer = await MongoMemoryServer.create({
+      instance: {
+        dbName: 'test',
+      },
+      binary: {
+        version: '4.0.27',
+      },
     });
+
+    const uri = mongoServer.getUri();
+    console.log('MongoDB URI obtained:', uri.substring(0, 50) + '...');
+
+    const mongooseOpts = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 60000, // 60 seconds
+      socketTimeoutMS: 60000, // 60 seconds
+      connectTimeoutMS: 60000, // 60 seconds
+      maxPoolSize: 10,
+      retryWrites: true,
+    };
+
+    console.log('Connecting to MongoDB...');
+    await mongoose.connect(uri, mongooseOpts);
+
+    console.log('Waiting for connection to be ready...');
+    await waitForConnection();
+
+    console.log('MongoDB connection established successfully');
+  } catch (error) {
+    console.error('MongoDB connection failed:', error);
+    throw error;
   }
 };
 
