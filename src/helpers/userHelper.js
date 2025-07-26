@@ -245,6 +245,7 @@ const userHelper = function () {
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
+        ${infringement.reasons?.length ? `<p><b>Reasons:</b> ${infringement.reasons.join(', ')}</p>` : ''}
         ${descrInfringement}
         ${finalParagraph}
         <p>Thank you,<p>
