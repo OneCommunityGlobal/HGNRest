@@ -7,18 +7,30 @@ let mongoServer;
 module.exports.dbConnect = async () => {
   await mongoose.disconnect();
 
-  mongoServer = await MongoMemoryServer.create();
+  mongoServer = await MongoMemoryServer.create({
+    instance: {
+      dbName: 'test',
+    },
+    binary: {
+      version: '4.0.27',
+    },
+  });
 
   const uri = mongoServer.getUri();
 
   const mongooseOpts = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 30000, // 30 seconds
+    socketTimeoutMS: 30000, // 30 seconds
+    connectTimeoutMS: 30000, // 30 seconds
+    maxPoolSize: 10,
+    retryWrites: true,
   };
 
   await mongoose.connect(uri, mongooseOpts, (err) => {
     if (err) {
-      console.error(err);
+      console.error('MongoDB connection error:', err);
     }
   });
 };

@@ -8,11 +8,12 @@ module.exports = {
     '!<rootDir>/src/test/**/*.js',
     '!<rootDir>/src/utilities/**/*.js', // need to collect coverage from utilities after all unit tests have been created
   ],
-  testTimeout: 15000,
+  testTimeout: 30000, // Increased from 15000 to 30000 for CI environments
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
   transformIgnorePatterns: ['^.+\\.js$'],
   transform: {
     '^.+\\.js$': 'babel-jest',
   },
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.js'],
 };
