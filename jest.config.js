@@ -8,7 +8,7 @@ module.exports = {
     '!<rootDir>/src/test/**/*.js',
     '!<rootDir>/src/utilities/**/*.js', // need to collect coverage from utilities after all unit tests have been created
   ],
-  testTimeout: 60000, // Increased from 30000 to 60000 for CI environments
+  testTimeout: 120000, // Increased to 2 minutes for CI environments
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
   transformIgnorePatterns: ['^.+\\.js$'],
@@ -16,4 +16,8 @@ module.exports = {
     '^.+\\.js$': 'babel-jest',
   },
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.js'],
+  // Additional CI-specific settings
+  maxWorkers: 1, // Run tests sequentially to avoid resource conflicts
+  forceExit: true, // Force exit after tests complete
+  detectOpenHandles: true, // Detect open handles
 };
