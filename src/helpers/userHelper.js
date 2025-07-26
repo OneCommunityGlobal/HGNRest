@@ -279,12 +279,20 @@ const userHelper = function () {
       `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`,
     );
 
+    console.log('[Weekly Summaries Email] Starting emailWeeklySummariesForAllUsers...');
+    console.log('[Weekly Summaries Email] sendEmail env var:', process.env.sendEmail);
+    console.log('[Weekly Summaries Email] REACT_APP_EMAIL env var:', process.env.REACT_APP_EMAIL);
+
     const emails = [];
     let mappedResults; // this contains the emails
 
     try {
+      console.log('[Weekly Summaries Email] Getting weekly summaries data...');
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      console.log('[Weekly Summaries Email] Found', results.length, 'users with data');
+
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
+      console.log('[Weekly Summaries Email] Getting email recipients...');
       await userProfile
         .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
         // eslint-disable-next-line no-shadow
@@ -431,17 +439,31 @@ const userHelper = function () {
         </div>
       `;
 
-      const mailList = mappedResults;
+      // Convert mappedResults to array if it's not already
+      const recipientEmails = Array.isArray(mappedResults) ? mappedResults : [mappedResults];
+
+      // Use all recipient emails as reply-to field as per requirements
+      const replyToEmails = recipientEmails.join(', ');
+
+      console.log(
+        '[Weekly Summaries Email] About to send email to:',
+        recipientEmails.length,
+        'recipients',
+      );
+      console.log('[Weekly Summaries Email] Reply-to:', replyToEmails);
 
       emailSender(
-        mailList,
+        recipientEmails,
         'Weekly Summaries for all active users...',
         emailBody,
         null,
         null,
-        emailString,
+        replyToEmails,
       );
+
+      console.log('[Weekly Summaries Email] Email sent successfully');
     } catch (err) {
+      console.error('[Weekly Summaries Email] Error:', err);
       logger.logException(err);
     }
   };
