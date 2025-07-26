@@ -123,7 +123,7 @@ const emailSender = (
   replyTo = null,
   emailBccs = null,
 ) => {
-  if (!process.env.sendEmail) return;
+  if (!process.env.sendEmail) return Promise.resolve('Email sending disabled');
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
