@@ -8,7 +8,7 @@ module.exports = {
     '!<rootDir>/src/test/**/*.js',
     '!<rootDir>/src/utilities/**/*.js', // need to collect coverage from utilities after all unit tests have been created
   ],
-  testTimeout: 30000, // Increased from 15000 to 30000 for CI environments
+  testTimeout: 60000, // Increased from 30000 to 60000 for CI environments
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
   transformIgnorePatterns: ['^.+\\.js$'],

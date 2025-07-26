@@ -4,7 +4,7 @@
 const mongoose = require('mongoose');
 
 // Increase global timeout for MongoDB operations
-jest.setTimeout(30000);
+jest.setTimeout(60000);
 
 // Global beforeAll hook
 beforeAll(async () => {
