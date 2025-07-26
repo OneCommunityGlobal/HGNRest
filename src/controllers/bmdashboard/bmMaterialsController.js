@@ -249,18 +249,17 @@ const bmMaterialsController = function (BuildingMaterial) {
       if (status === 'Approved') {
         updateObject.$inc = { stockBought: quantity };
       }
-      // const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-      //   { 'purchaseRecord._id': purchaseId },
-      //   updateObject,
-      //   { new: true },
-      // );
+      const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
+        { 'purchaseRecord._id': purchaseId },
+        updateObject,
+        { new: true },
+      );
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
       res.status(500).send(error.message);
     }
   };
 
-  
   const bmGetMaterialSummaryByProject = async function (req, res) {
     const { projectId } = req.params;
     const { materialType, increaseOverLastWeek } = req.query;
@@ -275,10 +274,9 @@ const bmMaterialsController = function (BuildingMaterial) {
       };
 
       if (materialType) {
-        if (mongoose.Types.ObjectId.isValid(materialType)){
+        if (mongoose.Types.ObjectId.isValid(materialType)) {
           query.itemType = mongoose.Types.ObjectId(materialType);
-        }
-        else {
+        } else {
           return res.status(400).json({ error: 'Invalid materialId' });
         }
       }
