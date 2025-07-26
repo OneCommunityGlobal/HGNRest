@@ -24,6 +24,7 @@ const hgnFormResponses = require('../models/hgnFormResponses');
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const projectCost = require('../models/bmdashboard/projectCost');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
@@ -211,6 +212,8 @@ const templateRouter = require('../routes/templateRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
+
 const tagRouter = require('../routes/tagRouter')(tag);
 
 module.exports = function (app) {
@@ -300,6 +303,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
+  app.use('/api/', projectCostRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
 };
