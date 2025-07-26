@@ -239,6 +239,8 @@ const userProfileController = function (UserProfile, Project) {
    */
   const getUserProfileBasicInfo = async function (req, res) {
     const inputUserId = req.query.userId;
+    console.log('before logger')
+    logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
     if (inputUserId) 
     {
       try 
