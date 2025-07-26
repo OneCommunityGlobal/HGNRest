@@ -33,6 +33,21 @@ module.exports.dbConnect = async () => {
       console.error('MongoDB connection error:', err);
     }
   });
+
+  // Wait for connection to be fully established
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Waiting for MongoDB connection to be fully established...');
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('MongoDB connection timeout'));
+      }, 30000);
+
+      mongoose.connection.once('connected', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
 };
 
 module.exports.dbDisconnect = async () => {
@@ -41,13 +56,26 @@ module.exports.dbDisconnect = async () => {
 };
 
 module.exports.dbClearAll = async () => {
+  // Wait for connection to be ready
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Waiting for MongoDB connection to be ready...');
+    await new Promise((resolve) => {
+      mongoose.connection.once('connected', resolve);
+      setTimeout(resolve, 5000); // 5 second timeout
+    });
+  }
+
   // eslint-disable-next-line prefer-destructuring
   const collections = mongoose.connection.collections;
 
   // eslint-disable-next-line no-restricted-syntax, guard-for-in
   for (const key in collections) {
     const collection = collections[key];
-    await collection.deleteMany({});
+    try {
+      await collection.deleteMany({});
+    } catch (error) {
+      console.warn(`Failed to clear collection ${key}:`, error.message);
+    }
   }
 };
 
