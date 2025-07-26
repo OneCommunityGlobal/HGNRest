@@ -4,12 +4,11 @@
 const mongoose = require('mongoose');
 
 // Increase global timeout for MongoDB operations
-jest.setTimeout(120000); // 2 minutes
+jest.setTimeout(60000); // 1 minute
 
 // Global beforeAll hook
 beforeAll(async () => {
   console.log('=== Global Jest Setup Started ===');
-  // MongoDB will use default buffering behavior
   console.log('✓ Global setup completed');
 });
 
@@ -29,21 +28,4 @@ process.on('unhandledRejection', (reason, promise) => {
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-});
-
-// Handle process termination
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, cleaning up...');
-  mongoose.disconnect().then(() => {
-    console.log('MongoDB disconnected on SIGTERM');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, cleaning up...');
-  mongoose.disconnect().then(() => {
-    console.log('MongoDB disconnected on SIGINT');
-    process.exit(0);
-  });
 });
