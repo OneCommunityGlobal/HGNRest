@@ -1,7 +1,7 @@
 // TODO: Fix this
 
 describe('wbsController tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 
 // const mongoose = require('mongoose');
