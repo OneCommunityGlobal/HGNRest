@@ -250,26 +250,17 @@ const bmMaterialsController = function (BuildingMaterial) {
         // Only apply $inc if status is Approved
         updateObject.$inc = { stockBought: quantity };
       }
-      
-      // FIX: UNCOMMENT THIS LINE AND AWAIT THE OPERATION
+
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
         { 'purchaseRecord._id': purchaseId },
         updateObject,
         { new: true }, // Important: returns the document *after* update
       );
-
-      // It's good practice to check if the update actually found and modified a document
+      
       if (!updatedMaterial) {
         // This might happen if the document was deleted or modified externally
         return res.status(500).send('Failed to apply purchase status update to material.');
       }
-
-      res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
-    } catch (error) {
-      // Ensure consistency in error response
-      res.status(500).send(error.message);
-    }
-  };
 
   return {
     bmMaterialsList,
