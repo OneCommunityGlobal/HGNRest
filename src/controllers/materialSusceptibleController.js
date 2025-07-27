@@ -1,6 +1,6 @@
 const ProjectMaterial = require('../models/projectMaterial');
 
-export const createProjectMaterial = async (req, res) => {
+const createProjectMaterial = async (req, res) => {
   const projectMaterialbody = req.body;
 
   if (
@@ -33,7 +33,7 @@ export const createProjectMaterial = async (req, res) => {
   }
 };
 
-export const getProjectMaterial = async (req, res) => {
+const getProjectMaterial = async (req, res) => {
   try {
     const projectMaterialRes = await ProjectMaterial.find({});
     res.status(200).json({ success: true, data: projectMaterialRes });
@@ -43,7 +43,7 @@ export const getProjectMaterial = async (req, res) => {
   }
 };
 
-export const getProjectMaterialByDate = async (req, res) => {
+const getProjectMaterialByDate = async (req, res) => {
   const { startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
@@ -63,7 +63,7 @@ export const getProjectMaterialByDate = async (req, res) => {
   }
 };
 
-export const getProjectMaterialByProject = async (req, res) => {
+const getProjectMaterialByProject = async (req, res) => {
   const { projectNameBody } = req.query;
 
   if (!projectNameBody) {
@@ -79,4 +79,11 @@ export const getProjectMaterialByProject = async (req, res) => {
     console.log('error in fetching data by project name:', error.message);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
+};
+
+module.exports = {
+  createProjectMaterial,
+  getProjectMaterial,
+  getProjectMaterialByDate,
+  getProjectMaterialByProject,
 };
