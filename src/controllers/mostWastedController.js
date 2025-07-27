@@ -1,7 +1,7 @@
 const WastedMaterial = require('../models/mostWastedModel');
 
 // new controller
-export const createWastedMaterial = async (req, res) => {
+const createWastedMaterial = async (req, res) => {
   const wastedtMaterialbody = req.body;
 
   if (
@@ -37,7 +37,7 @@ export const createWastedMaterial = async (req, res) => {
   }
 };
 
-export const getWastedMaterial = async (req, res) => {
+const getWastedMaterial = async (req, res) => {
   try {
     const wastedMaterialRes = await WastedMaterial.find({});
     res.status(200).json({ success: true, data: wastedMaterialRes });
@@ -47,7 +47,7 @@ export const getWastedMaterial = async (req, res) => {
   }
 };
 
-export const getWastedMaterialByDate = async (req, res) => {
+const getWastedMaterialByDate = async (req, res) => {
   const { startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
@@ -67,7 +67,7 @@ export const getWastedMaterialByDate = async (req, res) => {
   }
 };
 
-export const getWastedMaterialByProject = async (req, res) => {
+const getWastedMaterialByProject = async (req, res) => {
   const { projectIdBody } = req.query;
 
   if (!projectIdBody) {
@@ -83,4 +83,11 @@ export const getWastedMaterialByProject = async (req, res) => {
     console.log('error in fetching data by project name:', error.message);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
+};
+
+module.exports = {
+  createWastedMaterial,
+  getWastedMaterial,
+  getWastedMaterialByDate,
+  getWastedMaterialByProject,
 };
