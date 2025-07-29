@@ -148,7 +148,7 @@ async function inviteUserToFolder(email, folderPath) {
 // Function to delete a folder
 async function deleteFolder(folderPath) {
   try {
-    const response = await dbx.filesDeleteV2({ path: `/${folderPath}` });
+    const response = await dbx.filesDeleteV2({ path: `/${HGN_FOLDER}/${folderPath}` });
     return response;
   } catch (error) {
     throw new Error('Dropbox: Error deleting folder');
