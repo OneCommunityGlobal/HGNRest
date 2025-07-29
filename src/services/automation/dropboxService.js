@@ -120,7 +120,45 @@ async function createFolderAndInvite(email, projectName) {
   }
 }
 
+// Function to invite a user to a Dropbox folder
+async function inviteUserToFolder(email, folderPath) {
+  try {
+    let sharedFolderId;
+    try {
+      const shareResult = await dbx.sharingShareFolder({ path: folderPath });
+      sharedFolderId = shareResult.result.shared_folder_id;
+    } catch (shareError) {
+      if (shareError.error?.error?.['.tag'] === 'already_shared') {
+        sharedFolderId = shareError.error.error.already_shared.shared_folder_id;
+      } else {
+        throw shareError;
+      }
+    }
+    const inviteResponse = await dbx.sharingAddFolderMember({
+      shared_folder_id: sharedFolderId,
+      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
+      quiet: false,
+    });
+    return { inviteResponse, folderPath };
+  } catch (error) {
+    throw new Error('Dropbox: Error inviting user');
+  }
+}
+
+// Function to delete a folder
+async function deleteFolder(folderPath) {
+  try {
+    const response = await dbx.filesDeleteV2({ path: `/${folderPath}` });
+    return response;
+  } catch (error) {
+    throw new Error('Dropbox: Error deleting folder');
+  }
+}
+
 module.exports = {
   createFolderWithSubfolder,
   createFolderAndInvite,
-};
+  inviteUserToFolder,
+  deleteFolder
+}
+
