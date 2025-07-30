@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const Booking = require('../models/lbdashboard/bookings');
-const Listing = require('../models/lbdashboard/listings');
+const Booking = require('../../models/lbdashboard/bookings');
+const Listing = require('../../models/lbdashboard/listings');
 const paypal = require('@paypal/checkout-server-sdk');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
