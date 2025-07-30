@@ -2,7 +2,7 @@ const { ObjectId } = require('mongoose').Types;
 
 const bmIssueController = function (buildingIssue) {
     //fetch open issues with optional date range and tag filtering and project ID
-    const bmGetIssue = async (req, res) => {
+    const bmGetOpenIssue = async (req, res) => {
         try {
             const { projectIds, startDate, endDate, tag } = req.query;
 
@@ -143,7 +143,7 @@ const bmIssueController = function (buildingIssue) {
             .catch((err) => res.status(500).json({ error: err.message }));
     };
 
-    return { bmGetIssue, bmPostIssue, bmUpdateIssue, bmDeleteIssue, getUniqueProjectIds };
+    return { bmGetOpenIssue, bmPostIssue, bmUpdateIssue, bmDeleteIssue, getUniqueProjectIds };
 };
 
 module.exports = bmIssueController;
