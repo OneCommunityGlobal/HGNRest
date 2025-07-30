@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const Booking = require('../../models/lbdashboard/bookings');
-const Listing = require('../../models/lbdashboard/listings');
 const paypal = require('@paypal/checkout-server-sdk');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
@@ -9,7 +8,7 @@ require('dotenv').config();
 const environment = new paypal.core.SandboxEnvironment(process.env.PAYPAL_CLIENT_ID, process.env.PAYPAL_CLIENT_SECRET);
 const client = new paypal.core.PayPalHttpClient(environment);
 
-const bookingsController = (Booking) => {
+const bookingsController = (Booking, Listing) => {
 
   const calculatePrice = (startDate, endDate, pricePerDay) => {
     const duration = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24);
