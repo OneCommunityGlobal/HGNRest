@@ -316,7 +316,7 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
-  app.user('api/ln', biddingRouter);
+  app.use('api/lb', biddingRouter);
   app.use('/api', registrationRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
