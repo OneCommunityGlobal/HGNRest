@@ -31,7 +31,35 @@ async function getUserFullNameAndEmailById(userId) {
   }
 }
 
+/**
+ * Updates the bioPosted field of a user profile.
+ *
+ * @param {string} userId - The ID of the user to update.
+ * @param {string} bioPosted - The new bio status.
+ * @returns {Promise<Object>} - The updated user profile.
+ * @throws {Error} - Throws an error if update fails or user not found.
+ */
+const updateBioPostedStatus = async (userId, bioPosted) => {
+  if (!['posted', 'requested', 'default'].includes(bioPosted)) {
+    throw new Error('Invalid bioPosted value.');
+  }
+
+  const updatedUser = await UserProfileModel.findByIdAndUpdate(
+    userId,
+    { bioPosted },
+    { new: true, runValidators: true }
+  );
+
+  if (!updatedUser) {
+    throw new Error('User not found.');
+  }
+
+  return updatedUser;
+};
+
+
 module.exports = {
   getUserIdAndEmailByEmails,
   getUserFullNameAndEmailById,
+  updateBioPostedStatus
 };

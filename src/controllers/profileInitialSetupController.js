@@ -110,10 +110,9 @@ function informManagerMessage(user) {
 
 const sendEmailWithAcknowledgment = (email, subject, message) =>
   new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, (error, result) => {
-      if (result) resolve(result);
-      if (error) reject(result);
-    });
+    emailSender(email, subject, message, null, null, null, null)
+      .then(resolve)
+      .catch(reject);
   });
 
 const profileInitialSetupController = function (
@@ -156,7 +155,8 @@ const profileInitialSetupController = function (
         return res.status(400).send('email already in use');
       }
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
+      await ProfileInitialSetupToken.findOneAndDelete({ email })
+        .session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -168,17 +168,33 @@ const profileInitialSetupController = function (
         createdDate: Date.now(),
       });
 
-      const savedToken = await newToken.save({ session });
+      const savedToken = await newToken.save(
+        { session }
+      );
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
-      const acknowledgment = await sendEmailWithAcknowledgment(
-        email,
-        'NEEDED: Complete your One Community profile setup',
-        sendLinkMessage(link),
-      );
+      // Send response immediately without waiting for email acknowledgment
+      res.status(200).send({ message: 'Token created successfully, email is being sent.' });
 
-      return res.status(200).send(acknowledgment);
+      // Asynchronously send the email acknowledgment
+      setImmediate(async () => {
+        try {
+          await sendEmailWithAcknowledgment(
+            email,
+            'NEEDED: Complete your One Community profile setup',
+            sendLinkMessage(link),
+          );
+        } catch (emailError) {
+          // Log email sending failure
+          LOGGER.logException(
+            emailError,
+            'sendEmailWithAcknowledgment',
+            JSON.stringify({ email, link }),
+            null,
+          );
+        }
+      });
     } catch (error) {
       await session.abortTransaction();
       LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
@@ -525,24 +541,43 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = ['getUserProfiles','postUserProfile','putUserProfile','changeUserStatus']
-    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') || (role === 'Mentor') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
-      try{
-      ProfileInitialSetupToken
-      .find({ isSetupCompleted: false })
-      .sort({ createdDate: -1 })
-      .exec((err, result) => {
-        // Handle the result
-        if (err) {
-          LOGGER.logException(err);
-          return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-        }
-          return res.status(200).send(result);
-      });
-    } catch (error) {
-      LOGGER.logException(error);
-      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-    }
+    let user_permissions = [
+      'searchUserProfile',
+      'getUserProfiles',
+      'postUserProfile',
+      'putUserProfile',
+      'changeUserStatus',
+    ];
+    if (
+      role === 'Administrator' ||
+      role === 'Owner' ||
+      role === 'Manager' ||
+      role === 'Mentor' ||
+      user_permissions.some((e) => permissions.frontPermissions.includes(e))
+    ) {
+      try {
+        ProfileInitialSetupToken.find({ isSetupCompleted: false })
+          .sort({ createdDate: -1 })
+          .exec((err, result) => {
+            // Handle the result
+            if (err) {
+              LOGGER.logException(err);
+              return res
+                .status(500)
+                .send(
+                  'Internal Error: Please retry. If the problem persists, please contact the administrator',
+                );
+            }
+            return res.status(200).send(result);
+          });
+      } catch (error) {
+        LOGGER.logException(error);
+        return res
+          .status(500)
+          .send(
+            'Internal Error: Please retry. If the problem persists, please contact the administrator',
+          );
+      }
     } else {
       return res.status(403).send('You are not authorized to get setup history.');
     }

@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../startup/logger');
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
@@ -8,6 +9,9 @@ const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
+const cacheModule = require('../utilities/nodeCache');
+
+const cacheUtil = cacheModule();
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -114,10 +118,9 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       userProfile.email,
       'Logged more hours than estimated for a task',
       text,
+      null,
+      null,
       'onecommunityglobal@gmail.com',
-      null,
-      userProfile.email,
-      null,
     );
   } catch (error) {
     throw new Error(
@@ -419,7 +422,7 @@ const addEditHistory = async (
         <p>One Community</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        <hr style="border-top: 1px dashed #000;"/>      
+        <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
@@ -470,6 +473,15 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
+
+  const invalidateWeeklySummariesCache = (weekIndex) => {
+    const cacheKey = `weeklySummaries_${weekIndex}`;
+    cacheUtil.removeCache(cacheKey);
+    
+    // Also invalidate the "all weeks" cache
+    cacheUtil.removeCache('weeklySummaries_all');
+  };
+  
   /**
    * Helper func: Check if this is the first time entry for the given user id
    *
@@ -567,7 +579,7 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (timeEntry.taskId) {
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               timeEntry.taskId,
               0,
               timeEntry.taskId,
@@ -593,9 +605,24 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
+
+        // Add cache invalidation for weekly summaries here
+        const dateOfWork = new Date(timeEntry.dateOfWork);
+        const today = new Date();
+        const diffTime = today - dateOfWork;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Calculate which week this entry belongs to (0 = this week, 1 = last week, etc.)
+        const weekIndex = Math.floor(diffDays / 7);
+        
+        // Only invalidate cache for entries in the last 4 weeks
+        if (weekIndex >= 0 && weekIndex <= 3) {
+          // Call the invalidation function
+          invalidateWeeklySummariesCache(weekIndex);
+        }
       }
 
       await session.commitTransaction();
@@ -757,7 +784,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // change from tangible to intangible
           if (initialIsTangible) {
             // subtract initial logged hours from old task (if not null)
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               initialTaskId,
               initialTotalSeconds,
               null,
@@ -783,7 +810,7 @@ const timeEntrycontroller = function (TimeEntry) {
             );
           } else {
             // from intangible to tangible
-            updateTaskLoggedHours(
+            await updateTaskLoggedHours(
               null,
               null,
               newTaskId,
@@ -812,7 +839,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // when timeentry remains tangible, this is usually when timeentry is edited by user in the same day or by owner-like roles
 
           // it doesn't matter if task is changed or not, just update taskLoggedHours and userprofile totalTangibleHours with new and old task ids
-          updateTaskLoggedHours(
+          await updateTaskLoggedHours(
             initialTaskId,
             initialTotalSeconds,
             newTaskId,
@@ -866,7 +893,7 @@ const timeEntrycontroller = function (TimeEntry) {
       }
       await timeEntry.save({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -930,7 +957,7 @@ const timeEntrycontroller = function (TimeEntry) {
           await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
@@ -939,7 +966,7 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await timeEntry.remove({ session });
       if (userprofile) {
-        await userprofile.save({ session });
+        await userprofile.save({ session, validateModifiedOnly: true });
 
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
@@ -1014,6 +1041,54 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  
+  /**
+   * Get total hours for a specified period for multiple users at once
+   */
+  const getUsersTotalHoursForSpecifiedPeriod = async function (req, res) {
+    const { userIds, fromDate, toDate } = req.body;
+
+    if (
+      !fromDate ||
+      !toDate ||
+      !userIds ||
+      !moment(fromDate).isValid() ||
+      !moment(toDate).isValid()
+    ) {
+      return res.status(400).send({ error: 'Invalid request' });
+    }
+
+    const startDate = moment(fromDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const endDate = moment(toDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+    try {
+      // g total hours
+      const userHoursSummary = await TimeEntry.aggregate([
+        {
+          $match: {
+            entryType: { $in: ['default', 'person', null] },
+            personId: { $in:  userIds.map(id => mongoose.Types.ObjectId(id)) },
+            dateOfWork: { $gte: startDate, $lte: endDate }
+          }
+        },
+        {
+          $group: {
+            _id: '$personId',
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } }
+          }
+        }
+      ]);
+      const result = userHoursSummary.map(entry => ({
+        userId: entry._id,
+        totalHours: Math.round(entry.totalHours * 10) / 10 //round
+      }));
+      res.status(200).send(result);
+    } catch (error) {
+      logger.logException(error); // Log exception using consistent logger
+      res.status(400).send({ error: 'Failed to calculate total hours', details: error.message });
+    }
+  };
+
   /**
    * Get time entries for a specified period for a list of users
    */
@@ -1062,38 +1137,113 @@ const timeEntrycontroller = function (TimeEntry) {
       });
   };
 
-  const getTimeEntriesForReports = function (req, res) {
+  const getTimeEntriesForReports = async function (req, res) {
+    const { users, fromDate, toDate } = req.body;
+    const cacheKey = `timeEntry_${fromDate}_${toDate}`;
+    const timeentryCache = cacheClosure();
+    const cacheData = timeentryCache.hasCache(cacheKey);
+    if (cacheData) {
+      const data = timeentryCache.getCache(cacheKey);
+      return res.status(200).send(data);
+    }
+    try {
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        '-createdDateTime', // Exclude unnecessary fields
+      )
+        .lean() // Returns plain JavaScript objects, not Mongoose documents
+        .populate({
+          path: 'projectId',
+          select: '_id projectName', // Only return necessary fields from the project
+        })
+        .exec(); // Executes the query
+      const data = results.map((element) => {
+        const record = {
+          _id: element._id,
+          isTangible: element.isTangible,
+          personId: element.personId,
+          dateOfWork: element.dateOfWork,
+          hours: formatSeconds(element.totalSeconds)[0],
+          minutes: formatSeconds(element.totalSeconds)[1],
+          projectId: element.projectId?._id || '',
+          projectName: element.projectId?.projectName || '',
+        };
+        return record;
+      });
+      timeentryCache.setCache(cacheKey, data);
+      return res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send(error);
+    }
+  };
+
+  const getTimeEntriesForProjectReports = function (req, res) {
     const { users, fromDate, toDate } = req.body;
 
+    // Fetch only necessary fields and avoid bringing the entire document
     TimeEntry.find(
       {
         personId: { $in: users },
         dateOfWork: { $gte: fromDate, $lte: toDate },
       },
-      ' -createdDateTime',
+      'totalSeconds isTangible dateOfWork projectId',
     )
-      .populate('projectId')
-
+      .populate('projectId', 'projectName _id')
+      .lean() // lean() for better performance as we don't need Mongoose document methods
       .then((results) => {
-        const data = [];
+        const data = results.map((element) => {
+          const record = {
+            isTangible: element.isTangible,
+            dateOfWork: element.dateOfWork,
+            projectId: element.projectId ? element.projectId._id : '',
+            projectName: element.projectId ? element.projectId.projectName : '',
+          };
 
-        results.forEach((element) => {
-          const record = {};
-          record._id = element._id;
-          record.isTangible = element.isTangible;
-          record.personId = element.personId._id;
-          record.dateOfWork = element.dateOfWork;
+          // Convert totalSeconds to hours and minutes
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
-          record.projectId = element.projectId ? element.projectId._id : '';
-          record.projectName = element.projectId ? element.projectId.projectName : '';
-          data.push(record);
+
+          return record;
         });
 
         res.status(200).send(data);
       })
       .catch((error) => {
-        res.status(400).send(error);
+        res.status(400).send({ message: 'Error fetching time entries for project reports', error });
       });
+  };
+
+  const getTimeEntriesForPeopleReports = async function (req, res) {
+    try {
+      const { users, fromDate, toDate } = req.body;
+
+      const results = await TimeEntry.find(
+        {
+          personId: { $in: users },
+          dateOfWork: { $gte: fromDate, $lte: toDate },
+        },
+        'personId totalSeconds isTangible dateOfWork',
+      ).lean(); // Use lean() for better performance
+
+      const data = results
+        .map((entry) => {
+          const [hours, minutes] = formatSeconds(entry.totalSeconds);
+          return {
+            personId: entry.personId,
+            hours,
+            minutes,
+            isTangible: entry.isTangible,
+            dateOfWork: entry.dateOfWork,
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).send(data);
+    } catch (error) {
+      res.status(400).send({ message: 'Error fetching time entries for people reports', error });
+    }
   };
 
   /**
@@ -1208,7 +1358,12 @@ const timeEntrycontroller = function (TimeEntry) {
    */
   const getLostTimeEntriesForTeamList = function (req, res) {
     const { teams, fromDate, toDate } = req.body;
-
+    const lostteamentryCache = cacheClosure();
+    const cacheKey = `LostTeamEntry_${fromDate}_${toDate}`;
+    const cacheData = lostteamentryCache.getCache(cacheKey);
+    if (cacheData) {
+      return res.status(200).send(cacheData);
+    }
     TimeEntry.find(
       {
         entryType: 'team',
@@ -1218,6 +1373,7 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       ' -createdDateTime',
     )
+      .lean()
       .populate('teamId')
       .sort({ lastModifiedDateTime: -1 })
       .then((results) => {
@@ -1234,7 +1390,8 @@ const timeEntrycontroller = function (TimeEntry) {
           [record.hours, record.minutes] = formatSeconds(element.totalSeconds);
           data.push(record);
         });
-        res.status(200).send(data);
+        lostteamentryCache.setCache(cacheKey, data);
+        return res.status(200).send(data);
       })
       .catch((error) => {
         res.status(400).send(error);
@@ -1367,21 +1524,16 @@ const timeEntrycontroller = function (TimeEntry) {
     return newTotalIntangibleHrs;
   };
 
+  const recalculationTaskQueue = [];
+
   /**
-   * recalculate the hoursByCatefory for all users and update the field
+   * recalculate the hoursByCategory for all users and update the field
    */
-  const recalculateHoursByCategoryAllUsers = async function (req, res) {
+  const recalculateHoursByCategoryAllUsers = async function (taskId) {
     const session = await mongoose.startSession();
     session.startTransaction();
-    let keepAliveInterval;
 
     try {
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Transfer-Encoding', 'chunked');
-      keepAliveInterval = setInterval(() => {
-        res.write('Processing... keep connection alive\n');
-      }, 150 * 1000); // interval of 150 seconds
-
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1392,19 +1544,57 @@ const timeEntrycontroller = function (TimeEntry) {
       await Promise.all(recalculationPromises);
 
       await session.commitTransaction();
-      clearInterval(keepAliveInterval);
-      res.write('finished the recalculation for hoursByCategory for all users\n');
-      return res.end();
+
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Completed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
     } catch (err) {
       await session.abortTransaction();
-      if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
       }
+
       logger.logException(err);
-      res.write(`error: ${err.toString()}\n`);
-      return res.end();
     } finally {
       session.endSession();
+    }
+  };
+
+  const startRecalculation = async function (req, res) {
+    const taskId = uuidv4();
+    recalculationTaskQueue.push({
+      taskId,
+      status: 'In progress',
+      startTime: new Date().toISOString(),
+      completionTime: null,
+    });
+    if (recalculationTaskQueue.length > 10) {
+      recalculationTaskQueue.shift();
+    }
+
+    res.status(200).send({
+      message: 'The recalculation task started in the background',
+      taskId,
+    });
+
+    setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0);
+  };
+
+  const checkRecalculationStatus = async function (req, res) {
+    const { taskId } = req.params;
+    const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+    if (recalculationTask) {
+      res.status(200).send({
+        status: recalculationTask.status,
+        startTime: recalculationTask.startTime,
+        completionTime: recalculationTask.completionTime,
+      });
+    } else {
+      res.status(404).send({ message: 'Task not found' });
     }
   };
 
@@ -1445,6 +1635,7 @@ const timeEntrycontroller = function (TimeEntry) {
     editTimeEntry,
     deleteTimeEntry,
     getTimeEntriesForSpecifiedPeriod,
+    getUsersTotalHoursForSpecifiedPeriod,
     getTimeEntriesForUsersList,
     getTimeEntriesForSpecifiedProject,
     getLostTimeEntriesForUserList,
@@ -1452,9 +1643,12 @@ const timeEntrycontroller = function (TimeEntry) {
     getLostTimeEntriesForTeamList,
     backupHoursByCategoryAllUsers,
     backupIntangibleHrsAllUsers,
-    recalculateHoursByCategoryAllUsers,
     recalculateIntangibleHrsAllUsers,
     getTimeEntriesForReports,
+    getTimeEntriesForProjectReports,
+    getTimeEntriesForPeopleReports,
+    startRecalculation,
+    checkRecalculationStatus,
   };
 };
 

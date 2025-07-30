@@ -5,6 +5,13 @@ const userService = require('../services/userService');
 const Logger = require('../startup/logger');
 const { PROTECTED_EMAIL_ACCOUNT, ALLOWED_EMAIL_ACCOUNT } = require('./constants');
 
+const hasDefaultPermissionRemoved = async (userId, action) =>
+  UserProfile.findById(userId)
+    .select('permissions')
+    .exec()
+    .then(({ permissions }) => permissions.removedDefaultPermissions.includes(action))
+    .catch(false);
+
 const hasRolePermission = async (role, action) =>
   Role.findOne({ roleName: role })
     .exec()
@@ -18,9 +25,13 @@ const hasIndividualPermission = async (userId, action) =>
     .then(({ permissions }) => permissions.frontPermissions.includes(action))
     .catch(false);
 
-const hasPermission = async (requestor, action) =>
-  (await hasRolePermission(requestor.role, action)) ||
-  hasIndividualPermission(requestor.requestorId, action);
+const hasPermission = async (requestor, action) => {
+  const defaultRemoved = requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
+  const roleHasPermission = await hasRolePermission(requestor.role, action);
+  const individualHasPermission = requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
+  
+  return (!defaultRemoved && roleHasPermission) || individualHasPermission;
+}
 
 function getDistinct(arr1, arr2) {
   // Merge arrays and reduce to distinct elements
@@ -64,10 +75,10 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
       // Find out a list of protected email account ids and allowed email id
       allowedEmailAccountIds = query
         .filter(({ email }) => ALLOWED_EMAIL_ACCOUNT.includes(email))
-        .map(({ _id }) => _id);
+        .map(({ _id }) => _id.toString());
       protectedEmailAccountIds = query
         .filter(({ email }) => PROTECTED_EMAIL_ACCOUNT.includes(email))
-        .map(({ _id }) => _id);
+        .map(({ _id }) => _id.toString());
 
       serverCache.setCache('protectedEmailAccountIds', protectedEmailAccountIds);
       serverCache.setCache('allowedEmailAccountIds', allowedEmailAccountIds);
