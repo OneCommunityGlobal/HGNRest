@@ -180,8 +180,8 @@ const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
-const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(userPreferences);
-
+const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(userPreferences)(
+  userPreferences,
   notification,
 );
 
