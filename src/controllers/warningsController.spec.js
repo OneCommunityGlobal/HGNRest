@@ -1,3 +1,5 @@
+
+
 const warningsController = require('./warningsController');
 
 const UserProfile = require('../models/userProfile');
@@ -19,6 +21,7 @@ const assertResMock = (statusCode, message, response) => {
   expect(mockRes.send).toHaveBeenCalledWith(message);
   expect(response).toBeUndefined();
 };
+
 
 describe('warnings controller module', () => {
   describe('get warnings to from user profile method', () => {
@@ -106,63 +109,53 @@ describe('warnings controller module', () => {
     test('Ensure postWarningsToUserProfile Returns error 400 if findById errors', async () => {
       const { postWarningsToUserProfile } = makeSut();
       const errorMessage = 'error occured when finding the users warnings';
-      jest
-        .spyOn(UserProfile, 'findById')
-        .mockImplementationOnce(() => Promise.reject(new Error(errorMessage)));
+
+      jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => {
+        throw new Error(errorMessage);
+      });
+
       const res = await postWarningsToUserProfile(mockReq, mockRes);
       assertResMock(400, { message: errorMessage }, res);
     });
 
     test('Ensure postWarningsToUserProfile Returns error 400 if saving the warnings errors', async () => {
-      const errorMessage = 'error occured when saving the users warnings';
-
       const { postWarningsToUserProfile } = makeSut();
+      const errorMessage = 'error occured';
+    
       const profile = {
         warnings: [],
-        save: () => {},
+        save: jest.fn().mockImplementationOnce(() => {
+          throw new Error(errorMessage);
+        }),
       };
-      mockReq.body.iconId = 'iconId';
-      mockReq.body.userId = '5a7e21f00317bc1538def4b7';
-      mockReq.body.color = 'red';
-      mockReq.body.date = new Date().toISOString();
-      mockReq.body.description = 'Intangible Time Log w/o Reason';
-
+    
       jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(profile));
-      jest
-        .spyOn(profile, 'save')
-        .mockImplementationOnce(() => Promise.reject(new Error(errorMessage)));
-
+    
       const res = await postWarningsToUserProfile(mockReq, mockRes);
+    
       assertResMock(400, { message: errorMessage }, res);
     });
     test('Ensure postWarningsToUserProfile Returns a 201 if the warnings are saved successfully', async () => {
       const { postWarningsToUserProfile } = makeSut();
       const successMessage = 'success';
 
-      mockReq.body.iconId = '39452633-40ff-4fba-a648-d24b2a48af03';
-      mockReq.body.userId = '5a7e21f00317bc1538def4b7';
-      mockReq.body.color = 'red';
-      mockReq.body.date = new Date().toISOString();
-      mockReq.body.description = 'Intangible Time Log w/o Reason';
-
-      const newWarning = {
-        date: new Date().toISOString(),
-        description: 'Intangible Time Log w/o Reason',
-        color: 'red',
-        userId: '5a7e21f00317bc1538def4b7',
+      mockReq.body = {
         iconId: '39452633-40ff-4fba-a648-d24b2a48af03',
+        userId: '5a7e21f00317bc1538def4b7',
+        color: 'red',
+        date: '2025-05-05T06:28:24.865Z',
+        description: 'Intangible Time Log w/o Reason',
       };
 
       const profile = {
         warnings: [],
-        save: () => {},
-        filterWarnings: () => {},
+        save: jest.fn().mockResolvedValue(true),
       };
 
       jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(profile));
-      jest.spyOn(profile, 'save').mockImplementationOnce(() => Promise.resolve(true));
 
       const res = await postWarningsToUserProfile(mockReq, mockRes);
+
       assertResMock(
         201,
         {
@@ -172,7 +165,18 @@ describe('warnings controller module', () => {
             { title: 'Log Time to Tasks', warnings: [] },
             { title: 'Log Time as You Go', warnings: [] },
             { title: 'Log Time to Action Items', warnings: [] },
-            { title: 'Intangible Time Log w/o Reason', warnings: [newWarning] },
+            {
+              title: 'Intangible Time Log w/o Reason',
+              warnings: [
+                {
+                  date: '2025-05-05T06:28:24.865Z',
+                  description: 'Intangible Time Log w/o Reason',
+                  color: 'red',
+                  iconId: '39452633-40ff-4fba-a648-d24b2a48af03',
+                  userId: '5a7e21f00317bc1538def4b7',
+                },
+              ],
+            },
           ],
         },
         res,

@@ -169,10 +169,10 @@ const userProfileController = function (UserProfile, Project) {
     if (!(await checkPermission(req, 'getUserProfiles'))) {
       return forbidden(res, 'You are not authorized to view all users');
     }
-  
+
     const cacheKey = 'allusers';
     try {
-    // get user profiles using aggregate pipeline
+      // get user profiles using aggregate pipeline
       const users = await UserProfile.aggregate([
         {
           $project: {
@@ -211,9 +211,9 @@ const userProfileController = function (UserProfile, Project) {
             },
           },
         },
-        { $sort: { startDate: -1, createdDate: -1 } }
+        { $sort: { startDate: -1, createdDate: -1 } },
       ]);
-  
+
       if (!users || users.length === 0) {
         const cachedData = cache.getCache(cacheKey);
         if (cachedData) {
@@ -221,14 +221,15 @@ const userProfileController = function (UserProfile, Project) {
         }
         return res.status(500).send({ error: 'User result was invalid' });
       }
-  
+
       cache.setCache(cacheKey, JSON.stringify(users));
       return res.status(200).send(users);
     } catch (error) {
-      return res.status(500).send({ error: 'Failed to fetch user profiles', details: error.message });
+      return res
+        .status(500)
+        .send({ error: 'Failed to fetch user profiles', details: error.message });
     }
   };
-  
 
   /**
    * Controller function to retrieve basic user profile information.
@@ -237,29 +238,23 @@ const userProfileController = function (UserProfile, Project) {
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
    */
   const getUserProfileBasicInfo = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
-    }
+    try {
+      if (!(await checkPermission(req, 'getUserProfiles'))) {
+        return res.status(403).send({ error: 'Unauthorized' });
+      }
 
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
-      .sort({
+      const userProfiles = await UserProfile.find(
+        {},
+        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+      ).sort({
         lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
-        }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
-      })
-      .catch((error) => res.status(404).send(error));
+      });
+
+      res.status(200).json(userProfiles);
+    } catch (error) {
+      console.error('Error fetching user profiles:', error);
+      res.status(500).send({ error: 'Failed to fetch user profiles' });
+    }
   };
 
   const getProjectMembers = async function (req, res) {
@@ -292,18 +287,19 @@ const userProfileController = function (UserProfile, Project) {
     const { name } = req.query;
 
     const result = await UserProfile.find({
-      "$expr": {
-        "$regexMatch": {
-          "input": { "$concat": ["$firstName", " ", "$lastName"] },
-          "regex": name,  
-          "options": "i"
-        }
-      }
-    }).limit(10)
-      .select({ "firstName": 1, "lastName": 1, "_id": 1 })
-      .sort({'firstName': 1, 'lastName': 1});
+      $expr: {
+        $regexMatch: {
+          input: { $concat: ['$firstName', ' ', '$lastName'] },
+          regex: name,
+          options: 'i',
+        },
+      },
+    })
+      .limit(10)
+      .select({ firstName: 1, lastName: 1, _id: 1 })
+      .sort({ firstName: 1, lastName: 1 });
     res.json(result);
-  }
+  };
 
   const postUserProfile = async function (req, res) {
     if (!(await checkPermission(req, 'postUserProfile'))) {
@@ -540,7 +536,9 @@ const userProfileController = function (UserProfile, Project) {
 
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) || req.body.requestor.requestorId === userid));
+      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        req.body.requestor.requestorId === userid)
+    );
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
 
@@ -1351,7 +1349,10 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode')
+    UserProfile.findById(
+      userId,
+      'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode',
+    )
       .then(async (user) => {
         const wasInactive = !user.isActive;
         user.set({
@@ -1363,14 +1364,14 @@ const userProfileController = function (UserProfile, Project) {
         });
 
         // if teamcode is invalid, flag warning
-        if (!activeStatus){
-            user.teamCodeWarning = false;
+        if (!activeStatus) {
+          user.teamCodeWarning = false;
         } else if (wasInactive) {
-            const mismatch = await userHelper.checkTeamCodeMismatch(user);
-            if (mismatch) {
-              user.teamCodeWarning = true;
-            }
+          const mismatch = await userHelper.checkTeamCodeMismatch(user);
+          if (mismatch) {
+            user.teamCodeWarning = true;
           }
+        }
 
         user
           .save()
@@ -1686,7 +1687,7 @@ const userProfileController = function (UserProfile, Project) {
     }
 
     cache.removeCache(`user-${userId}`);
-    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
+    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err) => {
       if (err) {
         return res.status(500).send(`Could not Find user with id ${userId}`);
       }
@@ -1941,7 +1942,8 @@ const userProfileController = function (UserProfile, Project) {
 
   const removeProfileImage = async (req, res) => {
     try {
-      var user_id = req.body.user_id;
+      /* eslint-disable camelcase */
+      const { user_id } = req.body;
       await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: '' } });
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
@@ -1952,7 +1954,7 @@ const userProfileController = function (UserProfile, Project) {
   };
   const updateProfileImageFromWebsite = async (req, res) => {
     try {
-      var user = req.body;
+      const user = req.body;
       await UserProfile.updateOne(
         { _id: user.user_id },
         {
@@ -2009,7 +2011,7 @@ const userProfileController = function (UserProfile, Project) {
       const data = req.body;
       data.map(async (e) => {
         const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value
+        result[e.item] = e.value;
         await result.save();
       });
       res.status(200).send({ message: 'Update successful' });
@@ -2025,70 +2027,103 @@ const userProfileController = function (UserProfile, Project) {
     // Validate input
     if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
-      return res
-        .status(400)
-        .send({
-          error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
-        });
+      return res.status(400).send({
+        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+      });
     }
 
     try {
-        // Sanitize oldTeamCodes to ensure they are strings
-      const sanitizedOldTeamCodes = oldTeamCodes.map(code => String(code).trim());
-  
+      // Sanitize oldTeamCodes to ensure they are strings
+      const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
+
       // 1. Find all matching users first
       const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
 
       if (usersToUpdate.length === 0) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
-  
-      const updatedUsersInfo = [];
-      const bulkOps = [];
-  
-      for (const user of usersToUpdate) {
-        // Temporarily set new teamCode for validation
-        user.teamCode = newTeamCode;
-  
-        let teamCodeWarning = user.teamCodeWarning;
-        if (warningUsers && warningUsers.includes(user._id.toString())) {
-             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
-        }
-  
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: user._id },
-            update: {
-              $set: {
-                teamCode: newTeamCode,
-                teamCodeWarning: teamCodeWarning,
-              },
+
+      const updatedUsersInfo = await Promise.all(
+        usersToUpdate.map(async (user) => {
+          // if (!user || !user._id || !newTeamCode) {
+          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
+          //   return null;
+          // }
+          // user.teamCode = newTeamCode;
+          // let { teamCodeWarning } = user;
+          let teamCodeWarning = user.teamCodeWarning ?? false;
+
+          if (warningUsers && warningUsers.includes(user._id.toString())) {
+            teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
+          }
+
+          // return {
+          //   updateOne: {
+          //     // filter: { _id: user._id },
+          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
+          //     update: {
+          //       $set: {
+          //         teamCode: newTeamCode,
+          //         // teamCodeWarning: teamCodeWarning ?? false,
+          //         teamCodeWarning,
+          //       },
+          //     },
+          //   },
+          //   userInfo: {
+          //     userId: user._id,
+          //     teamCodeWarning,
+          //   },
+          // };
+          return {
+            userId: user._id,
+            teamCodeWarning,
+          };
+        }),
+      );
+
+      // Filter out null entries
+      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
+      // Then split into bulkOps and result set
+      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
+      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+      // 2. Execute all updates at once
+      // if (bulkOps.length > 0) {
+      //   await UserProfile.bulkWrite(bulkOps);
+      // } else {
+      //   console.warn('Invalid bulkOps detected. Aborting write.');
+      // }
+
+      // ✅ Build the proper bulkWrite payload
+      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+        updateOne: {
+          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
+          update: {
+            $set: {
+              teamCode: newTeamCode,
+              teamCodeWarning,
             },
           },
-        });
-  
-        updatedUsersInfo.push({
-          userId: user._id,
-          teamCodeWarning: teamCodeWarning,
-        });
-      }
-  
-      // 2. Execute all updates at once
+        },
+      }));
+
+      // // ✅ Log structure
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
-  
+
       return res.status(200).send({
         message: 'Team codes updated successfully.',
         updatedUsers: updatedUsersInfo,
       });
-  
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
     }
   };
-  
 
   return {
     searchUsersByName,
