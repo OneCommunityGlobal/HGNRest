@@ -6,7 +6,7 @@ const Listings = require('../../models/lbdashboard/listings');
 
 const { createPaymentIntent, bookListing } = bookingsController(Booking);
 
-router.post('/create-payment-intent', authenticateUser, createPaymentIntent);
-router.post('/book', authenticateUser, bookListing);
+router.post('/create-payment-intent', createPaymentIntent);
+router.post('/book', bookListing);
 
 module.exports = router;
