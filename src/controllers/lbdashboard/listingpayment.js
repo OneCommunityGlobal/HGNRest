@@ -116,7 +116,7 @@ const bookingsController = (Booking) => {
     await transporter.sendMail(mailOptions);
   };
 
-  return { createPayPalOrder: createPaymentIntent, bookListing };
+  return { createPaymentIntent, bookListing };
 };
 
 module.exports = bookingsController;
