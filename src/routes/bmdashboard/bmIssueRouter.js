@@ -1,11 +1,11 @@
-const express = require('express');
+nconst express = require('express');
 
 const routes = function (buildingIssue) {
     const IssueRouter = express.Router();
     const controller = require('../../controllers/bmdashboard/bmIssueController')(buildingIssue);
 
     IssueRouter.route('/issues/open')
-        .get(controller.bmGetIssue);
+        .get(controller.bmGetOpenIssue);
     IssueRouter.route('/issue/add')
         .post(controller.bmPostIssue);
     IssueRouter.route('/issues/:id')
