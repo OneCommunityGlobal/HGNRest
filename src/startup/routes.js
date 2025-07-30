@@ -27,7 +27,6 @@ const registration = require('../models/registration');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
-
 const wishlists = require('../models/lbdashboard/wishlists');
 
 // Title
@@ -38,6 +37,9 @@ const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
+
+const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
+
 const profileInitialSetuptoken = require('../models/profileInitialSetupToken');
 const reason = require('../models/reason');
 const mouseoverText = require('../models/mouseoverText');
@@ -83,6 +85,7 @@ const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
 const jobsRouter = require('../routes/jobsRouter');
+const laborCostRouter = require('../routes/laborCostRouter');
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
@@ -141,6 +144,8 @@ const followUpRouter = require('../routes/followUpRouter')(followUp);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
+
+const wastedMaterialRouter = require('../routes/mostWastedRouter');
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -185,6 +190,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(weeklySummaryEmailAssignment, userProfile);
+
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
@@ -210,6 +217,7 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 const templateRouter = require('../routes/templateRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
+const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
@@ -222,6 +230,9 @@ module.exports = function (app) {
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
+  app.use('/api', wastedMaterialRouter);
+
+  app.use('/api', laborCostRouter);
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
@@ -252,6 +263,8 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
+  app.use('/api', weeklySummaryEmailAssignmentRouter);
+  
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -300,6 +313,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
 };
