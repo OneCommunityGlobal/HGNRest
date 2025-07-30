@@ -541,7 +541,6 @@ const userProfileController = function (UserProfile, Project) {
     );
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
-
     const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
 
     if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
@@ -643,6 +642,7 @@ const userProfileController = function (UserProfile, Project) {
         userIdx = allUserData.findIndex((users) => users._id === userid);
         userData = allUserData[userIdx];
       }
+
       if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
         const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
         summaryFields.forEach((fieldName) => {
@@ -858,6 +858,45 @@ const userProfileController = function (UserProfile, Project) {
           return res.status(400).json({ error: 'Failed to save record.' });
         });
     });
+  };
+
+  const updateWeeklySummarySubmission = async function (req, res) {
+    const userId = req.params.userId;
+    const { activeTab } = req.body;
+    if (![1, 2, 3, 4].includes(activeTab)) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid activeTab. Must be 1 (this week) to 4 (three weeks ago).' });
+    }
+    try {
+      const record = await UserProfile.findById(userId);
+      if (!record) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      const today = moment_();
+      const startOfWeek = today
+        .clone()
+        .startOf('isoWeek')
+        .subtract(activeTab - 1, 'weeks');
+      const weekKey = startOfWeek.format('YYYY-[W]WW');
+      const now = new Date();
+      if (
+        !record.summarySubmissionDates ||
+        typeof record.summarySubmissionDates.set !== 'function'
+      ) {
+        record.summarySubmissionDates = new Map();
+      }
+      record.summarySubmissionDates.set(weekKey, now);
+      record.markModified('summarySubmissionDates');
+      await record.save();
+      return res.status(200).json({
+        message: `Summary submission for ${weekKey} updated.`,
+        updatedTime: now,
+      });
+    } catch (err) {
+      console.error('Error updating weekly summary submission time:', err);
+      return res.status(500).json({ error: 'Server error updating submission time.' });
+    }
   };
 
   const deleteUserProfile = async function (req, res) {
@@ -2130,6 +2169,7 @@ const userProfileController = function (UserProfile, Project) {
     postUserProfile,
     getUserProfiles,
     putUserProfile,
+    updateWeeklySummarySubmission,
     toggleUserBioPosted,
     deleteUserProfile,
     getUserById,

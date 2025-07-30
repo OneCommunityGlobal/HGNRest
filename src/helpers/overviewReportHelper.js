@@ -1943,30 +1943,35 @@ const overviewReportHelper = function () {
       UserProfile.aggregate([
         {
           $match: {
-            summarySubmissionDates: {
-              $elemMatch: {
-                $gte: new Date(start),
-                $lte: new Date(end),
+            $expr: {
+              $eq: [{ $type: '$summarySubmissionDates' }, 'object'],
+            },
+          },
+        },
+        {
+          $project: {
+            summaryEntries: { $objectToArray: '$summarySubmissionDates' },
+          },
+        },
+        {
+          $project: {
+            matchedEntries: {
+              $filter: {
+                input: '$summaryEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    { $gte: ['$$entry.v', new Date(start)] },
+                    { $lte: ['$$entry.v', new Date(end)] },
+                  ],
+                },
               },
             },
           },
         },
         {
           $project: {
-            totalSummaries: {
-              $size: {
-                $filter: {
-                  input: '$summarySubmissionDates',
-                  as: 'date',
-                  cond: {
-                    $and: [
-                      { $gte: ['$$date', new Date(start)] },
-                      { $lte: ['$$date', new Date(end)] },
-                    ],
-                  },
-                },
-              },
-            },
+            totalSummaries: { $size: '$matchedEntries' },
           },
         },
         {

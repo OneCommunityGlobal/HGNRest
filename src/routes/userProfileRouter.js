@@ -72,6 +72,7 @@ const routes = function (userProfile, project) {
     .patch(controller.changeUserStatus);
 
   userProfileRouter.route('/userProfile/name/:name').get(controller.getUserByName);
+  userProfileRouter.route('/userProfile/weeklySummaryDates/:userId').put(controller.updateWeeklySummarySubmission)
 
   userProfileRouter
     .route('/userProfile/:userId/rehireable')
