@@ -90,7 +90,7 @@ const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
-const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
+const popupBackupRouter = require('../routes/popupEditorBackupRouter');
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
 const inventoryRouter = require('../routes/inventoryRouter')(
   inventoryItem,
