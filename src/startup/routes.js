@@ -223,6 +223,8 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -282,6 +284,7 @@ module.exports = function (app) {
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
 
+  app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -298,7 +301,6 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
-
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
@@ -308,6 +310,7 @@ module.exports = function (app) {
 
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
