@@ -4,9 +4,9 @@ const bookingsController = require('../../controllers/lbdashboard/listingpayment
 const Booking = require('../../models/lbdashboard/bookings');
 const Listings = require('../../models/lbdashboard/listings');
 
-const { createPaymentIntent, bookListing } = bookingsController(Booking);
+const { createPayPalOrder, bookListing } = bookingsController(Booking);
 
-router.post('/create-payment-intent', createPaymentIntent);
+router.post('/create-payment-intent', createPayPalOrder);
 router.post('/book', bookListing);
 
 module.exports = router;
