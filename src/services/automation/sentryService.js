@@ -30,25 +30,53 @@ async function getMembers() {
 }
 
 
-
 // Function to invite a user to the Sentry organization
 async function inviteUser(email, role = 'member') {
-  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
-
-  const data = {
-    email,
-    role,  // Default to 'member', can also be 'admin'
-  };
-
   try {
+    // Check if user already exists
+    const members = await getMembers();
+    const existingMember = members.find(member => 
+      member.email.toLowerCase() === email.toLowerCase()
+    );
+    
+    if (existingMember) {
+      return { message: `User ${email} is already a member`, existing: true };
+    }
+    
+    // If not exists, proceed with invitation
+    const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
+
+    const data = {
+      email,
+      role,  // Default to 'member', can also be 'admin'
+    };
+
     const response = await axios({
       url,
       method: 'POST',
       headers,
       data,
     });
-    return response.data;  // Return the invitation details
+    
+    return { message: `User ${email} invited successfully`, data: response.data };
   } catch (error) {
+    // Handle specific error cases for better debugging
+    if (error.response?.status === 400) {
+      const errorData = error.response.data;
+      
+      // Check if email validation error
+      if (errorData.email && Array.isArray(errorData.email)) {
+        const emailError = errorData.email[0];
+        if (emailError.includes('already exists') || emailError.includes('already a member')) {
+          throw new Error(`User ${email} is already a member of the organization`);
+        }
+        throw new Error(`Email validation error: ${emailError}`);
+      }
+      
+      throw new Error(`Invalid request: ${JSON.stringify(errorData)}`);
+    }
+    
+    console.log(error);
     throw new Error(`Error sending invitation: ${error.message}`);
   }
 }
@@ -89,5 +117,5 @@ async function removeUser(email, members) {
 module.exports = {
   getMembers,
   inviteUser,
-  removeUser,
+  removeUser
 };
