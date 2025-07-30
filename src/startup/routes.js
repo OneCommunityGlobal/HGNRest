@@ -179,9 +179,6 @@ const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIss
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
-
-const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
-const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
 const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(userPreferences);
 
