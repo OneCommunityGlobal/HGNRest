@@ -23,8 +23,8 @@ app.use(Sentry.Handlers.errorHandler());
 // Make it the last middleware since it returns a response and do not call next()
 app.use(globalErrorHandler);
 app.use(express.json());
-app.use('/api', experienceRoutes); // Mounts at /api
 const lbRegisterRouter = require('./routes/lbdashboard/lbdashboardRoutes')();
 
 app.use('/lbdashboard', lbRegisterRouter);
+app.use('/api', experienceRoutes); // Mounts at /api
 module.exports = { app, logger };
