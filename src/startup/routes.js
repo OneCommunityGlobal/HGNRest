@@ -15,9 +15,9 @@ const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
+const ownerMessage = require('../models/ownerMessage');
 const bookings = require('../models/lbdashboard/bookings');
 const listings = require('../models/lbdashboard/listings');
-const ownerMessage = require('../models/ownerMessage');
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -68,7 +68,11 @@ const taskRouter = require('../routes/taskRouter')(task);
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
-const inventoryRouter = require('../routes/inventoryRouter')(inventoryItem, inventoryItemType);
+const inventoryRouter = require('../routes/inventoryRouter')(
+  inventoryItem,
+  inventoryItemType,
+  project,
+);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
   profileInitialSetuptoken,
@@ -78,6 +82,7 @@ const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')
 );
 const permissionChangeLogRouter = require('../routes/permissionChangeLogsRouter')(
   permissionChangeLog,
+  // userPermissionChangeLog,  // removed because only permissionChangeLog was imported, userPermissionChangeLog missing in 2nd file
 );
 const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 
@@ -99,7 +104,6 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
 
-
 const lbpaymentRouter = require('../routes/lbdashboard/bookingsRouter')(bookings);
 
 // bm dashboard
@@ -119,16 +123,64 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
-
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
+const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
+
+const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
+const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(require('../models/lbdashboard/wishlists'));
+const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(require('../models/lbdashboard/message'));
+const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
+  require('../models/lbdashboard/userPreferences'),
+  notification,
+);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
 );
+
+const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
+  require('../models/WeeklySummaryEmailAssignment'),
+  userProfile,
+);
+
+// Automations
+const appAccessRouter = require('../routes/automation/appAccessRouter');
+const dropboxRouter = require('../routes/automation/dropboxRouter');
+const githubRouter = require('../routes/automation/githubRouter');
+const sentryRouter = require('../routes/automation/sentryRouter');
+const slackRouter = require('../routes/automation/slackRouter');
+
+// lbdashboard_bidoverview
+const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
+const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
+const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
+const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+
+const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
+const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
+  bidoverview_Bid,
+  bidoverview_Listing,
+  bidoverview_User,
+  bidoverview_Notification,
+);
+
+// community portal
+const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
+const registrationRouter = require('../routes/registrationRouter')(require('../models/registration'));
+
+const templateRouter = require('../routes/templateRouter');
+
+const collaborationRouter = require('../routes/collaborationRouter');
+const projectMaterialRouter = require('../routes/projectMaterialroutes');
+
+const tagRouter = require('../routes/tagRouter')(require('../models/tag'));
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -167,6 +219,7 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
+  app.use('/api', weeklySummaryEmailAssignmentRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -177,7 +230,28 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
-  app.use('api', bmIssueRouter);
+  app.use('/api/bm', bmExternalTeam);
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmActualVsPlannedCostRouter);
+  app.use('/api/bm', bmRentalChart);
+  app.use('/api/bm', bmTimeLoggerRouter);
 
-  app.use('/api/lb',lbpaymentRouter );
+  app.use('/api/lb', lbListingsRouter);
+  app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', lbMessageRouter);
+  app.use('/api/lb', lbUserPrefRouter);
+  app.use('/api/lb', lbpaymentRouter);
+  app.use('/api/lb', bidPropertyRouter);
+  app.use('/api/lb', userBidRouter);
+
+  // community portal
+  app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+
+  app.use('/api', registrationRouter);
+  app.use('/api', templateRouter);
+
+  app.use('/api', collaborationRouter);
+  app.use('/api', projectMaterialRouter);
+
+  app.use('/api', tagRouter);
 };
