@@ -52,6 +52,7 @@ const permissionsRoles = [
       'changeUserStatus',
       'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
       'toggleInvisibility',
       'addInfringements',
@@ -102,6 +103,8 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+
+      'manageFAQs',
     ],
   },
   {
@@ -194,6 +197,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -236,6 +240,7 @@ const permissionsRoles = [
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
@@ -282,6 +287,8 @@ const permissionsRoles = [
       'manageAdminLinks',
       'removeUserFromTask',
       'editHeaderMessage',
+
+      'manageFAQs',
     ],
   },
 ];
