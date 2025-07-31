@@ -9,12 +9,6 @@ const TEST_MODE = true; // Set to false to disable test mode
 
 // Schedule the job to run daily at midnight
 cron.schedule('0 0 * * *', async () => {
-<<<<<<< HEAD
-
-  try {
-    const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
-=======
->>>>>>> origin/development
 
     try {
         const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
@@ -52,16 +46,10 @@ cron.schedule('0 0 * * *', async () => {
                 await emailSender.sendSummaryNotification(recipientEmail, summary);
             }
         }
-<<<<<<< HEAD
-      }),
-    );
-  } catch (error) {
-    console.error('❌ Error running daily email notification job:', error);
-  }
-
-=======
+        //   }),
+        // );
     } catch (error) {
         console.error('❌ Error running daily email notification job:', error);
     }
->>>>>>> origin/development
+
 });
