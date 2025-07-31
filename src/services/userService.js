@@ -44,18 +44,33 @@ const updateBioPostedStatus = async (userId, bioPosted) => {
     throw new Error('Invalid bioPosted value.');
   }
 
-  const updatedUser = await UserProfileModel.findByIdAndUpdate(
-    userId,
-    { bioPosted },
-    { new: true, runValidators: true }
-  );
+  // Fetch full user profile with weekly summaries
+  const user = await UserProfileModel.findById(userId).lean(); // use lean to get plain object
 
-  if (!updatedUser) {
+  if (!user) {
     throw new Error('User not found.');
   }
 
-  return updatedUser;
+  const updatedSummaries = (user.weeklySummaries || []).map(summary => ({
+    ...summary,
+    bioPosted,
+  }));
+
+  // Update both bioPosted and all summaries
+  await UserProfileModel.updateOne(
+    { _id: userId },
+    {
+      $set: {
+        bioPosted,
+        weeklySummaries: updatedSummaries,
+      },
+    }
+  );
+
+  return await UserProfileModel.findById(userId); // return updated user
 };
+
+
 
 
 module.exports = {

@@ -278,6 +278,12 @@ const reporthelper = function () {
         }
         user = { ...user, weeklySummaries: wSummaries };
       }
+      if (Array.isArray(user.weeklySummaries)) {
+  user.weeklySummaries = user.weeklySummaries.map(summary => ({
+    ...summary,
+    bioPosted: user.bioPosted, // ✅ Add bio status to each week's summary
+  }));
+}
       return user;
     });
   };
