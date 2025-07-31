@@ -515,7 +515,7 @@ const userProfileController = function (UserProfile, Project) {
       return res.status(403).json({ error: 'Permission denied to toggle bio.' });
     }
 
-    // ✅ Just update the user's profile (not weekly summaries)
+    //Just update the user's profile (not weekly summaries)
     const updatedUser = await userService.updateBioPostedStatus(userId, bioPosted);
     // console.log("Final Updated User Returned:", updatedUser);
 

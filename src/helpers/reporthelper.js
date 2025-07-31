@@ -281,7 +281,7 @@ const reporthelper = function () {
       if (Array.isArray(user.weeklySummaries)) {
   user.weeklySummaries = user.weeklySummaries.map(summary => ({
     ...summary,
-    bioPosted: user.bioPosted, // ✅ Add bio status to each week's summary
+    bioPosted: user.bioPosted, 
   }));
 }
       return user;
