@@ -49,6 +49,8 @@ const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 const metIssue = require('../models/bmdashboard/metIssue');
+const injuryIssue = require('../models/bmdashboard/injuryIssue');
+
 const {
   invTypeBase,
   materialType,
@@ -173,8 +175,8 @@ const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishl
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
-const buildingIssue = require('../models/bmdashboard/buildingIssue');
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(metIssue, injuryIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
@@ -296,6 +298,7 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api/bm', bmTimeLoggerRouter);  
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);

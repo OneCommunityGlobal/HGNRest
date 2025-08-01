@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 // const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
-const BuildingProject = require('../../models/bmdashboard/buildingProject');
+// const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
-const bmIssueController = function (BuildingIssue) {
+const bmIssueController = function (BuildingIssue, injuryIssue) {
   const bmGetIssue = async (req, res) => {
     try {
       BuildingIssue.find()
@@ -11,6 +11,88 @@ const bmIssueController = function (BuildingIssue) {
         .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
+    }
+  };
+
+  // Injury Issue
+  const bmPostInjuryIssue = async (req, res) => {
+    try {
+      const issue = await injuryIssue.create(req.body);
+      return res.status(201).json(issue);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  };
+
+  // Fetch all injury issues (with assigned user’s name)
+  const bmGetInjuryIssue = async (req, res) => {
+    try {
+      const issues = await injuryIssue.find().populate('assignedTo', 'firstName lastName _id');
+      return res.status(200).json(issues);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Delete an issue by its ID (_id)
+  const bmDeleteInjuryIssue = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await injuryIssue.findByIdAndDelete(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Issue not found' });
+      }
+      return res.status(200).json({ message: 'Deleted successfully', deleted });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Rename (update the name) of an issue by its ID
+  const bmRenameInjuryIssue = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newName } = req.body;
+      if (!newName) {
+        return res.status(400).json({ message: 'newName is required' });
+      }
+      const updated = await injuryIssue.findByIdAndUpdate(
+        id,
+        { name: newName },
+        { new: true, runValidators: true },
+      );
+      if (!updated) {
+        return res.status(404).json({ message: 'Issue not found' });
+      }
+      return res.status(200).json({ message: 'Renamed successfully', updated });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Copy an existing issue by its ID
+  const bmCopyInjuryIssue = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const original = await injuryIssue.findById(id).lean();
+      if (!original) {
+        return res.status(404).json({ message: 'Issue not found' });
+      }
+
+      // Build copy data
+      const copyData = {
+        projectId: original.projectId,
+        name: `${original.name} (Copy)`,
+        openDate: Date.now(),
+        category: original.category,
+        assignedTo: original.assignedTo,
+        totalCost: original.totalCost,
+      };
+
+      const copy = await injuryIssue.create(copyData);
+      return res.status(201).json({ message: 'Copied successfully', copy });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
   };
 
@@ -55,10 +137,10 @@ const bmIssueController = function (BuildingIssue) {
 
       // Format the result
       const result = issues.reduce((acc, item) => {
-        const issueTypeKey = item._id;
-        acc[issueTypeKey] = {};
+        const currentIssueType = item._id;
+        acc[currentIssueType] = {};
         item.years.forEach((yearData) => {
-          acc[issueType][yearData.year] = yearData.count;
+          acc[currentIssueType][yearData.year] = yearData.count;
         });
         return acc;
       }, {});
@@ -80,90 +162,20 @@ const bmIssueController = function (BuildingIssue) {
     }
   };
 
-  const getLongestOpenIssues = async (req, res) => {
-    try {
-      const { dates, projects } = req.query;
-      // dates = '2021-10-01,2023-11-03';
-      // projects = '654946c8bc5772e8caf7e963';
-      const query = { status: 'open' };
-      let filteredProjectIds = [];
+  // If no matching project IDs, return early
+  // Note: This code block appears to be leftover from a merge conflict
+  // and should be removed or properly implemented
 
-      // Parse project filter if provided
-      if (projects) {
-        filteredProjectIds = projects.split(',').map((id) => id.trim());
-      }
-
-      // Apply date filtering logic
-      if (dates) {
-        const [startDateStr, endDateStr] = dates.split(',').map((d) => d.trim());
-        const startDate = new Date(startDateStr);
-        const endDate = new Date(endDateStr);
-
-        const matchingProjects = await BuildingProject.find({
-          dateCreated: { $gte: startDate, $lte: endDate },
-          isActive: true,
-        })
-          .select('_id')
-          .lean();
-
-        const dateFilteredIds = matchingProjects.map((p) => p._id.toString());
-
-        if (filteredProjectIds.length > 0) {
-          // Intersection of project filters
-          filteredProjectIds = filteredProjectIds.filter((id) => dateFilteredIds.includes(id));
-        } else {
-          filteredProjectIds = dateFilteredIds;
-        }
-      }
-
-      // If no matching project IDs, return early
-      if (dates && filteredProjectIds.length === 0) {
-        return res.json([]); // No results to return
-      }
-
-      if (filteredProjectIds.length > 0) {
-        query.projectId = { $in: filteredProjectIds };
-      }
-
-      let issues = await BuildingIssue.find(query)
-        .select('issueTitle issueDate')
-        .populate('projectId')
-        .lean();
-
-      issues = issues.map((issue) => {
-        const durationInMonths = Math.ceil(
-          (new Date() - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24 * 30.44),
-        );
-        const years = Math.floor(durationInMonths / 12);
-        const months = durationInMonths % 12;
-        const durationText =
-          years > 0
-            ? `${years} year${years > 1 ? 's' : ''} ${months} month${months > 1 ? 's' : ''}`
-            : `${months} month${months > 1 ? 's' : ''}`;
-
-        return {
-          issueName: issue.issueTitle[0],
-          durationOpen: durationText,
-          durationInMonths,
-        };
-      });
-
-      const topIssues = issues
-        .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .slice(0, 7)
-        .map(({ issueName, durationInMonths }) => ({
-          issueName,
-          durationOpen: durationInMonths, // send number only
-        }));
-
-      res.json(topIssues);
-    } catch (error) {
-      console.error('Error fetching longest open issues:', error);
-      res.status(500).json({ message: 'Error fetching longest open issues' });
-    }
+  return {
+    bmGetIssue,
+    bmPostInjuryIssue,
+    bmGetInjuryIssue,
+    bmDeleteInjuryIssue,
+    bmRenameInjuryIssue,
+    bmCopyInjuryIssue,
+    bmGetIssueChart,
+    bmPostIssue,
   };
-
-  return { bmGetIssue, bmPostIssue, bmGetIssueChart, getLongestOpenIssues };
 };
 
 module.exports = bmIssueController;
