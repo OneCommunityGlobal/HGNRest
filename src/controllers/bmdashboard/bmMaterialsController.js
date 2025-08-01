@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
@@ -6,25 +6,25 @@ const bmMaterialsController = function (BuildingMaterial) {
       BuildingMaterial.find()
         .populate([
           {
-            path: "project",
-            select: "_id name",
+            path: 'project',
+            select: '_id name',
           },
           {
-            path: "itemType",
-            select: "_id name unit",
+            path: 'itemType',
+            select: '_id name unit',
           },
           {
-            path: "updateRecord",
+            path: 'updateRecord',
             populate: {
-              path: "createdBy",
-              select: "_id firstName lastName",
+              path: 'createdBy',
+              select: '_id firstName lastName email',
             },
           },
           {
-            path: "purchaseRecord",
+            path: 'purchaseRecord',
             populate: {
-              path: "requestedBy",
-              select: "_id firstName lastName",
+              path: 'requestedBy',
+              select: '_id firstName lastName email',
             },
           },
         ])
@@ -74,19 +74,21 @@ const bmMaterialsController = function (BuildingMaterial) {
           itemType: matTypeId,
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
+          stockBought: quantity,
         };
         BuildingMaterial.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
+      doc.stockBought += quantity;
       BuildingMaterial.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
-        { $push: { purchaseRecord: newPurchaseRecord } }
+        { $push: { purchaseRecord: newPurchaseRecord } },
       )
         .exec()
         .then(() => res.status(201).send())
-        .catch(error => res.status(500).send(error));
+        .catch((error) => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }
@@ -97,16 +99,11 @@ const bmMaterialsController = function (BuildingMaterial) {
     let quantityUsed = +req.body.quantityUsed;
     let quantityWasted = +req.body.quantityWasted;
     const { material } = req.body;
-    if (payload.QtyUsedLogUnit == "percent" && quantityWasted >= 0) {
-      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(
-        4
-      );
+    if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
+      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
     }
-    if (payload.QtyWastedLogUnit == "percent" && quantityUsed >= 0) {
-      quantityWasted = +(
-        (+quantityWasted / 100) *
-        material.stockAvailable
-      ).toFixed(4);
+    if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
+      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
     }
 
     if (
@@ -117,15 +114,13 @@ const bmMaterialsController = function (BuildingMaterial) {
       res
         .status(500)
         .send(
-          "Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available."
+          'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
         );
     } else {
       let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable =
-        +material.stockAvailable -
-        parseFloat(quantityUsed) -
-        parseFloat(quantityWasted);
+        +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
       newStockUsed = parseFloat(newStockUsed.toFixed(4));
       newStockWasted = parseFloat(newStockWasted.toFixed(4));
       newAvailable = parseFloat(newAvailable.toFixed(4));
@@ -146,7 +141,7 @@ const bmMaterialsController = function (BuildingMaterial) {
               quantityWasted,
             },
           },
-        }
+        },
       )
         .then((results) => {
           res.status(200).send(results);
@@ -159,30 +154,22 @@ const bmMaterialsController = function (BuildingMaterial) {
     const materialUpdates = req.body.upadateMaterials;
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
-    for (let i = 0; i < materialUpdates.length; i++) {
+    for (let i = 0; i < materialUpdates.length; i += 1) {
       const payload = materialUpdates[i];
       let quantityUsed = +payload.quantityUsed;
       let quantityWasted = +payload.quantityWasted;
       const { material } = payload;
-      if (payload.QtyUsedLogUnit == "percent" && quantityWasted >= 0) {
-        quantityUsed = +(
-          (+quantityUsed / 100) *
-          material.stockAvailable
-        ).toFixed(4);
+      if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
       }
-      if (payload.QtyWastedLogUnit == "percent" && quantityUsed >= 0) {
-        quantityWasted = +(
-          (+quantityWasted / 100) *
-          material.stockAvailable
-        ).toFixed(4);
+      if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
       }
 
       let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable =
-        +material.stockAvailable -
-        parseFloat(quantityUsed) -
-        parseFloat(quantityWasted);
+        +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
       newStockUsed = parseFloat(newStockUsed.toFixed(4));
       newStockWasted = parseFloat(newStockWasted.toFixed(4));
       newAvailable = parseFloat(newAvailable.toFixed(4));
@@ -208,7 +195,7 @@ const bmMaterialsController = function (BuildingMaterial) {
 
     try {
       if (errorFlag) {
-        res.status(500).send("Stock quantities submitted seems to be invalid");
+        res.status(500).send('Stock quantities submitted seems to be invalid');
         return;
       }
       const updatePromises = updateRecordsToBeAdded.map((updateItem) =>
@@ -217,8 +204,8 @@ const bmMaterialsController = function (BuildingMaterial) {
           {
             $set: updateItem.set,
             $push: { updateRecord: updateItem.updateValue },
-          }
-        ).exec()
+          },
+        ).exec(),
       );
       Promise.all(updatePromises)
         .then((results) => {
@@ -235,39 +222,44 @@ const bmMaterialsController = function (BuildingMaterial) {
   const bmupdatePurchaseStatus = async function (req, res) {
     const { purchaseId, status, quantity } = req.body;
     try {
-        const material = await BuildingMaterial.findOne({ 'purchaseRecord._id': purchaseId });
-          
-        if (!material) {
-            return res.status(404).send('Purchase not found');
-        }
+      const material = await BuildingMaterial.findOne({ 'purchaseRecord._id': purchaseId });
 
-        const purchaseRecord = material.purchaseRecord.find(record => record._id.toString() === purchaseId);
+      if (!material) {
+        return res.status(404).send('Purchase not found');
+      }
 
-        if (!purchaseRecord) {
-            return res.status(404).send('Purchase record not found');
-        }
+      const purchaseRecord = material.purchaseRecord.find(
+        (record) => record._id.toString() === purchaseId,
+      );
 
-        if (purchaseRecord.status !== 'Pending') {
-            return res.status(400).send(`Purchase status can only be updated from 'Pending'. Current status is '${purchaseRecord.status}'.`);
-        }
-        const updateObject = {
-          $set: { 'purchaseRecord.$.status': status },
-        };
-        if (status === 'Approved') {
-          updateObject.$inc = { 'stockBought': quantity };
-        }
-        const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-          { 'purchaseRecord._id': purchaseId },
-          updateObject,
-          { new: true }
-        );
-        res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
+      if (!purchaseRecord) {
+        return res.status(404).send('Purchase record not found');
+      }
+
+      if (purchaseRecord.status !== 'Pending') {
+        return res
+          .status(400)
+          .send(
+            `Purchase status can only be updated from 'Pending'. Current status is '${purchaseRecord.status}'.`,
+          );
+      }
+      const updateObject = {
+        $set: { 'purchaseRecord.$.status': status },
+      };
+      if (status === 'Approved') {
+        updateObject.$inc = { stockBought: quantity };
+      }
+      // const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
+      //   { 'purchaseRecord._id': purchaseId },
+      //   updateObject,
+      //   { new: true },
+      // );
+      res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
-        res.status(500).send(error.message);
+      res.status(500).send(error.message);
     }
   };
 
-  
   return {
     bmMaterialsList,
     bmPostMaterialUpdateRecord,
