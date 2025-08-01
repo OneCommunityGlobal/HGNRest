@@ -185,12 +185,23 @@ const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   notification,
 );
 
+const toolAvailability = require('../models/bmdashboard/toolAvailability');
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
+  toolAvailability,
+);
+
+const projectCostTracking = require('../models/bmdashboard/projectCostTracking');
+const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrackingRouter')(
+  projectCostTracking,
+);
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
 );
 
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(weeklySummaryEmailAssignment, userProfile);
+
 
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
@@ -214,12 +225,14 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
+
 const templateRouter = require('../routes/templateRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const tagRouter = require('../routes/tagRouter')(tag);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -297,6 +310,12 @@ module.exports = function (app) {
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
 
+
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
+
+
+
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
@@ -312,6 +331,7 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
+
   app.use('/api', registrationRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
