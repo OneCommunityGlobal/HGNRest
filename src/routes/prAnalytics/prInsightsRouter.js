@@ -1,9 +1,12 @@
 const express = require('express');
-const { getPRReviewInsights, postPRReviewInsights } = require('../../controllers/prAnalytics/prInsightsController');
+const routes = function () {
+  const prInsightsRouter = express.Router();
+  const controller = require('../../controllers/prAnalytics/prInsightsController')();
 
-const router = express.Router();
+  prInsightsRouter.route('/analytics/pr-review-insights').get(controller.getPRReviewInsights);
+  prInsightsRouter.route('/analytics/pr-review-insights').post(controller.postPRReviewInsights);
 
-router.get('/analytics/pr-review-insights', getPRReviewInsights);
-router.post('/analytics/pr-review-insights', postPRReviewInsights);
+  return prInsightsRouter;
+};
 
-module.exports = router;
+module.exports = routes;
