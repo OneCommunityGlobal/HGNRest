@@ -298,6 +298,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
 
   app.use('/api/bm', bmIssueRouter);
+
+  app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
 
