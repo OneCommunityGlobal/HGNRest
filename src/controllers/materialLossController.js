@@ -1,12 +1,19 @@
+/* eslint-disable no-restricted-globals */
 const mongoose = require('mongoose');
 const { buildingMaterial } = require('../models/bmdashboard/buildingInventoryItem');
 
-module.exports = function(MaterialLoss) {
+module.exports = function (MaterialLoss) {
+  const isValidDate = (dateStr) => {
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!regex.test(dateStr)) return false;
+    const date = new Date(dateStr);
+    return !isNaN(date.getTime());
+  };
 
-  const monthNumberToName = (monthNum) => [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  ][monthNum - 1];
+  const monthNumberToName = (monthNum) =>
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+      monthNum - 1
+    ];
 
   const getMonthStartEnd = (year, month) => {
     const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
@@ -22,41 +29,47 @@ module.exports = function(MaterialLoss) {
 
     const pipeline = [
       { $match: matchStage },
-      { $unwind: "$updateRecord" },
-      { $match: { "updateRecord.date": { $gte: monthStart, $lte: monthEnd } } },
-      { $group: {
+      { $unwind: '$updateRecord' },
+      { $match: { 'updateRecord.date': { $gte: monthStart, $lte: monthEnd } } },
+      {
+        $group: {
           _id: null,
-          totalUsed: { $sum: "$updateRecord.quantityUsed" },
-          totalWasted: { $sum: "$updateRecord.quantityWasted" }
-        }
-      }
+          totalUsed: { $sum: '$updateRecord.quantityUsed' },
+          totalWasted: { $sum: '$updateRecord.quantityWasted' },
+        },
+      },
     ];
 
     const result = await buildingMaterial.aggregate(pipeline);
     const totalUsed = result[0]?.totalUsed || 0;
     const totalWasted = result[0]?.totalWasted || 0;
-    const lossPerc = totalUsed + totalWasted ? ((totalWasted / (totalUsed + totalWasted)) * 100).toFixed(2) : 0;
+    const lossPerc =
+      totalUsed + totalWasted ? ((totalWasted / (totalUsed + totalWasted)) * 100).toFixed(2) : 0;
 
     return {
       lossPercentage: parseFloat(lossPerc),
       year,
-      month: monthNumberToName(month)
+      month: monthNumberToName(month),
     };
   }
 
   async function computeAndStoreHistoricalLoss(materialId) {
+    // Error handling for invalid input
+    if (materialId && !mongoose.Types.ObjectId.isValid(materialId)) {
+      throw new Error(`Invalid materialId provided: ${materialId}`);
+    }
     const matchStage = { __t: 'material_item', updateRecord: { $exists: true, $ne: [] } };
     if (materialId) matchStage.itemType = new mongoose.Types.ObjectId(materialId);
 
     const minDateAgg = await buildingMaterial.aggregate([
       { $match: matchStage },
-      { $unwind: "$updateRecord" },
+      { $unwind: '$updateRecord' },
       {
         $group: {
           _id: null,
-          minDate: { $min: "$updateRecord.date" }
-        }
-      }
+          minDate: { $min: '$updateRecord.date' },
+        },
+      },
     ]);
 
     const startDate = minDateAgg[0]?.minDate ? new Date(minDateAgg[0].minDate) : null;
@@ -78,108 +91,153 @@ module.exports = function(MaterialLoss) {
       }
     }
 
-    await Promise.all(monthList.map(async ({ year, month }) => {
-      const monthName = monthNumberToName(month);
-      const existing = await MaterialLoss.findOne({ materialId, year, month: monthName });
-      const isCurrentMonth = year === endYear && monthName === currentMonthName;
+    await Promise.all(
+      monthList.map(async ({ year, month }) => {
+        const monthName = monthNumberToName(month);
+        const existing = await MaterialLoss.findOne({ materialId, year, month: monthName });
+        const isCurrentMonth = year === endYear && monthName === currentMonthName;
 
-      if (!existing || isCurrentMonth) {
-        let lossPercentage = 0;
-        const matchDate = getMonthStartEnd(year, month).monthStart;
+        if (!existing || isCurrentMonth) {
+          let lossPercentage = 0;
+          const matchDate = getMonthStartEnd(year, month).monthStart;
 
-        const hasData = await buildingMaterial.exists({
-          itemType: materialId,
-          updateRecord: {
-            $elemMatch: {
-              date: { $gte: matchDate },
-            }
+          const hasData = await buildingMaterial.exists({
+            itemType: materialId,
+            updateRecord: {
+              $elemMatch: {
+                date: { $gte: matchDate },
+              },
+            },
+          });
+
+          if (hasData) {
+            const computed = await computeMonthLoss(materialId, year, month);
+            lossPercentage = computed.lossPercentage;
           }
-        });
 
-        if (hasData) {
-          const computed = await computeMonthLoss(materialId, year, month);
-          lossPercentage = computed.lossPercentage;
+          const materialDoc = await buildingMaterial
+            .findOne({ itemType: materialId })
+            .populate('itemType', 'name');
+          const materialName = materialDoc?.itemType?.name || 'Unknown Material';
+
+          await MaterialLoss.findOneAndUpdate(
+            { materialId, year, month: monthName },
+            {
+              materialId,
+              materialName,
+              year,
+              month: monthName,
+              lossPercentage,
+              updatedAt: new Date(),
+            },
+            { upsert: true, new: true },
+          );
         }
-
-        const materialDoc = await buildingMaterial.findOne({ itemType: materialId }).populate('itemType', 'name');
-        const materialName = materialDoc?.itemType?.name || "Unknown Material";
-
-        await MaterialLoss.findOneAndUpdate(
-          { materialId, year, month: monthName },
-          {
-            materialId,
-            materialName,
-            year,
-            month: monthName,
-            lossPercentage,
-            updatedAt: new Date()
-          },
-          { upsert: true, new: true }
-        );
-      }
-    }));
+      }),
+    );
   }
 
   const getMaterialLossData = async (req, res) => {
     const { materialId, year, startDate, endDate } = req.query;
+    // Error handling for invalid input
+    if (materialId && !mongoose.Types.ObjectId.isValid(materialId)) {
+      return res.status(400).json({ error: 'Invalid materialId' });
+    }
+
+    // Date format validation for startDate and endDate
+    if ((startDate && !isValidDate(startDate)) || (endDate && !isValidDate(endDate))) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+
     if (materialId) {
       await computeAndStoreHistoricalLoss(materialId);
-    }
-    else {
-      const materialIds = await buildingMaterial.distinct("itemType", { __t: "material_item" });
-      await Promise.all(
-        materialIds.map(id => computeAndStoreHistoricalLoss(id.toString()))
-      );
+    } else {
+      const materialIds = await buildingMaterial.distinct('itemType', { __t: 'material_item' });
+      await Promise.all(materialIds.map((id) => computeAndStoreHistoricalLoss(id.toString())));
     }
 
     const filter = {};
     if (materialId) filter.materialId = materialId;
-    if (year) filter.year = parseInt(year, 10);
-  
+    // if (year) filter.year = parseInt(year, 10);
+    const parsedYear = parseInt(year, 10);
+    if (!isNaN(parsedYear)) {
+      filter.year = parsedYear;
+    }
+
     if (startDate || endDate) {
       const start = startDate ? new Date(startDate) : null;
       const end = endDate ? new Date(endDate) : null;
-  
+
       const startYear = start?.getUTCFullYear();
       const startMonth = start ? start.getUTCMonth() + 1 : null;
       const endYear = end?.getUTCFullYear();
       const endMonth = end ? end.getUTCMonth() + 1 : null;
-  
+
       filter.$and = [];
-  
+
       if (start) {
         filter.$and.push({
           $or: [
             { year: { $gt: startYear } },
             {
               year: startYear,
-              month: { $in: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].slice(startMonth - 1) }
-            }
-          ]
+              month: {
+                $in: [
+                  'Jan',
+                  'Feb',
+                  'Mar',
+                  'Apr',
+                  'May',
+                  'Jun',
+                  'Jul',
+                  'Aug',
+                  'Sep',
+                  'Oct',
+                  'Nov',
+                  'Dec',
+                ].slice(startMonth - 1),
+              },
+            },
+          ],
         });
       }
-  
+
       if (end) {
         filter.$and.push({
           $or: [
             { year: { $lt: endYear } },
             {
               year: endYear,
-              month: { $in: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].slice(0, endMonth) }
-            }
-          ]
+              month: {
+                $in: [
+                  'Jan',
+                  'Feb',
+                  'Mar',
+                  'Apr',
+                  'May',
+                  'Jun',
+                  'Jul',
+                  'Aug',
+                  'Sep',
+                  'Oct',
+                  'Nov',
+                  'Dec',
+                ].slice(0, endMonth),
+              },
+            },
+          ],
         });
       }
     }
-  
+
     const result = await MaterialLoss.find(filter, {
       _id: 0,
       materialId: 1,
       month: 1,
       lossPercentage: 1,
-      year: 1
+      year: 1,
     });
-  
+
     res.status(200).json({ data: result });
   };
 
