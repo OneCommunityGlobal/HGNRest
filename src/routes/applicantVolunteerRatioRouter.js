@@ -3,7 +3,7 @@ const controller = require('../controllers/applicantVolunteerRatioController')()
 
 const router = express.Router();
 
-router.get('/', controller.getAllApplicantVolunteerRatios);
+router.get('/analytics', controller.getAllApplicantVolunteerRatios);
 router.get('/:id', controller.getApplicantVolunteerRatioById);
 router.post('/', controller.createApplicantVolunteerRatio);
 router.put('/:id', controller.updateApplicantVolunteerRatio);
