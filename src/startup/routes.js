@@ -176,6 +176,7 @@ const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(bui
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 
@@ -296,6 +297,8 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api/bm', bmOrgLocation);
+  app.use('api', bmIssueRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
