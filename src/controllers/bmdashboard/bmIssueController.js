@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+// const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 const bmIssueController = function (BuildingIssue, injuryIssue) {
 
@@ -163,7 +165,12 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         } catch (err) {
             res.json(err);
         }
-    };
+      }
+
+      // If no matching project IDs, return early
+      if (dates && filteredProjectIds.length === 0) {
+        return res.json([]); // No results to return
+      }
 
     return {
         bmGetIssue,
