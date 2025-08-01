@@ -247,18 +247,20 @@ const bmMaterialsController = function (BuildingMaterial) {
         $set: { 'purchaseRecord.$.status': status },
       };
       if (status === 'Approved') {
+        // Only apply $inc if status is Approved
         updateObject.$inc = { stockBought: quantity };
       }
-      // const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-      //   { 'purchaseRecord._id': purchaseId },
-      //   updateObject,
-      //   { new: true },
-      // );
-      res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
-    } catch (error) {
-      res.status(500).send(error.message);
-    }
-  };
+
+      const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
+        { 'purchaseRecord._id': purchaseId },
+        updateObject,
+        { new: true }, // Important: returns the document *after* update
+      );
+      
+      if (!updatedMaterial) {
+        // This might happen if the document was deleted or modified externally
+        return res.status(500).send('Failed to apply purchase status update to material.');
+      }
 
   return {
     bmMaterialsList,
