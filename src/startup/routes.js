@@ -68,6 +68,7 @@ const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
+const materialLoss = require('../models/materialLoss');
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -141,11 +142,12 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
-const form = require('../models/forms');
-const formResponse = require('../models/formResponse');
-const formRouter = require('../routes/formRouter')(form, formResponse);
-
+const form=require('../models/forms')
+const formResponse=require('../models/formResponse')
+const formRouter=require('../routes/formRouter')(form,formResponse);
+const materialLossRouter = require('../routes/materialLossRouter')(materialLoss);
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -279,6 +281,7 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api/materials', materialLossRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
