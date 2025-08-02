@@ -159,6 +159,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   equipmentType,
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -183,14 +184,12 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
-const slackRouter = require('../routes/automation/slackRouter')
+const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
@@ -290,6 +289,8 @@ module.exports = function (app) {
 
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('api', bmIssueRouter);
+
+  app.use('/api/labor-cost', bmPaidLaborCostRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
