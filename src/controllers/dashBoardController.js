@@ -1,11 +1,18 @@
 /* eslint-disable quotes */
+const path = require('path');
+const fs = require('fs/promises');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const actionItem = require('../models/actionItem');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
 const emailSender = require('../utilities/emailSender');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const User = require('../models/userProfile');
 
+// Configuration constants to prevent conflicts
+const EMAIL_CONFIG = {
+  SUPPORT_EMAIL: 'onecommunityglobal@gmail.com',
+};
 
 const dashboardcontroller = function () {
   const dashboardhelper = dashboardHelperClosure();
@@ -202,7 +209,7 @@ const dashboardcontroller = function () {
     return text;
   };
 
-  const sendBugReport = function (req, res) {
+  const sendBugReport = async function (req, res) {
     const {
       firstName,
       lastName,
@@ -228,7 +235,7 @@ const dashboardcontroller = function () {
     );
   
     try {
-      emailSender(
+      await emailSender.sendEmail(
         'onecommunityglobal@gmail.com',
         `Bug Report from ${firstName} ${lastName}`,
         emailBody,
@@ -294,7 +301,7 @@ const dashboardcontroller = function () {
       email,
     );
     try {
-      emailSender(
+      await emailSender.sendEmail(
         'onecommunityglobal@gmail.com',
         'A new suggestion',
         emailBody,
@@ -401,7 +408,7 @@ const dashboardcontroller = function () {
       const foundHelp = await dashboardhelper.checkQuestionaireFeedback(req);
       return res.status(200).json({ foundHelp });
     } catch (err) {
-      console.log(err)
+      console.log(err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
