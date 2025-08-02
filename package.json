@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
-    "mongoose": "^5.13.23",
+    "mongoose": "^6.13.6",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
