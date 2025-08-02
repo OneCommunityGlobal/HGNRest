@@ -74,6 +74,19 @@ const badgeController = function (Badge) {
    */
 
   const assignBadges = async function (req, res) {
+    // const canAssignBadges = await helper.hasPermission(req.body.requestor, 'assignBadges');
+    // const canModifyBadgeAmount = await helper.hasPermission(
+    //   req.body.requestor,
+    //   'modifyBadgeAmount',
+    // );
+    // if (!(canAssignBadges || canModifyBadgeAmount)) {
+    //   res.status(403).send('You are not authorized to assign badges.');
+    //   return;
+    // } else if (!canAssignBadges) {
+    //   res.status(403).send('You are not authorized to assign badges.');
+    // } else if (!canModifyBadgeAmount) {
+    //   res.status(403).send('You are not authorized to modify badge amounts.');
+    // }
     if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
