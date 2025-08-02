@@ -12,14 +12,20 @@ const experienceBreakdownController = function (Applicant) {
             $expr: {
               $and: [
                 {
-                  $gte: [{ $dateFromString: { dateString: '$startDate' } }, new Date(startDate)],
+                  $gte: [
+                    { $dateFromString: { dateString: '$startDate' } },
+                    new Date(startDate)
+                  ]
                 },
                 {
-                  $lte: [{ $dateFromString: { dateString: '$startDate' } }, new Date(endDate)],
-                },
-              ],
-            },
-          },
+                  $lte: [
+                    { $dateFromString: { dateString: '$startDate' } },
+                    new Date(endDate)
+                  ]
+                }
+              ]
+            }
+          }
         });
       }
 
@@ -42,13 +48,19 @@ const experienceBreakdownController = function (Applicant) {
                 { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
                 {
                   case: {
-                    $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
+                    $and: [
+                      { $gt: ['$experience', 1] },
+                      { $lte: ['$experience', 3] },
+                    ],
                   },
                   then: '1-3 years',
                 },
                 {
                   case: {
-                    $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
+                    $and: [
+                      { $gt: ['$experience', 3] },
+                      { $lte: ['$experience', 5] },
+                    ],
                   },
                   then: '3-5 years',
                 },
