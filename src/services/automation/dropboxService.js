@@ -31,21 +31,30 @@ async function ensureFolderExists(path) {
  * Polls an async share-folder job until complete, using the correct endpoint.
  */
 async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
-  let attempts = 0;
-  while (attempts < maxAttempts) {
+  const checkStatus = async (attempt) => {
+    if (attempt >= maxAttempts) {
+      throw new Error('Timeout waiting for share to complete');
+    }
+
     const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId });
     const tag = status.result['.tag'];
+
     if (tag === 'complete') {
       return status.result;
     }
     if (tag === 'failed') {
       throw new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
     }
-    // in_progress
-    await new Promise((res) => setTimeout(res, 1000));
-    attempts += 1;
-  }
-  throw new Error('Timeout waiting for share to complete');
+
+    // in_progress - wait and try again
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1000);
+    });
+
+    return checkStatus(attempt + 1);
+  };
+
+  return checkStatus(0);
 }
 
 /**
@@ -104,9 +113,7 @@ async function createFolderAndInvite(email, projectName) {
     // 3. Invite user
     const inviteResponse = await dbx.sharingAddFolderMember({
       shared_folder_id: sharedFolderId,
-      members: [
-        { member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } },
-      ],
+      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
       quiet: false,
     });
 
