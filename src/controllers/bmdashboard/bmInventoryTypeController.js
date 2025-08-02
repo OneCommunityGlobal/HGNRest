@@ -271,15 +271,15 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   async function fetchInventoryByType(req, res) {
     const { type } = req.params;
     let SelectedType = InvType;
-    if (type === 'Material') {
+    if (type === 'Materials') {
       SelectedType = MatType;
-    } else if (type === 'Consumable') {
+    } else if (type === 'Consumables') {
       SelectedType = ConsType;
-    } else if (type === 'Reusable') {
+    } else if (type === 'Reusables') {
       SelectedType = ReusType;
-    } else if (type === 'Tool') {
+    } else if (type === 'Tools') {
       SelectedType = ToolType;
-    } else if (type === 'Equipment') {
+    } else if (type === 'Equipments') {
       SelectedType = EquipType;
     }
     try {
@@ -304,32 +304,34 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   };
 
   async function addEquipmentType(req, res) {
-    const {
-      name,
-      desc: description,
-      fuel: fuelType,
-      requestor: { requestorId },
-    } = req.body;
+    const { name, description, fuel: fuelType, requestor } = req.body;
+
+    const requestorId = requestor?.requestorId || null;
+
+    // Validate and set default fuel type if not provided
+    const validFuelTypes = ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'];
+    const finalFuelType = fuelType && validFuelTypes.includes(fuelType) ? fuelType : 'Diesel';
+
     try {
       EquipType.find({ name })
         .then((result) => {
           if (result.length) {
-            res.status(409).send();
+            res.status(409).json({ error: `Equipment with name "${name}" already exists.` });
           } else {
             const newDoc = {
               category: 'Equipment',
               name,
               description,
-              fuelType,
+              fuelType: finalFuelType,
               createdBy: requestorId,
             };
             EquipType.create(newDoc)
               .then(() => res.status(201).send())
               .catch((error) => {
-                if (error._message.includes('validation failed')) {
-                  res.status(400).send(error);
+                if (error._message && error._message.includes('validation failed')) {
+                  res.status(400).json({ error: 'Validation failed. Please check your input.' });
                 } else {
-                  res.status(500).send(error);
+                  res.status(500).json({ error: 'Failed to create equipment. Please try again.' });
                 }
               });
           }
@@ -351,11 +353,67 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
+  async function addReusableType(req, res) {
+    const {
+      name,
+      description,
+      requestor: { requestorId },
+    } = req.body;
+    try {
+      ReusType.find({ name })
+        .then((result) => {
+          if (result.length) {
+            res.status(409).send();
+          } else {
+            const newDoc = {
+              category: 'Reusable',
+              name,
+              description,
+              createdBy: requestorId,
+            };
+            ReusType.create(newDoc)
+              .then(() => res.status(201).send())
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
+          }
+        })
+        .catch((error) => res.status(500).send(error));
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  }
+
   const fetchSingleInventoryType = async (req, res) => {
     const { invtypeId } = req.params;
     try {
       const result = await InvType.findById(invtypeId).exec();
       res.status(200).send(result);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const updateNameAndUnit = async (req, res) => {
+    const { invtypeId } = req.params;
+    const { name, unit } = req.body;
+
+    try {
+      const updatedInvType = await InvType.findByIdAndUpdate(
+        invtypeId,
+        { name, unit },
+        { new: true, runValidators: true },
+      );
+
+      if (!updatedInvType) {
+        return res.status(404).json({ error: 'invType Material not found check Id' });
+      }
+
+      res.status(200).json(updatedInvType);
     } catch (error) {
       res.status(500).send(error);
     }
@@ -420,29 +478,104 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   const updateSingleInvType = async (req, res) => {
     const { type, invtypeId } = req.params;
-    const { name, description } = req.body;
+    const { name, description, unit, fuel } = req.body;
 
-    // send back errors if required fields are missing
-    if (name?.length === 0 || description?.length === 0) {
-      res.status(400).json({ error: 'Name and description are required.' });
-      return;
-    }
-
-    try {
-      // find invType by id, and update name, description
-      const updatedInvType = await InvType.findByIdAndUpdate(
-        invtypeId,
-        { name, description },
-        { new: true, runValidators: true },
-      );
-      if (!updatedInvType) {
-        res.status(404).json({ error: 'invTypeId does not exist' });
+    // Handle Equipment type specifically
+    if (type === 'Equipments') {
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0) {
+        res.status(400).json({ error: 'Name and description are required.' });
         return;
       }
 
-      res.status(200).json(updatedInvType);
-    } catch (error) {
-      res.status(500).send(error);
+      try {
+        // find Equipment by id, and update name, description, fuelType
+        const updatedEquipType = await EquipType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, fuelType: fuel },
+          { new: true, runValidators: true },
+        );
+        if (!updatedEquipType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+
+        res.status(200).json(updatedEquipType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    } else if (type === 'Materials') {
+      // Handle Material type with unit field
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0 || unit?.length === 0) {
+        res.status(400).json({ error: 'Name, description, and unit are required.' });
+        return;
+      }
+
+      try {
+        // find Material by id, and update name, description, unit
+        const updatedMaterialType = await MatType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, unit },
+          { new: true, runValidators: true },
+        );
+        if (!updatedMaterialType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+
+        res.status(200).json(updatedMaterialType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    } else if (type === 'Consumables') {
+      // Handle Consumable type with unit field
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0 || unit?.length === 0) {
+        res.status(400).json({ error: 'Name, description, and unit are required.' });
+        return;
+      }
+
+      try {
+        // find Consumable by id, and update name, description, unit
+        const updatedConsumableType = await ConsType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, unit },
+          { new: true, runValidators: true },
+        );
+        if (!updatedConsumableType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+
+        res.status(200).json(updatedConsumableType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    } else {
+      // Handle other types (Reusables, Tools) with original logic
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0) {
+        res.status(400).json({ error: 'Name and description are required.' });
+        return;
+      }
+
+      try {
+        // find invType by id, and update name, description
+        const updatedInvType = await InvType.findByIdAndUpdate(
+          invtypeId,
+          { name, description },
+          { new: true, runValidators: true },
+        );
+        if (!updatedInvType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+
+        res.status(200).json(updatedInvType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
     }
   };
 
@@ -472,10 +605,12 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchToolTypes,
     addEquipmentType,
     fetchEquipmentTypes,
+    addReusableType,
     fetchSingleInventoryType,
     addMaterialType,
     addConsumableType,
     addToolType,
+    updateNameAndUnit,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
     addInvUnit,
