@@ -211,7 +211,7 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
-const analyticsRouter = require('../routes/optAnalyticsRoutes');
+const analyticsRouter = require('../routes/optAnalyticsRoutes')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
