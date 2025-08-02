@@ -14,14 +14,11 @@ jest.mock('../utilities/nodeCache', () =>
   })),
 );
 
+const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 const helper = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
-const Task = require('../models/task');
-const WBS = require('../models/wbs');
-const emailSender = require('../utilities/emailSender');
-const mongoose = require('mongoose');
-const moment = require('moment-timezone');
 const timeEntryController = require('./timeEntryController');
 
 // ───── MONGOOSE SESSION MOCK ─────────────────────────────────
@@ -59,9 +56,11 @@ TimeEntry.find = jest.fn().mockReturnValue({
 // ───── POST TIME ENTRY TEST BLOCK ────────────────────────────
 describe('TimeEntryController - postTimeEntry', () => {
   let controller;
-  let req, res;
+  let req;
+  let res;
 
   beforeEach(() => {
+    // eslint-disable-next-line no-shadow
     const TimeEntry = function () {
       return {
         save: jest.fn().mockResolvedValue({ _id: 'time1', totalSeconds: 5400 }),
@@ -112,6 +111,7 @@ describe('TimeEntryController - postTimeEntry', () => {
       category: 'default',
     });
 
+    // eslint-disable-next-line no-shadow
     const TimeEntry = function (data) {
       return {
         ...data,
@@ -122,8 +122,10 @@ describe('TimeEntryController - postTimeEntry', () => {
       };
     };
 
+    // eslint-disable-next-line no-shadow
     const controller = timeEntryController(TimeEntry);
 
+    // eslint-disable-next-line no-shadow
     const req = {
       body: {
         personId: 'user1',
@@ -138,6 +140,7 @@ describe('TimeEntryController - postTimeEntry', () => {
       },
     };
 
+    // eslint-disable-next-line no-shadow
     const res = {
       status: jest.fn().mockReturnThis(),
       send: jest.fn(),

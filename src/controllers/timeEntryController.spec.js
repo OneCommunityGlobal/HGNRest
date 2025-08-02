@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
@@ -7,8 +8,7 @@ jest.mock('../models/project');
 const helper = require('../utilities/permissions');
 const Project = require('../models/project');
 const Task = require('../models/task');
-const WBS = require('../models/wbs');
-const emailSender = require('../utilities/emailSender');
+
 jest.mock('../utilities/nodeCache', () =>
   jest.fn(() => ({
     removeCache: jest.fn(),
@@ -25,6 +25,7 @@ jest.mock('../utilities/emailSender');
 jest.mock('../utilities/permissions');
 jest.mock('../utilities/nodeCache');
 const UserProfile = require('../models/userProfile');
+
 const TimeEntry = jest.fn().mockImplementation(() => ({
   save: jest.fn(),
   remove: jest.fn(),
@@ -65,11 +66,7 @@ beforeEach(() => {
 
 describe('TimeEntryController', () => {
   let controller;
-  let mockHasPermission;
-  beforeAll(() => {
-    mockHasPermission = (value) =>
-      jest.spyOn(helper, 'hasPermission').mockImplementationOnce(() => Promise.resolve(value));
-  });
+  beforeAll(() => {});
   beforeEach(() => {
     controller = timeEntryController(TimeEntry);
   });
@@ -97,7 +94,7 @@ describe('TimeEntryController', () => {
             totalSeconds: 7200,
           },
         ]),
-        then: function (resolve, reject) {
+        then(resolve, reject) {
           return this.exec().then(resolve, reject);
         },
       });
@@ -121,17 +118,15 @@ describe('TimeEntryController', () => {
       };
       const res = { status: jest.fn().mockReturnThis(), send: jest.fn() };
       const errorMsg = 'Database error';
-      jest.spyOn(TimeEntry, 'find').mockImplementationOnce(() => {
-        return {
-          populate: jest.fn().mockReturnThis(),
-          sort: jest.fn().mockReturnThis(),
-          lean: jest.fn().mockReturnThis(),
-          exec: jest.fn().mockRejectedValue(new Error(errorMsg)),
-          then: function (resolve, reject) {
-            return this.exec();
-          },
-        };
-      });
+      jest.spyOn(TimeEntry, 'find').mockImplementationOnce(() => ({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockRejectedValue(new Error(errorMsg)),
+        then() {
+          return this.exec();
+        },
+      }));
 
       await expect(controller.getTimeEntriesForUsersList(req, res));
       expect(res.status).toHaveBeenCalledWith(400);
@@ -189,7 +184,7 @@ describe('TimeEntryController', () => {
             }),
           },
         ]),
-        then: function (resolve, reject) {
+        then(resolve, reject) {
           return this.exec().then(resolve, reject);
         },
       });
@@ -208,7 +203,7 @@ describe('TimeEntryController', () => {
       const resStart = { status: jest.fn().mockReturnThis(), send: jest.fn() };
       await controller.startRecalculation(reqStart, resStart);
       const startResponse = resStart.send.mock.calls[0][0];
-      const taskId = startResponse.taskId;
+      const { taskId } = startResponse;
       const req = { params: { taskId } };
       const res = { status: jest.fn().mockReturnThis(), send: jest.fn() };
       await controller.checkRecalculationStatus(req, res);
