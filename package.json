@@ -64,6 +64,7 @@
     "async-exit-hook": "^2.0.1",
     "axios": "^1.7.7",
     "babel-plugin-module-resolver": "^5.0.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.18.3",
     "cheerio": "^0.22.0",

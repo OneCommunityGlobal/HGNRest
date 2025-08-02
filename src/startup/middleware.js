@@ -16,6 +16,10 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/lbdashboard/register' && req.method === 'POST') {
+      next();
+      return;
+    }
     if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') {
       next();
       return;
