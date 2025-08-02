@@ -30,6 +30,7 @@ const helpCategory = require('../models/helpCategory');
 
 const wishlists = require('../models/lbdashboard/wishlists');
 
+const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
 // Title
 const title = require('../models/title');
@@ -192,7 +193,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 // PR Analytics
-const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter');
+const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(PRReviewInsights);
 
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(weeklySummaryEmailAssignment, userProfile);
 

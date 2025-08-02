@@ -1,11 +1,7 @@
-const PRReviewInsights = require('../../models/prAnalytics/prReviewsInsights');
-
-const prInsightsController = function () {
+const prInsightsController = function (insightsData) {
   const getPRReviewInsights = async (req, res) => {
     try {
       const { duration, teams } = req.query;
-
-      console.log('Received query parameters:', { duration, teams });
 
       const validDurations = ['lastWeek', 'last2weeks', 'lastMonth', 'allTime'];
       if (duration && !validDurations.includes(duration)) {
@@ -13,7 +9,6 @@ const prInsightsController = function () {
       }
 
       const teamCodes = teams ? teams.split(',') : [];
-      console.log('Parsed team codes:', teamCodes);
 
       const query = {};
       const now = new Date();
@@ -28,32 +23,91 @@ const prInsightsController = function () {
         query.teamCode = { $in: teamCodes };
       }
 
-      console.log('Database query:', query);
-
-      const insightsData = await PRReviewInsights.aggregate([
+      const insightsDataResult = await insightsData.aggregate([
         { $match: query },
         {
           $group: {
-            _id: '$teamCode',
+            _id: "$teamCode",
             actionSummary: {
               $push: {
-                actionTaken: '$actionTaken',
-                count: { $sum: 1 },
-              },
+                actionTaken: "$actionTaken",
+                count: 1
+              }
             },
             qualityDistribution: {
               $push: {
-                qualityLevel: '$qualityLevel',
-                count: { $sum: 1 },
-              },
-            },
-          },
+                qualityLevel: "$qualityLevel",
+                count: 1
+              }
+            }
+          }
         },
+        {
+          $unwind: "$actionSummary"
+        },
+        {
+          $group: {
+            _id: {
+              teamCode: "$_id",
+              actionTaken: "$actionSummary.actionTaken"
+            },
+            totalCount: {
+              $sum: "$actionSummary.count"
+            },
+            qualityDistribution: {
+              $first: "$qualityDistribution"
+            }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.teamCode",
+            actionSummary: {
+              $push: {
+                actionTaken: "$_id.actionTaken",
+                count: "$totalCount"
+              }
+            },
+            qualityDistribution: {
+              $first: "$qualityDistribution"
+            }
+          }
+        },
+        {
+          $unwind: "$qualityDistribution"
+        },
+        {
+          $group: {
+            _id: {
+              teamCode: "$_id",
+              qualityLevel:
+                "$qualityDistribution.qualityLevel"
+            },
+            totalCount: {
+              $sum: "$qualityDistribution.count"
+            },
+            actionSummary: {
+              $first: "$actionSummary"
+            }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.teamCode",
+            qualityDistribution: {
+              $push: {
+                qualityLevel: "$_id.qualityLevel",
+                count: "$totalCount"
+              }
+            },
+            actionSummary: {
+              $first: "$actionSummary"
+            }
+          }
+        }
       ]);
 
-      console.log('Fetched insights data:', insightsData);
-
-      return res.status(200).json({ teams: insightsData });
+      return res.status(200).json({ teams: insightsDataResult });
     } catch (error) {
       console.error('Error fetching PR review insights:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -79,7 +133,7 @@ const prInsightsController = function () {
         return res.status(400).json({ error: 'Invalid qualityLevel value' });
       }
 
-      const newInsight = new PRReviewInsights({
+      const newInsight = new insightsData({
         teamCode,
         reviewDate: new Date(reviewDate),
         actionTaken,
