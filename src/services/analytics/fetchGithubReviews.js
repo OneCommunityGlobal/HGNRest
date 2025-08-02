@@ -2,11 +2,21 @@ const axios = require('axios');
 const dayjs = require('dayjs');
 const NodeCache = require('node-cache');
 
+/**
+ * Controller for user skills profile operations
+ *
+ * @param {Object} HgnFormResponses - The HgnFormResponses model
+ * @param {Object} UserProfile - The UserProfile model
+ * @returns {Object} Controller methods
+ */
+
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const BASE_URL = 'https://api.github.com';
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 
-const fetchGitHubReviews = async (org, repo, duration = 'allTime', sort = 'desc') => {
+
+
+const fetchGitHubReviews = (HgnFormResponses, UserProfile) => async (org, repo, duration = 'allTime', sort = 'desc') => {
   const cacheKey = `${org}_${repo}_${duration}_${sort}`;
   const cachedData = cache.get(cacheKey);
   if (cachedData) {
@@ -76,29 +86,77 @@ const fetchGitHubReviews = async (org, repo, duration = 'allTime', sort = 'desc'
     const allReviewData = reviewArrays.flat();
 
     const reviewerSummary = {};
-    allReviewData.forEach(({ reviewer, state }) => {
+
+    const fetchMentorAndTeamInfo = async (githubUsername) => {
+      try {
+        const formResponse = await HgnFormResponses.findOne({
+          'userInfo.github': githubUsername,
+        }).lean();
+
+
+
+        if (!formResponse) return null;
+
+        const userId = formResponse.user_id;
+
+        const userProfile = await UserProfile.findById(userId)
+          .populate({
+            path: 'teams',
+            select: '_id teamName',
+          })
+          .lean();
+
+        const isMentor =
+          typeof userProfile.role === 'string' &&
+          userProfile.role.toLowerCase() === 'mentor';
+
+        console.log('isMentor' + isMentor);
+        console.log(userProfile.teamCode);
+
+        return {
+          isMentor,
+          team: userProfile.teamCode || null,
+        };
+      } catch (err) {
+        console.error(`Failed to fetch mentor/team info for ${githubUsername}:`, err.message);
+        return null;
+      }
+    };
+
+
+
+    for (const { reviewer, state } of allReviewData) {
+      if (!reviewer) continue;
+
       if (!reviewerSummary[reviewer]) {
+
+        // const responses = await HgnFormResponses.find({}).lean();
+        // console.log(JSON.stringify(responses, null, 2));
+        const extraInfo = await fetchMentorAndTeamInfo(reviewer);
+        console.log(extraInfo);
+
         reviewerSummary[reviewer] = {
           reviewer,
-          isMentor: null, 
-          team: null,     
+          isMentor: extraInfo?.isMentor ?? null,
+          team: extraInfo?.team ?? null,
           counts: {
             Exceptional: 0,
             Sufficient: 0,
             'Needs Changes': 0,
             'Did Not Review': 0,
-          }
+          },
         };
       }
 
       const mappedState =
         state === 'APPROVED' ? 'Sufficient'
-        : state === 'CHANGES_REQUESTED' ? 'Needs Changes'
-        : state === 'COMMENTED' ? 'Exceptional'
-        : 'Did Not Review';
+          : state === 'CHANGES_REQUESTED' ? 'Needs Changes'
+            : state === 'COMMENTED' ? 'Exceptional'
+              : 'Did Not Review';
 
       reviewerSummary[reviewer].counts[mappedState]++;
-    });
+    }
+
 
     const result = Object.values(reviewerSummary).sort((a, b) => {
       const aTotal = Object.values(a.counts).reduce((acc, val) => acc + val, 0);

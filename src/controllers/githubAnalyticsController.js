@@ -1,4 +1,6 @@
-const fetchGitHubReviews = require('../services/analytics/fetchGithubReviews');
+const HgnFormResponses = require('../models/hgnFormResponses');
+const UserProfile = require('../models/userProfile');
+const fetchGitHubReviews = require('../services/analytics/fetchGithubReviews')(HgnFormResponses, UserProfile);
 
 const getGitHubReviews = async (req, res) => {
   const org = 'OneCommunityGlobal';
