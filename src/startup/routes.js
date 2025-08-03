@@ -351,7 +351,7 @@ const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRo
 const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
-const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const announcementRouter = require('../routes/announcementRouter')();
 
@@ -565,4 +565,6 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  app.use('/api/analytics', analyticsRouter);
 };
