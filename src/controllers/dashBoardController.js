@@ -233,7 +233,7 @@ const dashboardcontroller = function () {
       visual,
       severity,
     );
-  
+
     try {
       await emailSender.sendEmail(
         'onecommunityglobal@gmail.com',
