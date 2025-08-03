@@ -21,7 +21,7 @@ jest.mock('../models/formResponse');
 jest.mock('../models/userProfile');
 
 describe('Form Controller', () => {
-  let req, res;
+  let req; let res;
 
   beforeEach(() => {
     req = { body: {}, params: {}, query: {} };
