@@ -157,6 +157,7 @@ const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(bui
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
+const bmExpenditurecRouter = require('../routes/bmdashboard/bmExpenditureRouter')();
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
   invTypeBase,
   materialType,
@@ -299,8 +300,9 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
-
+  app.use('/api/bm', bmExpenditurecRouter);
   app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
 
