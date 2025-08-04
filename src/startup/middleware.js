@@ -43,6 +43,10 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/api/health' && req.method === 'GET') {
+      next();
+      return;
+    }
 
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
@@ -58,14 +62,19 @@ module.exports = function (app) {
       res.status(401).send('Invalid token');
       return;
     }
+
     if (
       !payload ||
-      !payload.expiryTimestamp ||
       !payload.userid ||
-      !payload.role ||
-      moment().isAfter(payload.expiryTimestamp)
+      !payload.role
     ) {
       res.status(401).send('Unauthorized request');
+      return;
+    }
+
+    // Check if token is expired using expiryTimestamp if available
+    if (payload.expiryTimestamp && moment().isAfter(payload.expiryTimestamp)) {
+      res.status(401).send('Token expired');
       return;
     }
 

@@ -331,7 +331,7 @@ const profileInitialSetupController = function (
             userid: savedUser._id,
             role: savedUser.role,
             permissions: savedUser.permissions,
-            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
           };
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
@@ -443,7 +443,7 @@ const profileInitialSetupController = function (
         userid: savedUser._id,
         role: savedUser.role,
         permissions: savedUser.permissions,
-        expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+        expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
       };
 
       const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
@@ -541,7 +541,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = [
+    const user_permissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
