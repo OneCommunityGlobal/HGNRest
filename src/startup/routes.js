@@ -142,9 +142,9 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
-const form=require('../models/forms')
-const formResponse=require('../models/formResponse')
-const formRouter=require('../routes/formRouter')(form,formResponse);
+const form = require('../models/forms');
+const formResponse = require('../models/formResponse');
+const formRouter = require('../routes/formRouter')(form, formResponse);
 const materialLossRouter = require('../routes/materialLossRouter')(materialLoss);
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
 
@@ -192,14 +192,20 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
-const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(weeklySummaryEmailAssignment, userProfile);
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
 const slackRouter = require('../routes/automation/slackRouter');
+
+//commnunity portal
+const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+
+const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
+  weeklySummaryEmailAssignment,
+  userProfile,
+);
 
 //lbdashboard_bidoverview
 
@@ -210,9 +216,6 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
   bidoverview_User,
   bidoverview_Notification,
 );
-
-//commnunity portal
-const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -232,6 +235,9 @@ module.exports = function (app) {
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
+  app.use('/api', wastedMaterialRouter);
+
+  app.use('/api', laborCostRouter);
   app.use('/api', wastedMaterialRouter);
 
   app.use('/api', laborCostRouter);
@@ -266,7 +272,9 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
-  
+
+  app.use('/api', weeklySummaryEmailAssignmentRouter);
+
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -274,8 +282,11 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
+  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+
+  app.use('/api', templateRouter);
 
   app.use('/api', templateRouter);
 
@@ -298,7 +309,22 @@ module.exports = function (app) {
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
+  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmActualVsPlannedCostRouter);
+  app.use('/api/bm', bmTimeLoggerRouter);
+
+  app.use('/api/lb', bidPropertyRouter);
+  app.use('/api/lb', userBidRouter);
+
+  //community portal
+  app.use('/api/communityportal/reports/participation', cpNoShowRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
@@ -315,7 +341,13 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
+  app.use('/api/villages', require('../routes/lbdashboard/villages'));
+  app.use('/api/lb', lbMessageRouter);
+  app.use('/api/lb', lbUserPrefRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api/bm', bmRentalChart);
+  app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
