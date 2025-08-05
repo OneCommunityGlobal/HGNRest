@@ -242,6 +242,7 @@ module.exports = function (app) {
   app.use('/api', wastedMaterialRouter);
 
   app.use('/api', laborCostRouter);
+
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
