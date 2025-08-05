@@ -6,7 +6,7 @@ const materialLossModel = new mongoose.Schema({
   year: { type: Number, required: true, index: true },
   month: { type: String, required: true, index: true },
   lossPercentage: { type: Number, required: true },
-  updatedAt: { type: Date, default: Date.now, required: true}
+  updatedAt: { type: Date, default: Date.now, required: true },
 });
 
 materialLossModel.index({ materialId: 1, year: 1, month: 1 });
