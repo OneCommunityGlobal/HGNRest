@@ -8,11 +8,13 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     try {
       const ip = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
       const location = geoIP.lookup(ip);
+      
       return {
         country: location?.country || 'Unknown',
         state: location?.region || 'Unknown',
       };
     } catch (error) {
+      console.error('Location detection error:', error);
       return {
         country: 'Unknown',
         state: 'Unknown',
@@ -53,25 +55,18 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // Existing function - keep for backward compatibility
+  // Experience breakdown - shows all-time data (roles filtering supported)
   const getExperienceBreakdown = async (req, res) => {
     try {
-      const { startDate, endDate, roles } = req.query;
+      const { roles } = req.query;
       const match = {};
 
-      // Filter by startDate range
-      if (startDate || endDate) {
-        match.startDate = {};
-        if (startDate) match.startDate.$gte = new Date(startDate);
-        if (endDate) match.startDate.$lte = new Date(endDate);
-      }
-
-      // Filter by roles
+      // Filter by roles only
       if (roles) {
         const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
         match.roles = { $in: rolesArray };
       }
-
+      
       const breakdown = await Applicant.aggregate([
         { $match: match },
         {
@@ -130,7 +125,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // NEW: Track anonymous interactions (public endpoint)
+  // Track anonymous interactions (public endpoint)
   const trackInteraction = async (req, res) => {
     try {
       const {
@@ -236,7 +231,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // NEW: Get interaction summary (admin only)
+  // Get interaction summary (admin only)
   const getInteractionSummary = async (req, res) => {
     try {
       // Check admin permissions
@@ -270,7 +265,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // NEW: Get conversion metrics (admin only)
+  // Get conversion metrics (admin only)
   const getConversionMetrics = async (req, res) => {
     try {
       // Check admin permissions
@@ -355,12 +350,53 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
+  // Manual aggregation trigger (admin only) - backup for cron job
+  const triggerAggregation = async (req, res) => {
+    try {
+      // Check admin permissions
+      if (!hasPermission(req.body.requestor, 'seeUserAnalytics')) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      const { startDate, endDate } = req.query;
+      const { backfillSummaries, generateDailySummary } = require('../jobs/analyticsAggregation');
+
+      if (startDate && endDate) {
+        // Backfill range of dates
+        const summaries = await backfillSummaries(startDate, endDate);
+        return res.status(200).json({
+          message: `Generated ${summaries.length} daily summaries`,
+          dateRange: { startDate, endDate },
+          summariesCount: summaries.length
+        });
+      }
+      
+      // Generate for yesterday (or today if specified)
+      const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+      if (!req.query.date) {
+        targetDate.setDate(targetDate.getDate() - 1); // Default to yesterday
+      }
+      
+      const summary = await generateDailySummary(targetDate);
+      return res.status(200).json({
+        message: 'Daily summary generated successfully',
+        date: targetDate.toDateString(),
+        summary
+      });
+
+    } catch (error) {
+      console.error('Error triggering aggregation:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   return {
-    getExperienceBreakdown,    // existing
-    trackInteraction,          // new - public
-    trackApplication,          // new - public  
-    getInteractionSummary,     // new - admin only
-    getConversionMetrics,      // new - admin only
+    getExperienceBreakdown,
+    trackInteraction,
+    trackApplication,
+    getInteractionSummary,
+    getConversionMetrics,
+    triggerAggregation,  
   };
 };
 
