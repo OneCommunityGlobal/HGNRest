@@ -4,8 +4,7 @@ const routes = function (materialLossModel) {
   const router = express.Router();
   const controller = require('../controllers/materialLossController')(materialLossModel);
 
-  router.route('/loss-tracking')
-    .get(controller.getMaterialLossData);
+  router.route('/loss-tracking').get(controller.getMaterialLossData);
 
   return router;
 };
