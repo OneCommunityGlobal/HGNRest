@@ -1,5 +1,5 @@
 /* eslint-disable quotes */
-require('dotenv').config();
+require('dotenv').load();
 require('./jobs/dailyMessageEmailNotification');
 const { app, logger } = require('./app');
 const TimerWebsockets = require('./websockets').default;
@@ -19,4 +19,8 @@ const messagingService = MessagingWebSocket();
 
 websocketRouter(server, [timerService, messagingService]);
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8d549be2c197bd47c9e35849d73c9d0183bb0142
 module.exports = server;
