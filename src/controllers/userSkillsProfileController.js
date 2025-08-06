@@ -81,8 +81,7 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       }
 
       // Get skills data - use default values if not found
-      const userIdObj = mongoose.Types.ObjectId(userId);
-      const formResponses = await HgnFormResponses.findOne({ user_id: userIdObj })
+      const formResponses = await HgnFormResponses.findOne({ user_id: userId })
         .sort({ _id: -1 })
         .lean();
 

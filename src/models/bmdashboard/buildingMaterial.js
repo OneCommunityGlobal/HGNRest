@@ -9,24 +9,19 @@ const buildingMaterial = new Schema({
   stockUsed: { type: Number, default: 0 }, // total amount of item used successfully in the project
   stockWasted: { type: Number, default: 0 }, // total amount of item wasted/ruined/lost in the project
   stockAvailable: { type: Number, default: 0 }, // bought - (used + wasted)
-  purchaseRecord: [
-    {
-      date: { type: Date, default: Date.now() },
-      requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-      quantity: { type: Number, required: true },
-      priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
-      brand: String,
-      status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
-      unitPrice: { type: Number, required: true, default: 0 },
-    },
-  ],
-  updateRecord: [
-    {
-      date: { type: Date, required: true },
-      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-      quantityUsed: { type: Number, required: true },
-      quantityWasted: { type: Number, required: true },
-    },
-  ],
+  purchaseRecord: [{
+    date: { type: Date, default: Date.now() },
+    requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+    quantity: { type: Number, required: true },
+    priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
+    brand: String,
+    status: { type: String, default: 'Pending', enum: ['Approved', 'Pending', 'Rejected'] },
+  }],
+  updateRecord: [{
+    date: { type: Date, required: true },
+    createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+    quantityUsed: { type: Number, required: true },
+    quantityWasted: { type: Number, required: true },
+  }],
 });
 module.exports = mongoose.model('buildingMaterial', buildingMaterial, 'buildingMaterials');

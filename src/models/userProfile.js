@@ -38,7 +38,7 @@ const userProfileSchema = new Schema({
     isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
-    removedDefaultPermissions: [String],
+    removedDefaultPermissions: [String]
   },
   firstName: {
     type: String,
@@ -84,7 +84,6 @@ const userProfileSchema = new Schema({
       return this.createdDate;
     },
   },
-  isStartDateManuallyModified: { type: Boolean, default: false },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
@@ -236,7 +235,7 @@ const userProfileSchema = new Schema({
   trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
-  teamCodeWarning: { type: Boolean, default: false },
+  teamCodeWarning: { type: Boolean, default: false},
   teamCode: {
     type: String,
     default: '',
@@ -269,12 +268,12 @@ const userProfileSchema = new Schema({
         fullName: { type: String, required: true },
         rating: { type: Number, min: 1, max: 5 },
         isActive: { type: Boolean, default: false },
-      },
+      }
     ],
     additionalComments: { type: String },
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
-  },
+  }
 });
 
 userProfileSchema.pre('save', function (next) {
