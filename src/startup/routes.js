@@ -171,12 +171,13 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
   dashboardMetrics,
   buildingProject,
-  buildingMaterial
+  buildingMaterial,
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
+const reviewRouter = require('../routes/lbdashboard/reviewRouter');
 
 const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
 
@@ -194,7 +195,11 @@ const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   userPreferences,
   notification,
 );
-const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(buildingProject, buildingMaterialModel, buildingToolModel);
+const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
+  buildingProject,
+  buildingMaterialModel,
+  buildingToolModel,
+);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -329,9 +334,10 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
-  
+  app.use('/api/lb', reviewRouter);
+
   app.use('/api/financials', bmFinancialRouter);
-  
+
   app.use('/api', registrationRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
