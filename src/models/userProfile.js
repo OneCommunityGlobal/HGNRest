@@ -84,6 +84,7 @@ const userProfileSchema = new Schema({
       return this.createdDate;
     },
   },
+  isStartDateManuallyModified: { type: Boolean, default: false },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
@@ -260,6 +261,7 @@ const userProfileSchema = new Schema({
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
   permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
+  applicationAccess: { type: mongoose.Schema.Types.ObjectId, ref: 'applicationAccess' },
   questionaireFeedback: {
     haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
     peopleYouContacted: [
