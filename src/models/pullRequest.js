@@ -14,4 +14,4 @@ const pullRequest = new Schema(
 
 pullRequest.index({ prNumber: 1 });
 
-module.export = mongoose.model('PullRequest', pullRequest);
+module.exports = mongoose.model('PullRequest', pullRequest);

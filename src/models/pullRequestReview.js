@@ -5,8 +5,10 @@ const { Schema } = mongoose;
 const pullRequestReview = new Schema(
   {
     id: { type: Number, required: true, unique: true },
-    prNumber: Number,
+    prNumber: String,
     submitedAt: Date,
+    state: String,
+    userId: Number,
   },
   { timestamps: true },
 );
