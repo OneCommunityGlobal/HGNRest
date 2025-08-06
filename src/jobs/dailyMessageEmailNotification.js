@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const UserPreferences = require('../models/lbdashboard/userPreferences');
 const Message = require('../models/lbdashboard/message');
 const UserProfile = require('../models/userProfile');
-const { sendSummaryNotification } = require('../utilities/emailSender');
+const emailSender = require('../utilities/emailSender');
 
 // Set test mode and test email
 const TEST_MODE = true; // Set to false to disable test mode
@@ -42,8 +42,8 @@ cron.schedule('0 0 * * *', async () => {
             }
 
             if (summary) {
-                const recipientEmail = TEST_MODE ? TEST_EMAIL : user.email;
-                await sendSummaryNotification(recipientEmail, summary);
+                const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
+                await emailSender.sendSummaryNotification(recipientEmail, summary);
             }
         }
     } catch (error) {
