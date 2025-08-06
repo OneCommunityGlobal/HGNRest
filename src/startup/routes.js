@@ -64,6 +64,7 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+const dashboardMetrics = require('../models/bmdashboard/dashboardMetrics');
 const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 
 const buildingToolModel = require('../models/bmdashboard/buildingTool');
@@ -166,6 +167,11 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   reusableType,
   toolType,
   equipmentType,
+);
+const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
+  dashboardMetrics,
+  buildingProject,
+  buildingMaterial
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
@@ -308,6 +314,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
 
   app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
 
