@@ -176,6 +176,9 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
 // lb dashboard
+
+const listingPaymentRouter = require('../routes/lbdashboard/bookingsRouter');
+
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
 const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
@@ -336,4 +339,5 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lbdashboard/listingpayment', listingPaymentRouter);
 };
