@@ -78,7 +78,6 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
       throw err;
     }
   };
-
   const getTotalProjectCost = async (req, res) => {
     try {
       const project = await BuildingProject.findById(req.params.projectId);
