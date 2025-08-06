@@ -53,18 +53,35 @@ async function inviteUser(email, role = 'member') {
   }
 }
 
-// Function to remove a user from the Sentry organization by user ID
-async function removeUser(userId) {
-  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/${userId}/`;
+// Function to remove a user by email (checks if exists first)
+async function removeUser(email, members) {
+  const urlBase = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
 
   try {
+    // If no members passed, fetch
+    if (!members) {
+      members = await getMembers();
+    }
+
+    const existingMember = members.find(member =>
+      member.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!existingMember) {
+      return `User with email ${email} is not a member. Nothing to remove.`;
+    }
+
+    // Remove by userId
+    const url = `${urlBase}${existingMember.id}/`;
     await axios({
       url,
       method: 'DELETE',
       headers,
     });
-    return `Successfully removed user with ID ${userId} from the organization.`;
+    console.log(`Sentry: Successfully removed user ${email} (ID: ${existingMember.id}).`);
+    return `Removed user ${email}`;
   } catch (error) {
+    console.error(error);
     throw new Error(`Error removing user: ${error.message}`);
   }
 }
