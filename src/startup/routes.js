@@ -171,7 +171,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
   dashboardMetrics,
   buildingProject,
-  buildingMaterial
+  buildingMaterial,
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
@@ -194,7 +194,11 @@ const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   userPreferences,
   notification,
 );
-const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(buildingProject, buildingMaterialModel, buildingToolModel);
+const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
+  buildingProject,
+  buildingMaterialModel,
+  buildingToolModel,
+);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -248,7 +252,6 @@ module.exports = function (app) {
   app.use('/api', wastedMaterialRouter);
 
   app.use('/api', laborCostRouter);
-
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
@@ -280,7 +283,6 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
-
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -329,9 +331,9 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
-  
+
   app.use('/api/financials', bmFinancialRouter);
-  
+
   app.use('/api', registrationRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
