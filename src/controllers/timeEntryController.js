@@ -9,6 +9,9 @@ const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
+const cacheModule = require('../utilities/nodeCache');
+
+const cacheUtil = cacheModule();
 
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
@@ -470,6 +473,15 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
+
+  const invalidateWeeklySummariesCache = (weekIndex) => {
+    const cacheKey = `weeklySummaries_${weekIndex}`;
+    cacheUtil.removeCache(cacheKey);
+    
+    // Also invalidate the "all weeks" cache
+    cacheUtil.removeCache('weeklySummaries_all');
+  };
+  
   /**
    * Helper func: Check if this is the first time entry for the given user id
    *
@@ -596,6 +608,21 @@ const timeEntrycontroller = function (TimeEntry) {
         await userprofile.save({ session, validateModifiedOnly: true });
         // since userprofile is updated, need to remove the cache so that the updated userprofile is fetched next time
         removeOutdatedUserprofileCache(userprofile._id.toString());
+
+        // Add cache invalidation for weekly summaries here
+        const dateOfWork = new Date(timeEntry.dateOfWork);
+        const today = new Date();
+        const diffTime = today - dateOfWork;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Calculate which week this entry belongs to (0 = this week, 1 = last week, etc.)
+        const weekIndex = Math.floor(diffDays / 7);
+        
+        // Only invalidate cache for entries in the last 4 weeks
+        if (weekIndex >= 0 && weekIndex <= 3) {
+          // Call the invalidation function
+          invalidateWeeklySummariesCache(weekIndex);
+        }
       }
 
       await session.commitTransaction();
@@ -1011,6 +1038,54 @@ const timeEntrycontroller = function (TimeEntry) {
       res.status(200).send(results);
     } catch (error) {
       res.status(400).send({ error });
+    }
+  };
+
+  
+  /**
+   * Get total hours for a specified period for multiple users at once
+   */
+  const getUsersTotalHoursForSpecifiedPeriod = async function (req, res) {
+    const { userIds, fromDate, toDate } = req.body;
+
+    if (
+      !fromDate ||
+      !toDate ||
+      !userIds ||
+      !moment(fromDate).isValid() ||
+      !moment(toDate).isValid()
+    ) {
+      return res.status(400).send({ error: 'Invalid request' });
+    }
+
+    const startDate = moment(fromDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const endDate = moment(toDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+    try {
+      // g total hours
+      const userHoursSummary = await TimeEntry.aggregate([
+        {
+          $match: {
+            entryType: { $in: ['default', 'person', null] },
+            personId: { $in:  userIds.map(id => mongoose.Types.ObjectId(id)) },
+            dateOfWork: { $gte: startDate, $lte: endDate }
+          }
+        },
+        {
+          $group: {
+            _id: '$personId',
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } }
+          }
+        }
+      ]);
+      const result = userHoursSummary.map(entry => ({
+        userId: entry._id,
+        totalHours: Math.round(entry.totalHours * 10) / 10 //round
+      }));
+      res.status(200).send(result);
+    } catch (error) {
+      logger.logException(error); // Log exception using consistent logger
+      res.status(400).send({ error: 'Failed to calculate total hours', details: error.message });
     }
   };
 
@@ -1560,6 +1635,7 @@ const timeEntrycontroller = function (TimeEntry) {
     editTimeEntry,
     deleteTimeEntry,
     getTimeEntriesForSpecifiedPeriod,
+    getUsersTotalHoursForSpecifiedPeriod,
     getTimeEntriesForUsersList,
     getTimeEntriesForSpecifiedProject,
     getLostTimeEntriesForUserList,

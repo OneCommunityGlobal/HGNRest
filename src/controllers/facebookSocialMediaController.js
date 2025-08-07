@@ -8,7 +8,9 @@ const ScheduledPost = require('../models/scheduledPostSchema');
 const facebookController = function () {
   async function extractTextAndImgUrl(htmlString) {
     const $ = cheerio.load(htmlString);
-    const textContent = $('body').text().replace(/\+/g, '').trim();
+    //const textContent = $('body').text().replace(/\+/g, '').trim();
+    const textContent = $('div[style]').text().trim();
+    console.log(textContent, 'Targetdivtext');
     const urlSrcs = [];
     const base64Srcs = [];
 
@@ -176,7 +178,12 @@ const facebookController = function () {
   }
 
   async function createFbPost(req, res) {
+    console.log('reached create fb post');
+    console.log(req.body.emailContent);
+
     const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
+    console.log(textContent);
+
     const authToken = req.body.accessToken;
     const pages = await getPagesManagedByUser(authToken);
     if (pages.length === 0) {
