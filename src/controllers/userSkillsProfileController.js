@@ -21,12 +21,12 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       const hasAccess = await hasPermission(req.body.requestor, 'getUserProfiles');
 
       // Log access attempt for tracking
-      Logger.logInfo(`User skills profile access attempt`, {
+      /** Logger.logInfo(`User skills profile access attempt`, {
         requestorId: req.body.requestor.requestorId,
         targetUserId: req.params.userId,
         hasAccess,
         timestamp: new Date().toISOString(),
-      });
+      }); */
 
       // If not authorized and trying to view someone else's profile
       if (!hasAccess && req.body.requestor.requestorId !== req.params.userId) {
@@ -183,14 +183,14 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         isPlaceholder: isProfilePlaceholder || isSkillsPlaceholder,
       };
 
-      // Log successful profile retrieval
+      /** Log successful profile retrieval
       Logger.logInfo(`User skills profile successfully retrieved`, {
         requestorId: req.body.requestor.requestorId,
         targetUserId: userId,
         isProfilePlaceholder,
         isSkillsPlaceholder,
         timestamp: new Date().toISOString(),
-      });
+      }); */
 
       return res.status(200).json(result);
     } catch (error) {
