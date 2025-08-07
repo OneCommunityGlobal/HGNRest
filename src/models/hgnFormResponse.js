@@ -65,7 +65,7 @@ const followupSchema = new mongoose.Schema({
 });
 
 const hgnFormResponseSchema = new mongoose.Schema({
-  user_id: { type: String, required: true },
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'userprofiles' },
   userInfo: { type: Object, value: userInfoSchema },
   general: { type: Object, value: generalSchema },
   frontend: { type: Object, value: frontendSchema },
