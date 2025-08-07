@@ -235,12 +235,17 @@ const userProfileController = function (UserProfile, Project) {
   /**
    * Controller function to retrieve basic user profile information.
    * This endpoint checks if the user has the necessary permissions to access user profiles.
+   * If the source is "report", it checks for "getReport" permission.
+   * For other sources, it checks for "getUserProfiles" permission.
    * If authorized, it queries the database to fetch only the required fields:
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
+   *
    */
   const getUserProfileBasicInfo = async function (req, res) {
     try {
-      if (!(await checkPermission(req, 'getUserProfiles'))) {
+      const {source}=req.params;
+      const permission = source === 'Report' ? 'getReports' : 'getUserProfiles';
+      if (!(await checkPermission(req, permission))) {
         return res.status(403).send({ error: 'Unauthorized' });
       }
 
