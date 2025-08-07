@@ -5,9 +5,9 @@ const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
 const createGitHubClient = require('../helpers/githubPRHelper');
 
-const connectToMongo = require('../startup/db');
+// const connectToMongo = require('../startup/db');
 
-connectToMongo();
+// connectToMongo();
 
 const FRONT_END_REPO = 'HighestGoodNetworkApp';
 const BACK_END_REPO = 'HGNRest';
@@ -59,8 +59,10 @@ async function syncGitHubData() {
           {
             $setOnInsert: {
               prNumber: `FE-${pr.number}`,
-              prTitle: pr.title,
               prRepo: FRONT_END_REPO,
+            },
+            $set: {
+              prTitle: pr.title, // Always update the title for change
             },
           },
           { upsert: true, new: true },
@@ -107,8 +109,10 @@ async function syncGitHubData() {
           {
             $setOnInsert: {
               prNumber: `BE-${pr.number}`,
-              prTitle: pr.title,
               prRepo: BACK_END_REPO,
+            },
+            $set: {
+              prTitle: pr.title, // Always update the title for change
             },
           },
           { upsert: true, new: true },
@@ -156,6 +160,21 @@ async function syncGitHubData() {
     notes: error,
   });
 }
+
+const pullRequestReviewJobs = () => {
+  const pullRequestReviewSyncJob = new CronJob(
+    '1 0 * * *', // Every day, 1 minute past midnight
+    // '*/2 * * * *', // Every 2 minute, for testing
+    async () => {
+      await syncGitHubData();
+    },
+    null,
+    false,
+    'America/Los_Angeles',
+  );
+  pullRequestReviewSyncJob.start();
+};
+module.exports = pullRequestReviewJobs;
 
 // (async () => {
 //   await syncGitHubData();

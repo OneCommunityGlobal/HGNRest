@@ -48,7 +48,7 @@ function createGitHubClient({ owner, repo }) {
     try {
       // console.log (url);
       const data = await fetchAllPages(url);
-      // return data.slice(0, 2);
+      // return data.slice(0, 2); // return only 2 items for testing
       return data;
     } catch (err) {
       console.error(`Failed to fetch reviews for PR #${prNumber}:`, err.message);
@@ -61,7 +61,7 @@ function createGitHubClient({ owner, repo }) {
 
     try {
       const data = await fetchAllPages(url);
-      // return data.slice(0, 2);
+      // return data.slice(0, 2); // return only 2 items for testing
       return data;
     } catch (err) {
       console.error(`Failed to fetch pull requests for repo ${repo}:`, err.message);
@@ -73,7 +73,7 @@ function createGitHubClient({ owner, repo }) {
     const url = `https://api.github.com/search/issues?q=repo:${owner}/${repo}+type:pr+updated:>=${sinceDate}&sort=updated&order=desc`;
     try {
       const data = await fetchAllPages(url, false);
-      // return data.slice(0, 2);
+      // return data.slice(0, 2); // return only 2 items for testing
       return data;
     } catch (err) {
       console.error(`Failed to fetch pull requests for repo ${repo}:`, err.message);
