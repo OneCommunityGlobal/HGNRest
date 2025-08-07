@@ -4,17 +4,15 @@ const logger = require('../../startup/logger');
 const eventFeedbackController = function () {
   const submitEventFeedbackResponse = async function (req, res) {
     console.log(req.body);
-    logger.logInfo(`Email sent: ${JSON.stringify(req.body)}`);
+    logger.logInfo(`Event Feedback Frontend : ${JSON.stringify(req.body)}`);
 
     const { name, email, rating, comments, eventId, attendanceId } = req.body;
     const createdBy = name;
     console.log(createdBy);
-    if (!name || !email || !rating || !comments || !eventId) {
-      return res
-        .status(400)
-        .json({
-          error: 'All fields (name, email, rating, comments, eventId, attendanceId) are required',
-        });
+    if (!name || !email || !rating || !eventId) {
+      return res.status(400).json({
+        error: 'All fields (name, email, rating, eventId) are required',
+      });
     }
     console.log(req.body.requestor.role);
 
