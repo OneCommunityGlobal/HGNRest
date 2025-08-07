@@ -15,7 +15,7 @@ async function inviteUser(req, res) {
   }
 
   try {
-    const message = await githubService.sendInvitation(username); 
+    const message = await githubService.sendInvitation(username);
     await appAccessService.upsertAppAccess(targetUser.targetUserId, 'github', 'invited', username);
     res.status(201).json({ message });
   } catch (error) {
@@ -36,7 +36,7 @@ async function removeUser(req, res) {
   }
 
   try {
-    const message = await githubService.removeUser(username);  
+    const message = await githubService.removeUser(username);
     await appAccessService.revokeAppAccess(targetUser.targetUserId, 'github');
     res.status(200).json({ message });
   } catch (error) {
