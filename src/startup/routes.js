@@ -249,7 +249,10 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
+const bitlyRouter = require('../routes/bitlyRouter');
+
 module.exports = function (app) {
+  app.use('/api/bitly', bitlyRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
