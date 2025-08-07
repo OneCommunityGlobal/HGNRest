@@ -103,7 +103,7 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
-
+      'accessHgnSkillsDashboard',
       'manageFAQs',
     ],
   },
@@ -135,6 +135,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'seeUsersInDashboard',
+      'accessHgnSkillsDashboard',
     ],
   },
   {
@@ -197,6 +198,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -286,7 +288,7 @@ const permissionsRoles = [
       'manageAdminLinks',
       'removeUserFromTask',
       'editHeaderMessage',
-
+      'accessHgnSkillsDashboard',
       'manageFAQs',
     ],
   },
