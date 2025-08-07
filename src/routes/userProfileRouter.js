@@ -142,6 +142,10 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
+  userProfileRouter
+    .route('/userProfile/skills/:skill')
+    .get(controller.getAllMembersSkillsAndContact);
+
   return userProfileRouter;
 };
 
