@@ -200,6 +200,11 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingToolModel,
 );
 
+const toolAvailability = require('../models/bmdashboard/toolAvailability');
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
+  toolAvailability,
+);
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
@@ -210,6 +215,8 @@ const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmail
   userProfile,
 );
 
+
+
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
@@ -219,6 +226,7 @@ const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
+
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
 const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
   bidoverview_Bid,
@@ -226,6 +234,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
   bidoverview_User,
   bidoverview_Notification,
 );
+
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
@@ -322,6 +331,9 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', toolAvailabilityRouter);
+  // lb dashboard
+
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
