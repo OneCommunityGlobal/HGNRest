@@ -110,9 +110,6 @@ const fetchGitHubReviews = (HgnFormResponses, UserProfile) => async (org, repo, 
           typeof userProfile.role === 'string' &&
           userProfile.role.toLowerCase() === 'mentor';
 
-        console.log('isMentor' + isMentor);
-        console.log(userProfile.teamCode);
-
         return {
           isMentor,
           team: userProfile.teamCode || null,
@@ -133,7 +130,6 @@ const fetchGitHubReviews = (HgnFormResponses, UserProfile) => async (org, repo, 
         // const responses = await HgnFormResponses.find({}).lean();
         // console.log(JSON.stringify(responses, null, 2));
         const extraInfo = await fetchMentorAndTeamInfo(reviewer);
-        console.log(extraInfo);
 
         reviewerSummary[reviewer] = {
           reviewer,
