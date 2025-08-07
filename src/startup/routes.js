@@ -200,6 +200,7 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingToolModel,
 );
 
+
 const toolAvailability = require('../models/bmdashboard/toolAvailability');
 const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
   toolAvailability,
@@ -248,6 +249,8 @@ const templateRouter = require('../routes/templateRouter');
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const tagRouter = require('../routes/tagRouter')(tag);
+
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -309,6 +312,8 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+
+  app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
