@@ -31,11 +31,10 @@ async function ensureFolderExists(path) {
  * Polls an async share-folder job until complete, using the correct endpoint.
  */
 async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
-  const checkStatus = async (attempt) => {
-    if (attempt >= maxAttempts) {
-      throw new Error('Timeout waiting for share to complete');
-    }
-
+  let attempts = 0;
+  // eslint-disable-next-line no-await-in-loop
+  while (attempts < maxAttempts) {
+    // eslint-disable-next-line no-await-in-loop
     const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId });
     const tag = status.result['.tag'];
 
@@ -45,16 +44,14 @@ async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
     if (tag === 'failed') {
       throw new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
     }
-
-    // in_progress - wait and try again
-    await new Promise((resolve) => {
-      setTimeout(resolve, 1000);
+    // in_progress
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((res) => {
+      setTimeout(res, 1000);
     });
-
-    return checkStatus(attempt + 1);
-  };
-
-  return checkStatus(0);
+    attempts += 1;
+  }
+  throw new Error('Timeout waiting for share to complete');
 }
 
 /**
@@ -117,7 +114,16 @@ async function createFolderAndInvite(email, projectName) {
       quiet: false,
     });
 
-    return { inviteResponse, folderPath };
+    // Get the folder metadata to retrieve the folder_id
+    const folderMetadata = await dbx.filesGetMetadata({ path: folderPath });
+
+    return {
+      inviteResponse,
+      folderPath,
+      sharedFolderId,
+      folderId: folderMetadata.result.id,
+      folderName: projectName,
+    };
   } catch (err) {
     console.error('Error in createFolderAndInvite:', err);
     if (folderPath) {
@@ -127,7 +133,113 @@ async function createFolderAndInvite(email, projectName) {
   }
 }
 
+/**
+ * Invites a user to an existing shared folder.
+ * Assumes the folder is already shared.
+ * Throws if the folder doesn't exist or isn't shared.
+ */
+async function inviteUserToFolder(email, folderPath) {
+  try {
+    // Construct the full path - if it's just a project name, add the HGN_FOLDER prefix
+    let normalizedPath;
+    if (folderPath.startsWith('/')) {
+      normalizedPath = folderPath;
+    } else if (folderPath.includes(HGN_FOLDER)) {
+      // Already has the HGN folder in the path
+      normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
+    } else {
+      // Just the project name, construct full path
+      normalizedPath = `/${HGN_FOLDER}/${folderPath}`;
+    }
+
+    // Get folder metadata to check if it's shared
+    const folderMeta = await dbx.filesGetMetadata({ path: normalizedPath });
+
+    if (!folderMeta.result.shared_folder_id) {
+      throw new Error(`Folder '${folderPath}' is not shared`);
+    }
+
+    // Invite user to the shared folder
+    const inviteResponse = await dbx.sharingAddFolderMember({
+      shared_folder_id: folderMeta.result.shared_folder_id,
+      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
+      quiet: false,
+    });
+
+    return {
+      inviteResponse,
+      sharedFolderId: folderMeta.result.shared_folder_id,
+      folderId: folderMeta.result.id,
+      folderPath: normalizedPath,
+    };
+  } catch (err) {
+    if (err.status === 409 && err.error?.error?.['.tag'] === 'path_lookup') {
+      throw new Error(`Folder '${folderPath}' not found`);
+    }
+    throw new Error(`Failed to invite user to folder '${folderPath}': ${err.message}`);
+  }
+}
+
+/**
+ * Delete folder using folder_id.
+ * @param {string} folderId - The Dropbox folder ID
+ */
+async function deleteFolder(folderId) {
+  try {
+    console.log(`Deleting folder with ID: ${folderId}`);
+
+    if (!folderId) {
+      throw new Error('folder_id is required for deletion');
+    }
+
+    // Use folder_id for direct deletion (handles shared folders automatically)
+    await dbx.filesDeleteV2({ path: folderId });
+    console.log('Folder deleted successfully');
+
+    return {
+      success: true,
+      method: 'folder_id',
+      message: 'Folder deleted successfully',
+    };
+  } catch (err) {
+    console.error('Error in deleteFolder:', {
+      message: err.message,
+      status: err.status,
+      error: err.error,
+      folder_id: folderId,
+    });
+
+    // Handle specific error cases
+    if (err.status === 409) {
+      const errorTag = err.error?.error?.['.tag'];
+      if (errorTag === 'path_lookup') {
+        throw new Error(`Folder not found`);
+      } else if (errorTag === 'path_write') {
+        const reason = err.error?.error?.reason?.['.tag'];
+        throw new Error(`Cannot delete folder: ${reason || 'write permission denied'}`);
+      }
+    }
+
+    if (err.status === 400) {
+      const errorSummary = err.error?.error_summary || err.message;
+      throw new Error(`Bad request when deleting folder: ${errorSummary}`);
+    }
+
+    if (err.status === 403) {
+      throw new Error(`Permission denied: You may not have permission to delete this folder`);
+    }
+
+    if (err.status === 404) {
+      throw new Error(`Folder not found`);
+    }
+
+    throw new Error(`Failed to delete folder: ${err.message || 'Unknown error'}`);
+  }
+}
+
 module.exports = {
   createFolderWithSubfolder,
   createFolderAndInvite,
+  inviteUserToFolder,
+  deleteFolder,
 };
