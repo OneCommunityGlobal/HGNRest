@@ -8,12 +8,13 @@ const { checkAppAccess } = require('./utils');
 async function createFolder(req, res) {
   try {
     const { folderName } = req.body;
-    const { parentFolderResponse, subfolderResponse } = await dropboxService.createFolderWithSubfolder(folderName);
+    const { parentFolderResponse, subfolderResponse } =
+      await dropboxService.createFolderWithSubfolder(folderName);
     const { requestor } = req.body;
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
       return;
-    } 
+    }
 
     res.status(201).json({
       message: 'Folder and subfolder created successfully!',
@@ -32,16 +33,26 @@ async function createFolderAndInvite(req, res) {
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
       return;
-    } 
+    }
     const user = await UserProfile.findById(targetUser.targetUserId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await dropboxService.createFolderAndInvite(targetUser.email, folderPath);
+    const result = await dropboxService.createFolderAndInvite(targetUser.email, folderPath);
 
-    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'dropbox', 'invited', targetUser.email);
-    res.status(200).json({ message: 'User invited successfully' });
+    // Store just the folder_id as credentials (most reliable identifier)
+    await appAccessService.upsertAppAccess(
+      targetUser.targetUserId,
+      'dropbox',
+      'invited',
+      result.folderId,
+    );
+
+    res.status(200).json({
+      message: 'User invited successfully',
+      folderPath: result.folderPath,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -55,8 +66,8 @@ async function inviteUserToFolder(req, res) {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    await dropboxService.inviteUserToFolder(user.email, folderPath);
-    await appAccessService.upsertAppAccess(userId, 'dropbox', 'invited', folderPath);
+    const result = await dropboxService.inviteUserToFolder(user.email, folderPath);
+    await appAccessService.upsertAppAccess(userId, 'dropbox', 'invited', result.folderId);
     const { requestor } = req.body;
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
@@ -71,7 +82,7 @@ async function inviteUserToFolder(req, res) {
 // Delete a folder
 async function deleteFolder(req, res) {
   try {
-    const { requestor, folderPath, targetUser } = req.body;
+    const { requestor, targetUser } = req.body;
 
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
@@ -82,10 +93,12 @@ async function deleteFolder(req, res) {
     const dropboxApp = appAccess && appAccess.apps.find((app) => app.app === 'dropbox');
 
     if (!dropboxApp || !dropboxApp.credentials) {
-      return res.status(404).json({ message: 'Dropbox folder information not found for this user.' });
+      return res
+        .status(404)
+        .json({ message: 'Dropbox folder information not found for this user.' });
     }
 
-    await dropboxService.deleteFolder(folderPath);
+    await dropboxService.deleteFolder(dropboxApp.credentials);
     await appAccessService.revokeAppAccess(targetUser.targetUserId, 'dropbox');
 
     res.status(200).json({ message: 'Folder deleted successfully' });
