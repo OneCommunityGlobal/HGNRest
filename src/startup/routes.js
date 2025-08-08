@@ -72,12 +72,16 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+
+const supplierPerformance = require('../models/summaryDashboard/supplierPerformance');
+
 const tag = require('../models/tag');
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
@@ -241,6 +245,10 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+
+// summary dashboard routes
+const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
@@ -248,6 +256,7 @@ const templateRouter = require('../routes/templateRouter');
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const tagRouter = require('../routes/tagRouter')(tag);
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -355,10 +364,16 @@ module.exports = function (app) {
   app.use('/api/financials', bmFinancialRouter);
 
   app.use('/api', registrationRouter);
+
+
+  // summary dashboard
+  app.use('/api/suppliers', supplierPerformanceRouter);
+
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
 };
