@@ -1,7 +1,7 @@
 const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
-const userProfileController = require("./userProfileController");
+const userProfileController = require('./userProfileController');
 const userProfile = require('../models/userProfile');
 const project = require('../models/project');
 
@@ -33,7 +33,8 @@ const titlecontroller = function (Title) {
   }
 
   const getAllTitles = function (req, res) {
-    Title.find({}).sort('order')
+    Title.find({})
+      .sort('order')
       .then((results) => res.status(200).send(results))
       .catch((error) => res.status(404).send(error));
   };
@@ -56,12 +57,16 @@ const titlecontroller = function (Title) {
     title.teamAssiged = req.body.teamAssiged;
 
     if (!title.titleCode || !title.titleCode.trim()) {
-      return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+      return res
+        .status(400)
+        .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
     }
 
     const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
     if (!titleCodeRegex.test(title.titleCode)) {
-      return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+      return res
+        .status(400)
+        .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
     }
 
     // valid title name
@@ -110,10 +115,24 @@ const titlecontroller = function (Title) {
       return;
     }
 
-    title
-      .save()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+    // title
+    //   .save()
+    //   .then((results) => res.status(200).send(results))
+    //   .catch((error) => res.status(404).send(error));
+
+    try {
+      const savedTitle = await title.save();
+  
+     
+      await userProfile.updateMany(
+        {}, 
+        { $addToSet: { teamCodes: title.teamCode } } 
+      );
+  
+      res.status(200).send(savedTitle);
+    } catch (error) {
+      res.status(500).send(error);
+    }
   };
 
   const updateTitlesOrder = async function (req, res) {
@@ -123,14 +142,10 @@ const titlecontroller = function (Title) {
 
       const updates = await Promise.all(
         orderData.map(async ({ id, order }) => {
-          const updated = await Title.findByIdAndUpdate(
-            id,
-            { order },
-            { new: true }
-          );
+          const updated = await Title.findByIdAndUpdate(id, { order }, { new: true });
           console.log('Updated title:', updated);
           return updated;
-        })
+        }),
       );
 
       const updatedTitles = await Title.find({}).sort('order');
@@ -143,12 +158,9 @@ const titlecontroller = function (Title) {
     }
   };
 
-
-
   // update title function.
   const updateTitle = async function (req, res) {
     try {
-
       const filter = req.body.id;
 
       // valid title name
@@ -164,7 +176,9 @@ const titlecontroller = function (Title) {
 
       const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
       if (!titleCodeRegex.test(req.body.titleCode)) {
-        return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+        return res
+          .status(400)
+          .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
       }
 
       //  if media is empty
@@ -218,17 +232,16 @@ const titlecontroller = function (Title) {
 
       await userProfile.updateMany(
         { teamCode: oldTeamCode },
-        { $set: { teamCode: req.body.teamCode } }
+        { $set: { teamCode: req.body.teamCode } },
       );
 
       cache.removeCache('teamCodes');
 
-      res.status(200).send({ message: "Update successful", updatedTitle: result });
+      res.status(200).send({ message: 'Update successful', updatedTitle: result });
     } catch (error) {
       console.log(error);
       res.status(500).send({ message: 'An error occurred', error: error.message || error });
     }
-
   };
 
   const deleteTitleById = async function (req, res) {
@@ -248,7 +261,7 @@ const titlecontroller = function (Title) {
         }
       })
       .catch((error) => {
-        console.log(error)
+        console.log(error);
         res.status(500).send(error);
       });
   };
@@ -276,8 +289,6 @@ const titlecontroller = function (Title) {
       throw error;
     }
   }
-
-
 
   return {
     getAllTitles,

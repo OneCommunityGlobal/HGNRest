@@ -1,7 +1,7 @@
 const express = require('express');
 
-const routes = function (SupplierPerformance) {
-  const controller = require('../../controllers/summaryDashboard/supplierPerformance')(SupplierPerformance);
+const routes = function () {
+  const controller = require('../../controllers/summaryDashboard/supplierPerformance')();
   const supplierPerformanceRouter = express.Router();
 
   // Route to get supplier performance for a project in a specific date range

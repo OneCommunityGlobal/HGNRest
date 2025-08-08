@@ -11,29 +11,35 @@ const bmLoginController = function () {
     const { email: _email, password: _password } = req.body;
     const currentToken = req.headers.authorization;
     try {
-    const decode = jwt.verify(currentToken, JWT_SECRET);
-    const user = await userprofile.findOne({ _id: decode.userid });
+      const decode = jwt.verify(currentToken, JWT_SECRET);
+      const user = await userprofile.findOne({ _id: decode.userid });
 
-    // check email
-    if (user.email !== _email) {
-      res.status(422);
-      return res.json({ label: 'email', message: 'Email must match current login. Please try again.' });
-    }
-    // check password
-    const check = await bcrypt.compare(_password, user.password);
-    if (!check) {
-      res.status(422);
-      return res.json({ label: 'password', message: 'Password must match current login. Please try again.' });
-    }
-    // create new token
-    const jwtPayload = {
-      ...decode,
-      access: {
-        canAccessBMPortal: true,
-      },
-    };
-    const newToken = jwt.sign(jwtPayload, JWT_SECRET);
-    return res.json({ token: newToken });
+      // check email
+      if (user.email !== _email) {
+        res.status(422);
+        return res.json({
+          label: 'email',
+          message: 'Email must match current login. Please try again.',
+        });
+      }
+      // check password
+      const check = await bcrypt.compare(_password, user.password);
+      if (!check) {
+        res.status(422);
+        return res.json({
+          label: 'password',
+          message: 'Password must match current login. Please try again.',
+        });
+      }
+      // create new token
+      const jwtPayload = {
+        ...decode,
+        access: {
+          canAccessBMPortal: true,
+        },
+      };
+      const newToken = jwt.sign(jwtPayload, JWT_SECRET);
+      return res.json({ token: newToken });
     } catch (err) {
       res.json(err);
     }
