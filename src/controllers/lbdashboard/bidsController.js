@@ -10,39 +10,39 @@ const paymentController = require('./paymentsController');
 const paymentControllerInstance = paymentController(Payments);
 const { addBidToHistory } = require('./bidDeadlinesController')();
 
-const { postPayments, postPaymentsWithoutCard, postPaymentUpdateOrderWithoutCard,
-  postPaymentAuthorizationsWithoutCard,postPaymentCheckoutNowWithoutCard
-, postPaymentStatusWithoutCard } = paymentControllerInstance;
+const {
+  postPayments,
+  postPaymentsWithoutCard,
+  postPaymentUpdateOrderWithoutCard,
+  postPaymentAuthorizationsWithoutCard,
+  postPaymentCheckoutNowWithoutCard,
+  postPaymentStatusWithoutCard,
+} = paymentControllerInstance;
 const { getIO } = require('../../sockets/BiddingService/connServer');
 const emailSender = require('../../utilities/emailSender');
 
 const parseDate = (dateStr) => {
-    const [month, day, year] = dateStr.split('/'); // Extract parts
-    return new Date(`${month}-${day}-${year}`); // Convert to YYYY-MM-DD format
-  };
+  const [month, day, year] = dateStr.split('/'); // Extract parts
+  return new Date(`${month}-${day}-${year}`); // Convert to YYYY-MM-DD format
+};
 
+async function getRentalPeriod(startDate, endDate) {
+  const inStartDate = startDate.toString().includes('/') ? parseDate(startDate) : startDate;
+  const inEndDate = endDate.toString().includes('/') ? parseDate(endDate) : endDate;
 
-  async function getRentalPeriod(startDate, endDate) {
-    const inStartDate = startDate.toString().includes('/') ? parseDate(startDate) :startDate;
-    const inEndDate = endDate.toString().includes('/') ?parseDate(endDate):endDate
+  const rentalPeriod = (inEndDate - inStartDate) / (1000 * 60 * 60 * 24);
 
-    const rentalPeriod = (inEndDate - inStartDate) / (1000 * 60 * 60 * 24);
-
-    return rentalPeriod;
-  }
+  return rentalPeriod;
+}
 
 const bidsController = function (Bids) {
-
-  
   const postBidsloc = async (req, ordDetails) => {
     try {
-      const { listingId, requestor, termsAgreed, email } = req.body;
+      const { listingId, termsAgreed, email } = req.body;
       const { bidPrice } = req.body.biddingHistory;
-      
 
       const inStartDate = parseDate(req.body.startDate);
       const inEndDate = parseDate(req.body.endDate);
-
 
       const userExists = await Users.findOne({ email });
       if (!userExists) {
@@ -78,17 +78,17 @@ const bidsController = function (Bids) {
         return { status: 400, error: 'Bid price should be greater than 0' };
       }
 
-      const rentalPeriod = await getRentalPeriod(req.body.startDate, req.body.endDate)
-
-
-
-      const paypalCheckoutNowLink =  ordDetails?.links.find((u) => u.href.includes('checkoutnow'))
-      const newBidsData = { ...req.body, userId: userExists._id, paypalOrderId : ordDetails?.id, 
-        paypalCheckoutNowLink:paypalCheckoutNowLink?.href };
+      const paypalCheckoutNowLink = ordDetails?.links.find((u) => u.href.includes('checkoutnow'));
+      const newBidsData = {
+        ...req.body,
+        userId: userExists._id,
+        paypalOrderId: ordDetails?.id,
+        paypalCheckoutNowLink: paypalCheckoutNowLink?.href,
+      };
 
       const newBids = new Bids(newBidsData);
       const savedBids = await newBids.save();
-      
+
       const io = getIO();
       if (io) {
         io.emit('bid-updated', `current bid price is ${bidPrice}`);
@@ -96,45 +96,55 @@ const bidsController = function (Bids) {
 
       const savedBidHistory = await addBidToHistory(BidDeadlines, listingId, bidPrice);
       if (savedBidHistory?.status !== 200) {
-        return {status: 500, error: savedBidHistory?.error };
+        return { status: 500, error: savedBidHistory?.error };
       }
-
-
 
       return { status: 200, data: savedBids };
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || 'Unknown error'  };
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
   };
 
   const postBids = async (req, res) => {
     try {
       const savedBids = await postBidsloc(req);
-      if (savedBids !== 200) return res.status(500).json({ success: false, error: savedBids.error });
+      if (savedBids !== 200)
+        return res.status(500).json({ success: false, error: savedBids.error });
       res.status(200).json({ success: true, data: savedBids.data });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.response?.data?.error || error.message || 'Unknown error'});
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
 
   const getBids = async (req, res) => {
     try {
-      const userExists = await Users.findOne({ email:req.body.email });
+      const userExists = await Users.findOne({ email: req.body.email });
       if (!userExists) {
         return { status: 400, error: 'Invalid email' };
       }
-      
-      const results = await Bids.find({ userId: userExists._id, isActive: { $ne: false } })
-        .select('userId listingId startDate bidPrice -_id');
-         return res.status(200).json({ success: true, data:results});
-        
+
+      const results = await Bids.find({ userId: userExists._id, isActive: { $ne: false } }).select(
+        'userId listingId startDate bidPrice -_id',
+      );
+      return res.status(200).json({ success: true, data: results });
     } catch (error) {
-       return res.status(500).json({success:false, error: error.response?.data?.error || error.message || 'Unknown error'} );
-      
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
 
-  
   const valid = require('card-validator');
 
   async function getPayPalAccessTokenl() {
@@ -143,9 +153,8 @@ const bidsController = function (Bids) {
         `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`,
       ).toString('base64');
 
-      if (!process.env.BASE_URL)
-      {
-      return {status:500, error:  "Missing required environment variable BASE_URL "  };
+      if (!process.env.BASE_URL) {
+        return { status: 500, error: 'Missing required environment variable BASE_URL ' };
       }
       const response = await axios.post(
         `${process.env.BASE_URL}/v1/oauth2/token`,
@@ -157,14 +166,16 @@ const bidsController = function (Bids) {
           },
         },
       );
-      
-      return { status:200, data :response.data.access_token};
+
+      return { status: 200, data: response.data.access_token };
 
       // return response.data.access_token;
-
     } catch (error) {
-      return {status:500, error:  `PayPalAccessToken error :${  error.response?.data?.error || error.message }`  };
-    
+      return {
+        status: 500,
+        error: `PayPalAccessToken error :${error.response?.data?.error || error.message}`,
+      };
+
       // return error.response?.data?.error || error.message || 'PayPalAccessToken error' ;
     }
   }
@@ -172,70 +183,73 @@ const bidsController = function (Bids) {
     try {
       const payPalAccessToken = await getPayPalAccessTokenl();
       if (payPalAccessToken?.status !== 200) {
-         if (res.headersSent) return;
+        if (res.headersSent) return;
         return res.status(500).json({ success: false, error: payPalAccessToken?.error });
-       }
-      return res.status(200).json({"paypalAccessToken": payPalAccessToken});
+      }
+      return res.status(200).json({ paypalAccessToken: payPalAccessToken });
     } catch (error) {
       return res
         .status(400)
-        .json({ 'Error': error.response?.data?.error || error.message || 'Unknown error getPayPalAccessToken'  });
+        .json({
+          Error:
+            error.response?.data?.error || error.message || 'Unknown error getPayPalAccessToken',
+        });
     }
   };
 
-  const getSetupCardToken = async (req, res) => {
+  const getSetupCardToken = async (req) => {
     const { includeCardholderName } = req.query;
-    const { cardNumber, expiry, cvv, amt } = req.body.card;
+    const { cardNumber, expiry, cvv } = req.body.card;
     const cardNumberValidation = valid.number(cardNumber);
-   
+
     if (cardNumberValidation.card) {
       console.log(cardNumberValidation.card.type); // 'visa'
     }
     if (!cardNumberValidation.isValid) {
-        return { status: 401, error: 'Invalid CardNumber'};
+      return { status: 401, error: 'Invalid CardNumber' };
     }
 
-   
     if (!expiry || typeof expiry !== 'string') {
       return { status: 401, error: 'Expiry Date is required and must be a string' };
     }
     if (!cvv) {
-         return { status: 400, error: 'cvv cannot be empty' };
+      return { status: 400, error: 'cvv cannot be empty' };
     }
-    
+
     // Validate format mm/dd/YYYY
     const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
     if (!dateRegex.test(expiry)) {
       return {
-        status: 400, error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)' };
+        status: 400,
+        error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)',
+      };
     }
 
     const [expmm, , expyy] = expiry.split('/');
     const expDate = `${expmm}/${expyy}`; // validate api expected format mm/yyyy
     const expDateValidation = valid.expirationDate(expDate);
 
-   
     if (!expDateValidation.isValid) {
       return { status: 401, error: 'Invalid expiration date' };
     }
     const { name } = req.query.includeCardholderName === 'Y' && req.body;
     if (includeCardholderName === 'Y') {
       const cardholderNameValidation = valid.cardholderName(name);
-   
+
       if (!cardholderNameValidation.isValid) {
-        return {status: 401, error: 'Invalid cardholder name' };
+        return { status: 401, error: 'Invalid cardholder name' };
       }
     }
     const cvvValidation = valid.cvv(cvv);
     if (!cvvValidation.isValid) {
-    return {status:401, error: 'Invalid cvv' };
+      return { status: 401, error: 'Invalid cvv' };
     }
-    
+
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
-      return { status: 500, error: accessToken.error }; }
-    
-   
+      return { status: 500, error: accessToken.error };
+    }
+
     const paymentCardToken = {
       payment_source: {
         card: {
@@ -246,7 +260,7 @@ const bidsController = function (Bids) {
         },
       },
     };
-   
+
     try {
       // Call PayPal API to process payment tokens
       const setupTokenResponse = await axios.post(
@@ -259,21 +273,24 @@ const bidsController = function (Bids) {
           },
         },
       );
-      return { status:200, data : setupTokenResponse.data };
+      return { status: 200, data: setupTokenResponse.data };
     } catch (error) {
-      return {status:500, error :error.response?.data?.error || error.message || 'PayPal Payment Token Error:'}  ;
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'PayPal Payment Token Error:',
+      };
     }
   };
   const getPaymentCardToken = async (req, res) => {
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
-        if (res.headersSent) return;
-        return res.status(500).json({ success: false, error: accessToken?.error });
+      if (res.headersSent) return;
+      return res.status(500).json({ success: false, error: accessToken?.error });
     }
-    
-    
+
     const setupToken = await getSetupCardToken(req);
-    if (setupToken.status !== 200) return res.status(500).json({ success: false, error: setupToken.error });
+    if (setupToken.status !== 200)
+      return res.status(500).json({ success: false, error: setupToken.error });
     try {
       const paymentCardToken = {
         payment_source: {
@@ -283,7 +300,7 @@ const bidsController = function (Bids) {
           },
         },
       };
-    
+
       // Call PayPal API to process payment tokens
       const paymentTokensResponse = await axios.post(
         `${process.env.BASE_URL}/v3/vault/payment-tokens`,
@@ -299,90 +316,93 @@ const bidsController = function (Bids) {
     } catch (error) {
       res
         .status(500)
-        .json({ success: false, error: error.response?.data?.error || error.message || 'Unknown error'  });
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
-  
   };
 
-  
   // const checkoutOrderWithCard = async (req, res) => {
 
   async function createOrderl(req) {
-    
     const accessToken = await getPayPalAccessTokenl();
-    
+
     if (accessToken?.status !== 200) {
-      return { status: 500, error: accessToken.error }; }
+      return { status: 500, error: accessToken.error };
+    }
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const { cardNumber, expiry, cvv } = req.body.card;
     const { bidPrice } = req.body.biddingHistory;
     const payerEmailAddress = req.body.email;
-    
+
     const inStartDate = parseDate(req.body.startDate);
     const inEndDate = parseDate(req.body.endDate);
 
     const rentalPeriod = (inEndDate - inStartDate) / (1000 * 60 * 60 * 24);
 
     const cardNumberValidation = valid.number(cardNumber);
-  
-        if (!payerEmailAddress) {
-        return { status: 400, error: 'Email cannot be empty' };
-      }
-  
+
+    if (!payerEmailAddress) {
+      return { status: 400, error: 'Email cannot be empty' };
+    }
+
     if (!cardNumberValidation.isValid) {
-        return { status: 401,  error: 'Invalid CardNumber' };
-      }
+      return { status: 401, error: 'Invalid CardNumber' };
+    }
 
     const cvvValidation = valid.cvv(cvv);
-      if (!cvvValidation.isValid) {
-        return { status:401, error: 'Invalid cvv' };
-      }
+    if (!cvvValidation.isValid) {
+      return { status: 401, error: 'Invalid cvv' };
+    }
 
-      
-      if (!expiry || typeof expiry !== 'string') {
-        return { status: 401, error: 'Expiry Date is required and must be a string' };
-      }
-      const [expmm, , expyy] = expiry.split('/');
+    if (!expiry || typeof expiry !== 'string') {
+      return { status: 401, error: 'Expiry Date is required and must be a string' };
+    }
+    const [expmm, , expyy] = expiry.split('/');
 
-      // Validate format mm/dd/YYYY
-      const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
-      if (!dateRegex.test(expiry)) {
-        return {
-          status: 400, error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)' };
-      }
+    // Validate format mm/dd/YYYY
+    const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
+    if (!dateRegex.test(expiry)) {
+      return {
+        status: 400,
+        error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)',
+      };
+    }
     const expiryValidation = valid.expirationDate(`${expmm}/${expyy}`);
-      if (!expiryValidation.isValid) {
-      return { status: 422, error: 'Expiry date is invalid. Use MM/YY format and ensure it’s not expired.' };
-        
-      }
-  
+    if (!expiryValidation.isValid) {
+      return {
+        status: 422,
+        error: 'Expiry date is invalid. Use MM/YY format and ensure it’s not expired.',
+      };
+    }
 
-     const userExists = await Users.findOne({ email:payerEmailAddress });
-      if (!userExists) {
-        return { status: 400, error: 'Invalid email' };
-      }
+    const userExists = await Users.findOne({ email: payerEmailAddress });
+    if (!userExists) {
+      return { status: 400, error: 'Invalid email' };
+    }
 
-      if (!userExists._id) {
-        return { status: 400, error: 'userId cannot be empty' };
-      }
-      if (!inStartDate) {
-        return { status: 400, error: 'startDate cannot be empty' };
-      }
-      if (!inEndDate) {
-        return { status: 400, error: 'endDate cannot be empty' };
-      }
-      if (inEndDate <= inStartDate) {
-        return { status: 400, error: 'endDate should be greater than the startDate' };
-      }
-      if (!bidPrice) {
-        return { status: 400, error: 'Bid price should be greater than 0' };
-      }
-     console.log("before checkout paypal post");
+    if (!userExists._id) {
+      return { status: 400, error: 'userId cannot be empty' };
+    }
+    if (!inStartDate) {
+      return { status: 400, error: 'startDate cannot be empty' };
+    }
+    if (!inEndDate) {
+      return { status: 400, error: 'endDate cannot be empty' };
+    }
+    if (inEndDate <= inStartDate) {
+      return { status: 400, error: 'endDate should be greater than the startDate' };
+    }
+    if (!bidPrice) {
+      return { status: 400, error: 'Bid price should be greater than 0' };
+    }
+    console.log('before checkout paypal post');
     try {
       const checkoutOrder = await axios.post(
         `${process.env.BASE_URL}/v2/checkout/orders`,
         {
-          intent: 'AUTHORIZE', 
+          intent: 'AUTHORIZE',
 
           purchase_units: [
             {
@@ -435,15 +455,16 @@ const bidsController = function (Bids) {
           },
         },
       );
-    console.log("checkoutOrder.data");
-    console.log(checkoutOrder.data);  
-    return { status: 200, data: checkoutOrder.data };
-      
+      console.log('checkoutOrder.data');
+      console.log(checkoutOrder.data);
+      return { status: 200, data: checkoutOrder.data };
     } catch (error) {
-      console.log("createORderl error")
+      console.log('createORderl error');
       console.log(error);
-      return { status: 500, error: `Unknown error in createOrderl ${error.response?.data?.error || error.message}`    };
-    
+      return {
+        status: 500,
+        error: `Unknown error in createOrderl ${error.response?.data?.error || error.message}`,
+      };
     }
   }
 
@@ -451,14 +472,18 @@ const bidsController = function (Bids) {
     try {
       const creatOrderC = await createOrderl(req);
       if (creatOrderC?.status !== 200) {
-         if (res.headersSent) return;
+        if (res.headersSent) return;
         return res.status(500).json({ success: false, error: creatOrderC?.error });
-       }
+      }
 
       return res.status(200).json({ success: true, data: creatOrderC });
     } catch (error) {
-      
-      return res.status(500).json({ success: false, error: error.response?.data?.error || error.message || 'Unknown error in createOrderl'  });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error in createOrderl',
+        });
     }
   };
 
@@ -466,28 +491,27 @@ const bidsController = function (Bids) {
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
       console.log(accessToken.status);
-      return { status: 500, error: accessToken.error }; }
-    
+      return { status: 500, error: accessToken.error };
+    }
+
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const { bidPrice } = req.body.biddingHistory;
-    
+
     const inStartDate = req.body.startDate;
     const inEndDate = req.body.endDate;
 
-      
-
-     if (!inStartDate) {
-        return { status: 400, error: 'startDate cannot be empty' };
-      }
-      if (!inEndDate) {
-        return { status: 400, error: 'endDate cannot be empty' };
-      }
-      if (inEndDate <= inStartDate) {
-        return { status: 400, error: 'endDate should be greater than the startDate' };
-      }
-      if (!bidPrice) {
-        return { status: 400, error: 'Bid price should be greater than 0' };
-      }
+    if (!inStartDate) {
+      return { status: 400, error: 'startDate cannot be empty' };
+    }
+    if (!inEndDate) {
+      return { status: 400, error: 'endDate cannot be empty' };
+    }
+    if (inEndDate <= inStartDate) {
+      return { status: 400, error: 'endDate should be greater than the startDate' };
+    }
+    if (!bidPrice) {
+      return { status: 400, error: 'Bid price should be greater than 0' };
+    }
     const rentPeriod = await getRentalPeriod(inStartDate, inEndDate);
     try {
       const checkoutOrder = await axios.post(
@@ -518,53 +542,40 @@ const bidsController = function (Bids) {
       );
       return { status: 200, data: checkoutOrder.data };
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || 'Unknown error'  };
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
-
   }
 
-    const createOrderWithoutCard = async (req, res) => {
+  const createOrderWithoutCard = async (req, res) => {
     try {
       const constCreateOrder = await createOrderWithoutCardl(req);
       if (constCreateOrder?.status !== 200) {
-
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: constCreateOrder?.error });
-       }
+      }
 
       return res.status(200).json({ success: true, data: constCreateOrder.data });
-    } 
-
-       catch (error) {
-
-      return res.status(500).json({ success: false, error: error.response?.data?.error || error.message || 'Unknown error'  });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
-
-
-  const orderCapture = async (req, res) => {
-    try {
-      const orderCap = await orderCapturel(req);
-      if (orderCap?.status !== 200) {
-         if (res.headersSent) return;
-        return res.status(500).json({ success: false, error: orderCap?.error });
-       }
-      const ppSWC = await postPaymentStatusWithoutCard("PAYMENT.CAPTURE.COMPLETED",  req);
-      return res.status(200).json({ success: true, data: orderCap.data });
-    } 
-      catch (error) {
-      return res.status(500).json({ success:false, error :error.response?.data?.error || error.message || 'Unknown error orderCapturel'  });
-    }
-  };
-
   async function orderCapturel(req) {
     const authorId = req.body?.authorId;
-    
+
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
       console.log(accessToken.status);
-      return { status: 500, error: accessToken.error }; }
-    
+      return { status: 500, error: accessToken.error };
+    }
+
     try {
       const capturePayment = await axios.post(
         `${process.env.BASE_URL}/v2/payments/authorizations/${authorId}/capture`,
@@ -576,23 +587,31 @@ const bidsController = function (Bids) {
           },
         },
       );
-      return {status:200, data: capturePayment.data};
+      return { status: 200, data: capturePayment.data };
     } catch (error) {
-      return {status:500, error: error.response?.data?.error || error.message || 'Unknown error orderCapturel'};
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error orderCapturel',
+      };
     }
   }
-  const voidPayment = async (req, res) => {
-    try {
-      const voidPymnt = await voidPaymentl(req);
-      if (voidPymnt?.status !== 204) {
-         if (res.headersSent) return;
-        return res.status(500).json({ success: false, error: voidPymnt?.error });
-       }
 
-      return res.status(204).json({ success: true, data: voidPymnt.data });
-    } 
-     catch (error) {
-      return res.status(500).json({ success: false, "Error": error.response?.data?.error || error.message || 'Unknown error' });
+  const orderCapture = async (req, res) => {
+    try {
+      const orderCap = await orderCapturel(req);
+      if (orderCap?.status !== 200) {
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: orderCap?.error });
+      }
+      await postPaymentStatusWithoutCard('PAYMENT.CAPTURE.COMPLETED', req);
+      return res.status(200).json({ success: true, data: orderCap.data });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error orderCapturel',
+        });
     }
   };
 
@@ -601,8 +620,9 @@ const bidsController = function (Bids) {
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
       console.log(accessToken.status);
-      return { status: 500, error: accessToken.error }; }
-    
+      return { status: 500, error: accessToken.error };
+    }
+
     try {
       const voidPyment = await axios.post(
         `${process.env.BASE_URL}/v2/payments/authorizations/${authorId}/void`,
@@ -615,26 +635,32 @@ const bidsController = function (Bids) {
         },
       );
       return { status: 204, data: voidPyment.data };
-  
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || 'Unknown error' };
-    
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
   }
 
-  const orderAuthorize = async (req, res) => {
+  const voidPayment = async (req, res) => {
     try {
-      const ordAut = await orderAuthorizel(req);
-      if (ordAut?.status !== 200) {
+      const voidPymnt = await voidPaymentl(req);
+      if (voidPymnt?.status !== 204) {
         if (res.headersSent) return;
-        return res.status(500).json({ success: false, error: ordAut?.error });
+        return res.status(500).json({ success: false, error: voidPymnt?.error });
       }
-      return res.status(200).json({success:true, data:ordAut.data});
+
+      return res.status(204).json({ success: true, data: voidPymnt.data });
     } catch (error) {
-      return res.status(500).json({success:false, error: error.response?.data?.error || error.message || 'Unknown error'});
+      return res
+        .status(500)
+        .json({
+          success: false,
+          Error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
-
   const cardValidation = async (req) => {
     try {
       const { cardNumber, expiry, cvv } = req.body.card;
@@ -644,61 +670,60 @@ const bidsController = function (Bids) {
         console.log(cardNumberValidation.card.type); // 'visa'
       }
       if (!cardNumberValidation.isValid) {
-        return {status: 401, error: 'Invalid CardNumber' };
+        return { status: 401, error: 'Invalid CardNumber' };
       }
 
-
       if (!expiry || typeof expiry !== 'string') {
-        return {status: 401, error: 'Expiry Date is required and must be a string' };
+        return { status: 401, error: 'Expiry Date is required and must be a string' };
       }
 
       // Validate format mm/dd/YYYY
       const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
       if (!dateRegex.test(expiry)) {
-        return {status :400, error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)' };
+        return { status: 400, error: 'Invalid expiry format. Use MM/DD/YYYY (e.g., 01/31/2025)' };
       }
 
       const [expmm, , expyy] = expiry.split('/');
       const expDate = `${expmm}/${expyy}`; // validate api expected format mm/yyyy
       const expDateValidation = valid.expirationDate(expDate);
 
-
       if (!expDateValidation.isValid) {
-        return { status: 401,  error: 'Invalid expiration date' };
+        return { status: 401, error: 'Invalid expiration date' };
       }
       const { name } = req.body;
       const cardholderNameValidation = valid.cardholderName(name);
 
       if (!cardholderNameValidation.isValid) {
-        return {status:401, error: 'Invalid cardholder name' };
+        return { status: 401, error: 'Invalid cardholder name' };
       }
 
       const cvvValidation = valid.cvv(cvv);
       if (!cvvValidation.isValid) {
-        return {status:401, error: 'Invalid cvv' };
+        return { status: 401, error: 'Invalid cvv' };
       }
-      return  {status:200, data:"success"};
+      return { status: 200, data: 'success' };
     } catch (error) {
-      return {status:500, error:error.response?.data?.error || error.message || 'Unknown error'};
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
   };
 
   async function orderAuthorizel(req) {
-    
     const orderId = req.query.id;
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
       console.log(accessToken.status);
-      return { status: 500, error: accessToken.error }; }
-    
+      return { status: 500, error: accessToken.error };
+    }
 
     const cardValid = await cardValidation(req);
     if (cardValid?.status !== 200) {
-        return { status: 500, error : cardValid?.error };
-      }
+      return { status: 500, error: cardValid?.error };
+    }
     const { cardNumber, expiry, cvv } = req.body.card;
     const [expmm, , expyy] = expiry.split('/');
-
 
     try {
       const authoriseOrder = await axios.post(
@@ -723,25 +748,43 @@ const bidsController = function (Bids) {
         },
       );
 
-      return {status:200, data: authoriseOrder.data};
+      return { status: 200, data: authoriseOrder.data };
     } catch (error) {
-      return {status:500, error: error.response?.data?.error || error.message || 'Unknown error'}
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
   }
 
+  const orderAuthorize = async (req, res) => {
+    try {
+      const ordAut = await orderAuthorizel(req);
+      if (ordAut?.status !== 200) {
+        if (res.headersSent) return;
+        return res.status(500).json({ success: false, error: ordAut?.error });
+      }
+      return res.status(200).json({ success: true, data: ordAut.data });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
+    }
+  };
 
- 
   async function orderAuthorizeWithoutCardl(req) {
     const orderId = req.body.id;
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
       console.log(accessToken.status);
-      return { status: 500, error: accessToken.error }; }
-    
- 
+      return { status: 500, error: accessToken.error };
+    }
+
     try {
       const authoriseOrderWithoutCard = await axios.post(
-        
         `${process.env.BASE_URL}/v2/checkout/orders/${orderId}/authorize`,
         {},
         {
@@ -751,13 +794,16 @@ const bidsController = function (Bids) {
           },
         },
       );
-     return {status:200, data: authoriseOrderWithoutCard.data};
+      return { status: 200, data: authoriseOrderWithoutCard.data };
     } catch (error) {
-      return {status:500, error:error.response?.data?.error || error.message || 'Not able to authorise'};
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Not able to authorise',
+      };
     }
   }
 
-   const orderAuthorizeWithoutCard = async (req, res) => {
+  const orderAuthorizeWithoutCard = async (req, res) => {
     try {
       const ordAutWithoutCard = await orderAuthorizeWithoutCardl(req);
 
@@ -769,14 +815,18 @@ const bidsController = function (Bids) {
       // call the method and check for the status
       const postAuth = await postPaymentAuthorizationsWithoutCard(ordAutWithoutCard.data);
       if (postAuth?.status !== 200) {
-      
-      if (res.headersSent) return;
+        if (res.headersSent) return;
         return res.status(500).json({ success: false, error: postAuth?.error });
       }
-      
-      return res.status(200).json({success:true, data:postAuth.data});
+
+      return res.status(200).json({ success: true, data: postAuth.data });
     } catch (error) {
-      return res.status(500).json({success:false, error:error.response?.data?.error || error.message || 'Not able to authorise'});
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Not able to authorise',
+        });
     }
   };
 
@@ -789,19 +839,18 @@ const bidsController = function (Bids) {
   const postBidsAndPay = async (req, res) => {
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
-        if (res.headersSent) return;
-        return res.status(500).json({ success: false, error: accessToken?.error });
+      if (res.headersSent) return;
+      return res.status(500).json({ success: false, error: accessToken?.error });
     }
-    
+
     try {
       const isValidCard = await cardValidation(req);
-      console.log("isValidCard")
-      console.log(isValidCard)
+      console.log('isValidCard');
+      console.log(isValidCard);
       if (isValidCard?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: isValidCard?.error });
       }
-
 
       const isValidPhoneNumber = isValidUSPhoneNumber(req.body.phone);
       if (isValidPhoneNumber !== true)
@@ -818,24 +867,20 @@ const bidsController = function (Bids) {
       }
 
       const createOrdersC = await createOrderl(req);
-      console.log("createOrdersC.data");    
-      console.log(createOrdersC.data)
-      
+      console.log('createOrdersC.data');
+      console.log(createOrdersC.data);
+
       if (createOrdersC?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: createOrdersC?.error });
       }
-      const postBidsResponse = await postBidsloc(req,createOrdersC.data);
+      const postBidsResponse = await postBidsloc(req, createOrdersC.data);
       if (postBidsResponse?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: postBidsResponse?.error });
       }
 
-      const postPaymnts = await postPayments(
-        req,
-        createOrdersC.data,
-        postBidsResponse?.data,
-      );
+      const postPaymnts = await postPayments(req, createOrdersC.data, postBidsResponse?.data);
 
       if (postPaymnts?.success === false) {
         if (res.headersSent) return;
@@ -843,17 +888,18 @@ const bidsController = function (Bids) {
       }
 
       return res.status(201).json({ success: true, data: postPaymnts?.data });
-
     } catch (error) {
-      return res.status(500).json({success:false, error :error.response?.data?.error || error.message || 'Unknown error'});
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
 
   const postBidsAndPayWithoutCard = async (req, res) => {
-  
     try {
-      
-      
       const userExists = await Users.findOne({ email: req.body.email });
       if (!userExists) {
         return res.status(400).json({ success: false, error: 'Invalid email' });
@@ -864,20 +910,19 @@ const bidsController = function (Bids) {
         return res.status(400).json({ success: false, error: 'Invalid listingId' });
       }
       const createOrdersWithoutCardC = await createOrderWithoutCardl(req);
-      
-  
+
       if (createOrdersWithoutCardC?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: createOrdersWithoutCardC?.error });
-       }
+      }
       const postBidsResponse = await postBidsloc(req, createOrdersWithoutCardC.data);
       if (postBidsResponse?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: postBidsResponse?.error });
       }
-      
+
       const postPaymnts = await postPaymentsWithoutCard(
-        req,        
+        req,
         createOrdersWithoutCardC.data,
         postBidsResponse?.data,
       );
@@ -887,54 +932,60 @@ const bidsController = function (Bids) {
       }
 
       return res.status(200).json({ success: true, data: postPaymnts?.data });
-
-      } catch (error) {
-        return res.status(500).json({success:false, error:error.response?.data?.error || error.message || 'Unknown error'});
+    } catch (error) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
 
-  const updateOrderLocal = async  (req) => {
-    if (!ready ) throw new Error('Bids Controllere Init not ready!');
+  const updateOrderLocal = async (req) => {
+    if (!ready) throw new Error('Bids Controllere Init not ready!');
 
     const accessToken = await getPayPalAccessTokenl();
     if (accessToken?.status !== 200) {
       console.log(accessToken.status);
-      return { status: 500, error: accessToken.error }; }
-    
+      return { status: 500, error: accessToken.error };
+    }
+
     const paypalRequestId = `request-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    const { bidPrice,listingId,startDate, endDate,paypalOrderId, email } = req.body || req;
+    const { bidPrice, listingId, startDate, endDate, paypalOrderId, email } = req.body || req;
     const userExists = await Users.findOne({ email });
 
     if (!userExists) {
       return { status: 400, error: 'Invalid email' };
     }
-    const bidExists = paypalOrderId ? await Bids.findOne({ paypalOrderId})
-                              : await Bids.findOne({ listingId, 
-                                           startDate,
-                                           endDate
-                                           // userId needed
-                                            });
-    
+    const bidExists = paypalOrderId
+      ? await Bids.findOne({ paypalOrderId })
+      : await Bids.findOne({
+          listingId,
+          startDate,
+          endDate,
+          // userId needed
+        });
+
     if (!bidExists) {
       return { status: 400, error: 'Invalid matching details' };
     }
     const lastBid = bidExists.biddingHistory[bidExists.biddingHistory.length - 1];
+    console.log(lastBid);
     const firstBid = bidExists.biddingHistory[0];
-    
+
     const oldBidPrice = firstBid.bidPrice;
-    
+
     // First, find the index of the correct purchase_unit
 
-    const rentalPeriod = await getRentalPeriod(bidExists.startDate, 
-                                         bidExists.endDate);
-    
+    const rentalPeriod = await getRentalPeriod(bidExists.startDate, bidExists.endDate);
+
     const paymentExists = await Payments.findOne({
       paypalOrderId: {
         $in: [bidExists.paypalOrderId],
       },
     });
-    
-    
+
     try {
       const paypalOrder = await axios.get(
         `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
@@ -944,20 +995,18 @@ const bidsController = function (Bids) {
           },
         },
       );
-     
+
       const units = paypalOrder.data.purchase_units;
-      
-      // const referenceIndex = units.findIndex((u) => u.reference_id === '$[oldBidPrice.toString()}');
+
       const referenceIndex = units.findIndex((u) => u.reference_id === oldBidPrice.toString());
-      
-      
-     
+      console.log(`referenceIndex is ${referenceIndex}`);
+
       const updateOrd = await axios.patch(
         `${process.env.BASE_URL}/v2/checkout/orders/${paymentExists.paypalOrderId}`,
         [
           {
-            op:  "replace",
-        path: `/purchase_units/@reference_id=='${oldBidPrice.toString()}'/amount`,
+            op: 'replace',
+            path: `/purchase_units/@reference_id=='${oldBidPrice.toString()}'/amount`,
 
             value: {
               currency_code: 'USD',
@@ -967,9 +1016,9 @@ const bidsController = function (Bids) {
                   currency_code: 'USD',
                   value: rentalPeriod * bidPrice,
                 },
-              }, */ 
+              }, */
             },
-          }, 
+          },
         ],
         {
           headers: {
@@ -978,7 +1027,8 @@ const bidsController = function (Bids) {
             'PayPal-Request-Id': paypalRequestId,
           },
         },
-      ); 
+      );
+      console.log(updateOrd);
       // method PATCH
 
       const afterPatchPaypalOrder = await axios.get(
@@ -989,59 +1039,67 @@ const bidsController = function (Bids) {
           },
         },
       );
-     
-      return { status: 200, data: afterPatchPaypalOrder.data }; 
+
+      return { status: 200, data: afterPatchPaypalOrder.data };
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || 'UpdateOrder Error' };
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'UpdateOrder Error',
+      };
     }
-  }
+  };
 
   const updateOrder = async (req, res) => {
     try {
       const updOrd = await updateOrderLocal(req);
-if (updOrd?.status !== 200) {
+      if (updOrd?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: updOrd?.error });
       }
 
-      const savedBidHistory = await addBidToHistory(Bids, req.body.listingId, req.body.bidPrice,req.body.paypalOrderId);
+      const savedBidHistory = await addBidToHistory(
+        Bids,
+        req.body.listingId,
+        req.body.bidPrice,
+        req.body.paypalOrderId,
+      );
       if (savedBidHistory?.status !== 200) {
-        return res.status(500).json({success:false,  error: savedBidHistory?.error });
+        return res.status(500).json({ success: false, error: savedBidHistory?.error });
       }
 
       const postAuth = await postPaymentUpdateOrderWithoutCard(updOrd.data);
       if (postAuth?.status !== 200) {
-      
-      if (res.headersSent) return;
+        if (res.headersSent) return;
         return res.status(500).json({ success: false, error: postAuth?.error });
       }
-      
 
-      return res.status(200).json({success:true, data:postAuth.data});
+      return res.status(200).json({ success: true, data: postAuth.data });
     } catch (error) {
-      return res.status(500).json({success:false, error:error.response?.data?.error || error.message || 'Update Order Error'});
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Update Order Error',
+        });
     }
   };
 
-  const  orderCheckoutNowLocal = async (req) => {
-   
-    if (!ready ) throw new Error('Bids Controllere Init not ready!');
+  const orderCheckoutNowLocal = async (req) => {
+    if (!ready) throw new Error('Bids Controllere Init not ready!');
     const paypalOrderId = req?.paypalOrderId ?? req?.body?.paypalOrderId;
 
     const outUrl = req?.hrefLink ?? req?.body?.hrefLink;
-    
-   
-   try
-    {
-    const bidExists = await Bids.findOne({ paypalOrderId });
-    if (!bidExists) {
-      return { status: 400, error: 'Invalid orderId' };
-    }
-    
-    const userExists = await Users.findOne({ _id: bidExists.userId });
-    if (!userExists) {
-      return { status: 400, error: 'Invalid email' };
-    }
+
+    try {
+      const bidExists = await Bids.findOne({ paypalOrderId });
+      if (!bidExists) {
+        return { status: 400, error: 'Invalid orderId' };
+      }
+
+      const userExists = await Users.findOne({ _id: bidExists.userId });
+      if (!userExists) {
+        return { status: 400, error: 'Invalid email' };
+      }
       const emailPaymentApprovalBody = `   
     <p> Hi ${userExists.name} </p>
 
@@ -1058,25 +1116,23 @@ if (updOrd?.status !== 200) {
 <p>Best regards,</p>
 <p>One Community global</p>`;
 
-
-  await emailSender(
-    userExists.email, // toEmailAddress
-    'Approve Your Payment via PayPal', // subject
-    emailPaymentApprovalBody, // message
-    null, // attachments
-    null, //  cc
-    'onecommunityglobal@gmail.com', // reply to
-  );
-      return { status: 200, data:  'Email sent successfully.' };
-   
-     } catch (error) {
-     
-      return { status: 500, error: error.response?.data?.error || error.message || 
-'Error in sending the Email' }; 
-    } 
-  }
+      await emailSender(
+        userExists.email, // toEmailAddress
+        'Approve Your Payment via PayPal', // subject
+        emailPaymentApprovalBody, // message
+        null, // attachments
+        null, //  cc
+        'onecommunityglobal@gmail.com', // reply to
+      );
+      return { status: 200, data: 'Email sent successfully.' };
+    } catch (error) {
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Error in sending the Email',
+      };
+    }
+  };
   const orderCheckoutNow = async (req, res) => {
-      
     try {
       const ordChkoutNow = await orderCheckoutNowLocal(req);
 
@@ -1084,49 +1140,50 @@ if (updOrd?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: ordChkoutNow?.error });
       }
-  const chkoutNowData = await postPaymentCheckoutNowWithoutCard(req);
-  
+      const chkoutNowData = await postPaymentCheckoutNowWithoutCard(req);
+
       if (chkoutNowData?.status !== 200) {
         if (res.headersSent) return;
         return res.status(500).json({ success: false, error: chkoutNowData?.error });
       }
-  
-      return res.status(200).json({ success: true, data: ordChkoutNow.data});
+
+      return res.status(200).json({ success: true, data: ordChkoutNow.data });
     } catch (error) {
-      return res.status(500).json({success:false, error:error.response?.data?.error || error.message || 
-'Error in sending the Email'});
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Error in sending the Email',
+        });
     }
-    
   };
-    const getOrderDetails = async (req, res) => {
-          const accessToken = await getPayPalAccessTokenl();
-          if (accessToken?.status !== 200) {
-    if (res.headersSent) 
+  const getOrderDetails = async (req, res) => {
+    const accessToken = await getPayPalAccessTokenl();
+    if (accessToken?.status !== 200) {
+      if (res.headersSent)
         return res.status(500).json({ success: false, error: accessToken?.error });
-  }
-          const paypalOrderId = req.params.orderId;
- try {
-  const orderDet = await axios.get(
-          `${process.env.BASE_URL}/v2/checkout/orders/${paypalOrderId}`,
+    }
+    const paypalOrderId = req.params.orderId;
+    try {
+      const orderDet = await axios.get(
+        `${process.env.BASE_URL}/v2/checkout/orders/${paypalOrderId}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken.data}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
         },
       );
-       return res.status(200).json({ success: true, data: orderDet.data });
-     
+      return res.status(200).json({ success: true, data: orderDet.data });
     } catch (error) {
-
-      return res.status(500).json({success:false, error: error.response?.data?.error || error.message || 'Order Details error'});
-    
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Order Details error',
+        });
     }
-  
-
   };
-
-
 
   function init() {
     ready = true;
@@ -1136,7 +1193,7 @@ if (updOrd?.status !== 200) {
     postBids,
     getPaymentCardToken,
     postBidsAndPay,
-    postBidsAndPayWithoutCard,    
+    postBidsAndPayWithoutCard,
     getPayPalAccessToken,
     createOrderWithoutCard,
     createOrder,
@@ -1147,11 +1204,10 @@ if (updOrd?.status !== 200) {
     updateOrder,
     updateOrderLocal,
     orderCheckoutNow,
-    orderCheckoutNowLocal,   
-    getOrderDetails, 
-    init
+    orderCheckoutNowLocal,
+    getOrderDetails,
+    init,
   };
 };
 
 module.exports = bidsController;
-

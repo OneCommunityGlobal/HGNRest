@@ -4,8 +4,8 @@ const Users = require('../../models/lbdashboard/users');
 const bidNotificationsController = function (BidNotifications) {
   const postBidNotificationsloc = async (req) => {
     try {
-      const { message, email } = req.body;
- 
+      const { email } = req.body;
+
       const userExists = await Users.findOne({ email });
       if (!userExists) {
         return { status: 400, error: 'Invalid email' };
@@ -15,7 +15,10 @@ const bidNotificationsController = function (BidNotifications) {
       const savedBidNotifications = await newBidNotifications.save();
       return { status: 200, data: savedBidNotifications };
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || 'Unknown error' };
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
   };
 
@@ -23,7 +26,9 @@ const bidNotificationsController = function (BidNotifications) {
     try {
       const savedBidNotifications = await postBidNotificationsloc(req);
       if (savedBidNotifications.status !== 200)
-        return res.status(500).json({ success: false, error: savedBidNotifications.error || 'Unknown Error' });
+        return res
+          .status(500)
+          .json({ success: false, error: savedBidNotifications.error || 'Unknown Error' });
       res.status(200).json({ success: true, data: savedBidNotifications.data });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
@@ -34,19 +39,22 @@ const bidNotificationsController = function (BidNotifications) {
     const { email } = req.body;
     try {
       const users = await Users.findOne({ email });
-      
+
       if (!users) {
-        return res.status(400).json({ success: false, error:"Invalid Email"});
+        return res.status(400).json({ success: false, error: 'Invalid Email' });
       }
       const results = await BidNotifications.find({ userId: users._id, isDelivered: false })
 
         .select('userId message isDelivered createdAt modifiedAt _id');
-          return res.status(200).json({ success: true, data:results});
-      } 
-        catch(error)  {
-          return res.status(500).json({success:false, error: error.response?.data?.error || error.message || 'Unknown error'} );
+      return res.status(200).json({ success: true, data: results });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
-    
   };
 
   const bidNotificationsMarkDelivered = async (req, res) => {
@@ -57,15 +65,20 @@ const bidNotificationsController = function (BidNotifications) {
         { $set: { isDelivered: true } },
       );
 
-      res.status(200).json({ success: true, data:           {
-    matchedCount: postBidNotificationsMarkDelivered.n,
-    modifiedCount: postBidNotificationsMarkDelivered.nModified,
-    }
-    
-    }); 
-  }
-    catch (error) {
-      res.status(500).json({success:false, error : error.response?.data?.error || error.message || 'Unknown error' });
+      res.status(200).json({
+        success: true,
+        data: {
+          matchedCount: postBidNotificationsMarkDelivered.n,
+          modifiedCount: postBidNotificationsMarkDelivered.nModified,
+        },
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: error.response?.data?.error || error.message || 'Unknown error',
+        });
     }
   };
   return {

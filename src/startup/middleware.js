@@ -17,7 +17,7 @@ const paypalAuthMiddleware = (req, res, next) => {
   next();
 };
 
-// Socket.IO middleware
+/* Socket.IO middleware
 function socketMiddleware(socket, next) {
   const { token } = socket.handshake.auth;
 
@@ -26,11 +26,10 @@ function socketMiddleware(socket, next) {
   }
   return next(new Error('Invalid token'));
 }
-
+*/
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
     const openPaths = ['/api/lb/myWebhooks'];
-
 
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
