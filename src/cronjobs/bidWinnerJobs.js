@@ -1,5 +1,4 @@
 const { CronJob } = require('cron');
-const mongoose = require('mongoose');
 const BidDeadlines = require('../models/lbdashboard/bidDeadline');
 const Bids = require('../models/lbdashboard/bids');
 const Users = require('../models/lbdashboard/users');
@@ -23,12 +22,11 @@ async function processBid(bid) {
 }
 
 const bidWinnerJobs = () => {
-const bidsController  = require('../controllers/lbdashboard/bidsController');
+  const bidsController = require('../controllers/lbdashboard/bidsController');
 
-const bidsControllerInstance = bidsController(Bids);
+  const bidsControllerInstance = bidsController(Bids);
 
- 
-const { init, orderCheckoutNowLocal } = bidsControllerInstance;
+  const { init, orderCheckoutNowLocal } = bidsControllerInstance;
 
   const bidWinnerJob = new CronJob(
     '* * * * * ', // cronTime
@@ -37,8 +35,6 @@ const { init, orderCheckoutNowLocal } = bidsControllerInstance;
     async () => {
       try {
         init();
-        console.log('You will see this message every minute');
-        // const listingId = mongoose.Types.ObjectId('67db45973f1a8ec3a678fd57');
         const now = new Date();
         const expiredBidDeadlines = await BidDeadlines.find({
           isActive: true,
@@ -94,7 +90,7 @@ const { init, orderCheckoutNowLocal } = bidsControllerInstance;
                 console.log(user);
 
                 // send email
-         /*   const emailWinnerBody = `
+                /*   const emailWinnerBody = `
           subject: Test Email,
           html: 
             <h2>You have won the bid!!!!!!!!!</h2>
@@ -144,9 +140,8 @@ const { init, orderCheckoutNowLocal } = bidsControllerInstance;
             }
 */
               }
-        //  deadline.isClosed = true;
-        //  await deadline.save();
-        
+              //  deadline.isClosed = true;
+              //  await deadline.save();
             }),
           );
           if (maxBidPrice !== 0) {
@@ -178,19 +173,20 @@ const { init, orderCheckoutNowLocal } = bidsControllerInstance;
               'onecommunityglobal@gmail.com', // reply to
             );
             console.log('email sent');
- 
-            console.log("before orderCheckoutNowLocal");
+
+            console.log('before orderCheckoutNowLocal');
             console.log(`bidWinnerPaypalOrderId is ${bidWinnerPaypalOrderId}`);
             console.log(`bidWinnerPaypalCheckoutNowLink is ${bidWinnerPaypalCheckoutNowLink}`);
-            
-            
-            await orderCheckoutNowLocal({paypalOrderId:bidWinnerPaypalOrderId, 
-                                         hrefLink:bidWinnerPaypalCheckoutNowLink}); //need to update the proc to send an email for approval
-           console.log(`after orderCheckoutNowLocal`);
-            
+
+            await orderCheckoutNowLocal({
+              paypalOrderId: bidWinnerPaypalOrderId,
+              hrefLink: bidWinnerPaypalCheckoutNowLink,
+            }); // need to update the proc to send an email for approval
+            console.log(`after orderCheckoutNowLocal`);
+
             // send sms
             const SMSBody = 'Congratulations!!!! You have won the Bid';
-            const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
+            // const fromMob = '+15005550006'; // Magic "from" number (valid for testing)
             const toMob = '+15005550006'; // Magic "to" number simulates success
             // const SMSResp = await SMSNotifications(SMSBody, fromMob, toMob);
 
