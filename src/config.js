@@ -1,5 +1,6 @@
-const config = {};
+require('dotenv').config();
 
+const config = {};
 config.JWT_SECRET = process.env.JWT_SECRET;
 config.REQUEST_AUTHKEY = 'Authorization';
 config.TOKEN = {

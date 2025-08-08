@@ -1,12 +1,15 @@
 /* eslint-disable quotes */
-require('dotenv').load();
+require('dotenv').config();
 const http = require('http');
+require('./jobs/dailyMessageEmailNotification');
 const { app, logger } = require('./app');
-const websockets = require('./websockets').default;
+const TimerWebsockets = require('./websockets').default;
+const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 
 require('./cronjobs/bidWinnerJobs')();
+const websocketRouter = require('./websockets/webSocketRouter');
 
 const port = process.env.PORT || 4500;
 
@@ -26,7 +29,9 @@ server.listen(port, () => {
   console.log(`🚀 Server is listening on http://localhost:${port}`);
 });
 
-(async () => {
-  await websockets(server);
-})();
+const timerService = TimerWebsockets();
+const messagingService = MessagingWebSocket();
+
+websocketRouter(server, [timerService, messagingService]);
+
 module.exports = server;
