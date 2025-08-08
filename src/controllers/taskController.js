@@ -6,30 +6,116 @@ const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
 const followUp = require('../models/followUp');
+const logger = require('../startup/logger');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
-    const { level } = req.params;
+    const { level, wbsId, mother } = req.params;
 
-    let query = {
-      wbsId: { $in: [req.params.wbsId] },
-      level: { $in: [level] },
+    const matchQuery = {
+      wbsId: mongoose.Types.ObjectId(wbsId),
+      level: parseInt(level, 10),
       isActive: { $ne: false },
     };
 
-    const { mother } = req.params;
-
-    if (mother !== '0') {
-      query = {
-        wbsId: { $in: [req.params.wbsId] },
-        level: { $in: [level] },
-        mother: { $in: [mother] },
-      };
+    if (mother && mother !== '0') {
+      matchQuery.mother = mongoose.Types.ObjectId(mother);
     }
 
-    Task.find(query)
+    Task.aggregate([
+      // Stage 1: Find the tasks
+      { $match: matchQuery },
+
+      // Stage 2: Deconstruct the resources array to handle each user individually
+      { $unwind: { path: '$resources', preserveNullAndEmptyArrays: true } },
+
+      // Stage 3: Look up the user profile for each resource
+      {
+        $lookup: {
+          from: 'userprofiles',
+          localField: 'resources.userID',
+          foreignField: '_id',
+          as: 'resources.userObject',
+        },
+      },
+
+      // Stage 4: Deconstruct the new userObject array
+      { $unwind: { path: '$resources.userObject', preserveNullAndEmptyArrays: true } },
+
+      // Stage 5: Add the 'name' field by concatenating firstName and lastName
+      {
+        $addFields: {
+          'resources.name': {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ['$resources.userObject.firstName', ''] },
+                  ' ',
+                  { $ifNull: ['$resources.userObject.lastName', ''] },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // Stage 6: Use email as a fallback if the name is still empty
+      {
+        $addFields: {
+          'resources.name': {
+            $cond: {
+              if: { $eq: ['$resources.name', ''] },
+              then: { $ifNull: ['$resources.userObject.email', 'Unknown User'] },
+              else: '$resources.name',
+            },
+          },
+          // Also ensure profilePic is correctly placed
+          'resources.profilePic': '$resources.userObject.profilePic',
+        },
+      },
+
+      // Stage 7: Group the resources back into a single array for each task
+      {
+        $group: {
+          _id: '$_id',
+          doc: { $first: '$$ROOT' },
+          resources: { $push: '$resources' },
+        },
+      },
+
+      // Stage 8: Reconstruct the final document shape
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: [
+              '$doc',
+              {
+                resources: {
+                  $filter: {
+                    // Filter out empty resource objects from tasks that had none
+                    input: '$resources',
+                    as: 'res',
+                    cond: { $ifNull: ['$$res.userID', false] },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+
+      // Stage 9: Clean up temporary fields
+      {
+        $project: {
+          'resources.userObject': 0,
+        },
+      },
+    ])
       .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+      .catch((error) => {
+        logger.logException(error);
+        res.status(500).send({ message: 'Error fetching tasks', error });
+      });
   };
 
   const getWBSId = (req, res) => {
@@ -461,7 +547,7 @@ const taskController = function (Task) {
         // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
-          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0))) + 1
+          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0, 10))) + 1
           : 1;
 
         const baseNum = parentTask.num
@@ -472,7 +558,7 @@ const taskController = function (Task) {
       } else {
         const topTasks = await Task.find({ wbsId, level: 1 });
         const nextTopNum = topTasks.length
-          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
+          ? Math.max(...topTasks.map((s) => parseInt(s.num.split('.')[level - 1] || 0, 10))) + 1
           : 1;
         num = `${nextTopNum}`;
       }
@@ -734,12 +820,10 @@ const taskController = function (Task) {
       req.body.hoursLogged > 0 &&
       req.body.estimatedHours > 0
     ) {
-      return res
-        .status(400)
-        .send({
-          error:
-            'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
-        });
+      return res.status(400).send({
+        error:
+          'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
+      });
     }
 
     const { taskId } = req.params;
@@ -821,11 +905,166 @@ const taskController = function (Task) {
     });
   };
 
+  // const getTaskById = async (req, res) => {
+  //   try {
+  //     const taskId = req.params.id;
+
+  //     // Ensure the task ID is provided
+  //     if (!taskId || taskId === 'undefined') {
+  //       return res.status(400).send({ error: 'Task ID is missing' });
+  //     }
+
+  //     const task = await Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime');
+
+  //     if (!task) {
+  //       return res.status(400).send({ error: 'This is not a valid task' });
+  //     }
+
+  //     // Fetch the resource names for all resources
+  //     const resourceNamesPromises = task.resources.map((resource) =>
+  //       taskHelper.getUserProfileFirstAndLastName(resource.userID),
+  //     );
+  //     const resourceNames = await Promise.all(resourceNamesPromises);
+
+  //     // Update the task's resources with the fetched names
+  //     task.resources.forEach((resource, index) => {
+  //       resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
+  //     });
+
+  //     return res.status(200).send(task);
+  //   } catch (error) {
+  //     // Generic error message, you can adjust as needed
+  //     return res.status(500).send({ error: 'Internal Server Error', details: error.message });
+  //   }
+  // };
+  // In taskController.js
+  // REPLACE your old getTaskById function with this new, robust version.
+
+  // const getTaskById = async (req, res) => {
+  //   try {
+  //     const taskId = req.params.id;
+
+  //     if (!mongoose.Types.ObjectId.isValid(taskId)) {
+  //       return res.status(400).send({ error: 'Invalid Task ID format.' });
+  //     }
+
+  //     const results = await Task.aggregate([
+  //       // Stage 1: Find the specific task by its ID
+  //       {
+  //         $match: {
+  //           _id: mongoose.Types.ObjectId(taskId),
+  //         },
+  //       },
+  //       // Stage 2: Look up the user details from the 'userprofiles' collection
+  //       {
+  //         $lookup: {
+  //           from: 'userprofiles',
+  //           localField: 'resources.userID', // The path to the user ID in the task's resources array
+  //           foreignField: '_id',
+  //           as: 'populatedResources',
+  //         },
+  //       },
+  //       // Stage 3: Merge the populated user details back into the resources array
+  //       {
+  //         $addFields: {
+  //           resources: {
+  //             $map: {
+  //               input: '$resources',
+  //               as: 'originalResource',
+  //               in: {
+  //                 $let: {
+  //                   vars: {
+  //                     // Find the full user profile that matches this resource
+  //                     matchedUser: {
+  //                       $arrayElemAt: [
+  //                         {
+  //                           $filter: {
+  //                             input: '$populatedResources',
+  //                             as: 'popUser',
+  //                             cond: { $eq: ['$$popUser._id', '$$originalResource.userID'] },
+  //                           },
+  //                         },
+  //                         0,
+  //                       ],
+  //                     },
+  //                   },
+  //                   in: {
+  //                     // Merge the original resource object with the full user profile
+  //                     // and create the 'name' field
+  //                     $mergeObjects: [
+  //                       '$$originalResource',
+  //                       '$$matchedUser',
+  //                       {
+  //                         name: {
+  //                           $trim: {
+  //                             input: {
+  //                               $concat: [
+  //                                 { $ifNull: ['$$matchedUser.firstName', ''] },
+  //                                 ' ',
+  //                                 { $ifNull: ['$$matchedUser.lastName', ''] },
+  //                               ],
+  //                             },
+  //                           },
+  //                         },
+  //                       },
+  //                     ],
+  //                   },
+  //                 },
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //       // Stage 4: Use a fallback for the name if it's empty
+  //       {
+  //         $addFields: {
+  //           resources: {
+  //             $map: {
+  //               input: '$resources',
+  //               as: 'res',
+  //               in: {
+  //                 $mergeObjects: [
+  //                   '$$res',
+  //                   {
+  //                     name: {
+  //                       $cond: {
+  //                         if: { $eq: ['$$res.name', ''] },
+  //                         then: { $ifNull: ['$$res.email', 'Unknown User'] },
+  //                         else: '$$res.name',
+  //                       },
+  //                     },
+  //                   },
+  //                 ],
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //       // Stage 5: Clean up the response by removing temporary fields
+  //       {
+  //         $project: {
+  //           populatedResources: 0,
+  //           'resources.password': 0, // Ensure sensitive data is not returned
+  //           'resources.projects': 0,
+  //         },
+  //       },
+  //     ]);
+
+  //     if (!results || results.length === 0) {
+  //       return res.status(404).send({ error: 'Task not found.' });
+  //     }
+
+  //     // Send the first (and only) result from the aggregation
+  //     return res.status(200).send(results[0]);
+  //   } catch (error) {
+  //     logger.logException(error); // Using your logger
+  //     return res.status(500).send({ error: 'Internal Server Error', details: error.message });
+  //   }
+  // };
   const getTaskById = async (req, res) => {
     try {
       const taskId = req.params.id;
 
-      // Ensure the task ID is provided
       if (!taskId || taskId === 'undefined') {
         return res.status(400).send({ error: 'Task ID is missing' });
       }
@@ -836,20 +1075,18 @@ const taskController = function (Task) {
         return res.status(400).send({ error: 'This is not a valid task' });
       }
 
-      // Fetch the resource names for all resources
+      // This original logic is flawed, but we are fixing the problem at the source (`getTasks`)
       const resourceNamesPromises = task.resources.map((resource) =>
         taskHelper.getUserProfileFirstAndLastName(resource.userID),
       );
       const resourceNames = await Promise.all(resourceNamesPromises);
 
-      // Update the task's resources with the fetched names
       task.resources.forEach((resource, index) => {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
 
       return res.status(200).send(task);
     } catch (error) {
-      // Generic error message, you can adjust as needed
       return res.status(500).send({ error: 'Internal Server Error', details: error.message });
     }
   };
@@ -879,33 +1116,51 @@ const taskController = function (Task) {
     const { userId } = req.params;
     try {
       const tasks = await Task.aggregate()
+        // .match({
+        //   resources: {
+        //     $elemMatch: {
+        //       userID: mongoose.Types.ObjectId(userId),
+        //       completedTask: {
+        //         $ne: true,
+        //       },
+        //     },
+        //   },
+        //   isActive: {
+        //     $ne: false,
+        //   },
+        // })
+        // .lookup({
+        //   from: 'wbs',
+        //   localField: 'wbsId',
+        //   foreignField: '_id',
+        //   as: 'wbs',
+        // })
         .match({
           resources: {
+            // <-- The field is 'resources'
             $elemMatch: {
-              userID: mongoose.Types.ObjectId(userId),
-              completedTask: {
-                $ne: true,
-              },
+              userID: mongoose.Types.ObjectId(userId), // <-- It matches on a 'userID' property inside an object
+              completedTask: { $ne: true },
             },
-          },
-          isActive: {
-            $ne: false,
           },
         })
         .lookup({
-          from: 'wbs',
-          localField: 'wbsId',
+          from: 'userprofiles',
+          localField: 'resources.userID',
           foreignField: '_id',
-          as: 'wbs',
+          as: 'populatedResources',
         })
         .unwind({
           path: '$wbs',
           includeArrayIndex: 'string',
           preserveNullAndEmptyArrays: true,
         })
+        // .addFields({
+        //   wbsName: '$wbs.wbsName',
+        //   projectId: '$wbs.projectId',
+        // })
         .addFields({
-          wbsName: '$wbs.wbsName',
-          projectId: '$wbs.projectId',
+          resources: '$populatedResources',
         })
         .lookup({
           from: 'projects',
@@ -921,10 +1176,16 @@ const taskController = function (Task) {
         .addFields({
           projectName: '$project.projectName',
         })
+        // .project({
+        //   wbs: 0,
+        //   project: 0,
+        // });
         .project({
           wbs: 0,
           project: 0,
+          populatedResources: 0, // Clean up the temporary field
         });
+
       res.status(200).send(tasks);
     } catch (error) {
       res.status(400).send(error);
@@ -990,12 +1251,12 @@ const taskController = function (Task) {
       membership = await UserProfile.find({
         role: { $in: ['Administrator', 'Manager', 'Mentor'] },
         isActive: true,
-      }).maxTimeMS(5000); 
+      }).maxTimeMS(5000);
     } catch (error) {
-      console.error("Error fetching membership:", error);
-      return []; 
+      console.error('Error fetching membership:', error);
+      return [];
     }
-    for (const member of membership) {
+    membership.forEach((member) => {
       if (
         Array.isArray(member.teams) &&
         Array.isArray(user.teams) &&
@@ -1003,29 +1264,26 @@ const taskController = function (Task) {
       ) {
         recipients.push(member.email);
       }
-    }
-  
+    });
+
     return recipients;
   };
-  
+
   const sendReviewReq = async function (req, res) {
     const { myUserId, name, taskName } = req.body;
     const emailBody = getReviewReqEmailBody(name, taskName);
     try {
       const recipients = await getRecipients(myUserId);
-      console.log("Recipients list:", recipients);
-      console.log("Email subject:", `Review Request from ${name}`);
+      console.log('Recipients list:', recipients);
+      console.log('Email subject:', `Review Request from ${name}`);
       await emailSender(recipients, `Review Request from ${name}`, emailBody, null, null);
       res.status(200).send('Success');
     } catch (err) {
-      console.error("Error in sendReviewReq:", err);
+      console.error('Error in sendReviewReq:', err);
       res.status(500).send('Failed');
     }
-
-   
   };
 
- 
   return {
     postTask,
     getTasks,
