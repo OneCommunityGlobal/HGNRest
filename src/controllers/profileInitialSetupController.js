@@ -114,7 +114,10 @@ const sendEmailWithAcknowledgment = (email, subject, message) => {
     console.trace('sendEmailWithAcknowledgment called with:', email, subject);
     console.log('emailSender is:', emailSender);
     console.error('DEBUG TRACE >>>', new Error().stack);
-
+    if (!emailSender) {
+      reject(new Error('emailSender is undefined'));
+      return;
+    }
     emailSender(email, subject, message, null, null, null, null).then(resolve).catch(reject);
   });
 };
