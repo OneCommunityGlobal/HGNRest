@@ -111,6 +111,10 @@ function informManagerMessage(user) {
 const sendEmailWithAcknowledgment = (email, subject, message) => {
   console.trace('sendEmailWithAcknowledgment called with:', email, subject);
   return new Promise((resolve, reject) => {
+    console.trace('sendEmailWithAcknowledgment called with:', email, subject);
+    console.log('emailSender is:', emailSender);
+    console.error('DEBUG TRACE >>>', new Error().stack);
+
     emailSender(email, subject, message, null, null, null, null).then(resolve).catch(reject);
   });
 };
