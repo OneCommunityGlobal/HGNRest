@@ -24,7 +24,7 @@ async function inviteUser(req, res) {
       'invited',
       targetUser.email,
     );
-    res.status(201).json({ message: 'Invitation sent', data: invitation });
+    res.status(201).json({ message: 'Invitation sent with access to all teams', data: invitation });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -58,3 +58,4 @@ module.exports = {
   inviteUser,
   removeUser,
 };
+

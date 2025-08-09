@@ -30,16 +30,43 @@ async function getMembers() {
   }
 }
 
-// Function to invite a user to the Sentry organization
+// Function to get all teams in the organization
+async function getTeams() {
+  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/teams/`;
+
+  try {
+    const response = await axios({
+      url,
+      method: 'GET',
+      headers,
+    });
+    return response.data; // Return the teams list
+  } catch (error) {
+    throw new Error(`Error fetching teams: ${error.message}`);
+  }
+}
+
+// Function to invite a user to the Sentry organization and add them to all teams
 async function inviteUser(email, role = 'member') {
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
 
-  const data = {
-    email,
-    role, // Default to 'member', can also be 'admin'
-  };
-
   try {
+    // First, get all teams in the organization
+    const teams = await getTeams();
+
+    // Create teamRoles array to assign user to all teams as contributor
+    const teamRoles = teams.map((team) => ({
+      teamSlug: team.slug,
+      role: 'contributor', // Assign as contributor to all teams
+    }));
+
+    const data = {
+      email,
+      orgRole: role, // Organization-level role (member, admin, etc.)
+      teamRoles, // Assign to all teams
+      sendInvite: true,
+    };
+
     const response = await axios({
       url,
       method: 'POST',
@@ -87,6 +114,7 @@ async function removeUser(email, members) {
 
 module.exports = {
   getMembers,
+  getTeams,
   inviteUser,
   removeUser,
 };
