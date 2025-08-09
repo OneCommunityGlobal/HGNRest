@@ -28,7 +28,7 @@ function sendLinkMessage(Link) {
   return message;
 }
 
-/* function sendRefreshedLinkMessage(Link) {
+function sendRefreshedLinkMessage(Link) {
   const message = `<p>Hello,</p>
     <p>You setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
     To work as a member of our volunteer team, you need to complete the following profile setup by:</p>   
@@ -40,7 +40,7 @@ function sendLinkMessage(Link) {
     <p>One Community</p>`;
   return message;
 }
-*/
+
 function sendCancelLinkMessage() {
   const message = `<p>Hello,</p>
     <p>Your setup link has been deactivated by the administrator. </p>
@@ -641,13 +641,15 @@ const profileInitialSetupController = function (
           .then((result) => {
             const { email } = result;
             console.log(email);
+            LOGGER.logInfo(email);
             const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
             console.log(link);
-            /* sendEmailWithAcknowledgment(
+            LOGGER.logInfo(link);
+            sendEmailWithAcknowledgment(
               email,
               'Invitation Link Refreshed: Complete Your One Community Profile Setup',
               sendRefreshedLinkMessage(link),
-            ); */
+            );
             return res.status(200).send(result);
           })
           .catch((err) => {
