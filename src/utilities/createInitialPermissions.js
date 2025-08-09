@@ -105,6 +105,11 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      // Job Form Management
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
     ],
   },
   {
