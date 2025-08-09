@@ -172,7 +172,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
 const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
   dashboardMetrics,
   buildingProject,
-  buildingMaterial
+  buildingMaterial,
 );
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
@@ -195,7 +195,16 @@ const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   userPreferences,
   notification,
 );
-const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(buildingProject, buildingMaterialModel, buildingToolModel);
+const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
+  buildingProject,
+  buildingMaterialModel,
+  buildingToolModel,
+);
+
+const toolAvailability = require('../models/bmdashboard/toolAvailability');
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
+  toolAvailability,
+);
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
@@ -207,6 +216,8 @@ const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmail
   userProfile,
 );
 
+
+
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
@@ -216,6 +227,7 @@ const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
+
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
 const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
   bidoverview_Bid,
@@ -223,6 +235,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
   bidoverview_User,
   bidoverview_Notification,
 );
+
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
@@ -251,7 +264,6 @@ module.exports = function (app) {
   app.use('/api', wastedMaterialRouter);
 
   app.use('/api', laborCostRouter);
-
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
@@ -283,7 +295,6 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
-
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -291,8 +302,11 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
+  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+
+  app.use('/api', templateRouter);
 
   app.use('/api', templateRouter);
 
@@ -314,7 +328,15 @@ module.exports = function (app) {
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
+  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', toolAvailabilityRouter);
+  // lb dashboard
+
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
@@ -332,11 +354,14 @@ module.exports = function (app) {
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
-  
+
   app.use('/api/financials', bmFinancialRouter);
-  
+
   app.use('/api', registrationRouter);
   app.use('/api/', projectCostRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api/bm', bmRentalChart);
+  app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
