@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
+const Role = require('../models/role');
 const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
@@ -677,6 +678,15 @@ const userProfileController = function (UserProfile, Project) {
           'timeEntryEditHistory',
         ];
 
+        // Validate role if provided
+        if (req.body.role !== undefined) {
+          const existingRole = await Role.findOne({ roleName: req.body.role }).lean();
+          if (!existingRole) {
+            res.status(400).send({ error: 'Invalid role' });
+            return;
+          }
+        }
+
         if (req.body.role !== record.role) {
           switch (req.body.role) {
             case 'Mentor':
@@ -784,10 +794,34 @@ const userProfileController = function (UserProfile, Project) {
           req.body.permissions !== undefined &&
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
+          const currentPermissions = {
+            isAcknowledged: record.permissions?.isAcknowledged ?? true,
+            frontPermissions: Array.isArray(record.permissions?.frontPermissions)
+              ? record.permissions.frontPermissions
+              : [],
+            backPermissions: Array.isArray(record.permissions?.backPermissions)
+              ? record.permissions.backPermissions
+              : [],
+            removedDefaultPermissions: Array.isArray(record.permissions?.removedDefaultPermissions)
+              ? record.permissions.removedDefaultPermissions
+              : [],
+          };
+
+          const incoming = req.body.permissions || {};
+
           record.permissions = {
             isAcknowledged: false, // used to inform the user
-            ...req.body.permissions,
+            frontPermissions:
+              incoming.frontPermissions !== undefined
+                ? incoming.frontPermissions
+                : currentPermissions.frontPermissions,
+            backPermissions: currentPermissions.backPermissions,
+            removedDefaultPermissions:
+              incoming.removedDefaultPermissions !== undefined
+                ? incoming.removedDefaultPermissions
+                : currentPermissions.removedDefaultPermissions,
           };
+
           await logUserPermissionChangeByAccount(req);
         }
 
@@ -831,6 +865,8 @@ const userProfileController = function (UserProfile, Project) {
           );
           res.status(200).json({
             _id: record._id,
+            role: record.role,
+            permissions: record.permissions,
           });
 
           // update alluser cache if we have cache
@@ -1716,7 +1752,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
-    
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
