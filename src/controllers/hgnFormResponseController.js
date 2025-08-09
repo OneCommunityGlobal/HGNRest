@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
+const { hasPermission } = require('../utilities/permissions');
 
 const hgnFormController = function () {
   const submitFormResponse = async function (req, res) {
@@ -28,8 +29,14 @@ const hgnFormController = function () {
 
   const getAllFormResponses = async function (req, res) {
     try {
-      const formResponses = await FormResponse.find();
-      res.json(formResponses);
+        // Check if user has permission to access HGN Skills Dashboard
+        if (!await hasPermission(req.body.requestor, 'accessHgnSkillsDashboard')) {
+            return res.status(403).json({ 
+                error: 'You are not authorized to access the HGN Skills Dashboard.' 
+            });
+        }
+        const formResponses = await FormResponse.find();
+        res.json(formResponses);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -56,12 +63,12 @@ const hgnFormController = function () {
       const responses = await FormResponse.find();
 
       const scoredUsers = responses.map((user) => {
-        let scoreList = [];
+        const scoreList = [];
 
         selectedSkills.forEach((skill) => {
           const [section, field] = skillMap[skill] || [];
           if (section && field && user[section]?.[field]) {
-            scoreList.push(parseInt(user[section][field]));
+            scoreList.push(parseInt(user[section][field], 10));
           }
         });
 
@@ -73,8 +80,8 @@ const hgnFormController = function () {
         const allSkills = [];
         ['frontend', 'backend'].forEach((section) => {
           Object.entries(user[section] || {}).forEach(([key, val]) => {
-            const parsed = parseInt(val);
-            if (!isNaN(parsed)) {
+            const parsed = parseInt(val, 10);
+            if (!Number.isNaN(parsed)) {
               allSkills.push({ skill: key, score: parsed });
             }
           });
