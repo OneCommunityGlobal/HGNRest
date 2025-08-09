@@ -1,11 +1,11 @@
-const axios = require('axios');  // Use gaxios instead of axios
+const axios = require('axios'); // Use gaxios instead of axios
 require('dotenv').config();
 
-const sentryApiToken = process.env.SENTRY_API_TOKEN;  // Sentry API Token from .env file
-const organizationSlug = process.env.SENTRY_ORG_SLUG;  // Organization slug from .env file
+const sentryApiToken = process.env.SENTRY_API_TOKEN; // Sentry API Token from .env file
+const organizationSlug = process.env.SENTRY_ORG_SLUG; // Organization slug from .env file
 
 const headers = {
-  'Authorization': `Bearer ${sentryApiToken}`,
+  Authorization: `Bearer ${sentryApiToken}`,
   'Content-Type': 'application/json',
 };
 
@@ -18,10 +18,11 @@ async function getMembers() {
   try {
     if (nextUrl) {
       const response = await axios({ url: nextUrl, headers });
-      members.push(...response.data);  // Add members to the array
-      nextUrl = response.headers.link && response.headers.link.includes('rel="next"') 
-                ? response.headers.link.match(/<([^>]+)>; rel="next"/)[1]
-                : null;  // Extract next URL from 'link' header if available
+      members.push(...response.data); // Add members to the array
+      nextUrl =
+        response.headers.link && response.headers.link.includes('rel="next"')
+          ? response.headers.link.match(/<([^>]+)>; rel="next"/)[1]
+          : null; // Extract next URL from 'link' header if available
     }
     return members;
   } catch (error) {
@@ -29,25 +30,52 @@ async function getMembers() {
   }
 }
 
+// Function to get all teams in the organization
+async function getTeams() {
+  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/teams/`;
 
+  try {
+    const response = await axios({
+      url,
+      method: 'GET',
+      headers,
+    });
+    return response.data; // Return the teams list
+  } catch (error) {
+    throw new Error(`Error fetching teams: ${error.message}`);
+  }
+}
 
-// Function to invite a user to the Sentry organization
+// Function to invite a user to the Sentry organization and add them to all teams
 async function inviteUser(email, role = 'member') {
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
 
-  const data = {
-    email,
-    role,  // Default to 'member', can also be 'admin'
-  };
-
   try {
+    // First, get all teams in the organization
+    const teams = await getTeams();
+
+    // Create teamRoles array to assign user to all teams as contributor
+    const teamRoles = teams.map((team) => ({
+      teamSlug: team.slug,
+      role: 'contributor', // Assign as contributor to all teams
+    }));
+
+    const data = {
+      email,
+      orgRole: role, // Organization-level role (member, admin, etc.)
+      teamRoles, // Assign to all teams
+      sendInvite: true,
+    };
+
     const response = await axios({
       url,
       method: 'POST',
       headers,
       data,
     });
-    return response.data;  // Return the invitation details
+
+    console.log(`Sentry: Successfully invited ${email} to organization and ${teams.length} teams`);
+    return response.data; // Return the invitation details
   } catch (error) {
     throw new Error(`Error sending invitation: ${error.message}`);
   }
@@ -63,8 +91,8 @@ async function removeUser(email, members) {
       members = await getMembers();
     }
 
-    const existingMember = members.find(member =>
-      member.email.toLowerCase() === email.toLowerCase()
+    const existingMember = members.find(
+      (member) => member.email.toLowerCase() === email.toLowerCase(),
     );
 
     if (!existingMember) {
@@ -88,6 +116,7 @@ async function removeUser(email, members) {
 
 module.exports = {
   getMembers,
+  getTeams,
   inviteUser,
   removeUser,
 };
