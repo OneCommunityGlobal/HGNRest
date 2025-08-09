@@ -108,10 +108,12 @@ function informManagerMessage(user) {
   return message;
 }
 
-const sendEmailWithAcknowledgment = (email, subject, message) =>
-  new Promise((resolve, reject) => {
+const sendEmailWithAcknowledgment = (email, subject, message) => {
+  console.trace('sendEmailWithAcknowledgment called with:', email, subject);
+  return new Promise((resolve, reject) => {
     emailSender(email, subject, message, null, null, null, null).then(resolve).catch(reject);
   });
+};
 
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
