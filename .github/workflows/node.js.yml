@@ -23,7 +23,7 @@ jobs:
     - name: Run email sender check
       run: node src/utilities/emailSender.js
     - name: Debug emailSender import
-      run: node scripts/debugEmailSender.js
+      run: node src/utilities/emailSender.js
     - run: npm run test -- --runInBand --verbose
     
   
