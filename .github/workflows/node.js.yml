@@ -21,7 +21,7 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - name: Run email sender check
-      run: node utilities/emailSender.js
+      run: node src/utilities/emailSender.js
     - name: Debug emailSender import
       run: node scripts/debugEmailSender.js
     - run: npm run test -- --runInBand --verbose
