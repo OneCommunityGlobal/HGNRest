@@ -107,7 +107,6 @@ const meetingController = function (Meeting) {
           },
         },
       ]);
-      console.log(meetings[meetings.length - 1]);
 
       res.status(200).json(meetings);
     } catch (error) {
@@ -241,7 +240,6 @@ const meetingController = function (Meeting) {
           },
         },
       ]);
-
       if (!meetings.length) {
         return res.status(404).json({ error: 'No upcoming unread meetings found' });
       }
@@ -252,24 +250,24 @@ const meetingController = function (Meeting) {
 
       const upcomingUnreadMeetings = meetings.filter((meeting) => {
         const meetingDate = new Date(meeting.dateTime);
-        return meetingDate >= now && meetingDate <= threeDaysLater;
+        return (
+          meetingDate >= now && // meeting is today or later
+          meetingDate <= threeDaysLater && // meeting is within 3 days
+          meeting.isRead === false // meeting is unread
+        );
       });
+
 
       if (!upcomingUnreadMeetings.length) {
         return res.status(404).json({ error: 'No upcoming unread meetings within next 3 days' });
       }
 
-      // Get meeting IDs
-      const meetingIds = upcomingUnreadMeetings.map((m) => m._id);
-
-      // Fetch full meeting docs with populated organizer names
-      const meetingsWithOrganizer = await Meeting.find({ _id: { $in: meetingIds } }).populate(
-        'organizer',
-        'firstName lastName',
-      );
+      // Step 3: Get full meetings with organizer populated
+    const meetingIds = upcomingUnreadMeetings.map((m) => m._id);
+    const fullMeetings = await Meeting.find({ _id: { $in: meetingIds } }).populate('organizer', 'firstName lastName');
 
       // Prepare result with organizer full names
-      const result = meetingsWithOrganizer.map((meeting) => ({
+      const result = fullMeetings.map((meeting) => ({
         _id: meeting._id,
         dateTime: meeting.dateTime,
         organizerName: meeting.organizer
@@ -279,9 +277,8 @@ const meetingController = function (Meeting) {
         location: meeting.location,
         locationDetails: meeting.locationDetails,
         notes: meeting.notes,
-        participant:meeting.participant
+        participant: participantId,
       }));
-
       return res.status(200).json({ upComingMeetings: result });
     } catch (error) {
       console.error('Error fetching upcoming meetings:', error);
