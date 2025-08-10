@@ -135,6 +135,8 @@ userProfileRouter.route('/userProfile/basicInfo/:source').get(controller.getUser
 
   userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
+  userProfileRouter.route('/userProfile/skills/:skill').get(controller.getAllMembersSkillsAndContact)
+
   return userProfileRouter;
 };
 

@@ -13,6 +13,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
@@ -496,7 +497,7 @@ const userProfileController = function (UserProfile, Project) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(501).send(error);
+      res.status(400).send(error);
     }
   };
 
@@ -628,6 +629,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'isStartDateManuallyModified',
       ];
 
       commonFields.forEach((fieldName) => {
@@ -1719,6 +1721,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
+    
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1733,6 +1736,9 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+
+      req.body.blueSquare.reasons = ['other'];
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1781,7 +1787,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1795,6 +1801,9 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+          }
         }
         return blueSquare;
       });
@@ -1827,7 +1836,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -2026,6 +2034,99 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getAllMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID from requestor object added by middleware
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+
+      const userId = req.body.requestor.requestorId;
+
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+
+      // Get all form responses except for the current user
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $ne: userId }, // Exclude current user
+      }).lean();
+
+      // Get user IDs from form responses
+      const userIds = formResponses.map((response) => response.user_id);
+
+      // Get user profiles to get privacy settings
+      const userProfiles = await UserProfile.find({
+        _id: { $in: userIds },
+      })
+        .select('_id email phoneNumber privacySettings')
+        .lean();
+
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = userProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+
+      // Map data with privacy considerations
+      const membersData = formResponses
+        .map((response) => {
+          const profile = profileMap[response.user_id];
+
+          if (!profile) {
+            return null;
+          }
+
+          let score = 0;
+
+          // Check for skill score in frontend or backend
+          if (response.frontend && response.frontend[skillName] !== undefined) {
+            score = parseInt(response.frontend[skillName], 10) || 0;
+          } else if (response.backend && response.backend[skillName] !== undefined) {
+            score = parseInt(response.backend[skillName], 10) || 0;
+          }
+
+          // Apply privacy settings
+          const email = profile.privacySettings?.email === false ? null : profile.email;
+
+          // Get phone number with privacy consideration
+          let phoneNumber = null;
+          if (profile.privacySettings?.phoneNumber !== false) {
+            if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+              const [firstPhoneNumber] = profile.phoneNumber;
+              phoneNumber = firstPhoneNumber;
+            }
+          }
+
+          return {
+            name: response.userInfo.name,
+            email,
+            phoneNumber,
+            slack: response.userInfo.slack,
+            rating: `${score} / 10`,
+          };
+        })
+        .filter((item) => item !== null);
+
+      // Sort by skill score (highest first)
+      const sortedData = [...membersData].sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+
+      return res.status(200).send(sortedData);
+    } catch (error) {
+      console.error('Error in getAllMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve members',
+        error: error.message,
+      });
+    }
+  };
+
   const replaceTeamCodeForUsers = async (req, res) => {
     const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
 
@@ -2166,6 +2267,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
   };
 };
