@@ -4,9 +4,6 @@ const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
 
-console.log('DEBUG: emailSender at import time =', emailSender);
-console.log('DEBUG: emailSender type =', typeof emailSender);
-
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
