@@ -64,6 +64,7 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+const dashboardMetrics = require('../models/bmdashboard/dashboardMetrics');
 const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 
 const buildingToolModel = require('../models/bmdashboard/buildingTool');
@@ -167,6 +168,11 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
+const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
+  dashboardMetrics,
+  buildingProject,
+  buildingMaterial,
+);
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 
 // lb dashboard
@@ -192,6 +198,11 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingProject,
   buildingMaterialModel,
   buildingToolModel,
+);
+
+const toolAvailability = require('../models/bmdashboard/toolAvailability');
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
+  toolAvailability,
 );
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
@@ -248,7 +259,6 @@ module.exports = function (app) {
   app.use('/api', wastedMaterialRouter);
 
   app.use('/api', laborCostRouter);
-
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
   app.use('/api', reportsRouter);
@@ -280,7 +290,6 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
-
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -288,8 +297,11 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
+  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+
+  app.use('/api', templateRouter);
 
   app.use('/api', templateRouter);
 
@@ -313,9 +325,17 @@ module.exports = function (app) {
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
+  app.use('/api/dropbox', dropboxRouter);
+  app.use('/api/github', githubRouter);
+  app.use('/api/sentry', sentryRouter);
+  app.use('/api/slack', slackRouter);
+  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', toolAvailabilityRouter);
+  // lb dashboard
 
   app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
 
@@ -334,6 +354,9 @@ module.exports = function (app) {
   app.use('/api/financials', bmFinancialRouter);
 
   app.use('/api', registrationRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api/bm', bmRentalChart);
+  app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
