@@ -1,11 +1,11 @@
-/* eslint-disable */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const currentWarnings = require('../models/currentWarnings');
 const emailSender = require('../utilities/emailSender');
 const userHelper = require('../helpers/userHelper')();
+
 let currentWarningDescriptions = null;
-let currentUserName = null;
+const currentUserName = null;
 const emailTemplate = {
   thirdWarning: {
     subject: 'Third Warning',
@@ -49,14 +49,14 @@ const warningsController = function (UserProfile) {
     try {
       const { warnings } = await UserProfile.findById(userId);
 
-      const { completedData } = filterWarnings(currentWarningDescriptions, warnings);
+      const completedData = filterWarnings(warnings);
 
       if (!warnings) {
         return res.status(400).send({ message: 'no valiud records' });
       }
-      res.status(201).send({ warnings: completedData });
+      return res.status(201).send({ warnings: completedData });
     } catch (error) {
-      res.status(401).send({ message: error.message || error });
+      return res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -112,7 +112,7 @@ const warningsController = function (UserProfile) {
         email: record.email,
       };
 
-      //if monitorData is passed and has a userId, meaning was sent from userprofile
+      // if monitorData is passed and has a userId, meaning was sent from userprofile
       if (monitorData.userId) {
         const monitor = await UserProfile.findById(monitorData.userId);
         monitorData.firstName = monitor.firstName;
@@ -152,8 +152,7 @@ const warningsController = function (UserProfile) {
 
       res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
-      console.log('error', error);
-      res.status(400).send({ message: error.message || error });
+      return res.status(400).send({ message: error.message || error });
     }
   };
 
@@ -172,10 +171,10 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'no valid records' });
       }
 
-      const { completedData } = filterWarnings(currentWarningDescriptions, warnings.warnings);
-      res.status(201).send({ message: 'succesfully deleted', warnings: completedData });
+      const sortedWarnings = filterWarnings(warnings.warnings);
+      return res.status(201).send({ message: 'succesfully deleted', warnings: sortedWarnings });
     } catch (error) {
-      res.status(401).send({ message: error.message || error });
+      return res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -187,9 +186,9 @@ const warningsController = function (UserProfile) {
   };
 };
 
-//helper to get the team members admin emails
+// helper to get the team members admin emails
 async function getUserRoleByEmail(user) {
-  //replacement for jae's email
+  // replacement for jae's email
   const recipients = ['test@test.com'];
   for (const teamId of user.teams) {
     const managementEmails = await userHelper.getTeamManagementEmail(teamId);
@@ -203,7 +202,7 @@ async function getUserRoleByEmail(user) {
   return [...new Set(recipients)];
 }
 
-//helper function to get the ordinal
+// helper function to get the ordinal
 function getOrdinal(n) {
   const suffixes = ['th', 'st', 'nd', 'rd'];
   const value = n % 100;
@@ -347,8 +346,7 @@ const filterWarnings = (
       } else if (!sendEmail && !issueBlueSquare) {
         sendEmail = 'issue two warnings';
       }
-    } else {
-      if (
+    } else if (
         warningsObject[warning.description].length >= 3 &&
         warning.iconId === iconId &&
         color === 'yellow'
@@ -359,7 +357,6 @@ const filterWarnings = (
         sendEmail = 'issue blue square';
         size = warningsObject[warning.description].length;
       }
-    }
   });
 
   if (issueBlueSquare !== null) {
@@ -387,10 +384,10 @@ const filterWarnings = (
     completedData.push({
       title: warningTitle,
       warnings: warns[warningTitle] ? warns[warningTitle] : [],
-      abbreviation: abbreviation ? abbreviation : null,
+      abbreviation: abbreviation || null,
     });
   }
-  return { completedData, sendEmail, size };
+  return completedData;
 };
 
 module.exports = warningsController;

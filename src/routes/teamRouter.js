@@ -12,6 +12,10 @@ const router = function (team) {
     .put(controller.updateTeamVisibility);
 
   teamRouter
+  .route("/team/reports")
+  .post(controller.getAllTeamMembers);
+
+  teamRouter
     .route('/team/:teamId')
     .get(controller.getTeamById)
     .put(controller.putTeam)
