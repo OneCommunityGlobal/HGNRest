@@ -215,8 +215,6 @@ const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmail
   userProfile,
 );
 
-
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
@@ -226,7 +224,6 @@ const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
-
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
 const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
   bidoverview_Bid,
@@ -235,11 +232,11 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
   bidoverview_Notification,
 );
 
-
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 
 const collaborationRouter = require('../routes/collaborationRouter');
+const questionSetRouter = require('../routes/questionSetRouter');
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -294,6 +291,7 @@ module.exports = function (app) {
   app.use('/api', weeklySummaryEmailAssignmentRouter);
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
+  app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
@@ -333,7 +331,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
-
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
