@@ -29,7 +29,7 @@ const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 
 const wishlists = require('../models/lbdashboard/wishlists');
-
+const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -266,7 +266,7 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
-
+  app.use('/api/analytics', pledgeAnalyticsRoutes);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
