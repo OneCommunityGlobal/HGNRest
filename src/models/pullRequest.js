@@ -8,10 +8,12 @@ const pullRequest = new Schema(
     prNumber: { type: String, unique: true },
     prTitle: String,
     prRepo: String,
+    prCreatedAt: Date,
   },
   { timestamps: true },
 );
 
 pullRequest.index({ prNumber: 1 });
+pullRequest.index({ prCreatedAt: 1 });
 
 module.exports = mongoose.model('PullRequest', pullRequest);

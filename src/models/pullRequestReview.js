@@ -6,7 +6,7 @@ const pullRequestReview = new Schema(
   {
     id: { type: Number, required: true, unique: true },
     prNumber: String,
-    submitedAt: Date,
+    submittedAt: Date,
     state: String,
     userId: Number,
   },

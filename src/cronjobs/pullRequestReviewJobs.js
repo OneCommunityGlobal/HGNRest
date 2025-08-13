@@ -60,6 +60,7 @@ async function syncGitHubData() {
             $setOnInsert: {
               prNumber: `FE-${pr.number}`,
               prRepo: FRONT_END_REPO,
+              prCreatedAt: pr.created_at,
             },
             $set: {
               prTitle: pr.title, // Always update the title for change
@@ -78,7 +79,7 @@ async function syncGitHubData() {
                   $setOnInsert: {
                     id: review.id,
                     prNumber: `FE-${pr.number}`,
-                    submitedAt: review.submitted_at,
+                    submittedAt: review.submitted_at,
                     state: review.state,
                     userId: review.user.id,
                   },
@@ -110,6 +111,7 @@ async function syncGitHubData() {
             $setOnInsert: {
               prNumber: `BE-${pr.number}`,
               prRepo: BACK_END_REPO,
+              prCreatedAt: pr.created_at,
             },
             $set: {
               prTitle: pr.title, // Always update the title for change
@@ -128,7 +130,7 @@ async function syncGitHubData() {
                   $setOnInsert: {
                     id: review.id,
                     prNumber: `BE-${pr.number}`,
-                    submitedAt: review.submitted_at,
+                    submittedAt: review.submitted_at,
                     state: review.state,
                     userId: review.user.id,
                   },
