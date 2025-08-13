@@ -23,7 +23,8 @@ const getJobs = async (req, res) => {
     if (category) query.category = category;
 
     
-
+    console.log('query from getJobs');
+    console.log(query);
     // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
 
@@ -63,9 +64,20 @@ const getJobSummaries = async (req, res) => {
 
     // Construct the query object
     const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' };
+    if (search) {
+      const searchString = String(search);
+      
+      query.$or = [
+        { title: { $regex: new RegExp(searchString, 'i') } },
+        { description: { $regex: new RegExp(searchString, 'i') } }
+      ];} // Case-insensitive search
+    
     if (category) query.category = category;
 
+    /* if (search) query.title = { $regex: search, $options: 'i' };
+    if (category) query.category = category;
+    */
+   
     // Sorting logic
     const sortCriteria = {
       title: 1,
@@ -189,7 +201,7 @@ const createJob = async (req, res) => {
   try {
     const newJob = new Job({
       title,
-      summaries,
+    //  summaries,
       category,
       description,
       imageUrl,
