@@ -148,7 +148,7 @@ const bmEquipmentController = (BuildingEquipment) => {
       return res.status(400).send({ error: 'Request body must be a non-empty array.' });
     }
 
-    const invalid = updates.some(item => {
+    const invalid = updates.some((item) => {
       if (!item.equipmentId || !mongoose.Types.ObjectId.isValid(item.equipmentId)) {
         res.status(400).send({ error: 'Invalid or missing equipmentId.' });
         return true;

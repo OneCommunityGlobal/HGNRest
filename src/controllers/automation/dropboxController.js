@@ -8,12 +8,13 @@ const { checkAppAccess } = require('./utils');
 async function createFolder(req, res) {
   try {
     const { folderName } = req.body;
-    const { parentFolderResponse, subfolderResponse } = await dropboxService.createFolderWithSubfolder(folderName);
+    const { parentFolderResponse, subfolderResponse } =
+      await dropboxService.createFolderWithSubfolder(folderName);
     const { requestor } = req.body;
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
       return;
-    } 
+    }
 
     res.status(201).json({
       message: 'Folder and subfolder created successfully!',
@@ -32,7 +33,7 @@ async function createFolderAndInvite(req, res) {
     if (!checkAppAccess(requestor.role)) {
       res.status(403).send({ message: 'Unauthorized request' });
       return;
-    } 
+    }
     const user = await UserProfile.findById(targetUser.targetUserId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -40,7 +41,12 @@ async function createFolderAndInvite(req, res) {
 
     await dropboxService.createFolderAndInvite(targetUser.email, folderPath);
 
-    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'dropbox', 'invited', targetUser.email);
+    await appAccessService.upsertAppAccess(
+      targetUser.targetUserId,
+      'dropbox',
+      'invited',
+      targetUser.email,
+    );
     res.status(200).json({ message: 'User invited successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -82,7 +88,9 @@ async function deleteFolder(req, res) {
     const dropboxApp = appAccess && appAccess.apps.find((app) => app.app === 'dropbox');
 
     if (!dropboxApp || !dropboxApp.credentials) {
-      return res.status(404).json({ message: 'Dropbox folder information not found for this user.' });
+      return res
+        .status(404)
+        .json({ message: 'Dropbox folder information not found for this user.' });
     }
 
     await dropboxService.deleteFolder(folderPath);

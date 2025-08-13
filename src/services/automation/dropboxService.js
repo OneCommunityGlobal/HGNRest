@@ -42,7 +42,9 @@ async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
       throw new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
     }
     // in_progress
-    await new Promise((res) => setTimeout(res, 1000));
+    await new Promise((res) => {
+      setTimeout(res, 1000);
+    });
     attempts += 1;
   }
   throw new Error('Timeout waiting for share to complete');
@@ -104,9 +106,7 @@ async function createFolderAndInvite(email, projectName) {
     // 3. Invite user
     const inviteResponse = await dbx.sharingAddFolderMember({
       shared_folder_id: sharedFolderId,
-      members: [
-        { member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } },
-      ],
+      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
       quiet: false,
     });
 

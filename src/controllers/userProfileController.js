@@ -624,6 +624,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
         'isStartDateManuallyModified',
       ];
 
@@ -1716,7 +1717,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
-    
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1747,6 +1748,7 @@ const userProfileController = function (UserProfile, Project) {
 
       const originalinfringements = record?.infringements ?? [];
       record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringementCount += 1;
 
       record
         .save()
@@ -1842,6 +1844,7 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()
