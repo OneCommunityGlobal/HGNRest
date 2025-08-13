@@ -76,6 +76,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
   const notifyAdmins = async (startDate, endDate, userId, action = '', reason = null) => {
     try {
       const user = await UserProfile.findById(userId, 'firstName lastName');
+
       if (!user) {
         console.error(`User with ID ${userId} not found.`);
         return;
@@ -95,9 +96,11 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
 
       const uniqueUserIdsArray = Object.keys(uniqueUserIds);
 
+      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
       const userProfiles = await UserProfile.find({
         _id: { $in: uniqueUserIdsArray },
         isActive: true,
+        role: { $in: rolesToInclude },
       });
 
       const ownerAcc = await UserProfile.find({
@@ -106,7 +109,6 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         .select('email')
         .exec();
 
-      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
       const userEmails = userProfiles
         .map((userProfile) => {
           if (rolesToInclude.includes(userProfile.role)) {
@@ -181,7 +183,9 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       res.status(201).send(savedRequest);
       if (savedRequest && setOwnRequested) {
         await notifyUser(requestFor);
+        console.log('User notified:', requestFor);
         await notifyAdmins(startingDate, endDate, requestFor, '', savedRequest.reason);
+        console.log('Admins notified for request:', requestFor);
       }
     } catch (error) {
       console.error('Error in setTimeOffRequest:', error); // Debugging
