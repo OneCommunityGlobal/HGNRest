@@ -1716,7 +1716,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
-    
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1731,8 +1731,20 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      const newInfringement = {
+        ...req.body.blueSquare,
+        date: req.body.blueSquare.date || new Date(), // default to now if not provided
+        // Handle reason - default to 'missingHours' if not provided
+        reason: ['missingHours', 'missingTimeEntry', 'missingSummary', 'other'].includes(
+          req.body.blueSquare.reason,
+        )
+          ? req.body.blueSquare.reason
+          : 'missingHours',
+        // Maintain backward compatibility
+        reasons: req.body.blueSquare.reasons || ['other'],
+      };
 
-      req.body.blueSquare.reasons = ['other'];
+      // req.body.blueSquare.reasons = ['other'];
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -1746,7 +1758,8 @@ const userProfileController = function (UserProfile, Project) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      record.infringements = originalinfringements.concat(req.body.blueSquare);
+      // record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringements = originalinfringements.concat(newInfringement);
 
       record
         .save()
