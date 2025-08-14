@@ -9,20 +9,19 @@ const getJobs = async (req, res) => {
     const pageNumber = Math.max(1, parseInt(page, 10)); // Ensure page is at least 1
     const limitNumber = Math.max(1, parseInt(limit, 10)); // Ensure limit is at least 1
 
-    
     // Build query object
     const query = {};
     if (search) {
       const searchString = String(search);
-      
+
       query.$or = [
         { title: { $regex: new RegExp(searchString, 'i') } },
-        { description: { $regex: new RegExp(searchString, 'i') } }
-      ];} // Case-insensitive search
-    
+        { description: { $regex: new RegExp(searchString, 'i') } },
+      ];
+    } // Case-insensitive search
+
     if (category) query.category = category;
 
-    
     console.log('query from getJobs');
     console.log(query);
     // Fetch total count for pagination metadata
@@ -32,10 +31,6 @@ const getJobs = async (req, res) => {
     const jobs = await Job.find(query)
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
-    
-    
-
-    
 
     // Prepare response
     res.json({
@@ -66,18 +61,19 @@ const getJobSummaries = async (req, res) => {
     const query = {};
     if (search) {
       const searchString = String(search);
-      
+
       query.$or = [
         { title: { $regex: new RegExp(searchString, 'i') } },
-        { description: { $regex: new RegExp(searchString, 'i') } }
-      ];} // Case-insensitive search
-    
+        { description: { $regex: new RegExp(searchString, 'i') } },
+      ];
+    } // Case-insensitive search
+
     if (category) query.category = category;
 
     /* if (search) query.title = { $regex: search, $options: 'i' };
     if (category) query.category = category;
     */
-   
+
     // Sorting logic
     const sortCriteria = {
       title: 1,
@@ -88,7 +84,7 @@ const getJobSummaries = async (req, res) => {
     // Fetch the total number of jobs matching the query for pagination
     const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
-      .select('title category location description datePosted featured')
+      .select('title category location description datePosted featured jobDetailsLink')
       .sort(sortCriteria)
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
@@ -201,7 +197,7 @@ const createJob = async (req, res) => {
   try {
     const newJob = new Job({
       title,
-    //  summaries,
+      //  summaries,
       category,
       description,
       imageUrl,
