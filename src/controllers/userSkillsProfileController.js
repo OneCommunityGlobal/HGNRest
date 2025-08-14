@@ -72,12 +72,12 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
           },
         };
 
-        // Log when using placeholder data
+        /** Log when using placeholder data
         Logger.logInfo(`Using placeholder data for user profile`, {
           requestorId: req.body.requestor.requestorId,
           targetUserId: userId,
           timestamp: new Date().toISOString(),
-        });
+        }); */
       }
 
       // Get skills data - use default values if not found
@@ -91,11 +91,11 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
 
       if (isSkillsPlaceholder) {
         // Log when using placeholder skills data
-        Logger.logInfo(`Using placeholder skills data`, {
+        /** Logger.logInfo(`Using placeholder skills data`, {
           requestorId: req.body.requestor.requestorId,
           targetUserId: userId,
           timestamp: new Date().toISOString(),
-        });
+        }); */
       }
 
       // Build contact information, respecting privacy settings
