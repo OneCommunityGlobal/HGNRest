@@ -24,6 +24,7 @@ const hgnFormResponses = require('../models/hgnFormResponses');
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const projectCost = require('../models/bmdashboard/projectCost');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
@@ -250,6 +251,8 @@ const templateRouter = require('../routes/templateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
+const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
+
 const tagRouter = require('../routes/tagRouter')(tag);
 
 module.exports = function (app) {
@@ -360,6 +363,7 @@ module.exports = function (app) {
   app.use('/api/financials', bmFinancialRouter);
 
   app.use('/api', registrationRouter);
+  app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
