@@ -57,12 +57,10 @@ module.exports = () => ({
       const { duration = 'allTime' } = req.query;
       const validParameters = ['lastWeek', 'last2weeks', 'lastMonth', 'allTime'];
       if (duration !== null && !validParameters.includes(duration)) {
-        return res
-          .status(400)
-          .json({
-            error:
-              'Invalid duration parameter. Parameter only takes values lastWeek, last2weeks, lastMonth, allTime or null.',
-          });
+        return res.status(400).json({
+          error:
+            'Invalid duration parameter. Parameter only takes values lastWeek, last2weeks, lastMonth, allTime or null.',
+        });
       }
       [startDate, endDate] = parseDurationValue(duration);
     } catch (error) {
@@ -71,67 +69,61 @@ module.exports = () => ({
         .json({ error: 'Internal Server Error: Error parsing duration parameter.' });
     }
 
+    // console.log (startDate, endDate);
     try {
-      // Step 1: Aggregate PR reviews for the duration
-      const topReviewed = await PullRequestReview.aggregate([
-        {
-          $match: {
-            submittedAt: { $gte: startDate, $lt: endDate },
-          },
-        },
-        {
-          $group: {
-            _id: '$prNumber',
-            reviewCount: { $sum: 1 },
-          },
-        },
+      // Step 1: Get top reviewed PRs with details
+      const topReviewedWithPRs = await PullRequestReview.aggregate([
+        { $match: { submittedAt: { $gte: startDate, $lt: endDate } } },
+        { $group: { _id: '$prNumber', reviewCount: { $sum: 1 } } },
         { $sort: { reviewCount: -1 } },
         { $limit: 20 },
+        {
+          $lookup: {
+            from: 'pullrequests', // actual collection name
+            localField: '_id',
+            foreignField: 'prNumber',
+            as: 'prDetails',
+          },
+        },
+        { $unwind: '$prDetails' },
+        {
+          $project: {
+            _id: 0,
+            prNumber: '$_id',
+            prTitle: '$prDetails.prTitle',
+            reviewCount: 1,
+            createdAt: '$prDetails.prCreatedAt',
+          },
+        },
       ]);
-      // console.log (startDate, endDate);
-      // console.log (topReviewed);
 
-      const topPRNumbers = topReviewed.map((r) => r._id);
-      // console.log (topPRNumbers);
+      let prList = topReviewedWithPRs;
+      // console.log (prList);
 
-      // Step 2: Get PullRequest details for top reviewed PRs
-      const topPRDetails = await PullRequest.find({
-        prNumber: { $in: topPRNumbers },
-      }).lean();
-
-      // Merge review counts into PR details
-      let prList = topPRDetails
-        .map((pr) => ({
-          prNumber: pr.prNumber,
-          prTitle: pr.prTitle,
-          reviewCount: topReviewed.find((r) => r._id === pr.prNumber)?.reviewCount || 0,
-          createdAt: pr.prCreatedAt,
-        }))
-        .sort((a, b) => b.reviewCount - a.reviewCount);
-
-      // Step 3: If less than 20, fetch PRs in duration without reviews
+      // Step 2: Fill with extra PRs if fewer than 20
       if (prList.length < 20) {
         const remainingNeeded = 20 - prList.length;
+        const topReviewedNumbers = new Set(prList.map((p) => p.prNumber));
 
         const extraPRs = await PullRequest.find({
           prCreatedAt: { $lt: endDate },
-          prNumber: { $nin: topPRNumbers },
+          prNumber: { $nin: Array.from(topReviewedNumbers) },
         })
           .sort({ prCreatedAt: -1 })
           .limit(remainingNeeded)
           .lean();
 
-        const extraList = extraPRs.map((pr) => ({
-          prNumber: pr.prNumber,
-          prTitle: pr.prTitle,
-          reviewCount: 0,
-          createdAt: pr.prCreatedAt,
-        }));
-
-        prList = [...prList, ...extraList];
+        prList = [
+          ...prList,
+          ...extraPRs.map((pr) => ({
+            prNumber: pr.prNumber,
+            prTitle: pr.prTitle,
+            reviewCount: 0,
+            createdAt: pr.prCreatedAt,
+          })),
+        ];
       }
 
-      // Step 4: Return the combined result
       res.json(prList);
     } catch (err) {
       console.error('Error fetching top PRs:', err);
