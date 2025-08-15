@@ -14,10 +14,8 @@ const popupEditorController = function (PopupEditors) {
   };
 
   const createPopupEditor = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'createPopup')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to create new popup' });
+    if (!(await hasPermission(req.body.requestor, 'createPopup'))) {
+      res.status(403).send({ error: 'You are not authorized to create new popup' });
       return;
     }
 
@@ -31,16 +29,15 @@ const popupEditorController = function (PopupEditors) {
     popup.popupName = req.body.popupName;
     popup.popupContent = req.body.popupContent;
 
-    popup.save()
+    popup
+      .save()
       .then((results) => res.status(201).send(results))
       .catch((error) => res.status(500).send({ error }));
   };
 
   const updatePopupEditor = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'updatePopup')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to create new popup' });
+    if (!(await hasPermission(req.body.requestor, 'updatePopup'))) {
+      res.status(403).send({ error: 'You are not authorized to create new popup' });
       return;
     }
 
@@ -55,7 +52,9 @@ const popupEditorController = function (PopupEditors) {
 
     PopupEditors.findById(popupId, (error, popup) => {
       popup.popupContent = req.body.popupContent;
-      popup.save().then((results) => res.status(201).send(results))
+      popup
+        .save()
+        .then((results) => res.status(201).send(results))
         .catch((err) => res.status(500).send({ err }));
     });
   };

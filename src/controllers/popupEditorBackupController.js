@@ -1,4 +1,4 @@
-const { hasPermission } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
 
 const popupEditorBackupController = function (PopupEditorBackups) {
   const getAllPopupEditorBackups = function (req, res) {
@@ -7,22 +7,19 @@ const popupEditorBackupController = function (PopupEditorBackups) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const getPopupEditorBackupById = function (req, res) {
+  const getPopupEditorBackupById = async function (req, res) {
     const popupId = req.params.id;
     try {
-      PopupEditorBackups.find({ popupId: { $in: popupId } }, (error, popupBackup) => {
-        res.status(200).send(popupBackup[0]);
-      });
+      const popupBackup = await PopupEditorBackups.findById(popupId);
+      res.status(200).send(popupBackup);
     } catch (error) {
       res.status(404).send(error);
     }
   };
 
   const createPopupEditorBackup = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'createPopup')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to create new popup' });
+    if (!(await helper.hasPermission(req.body.requestor, 'createPopup'))) {
+      res.status(403).send({ error: 'You are not authorized to create new popup' });
       return;
     }
 
@@ -38,16 +35,15 @@ const popupEditorBackupController = function (PopupEditorBackups) {
     popup.popupName = req.body.popupName;
     popup.popupContent = req.body.popupContent;
 
-    popup.save()
+    popup
+      .save()
       .then((results) => res.status(201).send(results))
       .catch((error) => res.status(500).send({ error }));
   };
 
   const updatePopupEditorBackup = async function (req, res) {
-    if (!await hasPermission(req.body.requestor, 'updatePopup')) {
-      res
-        .status(403)
-        .send({ error: 'You are not authorized to create new popup' });
+    if (!(await helper.hasPermission(req.body.requestor, 'updatePopup'))) {
+      res.status(403).send({ error: 'You are not authorized to create new popup' });
       return;
     }
 
@@ -70,7 +66,8 @@ const popupEditorBackupController = function (PopupEditorBackups) {
           popup.popupId = req.params.id;
           popup.popupContent = req.body.popupContent;
           popup.popupName = req.body.popupName;
-          popup.save()
+          popup
+            .save()
             .then((results) => res.status(201).send(results))
             .catch((err) => res.status(500).send({ err }));
         }

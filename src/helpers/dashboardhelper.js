@@ -2,26 +2,17 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
-const myTeam = require('./helperModels/myTeam');
 const team = require('../models/team');
+const { hasPermission } = require('../utilities/permissions');
 
 const dashboardhelper = function () {
   const personaldetails = function (userId) {
-    return userProfile.findById(
-      userId,
-      '_id firstName lastName role profilePic badgeCollection',
-    );
+    return userProfile.findById(userId, '_id firstName lastName role profilePic badgeCollection');
   };
 
   const getOrgData = async function () {
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .format('YYYY-MM-DD');
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     /**
      * Previous aggregate pipeline had two issues:
@@ -58,6 +49,7 @@ const dashboardhelper = function () {
           name: 1,
           weeklycommittedHours: 1,
           role: 1,
+          endDate: 1,
           timeEntryData: {
             $filter: {
               input: '$timeEntryData',
@@ -73,10 +65,7 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: [
-                          '$$timeentry.entryType',
-                          ['person', 'team', 'project'],
-                        ],
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
@@ -96,6 +85,7 @@ const dashboardhelper = function () {
         $project: {
           personId: 1,
           weeklycommittedHours: 1,
+          endDate: 1,
           totalSeconds: {
             $cond: [
               {
@@ -166,31 +156,19 @@ const dashboardhelper = function () {
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     try {
-      const userById = await userProfile.findOne(
-        { _id: userid, isActive: true },
-        { role: 1 },
-      );
+      const userById = await userProfile.findOne({ _id: userid, isActive: true }, { role: 1 });
 
       if (userById == null) return null;
       const userRole = userById.role;
-      const pdtstart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+      const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
 
-      const pdtend = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+      const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
       let teamMemberIds = [userid];
       let teamMembers = [];
-
-      if (
-        userRole !== 'Administrator'
-        && userRole !== 'Owner'
-        && userRole !== 'Core Team'
-      ) {
+      const userAsRequestor = { role: userRole, requestorId: userId };
+      const canSeeUsersInDashboard = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
+      if (!canSeeUsersInDashboard) {
         // Manager , Mentor , Volunteer ... , Show only team members
         const teamsResult = await team.find(
           { 'members.userId': { $in: [userid] } },
@@ -198,9 +176,15 @@ const dashboardhelper = function () {
         );
 
         teamsResult.forEach((_myTeam) => {
+          let isUserVisible = false;
           _myTeam.members.forEach((teamMember) => {
-            if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+            if (teamMember.userId.equals(userid) && teamMember.visible) isUserVisible = true;
           });
+          if (isUserVisible) {
+            _myTeam.members.forEach((teamMember) => {
+              if (!teamMember.userId.equals(userid)) teamMemberIds.push(teamMember.userId);
+            });
+          }
         });
 
         teamMembers = await userProfile.find(
@@ -214,6 +198,11 @@ const dashboardhelper = function () {
             weeklySummaries: 1,
             timeOffFrom: 1,
             timeOffTill: 1,
+            endDate: 1,
+            createdDate: 1,
+            trophyFollowedUp: 1,
+            startDate: 1,
+            missedHours: 1,
           },
         );
       } else {
@@ -229,6 +218,11 @@ const dashboardhelper = function () {
             weeklySummaries: 1,
             timeOffFrom: 1,
             timeOffTill: 1,
+            endDate: 1,
+            createdDate: 1,
+            trophyFollowedUp: 1,
+            startDate: 1,
+            missedHours: 1,
           },
         );
       }
@@ -241,6 +235,7 @@ const dashboardhelper = function () {
           $lte: pdtend,
         },
         personId: { $in: teamMemberIds },
+        isActive: { $ne: false },
       });
 
       const timeEntryByPerson = {};
@@ -256,11 +251,9 @@ const dashboardhelper = function () {
         }
 
         if (timeEntry.isTangible === true) {
-          timeEntryByPerson[personIdStr].tangibleSeconds
-            += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].tangibleSeconds += timeEntry.totalSeconds;
         } else {
-          timeEntryByPerson[personIdStr].intangibleSeconds
-            += timeEntry.totalSeconds;
+          timeEntryByPerson[personIdStr].intangibleSeconds += timeEntry.totalSeconds;
         }
 
         timeEntryByPerson[personIdStr].totalSeconds += timeEntry.totalSeconds;
@@ -278,25 +271,27 @@ const dashboardhelper = function () {
               ? teamMember.weeklySummaries[0].summary !== ''
               : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
+          missedHours: teamMember.missedHours ?? 0,
           totaltangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
-              / 3600 || 0,
+            (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds ?? 0) / 3600,
           totalintangibletime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds
-              / 3600 || 0,
-          totaltime_hrs:
-            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds / 3600
-            || 0,
+            (timeEntryByPerson[teamMember._id.toString()]?.intangibleSeconds ?? 0) / 3600,
+          totaltime_hrs: (timeEntryByPerson[teamMember._id.toString()]?.totalSeconds ?? 0) / 3600,
+
           percentagespentintangible:
-            timeEntryByPerson[teamMember._id.toString()]
-            && timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0
-            && timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !== 0
-              ? (timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds
-                  / timeEntryByPerson[teamMember._id.toString()]?.totalSeconds)
-                * 100
+            timeEntryByPerson[teamMember._id.toString()] &&
+            timeEntryByPerson[teamMember._id.toString()]?.totalSeconds !== 0 &&
+            timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds !== 0
+              ? ((timeEntryByPerson[teamMember._id.toString()]?.tangibleSeconds || 0) /
+                  (timeEntryByPerson[teamMember._id.toString()]?.totalSeconds || 1)) *
+                100
               : 0,
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
+          endDate: teamMember.endDate || null,
+          createdDate: teamMember.createdDate || null,
+          trophyFollowedUp: teamMember.trophyFollowedUp || false,
+          startDate: teamMember.startDate || null,
         };
         leaderBoardData.push(obj);
       });
@@ -320,255 +315,6 @@ const dashboardhelper = function () {
       console.log(error);
       return new Error(error);
     }
-
-    // return myTeam.aggregate([
-    //   {
-    //     $match: {
-    //       _id: userid,
-    //     },
-    //   },
-    //   {
-    //     $unwind: '$myteam',
-    //   },
-    //   {
-    //     $project: {
-    //       _id: 0,
-    //       role: 1,
-    //       personId: '$myteam._id',
-    //       name: '$myteam.fullName',
-    //     },
-    //   },
-    //   {
-    //     $lookup: {
-    //       from: 'userProfiles',
-    //       localField: 'personId',
-    //       foreignField: '_id',
-    //       as: 'persondata',
-    //     },
-    //   },
-    //   {
-    //     $match: {
-    //       // leaderboard user roles hierarchy
-    //       $or: [
-    //         {
-    //           role: { $in: ['Owner', 'Core Team'] },
-    //         },
-    //         {
-    //           $and: [
-    //             {
-    //               role: 'Administrator',
-    //             },
-    //             { 'persondata.0.role': { $nin: ['Owner', 'Administrator'] } },
-    //           ],
-    //         },
-    //         {
-    //           $and: [
-    //             {
-    //               role: { $in: ['Manager', 'Mentor'] },
-    //             },
-    //             {
-    //               'persondata.0.role': {
-    //                 $nin: ['Manager', 'Mentor', 'Core Team', 'Administrator', 'Owner'],
-    //               },
-    //             },
-    //           ],
-    //         },
-    //         { 'persondata.0._id': userId },
-    //         { 'persondata.0.role': 'Volunteer' },
-    //         { 'persondata.0.isVisible': true },
-    //       ],
-    //     },
-    //   },
-    //   {
-    //     $project: {
-    //       personId: 1,
-    //       name: 1,
-    //       role: {
-    //         $arrayElemAt: ['$persondata.role', 0],
-    //       },
-    //       isVisible: {
-    //         $arrayElemAt: ['$persondata.isVisible', 0],
-    //       },
-    //       hasSummary: {
-    //         $ne: [
-    //           {
-    //             $arrayElemAt: [
-    //               {
-    //                 $arrayElemAt: ['$persondata.weeklySummaries.summary', 0],
-    //               },
-    //               0,
-    //             ],
-    //           },
-    //           '',
-    //         ],
-    //       },
-    //       weeklycommittedHours: {
-    //         $sum: [
-    //           {
-    //             $arrayElemAt: ['$persondata.weeklycommittedHours', 0],
-    //           },
-    //           {
-    //             $ifNull: [{ $arrayElemAt: ['$persondata.missedHours', 0] }, 0],
-    //           },
-    //         ],
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $lookup: {
-    //       from: 'timeEntries',
-    //       localField: 'personId',
-    //       foreignField: 'personId',
-    //       as: 'timeEntryData',
-    //     },
-    //   },
-    //   {
-    //     $project: {
-    //       personId: 1,
-    //       name: 1,
-    //       role: 1,
-    //       isVisible: 1,
-    //       hasSummary: 1,
-    //       weeklycommittedHours: 1,
-    //       timeEntryData: {
-    //         $filter: {
-    //           input: '$timeEntryData',
-    //           as: 'timeentry',
-    //           cond: {
-    //             $and: [
-    //               {
-    //                 $gte: ['$$timeentry.dateOfWork', pdtstart],
-    //               },
-    //               {
-    //                 $lte: ['$$timeentry.dateOfWork', pdtend],
-    //               },
-    //             ],
-    //           },
-    //         },
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $unwind: {
-    //       path: '$timeEntryData',
-    //       preserveNullAndEmptyArrays: true,
-    //     },
-    //   },
-    //   {
-    //     $project: {
-    //       personId: 1,
-    //       name: 1,
-    //       role: 1,
-    //       isVisible: 1,
-    //       hasSummary: 1,
-    //       weeklycommittedHours: 1,
-    //       totalSeconds: {
-    //         $cond: [
-    //           {
-    //             $gte: ['$timeEntryData.totalSeconds', 0],
-    //           },
-    //           '$timeEntryData.totalSeconds',
-    //           0,
-    //         ],
-    //       },
-    //       isTangible: {
-    //         $cond: [
-    //           {
-    //             $gte: ['$timeEntryData.totalSeconds', 0],
-    //           },
-    //           '$timeEntryData.isTangible',
-    //           false,
-    //         ],
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $addFields: {
-    //       tangibletime: {
-    //         $cond: [
-    //           {
-    //             $eq: ['$isTangible', true],
-    //           },
-    //           '$totalSeconds',
-    //           0,
-    //         ],
-    //       },
-    //       intangibletime: {
-    //         $cond: [
-    //           {
-    //             $eq: ['$isTangible', false],
-    //           },
-    //           '$totalSeconds',
-    //           0,
-    //         ],
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $group: {
-    //       _id: {
-    //         personId: '$personId',
-    //         weeklycommittedHours: '$weeklycommittedHours',
-    //         name: '$name',
-    //         role: '$role',
-    //         isVisible: '$isVisible',
-    //         hasSummary: '$hasSummary',
-    //       },
-    //       totalSeconds: {
-    //         $sum: '$totalSeconds',
-    //       },
-    //       tangibletime: {
-    //         $sum: '$tangibletime',
-    //       },
-    //       intangibletime: {
-    //         $sum: '$intangibletime',
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $project: {
-    //       _id: 0,
-    //       personId: '$_id.personId',
-    //       name: '$_id.name',
-    //       role: '$_id.role',
-    //       isVisible: '$_id.isVisible',
-    //       hasSummary: '$_id.hasSummary',
-    //       weeklycommittedHours: '$_id.weeklycommittedHours',
-    //       totaltime_hrs: {
-    //         $divide: ['$totalSeconds', 3600],
-    //       },
-    //       totaltangibletime_hrs: {
-    //         $divide: ['$tangibletime', 3600],
-    //       },
-    //       totalintangibletime_hrs: {
-    //         $divide: ['$intangibletime', 3600],
-    //       },
-    //       percentagespentintangible: {
-    //         $cond: [
-    //           {
-    //             $eq: ['$totalSeconds', 0],
-    //           },
-    //           0,
-    //           {
-    //             $multiply: [
-    //               {
-    //                 $divide: ['$tangibletime', '$totalSeconds'],
-    //               },
-    //               100,
-    //             ],
-    //           },
-    //         ],
-    //       },
-    //     },
-    //   },
-    //   {
-    //     $sort: {
-    //       totaltangibletime_hrs: -1,
-    //       name: 1,
-    //       role: 1,
-    //     },
-    //   },
-    // ]);
   };
 
   /**
@@ -578,15 +324,9 @@ const dashboardhelper = function () {
    */
   const getUserLaborData = async function (userId) {
     try {
-      const pdtStart = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .format('YYYY-MM-DD');
+      const pdtStart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
 
-      const pdtEnd = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .format('YYYY-MM-DD');
+      const pdtEnd = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
       const user = await userProfile.findById({
         _id: userId,
@@ -598,6 +338,7 @@ const dashboardhelper = function () {
           $lte: pdtEnd,
         },
         entryType: { $in: ['default', null] },
+        isActive: { $ne: false },
         personId: userId,
       });
 
@@ -617,16 +358,18 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
+          createdDate: user.createdDate,
+          trophyFollowedUp: user.trophyFollowedUp,
           hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,
           totaltangibletime_hrs: tangibleSeconds / 3600,
           totalintangibletime_hrs: intangibleSeconds / 3600,
-          percentagespentintangible:
-            (intangibleSeconds / tangibleSeconds) * 100,
+          percentagespentintangible: (intangibleSeconds / tangibleSeconds) * 100,
           timeOffFrom: user.timeOffFrom,
           timeOffTill: user.timeOffTill,
+          endDate: user.endDate || null,
         },
       ];
     } catch (err) {
@@ -740,10 +483,7 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: [
-                          '$$timeentry.entryType',
-                          ['person', 'team', 'project'],
-                        ],
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
@@ -827,10 +567,7 @@ const dashboardhelper = function () {
                   {
                     $not: [
                       {
-                        $in: [
-                          '$$timeentry.entryType',
-                          ['person', 'team', 'project'],
-                        ],
+                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
                       },
                     ],
                   },
@@ -887,6 +624,94 @@ const dashboardhelper = function () {
     ]);
   };
 
+  const requestFeedback = async (req) => {
+    try {
+      const {
+        userId,
+        haveYouRecievedHelpLastWeek,
+        peopleYouContacted,
+        additionalComments,
+        foundHelpSomeWhereClosePermanently,
+        daterequestedFeedback
+      } = req.body;
+  
+      if (!userId) {
+        return { message: 'userId is required' };
+      }
+  
+      const feedback = {
+        haveYouRecievedHelpLastWeek,
+        peopleYouContacted,
+        additionalComments,
+        foundHelpSomeWhereClosePermanently,
+        daterequestedFeedback: daterequestedFeedback || new Date()
+      };
+
+      const updatedUser = await userProfile.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(userId) },
+        { $set: { questionaireFeedback: feedback } },
+        { new: true }
+      );
+  
+      if (!updatedUser) {
+        return { message: 'User not found' };
+      }
+  
+      return { message: 'Feedback submitted successfully', data: updatedUser };
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+  
+  const getNamesFromProfiles = async (req) => {
+    try {
+
+      const users = await userProfile.find(
+        {},                               // no filter, fetch all
+        { firstName: 1, lastName: 1, isActive: 1, _id: 0 } // projection
+      );
+
+  
+      return users;
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+
+  const checkQuestionaireFeedback = async (req) => {
+    try {
+      const {
+        userId,
+        foundHelpSomeWhereClosePermanently,
+      } = req.body;
+  
+      if (!userId) {
+        return { message: 'userId is required' };
+      }
+
+      const updatedUser = await userProfile.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(userId) },
+        {
+          $set: {
+            "questionaireFeedback.foundHelpSomeWhereClosePermanently": foundHelpSomeWhereClosePermanently
+          }
+        },
+        { new: true }
+      );
+  
+      if (!updatedUser) {
+        return { message: 'User not found' };
+      }
+  
+      return { message: 'request submitted successfully'};
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      return { message: 'Internal server error' };
+    }
+  };
+
   return {
     personaldetails,
     getUserLaborData,
@@ -895,6 +720,9 @@ const dashboardhelper = function () {
     laborthismonth,
     laborthisweek,
     laborThisWeekByCategory,
+    requestFeedback,
+    getNamesFromProfiles,
+    checkQuestionaireFeedback
   };
 };
 

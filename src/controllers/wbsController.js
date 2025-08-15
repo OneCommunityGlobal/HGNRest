@@ -1,15 +1,15 @@
 /* eslint-disable quotes */
 /* eslint-disable no-unused-vars */
-const mongoose = require("mongoose");
-const { hasPermission } = require("../utilities/permissions");
-const Project = require("../models/project");
-const Task = require("../models/task");
+const mongoose = require('mongoose');
+const { hasPermission } = require('../utilities/permissions');
+const Project = require('../models/project');
+const Task = require('../models/task');
 
 const wbsController = function (WBS) {
   const getAllWBS = function (req, res) {
     WBS.find(
-      { projectId: { $in: [req.params.projectId] } },
-      "wbsName isActive modifiedDatetime",
+      { projectId: { $in: [req.params.projectId] }, isActive: { $ne: false } },
+      'wbsName isActive modifiedDatetime',
     )
       .sort({ modifiedDatetime: -1 })
       .then((results) => res.status(200).send(results))
@@ -17,10 +17,8 @@ const wbsController = function (WBS) {
   };
 
   const postWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "postWbs"))) {
-      res
-        .status(403)
-        .send({ error: "You are not authorized to create new projects." });
+    if (!(await hasPermission(req.body.requestor, 'postWbs'))) {
+      res.status(403).send({ error: 'You are not authorized to create new projects.' });
       return;
     }
 
@@ -28,7 +26,7 @@ const wbsController = function (WBS) {
       res
         .status(400)
         // eslint-disable-next-line quotes
-        .send({ error: "WBS Name and active status are mandatory fields" });
+        .send({ error: 'WBS Name and active status are mandatory fields' });
       return;
     }
 
@@ -40,12 +38,10 @@ const wbsController = function (WBS) {
     _wbs.modifiedDatetime = Date.now();
 
     // adding a new wbs should change the modified date of parent project
-    const saveProject = Project.findById(req.params.id).then(
-      (currentProject) => {
-        currentProject.modifiedDatetime = Date.now();
-        return currentProject.save();
-      },
-    );
+    const saveProject = Project.findById(req.params.id).then((currentProject) => {
+      currentProject.modifiedDatetime = Date.now();
+      return currentProject.save();
+    });
 
     _wbs
       .save()
@@ -54,33 +50,29 @@ const wbsController = function (WBS) {
   };
 
   const deleteWBS = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, "deleteWbs"))) {
-      res
-        .status(403)
-        .send({ error: "You are  not authorized to delete projects." });
+    if (!(await hasPermission(req.body.requestor, 'deleteWbs'))) {
+      res.status(403).send({ error: 'You are  not authorized to delete projects.' });
       return;
     }
     const { id } = req.params;
     WBS.findById(id, (error, record) => {
       if (error || !record || record === null || record.length === 0) {
-        res.status(400).send({ error: "No valid records found" });
+        res.status(400).send({ error: 'No valid records found' });
         return;
       }
 
       const removeWBS = record.remove();
 
       Promise.all([removeWBS])
-        .then(res.status(200).send({ message: " WBS successfully deleted" }))
+        .then(res.status(200).send({ message: ' WBS successfully deleted' }))
         .catch((errors) => {
           res.status(400).send(errors);
         });
-    }).catch((errors) => {
-      res.status(400).send(errors);
     });
   };
 
   const getWBS = function (req, res) {
-    WBS.find()
+    WBS.find({ isActive: { $ne: false } })
       .then((results) => res.status(200).send(results))
       .catch((error) => res.status(500).send({ error }));
   };
@@ -94,35 +86,12 @@ const wbsController = function (WBS) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const getWBSByUserId = async function (req, res) {
-    const { userId } = req.params;
-    try {
-      const result = await Task.aggregate()
-        .match({ "resources.userID": mongoose.Types.ObjectId(userId) })
-        .project("wbsId -_id")
-        .group({ _id: "$wbsId" })
-        .lookup({
-          from: "wbs",
-          localField: "_id",
-          foreignField: "_id",
-          as: "wbs",
-        })
-        .unwind("wbs")
-        .replaceRoot("wbs");
-
-      res.status(200).send(result);
-    } catch (error) {
-      res.status(404).send(error);
-    }
-  };
-
   return {
     postWBS,
     deleteWBS,
     getAllWBS,
     getWBS,
     getWBSById,
-    getWBSByUserId,
   };
 };
 
