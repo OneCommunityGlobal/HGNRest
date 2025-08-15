@@ -31,4 +31,4 @@ issueSchema.index({ projectId: 1 });
 
 const Issue = mongoose.model('Issue', issueSchema);
 
-module.exports = Issue;
+module.exports = Issue; 
