@@ -49,6 +49,7 @@ const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
+const buildingToolStoppageReason = require('../models/bmdashboard/buildingToolsStoppage');
 const metIssue = require('../models/bmdashboard/metIssue');
 const {
   invTypeBase,
@@ -193,6 +194,7 @@ const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(bui
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmToolStoppageReasonRouter = require('../routes/bmdashboard/bmToolStoppageReasonRouter')(buildingToolStoppageReason);
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 
@@ -345,6 +347,8 @@ module.exports = function (app) {
 
 
   app.use('/api/bm', bmTimeLoggerRouter);  
+  //app.use('api', bmIssueRouter);
+  app.use('/api', bmToolStoppageReasonRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
