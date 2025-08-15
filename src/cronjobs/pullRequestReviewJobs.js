@@ -165,7 +165,7 @@ async function syncGitHubData() {
 
 const pullRequestReviewJobs = () => {
   const pullRequestReviewSyncJob = new CronJob(
-    '1 0 * * *', // Every day, 1 minute past midnight
+    '0 */4 * * *', // Every 4 hours
     // '*/2 * * * *', // Every 2 minute, for testing
     async () => {
       await syncGitHubData();

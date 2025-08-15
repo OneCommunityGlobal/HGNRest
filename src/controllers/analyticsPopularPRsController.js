@@ -1,7 +1,11 @@
+const NodeCache = require('node-cache');
+
 const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
 
 const { parseDurationValue } = require('../helpers/analyticsPopularPRsControllerHelper');
+
+const cache = new NodeCache({ stdTTL: 7200 }); // Cache for 2 hour
 
 module.exports = () => ({
   getPopularPRs: async (req, res) => {
@@ -22,6 +26,12 @@ module.exports = () => ({
       return res
         .status(500)
         .json({ error: 'Internal Server Error: Error parsing duration parameter.' });
+    }
+
+    const cacheKey = `popularPRs_${startDate}_${endDate}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
     }
 
     // console.log (startDate, endDate);
@@ -79,6 +89,8 @@ module.exports = () => ({
         ];
       }
 
+      // Set cache to improve performance
+      cache.set(cacheKey, prList);
       res.json(prList);
     } catch (err) {
       console.error('Error fetching top PRs:', err);
@@ -86,3 +98,5 @@ module.exports = () => ({
     }
   },
 });
+
+module.exports.__cache = cache;

@@ -6,12 +6,14 @@ const { parseDurationValue } = require('../helpers/analyticsPopularPRsController
 const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
 const analyticsPopularPRsController = require('./analyticsPopularPRsController');
+const { __cache } = require('./analyticsPopularPRsController');
 
 describe('Test analyticsPopularPRsController functions', () => {
   let res;
   let req;
   let controller;
   beforeEach(() => {
+    __cache.flushAll();
     controller = analyticsPopularPRsController();
     res = {
       status: jest.fn().mockReturnThis(),
@@ -85,7 +87,6 @@ describe('Test analyticsPopularPRsController functions', () => {
       ]),
     });
     await controller.getPopularPRs(req, res);
-    console.log(res.json.mock.calls);
     expect(res.json.mock.calls[0][0]).toHaveLength(2);
   });
 
@@ -99,5 +100,72 @@ describe('Test analyticsPopularPRsController functions', () => {
         error: expect.stringContaining('Internal server error'),
       }),
     );
+  });
+
+  test('Should store and reuse cached data', async () => {
+    parseDurationValue.mockReturnValue([new Date(), new Date()]);
+    PullRequestReview.aggregate.mockResolvedValue([
+      {
+        prNumber: 'FE- 1890',
+        prTitle: 'PR FE-1890',
+        reviewCount: 6,
+        createdAt: new Date(),
+      },
+    ]);
+    PullRequest.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          prNumber: 'BE- 1234',
+          prTitle: 'PR BE-1234',
+          reviewCount: 0,
+          createdAt: new Date(),
+        },
+      ]),
+    });
+
+    // First call — DB hit
+    await controller.getPopularPRs(req, res);
+    expect(PullRequest.find).toHaveBeenCalledTimes(1);
+    expect(PullRequestReview.aggregate).toHaveBeenCalledTimes(1);
+
+    // Second call — cache hit
+    await controller.getPopularPRs(req, res);
+    expect(PullRequest.find).toHaveBeenCalledTimes(1); // still 1
+    expect(PullRequestReview.aggregate).toHaveBeenCalledTimes(1); // still 1
+  });
+
+  it('should return the same cached data', async () => {
+    parseDurationValue.mockReturnValue([new Date(), new Date()]);
+    PullRequestReview.aggregate.mockResolvedValue([
+      {
+        prNumber: 'FE- 1890',
+        prTitle: 'PR FE-1890',
+        reviewCount: 6,
+        createdAt: new Date(),
+      },
+    ]);
+    PullRequest.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          prNumber: 'BE- 1234',
+          prTitle: 'PR BE-1234',
+          reviewCount: 0,
+          createdAt: new Date(),
+        },
+      ]),
+    });
+
+    await controller.getPopularPRs(req, res);
+    const firstResult = res.json.mock.calls[0][0];
+
+    res.json.mockClear();
+    await controller.getPopularPRs(req, res);
+    const secondResult = res.json.mock.calls[0][0];
+
+    expect(secondResult).toEqual(firstResult);
   });
 });
