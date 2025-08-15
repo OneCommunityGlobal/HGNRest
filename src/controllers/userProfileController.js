@@ -276,13 +276,11 @@ const userProfileController = function (UserProfile) {
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
 
-
     const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
-    const isRequestorAuthorized = (!!(
-      canRequestorUpdateUser(req.body.requestor.requestorId, userid) && (
-        await hasPermission(req.body.requestor, 'putUserProfile'))
-        || req.body.requestor.requestorId === userid
-      )
+    const isRequestorAuthorized = !!(
+      (canRequestorUpdateUser(req.body.requestor.requestorId, userid)
+        && await hasPermission(req.body.requestor, 'putUserProfile'))
+      || req.body.requestor.requestorId === userid
     );
 
     const canEditTeamCode = req.body.requestor.role === 'Owner'
@@ -290,8 +288,6 @@ const userProfileController = function (UserProfile) {
       || req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
     if (!isRequestorAuthorized && !canToggleRequestBio) {
-        {
-
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -331,12 +327,11 @@ const userProfileController = function (UserProfile) {
         res.status(403).send('You are not authorized to edit team code.');
         return;
       }
-      if(!canToggleRequestBio && (record.bioPosted !== req.body.bioPosted || 'default')){
-        res.status(403).send("You are not authorized to toggle request bio");
+      if (!canToggleRequestBio && (record.bioPosted !== req.body.bioPosted || 'default')) {
+        res.status(403).send('You are not authorized to toggle request bio');
         return;
       }
       record.teamCode = req.body.teamCode;
-
 
       const originalinfringements = record.infringements
         ? record.infringements
@@ -681,18 +676,32 @@ const userProfileController = function (UserProfile) {
     }
 
     // remove user from cache, it should be loaded next time
+    // cache.removeCache(`user-${userId}`);
+    // if (!key || value === undefined) {
+    //   return res.status(400).send({ error: 'Missing property or value' });
+    // }
+
+    //  return UserProfile.findById(userId)
+    //  .then((user) => {
+    //    user.set({
+    //      [key]: value,
+    //    });
+
+    // edited function
     cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) {
-      return res.status(400).send({ error: 'Missing property or value' });
-}
 
-      return UserProfile.findById(userId)
-      .then((user) => {
-        user.set({
-          [key]: value,
-        });
+  if (!key || value === undefined) {
+    res.status(400).send({ error: 'Missing property or value' });
+    return;
+  }
 
-        return user
+  UserProfile.findById(userId)
+    .then((user) => {
+      user.set({
+        [key]: value,
+      });
+
+      return user
           .save()
           .then(() => {
             res.status(200).send({ message: 'updated property' });
