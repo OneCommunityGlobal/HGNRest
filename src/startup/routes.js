@@ -177,7 +177,9 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
   buildingProject,
   buildingMaterial,
 );
+
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
 // lb dashboard
@@ -339,6 +341,8 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', bmProjectRiskProfileRouter);
+
 
   app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('/api/bm/injuries', injuryCategoryRoutes);
