@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const buildingProject = require('../../models/bmdashboard/buildingProject');
 
-
 const injuryController = function (injujrySeverity) {
   const postInjury = async (req, res) => {
     try {
@@ -68,6 +67,7 @@ const injuryController = function (injujrySeverity) {
               projectId: '$projectId',
               projectName: '$projectName',
               severity: '$severity',
+              department: '$department',
             },
             totalInjuries: { $sum: '$count' },
           },
@@ -78,6 +78,7 @@ const injuryController = function (injujrySeverity) {
             projectId: '$_id.projectId',
             projectName: '$_id.projectName',
             severity: '$_id.severity',
+            department: '$_id.department',
             totalInjuries: 1,
           },
         },
