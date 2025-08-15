@@ -589,9 +589,10 @@ const userProfileController = function (UserProfile, Project) {
           req.body.requestor.role === 'Administrator' ||
           req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
+        if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+          res.status(403).send('You are not authorized to edit team code.');
+          return;
+        }
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
@@ -854,7 +855,7 @@ const userProfileController = function (UserProfile, Project) {
           console.error('Failed to save record:', error);
           return res.status(400).json({ error: 'Failed to save record.' });
         });
-    });
+      });
   };
 
   const deleteUserProfile = async function (req, res) {
