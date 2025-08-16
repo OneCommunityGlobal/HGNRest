@@ -9,8 +9,8 @@ const facebookController = function () {
   async function extractTextAndImgUrl(htmlString) {
     const $ = cheerio.load(htmlString);
     //const textContent = $('body').text().replace(/\+/g, '').trim();
-    const textContent = $('div[style]').text().trim();
-    console.log(textContent, 'Targetdivtext');
+    //const textContent = $('div[style]').text().trim();
+    const textContent = $.root().text().replace(/\s+/g, ' ').trim();
     const urlSrcs = [];
     const base64Srcs = [];
 
@@ -148,7 +148,6 @@ const facebookController = function () {
   async function schedulePostToFb(req, res) {
     const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
     const base64Image = req.body.base64Content;
-    console.log('reached base24 backend', base64Image);
     const authToken = req.body.accessToken;
     const pages = await getPagesManagedByUser(authToken);
     if (pages.length === 0) {
@@ -178,12 +177,7 @@ const facebookController = function () {
   }
 
   async function createFbPost(req, res) {
-    console.log('reached create fb post');
-    console.log(req.body.emailContent);
-
     const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.emailContent);
-    console.log(textContent);
-
     const authToken = req.body.accessToken;
     const pages = await getPagesManagedByUser(authToken);
     if (pages.length === 0) {

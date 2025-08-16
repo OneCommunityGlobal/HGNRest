@@ -8,10 +8,13 @@ const ScheduledPost = require('../models/scheduledPostSchema');
 
 function extractTextAndImgUrl(htmlString) {
   const $ = cheerio.load(htmlString);
-
-  const textContent = $('body').text().replace(/\+/g, '').trim();
+  console.log(htmlString, 'reached ex');
+  const textContent = $.root().text().replace(/\s+/g, ' ').trim();
+  //const textContent = $('body').text().replace(/\+/g, '').trim();
+  //  const textContent = $('div[style]').text().trim();
   const urlSrcs = [];
   const base64Srcs = [];
+  console.log(textContent, 'reached ex results');
 
   $('img').each((i, img) => {
     const src = $(img).attr('src');
@@ -123,11 +126,11 @@ async function getTwitterAccessToken(req, res) {
 }
 
 async function scheduleTweet(req, res) {
-  console.log('scheduleTweet call');
   console.log('Request body:', req.body);
   const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
   const scheduledDate = req.body.ScheduleDate;
   const scheduledTime = req.body.ScheduleTime;
+  console.log('Content for scheduleTweet', textContent);
   console.log('scheduledDate', scheduledDate);
   console.log('scheduledTime', scheduledTime);
 
