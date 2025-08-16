@@ -1,9 +1,10 @@
 const express = require('express');
-const { getHoursPledged } = require('../../controllers/jobAnalytics/hoursPledgedController');
+const hoursPledgedController = require('../../controllers/jobAnalytics/hoursPledgedController')();
 
 const router = express.Router();
 
-// Define the endpoint
-router.get('/analytics/hours-pledged', getHoursPledged);
+// Define the endpoints
+router.route('/analytics/hours-pledged').get(hoursPledgedController.getHoursPledged);
+router.route('/analytics/hours-pledged').post(hoursPledgedController.addHoursPledged);
 
 module.exports = router;
