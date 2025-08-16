@@ -3,8 +3,6 @@ const CandidateOPTStatus = require('../models/CandidateOPTStatus');
 module.exports = () => ({
   getOPTStatusBreakdown: async (req, res, next) => {
     try {
-      console.log(req.query);
-      console.log('in getOPTStatusBreakdown');
       const { startDate, endDate, role } = req.query;
       const query = {};
       if (startDate || endDate) {
