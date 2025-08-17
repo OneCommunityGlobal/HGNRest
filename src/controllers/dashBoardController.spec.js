@@ -4,6 +4,7 @@ const { mockReq, mockRes, assertResMock } = require('../test');
 const UserProfile = require('../models/userProfile');
 
 const emailSender = require('../utilities/emailSender');
+
 jest.mock('../utilities/emailSender', () => ({
   sendEmail: jest.fn(),
 }));
