@@ -46,7 +46,10 @@ cron.schedule('0 0 * * *', async () => {
                 await emailSender.sendSummaryNotification(recipientEmail, summary);
             }
         }
+        //   }),
+        // );
     } catch (error) {
         console.error('❌ Error running daily email notification job:', error);
     }
+
 });

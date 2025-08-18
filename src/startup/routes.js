@@ -307,11 +307,8 @@ module.exports = function (app) {
   app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
-  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
-
-  app.use('/api', templateRouter);
 
   app.use('/api', templateRouter);
 
@@ -330,11 +327,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
-  app.use('/api/dropbox', dropboxRouter);
-  app.use('/api/github', githubRouter);
-  app.use('/api/sentry', sentryRouter);
-  app.use('/api/slack', slackRouter);
-  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/dropbox', dropboxRouter);
   app.use('/api/github', githubRouter);
   app.use('/api/sentry', sentryRouter);
@@ -371,9 +363,6 @@ module.exports = function (app) {
   app.use('/api', registrationRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
-  app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
-  app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
