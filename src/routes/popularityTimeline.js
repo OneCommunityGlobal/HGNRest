@@ -4,75 +4,81 @@ const router = express.Router();
 const Popularity = require('../models/popularity');
 const { setCache, getCache } = require('../utilities/popularityCache');
 
+// GET: Popularity timeline data
 router.get('/', async (req, res) => {
   try {
     const { range, roles, start, end } = req.query;
-
-    // Create a cache key based on query params
     const cacheKey = JSON.stringify({ range, roles, start, end });
     const cachedData = getCache(cacheKey);
     if (cachedData) return res.json(cachedData);
 
     const match = {};
 
-    // --- Roles parsing ---
+    // Role filtering
     if (roles) {
       let parsedRoles;
       try {
         parsedRoles = JSON.parse(roles);
       } catch {
-        parsedRoles = roles
-          .replace(/^\[|\]$/g, '')
-          .split(',')
-          .map((r) => r.trim().replace(/^"|"$/g, ''));
+        parsedRoles = roles.split(',').map((r) => r.trim());
       }
       match.role = { $in: parsedRoles };
     }
 
-    const now = new Date();
+    // Date range filtering
+    if (start && end) {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      endDate.setMonth(endDate.getMonth() + 1); // Include entire end month
 
-    // --- Range filter ---
-    if (range && !start && !end) {
-      const monthsToFetch = parseInt(range.replace('months', ''), 10) || 12;
-      const startDate = new Date(now);
-      startDate.setMonth(startDate.getMonth() - monthsToFetch);
+      match.timestamp = {
+        $gte: startDate,
+        $lt: endDate,
+      };
+    } else if (range) {
+      const months = parseInt(range, 10) || 12;
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - months);
       match.timestamp = { $gte: startDate };
     }
 
-    // --- Start/End filter ---
-    if (start && end) {
-      match.timestamp = {
-        $gte: new Date(`${start}-01`),
-        $lte: new Date(`${end}-31`),
-      };
-    }
-
-    // --- Aggregation ---
     const data = await Popularity.aggregate([
       { $match: match },
       {
         $group: {
-          _id: { month: '$month', role: '$role' },
+          _id: '$month',
           hitsCount: { $sum: '$hitsCount' },
           applicationsCount: { $sum: '$applicationsCount' },
+          timestamp: { $first: '$timestamp' }, // Keep for sorting
         },
       },
-      { $sort: { '_id.month': 1 } },
+      {
+        $project: {
+          _id: 0,
+          month: '$_id',
+          hitsCount: 1,
+          applicationsCount: 1,
+          timestamp: 1,
+        },
+      },
+      { $sort: { timestamp: 1 } },
     ]);
 
-    const formattedData = data.map((d) => ({
-      month: d._id.month,
-      role: d._id.role,
-      hitsCount: d.hitsCount,
-      applicationsCount: d.applicationsCount,
-    }));
-
-    // --- Save result in cache ---
-    setCache(cacheKey, formattedData);
-
-    res.json(formattedData);
+    setCache(cacheKey, data);
+    res.json(data);
   } catch (error) {
     console.error('Error fetching popularity timeline:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Distinct roles
+router.get('/roles', async (req, res) => {
+  try {
+    const roles = await Popularity.distinct('role');
+    res.json(roles);
+  } catch (error) {
+    console.error('Error fetching roles:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

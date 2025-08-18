@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const PopularitySchema = new mongoose.Schema(
   {
     month: {
-      type: String, // e.g. "January 2025"
+      type: String,
       required: true,
     },
     hitsCount: {
@@ -28,7 +28,6 @@ const PopularitySchema = new mongoose.Schema(
   { collection: 'popularityTimeline' },
 );
 
-// Indexes to speed up common queries
 PopularitySchema.index({ timestamp: 1 });
 PopularitySchema.index({ role: 1 });
 PopularitySchema.index({ month: 1 });
