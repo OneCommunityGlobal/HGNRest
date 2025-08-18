@@ -1,6 +1,3 @@
-const connectDB = require('../startup/db');
-const userHelper = require('../helpers/userHelper')();
-
 const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment, userProfile) {
   const getBlueSquareEmailAssignment = async function (req, res) {
     try {
@@ -62,57 +59,10 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
     }
   };
 
-  const runManuallyResendWeeklySummaries = async function (req, res) {
-    try {
-      console.log(`[Manual Resend] Triggered at ${new Date().toISOString()}`);
-
-      // Respond immediately
-      res.status(202).json({ message: '🔄 Weekly summaries resend started in background.' });
-
-      // Run the actual logic in the background
-      setImmediate(async () => {
-        try {
-          await connectDB();
-          await userHelper.emailWeeklySummariesForAllUsers();
-          console.log('[Background] ✅ Weekly summaries resent.');
-        } catch (err) {
-          console.error('[Background] ❌ Error sending weekly summaries:', err);
-        }
-      });
-    } catch (error) {
-      console.error('[API Trigger] ❌ Immediate failure:', error);
-      res.status(500).json({ error: '❌ Failed to initiate weekly summary resend.' });
-    }
-  };
-
-  const runManualBlueSquareEmailResend = async function (req, res) {
-    try {
-      console.log('[API Trigger] Manual blue square email resend');
-
-      // Respond immediately
-      res.status(202).json({ message: 'Blue square email resend started in background.' });
-
-      // Run the actual email logic in background
-      setImmediate(async () => {
-        try {
-          await userHelper.resendBlueSquareEmailsOnlyForLastWeek();
-          console.log('[Background] ✅ Blue square emails resent without reassigning.');
-        } catch (err) {
-          console.error('[Background] ❌ Error during blue square email resend:', err);
-        }
-      });
-    } catch (error) {
-      console.error('[API Trigger] ❌ Immediate handler failed:', error);
-      res.status(500).json({ error: '❌ Failed to initiate blue square email resend.' });
-    }
-  };
-
   return {
     getBlueSquareEmailAssignment,
     setBlueSquareEmailAssignment,
     deleteBlueSquareEmailAssignment,
-    runManuallyResendWeeklySummaries,
-    runManualBlueSquareEmailResend,
   };
 };
 

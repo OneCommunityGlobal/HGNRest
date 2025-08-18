@@ -74,14 +74,12 @@ const bmMaterialsController = function (BuildingMaterial) {
           itemType: matTypeId,
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
-          stockBought: quantity,
         };
         BuildingMaterial.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
-      doc.stockBought += quantity;
       BuildingMaterial.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },
@@ -99,10 +97,10 @@ const bmMaterialsController = function (BuildingMaterial) {
     let quantityUsed = +req.body.quantityUsed;
     let quantityWasted = +req.body.quantityWasted;
     const { material } = req.body;
-    if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
+    if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
       quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
     }
-    if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
+    if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
       quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
     }
 
@@ -154,15 +152,15 @@ const bmMaterialsController = function (BuildingMaterial) {
     const materialUpdates = req.body.upadateMaterials;
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
-    for (let i = 0; i < materialUpdates.length; i += 1) {
+    for (let i = 0; i < materialUpdates.length; i++) {
       const payload = materialUpdates[i];
       let quantityUsed = +payload.quantityUsed;
       let quantityWasted = +payload.quantityWasted;
       const { material } = payload;
-      if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
+      if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
         quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
       }
-      if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
+      if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
         quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
       }
 
@@ -249,11 +247,11 @@ const bmMaterialsController = function (BuildingMaterial) {
       if (status === 'Approved') {
         updateObject.$inc = { stockBought: quantity };
       }
-      // const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-      //   { 'purchaseRecord._id': purchaseId },
-      //   updateObject,
-      //   { new: true },
-      // );
+      const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
+        { 'purchaseRecord._id': purchaseId },
+        updateObject,
+        { new: true },
+      );
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
       res.status(500).send(error.message);

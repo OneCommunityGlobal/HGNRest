@@ -24,16 +24,8 @@ const paginationForJobs = async (req, res, isSummary) => {
     // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
 
-    // Sorting criteria with displayOrder as primary sort
-    const sortCriteria = {
-      displayOrder: 1,
-      featured: -1,
-      datePosted: -1
-    };
-
     // Fetch paginated results
     const jobs = await Job.find(query)
-      .sort(sortCriteria)
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
     
@@ -75,16 +67,15 @@ const getJobSummaries = async (req, res) => {
 
     // Sorting logic
     const sortCriteria = {
-      displayOrder: 1,
-      featured: -1,
+      title: 1,
       datePosted: -1,
-      title: 1
+      featured: -1,
     };
 
     // Fetch the total number of jobs matching the query for pagination
     const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
-      .select('title category location description datePosted featured displayOrder')
+      .select('title category location description datePosted featured')
       .sort(sortCriteria)
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
@@ -132,10 +123,9 @@ const resetJobsFilters = async (req, res) => {
 
     // Sorting logic
     const sortCriteria = {
-      displayOrder: 1,
-      featured: -1,
+      title: 1,
       datePosted: -1,
-      title: 1
+      featured: -1,
     };
     // Fetch all jobs without filtering
     const totalJobs = await Job.countDocuments({});
@@ -196,10 +186,6 @@ const createJob = async (req, res) => {
   const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } = req.body;
 
   try {
-    // Find the highest displayOrder value currently in use
-    const highestOrderJob = await Job.findOne().sort({ displayOrder: -1 }).limit(1);
-    const newDisplayOrder = highestOrderJob ? highestOrderJob.displayOrder + 1 : 0;
-    
     const newJob = new Job({
       title,
       summaries,
@@ -209,7 +195,6 @@ const createJob = async (req, res) => {
       location,
       applyLink,
       jobDetailsLink,
-      displayOrder: newDisplayOrder
     });
 
     const savedJob = await newJob.save();
@@ -249,39 +234,6 @@ const deleteJob = async (req, res) => {
   }
 };
 
-// Controller to reorder jobs
-const reorderJobs = async (req, res) => {
-  const { jobIds } = req.body;
-
-  try {
-    // Validate input
-    if (!Array.isArray(jobIds) || jobIds.length === 0) {
-      return res.status(400).json({ error: 'Invalid job order data' });
-    }
-
-    // Update the order of each job
-    const updateOperations = jobIds.map((jobId, index) => ({
-      updateOne: {
-        filter: { _id: jobId },
-        update: { $set: { displayOrder: index } }
-      }
-    }));
-
-    await Job.bulkWrite(updateOperations);
-    
-    // Fetch and return the updated jobs
-    const jobs = await Job.find({ _id: { $in: jobIds } }).sort({ displayOrder: 1 });
-    
-    res.json({
-      success: true,
-      message: 'Jobs reordered successfully',
-      jobs
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to reorder jobs', details: error.message });
-  }
-};
-
 // Export controllers as a plain object
 module.exports = {
   getJobs,
@@ -293,5 +245,4 @@ module.exports = {
   getJobSummaries,
   resetJobsFilters,
   getCategories,
-  reorderJobs,
 };

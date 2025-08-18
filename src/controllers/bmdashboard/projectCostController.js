@@ -1,5 +1,7 @@
+/* eslint-disable no-restricted-globals */
 const regression = require('regression');
 const mongoose = require('mongoose');
+
 const controller = function (ProjectCost) {
   // Helper function to calculate predicted costs using linear regression
   const calculatePredictedCosts = (costs) => {
@@ -20,6 +22,7 @@ const controller = function (ProjectCost) {
     const data = historicalCosts.map((cost, index) => [index, cost.actualCost || 0]);
     
     // Perform linear regression
+    // eslint-disable-next-line no-unused-vars
     const result = regression.linear(data);
     
     // Generate predictions for future months
@@ -30,7 +33,7 @@ const controller = function (ProjectCost) {
           ...cost,
           predictedCost: null
         };
-      } else {
+      } 
         // For future months, use planned costs as the base and adjust based on historical trend
         const plannedCost = cost.plannedCost || 0;
         
@@ -47,7 +50,7 @@ const controller = function (ProjectCost) {
           ...cost,
           predictedCost: adjustedPrediction
         };
-      }
+      
     });
   };
 
@@ -59,7 +62,7 @@ const controller = function (ProjectCost) {
       
       const projectCost = await ProjectCost.findOne({
         $or: [
-          { projectId: projectId },
+          { projectId },
           { projectId: Number(projectId) }
         ]
       });
@@ -111,7 +114,7 @@ const controller = function (ProjectCost) {
       
       res.status(200).json({
         projectId: Number(projectId),
-        predictions: predictions
+        predictions
       });
     } catch (error) {
       res.status(500).json({ message: error.message });
@@ -213,7 +216,7 @@ const controller = function (ProjectCost) {
         // Try both string and number versions of the ID
         const query = {
           $or: [
-            { projectId: projectId },
+            { projectId },
             { projectId: Number(projectId) }
           ]
         };

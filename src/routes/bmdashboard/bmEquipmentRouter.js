@@ -12,8 +12,6 @@ const routes = function (BuildingEquipment) {
 
   equipmentRouter.route('/equipments').get(controller.fetchBMEquipments);
 
-  equipmentRouter.route('/equipments/logRecords').put(controller.updateLogRecords);
-
   return equipmentRouter;
 };
 

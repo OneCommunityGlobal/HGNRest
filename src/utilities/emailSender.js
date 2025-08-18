@@ -188,5 +188,4 @@ const sendSummaryNotification = async (recipientEmail, summary) => {
   }
 };
 
-emailSender.sendSummaryNotification = sendSummaryNotification;
-module.exports = emailSender;
+module.exports = {emailSender, sendSummaryNotification};

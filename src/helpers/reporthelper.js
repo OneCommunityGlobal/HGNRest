@@ -23,7 +23,6 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
-
     const pstStart = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
@@ -37,7 +36,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -68,19 +67,30 @@ const reporthelper = function () {
               },
             },
           },
-          isActive: 1,
           firstName: 1,
           lastName: 1,
           role: 1,
           email: 1,
           mediaUrl: 1,
           createdDate: 1,
-          endDate: 1,
           weeklycommittedHours: 1,
           weeklycommittedHoursHistory: 1,
           weeklySummaryNotReq: 1,
           weeklySummaryOption: 1,
           adminLinks: 1,
+          filterColor: {
+            $cond: {
+              if: { $isArray: '$filterColor' },
+              then: '$filterColor',
+              else: {
+                $cond: {
+                  if: { $eq: [{ $type: '$filterColor' }, 'string'] },
+                  then: ['$filterColor'],
+                  else: [],
+                },
+              },
+            },
+          },
           bioPosted: 1,
           toggleTrophyIcon: 1,
           startDate: 1,
@@ -127,7 +137,7 @@ const reporthelper = function () {
           timeOffTill: {
             $ifNull: ['$timeOffTill', null],
           },
-          // role:1 duplicate entry removed
+          // role: 1,
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -169,16 +179,10 @@ const reporthelper = function () {
           startWeekIndex === endWeekIndex
             ? startWeekIndex
             : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
-          result.totalSeconds[index] = 0;
-        }
 
-        if (entry.isTangible === true) {
-          result.totalSeconds[index] += entry.totalSeconds;
-          if (index >= 0 && index < 4) {
-            if (entry.isTangible === true) {
-              result.totalSeconds[index] += entry.totalSeconds;
-            }
+        if (index >= 0 && index < 4) {
+          if (entry.isTangible === true) {
+            result.totalSeconds[index] += entry.totalSeconds;
           }
         }
       });

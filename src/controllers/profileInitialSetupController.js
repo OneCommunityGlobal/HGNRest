@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
-const emailSender = require('../utilities/emailSender');
+const { emailSender } = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
@@ -541,7 +541,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = [
+    const user_permissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',

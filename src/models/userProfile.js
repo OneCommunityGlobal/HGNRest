@@ -84,7 +84,6 @@ const userProfileSchema = new Schema({
       return this.createdDate;
     },
   },
-  isStartDateManuallyModified: { type: Boolean, default: false },
   lastModifiedDate: { type: Date, required: true, default: Date.now() },
   reactivationDate: { type: Date },
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
@@ -233,6 +232,11 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  filterColor: {
+    type: [String],
+    enum: ['purple', 'green', 'navy', null],
+    default: [],
+  },
   trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
@@ -261,7 +265,6 @@ const userProfileSchema = new Schema({
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
   permissionGrantedToGetWeeklySummaryReport: { type: Date, default: undefined },
-  applicationAccess: { type: mongoose.Schema.Types.ObjectId, ref: 'applicationAccess' },
   questionaireFeedback: {
     haveYouRecievedHelpLastWeek: { type: String, enum: ['Yes', 'No'] },
     peopleYouContacted: [
