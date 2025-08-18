@@ -54,6 +54,10 @@ const permissionsRoles = [
       'updatePassword',
       'resetPassword',
       'deleteUserProfile',
+
+      'infringementAuthorizer',
+      'toggleInvisibility',
+
       'toggleInvisibility',
       'addInfringements',
       'editInfringements',
@@ -71,6 +75,7 @@ const permissionsRoles = [
       'deactivateWarningTracker',
       'reactivateWarningTracker',
       'deleteWarningTracker',
+
       // WBS
       'postWbs',
       'deleteWbs',
@@ -200,6 +205,8 @@ const permissionsRoles = [
       'changeUserRehireableStatus',
       'setTrackingManagement',
       'changeUserStatus',
+      'toggleInvisibility',
+
       'viewTrackingOverview',
       'issueTrackingWarnings',
       'issueBlueSquare',
@@ -208,6 +215,7 @@ const permissionsRoles = [
       'deactivateWarningTracker',
       'reactivateWarningTracker',
       'deleteWarningTracker',
+
       'seeBadges',
       'assignBadges',
       'createBadges',
