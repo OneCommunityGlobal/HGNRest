@@ -22,7 +22,7 @@ const hgnFormController = function () {
       await formResponse.save();
       res.status(201).json(formResponse);
     } catch (err) {
-      res.status(500).json({ error: 'Failed to create formResponse: ' + err.message });
+      res.status(500).json({ error: `Failed to create formResponse: ${  err.message}` });
     }
   };
 
@@ -62,7 +62,7 @@ const hgnFormController = function () {
       const responses = await FormResponse.find();
 
       const scoredUsers = responses.map((user) => {
-        let scoreList = [];
+        const scoreList = [];
 
         selectedSkills.forEach((skill) => {
           const [section, field] = skillMap[skill] || [];
