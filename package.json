@@ -18,6 +18,7 @@
     "build": "babel src -d dist",
     "buildw": "babel src -d dist --watch",
     "start": "node dist/server.js",
+    "start:local": "node src/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
     "serve": "babel-node src/server.js",
     "prepare-macos-linux": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*",
