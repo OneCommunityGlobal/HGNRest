@@ -20,55 +20,6 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// Function to get ALL members of the organization (with simple pagination)
-async function getMembers() {
-  const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
-
-  try {
-    let allMembers = [];
-    let nextCursor = null;
-
-    do {
-      // Build URL with cursor for pagination
-      const apiUrl = nextCursor ? `${url}?cursor=${nextCursor}` : url;
-
-      // Make API call
-      const response = await axios({ url: apiUrl, headers });
-      const pageMembers = response.data;
-
-      // If no members returned, we're done
-      if (pageMembers.length === 0) break;
-
-      allMembers = allMembers.concat(pageMembers);
-
-      // Get next cursor from Link header
-      const linkHeader = response.headers.link;
-      nextCursor = null;
-
-      if (linkHeader) {
-        const nextMatch = linkHeader.match(/<[^>]*[?&]cursor=([^&>]+)[^>]*>;\s*rel="next"/);
-        if (nextMatch) {
-          [, nextCursor] = nextMatch;
-          // Validate cursor is not empty or malformed
-          if (!nextCursor || nextCursor.trim() === '') {
-            nextCursor = null;
-          }
-        }
-      }
-
-      // Safety limit for very large organizations
-      if (allMembers.length >= 10000) {
-        console.warn(`[SENTRY] WARNING: Reached 10,000 member limit, stopping pagination`);
-        break;
-      }
-    } while (nextCursor);
-
-    return allMembers;
-  } catch (error) {
-    throw new Error('Sentry: Error fetching organization members');
-  }
-}
-
 // Function to get all teams in the organization
 async function getTeams() {
   // console.log(`[SENTRY] Fetching teams from organization: ${organizationSlug}`);
@@ -206,9 +157,18 @@ async function verifyRemoval(email) {
 async function inviteUser(email, role = 'member') {
   // console.log(`[SENTRY] 📧 Starting invitation process for: ${email} (Role: ${role})`);
 
+  // Input validation
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    throw new Error('Email is required and must be a non-empty string');
+  }
+
+  if (!role || typeof role !== 'string' || role.trim().length === 0) {
+    throw new Error('Role is required and must be a non-empty string');
+  }
+
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(email.trim())) {
     // console.error(`[SENTRY] ❌ Invalid email format: ${email}`);
     throw new Error(`Invalid email format: ${email}`);
   }
@@ -448,7 +408,6 @@ async function removeUser(email) {
 }
 
 module.exports = {
-  getMembers,
   getTeams,
   inviteUser,
   removeUser,
