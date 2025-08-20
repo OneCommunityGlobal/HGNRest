@@ -5,9 +5,9 @@ const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
 const createGitHubClient = require('../helpers/githubPRHelper');
 
-// const connectToMongo = require('../startup/db');
+const connectToMongo = require('../startup/db');
 
-// connectToMongo();
+connectToMongo();
 
 const FRONT_END_REPO = 'HighestGoodNetworkApp';
 const BACK_END_REPO = 'HGNRest';
@@ -22,8 +22,58 @@ const backEndClient = createGitHubClient({
   repo: BACK_END_REPO,
 });
 
-// eslint-disable-next-line no-unused-vars
+async function acquireTodayJob() {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0); // midnight UTC
+
+  try {
+    // Try to insert a new pending job for today
+    const newJob = await PullRequestSyncMetadata.findOneAndUpdate(
+      { jobDate: today }, // match today's date
+      {
+        $setOnInsert: {
+          jobDate: today,
+          lastSyncedAt: new Date(),
+          status: 'PENDING',
+          notes: '',
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+        rawResult: true, // so we know if it was inserted vs found
+      },
+    );
+
+    if (newJob.lastErrorObject.updatedExisting) {
+      // A job already existed for today -> return null
+      return null;
+    }
+
+    // Successfully created new job for today
+    return newJob.value;
+  } catch (err) {
+    // In case of race condition (two servers insert at the same time)
+    if (err.code === 11000) {
+      // Duplicate key error from unique index → another server won
+      return null;
+    }
+    // Skip update if there is error
+    console.log(err);
+    return null;
+  }
+}
+
 async function syncGitHubData() {
+  // Check to see if any other server has already run the sync yet
+  const todayJob = await acquireTodayJob();
+  // Some other server has already run the sync job
+  if (todayJob == null) {
+    console.log('Data has already synced today, skip');
+    return;
+  }
+
+  // Get the last time that the database is successfully sync
   const lastSyncTime = await PullRequestSyncMetadata.findOne({ status: 'SUCCESS' }).sort({
     lastSyncedAt: -1,
   });
@@ -156,16 +206,19 @@ async function syncGitHubData() {
   if (error !== '') {
     status = 'ERROR';
   }
-  await PullRequestSyncMetadata.create({
-    lastSyncedAt: new Date(),
-    status,
-    notes: error,
-  });
+  todayJob.status = status;
+  todayJob.notes = error;
+  await todayJob.save();
+  // await PullRequestSyncMetadata.create({
+  //   lastSyncedAt: new Date(),
+  //   status,
+  //   notes: error,
+  // });
 }
 
 const pullRequestReviewJobs = () => {
   const pullRequestReviewSyncJob = new CronJob(
-    '0 */4 * * *', // Every 4 hours
+    '1 0 * * *', // Everyday at midnight 1 minute
     // '*/2 * * * *', // Every 2 minute, for testing
     async () => {
       await syncGitHubData();
@@ -178,6 +231,6 @@ const pullRequestReviewJobs = () => {
 };
 module.exports = pullRequestReviewJobs;
 
-// (async () => {
-//   await syncGitHubData();
-// })();
+(async () => {
+  await syncGitHubData();
+})();

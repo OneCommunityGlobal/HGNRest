@@ -8,7 +8,7 @@ function createGitHubClient({ owner, repo }) {
   };
 
   // For testing purpose
-  const testing = false;
+  const testing = true;
   const noItemReturn = 3;
 
   // eslint-disable-next-line import/no-extraneous-dependencies
