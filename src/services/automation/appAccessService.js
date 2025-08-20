@@ -30,7 +30,12 @@ async function upsertAppAccess(userId, appName, status, credentials) {
 
 async function revokeAppAccess(userId, appName) {
   const appAccess = await ApplicationAccess.findOne({ userId });
-  const app = appAccess && appAccess.apps.find((a) => a.app === appName);
+
+  if (!appAccess) {
+    throw new Error(`No application access record found for user ${userId}`);
+  }
+
+  const app = appAccess.apps.find((a) => a.app === appName);
 
   if (!app || !app.credentials) {
     throw new Error(`${appName} folder information not found for this user.`);

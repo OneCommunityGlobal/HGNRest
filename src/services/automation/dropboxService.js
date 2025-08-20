@@ -10,7 +10,7 @@ const dbx = new Dropbox({
   fetch,
 });
 
-// Team folder configuration - easy to extend for future folders
+// Dropbox team folder configuration - easy to extend for future folders
 const TEAM_FOLDERS = {
   HGN: '_Highest Good Network Team',
   ADMIN: '_Administration Team',
@@ -19,18 +19,23 @@ const TEAM_FOLDERS = {
 const DEFAULT_TEAM_FOLDER = 'HGN';
 
 /**
- * Get team folder path by key
+ * Get Dropbox team folder path by key
  */
 function getTeamFolderPath(teamFolderKey = DEFAULT_TEAM_FOLDER) {
+  // Input validation
+  if (!teamFolderKey || typeof teamFolderKey !== 'string' || teamFolderKey.trim().length === 0) {
+    throw new Error('Team folder key is required and must be a non-empty string');
+  }
+
   const folderName = TEAM_FOLDERS[teamFolderKey];
   if (!folderName) {
-    throw new Error(`Invalid team folder key: ${teamFolderKey}`);
+    throw new Error(`Invalid Dropbox team folder key: ${teamFolderKey}`);
   }
   return `/${folderName}`;
 }
 
 /**
- * Get available team folders for frontend
+ * Get available Dropbox team folders for frontend
  */
 function getAvailableTeamFolders() {
   return Object.entries(TEAM_FOLDERS).map(([key, name]) => ({
@@ -44,6 +49,16 @@ function getAvailableTeamFolders() {
  * Ensure a folder exists at the given path. Creates if missing.
  */
 async function ensureFolderExists(path) {
+  // Input validation
+  if (!path || typeof path !== 'string' || path.trim().length === 0) {
+    throw new Error('Path is required and must be a non-empty string');
+  }
+
+  // Validate path format (must start with /)
+  if (!path.startsWith('/')) {
+    throw new Error('Path must start with /');
+  }
+
   try {
     await dbx.filesGetMetadata({ path });
   } catch (err) {
@@ -59,11 +74,20 @@ async function ensureFolderExists(path) {
  * Polls an async share-folder job until complete, using the correct endpoint.
  */
 async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
+  // Input validation
+  if (!asyncJobId || typeof asyncJobId !== 'string' || asyncJobId.trim().length === 0) {
+    throw new Error('Async job ID is required and must be a non-empty string');
+  }
+
+  if (maxAttempts && (typeof maxAttempts !== 'number' || maxAttempts <= 0)) {
+    throw new Error('Max attempts must be a positive number');
+  }
+
   let attempts = 0;
   // eslint-disable-next-line no-await-in-loop
   while (attempts < maxAttempts) {
     // eslint-disable-next-line no-await-in-loop
-    const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId });
+    const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId.trim() });
     const tag = status.result['.tag'];
 
     if (tag === 'complete') {
@@ -83,43 +107,84 @@ async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
 }
 
 /**
- * Creates a new project folder under the specified team folder and a 'Week 1' subfolder.
- * Throws if the project folder already exists.
+ * Creates a new user folder under the specified Dropbox team folder and a 'Week 1' subfolder.
+ * Throws if the user folder already exists.
  */
-async function createFolderWithSubfolder(projectName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
-  const rootPath = getTeamFolderPath(teamFolderKey);
-  const projectPath = `${rootPath}/${projectName}`;
+async function createFolderWithSubfolder(userFolderName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
+  // Input validation
+  if (!userFolderName || typeof userFolderName !== 'string' || userFolderName.trim().length === 0) {
+    throw new Error('User folder name is required and must be a non-empty string');
+  }
 
-  // Ensure root exists
-  await ensureFolderExists(rootPath);
+  if (!teamFolderKey || typeof teamFolderKey !== 'string' || teamFolderKey.trim().length === 0) {
+    throw new Error('Team folder key is required and must be a non-empty string');
+  }
 
-  // Check existence
+  // Validate team folder key
+  if (!TEAM_FOLDERS[teamFolderKey]) {
+    throw new Error(`Invalid team folder key: ${teamFolderKey}`);
+  }
+
+  // Sanitize user folder name (remove special characters that could cause issues)
+  const sanitizedUserFolderName = userFolderName.trim().replace(/[<>:"/\\|?*]/g, '_');
+
+  const teamFolderPath = getTeamFolderPath(teamFolderKey);
+  const userFolderPath = `${teamFolderPath}/${sanitizedUserFolderName}`;
+
+  // Ensure team folder exists
+  await ensureFolderExists(teamFolderPath);
+
+  // Check if user folder already exists
   try {
-    await dbx.filesGetMetadata({ path: projectPath });
-    throw new Error(`Folder '${projectPath}' already exists`);
+    await dbx.filesGetMetadata({ path: userFolderPath });
+    throw new Error(`User folder '${userFolderPath}' already exists`);
   } catch (err) {
     if (err.status === 409 && err.error?.error?.['.tag'] === 'path') {
-      // Not found, create
-      await dbx.filesCreateFolderV2({ path: projectPath });
-      await dbx.filesCreateFolderV2({ path: `${projectPath}/Week 1` });
-      return projectPath;
+      // Not found, create user folder and Week 1 subfolder
+      await dbx.filesCreateFolderV2({ path: userFolderPath });
+      await dbx.filesCreateFolderV2({ path: `${userFolderPath}/Week 1` });
+      return userFolderPath;
     }
     throw err;
   }
 }
 
 /**
- * Creates a project folder, shares it, and invites a user.
+ * Creates a user folder, shares it, and invites a user.
  * Throws if any step fails.
  */
-async function createFolderAndInvite(email, projectName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
-  let folderPath;
+async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
+  // Input validation
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    throw new Error('Email is required and must be a non-empty string');
+  }
+
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim())) {
+    throw new Error('Invalid email format');
+  }
+
+  if (!userFolderName || typeof userFolderName !== 'string' || userFolderName.trim().length === 0) {
+    throw new Error('User folder name is required and must be a non-empty string');
+  }
+
+  if (!teamFolderKey || typeof teamFolderKey !== 'string' || teamFolderKey.trim().length === 0) {
+    throw new Error('Team folder key is required and must be a non-empty string');
+  }
+
+  // Validate team folder key
+  if (!TEAM_FOLDERS[teamFolderKey]) {
+    throw new Error(`Invalid team folder key: ${teamFolderKey}`);
+  }
+
+  let userFolderPath;
   try {
-    // 1. Create project folders
-    folderPath = await createFolderWithSubfolder(projectName, teamFolderKey);
+    // 1. Create user folder and Week 1 subfolder
+    userFolderPath = await createFolderWithSubfolder(userFolderName, teamFolderKey);
 
     // 2. Initiate share
-    const shareResult = await dbx.sharingShareFolder({ path: folderPath });
+    const shareResult = await dbx.sharingShareFolder({ path: userFolderPath });
     let folderMeta;
 
     if (shareResult.result['.tag'] === 'async_job_id') {
@@ -138,97 +203,61 @@ async function createFolderAndInvite(email, projectName, teamFolderKey = DEFAULT
     // 3. Invite user
     const inviteResponse = await dbx.sharingAddFolderMember({
       shared_folder_id: sharedFolderId,
-      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
+      members: [
+        { member: { '.tag': 'email', email: email.trim() }, access_level: { '.tag': 'editor' } },
+      ],
       quiet: false,
     });
 
     // Get the folder metadata to retrieve the folder_id
-    const folderMetadata = await dbx.filesGetMetadata({ path: folderPath });
+    const folderMetadata = await dbx.filesGetMetadata({ path: userFolderPath });
 
     return {
       inviteResponse,
-      folderPath,
+      folderPath: userFolderPath,
       sharedFolderId,
       folderId: folderMetadata.result.id,
-      folderName: projectName,
+      folderName: userFolderName,
     };
   } catch (err) {
     // console.error('Error in createFolderAndInvite:', err);
-    if (folderPath) {
-      throw new Error(`Folder created at '${folderPath}', but process failed: ${err.message}`);
+    if (userFolderPath) {
+      // Try to clean up the created user folder
+      try {
+        await dbx.filesDeleteV2({ path: userFolderPath });
+      } catch (cleanupErr) {
+        // Log cleanup error but don't throw it
+        console.error('Failed to cleanup user folder after error:', cleanupErr.message);
+      }
+      throw new Error(
+        `User folder created at '${userFolderPath}', but process failed: ${err.message}`,
+      );
     }
     throw err;
   }
 }
 
 /**
- * Invites a user to an existing shared folder.
- * Assumes the folder is already shared.
- * Throws if the folder doesn't exist or isn't shared.
- */
-async function inviteUserToFolder(email, folderPath, teamFolderKey = DEFAULT_TEAM_FOLDER) {
-  try {
-    // Construct the full path - if it's just a project name, add the team folder prefix
-    let normalizedPath;
-    if (folderPath.startsWith('/')) {
-      normalizedPath = folderPath;
-    } else if (Object.values(TEAM_FOLDERS).some((folder) => folderPath.includes(folder))) {
-      // Already has a team folder in the path
-      normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
-    } else {
-      // Just the project name, construct full path with specified team folder
-      const teamFolderPath = getTeamFolderPath(teamFolderKey);
-      normalizedPath = `${teamFolderPath}/${folderPath}`;
-    }
-
-    // Get folder metadata to check if it's shared
-    const folderMeta = await dbx.filesGetMetadata({ path: normalizedPath });
-
-    if (!folderMeta.result.shared_folder_id) {
-      throw new Error(`Folder '${folderPath}' is not shared`);
-    }
-
-    // Invite user to the shared folder
-    const inviteResponse = await dbx.sharingAddFolderMember({
-      shared_folder_id: folderMeta.result.shared_folder_id,
-      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
-      quiet: false,
-    });
-
-    return {
-      inviteResponse,
-      sharedFolderId: folderMeta.result.shared_folder_id,
-      folderId: folderMeta.result.id,
-      folderPath: normalizedPath,
-    };
-  } catch (err) {
-    if (err.status === 409 && err.error?.error?.['.tag'] === 'path_lookup') {
-      throw new Error(`Folder '${folderPath}' not found`);
-    }
-    throw new Error(`Failed to invite user to folder '${folderPath}': ${err.message}`);
-  }
-}
-
-/**
- * Delete folder using folder_id.
- * @param {string} folderId - The Dropbox folder ID
+ * Delete user folder using folder_id.
+ * @param {string} folderId - The Dropbox user folder ID
  */
 async function deleteFolder(folderId) {
+  // Input validation
+  if (!folderId || typeof folderId !== 'string' || folderId.trim().length === 0) {
+    throw new Error('User folder ID is required and must be a non-empty string');
+  }
+
   try {
     // console.log(`Deleting folder with ID: ${folderId}`);
 
-    if (!folderId) {
-      throw new Error('folder_id is required for deletion');
-    }
-
     // Use folder_id for direct deletion (handles shared folders automatically)
-    await dbx.filesDeleteV2({ path: folderId });
+    await dbx.filesDeleteV2({ path: folderId.trim() });
     // console.log('Folder deleted successfully');
 
     return {
       success: true,
       method: 'folder_id',
-      message: 'Folder deleted successfully',
+      message: 'User folder deleted successfully',
     };
   } catch (err) {
     // console.error('Error in deleteFolder:', {
@@ -242,34 +271,33 @@ async function deleteFolder(folderId) {
     if (err.status === 409) {
       const errorTag = err.error?.error?.['.tag'];
       if (errorTag === 'path_lookup') {
-        throw new Error(`Folder not found`);
+        throw new Error(`User folder not found`);
       } else if (errorTag === 'path_write') {
         const reason = err.error?.error?.reason?.['.tag'];
-        throw new Error(`Cannot delete folder: ${reason || 'write permission denied'}`);
+        throw new Error(`Cannot delete user folder: ${reason || 'write permission denied'}`);
       }
     }
 
     if (err.status === 400) {
       const errorSummary = err.error?.error_summary || err.message;
-      throw new Error(`Bad request when deleting folder: ${errorSummary}`);
+      throw new Error(`Bad request when deleting user folder: ${errorSummary}`);
     }
 
     if (err.status === 403) {
-      throw new Error(`Permission denied: You may not have permission to delete this folder`);
+      throw new Error(`Permission denied: You may not have permission to delete this user folder`);
     }
 
     if (err.status === 404) {
-      throw new Error(`Folder not found`);
+      throw new Error(`User folder not found`);
     }
 
-    throw new Error(`Failed to delete folder: ${err.message || 'Unknown error'}`);
+    throw new Error(`Failed to delete user folder: ${err.message || 'Unknown error'}`);
   }
 }
 
 module.exports = {
   createFolderWithSubfolder,
   createFolderAndInvite,
-  inviteUserToFolder,
   deleteFolder,
   getAvailableTeamFolders,
   getTeamFolderPath,
