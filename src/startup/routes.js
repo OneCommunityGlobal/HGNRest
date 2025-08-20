@@ -246,7 +246,7 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
-const collaborationRouter = require('../routes/collaborationRouter');
+// const collaborationRouter = require('../routes/collaborationRouter');
 const templateRouter = require('../routes/templateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
