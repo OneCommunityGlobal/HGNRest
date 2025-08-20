@@ -10,7 +10,35 @@ const dbx = new Dropbox({
   fetch,
 });
 
-const HGN_FOLDER = '_Highest Good Network Team';
+// Team folder configuration - easy to extend for future folders
+const TEAM_FOLDERS = {
+  HGN: '_Highest Good Network Team',
+  ADMIN: '_Administration Team',
+};
+
+const DEFAULT_TEAM_FOLDER = 'HGN';
+
+/**
+ * Get team folder path by key
+ */
+function getTeamFolderPath(teamFolderKey = DEFAULT_TEAM_FOLDER) {
+  const folderName = TEAM_FOLDERS[teamFolderKey];
+  if (!folderName) {
+    throw new Error(`Invalid team folder key: ${teamFolderKey}`);
+  }
+  return `/${folderName}`;
+}
+
+/**
+ * Get available team folders for frontend
+ */
+function getAvailableTeamFolders() {
+  return Object.entries(TEAM_FOLDERS).map(([key, name]) => ({
+    key,
+    name: name.replace(/^_/, ''), // Remove leading underscore for display
+    isDefault: key === DEFAULT_TEAM_FOLDER,
+  }));
+}
 
 /**
  * Ensure a folder exists at the given path. Creates if missing.
@@ -55,11 +83,11 @@ async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
 }
 
 /**
- * Creates a new project folder under HGN_FOLDER and a 'Week 1' subfolder.
+ * Creates a new project folder under the specified team folder and a 'Week 1' subfolder.
  * Throws if the project folder already exists.
  */
-async function createFolderWithSubfolder(projectName) {
-  const rootPath = `/${HGN_FOLDER}`;
+async function createFolderWithSubfolder(projectName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
+  const rootPath = getTeamFolderPath(teamFolderKey);
   const projectPath = `${rootPath}/${projectName}`;
 
   // Ensure root exists
@@ -84,11 +112,11 @@ async function createFolderWithSubfolder(projectName) {
  * Creates a project folder, shares it, and invites a user.
  * Throws if any step fails.
  */
-async function createFolderAndInvite(email, projectName) {
+async function createFolderAndInvite(email, projectName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
   let folderPath;
   try {
     // 1. Create project folders
-    folderPath = await createFolderWithSubfolder(projectName);
+    folderPath = await createFolderWithSubfolder(projectName, teamFolderKey);
 
     // 2. Initiate share
     const shareResult = await dbx.sharingShareFolder({ path: folderPath });
@@ -125,7 +153,7 @@ async function createFolderAndInvite(email, projectName) {
       folderName: projectName,
     };
   } catch (err) {
-    console.error('Error in createFolderAndInvite:', err);
+    // console.error('Error in createFolderAndInvite:', err);
     if (folderPath) {
       throw new Error(`Folder created at '${folderPath}', but process failed: ${err.message}`);
     }
@@ -138,18 +166,19 @@ async function createFolderAndInvite(email, projectName) {
  * Assumes the folder is already shared.
  * Throws if the folder doesn't exist or isn't shared.
  */
-async function inviteUserToFolder(email, folderPath) {
+async function inviteUserToFolder(email, folderPath, teamFolderKey = DEFAULT_TEAM_FOLDER) {
   try {
-    // Construct the full path - if it's just a project name, add the HGN_FOLDER prefix
+    // Construct the full path - if it's just a project name, add the team folder prefix
     let normalizedPath;
     if (folderPath.startsWith('/')) {
       normalizedPath = folderPath;
-    } else if (folderPath.includes(HGN_FOLDER)) {
-      // Already has the HGN folder in the path
+    } else if (Object.values(TEAM_FOLDERS).some((folder) => folderPath.includes(folder))) {
+      // Already has a team folder in the path
       normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
     } else {
-      // Just the project name, construct full path
-      normalizedPath = `/${HGN_FOLDER}/${folderPath}`;
+      // Just the project name, construct full path with specified team folder
+      const teamFolderPath = getTeamFolderPath(teamFolderKey);
+      normalizedPath = `${teamFolderPath}/${folderPath}`;
     }
 
     // Get folder metadata to check if it's shared
@@ -186,7 +215,7 @@ async function inviteUserToFolder(email, folderPath) {
  */
 async function deleteFolder(folderId) {
   try {
-    console.log(`Deleting folder with ID: ${folderId}`);
+    // console.log(`Deleting folder with ID: ${folderId}`);
 
     if (!folderId) {
       throw new Error('folder_id is required for deletion');
@@ -194,7 +223,7 @@ async function deleteFolder(folderId) {
 
     // Use folder_id for direct deletion (handles shared folders automatically)
     await dbx.filesDeleteV2({ path: folderId });
-    console.log('Folder deleted successfully');
+    // console.log('Folder deleted successfully');
 
     return {
       success: true,
@@ -202,12 +231,12 @@ async function deleteFolder(folderId) {
       message: 'Folder deleted successfully',
     };
   } catch (err) {
-    console.error('Error in deleteFolder:', {
-      message: err.message,
-      status: err.status,
-      error: err.error,
-      folder_id: folderId,
-    });
+    // console.error('Error in deleteFolder:', {
+    //   message: err.message,
+    //   status: err.status,
+    //   error: err.error,
+    //   folder_id: folderId,
+    // });
 
     // Handle specific error cases
     if (err.status === 409) {
@@ -242,4 +271,6 @@ module.exports = {
   createFolderAndInvite,
   inviteUserToFolder,
   deleteFolder,
+  getAvailableTeamFolders,
+  getTeamFolderPath,
 };
