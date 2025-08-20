@@ -255,6 +255,7 @@ const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(pro
 const tagRouter = require('../routes/tagRouter')(tag);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const applicationRoutes = require('../routes/applications');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -319,6 +320,7 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/applications', applicationRoutes);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
@@ -343,8 +345,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
 
-
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
