@@ -52,7 +52,6 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
-    "mongoose": "^5.13.23",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
@@ -76,6 +75,7 @@
     "express": "^4.17.1",
     "express-validator": "^7.0.1",
     "express-ws": "^5.0.2",
+    "geoip-lite": "^1.4.10",
     "googleapis": "^100.0.0",
     "isomorphic-fetch": "^3.0.0",
     "jsonwebtoken": "^9.0.0",
@@ -83,6 +83,7 @@
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.35",
     "mongodb": "^3.7.3",
+    "mongoose": "^5.13.23",
     "mongoose-validator": "^2.1.0",
     "multer": "^1.4.5-lts.1",
     "node-cache": "^5.1.2",
