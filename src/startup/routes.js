@@ -343,7 +343,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
 
-  app.use('/api/bm', bmTimeLoggerRouter);
+
+  app.use('/api/bm', bmTimeLoggerRouter);  
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
