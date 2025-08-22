@@ -224,7 +224,18 @@ const reportsController = function () {
     // Check if we have cached data and aren't forcing a refresh
     if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
       // console.log(`Cache hit for ${cacheKey}, serving from cache`);
-      return res.status(200).send(cacheUtil.getCache(cacheKey));
+      const cached = cacheUtil.getCache(cacheKey);
+      const etag = require('crypto').createHash('md5').update(JSON.stringify(cached)).digest('hex');
+      const ifNoneMatch = req.headers['if-none-match'];
+
+      // Force browser to revalidate with server and avoid serving stale content from browser cache
+      res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+      res.set('ETag', etag);
+
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return res.status(304).end();
+      }
+      return res.status(200).send(cached);
     }
     // if (forceRefresh) {
     //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
@@ -264,11 +275,19 @@ const reportsController = function () {
       cacheUtil.setCache(cacheKey, summaries);
       cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
 
-      res.set('Cache-Control', `public, max-age=${cacheTTL}`);
-      res.set(
-        'ETag',
-        require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
-      );
+      // Force browser to revalidate and avoid stale content while keeping server-side cache intact
+      res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+
+      const etag = require('crypto')
+        .createHash('md5')
+        .update(JSON.stringify(summaries))
+        .digest('hex');
+      res.set('ETag', etag);
+
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return res.status(304).end();
+      }
 
       res.status(200).send(summaries);
     } catch (error) {
