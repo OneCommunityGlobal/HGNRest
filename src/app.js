@@ -25,6 +25,6 @@ app.use(globalErrorHandler);
 app.use(express.json());
 const lbRegisterRouter = require('./routes/lbdashboard/lbdashboardRoutes')();
 
-app.use('/lbdashboard', lbRegisterRouter);
+app.use('/api/lbdashboard', lbRegisterRouter);
 app.use('/api', experienceRoutes); // Mounts at /api
 module.exports = { app, logger };

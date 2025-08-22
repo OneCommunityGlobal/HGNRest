@@ -16,7 +16,7 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (req.originalUrl === '/lbdashboard/register' && req.method === 'POST') {
+    if (req.originalUrl === '/api/lbdashboard/register' && req.method === 'POST') {
       next();
       return;
     }
