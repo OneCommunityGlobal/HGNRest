@@ -1150,6 +1150,39 @@ const userProfileController = function (UserProfile, Project) {
         return user
           .save()
           .then(() => {
+            // If bioPosted was updated via this generic property route,
+            // update caches and invalidate weekly summaries to avoid stale data.
+            if (key === 'bioPosted') {
+              try {
+                // Update or invalidate the allusers cache
+                if (cache.hasCache('allusers')) {
+                  const allUserData = JSON.parse(cache.getCache('allusers'));
+                  const userIdx = allUserData.findIndex((u) => u._id === userId);
+                  if (userIdx !== -1) {
+                    allUserData[userIdx].bioPosted = value;
+                    cache.setCache('allusers', JSON.stringify(allUserData));
+                  } else {
+                    cache.removeCache('allusers');
+                  }
+                }
+
+                // Invalidate weekly summaries caches, as bioPosted is part of that response
+                for (let week = 0; week <= 3; week += 1) {
+                  reportsController.invalidateWeeklySummariesCache(week);
+                }
+                for (let week = 0; week <= 10; week += 1) {
+                  cache.removeCache(`weeklySummaries_${week}`);
+                }
+                cache.removeCache('weeklySummaries_all');
+                cache.removeCache('weeklySummaries_null');
+                cache.removeCache('weeklySummaries_undefined');
+              } catch (e) {
+                // non-blocking cache invalidation
+                // eslint-disable-next-line no-console
+                console.error('Error invalidating caches after bioPosted update:', e);
+              }
+            }
+
             res.status(200).send({ message: 'updated property' });
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
