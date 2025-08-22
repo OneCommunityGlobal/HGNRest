@@ -1,13 +1,10 @@
 const Job = require('../models/jobs'); // Import the Job model
 
-// Controller to fetch all jobs with pagination, search, and filtering
-const getJobs = async (req, res) => {
+const paginationForJobs = async (req, res, isSummary) => {
   const { page = 1, limit = 18, search = '', category = '' } = req.query;
-
   try {
-    // Validate query parameters
-    const pageNumber = Math.max(1, parseInt(page, 10)); // Ensure page is at least 1
-    const limitNumber = Math.max(1, parseInt(limit, 10)); // Ensure limit is at least 1
+    const pageNumber = Math.max(1, parseInt(page, 10));
+    const limitNumber = Math.max(1, parseInt(limit, 10));
 
     
     // Build query object
@@ -44,7 +41,6 @@ const getJobs = async (req, res) => {
 
     
 
-    // Prepare response
     res.json({
       jobs,
       pagination: {
@@ -57,9 +53,12 @@ const getJobs = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch Jobs/Summaries', details: error.message });
   }
 };
+
+// Controller to fetch all jobs with pagination, search, and filtering
+const getJobs = (req, res) => paginationForJobs(req, res, false);
 
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
 const getJobSummaries = async (req, res) => {
