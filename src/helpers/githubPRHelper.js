@@ -1,14 +1,17 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
 
+const { GITHUB_TOKEN } = process.env;
+
 function createGitHubClient({ owner, repo }) {
   const headers = {
     'X-GitHub-Api-Version': '2022-11-28',
     Accept: 'application/json',
+    Authorization: `token ${GITHUB_TOKEN}`,
   };
 
   // For testing purpose
-  const testing = true;
+  const testing = false;
   const noItemReturn = 3;
 
   // eslint-disable-next-line import/no-extraneous-dependencies
@@ -48,7 +51,7 @@ function createGitHubClient({ owner, repo }) {
   }
 
   async function fetchReviews(prNumber) {
-    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`;
 
     try {
       // console.log (url);
@@ -64,7 +67,7 @@ function createGitHubClient({ owner, repo }) {
   }
 
   async function fetchPullRequests() {
-    const url = `https://api.github.com/repos/${owner}/${repo}/pulls`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/pulls?per_page=100`;
 
     try {
       const data = await fetchAllPages(url);

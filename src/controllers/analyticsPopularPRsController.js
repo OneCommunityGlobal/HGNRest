@@ -3,7 +3,12 @@ const NodeCache = require('node-cache');
 const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
 
-const { parseDurationValue } = require('../helpers/analyticsPopularPRsControllerHelper');
+const {
+  parseDurationValue,
+  syncGitHubData,
+  acquireTodayJob,
+  getTodaySyncJob,
+} = require('../helpers/analyticsPopularPRsControllerHelper');
 
 const cache = new NodeCache({ stdTTL: 7200 }); // Cache for 2 hour
 
@@ -34,7 +39,37 @@ module.exports = () => ({
       return res.json(cachedData);
     }
 
-    // console.log (startDate, endDate);
+    // Check the last time data was sync
+    let todaySyncJob = await getTodaySyncJob();
+    let doSync = false;
+    console.log('Get today sync job', todaySyncJob);
+    // If no sync job was run today or the sync job has an error, then mark doSync flag to yes
+    if (todaySyncJob == null || todaySyncJob.status === 'ERROR') {
+      console.log('Check if we need to sync', todaySyncJob);
+      if (todaySyncJob == null) {
+        todaySyncJob = await acquireTodayJob();
+        console.log('Acquire today job: ', todaySyncJob);
+        if (todaySyncJob != null) {
+          doSync = true;
+        }
+      } else {
+        doSync = true;
+      }
+    }
+    console.log(doSync);
+
+    // If we hasnt got the updated data in db yet, attempted to do the sync again
+    if (doSync) {
+      console.log('Outdated information, attempted to sync');
+      await syncGitHubData(todaySyncJob);
+      if (todaySyncJob.status === 'ERROR') {
+        res.status(500).json({
+          error: `Internal server error. Unable to sync data with github. Error: ${todaySyncJob.notes}`,
+        });
+      }
+    }
+
+    console.log('Done syncing, start aggregating');
     try {
       // Step 1: Get top reviewed PRs with details
       const topReviewedWithPRs = await PullRequestReview.aggregate([
