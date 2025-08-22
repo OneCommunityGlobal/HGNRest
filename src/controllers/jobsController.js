@@ -14,7 +14,7 @@ const paginationForJobs = async (req, res, isSummary) => {
       
       query.$or = [
         { title: { $regex: new RegExp(searchString, 'i') } },
-        { description: { $regex: new RegExp(searchString, 'i') } }
+        { category: { $regex: new RegExp(searchString, 'i') } }
       ];} // Case-insensitive search
     
     if (category) query.category = category;
@@ -70,7 +70,13 @@ const getJobSummaries = async (req, res) => {
 
     // Construct the query object
     const query = {};
-    if (search) query.title = { $regex: search, $options: 'i' };
+    if (search) {
+      const searchString = String(search);
+      query.$or = [
+        { title: { $regex: new RegExp(searchString, 'i') } },
+        { category: { $regex: new RegExp(searchString, 'i') } }
+      ];
+    }
     if (category) query.category = category;
 
     // Sorting logic
