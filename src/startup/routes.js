@@ -22,6 +22,7 @@ const currentWarnings = require('../models/currentWarnings');
 const hgnFormResponses = require('../models/hgnFormResponses');
 
 const listings = require('../models/lbdashboard/listings');
+const biddingHome = require('../models/lbdashboard/biddings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 const projectCost = require('../models/bmdashboard/projectCost');
@@ -186,7 +187,7 @@ const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
 const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
-
+const biddingRouter = require('../routes/lbdashboard/biddingRouter')(biddingHome);
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
@@ -361,6 +362,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm', bmIssueRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
@@ -376,6 +378,7 @@ module.exports = function (app) {
 
   app.use('/api/financials', bmFinancialRouter);
 
+  app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
