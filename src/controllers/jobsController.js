@@ -2,12 +2,16 @@ const Job = require('../models/jobs'); // Import the Job model
 
 // Controller to fetch all jobs with pagination, search, and filtering
 const getJobs = async (req, res) => {
-  const { page = 1, limit = 18, search = '', category = '' } = req.query;
+  console.log('getJobs');
+  console.log(req.query);
+  const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
 
   try {
     // Validate query parameters
     const pageNumber = Math.max(1, parseInt(page, 10)); // Ensure page is at least 1
     const limitNumber = Math.max(1, parseInt(limit, 10)); // Ensure limit is at least 1
+    console.log(`pageNumber ${pageNumber}`);
+    console.log(`limitNumber ${limitNumber}`);
 
     // Build query object
     const query = {};
@@ -20,6 +24,8 @@ const getJobs = async (req, res) => {
       ];
     } // Case-insensitive search
 
+    if (position) query.title = position;
+
     if (category) query.category = category;
 
     console.log('query from getJobs');
@@ -27,9 +33,15 @@ const getJobs = async (req, res) => {
     // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
 
+    const totalPages = Math.ceil(totalJobs / 20);
+    console.log(` totalPages is ${totalPages}`);
+
+    let pageNum;
+    if (pageNumber > totalPages) pageNum = 1;
+    else pageNum = pageNumber;
     // Fetch paginated results
     const jobs = await Job.find(query)
-      .skip((pageNumber - 1) * limitNumber)
+      .skip((pageNum - 1) * limitNumber)
       .limit(limitNumber);
 
     // Prepare response
@@ -51,11 +63,14 @@ const getJobs = async (req, res) => {
 
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
 const getJobSummaries = async (req, res) => {
-  const { search = '', page = 1, limit = 18, category = '' } = req.query;
+  console.log('getJobSummaries');
+  const { search = '', page = 1, limit = 18, category = '', position = '' } = req.query;
 
   try {
     const pageNumber = Math.max(1, parseInt(page, 10));
     const limitNumber = Math.max(1, parseInt(limit, 10));
+    console.log(`pageNumber ${pageNumber}`);
+    console.log(`limitNumber ${limitNumber}`);
 
     // Construct the query object
     const query = {};
@@ -69,6 +84,7 @@ const getJobSummaries = async (req, res) => {
     } // Case-insensitive search
 
     if (category) query.category = category;
+    if (position) query.title = position;
 
     /* if (search) query.title = { $regex: search, $options: 'i' };
     if (category) query.category = category;
@@ -175,6 +191,22 @@ const getCategories = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch categories' });
   }
 };
+const getPositions = async (req, res) => {
+  console.log('getPositions');
+  try {
+    const positions = await Job.distinct('title', {});
+
+    // Sort categories alphabetically
+    positions.sort((a, b) => a.localeCompare(b));
+
+    res.status(200).json({ positions });
+    console.log(positions);
+  } catch (error) {
+    console.error('Error fetching positions:', error);
+    res.status(500).json({ message: 'Failed to fetch positions' });
+  }
+};
+
 // Controller to fetch job details by ID
 const getJobById = async (req, res) => {
   const { id } = req.params;
@@ -254,4 +286,5 @@ module.exports = {
   getJobSummaries,
   resetJobsFilters,
   getCategories,
+  getPositions,
 };
