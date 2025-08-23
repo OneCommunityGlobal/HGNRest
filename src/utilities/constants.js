@@ -8,6 +8,14 @@ const constants = {
     'devadmin@hgn.net',
   ],
 
+  TOOL_CONDITIONS: {
+    OUT_OF_ORDER: 'Out of Order',
+  },
+
+  TOOL_LOG_TYPES: {
+    CHECK_OUT: 'Check Out',
+  },
+
   // Add more constants here
 };
 

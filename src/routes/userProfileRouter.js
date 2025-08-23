@@ -23,9 +23,9 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
-    userProfileRouter
-      .route('/users/search')
-      .get(param('name').exists(), controller.searchUsersByName);
+  userProfileRouter
+    .route('/users/search')
+    .get(param('name').exists(), controller.searchUsersByName);
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
   // Endpoint to retrieve basic user profile information after verifying access permission based on the request source.
@@ -125,17 +125,25 @@ userProfileRouter.route('/userProfile/basicInfo/:source').get(controller.getUser
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
 
   userProfileRouter.route('/userProfile/profileImage/remove').put(controller.removeProfileImage);
-  userProfileRouter.route('/userProfile/profileImage/imagefromwebsite').put(controller.updateProfileImageFromWebsite);
+  userProfileRouter
+    .route('/userProfile/profileImage/imagefromwebsite')
+    .put(controller.updateProfileImageFromWebsite);
 
   userProfileRouter
     .route('/userProfile/autocomplete/:searchText')
     .get(controller.getUserByAutocomplete);
 
+<<<<<<< HEAD
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
+=======
+  userProfileRouter.route('/userProfile/:userId/toggleBio').patch(controller.toggleUserBioPosted);
+>>>>>>> development
 
   userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
-  userProfileRouter.route('/userProfile/skills/:skill').get(controller.getAllMembersSkillsAndContact)
+  userProfileRouter
+    .route('/userProfile/skills/:skill')
+    .get(controller.getAllMembersSkillsAndContact);
 
   return userProfileRouter;
 };

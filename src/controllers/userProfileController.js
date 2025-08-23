@@ -1721,7 +1721,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
-    
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
