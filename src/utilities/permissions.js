@@ -12,11 +12,24 @@ const hasDefaultPermissionRemoved = async (userId, action) =>
     .then(({ permissions }) => permissions.removedDefaultPermissions.includes(action))
     .catch(false);
 
-const hasRolePermission = async (role, action) =>
-  Role.findOne({ roleName: role })
-    .exec()
-    .then(({ permissions }) => permissions.includes(action))
-    .catch(false);
+// const hasRolePermission = async (role, action) =>
+//   Role.findOne({ roleName: role })
+//     .exec()
+//     .then(({ permissions }) => permissions.includes(action))
+//     .catch(false);
+
+const hasRolePermission = async (role, action) => {
+  if (!role) {
+    return false;
+  }
+
+  const roleDoc = await Role.findOne({ roleName: role }).exec();
+  if (!roleDoc) {
+    return false;
+  }
+
+  return roleDoc.permissions.includes(action);
+};
 
 const hasIndividualPermission = async (userId, action) =>
   UserProfile.findById(userId)
@@ -26,12 +39,14 @@ const hasIndividualPermission = async (userId, action) =>
     .catch(false);
 
 const hasPermission = async (requestor, action) => {
-  const defaultRemoved = requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
+  const defaultRemoved =
+    requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
   const roleHasPermission = await hasRolePermission(requestor.role, action);
-  const individualHasPermission = requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
-  
+  const individualHasPermission =
+    requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
+
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
-}
+};
 
 function getDistinct(arr1, arr2) {
   // Merge arrays and reduce to distinct elements
