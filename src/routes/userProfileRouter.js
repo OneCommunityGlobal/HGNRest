@@ -29,7 +29,7 @@ const routes = function (userProfile, project) {
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
   // Endpoint to retrieve basic user profile information after verifying access permission based on the request source.
-userProfileRouter.route('/userProfile/basicInfo/:source').get(controller.getUserProfileBasicInfo);
+  userProfileRouter.route('/userProfile/basicInfo/:source').get(controller.getUserProfileBasicInfo);
   userProfileRouter
     .route('/userProfile/:userId')
     .get(controller.getUserById)
@@ -133,11 +133,7 @@ userProfileRouter.route('/userProfile/basicInfo/:source').get(controller.getUser
     .route('/userProfile/autocomplete/:searchText')
     .get(controller.getUserByAutocomplete);
 
-<<<<<<< HEAD
-  userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
-=======
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch(controller.toggleUserBioPosted);
->>>>>>> development
 
   userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
