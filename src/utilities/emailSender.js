@@ -123,7 +123,11 @@ const emailSender = (
   replyTo = null,
   emailBccs = null,
 ) => {
-  if (!process.env.sendEmail) return;
+  //  if (!process.env.sendEmail) return;
+  if (!process.env.sendEmail) {
+    // Return a resolved Promise immediately instead of undefined
+    return Promise.resolve('Email sending disabled via env');
+  }
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
