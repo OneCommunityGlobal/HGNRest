@@ -721,76 +721,91 @@ const taskController = function (Task) {
   };
 
   const updateTask = async (req, res) => {
-    try {
-      if (
-        !(await hasPermission(req.body.requestor, 'updateTask')) &&
-        !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
-      ) {
-        res.status(403).send({ error: 'You are not authorized to update Task.' });
-        return;
-      }
-
-      if (
-        req.body.hoursBest > 0 &&
-        req.body.hoursWorst > 0 &&
-        req.body.hoursMost > 0 &&
-        req.body.hoursLogged > 0 &&
-        req.body.estimatedHours > 0
-      ) {
-        return res.status(400).send({
-          error:
-            'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
-        });
-      }
-
-      const { taskId } = req.params;
-
-      // Get current task state before update for change logging
-      const oldTask = await Task.findById(taskId);
-      if (!oldTask) {
-        return res.status(404).send({ error: 'Task not found' });
-      }
-
-      // Get user information for change logging
-      const user = await UserProfile.findById(req.body.requestor.requestorId);
-      if (!user) {
-        return res.status(404).send({ error: 'User not found' });
-      }
-
-      // Update the task
-      const updatedTask = await Task.findOneAndUpdate(
-        { _id: taskId },
-        { ...req.body, modifiedDatetime: Date.now() },
-        { new: true, runValidators: true },
-      );
-
-      // Log the changes
-      await TaskChangeTracker.logChanges(
-        taskId,
-        oldTask.toObject(),
-        updatedTask.toObject(),
-        user,
-        req,
-      );
-
-      // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
-      const currentwbs = await WBS.findById(oldTask.wbsId);
-      if (currentwbs) {
-        currentwbs.modifiedDatetime = Date.now();
-        await currentwbs.save();
-
-        const currentProject = await Project.findById(currentwbs.projectId);
-        if (currentProject) {
-          currentProject.modifiedDatetime = Date.now();
-          await currentProject.save();
-        }
-      }
-
-      res.status(201).send(updatedTask);
-    } catch (error) {
-      console.error('Error updating task:', error);
-      res.status(404).send(error);
+    if (
+      !(await hasPermission(req.body.requestor, 'updateTask')) &&
+      !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
+    ) {
+      res.status(403).send({ error: 'You are not authorized to update Task.' });
+      return;
     }
+
+    if (
+      req.body.hoursBest > 0 &&
+      req.body.hoursWorst > 0 &&
+      req.body.hoursMost > 0 &&
+      req.body.hoursLogged > 0 &&
+      req.body.estimatedHours > 0
+    ) {
+      return res.status(400).send({
+        error:
+          'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
+      });
+    }
+
+    const { taskId } = req.params;
+
+    // Get current task state before update for change logging (with error handling)
+    let oldTask = null;
+    try {
+      oldTask = await Task.findById(taskId);
+    } catch (findError) {
+      console.error('Error finding task:', findError);
+      return res.status(404).send({ error: 'No valid records found' });
+    }
+
+    // Get user information for change logging - with timeout protection  
+    let user = null;
+    try {
+      if (req.body.requestor && req.body.requestor.requestorId) {
+        user = await UserProfile.findById(req.body.requestor.requestorId).maxTimeMS(5000);
+      }
+    } catch (userError) {
+      console.warn('Warning: Could not fetch user for change tracking:', userError.message);
+      // Continue without user tracking in case of timeout
+    }
+
+    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
+    Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        currentwbs.modifiedDatetime = Date.now();
+        return currentwbs.save();
+      });
+    });
+
+    Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        Project.findById(currentwbs.projectId).then((currentProject) => {
+          currentProject.modifiedDatetime = Date.now();
+          return currentProject.save();
+        });
+      });
+    });
+
+    // Update the task and handle change logging
+    Task.findOneAndUpdate(
+      { _id: taskId },
+      { ...req.body, modifiedDatetime: Date.now() },
+      { new: true, runValidators: true },
+    )
+      .then(async (updatedTask) => {
+        // Log the changes - only if we have user and TaskChangeTracker is available
+        try {
+          if (oldTask && user && typeof TaskChangeTracker !== 'undefined' && TaskChangeTracker.logChanges) {
+            await TaskChangeTracker.logChanges(
+              taskId,
+              oldTask.toObject(),
+              updatedTask.toObject(),
+              user,
+              req,
+            );
+          }
+        } catch (logError) {
+          console.warn('Warning: Could not log task changes:', logError.message);
+          // Continue without logging - don't fail the update
+        }
+        res.status(201).send();
+      })
+      .catch((error) => res.status(404).send({ error: 'No valid records found' }));
   };
 
   const swap = async function (req, res) {
