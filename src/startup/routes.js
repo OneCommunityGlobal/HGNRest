@@ -212,6 +212,11 @@ const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRo
   toolAvailability,
 );
 
+const projectCostTracking = require('../models/bmdashboard/projectCostTracking');
+const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrackingRouter')(
+  projectCostTracking,
+);
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
@@ -299,6 +304,7 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
+
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -343,11 +349,13 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
 
-
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
+
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);

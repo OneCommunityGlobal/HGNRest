@@ -3,7 +3,6 @@ const sentryService = require('../../services/automation/sentryService');
 const appAccessService = require('../../services/automation/appAccessService');
 const { checkAppAccess } = require('./utils');
 
-
 // Controller function to invite a user
 async function inviteUser(req, res) {
   const { targetUser } = req.body;
@@ -15,11 +14,16 @@ async function inviteUser(req, res) {
   if (!checkAppAccess(requestor.role)) {
     res.status(403).send({ message: 'Unauthorized request' });
     return;
-  } 
+  }
 
   try {
     const invitation = await sentryService.inviteUser(targetUser.email);
-    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'sentry', 'invited', targetUser.email);
+    await appAccessService.upsertAppAccess(
+      targetUser.targetUserId,
+      'sentry',
+      'invited',
+      targetUser.email,
+    );
     res.status(201).json({ message: 'Invitation sent', data: invitation });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -49,7 +53,6 @@ async function removeUser(req, res) {
     res.status(500).json({ message: error.message });
   }
 }
-
 
 module.exports = {
   inviteUser,
