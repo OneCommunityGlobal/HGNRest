@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
+const { hasPermission } = require('../utilities/permissions');
 
 const hgnFormController = function () {
   const submitFormResponse = async function (req, res) {
@@ -27,8 +28,14 @@ const hgnFormController = function () {
 
   const getAllFormResponses = async function (req, res) {
     try {
-      const formResponses = await FormResponse.find();
-      res.json(formResponses);
+        // Check if user has permission to access HGN Skills Dashboard
+        if (!await hasPermission(req.body.requestor, 'accessHgnSkillsDashboard')) {
+            return res.status(403).json({ 
+                error: 'You are not authorized to access the HGN Skills Dashboard.' 
+            });
+        }
+        const formResponses = await FormResponse.find();
+        res.json(formResponses);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
