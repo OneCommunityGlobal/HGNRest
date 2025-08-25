@@ -1,11 +1,11 @@
-const axios = require('axios');  // Use gaxios instead of axios
+const axios = require('axios'); // Use gaxios instead of axios
 require('dotenv').config();
 
-const sentryApiToken = process.env.SENTRY_API_TOKEN;  // Sentry API Token from .env file
-const organizationSlug = process.env.SENTRY_ORG_SLUG;  // Organization slug from .env file
+const sentryApiToken = process.env.SENTRY_API_TOKEN; // Sentry API Token from .env file
+const organizationSlug = process.env.SENTRY_ORG_SLUG; // Organization slug from .env file
 
 const headers = {
-  'Authorization': `Bearer ${sentryApiToken}`,
+  Authorization: `Bearer ${sentryApiToken}`,
   'Content-Type': 'application/json',
 };
 
@@ -18,10 +18,11 @@ async function getMembers() {
   try {
     if (nextUrl) {
       const response = await axios({ url: nextUrl, headers });
-      members.push(...response.data);  // Add members to the array
-      nextUrl = response.headers.link && response.headers.link.includes('rel="next"') 
-                ? response.headers.link.match(/<([^>]+)>; rel="next"/)[1]
-                : null;  // Extract next URL from 'link' header if available
+      members.push(...response.data); // Add members to the array
+      nextUrl =
+        response.headers.link && response.headers.link.includes('rel="next"')
+          ? response.headers.link.match(/<([^>]+)>; rel="next"/)[1]
+          : null; // Extract next URL from 'link' header if available
     }
     return members;
   } catch (error) {
@@ -29,15 +30,13 @@ async function getMembers() {
   }
 }
 
-
-
 // Function to invite a user to the Sentry organization
 async function inviteUser(email, role = 'member') {
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
 
   const data = {
     email,
-    role,  // Default to 'member', can also be 'admin'
+    role, // Default to 'member', can also be 'admin'
   };
 
   try {
@@ -47,7 +46,7 @@ async function inviteUser(email, role = 'member') {
       headers,
       data,
     });
-    return response.data;  // Return the invitation details
+    return response.data; // Return the invitation details
   } catch (error) {
     throw new Error(`Error sending invitation: ${error.message}`);
   }
@@ -63,8 +62,8 @@ async function removeUser(email, members) {
       members = await getMembers();
     }
 
-    const existingMember = members.find(member =>
-      member.email.toLowerCase() === email.toLowerCase()
+    const existingMember = members.find(
+      (member) => member.email.toLowerCase() === email.toLowerCase(),
     );
 
     if (!existingMember) {
