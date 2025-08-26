@@ -629,11 +629,6 @@ const userProfileController = function (UserProfile, Project) {
           res.status(403).send('You are not authorized to edit team code.');
           return;
         }
-        // remove teamCode cache when new team assigned
-        if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache('teamCodes');
-        }
-        record.teamCode = req.body.teamCode;
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
@@ -670,6 +665,7 @@ const userProfileController = function (UserProfile, Project) {
       });
 
       record.lastModifiedDate = Date.now();
+
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -895,7 +891,7 @@ const userProfileController = function (UserProfile, Project) {
           console.error('Failed to save record:', error);
           return res.status(400).json({ error: 'Failed to save record.' });
         });
-    });
+      });
   };
 
   const deleteUserProfile = async function (req, res) {
@@ -1112,6 +1108,18 @@ const userProfileController = function (UserProfile, Project) {
     }
 
     // remove user from cache, it should be loaded next time
+    // cache.removeCache(`user-${userId}`);
+    // if (!key || value === undefined) {
+    //   return res.status(400).send({ error: 'Missing property or value' });
+    // }
+
+    //  return UserProfile.findById(userId)
+    //  .then((user) => {
+    //    user.set({
+    //      [key]: value,
+    //    });
+
+    // edited function
     cache.removeCache(`user-${userId}`);
     if (!key || value === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
