@@ -18,6 +18,9 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const availability = require('../models/lbdashboard/availability');
+
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
 
 const hgnFormResponses = require('../models/hgnFormResponse');
 
@@ -322,6 +325,8 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api', registrationRouter);
+
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
 
@@ -360,6 +365,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm', bmIssueRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
@@ -384,4 +390,5 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', listingAvailablityRouter);
 };
