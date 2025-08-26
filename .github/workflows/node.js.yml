@@ -20,4 +20,8 @@ jobs:
         node-version: 14.x
         cache: 'npm'
     - run: npm ci
+    - name: Run email sender check
+      run: node src/utilities/debugEmailSender.js
     - run: npm run test
+    
+  

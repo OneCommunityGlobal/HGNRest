@@ -3,13 +3,14 @@ const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
+
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
 
 const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
 const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
-const TOKEN_INVALID_MESSAGE = 'INVALID';
+// const TOKEN_INVALID_MESSAGE = 'INVALID';
 const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
 const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
 const { startSession } = mongoose;
@@ -108,16 +109,23 @@ function informManagerMessage(user) {
   return message;
 }
 
-const sendEmailWithAcknowledgment = (email, subject, message) =>
-  new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, null)
-      .then(resolve)
-      .catch(reject);
+const sendEmailWithAcknowledgment = (email, subject, message) => {
+  console.trace('sendEmailWithAcknowledgment called with:', email, subject);
+  return new Promise((resolve, reject) => {
+    console.trace('sendEmailWithAcknowledgment called with:', email, subject);
+    console.log('emailSender is:', emailSender);
+    console.error('DEBUG TRACE >>>', new Error().stack);
+    if (!emailSender) {
+      reject(new Error('emailSender is undefined'));
+      return;
+    }
+    emailSender(email, subject, message, null, null, null, null).then(resolve).catch(reject);
   });
+};
 
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
-  userProfile,
+  UserProfile,
   Project,
   MapLocation,
 ) {
@@ -143,11 +151,9 @@ const profileInitialSetupController = function (
     session.startTransaction();
 
     try {
-      const existingEmail = await userProfile
-        .findOne({
-          email,
-        })
-        .session(session);
+      const existingEmail = await UserProfile.findOne({
+        email,
+      }).session(session);
 
       if (existingEmail) {
         await session.abortTransaction();
@@ -155,8 +161,7 @@ const profileInitialSetupController = function (
         return res.status(400).send('email already in use');
       }
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email })
-        .session(session);
+      await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -168,9 +173,7 @@ const profileInitialSetupController = function (
         createdDate: Date.now(),
       });
 
-      const savedToken = await newToken.save(
-        { session }
-      );
+      const savedToken = await newToken.save({ session });
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
@@ -261,7 +264,7 @@ const profileInitialSetupController = function (
         return;
       }
 
-      const existingEmail = await userProfile.findOne({
+      const existingEmail = await UserProfile.findOne({
         email: foundToken.email,
       });
 
@@ -276,7 +279,7 @@ const profileInitialSetupController = function (
             projectName: 'Orientation and Initial Setup',
           });
 
-          const newUser = new userProfile();
+          const newUser = new UserProfile();
           newUser.password = req.body.password;
           newUser.role = 'Volunteer';
           newUser.firstName = req.body.firstName;
@@ -334,7 +337,7 @@ const profileInitialSetupController = function (
             expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
           };
 
-          const token = jwt.sign(jwtPayload, JWT_SECRET);
+          const token1 = jwt.sign(jwtPayload, JWT_SECRET);
 
           const locationData = {
             title: '',
@@ -345,9 +348,9 @@ const profileInitialSetupController = function (
             isActive: true,
           };
 
-          res.send({ token }).status(200);
+          res.send({ token1 }).status(200);
 
-          const mapEntryResult = await setMapLocation(locationData);
+          const mapEntryResult = await MapLocation(locationData);
           if (mapEntryResult.type === 'Error') {
             console.log(mapEntryResult.message);
           }
@@ -389,7 +392,7 @@ const profileInitialSetupController = function (
         projectName: 'Orientation and Initial Setup',
       });
 
-      const newUser = new userProfile();
+      const newUser = new UserProfile();
       newUser.password = req.body.password;
       newUser.role = 'Volunteer';
       newUser.firstName = req.body.firstName;
@@ -504,7 +507,7 @@ const profileInitialSetupController = function (
   const getTotalCountryCount = async (req, res) => {
     try {
       const users = [];
-      const results = await userProfile.find({}, 'location totalTangibleHrs hoursByCategory');
+      const results = await UserProfile.find({}, 'location totalTangibleHrs hoursByCategory');
 
       results.forEach((item) => {
         if (
@@ -541,7 +544,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = [
+    const userPermissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
@@ -553,7 +556,7 @@ const profileInitialSetupController = function (
       role === 'Owner' ||
       role === 'Manager' ||
       role === 'Mentor' ||
-      user_permissions.some((e) => permissions.frontPermissions.includes(e))
+      userPermissions.some((e) => permissions.frontPermissions.includes(e))
     ) {
       try {
         ProfileInitialSetupToken.find({ isSetupCompleted: false })
@@ -647,7 +650,11 @@ const profileInitialSetupController = function (
         )
           .then((result) => {
             const { email } = result;
+            console.log(email);
+            LOGGER.logInfo(email);
             const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+            console.log(link);
+            LOGGER.logInfo(link);
             sendEmailWithAcknowledgment(
               email,
               'Invitation Link Refreshed: Complete Your One Community Profile Setup',
