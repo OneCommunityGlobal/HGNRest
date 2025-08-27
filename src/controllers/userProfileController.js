@@ -1735,14 +1735,19 @@ const userProfileController = function (UserProfile, Project) {
         ...req.body.blueSquare,
         date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
-        reason: ['missingHours', 'missingTimeEntry', 'missingSummary', 'other'].includes(
-          req.body.blueSquare.reason,
-        )
+        reason: [
+          'missingHours',
+          'missingTimeEntry',
+          'missingSummary',
+          'vacationTime',
+          'other',
+        ].includes(req.body.blueSquare.reason)
           ? req.body.blueSquare.reason
           : 'missingHours',
         // Maintain backward compatibility
         reasons: req.body.blueSquare.reasons || ['other'],
       };
+      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
 
       // req.body.blueSquare.reasons = ['other'];
 
@@ -1764,6 +1769,11 @@ const userProfileController = function (UserProfile, Project) {
       record
         .save()
         .then(async (results) => {
+          console.log(
+            '✅ Infringements saved in DB:',
+            JSON.stringify(results.infringements, null, 2),
+          );
+
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
