@@ -26,6 +26,7 @@ const convertObjectToArray = (obj) => {
 // helper to get the team members admin emails
 async function getUserRoleByEmail(user) {
   // replacement for jae's email
+  const testRecipients = ['test@test.com'];
   const recipients = ['test@test.com'];
   for (const teamId of user.teams) {
     const managementEmails = await userHelper.getTeamManagementEmail(teamId);
@@ -36,7 +37,8 @@ async function getUserRoleByEmail(user) {
     }
   }
 
-  return [...new Set(recipients)];
+  // return [...new Set(recipients)];
+  return [...new Set(testRecipients)]; // used for testing PR, will remove testRecipients and use recipients
 }
 
 // helper function to get the ordinal
@@ -56,7 +58,13 @@ const sendEmailToUser = (
   let ordinal = null;
   let mostWarnings = null;
   if (typeof size === 'object') {
-    mostWarnings = Math.max(...Object.values(size));
+    if (sendEmail === 'issue warning and blue square') {
+      mostWarnings = size['Removed Blue Square for Hours Close Enough'];
+    } else if (sendEmail === 'issue blue square and warning') {
+      mostWarnings = size['Removed Blue Square for No Summary'];
+    } else {
+      mostWarnings = Math.max(...Object.values(size));
+    }
     ordinal = getOrdinal(mostWarnings);
   } else {
     ordinal = getOrdinal(size);
@@ -64,82 +72,73 @@ const sendEmailToUser = (
 
   const currentUserName = `${userAssignedWarning.firstName} ${userAssignedWarning.lastName}`;
   let emailTemplate = null;
+  let subject = null;
 
   if (sendEmail === 'issue warning') {
+    subject = "IMPORTANT: Please read this email and take note so you don't get a blue square";
     emailTemplate = `<p>Hello ${currentUserName},</p>
-         <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, we <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
+         <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing and/or had to make the same change for you; <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
          <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
          <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them using this email if you have any questions.</p>
          <p>With Gratitude,</p>
          <p>One Community</p>`;
   } else if (sendEmail === 'issue blue square') {
+    subject = `IMPORTANT: You have been issued a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
-    <p>A blue square has been issued because this is the ${ordinal} time the Admin team has requested the same thing from you. Specifically, we <strong>${warningDescription}</strong>.</p>
+    <p>A blue square has been issued because this is the <strong>${ordinal}</strong> time the Admin team has requested the same thing and/or had to make the same change for you; <strong>${warningDescription}</strong>.</p>
     <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
     <p>One Community</p>`;
   } else if (sendEmail === 'issue two warnings blue square') {
+    subject = `IMPORTANT: You have been issued a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
-    <p>A blue square has been issued because this is the ${ordinal} time the Admin team has requested the same thing from you. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
+    <p>A blue square has been issued because this is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
     <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
     <p>One Community</p>`;
   } else if (sendEmail === 'issue two warnings') {
+    subject = `IMPORTANT: Please read this email and take note so you don’t get a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
-    <p>This is the ${ordinal} time the Admin team has taken the same actions due to you not following our company’s protocols. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
+    <p>This is the <strong>${ordinal}</strong> time the Admin team has taken the same actions due to you not following our company’s protocols. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
     <p>Please carefully review the previous communications you’ve received about this to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions, the Admin team is here to assist.</p>
     <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
     <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and will likely result in a blue square being issued if it happens again.</p>
     <p>The Admin member who issued this warning is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
     <p>One Community</p>`;
+  } else if (sendEmail === 'issue warning and blue square') {
+    subject = `IMPORTANT: You have been issued a blue square and a warning`;
+    emailTemplate = `<p>Hello ${currentUserName},</p>
+    <p>A blue square has been issued because this is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you, specifically, <strong>Removed Blue Square for Hours Close Enough</strong>. We have also issued a warning for reminding you repeatedly about <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) </p>
+    <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
+    <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
+    <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`;
+  } else if (sendEmail === 'issue blue square and warning') {
+    subject = `IMPORTANT: You have been issued a blue square and a warning`;
+    emailTemplate = `<p>Hello ${currentUserName},</p>
+    <p>A blue square has been issued because this is the <strong>${ordinal}</strong> time the Admin team has requested the same thing from you, specifically, <strong>Removed Blue Square for No Summary</strong>. We have also issued a warning for reminding you repeatedly about <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
+    <p>Moving forward, please ensure this is resolved. Repeated requests for the same thing require unnecessary administrative attention, will result in an additional blue square being issued, and could lead to termination.</p>
+    <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
+    <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
+    <p>With Gratitude,</p>
+    <p>One Community</p>`;
   }
 
-  if (sendEmail === 'issue warning') {
-    emailSender(
-      `${userAssignedWarning.email}`,
-      "IMPORTANT: Please read this email and take note so you don't get a blue square",
-      emailTemplate,
-      null,
-      null, // maybe move adminEmails to cc instead of bcc
-      null,
-      adminEmails.toString(), // this is the bcc off the email, adminEmails originally added as attachments, causing error
-    );
-  } else if (sendEmail === 'issue blue square') {
-    emailSender(
-      `${userAssignedWarning.email}`,
-      `IMPORTANT: You have been issued a blue square`,
-      emailTemplate,
-      null,
-      null,
-      null,
-      adminEmails.toString(), // this is the bcc off the email, adminEmails originally added as attachments, causing error
-    );
-  } else if (sendEmail === 'issue two warnings blue square') {
-    emailSender(
-      `${userAssignedWarning.email}`,
-      `IMPORTANT: You have been issued a blue square`,
-      emailTemplate,
-      null,
-      null,
-      null,
-      adminEmails.toString(), // this is the bcc off the email, adminEmails originally added as attachments, causing error
-    );
-  } else if (sendEmail === 'issue two warnings') {
-    emailSender(
-      `${userAssignedWarning.email}`,
-      `IMPORTANT: Please read this email and take note so you don’t get a blue square`,
-      emailTemplate,
-      null,
-      null,
-      null,
-      adminEmails.toString(), // this is the bcc off the email, adminEmails originally added as attachments, causing error
-    );
-  }
+  emailSender(
+    `${userAssignedWarning.email}`,
+    subject,
+    emailTemplate,
+    null,
+    adminEmails.toString(),
+    null,
+    null,
+  );
 };
 
 // gets the dsecriptions key from the array
@@ -172,9 +171,10 @@ const filterWarnings = (
   warnings,
   iconId = null,
   color = null,
-  issueBlueSquare = null,
+  issueBlueSquare = {},
 ) => {
   const warningsObject = {};
+  const blueSquareCount = Object.values(issueBlueSquare).filter(Boolean).length;
 
   let sendEmail = null;
   let size = null;
@@ -186,10 +186,18 @@ const filterWarnings = (
     warningsObject[warning.description].push(warning);
 
     if (!color && !iconId) {
-      if (!sendEmail && issueBlueSquare) {
-        sendEmail = 'issue two warnings blue square';
-      } else if (!sendEmail && !issueBlueSquare) {
-        sendEmail = 'issue two warnings';
+      if (!sendEmail) {
+        if (blueSquareCount === 2) {
+          sendEmail = 'issue two warnings blue square';
+        } else if (blueSquareCount === 1) {
+          if (issueBlueSquare['Blu Sq Rmvd - For No Summary'] === true) {
+            sendEmail = 'issue blue square and warning';
+          } else {
+            sendEmail = 'issue warning and blue square';
+          }
+        } else {
+          sendEmail = 'issue two warnings';
+        }
       }
     } else if (
       warningsObject[warning.description].length >= 3 &&
@@ -204,7 +212,7 @@ const filterWarnings = (
     }
   });
 
-  if (issueBlueSquare !== null) {
+  if (Object.keys(issueBlueSquare).length !== 0) {
     size = {
       'Removed Blue Square for No Summary': warningsObject['Blu Sq Rmvd - For No Summary'].length,
       'Removed Blue Square for Hours Close Enough':
@@ -338,11 +346,20 @@ const warningsController = function (UserProfile) {
         issueBlueSquare,
       );
 
+      let updatedDescription =
+        description === 'Blu Sq Rmvd - Hrs Close Enoug'
+          ? 'Removed Blue Square for Hours Close Enough'
+          : description;
+      updatedDescription =
+        updatedDescription === 'Blu Sq Rmvd - For No Summary'
+          ? 'Removed Blue Square for No Summary'
+          : updatedDescription;
+
       const adminEmails = await getUserRoleByEmail(record);
       if (sendEmail !== null) {
         sendEmailToUser(
           sendEmail,
-          description || null,
+          updatedDescription || null,
           userAssignedWarning,
           monitorData,
           size,
