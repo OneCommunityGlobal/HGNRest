@@ -5,6 +5,7 @@ const { hasPermission } = require('../utilities/permissions');
 const hgnFormController = function () {
   const submitFormResponse = async function (req, res) {
     const { userInfo, general, frontend, backend, followUp, user_id } = req.body;
+    
     if (!userInfo || !general || !frontend || !backend || !followUp || !user_id) {
       return res
         .status(400)
@@ -80,7 +81,9 @@ const hgnFormController = function () {
         ['frontend', 'backend'].forEach((section) => {
           Object.entries(user[section] || {}).forEach(([key, val]) => {
             const parsed = parseInt(val, 10);
-            if (!Number.isNaN(Number(parsed))) {
+
+            if (!Number.isNaN(parsed)) {
+
               allSkills.push({ skill: key, score: parsed });
             }
           });

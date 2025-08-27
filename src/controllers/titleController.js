@@ -1,11 +1,13 @@
-// const Team = require('../models/team');
+
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfileController = require('./userProfileController');
 const userProfile = require('../models/userProfile');
-const project = require('../models/project');
+const projectModel = require('../models/project');
 
-const controller = userProfileController(userProfile, project);
+
+const controller = userProfileController(userProfile, projectModel);
+
 const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
@@ -282,7 +284,7 @@ const titlecontroller = function (Title) {
         res.status(500).send(error);
       });
   };
-  // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
+
 
   return {
     getAllTitles,
