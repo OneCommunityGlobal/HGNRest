@@ -19,7 +19,7 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 
-const hgnFormResponses = require('../models/hgnFormResponses');
+const hgnFormResponses = require('../models/hgnFormResponse');
 
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
@@ -123,10 +123,7 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
-  hgnFormResponses,
-  userProfile,
-);
+const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
 
 const faqRouter = require('../routes/faqRouter');
 
@@ -210,6 +207,11 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
 const toolAvailability = require('../models/bmdashboard/toolAvailability');
 const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
   toolAvailability,
+);
+
+const projectCostTracking = require('../models/bmdashboard/projectCostTracking');
+const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrackingRouter')(
+  projectCostTracking,
 );
 
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
@@ -299,6 +301,7 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
+
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -343,11 +346,13 @@ module.exports = function (app) {
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
 
-
-  app.use('/api/bm', bmTimeLoggerRouter);  
+  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
+
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
