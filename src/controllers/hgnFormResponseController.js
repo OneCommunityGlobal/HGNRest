@@ -5,6 +5,7 @@ const { hasPermission } = require('../utilities/permissions');
 const hgnFormController = function () {
   const submitFormResponse = async function (req, res) {
     const { userInfo, general, frontend, backend, followUp, user_id } = req.body;
+    
     if (!userInfo || !general || !frontend || !backend || !followUp || !user_id) {
       return res
         .status(400)
@@ -62,12 +63,12 @@ const hgnFormController = function () {
       const responses = await FormResponse.find();
 
       const scoredUsers = responses.map((user) => {
-        let scoreList = [];
+        const scoreList = [];
 
         selectedSkills.forEach((skill) => {
           const [section, field] = skillMap[skill] || [];
           if (section && field && user[section]?.[field]) {
-            scoreList.push(parseInt(user[section][field]));
+            scoreList.push(parseInt(user[section][field], 10));
           }
         });
 
@@ -79,8 +80,8 @@ const hgnFormController = function () {
         const allSkills = [];
         ['frontend', 'backend'].forEach((section) => {
           Object.entries(user[section] || {}).forEach(([key, val]) => {
-            const parsed = parseInt(val);
-            if (!isNaN(parsed)) {
+            const parsed = parseInt(val, 10);
+            if (!Number.isNaN(parsed)) {
               allSkills.push({ skill: key, score: parsed });
             }
           });
