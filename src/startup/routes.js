@@ -123,9 +123,7 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
-  userProfile,
-);
+const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
 
 const faqRouter = require('../routes/faqRouter');
 
@@ -245,6 +243,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
@@ -366,6 +365,7 @@ module.exports = function (app) {
 
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+  app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);

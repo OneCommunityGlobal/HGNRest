@@ -281,11 +281,9 @@ const userSkillsProfileController = function (UserProfile) {
       .filter(word => word !== '' && word !== '\n' && word !== '\t').length; // remove empty strings and tabs/newlines
       */
       if (workWordCount < 20) {
-        return res
-          .status(403)
-          .json({
-            error: 'Please enter a minimum of Twenty words for followUp.mern_work_experience ',
-          });
+        return res.status(403).json({
+          error: 'Please enter a minimum of Twenty words for followUp.mern_work_experience ',
+        });
       }
 
       //

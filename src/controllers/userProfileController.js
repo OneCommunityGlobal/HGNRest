@@ -240,41 +240,40 @@ const userProfileController = function (UserProfile, Project) {
    */
   const getUserProfileBasicInfo = async function (req, res) {
     const inputUserId = req.query.userId;
-    console.log('before logger')
+    console.log('before logger');
     logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
-    if (inputUserId) 
-    {
-      try 
-      {
+    if (inputUserId) {
+      try {
         const cacheKey = `user_${inputUserId}`;
         const cachedUser = cache.getCache(cacheKey);
         if (cachedUser) {
           return res.status(200).send(JSON.parse(cachedUser));
         }
-        const user = await UserProfile.findById(inputUserId, '_id firstName lastName isActive startDate createdDate endDate');
+        const user = await UserProfile.findById(
+          inputUserId,
+          '_id firstName lastName isActive startDate createdDate endDate',
+        );
         if (!user) {
-          return res.status(404).send({error: "User Not found"});
-          
+          return res.status(404).send({ error: 'User Not found' });
         }
 
         cache.setCache(cacheKey, JSON.stringify(user));
         return res.status(200).send(user);
-        
+      } catch (error) {
+        return res.status(500).send({ error: 'Failed to fetch userProfile' });
       }
-      catch(error) {return res.status(500).send({"error":"Failed to fetch userProfile"});
-        }
-      }
-        
-    
+    }
+
     if (!(await checkPermission(req, 'getUserProfiles'))) {
       forbidden(res, 'You are not authorized to view all users');
       return;
     }
 
-      const userProfiles = await UserProfile.find(
-        {},
-        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
-      ).sort({
+    const userProfiles = await UserProfile.find(
+      {},
+      '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+    )
+      .sort({
         lastName: 1,
       })
       .then((results) => {
