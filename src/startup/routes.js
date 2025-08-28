@@ -23,6 +23,7 @@ const hgnFormResponses = require('../models/hgnFormResponse');
 
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
+const event = require('../models/event');
 const registration = require('../models/registration');
 const projectCost = require('../models/bmdashboard/projectCost');
 const userPreferences = require('../models/lbdashboard/userPreferences');
@@ -219,6 +220,7 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 
+const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
   userProfile,
@@ -369,6 +371,8 @@ module.exports = function (app) {
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api', eventRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
