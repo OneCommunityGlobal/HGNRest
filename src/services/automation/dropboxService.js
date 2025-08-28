@@ -220,7 +220,6 @@ async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFA
       folderName: userFolderName,
     };
   } catch (err) {
-    // console.error('Error in createFolderAndInvite:', err);
     if (userFolderPath) {
       // Try to clean up the created user folder
       try {
@@ -248,11 +247,8 @@ async function deleteFolder(folderId) {
   }
 
   try {
-    // console.log(`Deleting folder with ID: ${folderId}`);
-
     // Use folder_id for direct deletion (handles shared folders automatically)
     await dbx.filesDeleteV2({ path: folderId.trim() });
-    // console.log('Folder deleted successfully');
 
     return {
       success: true,
@@ -260,13 +256,6 @@ async function deleteFolder(folderId) {
       message: 'User folder deleted successfully',
     };
   } catch (err) {
-    // console.error('Error in deleteFolder:', {
-    //   message: err.message,
-    //   status: err.status,
-    //   error: err.error,
-    //   folder_id: folderId,
-    // });
-
     // Handle specific error cases
     if (err.status === 409) {
       const errorTag = err.error?.error?.['.tag'];
