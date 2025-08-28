@@ -587,12 +587,19 @@ const overviewReportHelper = function () {
       UserProfile.aggregate([
         {
           $unwind: {
-            path: '$infringementsNew',
+            path: '$infringements',
+          },
+        },
+        {
+          $addFields: {
+            'infringements.parsedDate': {
+              $toDate: '$infringements.date',
+            },
           },
         },
         {
           $match: {
-            'infringementsNew.createdDate': {
+            'infringements.parsedDate': {
               $gte: startDate,
               $lte: endDate,
             },
@@ -600,43 +607,65 @@ const overviewReportHelper = function () {
         },
         {
           $group: {
-            _id: '$infringementsNew.reason',
+            _id: '$infringements.reason',
             count: { $sum: 1 },
+          },
+        },
+        // regroup reasons of 'other' and 'null' together
+        {
+          $project: {
+            _id: {
+              $cond: {
+                if: {
+                  $or: [{ $eq: ['$_id', 'other'] }, { $eq: ['$_id', null] }],
+                },
+                then: 'other',
+                else: '$_id',
+              },
+            },
+            count: 1,
           },
         },
         {
           $group: {
-            _id: {
-              $cond: [
-                {
-                  $in: [
-                    '$_id',
-                    ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
-                  ],
-                },
-                '$_id',
-                'other',
-              ],
-            },
-            count: {
-              $sum: '$count',
-            },
+            _id: '$_id',
+            count: { $sum: '$count' },
           },
         },
       ]);
 
-    const currData = await getData(isoStartDate, isoEndDate);
+    const getTotalBlueSquares = async (startDate, endDate) =>
+      UserProfile.aggregate([
+        {
+          $unwind: {
+            path: '$infringements',
+          },
+        },
+        {
+          $addFields: {
+            'infringements.parsedDate': {
+              $toDate: '$infringements.date',
+            },
+          },
+        },
+        {
+          $match: {
+            'infringements.parsedDate': {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        },
+        {
+          $count: 'totalBlueSquares',
+        },
+      ]);
 
-    const currTotalInfringements = currData.reduce((total, item) => {
-      const currTotal = total + item.count;
-      return currTotal;
-    }, 0);
+    const currData = await getData(isoStartDate, isoEndDate);
+    const currTotalBlueSquares = await getTotalBlueSquares(isoStartDate, isoEndDate);
 
     const formattedData = currData.reduce((accum, item) => {
-      accum[item._id] = {
-        count: item.count,
-        percentageOutOfTotal: Math.round((item.count / currTotalInfringements) * 100) / 100,
-      };
+      accum[item._id] = { count: item.count };
       return accum;
     }, {});
 
@@ -650,25 +679,23 @@ const overviewReportHelper = function () {
     ];
     reasons.forEach((reason) => {
       if (!formattedData[reason]) {
-        formattedData[reason] = { count: 0, percentageOutOfTotal: 0 };
+        formattedData[reason] = { count: 0 };
       }
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalInfringements,
+      count: currTotalBlueSquares[0].totalBlueSquares,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
-      const comparisonData = await getData(isoComparisonStartDate, isoComparisonEndDate);
-
-      const comparisonTotalInfringements = comparisonData.reduce((total, item) => {
-        const currTotal = total + item.count;
-        return currTotal;
-      }, 0);
+      const comparisonTotalBlueSquares = await getTotalBlueSquares(
+        isoComparisonStartDate,
+        isoComparisonEndDate,
+      );
 
       formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
-        currTotalInfringements,
-        comparisonTotalInfringements,
+        currTotalBlueSquares[0].totalBlueSquares,
+        comparisonTotalBlueSquares[0].totalBlueSquares,
       );
     }
 

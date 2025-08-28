@@ -13,4 +13,6 @@ router.get('/:id', jobsController.getJobById);
 router.post('/', jobsController.createJob);
 router.put('/:id', jobsController.updateJob);
 router.delete('/:id', jobsController.deleteJob);
+router.post('/reorder', jobsController.reorderJobs);
+
 module.exports = router;
