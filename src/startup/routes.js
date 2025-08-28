@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved, import/no-extraneous-dependencies, import/extensions, import/no-cycle, import/order, import/no-self-import, import/no-useless-path-segments */
 const timeEntry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const project = require('../models/project');
@@ -151,6 +152,8 @@ const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')
   buildingConsumable,
 );
 const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter')();
+const costBreakdown = require('../models/bmdashboard/costBreakdown');
+const costBreakdownRouter = require('../routes/bmdashboard/costBreakdownRouter')(costBreakdown);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
   invTypeBase,
   materialType,
@@ -285,6 +288,7 @@ module.exports = function (app) {
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api/bm', bmExpenditureRouter);
+  app.use('/api', costBreakdownRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);

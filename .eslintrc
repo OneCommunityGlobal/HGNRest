@@ -22,8 +22,10 @@
   },
   "settings": {
     "import/resolver": {
-      "babel-module": {},
-    },
+      "babel-module": {
+        "root": "./src"
+      }
+    }
   },
   "overrides": [
     {
