@@ -12,7 +12,7 @@ const formController = function (Form, formResponse) {
       }
 
       // check if form already exists or not
-      let form_temp = await Form.find({ formName: formName });
+      const form_temp = await Form.find({ formName });
       if (form_temp.length > 0) {
         return res.status(400).json({ message: 'Form already exists with that name' });
       }
@@ -33,7 +33,7 @@ const formController = function (Form, formResponse) {
         message: 'Form created successfully',
         formID: savedForm.formID,
         id: savedForm._id,
-        formLink: 'hostname' + formLink,
+        formLink: `hostname${  formLink}`,
       });
     } catch (error) {
       console.error('Error creating form:', error);
@@ -57,7 +57,7 @@ const formController = function (Form, formResponse) {
         return res.status(400).json({ message: 'Invalid or inactive user ID' });
       }
 
-      let updateData = {};
+      const updateData = {};
 
       // Check if the form name is actually changing
       if (formName && formName !== existingForm.formName) {
@@ -71,9 +71,9 @@ const formController = function (Form, formResponse) {
         }
 
         let isDifferent = false;
-        let newQuestions = [];
+        const newQuestions = [];
 
-        for (let question of formQuestions) {
+        for (const question of formQuestions) {
           if (!question.label || typeof question.label !== 'string') {
             return res
               .status(400)
@@ -95,7 +95,7 @@ const formController = function (Form, formResponse) {
                 });
             }
 
-            for (let option of question.options) {
+            for (const option of question.options) {
               if (typeof option !== 'string' || option.trim() === '') {
                 return res
                   .status(400)
@@ -105,7 +105,7 @@ const formController = function (Form, formResponse) {
           }
 
           // Check if this question already exists in the database
-          let existingQuestion = existingForm.questions.find((q) => q.label === question.label);
+          const existingQuestion = existingForm.questions.find((q) => q.label === question.label);
 
           if (
             !existingQuestion ||
@@ -142,7 +142,7 @@ const formController = function (Form, formResponse) {
     try {
       // here id is the record Id of the form.
       const { id } = req.body;
-      let result = await Form.deleteOne({ _id: id });
+      const result = await Form.deleteOne({ _id: id });
       // Check if the form was actually deleted
       if (result.deletedCount === 0) {
         return res.status(400).json({ message: 'Error removing Form.' });
@@ -157,7 +157,7 @@ const formController = function (Form, formResponse) {
   const checkForResponse = async function (req, res) {
     try {
       const { formID, userID } = req.query;
-      let result = await formResponse.find({ formID: formID, submittedBy: userID });
+      const result = await formResponse.find({ formID, submittedBy: userID });
       if (result.length == 0) {
         return res.status(400).json({ message: 'No records Found' });
       }
@@ -169,7 +169,7 @@ const formController = function (Form, formResponse) {
 
   const getFormData = async function (req, res) {
     try {
-      const formID = req.query.formID;
+      const {formID} = req.query;
       // Check if formID is provided
       if (!formID) {
         return res.status(400).json({ message: 'Form ID is required.' });
@@ -191,9 +191,9 @@ const formController = function (Form, formResponse) {
 
       return res.status(200).json({
         message: 'Responses retrieved successfully',
-        formID: formID,
+        formID,
         formName: form.formName,
-        responses: responses,
+        responses,
       });
     } catch (error) {
       console.error('Error fetching form responses:', error);
@@ -355,7 +355,7 @@ const formController = function (Form, formResponse) {
         return res.status(404).json({ message: 'Form not found.' });
       }
 
-      let user = await userprofile.find({ _id: userId });
+      const user = await userprofile.find({ _id: userId });
       if (user[0].isActive === false || user === undefined || user === null || user.length === 0) {
         return res.status(400).json({ message: 'Invalid User' });
       }

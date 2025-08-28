@@ -1,5 +1,5 @@
-const logger = require('../../startup/logger');
 const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
 
 const bmFinancialController = function (BuildingProject, BuildingMaterial, BuildingTool) {
 
@@ -126,12 +126,12 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
 
     const getProjectsFinancialsByType = async (req, res) => {
         try {
-            const projectType = req.query.projectType;
+            const {projectType} = req.query;
 
             const projects = await BuildingProject.find({projectType});
 
             const results = await Promise.all(projects.map(async (project) => {
-                let materialsCost = 0, toolsCost = 0, laborCost = 0;
+                let materialsCost = 0; let toolsCost = 0; let laborCost = 0;
 
                 try {
                     materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);

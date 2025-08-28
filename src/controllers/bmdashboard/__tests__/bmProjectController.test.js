@@ -9,7 +9,7 @@ jest.mock('../../../models/bmdashboard/buildingProject', () => ({
 
 const mongoose = require('mongoose');
 const BuildingProject = require('../../../models/bmdashboard/buildingProject');
-const bmMProjectController = require('../../bmdashboard/bmProjectController');
+const bmMProjectController = require("../bmProjectController");
 
 describe('Building Manager Project Controller', () => {
   let req;
@@ -116,9 +116,7 @@ describe('Building Manager Project Controller', () => {
         errorCallback(mockError);
       });
 
-      const thenMock = jest.fn(() => {
-        return { catch: catchMock };
-      });
+      const thenMock = jest.fn(() => ({ catch: catchMock }));
 
       mockAggregate.mockReturnValue({
         then: thenMock,
@@ -185,17 +183,13 @@ describe('Building Manager Project Controller', () => {
         return { catch: catchMock };
       });
 
-      const execMock = jest.fn(() => {
-        return {
+      const execMock = jest.fn(() => ({
           then: thenMock,
-        };
-      });
+        }));
 
-      const populateMock = jest.fn(() => {
-        return {
+      const populateMock = jest.fn(() => ({
           exec: execMock,
-        };
-      });
+        }));
 
       mockFindById.mockReturnValue({
         populate: populateMock,
@@ -222,17 +216,11 @@ describe('Building Manager Project Controller', () => {
         errorCallback(mockError);
       });
 
-      const thenMock = jest.fn(() => {
-        return { catch: catchMock };
-      });
+      const thenMock = jest.fn(() => ({ catch: catchMock }));
 
-      const execMock = jest.fn(() => {
-        return { then: thenMock };
-      });
+      const execMock = jest.fn(() => ({ then: thenMock }));
 
-      const populateMock = jest.fn(() => {
-        return { exec: execMock };
-      });
+      const populateMock = jest.fn(() => ({ exec: execMock }));
 
       mockFindById.mockReturnValue({
         populate: populateMock,
