@@ -1,17 +1,20 @@
+
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfileController = require('./userProfileController');
 const userProfile = require('../models/userProfile');
 const projectModel = require('../models/project');
 
+
 const controller = userProfileController(userProfile, projectModel);
+
 const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
   const cache = cacheClosure();
 
   // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
-  async function checkTeamCodeExists(teamCode) {
+  /* async function checkTeamCodeExists(teamCode) {
     try {
       const teamCodes = await getAllTeamCodeHelper();
       return teamCodes.includes(teamCode);
@@ -19,9 +22,9 @@ const titlecontroller = function (Title) {
       console.error('Error checking if team code exists:', error);
       throw error;
     }
-  }
+  } */
 
-  async function checkProjectExists(projectID) {
+  /* async function checkProjectExists(projectID) {
     try {
       const proj = await Project.findOne({ _id: projectID }).exec();
       return !!proj;
@@ -29,8 +32,29 @@ const titlecontroller = function (Title) {
       console.error('Error checking if project exists:', error);
       throw error;
     }
+  } */
+  async function checkTeamCodeExists(teamCode) {
+    try {
+      if (cache.getCache('teamCodes')) {
+        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+        return teamCodes.includes(teamCode);
+      }
+      const teamCodes = await getAllTeamCodeHelper();
+      return teamCodes.includes(teamCode);
+    } catch (error) {
+      console.error('Error checking if team code exists:', error);
+      throw error;
+    }
   }
-
+  async function checkProjectExists(projectID) {
+    try {
+      const Foundproject = await Project.findOne({ _id: projectID }).exec();
+      return !!Foundproject;
+    } catch (error) {
+      console.error('Error checking if project exists:', error);
+      throw error;
+    }
+  }
   const getAllTitles = function (req, res) {
     Title.find({})
       .sort('order')
@@ -260,6 +284,7 @@ const titlecontroller = function (Title) {
         res.status(500).send(error);
       });
   };
+
 
   return {
     getAllTitles,
