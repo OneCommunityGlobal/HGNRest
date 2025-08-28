@@ -17,4 +17,10 @@ module.exports = {
   },
   moduleDirectories: ['node_modules', 'src'],
   modulePaths: ['<rootDir>/src'],
+  moduleNameMapper: {
+    '^models/(.*)$': '<rootDir>/src/models/$1',
+    '^controllers/(.*)$': '<rootDir>/src/controllers/$1',
+    '^routes/(.*)$': '<rootDir>/src/routes/$1',
+    '^startup/(.*)$': '<rootDir>/src/startup/$1',
+  },
 };
