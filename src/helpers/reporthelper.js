@@ -23,7 +23,6 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
-
     const pstStart = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
@@ -173,13 +172,8 @@ const reporthelper = function () {
           result.totalSeconds[index] = 0;
         }
 
-        if (entry.isTangible === true) {
+        if (entry.isTangible === true && index >= 0 && index < 4) {
           result.totalSeconds[index] += entry.totalSeconds;
-          if (index >= 0 && index < 4) {
-            if (entry.isTangible === true) {
-              result.totalSeconds[index] += entry.totalSeconds;
-            }
-          }
         }
       });
 
