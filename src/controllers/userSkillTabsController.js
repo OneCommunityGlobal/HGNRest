@@ -40,12 +40,10 @@ const userSkillTabsController = (HgnFormResponses) => {
     }
   };
 
-  const buildResponse = (data, fields) => {
-    return Object.entries(fields).map(([label, [section, key]]) => ({
+  const buildResponse = (data, fields) => Object.entries(fields).map(([label, [section, key]]) => ({
       label,
       score: parseScore(data?.[section]?.[key])
     }));
-  };
 
   const dashboard = async (req, res) => {
     try {
@@ -67,7 +65,7 @@ const userSkillTabsController = (HgnFormResponses) => {
   };
 
   return {
-    dashboard: dashboard,
+    dashboard,
     frontend: async (req, res) => {
       const data = await HgnFormResponses.findOne({ user_id: req.params.userId }).lean();
       if (!data) return res.status(404).json({ error: 'User not found' });

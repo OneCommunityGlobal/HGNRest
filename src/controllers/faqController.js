@@ -1,7 +1,7 @@
-const FAQ = require('../models/faqs');
-const UnansweredFAQ = require('../models/unansweredFaqs');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const FAQ = require('../models/faqs');
+const UnansweredFAQ = require('../models/unansweredFaqs');
 const config = require('../config');
 const Role = require('../models/role');
 const UserProfile = require('../models/userProfile');
@@ -9,7 +9,7 @@ const emailSender = require('../utilities/emailSender');
 
 const verifyToken = async (req) => {
     console.log("Verifying token...");
-    const token = req.headers['authorization'];
+    const token = req.headers.authorization;
     if (!token) {
         console.log("No token provided in the request headers.");
         throw new Error('No token provided');
