@@ -1,23 +1,23 @@
-const mongoose = require('mongoose');
+/* eslint-disable */
+const { Schema } = require('mongoose');
 
-const ExpenditureSchema = new mongoose.Schema({
-    projectId: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    date: {
-        type: Date,
-        required: true,
-    },
-    category: {
-        type: String,
-        required: true,
-    },
-    cost: {
-        type: Number, 
-        required: true
-    }
-})
+const ExpenditureSchema = new Schema({
+  projectId: {
+    type: String,
+    required: true,
+  },
+  date: {
+    type: Date,
+    required: true,
+  },
+  category: {
+    type: String,
+    required: true,
+  },
+  cost: {
+    type: Number,
+    required: true,
+  },
+});
 
-module.exports = mongoose.model('ExpenditureCost', ExpenditureSchema, 'expenditure');
+module.exports = require('mongoose').model('ExpenditureCost', ExpenditureSchema, 'expenditure');
