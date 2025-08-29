@@ -246,6 +246,7 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
+const questionSetRouter = require('../routes/questionSetRouter');
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -305,6 +306,7 @@ module.exports = function (app) {
 
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
+  app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
