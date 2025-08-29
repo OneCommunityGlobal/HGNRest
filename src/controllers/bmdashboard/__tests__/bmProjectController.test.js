@@ -7,9 +7,9 @@ jest.mock('../../../models/bmdashboard/buildingProject', () => ({
   findById: mockFindById,
 }));
 
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const BuildingProject = require('../../../models/bmdashboard/buildingProject');
-const bmMProjectController = require('../../bmdashboard/bmProjectController');
+const bmMProjectController = require('../bmProjectController');
 
 describe('Building Manager Project Controller', () => {
   let req;
@@ -184,12 +184,12 @@ describe('Building Manager Project Controller', () => {
       });
 
       const execMock = jest.fn(() => ({
-          then: thenMock,
-        }));
+        then: thenMock,
+      }));
 
       const populateMock = jest.fn(() => ({
-          exec: execMock,
-        }));
+        exec: execMock,
+      }));
 
       mockFindById.mockReturnValue({
         populate: populateMock,

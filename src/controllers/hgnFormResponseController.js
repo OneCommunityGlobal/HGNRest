@@ -21,7 +21,7 @@ const hgnFormController = function () {
       await formResponse.save();
       res.status(201).json(formResponse);
     } catch (err) {
-      res.status(500).json({ error: `Failed to create formResponse: ${  err.message}` });
+      res.status(500).json({ error: `Failed to create formResponse: ${err.message}` });
     }
   };
 
@@ -60,7 +60,7 @@ const hgnFormController = function () {
         selectedSkills.forEach((skill) => {
           const [section, field] = skillMap[skill] || [];
           if (section && field && user[section]?.[field]) {
-            scoreList.push(parseInt(user[section][field]));
+            scoreList.push(parseInt(user[section][field], 10));
           }
         });
 
@@ -72,8 +72,8 @@ const hgnFormController = function () {
         const allSkills = [];
         ['frontend', 'backend'].forEach((section) => {
           Object.entries(user[section] || {}).forEach(([key, val]) => {
-            const parsed = parseInt(val);
-            if (!isNaN(parsed)) {
+            const parsed = parseInt(val, 10);
+            if (!Number.isNaN(parsed)) {
               allSkills.push({ skill: key, score: parsed });
             }
           });

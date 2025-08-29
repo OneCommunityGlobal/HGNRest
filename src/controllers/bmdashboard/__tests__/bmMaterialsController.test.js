@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+// const { MongoMemoryServer } = require('mongodb-memory-server');
 const bmMaterialsController = require('../bmMaterialsController');
 
 // Mock mongoose models
@@ -44,16 +44,16 @@ describe('bmMaterialsController', () => {
       const mockResults = [{ name: 'Cement', quantity: 100 }];
       // Fix the chaining of populate calls
       mockPopulate.mockImplementation(() => ({
-          populate: mockPopulate,
-          exec () {
-            return {
-              then (callback) {
-                callback(mockResults);
-                return { catch: mockCatch };
-              },
-            };
-          },
-        }));
+        populate: mockPopulate,
+        exec() {
+          return {
+            then(callback) {
+              callback(mockResults);
+              return { catch: mockCatch };
+            },
+          };
+        },
+      }));
 
       const req = {};
       const res = {
@@ -73,10 +73,10 @@ describe('bmMaterialsController', () => {
     it('should handle errors during fetch', async () => {
       const mockError = new Error('Database error');
       mockThen.mockImplementation(() => ({
-          catch (callback) {
-            callback(mockError);
-          },
-        }));
+        catch(callback) {
+          callback(mockError);
+        },
+      }));
 
       const req = {};
       const res = {
@@ -96,11 +96,11 @@ describe('bmMaterialsController', () => {
     it('should create a new material if not found', async () => {
       mockFindOne.mockResolvedValue(null);
       mockCreate.mockImplementation(() => ({
-          then (callback) {
-            callback();
-            return { catch: jest.fn() };
-          },
-        }));
+        then(callback) {
+          callback();
+          return { catch: jest.fn() };
+        },
+      }));
 
       const req = {
         body: {
@@ -197,7 +197,7 @@ describe('bmMaterialsController', () => {
   describe('bmPostMaterialUpdateRecord', () => {
     it('should update material stock and add update record', async () => {
       mockUpdateOne.mockReturnValue({
-        then (callback) {
+        then(callback) {
           callback({ nModified: 1 });
           return { catch: jest.fn() };
         },
