@@ -1,6 +1,8 @@
 // Expense Routes
 const express = require('express');
-const { getExpensesByProject } = require('../../controllers/bmdashboard/bmActualVsPlannedCostController')
+const {
+  getExpensesByProject,
+} = require('../../controllers/bmdashboard/bmActualVsPlannedCostController');
 
 const router = express.Router();
 
