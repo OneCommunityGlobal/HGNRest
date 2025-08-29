@@ -5,22 +5,33 @@ const config = require('../config');
 
 const interactWithGPT = async (req, res) => {
   try {
-    // Access your API key as an environment variable
-    const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
-    // For text-only input, use the gemini-pro model
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const apiKey = config.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server' });
+    }
 
-    const prompt = req.body.prompt || 'Inform the user to send a prompt';
+    const rawPrompt = (req.body && req.body.prompt) || '';
+    const prompt = String(rawPrompt).trim();
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
 
-    // Generate content using the model
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Prefer a broadly-available model; fall back if needed
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = await response.text();
 
-    res.json({ text });
+    return res.status(200).json({ text: String(text || '').trim() });
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    // Provide more actionable diagnostics to the client
+    const status = error?.response?.status || 500;
+    const message =
+      error?.response?.data?.error || error?.message || 'Unknown error calling Gemini API';
+    console.error('interactWithGPT error:', message);
+    return res.status(status === 200 ? 500 : status).json({ error: message });
   }
 };
 
