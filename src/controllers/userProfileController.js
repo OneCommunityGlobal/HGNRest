@@ -1732,7 +1732,12 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
-      req.body.blueSquare.reasons = ['other'];
+      // set default reason to "other" if not provided
+      let { reasons } = req.body.blueSquare || {};
+      if (!Array.isArray(reasons)) reasons = reasons ? [reasons] : ['other'];
+      req.body.blueSquare.reasons = [
+        ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
+      ]; // clean and add
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
