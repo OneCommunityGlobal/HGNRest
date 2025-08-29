@@ -60,6 +60,7 @@ const permissionsRoles = [
       'editInfringements',
       'deleteInfringements',
       'manageAdminLinks',
+      'infringementAuthorizer',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'updateSummaryRequirements',

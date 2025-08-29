@@ -203,7 +203,7 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingMaterialModel,
   buildingToolModel,
 );
-
+const GPTRouter = require('../routes/aiGPTRouter')();
 const toolAvailability = require('../models/bmdashboard/toolAvailability');
 const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
   toolAvailability,
@@ -324,6 +324,8 @@ module.exports = function (app) {
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
 
+  app.use('/api', GPTRouter);
+  app.use('/api', blueSquareEmailAssignmentRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
