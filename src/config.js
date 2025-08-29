@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const config = {};
+
 config.JWT_SECRET = process.env.JWT_SECRET;
 config.REQUEST_AUTHKEY = 'Authorization';
 config.TOKEN = {
@@ -12,4 +13,5 @@ config.JWT_HEADER = {
   typ: 'JWT',
 };
 
+config.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 module.exports = config;
