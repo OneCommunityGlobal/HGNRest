@@ -1,10 +1,13 @@
-const mongoose = require('mongoose');
+const { Schema, model } = require('mongoose');
 
-const applicationSchema = new mongoose.Schema({
-  country: { type: String, required: true },
-  role: { type: String, required: true },
-  timestamp: { type: Date, required: true },
-  numberOfApplicants: { type: Number, required: true },
-});
+const applicationSchema = new Schema(
+  {
+    country: { type: String, required: true },
+    role: { type: String, required: true },
+    timestamp: { type: Date, required: true, index: true },
+    numberOfApplicants: { type: Number, required: true, default: 1 },
+  },
+  { timestamps: true },
+);
 
-module.exports = mongoose.model('Application', applicationSchema);
+module.exports = model('Application', applicationSchema);
