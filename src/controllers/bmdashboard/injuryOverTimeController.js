@@ -2,18 +2,6 @@ const mongoose = require('mongoose');
 const InjuryOverTime = require('../../models/bmdashboard/buildingInjuryOverTime');
 
 exports.getInjuryOverTime = async (req, res) => {
-  // try {
-  //   const injuries = await InjuryOverTime.find().lean().exec();
-
-  //   const resInjuries = injuries.map(injury => ({
-  //       projectId: injury.projectId,
-  //       date: injury.date,
-  //       injuryType: injury.injuryType,
-  //       workerCategory: injury.workerCategory,
-  //       severity: ix,
-  //       count:
-  //   }))
-
   try {
     const { projectIds, startDate, endDate, types, departments, severities } = req.query;
 
@@ -57,6 +45,7 @@ exports.getInjuryOverTime = async (req, res) => {
             department: '$department',
           },
           count: { $sum: '$count' },
+          date: { $first: '$date' },
         },
       },
       {
@@ -66,6 +55,7 @@ exports.getInjuryOverTime = async (req, res) => {
           severity: '$_id.severity',
           injuryType: '$_id.injuryType',
           department: '$_id.department',
+          date: 1,
           count: 1,
         },
       },
