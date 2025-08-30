@@ -251,7 +251,6 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
-const tagRouter = require('../routes/tagRouter')(tag);
 const jobAnalyticsRoute = require('../routes/jobAnalytics');
 const templateRouter = require('../routes/templateRouter');
 
@@ -259,7 +258,8 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
-// const tagRouter = require('../routes/tagRouter')(tag);
+const tagRouter = require('../routes/tagRouter')(tag);
+const jobAnalyticsRoute = require('../routes/jobAnalytics');
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
