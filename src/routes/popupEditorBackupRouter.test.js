@@ -1,3 +1,4 @@
+
 const request = require('supertest');
 const { jwtPayload } = require('../test');
 const { app } = require('../app');
@@ -13,7 +14,7 @@ const agent = request.agent(app);
 
 // TODO: Fix
 describe('PopupEditorBackups tests', () => {
-  it("Fix this test suite", () => {})
+  test.todo('Fix this test suite');
 });
 
 // describe('PopupEditorBackups routes', () => {

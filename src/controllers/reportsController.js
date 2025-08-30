@@ -4,10 +4,21 @@ const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
+const cacheModule = require('../utilities/nodeCache');
+
+const cacheUtil = cacheModule();
 
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
   const reporthelper = reporthelperClosure();
+
+  const invalidateWeeklySummariesCache = (weekIndex) => {
+    const cacheKey = `weeklySummaries_${weekIndex}`;
+    cacheUtil.removeCache(cacheKey);
+
+    // Also invalidate the "all weeks" cache
+    cacheUtil.removeCache('weeklySummaries_all');
+  };
 
   /**
    * Aggregates the trend data for volunteer count
@@ -70,8 +81,8 @@ const reportsController = function () {
       isoComparisonEndDate = new Date(comparisonEndDate);
     }
 
-    const isoStartDate = new Date(startDate);
-    const isoEndDate = new Date(endDate);
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
 
     try {
       const [
@@ -201,14 +212,68 @@ const reportsController = function () {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
+    // Extract forceRefresh parameter
+    const forceRefresh = req.query.forceRefresh === 'true';
+    // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
+    const week = req.query.week !== undefined ? parseInt(req.query.week, 10) : null;
 
-    reporthelper
-      .weeklySummaries(3, 0)
-      .then((results) => {
-        const summaries = reporthelper.formatSummaries(results);
-        res.status(200).send(summaries);
-      })
-      .catch((error) => res.status(404).send(error));
+    // Generate cache key based on week
+    const cacheKey = `weeklySummaries_${week !== null ? week : 'all'}`;
+    // console.log(`Request for week: ${week}, checking cache: ${cacheKey}, forceRefresh: ${forceRefresh}`);
+
+    // Check if we have cached data and aren't forcing a refresh
+    if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
+      // console.log(`Cache hit for ${cacheKey}, serving from cache`);
+      return res.status(200).send(cacheUtil.getCache(cacheKey));
+    }
+    // if (forceRefresh) {
+    //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
+    // } else {
+    //   console.log(`Cache miss for ${cacheKey}, fetching from database`);
+    // }
+    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
+      res.status(403).send('You are not authorized to view all users');
+      return;
+    }
+
+    // Determine cache duration based on week
+    let cacheTTL = 3600; // 1 hour default
+    if (week === 0) {
+      cacheTTL = 120; // 2 minutes for current week
+    } else if (week === 1) {
+      cacheTTL = 3600; // 1 hour for last week
+    } else if (week >= 2) {
+      cacheTTL = 86400; // 24 hours for older weeks
+    }
+
+    try {
+      let results;
+      let summaries;
+
+      if (week !== null) {
+        // Get data for only the requested week
+        results = await reporthelper.weeklySummaries(week, week);
+        summaries = reporthelper.formatSummaries(results);
+      } else {
+        // Get all weeks as before
+        results = await reporthelper.weeklySummaries(3, 0);
+        summaries = reporthelper.formatSummaries(results);
+      }
+
+      // Cache the results
+      cacheUtil.setCache(cacheKey, summaries);
+      cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+
+      res.set('Cache-Control', `public, max-age=${cacheTTL}`);
+      res.set(
+        'ETag',
+        require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
+      );
+
+      res.status(200).send(summaries);
+    } catch (error) {
+      res.status(404).send(error);
+    }
   };
 
   /**
@@ -553,6 +618,7 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    invalidateWeeklySummariesCache,
   };
 };
 
