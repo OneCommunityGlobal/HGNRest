@@ -1,4 +1,3 @@
-/* eslint-disable */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 
@@ -21,9 +20,9 @@ const warningsController = function (UserProfile) {
       if (!warnings) {
         return res.status(400).send({ message: 'no valiud records' });
       }
-      res.status(201).send({ warnings: completedData });
+      return res.status(201).send({ warnings: completedData });
     } catch (error) {
-      res.status(401).send({ message: error.message || error });
+      return res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -38,19 +37,20 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'No valid records found' });
       }
 
-      const updatedWarnings = await userProfile.findByIdAndUpdate(
-        {
-          _id: userId,
-        },
-        { $push: { warnings: { userId, iconId, color, date, description } } },
-        { new: true, upsert: true },
-      );
+      record.warnings = record.warnings.concat({
+        userId,
+        iconId,
+        color,
+        date,
+        description,
+      });
+      await record.save();
 
-      const completedData = filterWarnings(updatedWarnings.warnings);
+      const completedData = filterWarnings(record.warnings);
 
-      res.status(201).send({ message: 'success', warnings: completedData });
+      return res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
-      res.status(400).send({ message: error.message || error });
+      return res.status(400).send({ message: error.message || error });
     }
   };
 
@@ -70,9 +70,9 @@ const warningsController = function (UserProfile) {
       }
 
       const sortedWarnings = filterWarnings(warnings.warnings);
-      res.status(201).send({ message: 'succesfully deleted', warnings: sortedWarnings });
+      return res.status(201).send({ message: 'succesfully deleted', warnings: sortedWarnings });
     } catch (error) {
-      res.status(401).send({ message: error.message || error });
+      return res.status(401).send({ message: error.message || error });
     }
   };
 
@@ -119,6 +119,7 @@ const sortByColorAndDate = (a, b) => {
 };
 
 const filterWarnings = (warnings) => {
+  if (!warnings) return [];
   const warningsObject = {};
 
   warnings.forEach((warning) => {
