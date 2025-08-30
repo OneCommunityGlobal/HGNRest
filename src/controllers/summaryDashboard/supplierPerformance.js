@@ -4,32 +4,39 @@ const logger = require('../../startup/logger');
 
 const supplierPerformanceController = function () {
   /**
-   * Get all supplier performance records for a specific project and date range
+   * Get supplier performance records for a specific project and date range, or all projects
    */
   const getSupplierPerformance = async function (req, res) {
     try {
       const { projectId, startDate, endDate } = req.query;
 
-      if (!projectId || !startDate || !endDate) {
-        return res.status(400).send('Missing required query parameters: projectId, startDate, endDate');
+      if (!startDate || !endDate) {
+        return res.status(400).send('Missing required query parameters: startDate, endDate');
       }
 
       const start = new Date(startDate);
       const end = new Date(endDate);
 
-      // Debug: Check if any records exist for this project
-      const allRecords = await SupplierPerformance.find({ projectId: mongoose.Types.ObjectId(projectId) });
-      console.log('All records for project:', allRecords.length);
+      // Build match criteria - if projectId is not provided or is 'all', get data for all projects
+      const matchCriteria = {
+        startDate: { $lte: end },
+        endDate: { $gte: start },
+      };
+
+      if (projectId && projectId !== 'all') {
+        matchCriteria.projectId = mongoose.Types.ObjectId(projectId);
+        console.log('Fetching data for specific project:', projectId);
+      } else {
+        console.log('Fetching data for all projects');
+      }
+
       console.log('Query params:', { projectId, startDate, endDate, start, end });
+      console.log('Match criteria:', matchCriteria);
 
       // MongoDB Aggregation Pipeline
       const supplierData = await SupplierPerformance.aggregate([
         {
-          $match: {
-            projectId: mongoose.Types.ObjectId(projectId),
-            startDate: { $lte: end },
-            endDate: { $gte: start }
-          },
+          $match: matchCriteria,
         },
         {
           $group: {
@@ -55,6 +62,37 @@ const supplierPerformanceController = function () {
   };
 
   /**
+   * Get all unique projects that have supplier performance data
+   */
+  const getProjectsWithSupplierData = async function (req, res) {
+    try {
+      console.log('Fetching projects with supplier performance data');
+
+      // Get distinct project IDs from supplier performance records only
+      const projectsWithData = await SupplierPerformance.aggregate([
+        {
+          $group: {
+            _id: '$projectId',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            projectId: '$_id',
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+
+      console.log(`Found ${projectsWithData.length} projects with supplier data`);
+      res.status(200).send(projectsWithData);
+    } catch (error) {
+      logger.logException(error);
+      res.status(500).send('Error fetching projects with supplier data. Please try again.');
+    }
+  };
+
+  /**
    * Add a new supplier performance record
    */
   const postSupplierPerformance = async function (req, res) {
@@ -62,7 +100,11 @@ const supplierPerformanceController = function () {
       const { supplierName, onTimeDeliveryPercentage, projectId, startDate, endDate } = req.body;
 
       if (!supplierName || !onTimeDeliveryPercentage || !projectId || !startDate || !endDate) {
-        return res.status(400).send('All fields are required: supplierName, onTimeDeliveryPercentage, projectId, startDate, endDate');
+        return res
+          .status(400)
+          .send(
+            'All fields are required: supplierName, onTimeDeliveryPercentage, projectId, startDate, endDate',
+          );
       }
 
       const newRecord = new SupplierPerformance({
@@ -92,7 +134,9 @@ const supplierPerformanceController = function () {
         return res.status(400).send('Project ID is required.');
       }
 
-      const result = await SupplierPerformance.deleteMany({ projectId: mongoose.Types.ObjectId(projectId) });
+      const result = await SupplierPerformance.deleteMany({
+        projectId: mongoose.Types.ObjectId(projectId),
+      });
 
       if (result.deletedCount > 0) {
         res.status(200).send(`Successfully deleted ${result.deletedCount} record(s).`);
@@ -107,6 +151,7 @@ const supplierPerformanceController = function () {
 
   return {
     getSupplierPerformance,
+    getProjectsWithSupplierData,
     postSupplierPerformance,
     deleteSupplierPerformanceByProject,
   };

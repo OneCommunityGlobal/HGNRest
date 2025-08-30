@@ -5,15 +5,17 @@ const routes = function () {
   const supplierPerformanceRouter = express.Router();
 
   // Route to get supplier performance for a project in a specific date range
-  supplierPerformanceRouter.route('/performance')
-    .get(controller.getSupplierPerformance);
+  supplierPerformanceRouter.route('/performance').get(controller.getSupplierPerformance);
+
+  // Route to get all projects that have supplier performance data
+  supplierPerformanceRouter.route('/projects').get(controller.getProjectsWithSupplierData);
 
   // Route to add a new supplier performance record
-  supplierPerformanceRouter.route('/performance')
-    .post(controller.postSupplierPerformance);
+  supplierPerformanceRouter.route('/performance').post(controller.postSupplierPerformance);
 
   // Route to delete all supplier performance records for a specific project
-  supplierPerformanceRouter.route('/performance/:projectId')
+  supplierPerformanceRouter
+    .route('/performance/:projectId')
     .delete(controller.deleteSupplierPerformanceByProject);
 
   return supplierPerformanceRouter;
