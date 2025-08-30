@@ -1,5 +1,5 @@
 const Job = require('../models/jobs'); // Import the Job model
-
+const JobPositionCategory = require('../models/jobPositionCategory');
 // Controller to fetch all jobs with pagination, search, and filtering
 const getJobs = async (req, res) => {
   console.log('getJobs');
@@ -14,24 +14,60 @@ const getJobs = async (req, res) => {
     console.log(`limitNumber ${limitNumber}`);
 
     // Build query object
-    const query = {};
+    // const query = {};
+    const conditions = [];
+    const [allCategories, allPositions] = await Promise.all([
+      JobPositionCategory.distinct('category'),
+      JobPositionCategory.distinct('position'),
+    ]);
+
     if (search) {
       const searchString = String(search);
+      conditions.push({
+        $or: [
+          { title: { $regex: new RegExp(searchString, 'i') } },
+          { description: { $regex: new RegExp(searchString, 'i') } },
+        ],
+      });
 
-      query.$or = [
+      console.log(
+        JSON.stringify(
+          conditions,
+          (value) => {
+            if (value instanceof RegExp) {
+              return value.toString(); // shows as "/pattern/i"
+            }
+            return value;
+          },
+          2,
+        ),
+      );
+      /* query.$or = [
         { title: { $regex: new RegExp(searchString, 'i') } },
         { description: { $regex: new RegExp(searchString, 'i') } },
-      ];
+      ]; */
     } // Case-insensitive search
 
-    if (position) query.title = position;
+    // if (position) query.title = position;
 
-    if (category) query.category = category;
+    // if (category) query.category = category;
+    if (position) conditions.push({ title: { $in: [position] } });
 
+    if (category) conditions.push({ category: { $in: [category] } });
+
+    console.log(allCategories);
+    console.log(allPositions);
+    if (allCategories.length) conditions.push({ category: { $in: allCategories } });
+    if (allPositions.length) conditions.push({ title: { $in: allPositions } });
+    console.log(conditions);
+    // console.log("above validCategories");
+    // Final query
+
+    const query = conditions.length ? { $and: conditions } : {};
     console.log('query from getJobs');
-    console.log(query);
-    // Fetch total count for pagination metadata
+    console.log('Final Query:', JSON.stringify(query, null, 2));
     const totalJobs = await Job.countDocuments(query);
+    console.log(` totalJobs is ${totalJobs}`);
 
     const totalPages = Math.ceil(totalJobs / 20);
     console.log(` totalPages is ${totalPages}`);
@@ -59,6 +95,35 @@ const getJobs = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
   }
+  // Fetch total count for pagination metadata
+  /* const totalJobs = await Job.countDocuments(query);
+
+    const totalPages = Math.ceil(totalJobs / 20);
+    console.log(` totalPages is ${totalPages}`);
+
+    let pageNum;
+    if (pageNumber > totalPages) pageNum = 1;
+    else pageNum = pageNumber;
+    // Fetch paginated results
+    const jobs = await Job.find(query)
+      .skip((pageNum - 1) * limitNumber)
+      .limit(limitNumber);
+
+    // Prepare response
+    res.json({
+      jobs,
+      pagination: {
+        totalJobs,
+        totalPages: Math.ceil(totalJobs / limitNumber),
+        currentPage: pageNumber,
+        limit: limitNumber,
+        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
+        hasPreviousPage: pageNumber > 1,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+  } */
 };
 
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
@@ -179,9 +244,12 @@ const resetJobsFilters = async (req, res) => {
 };
 
 const getCategories = async (req, res) => {
+  console.log('getCategories');
+  console.log(JobPositionCategory);
   try {
-    const categories = await Job.distinct('category', {});
-
+    //    const categories = await Job.distinct('category', {});
+    const categories = await JobPositionCategory.distinct('category', {});
+    console.log(categories);
     // Sort categories alphabetically
     categories.sort((a, b) => a.localeCompare(b));
 
@@ -194,7 +262,7 @@ const getCategories = async (req, res) => {
 const getPositions = async (req, res) => {
   console.log('getPositions');
   try {
-    const positions = await Job.distinct('title', {});
+    const positions = await JobPositionCategory.distinct('position', {});
 
     // Sort categories alphabetically
     positions.sort((a, b) => a.localeCompare(b));
