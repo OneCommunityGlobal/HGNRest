@@ -185,13 +185,8 @@ const reporthelper = function () {
           result.totalSeconds[index] = 0;
         }
 
-        if (entry.isTangible === true) {
+        if (entry.isTangible === true && index >= 0 && index < 4) {
           result.totalSeconds[index] += entry.totalSeconds;
-          if (index >= 0 && index < 4) {
-            if (entry.isTangible === true) {
-              result.totalSeconds[index] += entry.totalSeconds;
-            }
-          }
         }
       });
 

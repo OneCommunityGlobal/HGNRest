@@ -15,7 +15,6 @@ const LOGGER = require('../startup/logger');
 
 const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
 const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
-const TOKEN_INVALID_MESSAGE = 'INVALID';
 const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
 const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
 const { startSession } = mongoose;
@@ -116,9 +115,13 @@ function informManagerMessage(user) {
 
 const sendEmailWithAcknowledgment = (email, subject, message) =>
   new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, null)
-      .then(resolve)
-      .catch(reject);
+    emailSender(email, subject, message, null, null, null, (error, result) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(result);
+      }
+    });
   });
 
 const profileInitialSetupController = function (
@@ -161,8 +164,7 @@ const profileInitialSetupController = function (
         return res.status(400).send('email already in use');
       }
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email })
-        .session(session);
+      await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -174,9 +176,7 @@ const profileInitialSetupController = function (
         createdDate: Date.now(),
       });
 
-      const savedToken = await newToken.save(
-        { session }
-      );
+      const savedToken = await newToken.save({ session });
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
       await session.commitTransaction();
 
@@ -282,7 +282,9 @@ const profileInitialSetupController = function (
             projectName: 'Orientation and Initial Setup',
           });
 
+          // eslint-disable-next-line new-cap
           const newUser = new userProfile();
+
           newUser.password = req.body.password;
           newUser.role = 'Volunteer';
           newUser.firstName = req.body.firstName;
@@ -340,23 +342,23 @@ const profileInitialSetupController = function (
             expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
           };
 
-          const token = jwt.sign(jwtPayload, JWT_SECRET);
+          const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
 
-          const locationData = {
-            title: '',
-            firstName: req.body.firstName,
-            lastName: req.body.lastName,
-            jobTitle: req.body.jobTitle,
-            location: req.body.homeCountry,
-            isActive: true,
-          };
+          // const locationData = {
+          //   title: '',
+          //   firstName: req.body.firstName,
+          //   lastName: req.body.lastName,
+          //   jobTitle: req.body.jobTitle,
+          //   location: req.body.homeCountry,
+          //   isActive: true,
+          // };
 
-          res.send({ token }).status(200);
+          res.send({ token: jwtToken }).status(200);
 
-          const mapEntryResult = await setMapLocation(locationData);
-          if (mapEntryResult.type === 'Error') {
-            console.log(mapEntryResult.message);
-          }
+          // const mapEntryResult = await setMapLocation(locationData);
+          // if (mapEntryResult.type === 'Error') {
+          //   console.log(mapEntryResult.message);
+          // }
 
           const NewUserCache = {
             permissions: savedUser.permissions,
@@ -395,7 +397,9 @@ const profileInitialSetupController = function (
         projectName: 'Orientation and Initial Setup',
       });
 
+      // eslint-disable-next-line new-cap
       const newUser = new userProfile();
+
       newUser.password = req.body.password;
       newUser.role = 'Volunteer';
       newUser.firstName = req.body.firstName;
@@ -547,7 +551,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = [
+    const userPermissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
@@ -559,7 +563,7 @@ const profileInitialSetupController = function (
       role === 'Owner' ||
       role === 'Manager' ||
       role === 'Mentor' ||
-      user_permissions.some((e) => permissions.frontPermissions.includes(e))
+      userPermissions.some((e) => permissions.frontPermissions.includes(e))
     ) {
       try {
         ProfileInitialSetupToken.find({ isSetupCompleted: false })

@@ -1,5 +1,6 @@
 const express = require('express');
 
+<<<<<<< HEAD
 const routes = function (projectCost) {
   const controller = require('../../controllers/bmdashboard/projectCostController')(projectCost);
   const projectCostRouter = express.Router();
@@ -21,3 +22,21 @@ const routes = function (projectCost) {
 };
 
 module.exports = routes; 
+=======
+const routes = function (ProjectCostTracking) {
+  const projectCostTrackingRouter = express.Router();
+  const controller = require('../../controllers/bmdashboard/projectCostTrackingController')(
+    ProjectCostTracking,
+  );
+
+  // GET /api/bm/projects/:id/costs
+  projectCostTrackingRouter.route('/bm/projects/:id/costs').get(controller.getProjectCosts);
+
+  // GET /api/bm/projects-cost/ids
+  projectCostTrackingRouter.route('/bm/projects-cost/ids').get(controller.getAllProjectIds);
+
+  return projectCostTrackingRouter;
+};
+
+module.exports = routes;
+>>>>>>> 386a99463e79e889e2dcd48aeba1cf15f5005398

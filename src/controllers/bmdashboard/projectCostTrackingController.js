@@ -1,328 +1,191 @@
-/* eslint-disable no-restricted-globals */
-/* eslint-disable no-unused-vars */
-/* eslint-disable object-shorthand */
-/* eslint-disable no-else-return */
-const regression = require('regression');
-const mongoose = require('mongoose');
-
-const controller = function (ProjectCost) {
-  // Helper function to calculate predicted costs using linear regression
-  const calculatePredictedCosts = (costs) => {
-    if (!costs || costs.length < 2) {
-      return costs;
-    }
-
-    // Find the last month with actual cost data
-    const lastActualCostIndex = costs.findIndex(cost => cost.actualCost === null || cost.actualCost === undefined);
-    const historicalCosts = lastActualCostIndex === -1 ? costs : costs.slice(0, lastActualCostIndex);
-    
-    // Only perform regression if we have enough historical data
-    if (historicalCosts.length < 2) {
-      return costs;
-    }
-
-    // Prepare data for regression using only historical actual costs
-    const data = historicalCosts.map((cost, index) => [index, cost.actualCost || 0]);
-    
-    // Perform linear regression
-    const result = regression.linear(data);
-    
-    // Generate predictions for future months
-    return costs.map((cost, index) => {
-      if (index < historicalCosts.length) {
-        // For historical months, set predictedCost to null
-        return {
-          ...cost,
-          predictedCost: null
-        };
-      } else {
-        // For future months, use planned costs as the base and adjust based on historical trend
-        const plannedCost = cost.plannedCost || 0;
-        
-        // Calculate the average deviation from planned costs in historical data
-        const historicalDeviations = historicalCosts.map(c => 
-          c.actualCost ? (c.actualCost - c.plannedCost) / c.plannedCost : 0
-        );
-        const avgDeviation = historicalDeviations.reduce((a, b) => a + b, 0) / historicalDeviations.length;
-        
-        // Adjust planned cost based on historical deviation
-        const adjustedPrediction = Math.round(plannedCost * (1 + avgDeviation));
-        
-        return {
-          ...cost,
-          predictedCost: adjustedPrediction
-        };
+const projectCostTrackingController = function (ProjectCostTracking) {
+  // Simple linear regression class compatible with older Node.js versions
+  class SimpleLinearRegression {
+    constructor(x, y) {
+      if (x.length !== y.length) {
+        throw new Error('X and Y arrays must have the same length');
       }
-    });
-  };
 
-  // Get project costs (planned and actual)
+      const n = x.length;
+      const sumX = x.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const sumXY = x.reduce((acc, xi, i) => acc + xi * y[i], 0);
+      const sumXX = x.reduce((a, b) => a + b * b, 0);
+
+      // Calculate slope and intercept
+      this.slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+      this.intercept = (sumY - this.slope * sumX) / n;
+    }
+
+    predict(x) {
+      return this.slope * x + this.intercept;
+    }
+  }
   const getProjectCosts = async (req, res) => {
     try {
-      const { projectId } = req.params;
-      console.log('Fetching costs for project ID:', projectId);
-      
-      const projectCost = await ProjectCost.findOne({
-        $or: [
-          { projectId: projectId },
-          { projectId: Number(projectId) }
-        ]
-      });
-      
-      if (!projectCost) {
-        console.log('Project not found with ID:', projectId);
-        return res.status(404).json({ message: 'Project not found' });
+      const { id } = req.params;
+      const { categories, fromDate, toDate } = req.query;
+
+      // Build query
+      const query = { projectId: id };
+
+      // Add category filter if provided
+      if (categories) {
+        const categoryList = categories.split(',');
+        query.category = { $in: categoryList };
       }
-      
-      // Format the response to include only relevant cost data
-      const costData = projectCost.costs.map(cost => ({
-        month: cost.month,
-        plannedCost: cost.plannedCost || 0,
-        actualCost: cost.actualCost  // Remove the || 0 to preserve null values
-      }));
-      
-      res.status(200).json({
-        projectId: Number(projectId),
-        costs: costData
+
+      // Add date range filter if provided
+      if (fromDate || toDate) {
+        query.date = {};
+        if (fromDate) query.date.$gte = new Date(fromDate);
+        if (toDate) query.date.$lte = new Date(toDate);
+      }
+
+      // Get actual cost data
+      const costData = await ProjectCostTracking.find(query).sort({ date: 1 });
+
+      // Process data for response
+      const result = {
+        actual: {},
+        predicted: {},
+        plannedBudget: 10000, // This would typically come from project data
+      };
+
+      // Group by category
+      const categorizedData = {};
+      costData.forEach((entry) => {
+        if (!categorizedData[entry.category]) {
+          categorizedData[entry.category] = [];
+        }
+        categorizedData[entry.category].push({
+          date: entry.date,
+          cost: entry.cost,
+        });
       });
+
+      // Calculate cumulative costs for each category
+      Object.keys(categorizedData).forEach((category) => {
+        let cumulativeCost = 0;
+        categorizedData[category] = categorizedData[category].map((item) => {
+          cumulativeCost += item.cost;
+          return {
+            date: item.date,
+            cost: cumulativeCost,
+          };
+        });
+      });
+
+      // Calculate total costs
+      const dateMap = new Map();
+
+      costData.forEach((entry) => {
+        const dateStr = entry.date.toISOString().split('T')[0];
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, { date: entry.date, cost: 0 });
+        }
+        dateMap.get(dateStr).cost += entry.cost;
+      });
+
+      // Convert to array and calculate cumulative total
+      let totalCumulative = 0;
+      const totalCosts = Array.from(dateMap.values())
+        .sort((a, b) => a.date - b.date)
+        .map((item) => {
+          totalCumulative += item.cost;
+          return {
+            date: item.date,
+            cost: totalCumulative,
+          };
+        });
+
+      if (totalCosts.length > 0) {
+        categorizedData.Total = totalCosts;
+      }
+
+      // Format actual data
+      result.actual = categorizedData;
+
+      // Generate prediction data using linear regression
+      if (costData.length > 0) {
+        const predictedData = {};
+
+        // For each category, perform linear regression
+        Object.keys(categorizedData).forEach((category) => {
+          if (categorizedData[category].length > 0) {
+            const categoryData = categorizedData[category];
+
+            // Get the last actual data point
+            const lastEntry = categoryData[categoryData.length - 1];
+
+            // Prepare data for linear regression
+            const xValues = categoryData.map((item, index) => index); // Use indices as x values
+            const yValues = categoryData.map((item) => item.cost);
+
+            // Linear regression using ml-regression library
+            const regression = new SimpleLinearRegression(xValues, yValues);
+
+            // Function to predict value
+            const predict = (x) => regression.predict(x);
+
+            // Generate predictions for next 3 months
+            predictedData[category] = [];
+
+            // Get the last date
+            const lastDate = new Date(lastEntry.date);
+            const lastValue = lastEntry.cost;
+
+            // Calculate the final predicted value for 3 months ahead
+            // This ensures we have a perfect linear growth between the last actual point
+            // and the final prediction point
+            const finalPredictedValue = predict(xValues.length + 2); // +2 for 3 months ahead (0-indexed)
+
+            // Calculate the monthly growth rate for a perfect straight line
+            const monthlyGrowth = (finalPredictedValue - lastValue) / 3;
+
+            // Generate predictions for the next 3 months with perfect linear growth
+            for (let i = 1; i <= 3; i++) {
+              const predictedDate = new Date(lastDate);
+              predictedDate.setMonth(lastDate.getMonth() + i);
+
+              // Apply perfect linear growth
+              const predictedCost = lastValue + monthlyGrowth * i;
+
+              // Ensure predicted value is not less than the last actual value
+              // This prevents negative growth which doesn't make sense for cumulative costs
+              const finalCost = Math.max(predictedCost, lastValue);
+
+              predictedData[category].push({
+                date: predictedDate,
+                cost: finalCost,
+              });
+            }
+          }
+        });
+
+        result.predicted = predictedData;
+      }
+
+      res.status(200).json(result);
     } catch (error) {
-      console.error('Error in getProjectCosts:', error);
-      res.status(500).json({ message: 'Error fetching project costs. Please try again.' });
+      res.status(500).json({ error: error.message });
     }
   };
 
-  // Get project cost predictions
-  const getProjectPredictions = async (req, res) => {
+  const getAllProjectIds = async (req, res) => {
     try {
-      const { projectId } = req.params;
-      const projectCost = await ProjectCost.findOne({ projectId: Number(projectId) });
-      
-      if (!projectCost) {
-        return res.status(404).json({ message: 'Project not found' });
-      }
-      
-      // Calculate predictions for the project's costs
-      const costsWithPredictions = calculatePredictedCosts(projectCost.costs);
-      
-      // Filter to only include months that have a predictedCost value and map to clean objects
-      const predictions = costsWithPredictions
-        .filter(cost => cost.predictedCost !== null && cost.predictedCost !== undefined)
-        .map(cost => ({
-          month: cost._doc.month,
-          plannedCost: cost._doc.plannedCost,
-          actualCost: cost._doc.actualCost,
-          predictedCost: cost.predictedCost
-        }));
-      
-      res.status(200).json({
-        projectId: Number(projectId),
-        predictions: predictions
-      });
+      // Using MongoDB's distinct to get unique project IDs
+      const projectIds = await ProjectCostTracking.distinct('projectId');
+      res.status(200).json({ projectIds });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ error: error.message });
     }
   };
 
   return {
-    // Create a new project cost entry
-    createProject: async (req, res) => {
-      try {
-        const { projectId, costs } = req.body;
-        
-        // Calculate predicted costs using linear regression
-        const costsWithPredictions = calculatePredictedCosts(costs);
-        
-        const newProjectCost = new ProjectCost({
-          projectId,
-          costs: costsWithPredictions
-        });
-
-        const savedProjectCost = await newProjectCost.save();
-        res.status(201).json(savedProjectCost);
-      } catch (error) {
-        res.status(400).json({ message: error.message });
-      }
-    },
-
-    // Get all project costs
-    getAllProjects: async (req,res) => {
-      try {
-        const projectCosts = await ProjectCost.find();
-        res.status(200).json(projectCosts);
-      } catch (error) {
-        res.status(500).json({ message: error.message });
-      }
-    },
-
-    // Get project costs by project ID
-    getProjectByProjectId: async (req, res) => {
-      try {
-        const { projectId } = req.params;
-        console.log('Received request for project ID:', projectId);
-        
-        // Check if the projectId is a MongoDB ObjectId
-        const isObjectId = mongoose.Types.ObjectId.isValid(projectId);
-        
-        let query;
-        if (isObjectId) {
-          query = { _id: projectId };
-        } else {
-          // Try to convert to number for numeric projectId
-          const numericProjectId = parseInt(projectId, 10);
-          if (isNaN(numericProjectId)) {
-            console.log('Invalid project ID format');
-            return res.status(400).json({ 
-              message: 'Invalid project ID format',
-              providedId: projectId
-            });
-          }
-          query = { projectId: numericProjectId };
-        }
-        
-        console.log('Searching database with query:', query);
-        const project = await ProjectCost.findOne(query);
-        
-        if (!project) {
-          console.log('Project not found in database');
-          return res.status(404).json({ 
-            message: 'Project not found',
-            searchedId: projectId
-          });
-        }
-        
-        console.log('Found project:', {
-          id: project._id,
-          projectId: project.projectId,
-          costsCount: project.costs.length
-        });
-        
-        res.status(200).json(project);
-      } catch (error) {
-        console.error('Error in getProjectByProjectId:', error);
-        console.log(error);
-        console.error('Error stack:', error.stack);
-        res.status(500).json({ 
-          message: 'Error fetching project. Please try again.',
-          error: error.message
-        });
-      }
-    },
-
-    // Get project costs by project ID
-    getProjectCost: async (req, res) => {
-      try {
-        const { projectId } = req.params;
-        console.log('Searching for project with ID:', projectId);
-        console.log('Type of projectId:', typeof projectId);
-        
-        // Try both string and number versions of the ID
-        const query = {
-          $or: [
-            { projectId: projectId },
-            { projectId: Number(projectId) }
-          ]
-        };
-        console.log('MongoDB query:', JSON.stringify(query));
-        
-        const projectCost = await ProjectCost.findOne(query);
-        
-        if (!projectCost) {
-          console.log('Project not found with ID:', projectId);
-          return res.status(404).json({ message: 'Project not found' });
-        }
-        
-        console.log('Found project:', JSON.stringify(projectCost));
-        res.status(200).json(projectCost);
-      } catch (error) {
-        console.error('Error in getProjectCost:', error);
-        console.error('Error stack:', error.stack);
-        res.status(500).json({ 
-          message: 'Error fetching project. Please try again.',
-          error: error.message 
-        });
-      }
-    },
-
-    // Add a new cost entry to a project
-    addCostEntry: async (req, res) => {
-      try {
-        const { projectId } = req.params;
-        const { month, plannedCost, actualCost } = req.body;
-
-        const projectCost = await ProjectCost.findOne({ projectId: Number(projectId) });
-        if (!projectCost) {
-          return res.status(404).json({ message: 'Project not found' });
-        }
-
-        // Add new cost entry
-        projectCost.costs.push({
-          month,
-          plannedCost,
-          actualCost
-        });
-
-        // Recalculate all predictions
-        projectCost.costs = calculatePredictedCosts(projectCost.costs);
-
-        const updatedProjectCost = await projectCost.save();
-        res.status(200).json(updatedProjectCost);
-      } catch (error) {
-        res.status(400).json({ message: error.message });
-      }
-    },
-
-    // Update a specific cost entry
-    updateCostEntry: async (req, res) => {
-      try {
-        const { projectId, costId } = req.params;
-        const { month, plannedCost, actualCost } = req.body;
-
-        const projectCost = await ProjectCost.findOne({ projectId: Number(projectId) });
-        if (!projectCost) {
-          return res.status(404).json({ message: 'Project not found' });
-        }
-
-        const costEntry = projectCost.costs.id(costId);
-        if (!costEntry) {
-          return res.status(404).json({ message: 'Cost entry not found' });
-        }
-
-        costEntry.month = month;
-        costEntry.plannedCost = plannedCost;
-        costEntry.actualCost = actualCost;
-
-        // Recalculate all predictions
-        projectCost.costs = calculatePredictedCosts(projectCost.costs);
-
-        const updatedProjectCost = await projectCost.save();
-        res.status(200).json(updatedProjectCost);
-      } catch (error) {
-        res.status(400).json({ message: error.message });
-      }
-    },
-
-    // Delete a project cost entry
-    deleteProject: async (req, res) => {
-      try {
-        const { projectId } = req.params;
-        const deletedProjectCost = await ProjectCost.findOneAndDelete({ projectId: Number(projectId) });
-
-        if (!deletedProjectCost) {
-          return res.status(404).json({ message: 'Project not found' });
-        }
-
-        res.status(200).json({ message: 'Project deleted successfully' });
-      } catch (error) {
-        res.status(500).json({ message: error.message });
-      }
-    },
-
-    // Get project cost predictions
-    getProjectPredictions,
-
-    // Get project costs
-    getProjectCosts
+    getProjectCosts,
+    getAllProjectIds,
   };
 };
 
-module.exports = controller; 
+module.exports = projectCostTrackingController;

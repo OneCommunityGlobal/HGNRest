@@ -175,4 +175,8 @@ describe('HgnFormResponseController', () => {
       });
     });
   });
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 386a99463e79e889e2dcd48aeba1cf15f5005398

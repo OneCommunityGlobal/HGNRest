@@ -1,4 +1,3 @@
-
 const bmEquipmentController = require('../bmEquipmentController');
 
 describe('bmEquipmentController', () => {
