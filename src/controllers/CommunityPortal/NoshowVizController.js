@@ -1,5 +1,5 @@
 /* eslint-disable import/extensions */
-const { participants, events, attendance } = require('./AttendanceMockData.jsx');
+const { participants, events, attendance } = require('./AttendanceMockData.js');
 
 const noShowVizController = function () {
   // Async function to get no-shows data
