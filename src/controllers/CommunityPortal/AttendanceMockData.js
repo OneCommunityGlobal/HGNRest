@@ -11,15 +11,69 @@ const participants = [
 
 // Mock data for Events
 const events = [
-  { eventID: 101, eventType: 'WorkShop', eventName: 'Workshops1', date: '01-10-2024', location: 'NY' },
-  { eventID: 102, eventType: 'Conference', eventName: 'Conferences1', date: '02-15-2024', location: 'CA' },
-  { eventID: 103, eventType: 'Webinar',eventName: 'Webinars1', date: '03-20-2024', location: 'TX' },
-  { eventID: 104, eventType: 'WorkShop', eventName: 'Workshops2', date: '01-10-2025', location: 'NY' },
-  { eventID: 105, eventType: 'Conference', eventName: 'Conferences2', date: '02-15-2025', location: 'CA' },
-  { eventID: 106, eventType: 'Webinar', eventName: 'Webinars2', date: '03-20-2025', location: 'TX' },
-  { eventID: 107, eventType: 'Webinar', eventName: 'Webinars3', date: '01-10-2025', location: 'NY' },
-  { eventID: 108, eventType: 'WorkShop', eventName: 'Workshops3', date: '02-15-2025', location: 'CA' },
-  { eventID: 109, eventType: 'Conference', eventName: 'Conferences3', date: '03-20-2025', location: 'TX' },
+  {
+    eventID: 101,
+    eventType: 'WorkShop',
+    eventName: 'Workshops1',
+    date: '01-10-2024',
+    location: 'NY',
+  },
+  {
+    eventID: 102,
+    eventType: 'Conference',
+    eventName: 'Conferences1',
+    date: '02-15-2024',
+    location: 'CA',
+  },
+  {
+    eventID: 103,
+    eventType: 'Webinar',
+    eventName: 'Webinars1',
+    date: '03-20-2024',
+    location: 'TX',
+  },
+  {
+    eventID: 104,
+    eventType: 'WorkShop',
+    eventName: 'Workshops2',
+    date: '01-10-2025',
+    location: 'NY',
+  },
+  {
+    eventID: 105,
+    eventType: 'Conference',
+    eventName: 'Conferences2',
+    date: '02-15-2025',
+    location: 'CA',
+  },
+  {
+    eventID: 106,
+    eventType: 'Webinar',
+    eventName: 'Webinars2',
+    date: '03-20-2025',
+    location: 'TX',
+  },
+  {
+    eventID: 107,
+    eventType: 'Webinar',
+    eventName: 'Webinars3',
+    date: '01-10-2025',
+    location: 'NY',
+  },
+  {
+    eventID: 108,
+    eventType: 'WorkShop',
+    eventName: 'Workshops3',
+    date: '02-15-2025',
+    location: 'CA',
+  },
+  {
+    eventID: 109,
+    eventType: 'Conference',
+    eventName: 'Conferences3',
+    date: '03-20-2025',
+    location: 'TX',
+  },
 ];
 
 // Mock data for Attendance
