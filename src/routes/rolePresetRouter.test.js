@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 
 const request = require('supertest');
 const { jwtPayload } = require('../test');

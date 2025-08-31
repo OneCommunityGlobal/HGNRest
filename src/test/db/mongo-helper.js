@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
 const { MongoMemoryServer } = require('mongodb-memory-server');

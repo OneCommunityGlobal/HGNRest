@@ -36,7 +36,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: true },
+        $match: { isActive: { $in: [true, false] } },
       },
       {
         $lookup: {
@@ -67,12 +67,14 @@ const reporthelper = function () {
               },
             },
           },
+          isActive: 1,
           firstName: 1,
           lastName: 1,
           role: 1,
           email: 1,
           mediaUrl: 1,
           createdDate: 1,
+          endDate: 1,
           weeklycommittedHours: 1,
           weeklycommittedHoursHistory: 1,
           weeklySummaryNotReq: 1,
@@ -137,7 +139,7 @@ const reporthelper = function () {
           timeOffTill: {
             $ifNull: ['$timeOffTill', null],
           },
-          // role: 1,
+          // role:1 duplicate entry removed
           weeklySummaries: {
             $filter: {
               input: '$weeklySummaries',
@@ -179,10 +181,16 @@ const reporthelper = function () {
           startWeekIndex === endWeekIndex
             ? startWeekIndex
             : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
+          result.totalSeconds[index] = 0;
+        }
 
-        if (index >= 0 && index < 4) {
-          if (entry.isTangible === true) {
-            result.totalSeconds[index] += entry.totalSeconds;
+        if (entry.isTangible === true) {
+          result.totalSeconds[index] += entry.totalSeconds;
+          if (index >= 0 && index < 4) {
+            if (entry.isTangible === true) {
+              result.totalSeconds[index] += entry.totalSeconds;
+            }
           }
         }
       });

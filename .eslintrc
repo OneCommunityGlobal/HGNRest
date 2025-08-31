@@ -33,7 +33,9 @@
   },
   "settings": {
     "import/resolver": {
-      "babel-module": {},
+      "babel-module": {
+        "root": ["./src"]
+      },
       "node": {
         "paths": ["src"],
         "extensions": [".js", ".jsx"]

@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
 const jwt = require('jsonwebtoken');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const emailController = require('./emailController');

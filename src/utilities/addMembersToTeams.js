@@ -3,7 +3,7 @@
  * It will create a new field called "members"
  * and it will populate it with users' created Date ny default
  */
-require('dotenv').load();
+require('dotenv').config();
 
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
@@ -31,9 +31,9 @@ const addMembersField = async () => {
   await Promise.all(updateOperations).catch((error) => logger.logException(error));
 };
 
-const deleteMembersField = async () => {
-  await Teams.updateMany({}, { $unset: { members: '' } }).catch((err) => console.error(err));
-};
+// const deleteMembersField = async () => {
+//  await Teams.updateMany({}, { $unset: { members: '' } }).catch((err) => console.error(err));
+// };
 
 const run = () => {
   console.log('Loading... This may take a few minutes!');

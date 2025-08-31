@@ -43,6 +43,7 @@ module.exports = function (app) {
       next();
       return;
     }
+
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;

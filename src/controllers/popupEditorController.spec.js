@@ -1,3 +1,4 @@
+/* eslint-disable no-shadow */
 const PopUpEditor = require('../models/popupEditor');
 const { mockReq, mockRes, assertResMock } = require('../test');
 

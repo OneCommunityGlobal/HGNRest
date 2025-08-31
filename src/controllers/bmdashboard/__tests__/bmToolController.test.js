@@ -1,4 +1,6 @@
+/* eslint-disable arrow-body-style */
 const mongoose = require('mongoose');
+// eslint-disable-next-line no-unused-vars
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const bmToolController = require('../bmToolController');
 
@@ -180,12 +182,14 @@ describe('Building Tool Controller Tests', () => {
     test('should create a new tool document when none exists', async () => {
       // Setup for no existing document
       mockBuildingTool.findOne = jest.fn().mockResolvedValue(null);
-      mockBuildingTool.create = jest.fn().mockImplementation(() => ({
+      mockBuildingTool.create = jest.fn().mockImplementation(() => {
+        return {
           then: jest.fn().mockImplementation((callback) => {
             callback();
             return { catch: jest.fn() };
           }),
-        }));
+        };
+      });
 
       // Call the controller method
       await controller.bmPurchaseTools(mockRequest, mockResponse);

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');

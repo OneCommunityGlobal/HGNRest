@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable radix */
 const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
 const Project = require('../models/project');

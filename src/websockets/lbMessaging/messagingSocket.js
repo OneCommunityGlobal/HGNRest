@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const Websockets = require('ws');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');

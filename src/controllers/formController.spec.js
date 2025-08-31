@@ -1,3 +1,6 @@
+/* eslint-disable one-var */
+/* eslint-disable import/extensions */
+/* eslint-disable no-unused-vars */
 // test/formController.spec.js
 const {
   createForm,
@@ -21,7 +24,7 @@ jest.mock('../models/formResponse');
 jest.mock('../models/userProfile');
 
 describe('Form Controller', () => {
-  let req; let res;
+  let req, res;
 
   beforeEach(() => {
     req = { body: {}, params: {}, query: {} };

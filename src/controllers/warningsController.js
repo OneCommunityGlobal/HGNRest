@@ -1,3 +1,7 @@
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-shadow */
+/* eslint-disable no-use-before-define */
+/* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 

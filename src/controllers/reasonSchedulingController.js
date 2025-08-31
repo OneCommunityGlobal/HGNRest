@@ -1,3 +1,5 @@
+/* eslint-disable no-prototype-builtins */
+/* eslint-disable no-unused-vars */
 const moment = require('moment-timezone');
 const UserModel = require('../models/userProfile');
 const ReasonModel = require('../models/reason');
@@ -287,7 +289,7 @@ const patchReason = async (req, res) => {
 
     return res.status(200).json({
       message: 'Reason Updated!',
-      message: 'Reason Updated!',
+      // message: 'Reason Updated!',
     });
   } catch (error) {
     return res.status(400).json({
@@ -343,6 +345,7 @@ const deleteReason = async (req, res) => {
         message: 'Document deleted',
       });
     });
+  // eslint-disable-next-line no-empty
   } catch (error) {}
 };
 

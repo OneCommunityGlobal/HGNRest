@@ -1,3 +1,9 @@
+/* eslint-disable prefer-destructuring */
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-continue */
+/* eslint-disable object-shorthand */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-else-return */
 const mongoose = require('mongoose');
 
 const bmToolController = (BuildingTool, ToolType) => {
@@ -164,8 +170,8 @@ const bmToolController = (BuildingTool, ToolType) => {
     }
 
     for (const type of typesArray) {
-      const {toolName} = type;
-      const {toolCodes} = type;
+      const toolName = type.toolName;
+      const toolCodes = type.toolCodes;
       const codeMap = {};
       toolCodes.forEach((obj) => {
         codeMap[obj.value] = obj.label;
@@ -216,7 +222,7 @@ const bmToolController = (BuildingTool, ToolType) => {
           }
 
           const newRecord = {
-            date,
+            date: date,
             createdBy: requestor,
             responsibleUser: buildingToolDoc.userResponsible,
             type: action,
@@ -235,9 +241,9 @@ const bmToolController = (BuildingTool, ToolType) => {
 
     if (errors.length > 0) {
       return res.status(404).send({ errors, results });
-    } 
+    } else {
       return res.status(200).send({ errors, results });
-    
+    }
   };
 
   return {

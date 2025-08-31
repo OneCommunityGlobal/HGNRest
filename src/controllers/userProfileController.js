@@ -14,6 +14,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
@@ -1213,6 +1214,80 @@ const userProfileController = function (UserProfile, Project) {
 
   const putUserProfile = async function (req, res) {
     const userid = req.params.userId;
+    // ⚡️ If request is only updating filterColor, bypass all role/permission checks
+    // if (req.body.filterColor !== undefined && Object.keys(req.body).length === 2 && req.body.requestor) {
+    //   try {
+    //     const record = await UserProfile.findById(userid);
+    //     if (!record) return res.status(404).json({ error: 'User not found' });
+
+    //     record.filterColor = req.body.filterColor;
+    //     record.lastModifiedDate = Date.now();
+    //     await record.save();
+
+    //     // clear caches
+    //     // [
+    //     //   'weeklySummaries_0',
+    //     //   'weeklySummaries_1',
+    //     //   'weeklySummaries_3',
+    //     //   'weeklySummaries_all',
+    //     //   'weeklySummariesReport',
+    //     //   `weeklySummaries_user_${userid}`,
+    //     //   'allusers',
+    //     //   `user-${userid}`,
+    //     // ].forEach((key) => cache.removeCache(key));
+    //     // cache.removeByPrefix('weeklySummaries');
+    //     cache.removeCache(`user-${userid}`);
+    //     cache.removeByPrefix('weeklySummaries');
+    //     cache.removeCache('allusers');
+
+    //     console.log('✅ Bypass updated filterColor in DB:', record.filterColor);
+
+    //     return res.status(200).json({
+    //       _id: record._id,
+    //       filterColor: record.filterColor,
+    //     });
+    //   } catch (err) {
+    //     console.error('❌ Failed filterColor update:', err);
+    //     return res.status(500).json({ error: 'Failed to update filterColor' });
+    //   }
+    // }
+    // ⚡️ Fast-path for bulk color updates (skip all role checks)
+    // ⚡️ Allow bulk/bypass updates for filterColor
+    if (req.body.filterColor !== undefined && req.body.requestor) {
+      try {
+        const record = await UserProfile.findById(userid);
+        if (!record) return res.status(404).json({ error: 'User not found' });
+
+        // ✅ Always overwrite filterColor, even for Owner
+        record.filterColor = req.body.filterColor;
+        record.lastModifiedDate = Date.now();
+        await record.save();
+
+        // clear caches as usual
+        [
+          'weeklySummaries_0',
+          'weeklySummaries_1',
+          'weeklySummaries_3',
+          'weeklySummaries_all',
+          'weeklySummariesReport',
+          `weeklySummaries_user_${userid}`,
+          'allusers',
+          `user-${userid}`,
+        ].forEach(key => cache.removeCache(key));
+        cache.removeByPrefix('weeklySummaries');
+
+        console.log('✅ Forced filterColor update:', record.filterColor);
+
+        return res.status(200).json({
+          _id: record._id,
+          filterColor: record.filterColor,
+        });
+      } catch (err) {
+        console.error('❌ Failed filterColor update:', err);
+        return res.status(500).json({ error: 'Failed to update filterColor' });
+      }
+    }
+
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userid,
@@ -1306,17 +1381,23 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      if (req.body.filterColor !== undefined) {
-        if (JSON.stringify(req.body.filterColor) !== JSON.stringify(record.filterColor)) {
-          console.log('🛠 PUT UserProfile filterColor update request:', req.body.filterColor);
-          record.filterColor = req.body.filterColor;
-        } else {
-          console.log(
-            '⚠️ No filterColor in request — keeping existing:, filterColor is unchanged',
-            record.filterColor,
-          );
-        }
-      }
+      // if (req.body.filterColor !== undefined) {
+      //   if (JSON.stringify(req.body.filterColor) !== JSON.stringify(record.filterColor)) {
+      //     console.log('🛠 PUT UserProfile filterColor update request:', req.body.filterColor);
+      //     record.filterColor = req.body.filterColor;
+      //   } else {
+      //     console.log(
+      //       '⚠️ No filterColor in request — keeping existing:, filterColor is unchanged',
+      //       record.filterColor,
+      //     );
+      //   }
+      // }
+
+      // ✅ Ensure filterColor can still be updated through the normal path
+      // if (req.body.filterColor !== undefined) {
+      //   console.log('🛠 PUT UserProfile filterColor update request:', req.body.filterColor);
+      //   record.filterColor = req.body.filterColor;
+      // }
 
       record.lastModifiedDate = Date.now();
 
@@ -1508,6 +1589,10 @@ const userProfileController = function (UserProfile, Project) {
         updatedDiff = record.modifiedPaths();
       }
 
+      console.log('Saving record for:', userid);
+      console.log('Modified paths:', record.modifiedPaths());
+      console.log('FilterColor being saved:', record.filterColor);
+
       record
         .save()
         .then(async (results) => {
@@ -1548,22 +1633,31 @@ const userProfileController = function (UserProfile, Project) {
           ].forEach((key) => cache.removeCache(key));
 
           // ✅ Also clear from main cache instance (this is the most important part)
-          cache.removeCache('weeklySummaries_0');
-          cache.removeCache('weeklySummaries_1');
-          cache.removeCache('weeklySummaries_3');
-          cache.removeCache('weeklySummaries_all');
-          cache.removeCache('weeklySummariesReport');
-          cache.removeCache(`weeklySummaries_user_${userid}`);
-          cache.removeCache('allusers'); // This is crucial!
-          cache.removeCache(`user-${userid}`);
-
-          // update alluser cache if we have cache
-          if (isUserInCache) {
-            // ✅ Make sure userData has the updated filterColor, always update after db result
-            userData.filterColor = results.filterColor;
-            allUserData.splice(userIdx, 1, userData);
-            cache.setCache('allusers', JSON.stringify(allUserData));
+          // cache.removeCache('weeklySummaries_0');
+          // cache.removeCache('weeklySummaries_1');
+          // cache.removeCache('weeklySummaries_3');
+          // cache.removeCache('weeklySummaries_all');
+          // cache.removeCache('weeklySummariesReport');
+          // cache.removeCache(`weeklySummaries_user_${userid}`);
+          cache.removeByPrefix('weeklySummaries');
+          // cache.removeCache('allusers'); // This is crucial!
+          // cache.removeCache(`user-${userid}`);
+          // ✅ Ensure updated filterColor goes to cache
+          if (cache.hasCache('allusers')) {
+            allUserData = JSON.parse(cache.getCache('allusers'));
+            const idx = allUserData.findIndex((u) => u._id === userid);
+            if (idx !== -1) {
+              allUserData[idx].filterColor = results.filterColor;
+              cache.setCache('allusers', JSON.stringify(allUserData));
+            }
           }
+          // update alluser cache if we have cache
+          // if (isUserInCache) {
+          //   // ✅ Make sure userData has the updated filterColor, always update after db result
+          //   userData.filterColor = results.filterColor;
+          //   allUserData.splice(userIdx, 1, userData);
+          //   cache.setCache('allusers', JSON.stringify(allUserData));
+          // }
 
           // Log the update of a protected email account
           auditIfProtectedAccountUpdated(
@@ -1582,15 +1676,20 @@ const userProfileController = function (UserProfile, Project) {
           });
         })
         .catch((error) => {
-          if (error.name === 'ValidationError' && error.errors.lastName) {
-            const errors = Object.values(error.errors).map((er) => er.message);
-            return res.status(400).json({
-              message: 'Validation Error',
-              error: errors,
-            });
-          }
-          console.error('Failed to save record:', error);
-          return res.status(400).json({ error: 'Failed to save record.' });
+          // if (error.name === 'ValidationError' && error.errors.lastName) {
+          //   const errors = Object.values(error.errors).map((er) => er.message);
+          //   return res.status(400).json({
+          //     message: 'Validation Error',
+          //     error: errors,
+          //   });
+          // }
+          // console.error('Failed to save record:', error);
+          // return res.status(400).json({ error: 'Failed to save record.' });
+          console.error('❌ Failed to save record:', error);
+          return res.status(400).json({
+            message: 'Validation Error',
+            error: error.message || error,
+          });
         });
     });
   };
@@ -1779,72 +1878,152 @@ const userProfileController = function (UserProfile, Project) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const updateOneProperty = async function (req, res) {
+  // const updateOneProperty = async function (req, res) {
+  //   const { userId } = req.params;
+  //   const { key, value } = req.body;
+
+  //   const canEditProtectedAccount = await canRequestorUpdateUser(
+  //     req.body.requestor.requestorId,
+  //     userId,
+  //   );
+
+  //   if (!canEditProtectedAccount) {
+  //     logger.logInfo(
+  //       `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+  //     );
+  //     res.status(403).send('You are not authorized to update this user');
+  //     return;
+  //   }
+
+  //   if (key === 'teamCode') {
+  //     const canEditTeamCode =
+  //       req.body.requestor.role === 'Owner' ||
+  //       req.body.requestor.role === 'Administrator' ||
+  //       req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+  //     if (!canEditTeamCode) {
+  //       res.status(403).send('You are not authorized to edit team code.');
+  //       return;
+  //     }
+  //   }
+
+  //   // remove user from cache, it should be loaded next time
+  //   cache.removeCache(`user-${userId}`);
+  //   if (!key || value === undefined) {
+  //     return res.status(400).send({ error: 'Missing property or value' });
+  //   }
+
+  //   const normalizeFilterColor = (val) => {
+  //     if (Array.isArray(val)) return val;
+  //     if (typeof val === 'string') return val.split(',').map(s => s.trim()).filter(Boolean);
+  //     return [];
+  //   };
+
+  //   return UserProfile.findById(userId)
+  //     .then((user) => {
+  //       let originalRecord = null;
+  //       if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+  //         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+  //       }
+  //       const payloadValue = (key === 'filterColor') ? normalizeFilterColor(value) : value;
+  //       user.set({ [key]: payloadValue });
+  //       // user.set({
+  //       //   [key]: value,
+  //       // });
+  //       let updatedDiff = null;
+  //       if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+  //         updatedDiff = user.modifiedPaths();
+  //       }
+  //       return user
+  //         .save()
+  //         .then(() => {
+  //           // ✅ clear caches that can make the page stale
+  //           // try { cache.removeCache(`user-${userId}`); } catch {}
+  //           // try { cache.removeCache('teamCodes'); } catch {}
+  //           // // If you have a weekly-summaries cache, nuke it safely:
+  //           // try { cache.removeByPrefix && cache.removeByPrefix('weeklySummaries:'); } catch {}
+  //           res.status(200).send({ message: 'updated property' });
+  //           auditIfProtectedAccountUpdated(
+  //             req.body.requestor.requestorId,
+  //             originalRecord.email,
+  //             originalRecord,
+  //             user,
+  //             updatedDiff,
+  //             'update',
+  //           );
+  //         })
+  //         .catch((error) => res.status(500).send(error));
+  //     })
+  //     .catch((error) => res.status(500).send(error));
+  // };
+
+  // new function,
+
+  /**
+ * Update a single property on a UserProfile
+ * @route PUT /userProfile/:userId/property
+ */
+  const updateOneProperty = async (req, res) => {
     const { userId } = req.params;
-    const { key, value } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { key, value, requestor } = req.body;
 
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
-
-    if (!canEditProtectedAccount) {
-      logger.logInfo(
-        `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
-      );
-      res.status(403).send('You are not authorized to update this user');
-      return;
-    }
-
-    if (key === 'teamCode') {
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      if (!canEditTeamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
+    try {
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
       }
-    }
 
-    // remove user from cache, it should be loaded next time
-    cache.removeCache(`user-${userId}`);
-    if (!key || value === undefined) {
-      return res.status(400).send({ error: 'Missing property or value' });
-    }
+      // Normalize filterColor into array
+      let payloadValue = value;
+      if (key === 'filterColor') {
+        if (Array.isArray(value)) {
+          payloadValue = value.map((c) => c.trim()).filter(Boolean);
+        } else if (typeof value === 'string') {
+          payloadValue = value
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean);
+        } else {
+          payloadValue = [];
+        }
+        console.log('🛠 PUT UserProfile filterColor update request:', payloadValue);
+      }
 
-    return UserProfile.findById(userId)
-      .then((user) => {
-        let originalRecord = null;
-        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-          originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+      user.set({ [key]: payloadValue });
+      const saved = await user.save();
+
+      console.log(`✅ Saved ${key} in DB:`, saved[key]);
+
+      // --- Cache invalidation ---
+      try {
+        cache.removeCache(`user-${userId}`);
+        cache.removeCache('allusers');
+        cache.removeCache('teamCodes');
+        cache.removeByPrefix('weeklySummaries'); // clears weeklySummaries:* keys
+      } catch (err) {
+        console.error('Cache clearing failed:', err.message);
+      }
+
+      // If user is in cached allusers list, patch it
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const idx = allUserData.findIndex((u) => u._id === userId);
+        if (idx >= 0) {
+          allUserData[idx][key] = saved[key];
+          cache.setCache('allusers', JSON.stringify(allUserData));
         }
-        user.set({
-          [key]: value,
-        });
-        let updatedDiff = null;
-        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-          updatedDiff = user.modifiedPaths();
-        }
-        return user
-          .save()
-          .then(() => {
-            res.status(200).send({ message: 'updated property' });
-            auditIfProtectedAccountUpdated(
-              req.body.requestor.requestorId,
-              originalRecord.email,
-              originalRecord,
-              user,
-              updatedDiff,
-              'update',
-            );
-          })
-          .catch((error) => res.status(500).send(error));
-      })
-      .catch((error) => res.status(500).send(error));
+      }
+
+      return res.status(200).json({
+        _id: saved._id,
+        [key]: saved[key],
+      });
+    } catch (err) {
+      console.error(`❌ Failed to update property ${key}:`, err);
+      return res.status(500).json({ error: 'Failed to update user property' });
+    }
   };
-
   const updateAllMembersTeamCode = async (req, res) => {
     const canEditTeamCode = await hasPermission(req.body.requestor, 'editTeamCode');
     if (!canEditTeamCode) {
@@ -2665,6 +2844,16 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  // const getAllTeamCodeHelper = async function () {
+  //   let distinctTeamCodes = await UserProfile.distinct("teamCode", {
+  //     teamCode: { $ne: null },
+  //   });
+  //   distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== "");
+  //   console.log("Team codes found:", distinctTeamCodes);
+  //   return distinctTeamCodes;
+  // };
+
+
   const getAllTeamCode = async function (req, res) {
     try {
       const distinctTeamCodes = await getAllTeamCodeHelper();
@@ -2757,6 +2946,99 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getAllMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID from requestor object added by middleware
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+
+      const userId = req.body.requestor.requestorId;
+
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+
+      // Get all form responses except for the current user
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $ne: userId }, // Exclude current user
+      }).lean();
+
+      // Get user IDs from form responses
+      const userIds = formResponses.map((response) => response.user_id);
+
+      // Get user profiles to get privacy settings
+      const userProfiles = await UserProfile.find({
+        _id: { $in: userIds },
+      })
+        .select('_id email phoneNumber privacySettings')
+        .lean();
+
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = userProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+
+      // Map data with privacy considerations
+      const membersData = formResponses
+        .map((response) => {
+          const profile = profileMap[response.user_id];
+
+          if (!profile) {
+            return null;
+          }
+
+          let score = 0;
+
+          // Check for skill score in frontend or backend
+          if (response.frontend && response.frontend[skillName] !== undefined) {
+            score = parseInt(response.frontend[skillName], 10) || 0;
+          } else if (response.backend && response.backend[skillName] !== undefined) {
+            score = parseInt(response.backend[skillName], 10) || 0;
+          }
+
+          // Apply privacy settings
+          const email = profile.privacySettings?.email === false ? null : profile.email;
+
+          // Get phone number with privacy consideration
+          let phoneNumber = null;
+          if (profile.privacySettings?.phoneNumber !== false) {
+            if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+              const [firstPhoneNumber] = profile.phoneNumber;
+              phoneNumber = firstPhoneNumber;
+            }
+          }
+
+          return {
+            name: response.userInfo.name,
+            email,
+            phoneNumber,
+            slack: response.userInfo.slack,
+            rating: `${score} / 10`,
+          };
+        })
+        .filter((item) => item !== null);
+
+      // Sort by skill score (highest first)
+      const sortedData = [...membersData].sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+
+      return res.status(200).send(sortedData);
+    } catch (error) {
+      console.error('Error in getAllMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve members',
+        error: error.message,
+      });
+    }
+  };
+  
   const replaceTeamCodeForUsers = async (req, res) => {
     const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
 
@@ -2860,6 +3142,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
   };
 };

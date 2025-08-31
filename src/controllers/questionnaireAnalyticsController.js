@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const { hasPermission } = require('../utilities/permissions');
 const FormResponse = require('../models/hgnFormResponse');
 const userProfile = require('../models/userProfile');

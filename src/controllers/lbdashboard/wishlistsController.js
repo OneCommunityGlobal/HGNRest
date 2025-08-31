@@ -1,3 +1,4 @@
+/* eslint-disable new-cap */
 const wishlistsController = function (wishlist) {
   const getWishlistById = async (req, res) => {
     try {

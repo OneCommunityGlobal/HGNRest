@@ -1,8 +1,14 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable no-undef */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
-const { emailSender } = require('../utilities/emailSender');
+const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
@@ -541,7 +547,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    const user_permissions = [
+    let user_permissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
