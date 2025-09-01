@@ -599,22 +599,16 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
 
-        // Prevent modification of defaultPassword
-    if (req.body.defaultPassword && record.defaultPassword) {
-      res.status(403).send('defaultPassword cannot be modified once it is set.');
-      return;
-    }
-
-    // Prevent modification of defaultPassword
-    if (req.body.defaultPassword && record.defaultPassword) {
-      res.status(403).send('defaultPassword cannot be modified.');
-      return;
-    }
-
     cache.removeCache(`user-${userid}`);
     UserProfile.findById(userid, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
+        return;
+      }
+
+      // Prevent modification of defaultPassword
+      if (req.body.defaultPassword && record.defaultPassword) {
+        res.status(403).send('defaultPassword cannot be modified.');
         return;
       }
 
