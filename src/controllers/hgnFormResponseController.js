@@ -81,7 +81,9 @@ const hgnFormController = function () {
         ['frontend', 'backend'].forEach((section) => {
           Object.entries(user[section] || {}).forEach(([key, val]) => {
             const parsed = parseInt(val, 10);
+
             if (!Number.isNaN(parsed)) {
+
               allSkills.push({ skill: key, score: parsed });
             }
           });
