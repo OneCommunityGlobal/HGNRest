@@ -73,12 +73,16 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+
+const supplierPerformance = require('../models/summaryDashboard/supplierPerformance');
+
 const tag = require('../models/tag');
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
@@ -247,6 +251,10 @@ const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRo
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+
+// summary dashboard routes
+const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
@@ -376,6 +384,10 @@ module.exports = function (app) {
   app.use('/api/financials', bmFinancialRouter);
 
   app.use('/api', registrationRouter);
+
+
+  // summary dashboard
+  app.use('/api/suppliers', supplierPerformanceRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
@@ -384,4 +396,5 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
 };
