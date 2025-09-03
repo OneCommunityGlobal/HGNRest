@@ -12,14 +12,13 @@ const {
 
 const pullRequestReviewJobs = () => {
   const pullRequestReviewSyncJob = new CronJob(
-    '1 0 * * *', // Everyday at midnight 1 minute
+    '0 1 0,2,4 * * *', // Everyday at midnight, 2am, 4am 1 minute Pacific time
     // '*/2 * * * *', // Every 2 minute, for testing
     async () => {
       // Check to see if any other server has already run the sync yet
       const todayJob = await acquireTodayJob();
       // Some other server has already run the sync job
       if (todayJob == null) {
-        console.log('Data has already synced today, skip');
         return;
       }
       await syncGitHubData(todayJob);
@@ -33,5 +32,15 @@ const pullRequestReviewJobs = () => {
 module.exports = pullRequestReviewJobs;
 
 // (async () => {
-//   await syncGitHubData();
+//   // Check to see if any other server has already run the sync yet
+//   const todayJob = await acquireTodayJob();
+//   // Some other server has already run the sync job
+//   if (todayJob == null) {
+//     console.log('Data has already synced today, skip');
+//     return;
+//   }
+//   console.log (`Get today job! ID : ${todayJob.jobId}`);
+//   await syncGitHubData(todayJob);
+//   console.log ("Done syncing data. Status", todayJob.status);
+//   console.log (todayJob.notes);
 // })();

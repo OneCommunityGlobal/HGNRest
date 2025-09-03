@@ -4,14 +4,28 @@ const { Schema } = mongoose;
 
 const pullRequestSyncMetadata = new Schema(
   {
-    jobDate: { type: Date, required: true, unique: true },
+    jobId: { type: String, required: true, unique: true },
     lastSyncedAt: { type: Date, required: true },
-    status: { type: String },
+    status: { type: String, enum: ['PENDING', 'SUCCESS', 'ERROR'], default: 'PENDING' },
     notes: { type: String },
+    remainingFrontEndPRs: [
+      {
+        number: { type: String },
+        created_at: { type: Date },
+        title: { type: String },
+      },
+    ],
+    remainingBackEndPRs: [
+      {
+        number: { type: String },
+        created_at: { type: Date },
+        title: { type: String },
+      },
+    ],
   },
   { timestamps: true },
 );
 
-pullRequestSyncMetadata.index({ jobDate: 1 }, { unique: true });
+pullRequestSyncMetadata.index({ jobId: 1 }, { unique: true });
 
 module.exports = mongoose.model('PullRequestSyncMetadata', pullRequestSyncMetadata);

@@ -1,4 +1,5 @@
 // integration.test.js
+require('dotenv').config();
 const createGitHubClient = require('./githubPRHelper');
 
 const FRONT_END_REPO = 'HighestGoodNetworkApp';
