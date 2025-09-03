@@ -464,6 +464,12 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
+    // Handle defaultPassword
+    if (req.body.defaultPassword) {
+      const salt = await bcrypt.genSalt(10);
+      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
+    }
+
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -1354,6 +1360,12 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.findById(userid, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
+        return;
+      }
+
+      // Prevent modification of defaultPassword
+      if (req.body.defaultPassword && record.defaultPassword) {
+        res.status(403).send('defaultPassword cannot be modified.');
         return;
       }
 
