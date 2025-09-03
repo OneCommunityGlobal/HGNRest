@@ -11,7 +11,7 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
-        $unwind: '$members',
+        $unwind: { path: '$members', preserveNullAndEmptyArrays: true },
       },
       {
         $lookup: {
@@ -22,7 +22,7 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $unwind: '$userProfile',
+        $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true },
       },
       {
         $match: {
