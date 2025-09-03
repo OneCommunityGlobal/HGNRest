@@ -252,13 +252,13 @@ const warningsController = function (UserProfile) {
     const { userId } = req.params;
 
     try {
-      const { warnings } = await UserProfile.findById(userId);
+      const record = await UserProfile.findById(userId);
 
-      const { completedData } = filterWarnings(currentWarningDescriptions, warnings);
-
-      if (!warnings) {
+      if (!record || !record.warnings) {
         return res.status(400).send({ message: 'no valiud records' });
       }
+
+      const { completedData } = filterWarnings(currentWarningDescriptions, record.warnings);
       return res.status(201).send({ warnings: completedData });
     } catch (error) {
       return res.status(401).send({ message: error.message || error });
@@ -310,7 +310,7 @@ const warningsController = function (UserProfile) {
 
       const record = await UserProfile.findById(userId);
 
-      if (!record) {
+      if (!record || !record.warnings) {
         return res.status(400).send({ message: 'No valid records found' });
       }
 
