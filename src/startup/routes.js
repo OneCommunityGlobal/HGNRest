@@ -18,12 +18,14 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const savedFilter = require('../models/savedFilter');
 
-const hgnFormResponses = require('../models/hgnFormResponses');
+const hgnFormResponses = require('../models/hgnFormResponse');
 
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
+const projectCost = require('../models/bmdashboard/projectCost');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
@@ -122,10 +124,7 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
-  hgnFormResponses,
-  userProfile,
-);
+const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
 
 const faqRouter = require('../routes/faqRouter');
 
@@ -157,6 +156,7 @@ const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(bui
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
+const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter');
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
@@ -168,12 +168,17 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   toolType,
   equipmentType,
 );
+
+const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');
 const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRouter')(
   dashboardMetrics,
   buildingProject,
   buildingMaterial,
 );
+
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
+const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -205,6 +210,11 @@ const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRo
   toolAvailability,
 );
 
+const projectCostTracking = require('../models/bmdashboard/projectCostTracking');
+const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrackingRouter')(
+  projectCostTracking,
+);
+
 const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssignmentRouter')(
   blueSquareEmailAssignment,
   userProfile,
@@ -234,6 +244,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
@@ -250,7 +261,12 @@ console.log('Loading plannedCostRouter...');
 const plannedCostRouter = require('../routes/plannedCostRouter');
 console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed');
 
+const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
+
 const tagRouter = require('../routes/tagRouter')(tag);
+const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
+
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
 module.exports = function (app) {
   console.log('Routes function called - registering planned cost routes...');
@@ -296,11 +312,14 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
+
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
+  app.use('/api', savedFilterRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
+  app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/skills', userSkillTabsRouter);
@@ -309,11 +328,10 @@ module.exports = function (app) {
 
   app.use('/api', templateRouter);
 
-  app.use('/api', templateRouter);
-
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
 
+  app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
@@ -335,8 +353,16 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', bmProjectRiskProfileRouter);
+
+  app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
+
+
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
@@ -348,6 +374,7 @@ module.exports = function (app) {
 
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+  app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
@@ -359,9 +386,11 @@ module.exports = function (app) {
 
   app.use('/api', registrationRouter);
   app.use('/api', projectMaterialRouter);
-  console.log('Registering planned cost router...');
   app.use('/api', plannedCostRouter(plannedCost, project));
-  console.log('Planned cost router registered successfully');
+
+  app.use('/api/', projectCostRouter);
+  app.use('/api', toolAvailabilityRoutes);
+  app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
 };

@@ -1,28 +1,23 @@
 const Job = require('../models/jobs'); // Import the Job model
 
-// Controller to fetch all jobs with pagination, search, and filtering
-const getJobs = async (req, res) => {
+const paginationForJobs = async (req, res) => {
   const { page = 1, limit = 18, search = '', category = '' } = req.query;
-
   try {
-    // Validate query parameters
-    const pageNumber = Math.max(1, parseInt(page, 10)); // Ensure page is at least 1
-    const limitNumber = Math.max(1, parseInt(limit, 10)); // Ensure limit is at least 1
+    const pageNumber = Math.max(1, parseInt(page, 10));
+    const limitNumber = Math.max(1, parseInt(limit, 10));
 
-    
     // Build query object
     const query = {};
     if (search) {
       const searchString = String(search);
-      
+
       query.$or = [
         { title: { $regex: new RegExp(searchString, 'i') } },
-        { description: { $regex: new RegExp(searchString, 'i') } }
-      ];} // Case-insensitive search
-    
-    if (category) query.category = category;
+        { description: { $regex: new RegExp(searchString, 'i') } },
+      ];
+    } // Case-insensitive search
 
-    
+    if (category) query.category = category;
 
     // Fetch total count for pagination metadata
     const totalJobs = await Job.countDocuments(query);
@@ -31,7 +26,7 @@ const getJobs = async (req, res) => {
     const sortCriteria = {
       displayOrder: 1,
       featured: -1,
-      datePosted: -1
+      datePosted: -1,
     };
 
     // Fetch paginated results
@@ -39,12 +34,7 @@ const getJobs = async (req, res) => {
       .sort(sortCriteria)
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
-    
-    
 
-    
-
-    // Prepare response
     res.json({
       jobs,
       pagination: {
@@ -57,9 +47,12 @@ const getJobs = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch Jobs/Summaries', details: error.message });
   }
 };
+
+// Controller to fetch all jobs with pagination, search, and filtering
+const getJobs = (req, res) => paginationForJobs(req, res, false);
 
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
 const getJobSummaries = async (req, res) => {
@@ -79,7 +72,7 @@ const getJobSummaries = async (req, res) => {
       displayOrder: 1,
       featured: -1,
       datePosted: -1,
-      title: 1
+      title: 1,
     };
 
     // Fetch the total number of jobs matching the query for pagination
@@ -136,7 +129,7 @@ const resetJobsFilters = async (req, res) => {
       displayOrder: 1,
       featured: -1,
       datePosted: -1,
-      title: 1
+      title: 1,
     };
     // Fetch all jobs without filtering
     const totalJobs = await Job.countDocuments({});
@@ -200,17 +193,17 @@ const createJob = async (req, res) => {
     // Find the highest displayOrder value currently in use
     const highestOrderJob = await Job.findOne().sort({ displayOrder: -1 }).limit(1);
     const newDisplayOrder = highestOrderJob ? highestOrderJob.displayOrder + 1 : 0;
-    
+
     const newJob = new Job({
       title,
-      summaries,
+      summary: req.body.summary,
       category,
       description,
       imageUrl,
       location,
       applyLink,
       jobDetailsLink,
-      displayOrder: newDisplayOrder
+      displayOrder: newDisplayOrder,
     });
 
     const savedJob = await newJob.save();
@@ -264,19 +257,19 @@ const reorderJobs = async (req, res) => {
     const updateOperations = jobIds.map((jobId, index) => ({
       updateOne: {
         filter: { _id: jobId },
-        update: { $set: { displayOrder: index } }
-      }
+        update: { $set: { displayOrder: index } },
+      },
     }));
 
     await Job.bulkWrite(updateOperations);
-    
+
     // Fetch and return the updated jobs
     const jobs = await Job.find({ _id: { $in: jobIds } }).sort({ displayOrder: 1 });
-    
+
     res.json({
       success: true,
       message: 'Jobs reordered successfully',
-      jobs
+      jobs,
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reorder jobs', details: error.message });
