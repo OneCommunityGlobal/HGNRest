@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 /* eslint-disable import/extensions */
 /* eslint-disable import/no-unresolved */
-=======
->>>>>>> 386a99463e79e889e2dcd48aeba1cf15f5005398
 const Labour = require('../models/laborCost');
 
 const createLabourCost = async (req, res) => {
