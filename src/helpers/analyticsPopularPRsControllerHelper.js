@@ -261,6 +261,7 @@ async function updateGitHubRepo(prefix, repo, prList, client) {
     const pr = updatedPRList[i];
     let prReviews;
     try {
+      // eslint-disable-next-line no-await-in-loop
       prReviews = await client.fetchReviews(pr.number);
     } catch (err) {
       if (err instanceof RateLimitedError) {
@@ -285,6 +286,7 @@ async function updateGitHubRepo(prefix, repo, prList, client) {
         created_at: pr.created_at,
         title: pr.title,
       });
+      // eslint-disable-next-line no-continue
       continue;
     }
 
