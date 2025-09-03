@@ -215,8 +215,6 @@ const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmail
   userProfile,
 );
 
-
-
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
@@ -226,7 +224,6 @@ const slackRouter = require('../routes/automation/slackRouter');
 
 //lbdashboard_bidoverview
 
-
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
 const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
   bidoverview_Bid,
@@ -234,7 +231,6 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
   bidoverview_User,
   bidoverview_Notification,
 );
-
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
@@ -246,10 +242,18 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 const templateRouter = require('../routes/templateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
+console.log('Loading plannedCost model...');
+const plannedCost = require('../models/plannedCost');
+console.log('PlannedCost model loaded:', plannedCost ? 'success' : 'failed');
+
+console.log('Loading plannedCostRouter...');
+const plannedCostRouter = require('../routes/plannedCostRouter');
+console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed');
 
 const tagRouter = require('../routes/tagRouter')(tag);
 
 module.exports = function (app) {
+  console.log('Routes function called - registering planned cost routes...');
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -334,7 +338,6 @@ module.exports = function (app) {
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
 
-
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
@@ -356,9 +359,9 @@ module.exports = function (app) {
 
   app.use('/api', registrationRouter);
   app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
-  app.use('/api/lb', lbWishlistsRouter);
-  app.use('/api', projectMaterialRouter);
+  console.log('Registering planned cost router...');
+  app.use('/api', plannedCostRouter(plannedCost, project));
+  console.log('Planned cost router registered successfully');
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
 };
