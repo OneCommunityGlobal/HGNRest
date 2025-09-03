@@ -92,6 +92,8 @@ const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
 const jobsRouter = require('../routes/jobsRouter');
 const laborCostRouter = require('../routes/laborCostRouter');
+const jobAnalyticsRouter = require('../routes/jobAnalyticsRouter');
+
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
@@ -323,7 +325,7 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
-
+  app.use('/job-analytics', jobAnalyticsRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
