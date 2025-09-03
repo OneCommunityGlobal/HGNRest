@@ -134,12 +134,15 @@ describe('FAQ Controller', () => {
       };
       FAQ.findById.mockResolvedValue(mockFAQData);
 
-      UserProfile.findById
-        .mockImplementation(id => {
-          if (id === 'creatorUserId') return { select: jest.fn().mockResolvedValue({ firstName: 'Creator', lastName: 'User' }) };
-          if (id === 'updaterUserId1') return { select: jest.fn().mockResolvedValue({ firstName: 'Updater', lastName: 'One' }) };
-          return { select: jest.fn().mockResolvedValue(null) };
-        });
+      UserProfile.findById.mockImplementation((id) => {
+        if (id === 'creatorUserId')
+          return {
+            select: jest.fn().mockResolvedValue({ firstName: 'Creator', lastName: 'User' }),
+          };
+        if (id === 'updaterUserId1')
+          return { select: jest.fn().mockResolvedValue({ firstName: 'Updater', lastName: 'One' }) };
+        return { select: jest.fn().mockResolvedValue(null) };
+      });
 
       await faqController.getFAQHistory(mockReq, mockRes);
 
