@@ -270,3 +270,5 @@ const getSkillsList = () =>
 
 module.exports = formquestions;
 module.exports.getSkillsList = getSkillsList;
+
+module.exports.getSkillsList = getSkillsList;
