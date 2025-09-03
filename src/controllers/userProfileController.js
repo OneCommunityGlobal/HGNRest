@@ -239,23 +239,58 @@ const userProfileController = function (UserProfile, Project) {
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
    */
   const getUserProfileBasicInfo = async function (req, res) {
-    try {
-      if (!(await checkPermission(req, 'getUserProfiles'))) {
-        return res.status(403).send({ error: 'Unauthorized' });
+    const inputUserId = req.query.userId;
+    console.log('before logger');
+    logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
+    if (inputUserId) {
+      try {
+        const cacheKey = `user_${inputUserId}`;
+        const cachedUser = cache.getCache(cacheKey);
+        if (cachedUser) {
+          return res.status(200).send(JSON.parse(cachedUser));
+        }
+        const user = await UserProfile.findById(
+          inputUserId,
+          '_id firstName lastName isActive startDate createdDate endDate',
+        );
+        if (!user) {
+          return res.status(404).send({ error: 'User Not found' });
+        }
+
+        cache.setCache(cacheKey, JSON.stringify(user));
+        return res.status(200).send(user);
+      } catch (error) {
+        return res.status(500).send({ error: 'Failed to fetch userProfile' });
       }
-
-      const userProfiles = await UserProfile.find(
-        {},
-        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
-      ).sort({
-        lastName: 1,
-      });
-
-      res.status(200).json(userProfiles);
-    } catch (error) {
-      console.error('Error fetching user profiles:', error);
-      res.status(500).send({ error: 'Failed to fetch user profiles' });
     }
+
+    if (!(await checkPermission(req, 'getUserProfiles'))) {
+      forbidden(res, 'You are not authorized to view all users');
+      return;
+    }
+
+    const userProfiles = await UserProfile.find(
+      {},
+      '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+    )
+      .sort({
+        lastName: 1,
+      })
+      .then((results) => {
+        if (!results) {
+          if (cache.getCache('allusers')) {
+            const getData = JSON.parse(cache.getCache('allusers'));
+            res.status(200).send(getData);
+            return;
+          }
+          res.status(500).send({ error: 'User result was invalid' });
+          return;
+        }
+        cache.setCache('allusers', JSON.stringify(results));
+        res.status(200).send(results);
+      })
+      .catch((error) => res.status(404).send(error));
+    console.log(userProfiles);
   };
 
   const getProjectMembers = async function (req, res) {
@@ -427,6 +462,12 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
+    // Handle defaultPassword
+    if (req.body.defaultPassword) {
+      const salt = await bcrypt.genSalt(10);
+      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
+    }
+
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -562,6 +603,12 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.findById(userid, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
+        return;
+      }
+
+      // Prevent modification of defaultPassword
+      if (req.body.defaultPassword && record.defaultPassword) {
+        res.status(403).send('defaultPassword cannot be modified.');
         return;
       }
 
