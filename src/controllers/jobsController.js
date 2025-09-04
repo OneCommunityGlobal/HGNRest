@@ -69,7 +69,7 @@ const getJobs = async (req, res) => {
     const totalJobs = await Job.countDocuments(query);
     console.log(` totalJobs is ${totalJobs}`);
 
-    const totalPages = Math.ceil(totalJobs / 20);
+    const totalPages = Math.ceil(totalJobs / 10); // was 20
     console.log(` totalPages is ${totalPages}`);
 
     let pageNum;
