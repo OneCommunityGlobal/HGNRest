@@ -13,8 +13,7 @@ const getJobs = async (req, res) => {
     console.log(`pageNumber ${pageNumber}`);
     console.log(`limitNumber ${limitNumber}`);
 
-    // Build query object
-    // const query = {};
+    // Build query conditions
     const conditions = [];
     const [allCategories, allPositions] = await Promise.all([
       JobPositionCategory.distinct('category'),
@@ -42,15 +41,8 @@ const getJobs = async (req, res) => {
           2,
         ),
       );
-      /* query.$or = [
-        { title: { $regex: new RegExp(searchString, 'i') } },
-        { description: { $regex: new RegExp(searchString, 'i') } },
-      ]; */
     } // Case-insensitive search
 
-    // if (position) query.title = position;
-
-    // if (category) query.category = category;
     if (position) conditions.push({ title: { $in: [position] } });
 
     if (category) conditions.push({ category: { $in: [category] } });
@@ -60,7 +52,6 @@ const getJobs = async (req, res) => {
     if (allCategories.length) conditions.push({ category: { $in: allCategories } });
     if (allPositions.length) conditions.push({ title: { $in: allPositions } });
     console.log(conditions);
-    // console.log("above validCategories");
     // Final query
 
     const query = conditions.length ? { $and: conditions } : {};
@@ -69,7 +60,7 @@ const getJobs = async (req, res) => {
     const totalJobs = await Job.countDocuments(query);
     console.log(` totalJobs is ${totalJobs}`);
 
-    const totalPages = Math.ceil(totalJobs / 10); // was 20
+    const totalPages = Math.ceil(totalJobs / limitNumber); // was 20
     console.log(` totalPages is ${totalPages}`);
 
     let pageNum;
@@ -95,35 +86,6 @@ const getJobs = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
   }
-  // Fetch total count for pagination metadata
-  /* const totalJobs = await Job.countDocuments(query);
-
-    const totalPages = Math.ceil(totalJobs / 20);
-    console.log(` totalPages is ${totalPages}`);
-
-    let pageNum;
-    if (pageNumber > totalPages) pageNum = 1;
-    else pageNum = pageNumber;
-    // Fetch paginated results
-    const jobs = await Job.find(query)
-      .skip((pageNum - 1) * limitNumber)
-      .limit(limitNumber);
-
-    // Prepare response
-    res.json({
-      jobs,
-      pagination: {
-        totalJobs,
-        totalPages: Math.ceil(totalJobs / limitNumber),
-        currentPage: pageNumber,
-        limit: limitNumber,
-        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
-        hasPreviousPage: pageNumber > 1,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
-  } */
 };
 
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
@@ -136,24 +98,50 @@ const getJobSummaries = async (req, res) => {
     const limitNumber = Math.max(1, parseInt(limit, 10));
     console.log(`pageNumber ${pageNumber}`);
     console.log(`limitNumber ${limitNumber}`);
+    // Build query conditions
+    const conditions = [];
+    const [allCategories, allPositions] = await Promise.all([
+      JobPositionCategory.distinct('category'),
+      JobPositionCategory.distinct('position'),
+    ]);
 
-    // Construct the query object
-    const query = {};
     if (search) {
       const searchString = String(search);
+      conditions.push({
+        $or: [
+          { title: { $regex: new RegExp(searchString, 'i') } },
+          { description: { $regex: new RegExp(searchString, 'i') } },
+        ],
+      });
 
-      query.$or = [
-        { title: { $regex: new RegExp(searchString, 'i') } },
-        { description: { $regex: new RegExp(searchString, 'i') } },
-      ];
+      console.log(
+        JSON.stringify(
+          conditions,
+          (value) => {
+            if (value instanceof RegExp) {
+              return value.toString(); // shows as "/pattern/i"
+            }
+            return value;
+          },
+          2,
+        ),
+      );
     } // Case-insensitive search
 
-    if (category) query.category = category;
-    if (position) query.title = position;
+    if (position) conditions.push({ title: { $in: [position] } });
 
-    /* if (search) query.title = { $regex: search, $options: 'i' };
-    if (category) query.category = category;
-    */
+    if (category) conditions.push({ category: { $in: [category] } });
+
+    console.log(allCategories);
+    console.log(allPositions);
+    if (allCategories.length) conditions.push({ category: { $in: allCategories } });
+    if (allPositions.length) conditions.push({ title: { $in: allPositions } });
+    console.log(conditions);
+    // Final query
+
+    const query = conditions.length ? { $and: conditions } : {};
+    console.log('query from getJobs');
+    console.log('Final Query:', JSON.stringify(query, null, 2));
 
     // Sorting logic
     const sortCriteria = {
