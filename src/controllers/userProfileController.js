@@ -1707,7 +1707,7 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.find({
       $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
-      .select('firstName lastName')
+      .select('firstName lastName isActive')
       // eslint-disable-next-line consistent-return
       .then((users) => {
         if (users.length === 0) {
