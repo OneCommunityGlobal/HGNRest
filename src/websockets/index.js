@@ -134,5 +134,54 @@ export default () => {
     clearInterval(interval);
   });
 
-  return { path: '/timer-service', handleUpgrade };
+  /**
+   * Force pause all running timers (for week-end cleanup)
+   * This uses the same WebSocket mechanism as disconnection forced pause
+   */
+  const forcePauseAllRunningTimers = async () => {
+    try {
+      const Timer = require('../models/timer');
+      const logger = require('../startup/logger');
+      
+      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+      logger.logInfo(`Starting timer cleanup at week end: ${currentFormattedDate}`);
+
+      // Find all timers that are currently started and not paused
+      const runningTimers = await Timer.find({
+        started: true,
+        paused: false
+      });
+
+      logger.logInfo(`Found ${runningTimers.length} running timers to force pause`);
+
+      let pausedCount = 0;
+      let errorCount = 0;
+
+      // Process each running timer using the same WebSocket mechanism
+      for (const timer of runningTimers) {
+        try {
+          // Send forced pause through WebSocket system (same as disconnection)
+          const msg = { action: action.FORCED_PAUSE };
+          await handleMessage(msg, clients, timer.userId);
+          
+          // Broadcast to all connected clients for this user
+          broadcastToSameUser(connections, timer.userId, JSON.stringify({ action: action.FORCED_PAUSE }));
+          
+          pausedCount++;
+          logger.logInfo(`Force paused timer for user: ${timer.userId}`);
+        } catch (error) {
+          errorCount++;
+          logger.logException(`Error force pausing timer for user ${timer.userId}: ${error}`);
+        }
+      }
+
+      logger.logInfo(`Timer cleanup completed. Paused: ${pausedCount}, Errors: ${errorCount}`);
+    } catch (err) {
+      const logger = require('../startup/logger');
+      logger.logException(`Error during timer cleanup: ${err}`);
+      throw err;
+    }
+  };
+
+  return { path: '/timer-service', handleUpgrade, forcePauseAllRunningTimers };
 };

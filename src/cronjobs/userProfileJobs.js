@@ -17,6 +17,8 @@ const userProfileJobs = () => {
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.deleteExpiredTokens();
+        // Force pause all running timers when the week ends
+        await userhelper.forcePauseAllRunningTimers();
       }
       await userhelper.awardNewBadges();
     },

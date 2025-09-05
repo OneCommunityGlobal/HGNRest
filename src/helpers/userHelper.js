@@ -34,6 +34,7 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
+const Timer = require('../models/timer');
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -2705,6 +2706,29 @@ const userHelper = function () {
     }
   };
 
+  /**
+   * Force pause all running timers when the week ends
+   * This ensures that no timers continue running across week boundaries
+   * Uses the same WebSocket mechanism as disconnection forced pause
+   */
+  const forcePauseAllRunningTimers = async () => {
+    try {
+      // Get the WebSocket server instance and call its forcePauseAllRunningTimers function
+      // This ensures we use the same WebSocket mechanism as disconnection forced pause
+      const websocketServer = require('../websockets/index')();
+      
+      if (websocketServer && websocketServer.forcePauseAllRunningTimers) {
+        await websocketServer.forcePauseAllRunningTimers();
+      } else {
+        logger.logException('WebSocket server not available for timer cleanup');
+        throw new Error('WebSocket server not available for timer cleanup');
+      }
+    } catch (err) {
+      logger.logException(`Error during timer cleanup: ${err}`);
+      throw err;
+    }
+  };
+
   return {
     changeBadgeCount,
     getUserName,
@@ -2728,6 +2752,7 @@ const userHelper = function () {
     getProfileImagesFromWebsite,
     checkTeamCodeMismatch,
     resendBlueSquareEmailsOnlyForLastWeek,
+    forcePauseAllRunningTimers,
   };
 };
 
