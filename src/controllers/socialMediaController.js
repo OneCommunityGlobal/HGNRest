@@ -8,13 +8,10 @@ const ScheduledPost = require('../models/scheduledPostSchema');
 
 function extractTextAndImgUrl(htmlString) {
   const $ = cheerio.load(htmlString);
-  console.log(htmlString, 'reached ex');
+
   const textContent = $.root().text().replace(/\s+/g, ' ').trim();
-  //const textContent = $('body').text().replace(/\+/g, '').trim();
-  //  const textContent = $('div[style]').text().trim();
   const urlSrcs = [];
   const base64Srcs = [];
-  console.log(textContent, 'reached ex results');
 
   $('img').each((i, img) => {
     const src = $(img).attr('src');
@@ -40,7 +37,6 @@ async function downloadImage(url) {
 }
 
 async function postToTwitter(content, image) {
-  console.log('create Scheduled Tweet call');
   const TwitterClient = new TwitterApi({
     appKey: process.env.REACT_APP_TWITTER_APP_KEY,
     appSecret: process.env.REACT_APP_TWITTER_APP_SECRET,
@@ -56,7 +52,6 @@ async function postToTwitter(content, image) {
     let mediaIds = [];
     // src type is base64
     if (base64Srcs && base64Srcs.length > 0) {
-      console.log('Uploading base64 media...');
       const base64MediaIds = await Promise.all(
         base64Srcs.map(async (imgSrc) => {
           try {
@@ -71,7 +66,6 @@ async function postToTwitter(content, image) {
         }),
       );
       mediaIds = mediaIds.concat(base64MediaIds.filter((id) => id !== null));
-      console.log('Base64 media uploaded, IDs:', mediaIds);
     }
 
     const tweetOptions = { text: textContent };
@@ -81,7 +75,6 @@ async function postToTwitter(content, image) {
     }
 
     const tweet = await rwClient.v2.tweet(tweetOptions);
-    console.log('Tweet posted successfully:', tweet);
   } catch (error) {
     console.error('[Backend] Network or other error: ', error);
   }

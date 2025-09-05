@@ -8,8 +8,6 @@ const ScheduledPost = require('../models/scheduledPostSchema');
 const facebookController = function () {
   async function extractTextAndImgUrl(htmlString) {
     const $ = cheerio.load(htmlString);
-    //const textContent = $('body').text().replace(/\+/g, '').trim();
-    //const textContent = $('div[style]').text().trim();
     const textContent = $.root().text().replace(/\s+/g, ' ').trim();
     const urlSrcs = [];
     const base64Srcs = [];
