@@ -61,6 +61,7 @@
     "@sentry/integrations": "^7.110.0",
     "@sentry/node": "^7.120.3",
     "@types/node-fetch": "^2.6.12",
+    "abort-controller": "^3.0.0",
     "async-exit-hook": "^2.0.1",
     "axios": "^1.7.7",
     "babel-plugin-module-resolver": "^5.0.0",
