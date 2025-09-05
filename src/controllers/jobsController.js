@@ -1,7 +1,7 @@
 const Job = require('../models/jobs'); // Import the Job model
 const JobPositionCategory = require('../models/jobPositionCategory');
 // Controller to fetch all jobs with pagination, search, and filtering
-const getJobs = async (req, res) => {
+const paginationForJobs = async (req, res) => {
   console.log('getJobs');
   console.log(req.query);
   const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
