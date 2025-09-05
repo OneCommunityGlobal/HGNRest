@@ -23,22 +23,21 @@ describe('jobsController', () => {
       // Arrange
       const mockJobs = [
         { _id: '1', title: 'Software Engineer', category: 'Engineering', description: 'Test job' },
-        { _id: '2', title: 'Product Manager', category: 'Management', description: 'Test job 2' }
+        { _id: '2', title: 'Product Manager', category: 'Management', description: 'Test job 2' },
       ];
-      
+
       Job.countDocuments = jest.fn().mockResolvedValue(2);
-      Job.find = jest.fn().mockReturnValue({
-        skip: jest.fn().mockReturnValue({
-          limit: jest.fn().mockResolvedValue(mockJobs)
-        })
-      });
+      const limit = jest.fn().mockResolvedValue(mockJobs);
+      const skip = jest.fn().mockReturnValue({ limit });
+      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({ sort });
 
       const req = {
-        query: {}
+        query: {},
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -63,27 +62,26 @@ describe('jobsController', () => {
     it('should return filtered jobs when search and category parameters are provided', async () => {
       // Arrange
       const mockJobs = [
-        { _id: '1', title: 'Software Engineer', category: 'Engineering', description: 'Test job' }
+        { _id: '1', title: 'Software Engineer', category: 'Engineering', description: 'Test job' },
       ];
-      
+
       Job.countDocuments = jest.fn().mockResolvedValue(1);
-      Job.find = jest.fn().mockReturnValue({
-        skip: jest.fn().mockReturnValue({
-          limit: jest.fn().mockResolvedValue(mockJobs)
-        })
-      });
+      const limit = jest.fn().mockResolvedValue(mockJobs);
+      const skip = jest.fn().mockReturnValue({ limit });
+      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({ sort });
 
       const req = {
         query: {
           search: 'Software',
           category: 'Engineering',
           page: '1',
-          limit: '10'
-        }
+          limit: '10',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -93,9 +91,9 @@ describe('jobsController', () => {
       expect(Job.countDocuments).toHaveBeenCalledWith({
         $or: [
           { title: { $regex: expect.any(RegExp) } },
-          { description: { $regex: expect.any(RegExp) } }
+          { description: { $regex: expect.any(RegExp) } },
         ],
-        category: 'Engineering'
+        category: 'Engineering',
       });
       expect(res.json).toHaveBeenCalledWith({
         jobs: mockJobs,
@@ -115,29 +113,29 @@ describe('jobsController', () => {
     it('should return job summaries with sorting and pagination', async () => {
       // Arrange
       const mockJobs = [
-        { _id: '1', title: 'Software Engineer', category: 'Engineering', location: 'Remote' }
+        { _id: '1', title: 'Software Engineer', category: 'Engineering', location: 'Remote' },
       ];
-      
+
       Job.countDocuments = jest.fn().mockResolvedValue(1);
       Job.find = jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
           sort: jest.fn().mockReturnValue({
             skip: jest.fn().mockReturnValue({
-              limit: jest.fn().mockResolvedValue(mockJobs)
-            })
-          })
-        })
+              limit: jest.fn().mockResolvedValue(mockJobs),
+            }),
+          }),
+        }),
       });
 
       const req = {
         query: {
           page: '1',
-          limit: '5'
-        }
+          limit: '5',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -164,19 +162,19 @@ describe('jobsController', () => {
     it('should return job title suggestions based on query', async () => {
       // Arrange
       const mockSuggestions = ['Software Engineer', 'Senior Software Engineer'];
-      
+
       Job.find = jest.fn().mockReturnValue({
-        distinct: jest.fn().mockResolvedValue(mockSuggestions)
+        distinct: jest.fn().mockResolvedValue(mockSuggestions),
       });
 
       const req = {
         query: {
-          query: 'Software'
-        }
+          query: 'Software',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -184,10 +182,10 @@ describe('jobsController', () => {
 
       // Assert
       expect(Job.find).toHaveBeenCalledWith({
-        title: { $regex: 'Software', $options: 'i' }
+        title: { $regex: 'Software', $options: 'i' },
       });
       expect(res.json).toHaveBeenCalledWith({
-        suggestions: mockSuggestions
+        suggestions: mockSuggestions,
       });
     });
   });
@@ -196,13 +194,13 @@ describe('jobsController', () => {
     it('should return sorted categories', async () => {
       // Arrange
       const mockCategories = ['Engineering', 'Marketing', 'Sales'];
-      
+
       Job.distinct = jest.fn().mockResolvedValue(mockCategories);
 
       const req = {};
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -212,7 +210,7 @@ describe('jobsController', () => {
       expect(Job.distinct).toHaveBeenCalledWith('category', {});
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        categories: mockCategories
+        categories: mockCategories,
       });
     });
   });
@@ -224,19 +222,19 @@ describe('jobsController', () => {
         _id: '507f1f77bcf86cd799439011',
         title: 'Software Engineer',
         category: 'Engineering',
-        description: 'Test job description'
+        description: 'Test job description',
       };
-      
+
       Job.findById = jest.fn().mockResolvedValue(mockJob);
 
       const req = {
         params: {
-          id: '507f1f77bcf86cd799439011'
-        }
+          id: '507f1f77bcf86cd799439011',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -253,12 +251,12 @@ describe('jobsController', () => {
 
       const req = {
         params: {
-          id: '507f1f77bcf86cd799439011'
-        }
+          id: '507f1f77bcf86cd799439011',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -276,36 +274,34 @@ describe('jobsController', () => {
       // Arrange
       const updateData = {
         title: 'Updated Software Engineer',
-        description: 'Updated description'
+        description: 'Updated description',
       };
 
       const mockUpdatedJob = {
         _id: '507f1f77bcf86cd799439011',
-        ...updateData
+        ...updateData,
       };
 
       Job.findByIdAndUpdate = jest.fn().mockResolvedValue(mockUpdatedJob);
 
       const req = {
         params: {
-          id: '507f1f77bcf86cd799439011'
+          id: '507f1f77bcf86cd799439011',
         },
-        body: updateData
+        body: updateData,
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
       await updateJob(req, res);
 
       // Assert
-      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
-        updateData,
-        { new: true }
-      );
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith('507f1f77bcf86cd799439011', updateData, {
+        new: true,
+      });
       expect(res.json).toHaveBeenCalledWith(mockUpdatedJob);
     });
   });
@@ -315,19 +311,19 @@ describe('jobsController', () => {
       // Arrange
       const mockDeletedJob = {
         _id: '507f1f77bcf86cd799439011',
-        title: 'Software Engineer'
+        title: 'Software Engineer',
       };
 
       Job.findByIdAndDelete = jest.fn().mockResolvedValue(mockDeletedJob);
 
       const req = {
         params: {
-          id: '507f1f77bcf86cd799439011'
-        }
+          id: '507f1f77bcf86cd799439011',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act
@@ -344,27 +340,27 @@ describe('jobsController', () => {
       // Arrange
       const mockJobs = [
         { _id: '1', title: 'Software Engineer', category: 'Engineering' },
-        { _id: '2', title: 'Product Manager', category: 'Management' }
+        { _id: '2', title: 'Product Manager', category: 'Management' },
       ];
-      
+
       Job.countDocuments = jest.fn().mockResolvedValue(2);
       Job.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnValue({
           skip: jest.fn().mockReturnValue({
-            limit: jest.fn().mockResolvedValue(mockJobs)
-          })
-        })
+            limit: jest.fn().mockResolvedValue(mockJobs),
+          }),
+        }),
       });
 
       const req = {
         query: {
           page: '1',
-          limit: '10'
-        }
+          limit: '10',
+        },
       };
       const res = {
         json: jest.fn(),
-        status: jest.fn().mockReturnThis()
+        status: jest.fn().mockReturnThis(),
       };
 
       // Act

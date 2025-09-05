@@ -14,6 +14,7 @@ describe('bmEquipmentController', () => {
       findOne: jest.fn(),
       findOneAndUpdate: jest.fn(),
       create: jest.fn(),
+      findByIdAndUpdate: jest.fn(),
     };
 
     // Initialize controller with mock model
@@ -23,6 +24,7 @@ describe('bmEquipmentController', () => {
     mockReq = {
       params: {},
       body: {},
+      query: {},
     };
     mockRes = {
       status: jest.fn().mockReturnThis(),
