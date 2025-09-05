@@ -1,7 +1,8 @@
 const Websockets = require('ws');
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const config = require('../../config');
+// eslint-disable-next-line no-unused-vars
 const { sendMessageHandler, updateMessageStatusHandler } = require("./lbMessageHandler");
 const Message = require('../../models/lbdashboard/message');
 const Notification = require('../../models/notification')
@@ -45,7 +46,7 @@ export default () => {
 
     const userConnections = new Map();
 
-    const broadcastStatusUpdate = async (messageId, status, userId) => {
+    const broadcastStatusUpdate = async (messageId, status, /* userId */) => {
         const message = await Message.findByIdAndUpdate(
             messageId,
             { status },
@@ -165,6 +166,7 @@ export default () => {
                         throw new Error("Contact ID is required to mark messages as read.");
                     }
 
+                    // eslint-disable-next-line no-unused-vars
                     const updatedMessages = await Message.updateMany(
                         { sender: contactId, receiver: userId, status: { $ne: "read" } },
                         { $set: { status: "read" } }

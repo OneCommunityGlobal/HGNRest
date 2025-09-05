@@ -6,7 +6,7 @@ const config = require('../config');
 const router = express.Router();
 const faqController = require('../controllers/faqController');
 const Role = require('../models/role');
-const UnansweredFAQ = require('../models/unansweredFaqs');
+// const UnansweredFAQ = require('../models/unansweredFaqs');
 
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization;

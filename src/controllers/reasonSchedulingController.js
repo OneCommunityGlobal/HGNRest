@@ -5,6 +5,7 @@ const emailSender = require('../utilities/emailSender');
 // no longer in use replaced with timeoff requests
 const postReason = async (req, res) => {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { userId, requestor, reasonData } = req.body;
 
     const newDate = moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day');
@@ -134,6 +135,7 @@ const postReason = async (req, res) => {
 
 const getAllReasons = async (req, res) => {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { requestor } = req.body;
     const { userId } = req.params;
 
@@ -171,6 +173,7 @@ const getAllReasons = async (req, res) => {
 
 const getSingleReason = async (req, res) => {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { requestor } = req.body;
     const { userId } = req.params;
     const { queryDate } = req.query;
@@ -218,6 +221,7 @@ const getSingleReason = async (req, res) => {
 
 const patchReason = async (req, res) => {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { requestor, reasonData } = req.body;
     const { userId } = req.params;
 

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 
 const mockReusableType = {
   findById: jest.fn(),
@@ -46,9 +46,9 @@ describe('bmReusableController', () => {
     };
 
     // Don't create circular references in the mock
-    const thenFn = function (callback) {
+    const thenFn = function (/* callback */) {
       return {
-        catch (errorCallback) {
+        catch (/* errorCallback */) {
           // This is just a placeholder that will be overridden in tests
         },
       };
@@ -289,7 +289,7 @@ describe('bmReusableController', () => {
       // Setup
       const error = new Error('Update failed');
       BuildingReusableMock.updateOne.mockReturnValue({
-        then: jest.fn().mockImplementation((callback) => ({
+        then: jest.fn().mockImplementation((/* callback */) => ({
             catch: jest.fn().mockImplementation((errCallback) => {
               errCallback(error);
             }),

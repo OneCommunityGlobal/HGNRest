@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 
 // Utility to aid in testing
 jest.mock('../utilities/permissions', () => ({

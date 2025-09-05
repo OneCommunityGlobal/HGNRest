@@ -39,6 +39,7 @@ describe('mapLocations routes', () => {
       console.log('Testing 401 unauthorized access...');
 
       try {
+        // eslint-disable-next-line no-unused-vars
         const responses = await Promise.all([
           agent.post('/api/mapLocations').send(reqBody).expect(401),
           agent.get('/api/mapLocations/randomId').send(reqBody).expect(401),

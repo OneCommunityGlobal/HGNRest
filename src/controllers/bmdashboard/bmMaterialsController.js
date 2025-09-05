@@ -249,6 +249,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       if (status === 'Approved') {
         updateObject.$inc = { stockBought: quantity };
       }
+      // eslint-disable-next-line no-unused-vars
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
         { 'purchaseRecord._id': purchaseId },
         updateObject,

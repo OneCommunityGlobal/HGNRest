@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const userProfile = require('../models/userProfile');
+// const mongoose = require('mongoose');
+// const userProfile = require('../models/userProfile');
 
 const descriptions = [
   'Better Descriptions',

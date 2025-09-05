@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// eslint-disable-next-line no-unused-vars
 const mongoServer = null;
 
 // Simplified MongoDB connection for CI environments
