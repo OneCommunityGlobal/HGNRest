@@ -4,15 +4,6 @@ require('dotenv').config();
 const sentryApiToken = process.env.SENTRY_API_TOKEN; // Sentry API Token from .env file
 const organizationSlug = process.env.SENTRY_ORG_SLUG; // Organization slug from .env file
 
-// Validate required environment variables
-if (!sentryApiToken) {
-  throw new Error('Sentry API token is required');
-}
-
-if (!organizationSlug) {
-  throw new Error('Sentry organization slug is required');
-}
-
 const headers = {
   Authorization: `Bearer ${sentryApiToken}`,
   'Content-Type': 'application/json',
