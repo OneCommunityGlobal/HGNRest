@@ -29,7 +29,7 @@ exports.createIssue = async (req, res) => {
       projectName: req.body.projectName,
       equipmentIssues: req.body.equipmentIssues || 0,
       laborIssues: req.body.laborIssues || 0,
-      materialIssues: req.body.materialIssues || 0
+      materialIssues: req.body.materialIssues || 0,
     });
     await issue.save();
     res.status(201).json(issue);
@@ -72,16 +72,18 @@ exports.getIssueStatistics = async (req, res) => {
   try {
     const statistics = await Issue.aggregate([
       // Project the final output
-      { $project: {
-        projectId: 1,
-        projectName: 1,
-        equipmentIssues: 1,
-        laborIssues: 1,
-        materialIssues: 1,
-        totalIssues: { 
-          $add: ["$equipmentIssues", "$laborIssues", "$materialIssues"] 
-        }
-      }}
+      {
+        $project: {
+          projectId: 1,
+          projectName: 1,
+          equipmentIssues: 1,
+          laborIssues: 1,
+          materialIssues: 1,
+          totalIssues: {
+            $add: ['$equipmentIssues', '$laborIssues', '$materialIssues'],
+          },
+        },
+      },
     ]);
     res.json(statistics);
   } catch (error) {

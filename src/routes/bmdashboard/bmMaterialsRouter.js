@@ -13,8 +13,11 @@ const routes = function (buildingMaterial) {
   materialsRouter.route('/updateMaterialRecordBulk')
     .post(controller.bmPostMaterialUpdateBulk);
 
-    materialsRouter.route('/updateMaterialStatus')
+  materialsRouter.route('/updateMaterialStatus')
     .post(controller.bmupdatePurchaseStatus);
+
+  materialsRouter.route('/materials/:projectId')
+    .get(controller.bmGetMaterialSummaryByProject);
 
   return materialsRouter;
 };
