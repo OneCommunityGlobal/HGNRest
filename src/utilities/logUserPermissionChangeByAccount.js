@@ -2,6 +2,19 @@ const moment = require('moment-timezone');
 const UserPermissionChangeLog = require('../models/userPermissionChangeLog');
 const UserProfile = require('../models/userProfile');
 
+const findLatestRelatedLog = (userId) =>
+  new Promise((resolve, reject) => {
+    UserPermissionChangeLog.findOne({ userId })
+      .sort({ logDateTime: -1 })
+      .exec((err, document) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(document);
+      });
+  });
+
 const logUserPermissionChangeByAccount = async (req) => {
   const { permissions, firstName, lastName, requestor } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
@@ -12,7 +25,7 @@ const logUserPermissionChangeByAccount = async (req) => {
     const { userId } = req.params;
     const Permissions = permissions.frontPermissions;
     const removedPermissions = permissions.removedDefaultPermissions; // removed default permissions
-    const defaultPermissions = permissions.defaultPermissions; // default permissions for user provided by their role
+    const rolePermissions = permissions.defaultPermissions; // default permissions for user provided by their role
     const changedPermissions = [...Permissions, ...removedPermissions];
     const requestorEmailId = await UserProfile.findById(requestor.requestorId)
       .select('email')
@@ -21,23 +34,27 @@ const logUserPermissionChangeByAccount = async (req) => {
 
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
+      const docRemovedRolePermissions = Array.isArray(document.removedRolePermissions)
+        ? document.removedRolePermissions
+        : [];
+      const docSavedChanges = [...docPermissions, docRemovedRolePermissions];
       // no new changes in permissions list from last update
-      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(changedPermissions.sort())) {
+      if (JSON.stringify(docSavedChanges.sort()) === JSON.stringify(changedPermissions.sort())) {
         return;
       }
+      const prevRemovedPermissions = document.permissionsRemoved;
+      const prevAddedPermissions = document.permissionsAdded;
       permissionsRemoved = [
-        ...removedPermissions.filter((item) => !docPermissions.includes(item)), //saves new removed defaults
-        ...docPermissions.filter(
-          // saves changes of only removed non-default role permissions for user
-          (item) => !defaultPermissions.includes(item) && !Permissions.includes(item),
-        ),
+        ...removedPermissions.filter((item) => !prevRemovedPermissions.includes(item)), // saves new removed role defaults
+        ...prevAddedPermissions.filter(
+          (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
+        ), // removed user added permissions
       ];
       permissionsAdded = [
-        ...Permissions.filter((item) => !docPermissions.includes(item)), // saves new added permissions
-        ...docPermissions.filter(
-          // saves changes of only removed default permissions being added back
-          (item) => defaultPermissions.includes(item) && !removedPermissions.includes(item),
-        ),
+        ...Permissions.filter((item) => !prevAddedPermissions.includes(item)), // saves new added permissions
+        ...prevRemovedPermissions.filter(
+          (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
+        ), // removed role permissions added back
       ];
     } else {
       permissionsAdded = Permissions;
@@ -52,7 +69,8 @@ const logUserPermissionChangeByAccount = async (req) => {
       logDateTime: dateTime,
       userId,
       individualName: `INDIVIDUAL: ${firstName} ${lastName}`,
-      permissions: changedPermissions, // changed from Permissions to changedPermissions, to track changes for default and non-default permissions
+      permissions: Permissions,
+      removedRolePermissions: removedPermissions,
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
@@ -65,18 +83,5 @@ const logUserPermissionChangeByAccount = async (req) => {
     console.error('Error logging permission change:', error);
   }
 };
-
-const findLatestRelatedLog = (userId) =>
-  new Promise((resolve, reject) => {
-    UserPermissionChangeLog.findOne({ userId })
-      .sort({ logDateTime: -1 })
-      .exec((err, document) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(document);
-      });
-  });
 
 module.exports = logUserPermissionChangeByAccount;
