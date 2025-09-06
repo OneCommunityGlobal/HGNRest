@@ -1336,14 +1336,16 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
+    // eslint-disable-next-line no-unused-vars
+    const canEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
+    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -1378,6 +1380,7 @@ const userProfileController = function (UserProfile, Project) {
       // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
+        // eslint-disable-next-line no-shadow
         const canEditTeamCode =
           req.body.requestor.role === 'Owner' ||
           req.body.requestor.role === 'Administrator' ||
@@ -1467,7 +1470,7 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+      if (req.body.adminLinks !== undefined) {
         record.adminLinks = req.body.adminLinks;
       }
 

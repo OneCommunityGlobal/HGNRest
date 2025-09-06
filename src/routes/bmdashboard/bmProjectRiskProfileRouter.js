@@ -6,4 +6,4 @@ const projectRiskProfileController = require('../../controllers/bmdashboard/proj
 router.get('/projects/risk-profile', projectRiskProfileController.getRiskProfileSummary);
 router.post('/projects/risk-profile', projectRiskProfileController.createRiskProfile);
 
-module.exports = router; 
+module.exports = router;

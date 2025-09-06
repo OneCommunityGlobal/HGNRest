@@ -3,10 +3,14 @@ const mongoose = require('mongoose');
 const InjuryCategory = require('../../models/bmdashboard/buildingInjury');
 
 // ---------- helpers ----------
-const parseCSV = (s = '') => String(s).split(',').map(v => v.trim()).filter(Boolean);
-const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const parseCSV = (s = '') =>
+  String(s)
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const parseYMD_UTC = s => {
+const parseYmdUtc = (s) => {
   if (!s) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
   if (!m) return null;
@@ -14,8 +18,8 @@ const parseYMD_UTC = s => {
   return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
 };
 
-const parseDateFlexibleUTC = s => {
-  const d1 = parseYMD_UTC(s);
+const parseDateFlexibleUTC = (s) => {
+  const d1 = parseYmdUtc(s);
   if (d1) return d1;
   if (!s) return null;
   const d2 = new Date(s);
@@ -24,10 +28,18 @@ const parseDateFlexibleUTC = s => {
 
 const parseObjectIdsCSV = (s = '') =>
   parseCSV(s)
-    .filter(id => mongoose.Types.ObjectId.isValid(id))
-    .map(id => new mongoose.Types.ObjectId(id));
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
 
-const buildMatch = ({ projectIds, startDate, endDate, severities, types, projectNames, projectName }) => {
+const buildMatch = ({
+  projectIds,
+  startDate,
+  endDate,
+  severities,
+  types,
+  projectNames,
+  projectName,
+}) => {
   const match = {};
 
   const ids = parseObjectIdsCSV(projectIds);
@@ -39,7 +51,7 @@ const buildMatch = ({ projectIds, startDate, endDate, severities, types, project
     match.date = {};
     if (s) match.date.$gte = s;
     if (e0) {
-      if (parseYMD_UTC(endDate)) {
+      if (parseYmdUtc(endDate)) {
         const endExclusive = new Date(e0);
         endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
         match.date.$lt = endExclusive;
@@ -57,10 +69,11 @@ const buildMatch = ({ projectIds, startDate, endDate, severities, types, project
 
   const names = parseCSV(projectNames || projectName);
   if (names.length) {
-    match.$or = names.map(n => ({ projectName: { $regex: new RegExp(escapeRe(n), 'i') } }));
+    match.$or = names.map((n) => ({ projectName: { $regex: new RegExp(escapeRe(n), 'i') } }));
   }
 
-  const invalidDate = (startDate && !s && !parseYMD_UTC(startDate)) || (endDate && !e0 && !parseYMD_UTC(endDate));
+  const invalidDate =
+    (startDate && !s && !parseYmdUtc(startDate)) || (endDate && !e0 && !parseYmdUtc(endDate));
   return { match, invalidDate };
 };
 
@@ -68,14 +81,21 @@ const buildMatch = ({ projectIds, startDate, endDate, severities, types, project
 exports.getCategoryBreakdown = async (req, res) => {
   try {
     const { match, invalidDate } = buildMatch(req.query);
-    if (invalidDate) return res.status(400).json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+    if (invalidDate)
+      return res
+        .status(400)
+        .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
 
     const results = await InjuryCategory.aggregate([
       { $match: match },
       { $addFields: { _nameTrim: { $trim: { input: { $ifNull: ['$projectName', ''] } } } } },
       {
         $group: {
-          _id: { projectId: '$projectId', workerCategory: '$workerCategory', projectName: '$_nameTrim' },
+          _id: {
+            projectId: '$projectId',
+            workerCategory: '$workerCategory',
+            projectName: '$_nameTrim',
+          },
           totalInjuries: { $sum: { $ifNull: ['$count', 0] } },
         },
       },
@@ -121,7 +141,10 @@ exports.getUniqueInjuryTypes = async (_req, res) => {
 exports.getProjectsWithInjuries = async (req, res) => {
   try {
     const { match, invalidDate } = buildMatch(req.query);
-    if (invalidDate) return res.status(400).json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+    if (invalidDate)
+      return res
+        .status(400)
+        .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
 
     const projects = await InjuryCategory.aggregate([
       { $match: match },
