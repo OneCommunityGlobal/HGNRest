@@ -9,7 +9,7 @@ const routes = function (badge) {
 
   // badgeRouter.route('/badge/getbadge/:badgeId').get(controller.getBadge);
 
-  // badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
+  //badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
 
   // to update the schema with array of users for every badge
   badgeRouter.route('/badge/updateUsers').put(controller.updateBadgesWithUsers);

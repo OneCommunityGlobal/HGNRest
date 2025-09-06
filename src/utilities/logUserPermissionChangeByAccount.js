@@ -11,12 +11,15 @@ const logUserPermissionChangeByAccount = async (req) => {
     let permissionsRemoved = [];
     const { userId } = req.params;
     const Permissions = permissions.frontPermissions;
-    const requestorEmailId = await UserProfile.findById(requestor.requestorId).select('email').exec();
+    const requestorEmailId = await UserProfile.findById(requestor.requestorId)
+      .select('email')
+      .exec();
     const document = await findLatestRelatedLog(userId);
 
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      if(JSON.stringify(docPermissions) === JSON.stringify(Permissions)) {
+      // no new changes in permissions list from last update
+      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(Permissions.sort())) {
         return;
       }
       permissionsRemoved = docPermissions.filter((item) => !Permissions.includes(item));
@@ -25,6 +28,10 @@ const logUserPermissionChangeByAccount = async (req) => {
       permissionsAdded = Permissions;
     }
 
+    // no permission added nor removed
+    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
+      return;
+    }
     const logEntry = new UserPermissionChangeLog({
       logDateTime: dateTime,
       userId,
@@ -43,16 +50,17 @@ const logUserPermissionChangeByAccount = async (req) => {
   }
 };
 
-const findLatestRelatedLog = (userId) => new Promise((resolve, reject) => {
-  UserPermissionChangeLog.findOne({ userId })
-    .sort({ logDateTime: -1 })
-    .exec((err, document) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(document);
-    });
-});
+const findLatestRelatedLog = (userId) =>
+  new Promise((resolve, reject) => {
+    UserPermissionChangeLog.findOne({ userId })
+      .sort({ logDateTime: -1 })
+      .exec((err, document) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(document);
+      });
+  });
 
 module.exports = logUserPermissionChangeByAccount;

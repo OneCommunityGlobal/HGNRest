@@ -13,6 +13,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
@@ -47,11 +48,11 @@ async function ValidatePassword(req, res) {
     });
     return;
   }
+
+  const canUpdate = await hasPermission(req.body.requestor, 'updatePassword');
+
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId !== requestor.requestorId &&
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId !== requestor.requestorId && !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -59,10 +60,7 @@ async function ValidatePassword(req, res) {
   }
 
   // Verify request is authorized by self or adminsitrator
-  if (
-    userId === requestor.requestorId ||
-    !(await hasPermission(req.body.requestor, 'updatePassword'))
-  ) {
+  if (userId === requestor.requestorId && !canUpdate) {
     res.status(403).send({
       error: "You are unauthorized to update this user's password",
     });
@@ -170,36 +168,68 @@ const userProfileController = function (UserProfile, Project) {
 
   const getUserProfiles = async function (req, res) {
     if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
+      return forbidden(res, 'You are not authorized to view all users');
     }
 
-    await UserProfile.find(
-      {},
-      '_id firstName lastName role weeklycommittedHours jobTitle email permissions isActive reactivationDate startDate createdDate endDate',
-    )
-      .sort({
-        lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
+    const cacheKey = 'allusers';
+    try {
+      // get user profiles using aggregate pipeline
+      const users = await UserProfile.aggregate([
+        {
+          $project: {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            role: 1,
+            weeklycommittedHours: 1,
+            email: 1,
+            permissions: 1,
+            isActive: 1,
+            reactivationDate: 1,
+            startDate: 1,
+            createdDate: 1,
+            endDate: 1,
+            timeZone: 1,
+            infringementCount: { $size: { $ifNull: ['$infringements', []] } },
+            jobTitle: {
+              $cond: {
+                if: { $isArray: '$jobTitle' },
+                then: {
+                  $reduce: {
+                    input: '$jobTitle',
+                    initialValue: '',
+                    in: {
+                      $cond: {
+                        if: { $eq: ['$$value', ''] },
+                        then: '$$this',
+                        else: { $concat: ['$$value', ', ', '$$this'] },
+                      },
+                    },
+                  },
+                },
+                else: '$jobTitle',
+              },
+            },
+          },
+        },
+        { $sort: { startDate: -1, createdDate: -1 } },
+      ]);
+
+      if (!users || users.length === 0) {
+        const cachedData = cache.getCache(cacheKey);
+        if (cachedData) {
+          return res.status(200).send(JSON.parse(cachedData));
         }
-        const transformedResults = results.map((user) => ({
-          ...user.toObject(),
-          jobTitle: Array.isArray(user.jobTitle) ? user.jobTitle.join(', ') : user.jobTitle,
-        }));
-        console.log(transformedResults);
-        cache.setCache('allusers', JSON.stringify(transformedResults));
-        res.status(200).send(transformedResults);
-      })
-      .catch((error) => res.status(404).send(error));
+        return res.status(500).send({ error: 'User result was invalid' });
+      }
+
+      cache.setCache(cacheKey, JSON.stringify(users));
+      return res.status(200).send(users);
+    } catch (error) {
+      return res
+        .status(500)
+        .send({ error: 'Failed to fetch user profiles', details: error.message });
+    }
   };
 
   /**
@@ -209,12 +239,40 @@ const userProfileController = function (UserProfile, Project) {
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
    */
   const getUserProfileBasicInfo = async function (req, res) {
+    const inputUserId = req.query.userId;
+    console.log('before logger');
+    logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
+    if (inputUserId) {
+      try {
+        const cacheKey = `user_${inputUserId}`;
+        const cachedUser = cache.getCache(cacheKey);
+        if (cachedUser) {
+          return res.status(200).send(JSON.parse(cachedUser));
+        }
+        const user = await UserProfile.findById(
+          inputUserId,
+          '_id firstName lastName isActive startDate createdDate endDate',
+        );
+        if (!user) {
+          return res.status(404).send({ error: 'User Not found' });
+        }
+
+        cache.setCache(cacheKey, JSON.stringify(user));
+        return res.status(200).send(user);
+      } catch (error) {
+        return res.status(500).send({ error: 'Failed to fetch userProfile' });
+      }
+    }
+
     if (!(await checkPermission(req, 'getUserProfiles'))) {
       forbidden(res, 'You are not authorized to view all users');
       return;
     }
 
-    await UserProfile.find({}, '_id firstName lastName isActive startDate createdDate endDate')
+    const userProfiles = await UserProfile.find(
+      {},
+      '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+    )
       .sort({
         lastName: 1,
       })
@@ -232,6 +290,7 @@ const userProfileController = function (UserProfile, Project) {
         res.status(200).send(results);
       })
       .catch((error) => res.status(404).send(error));
+    console.log(userProfiles);
   };
 
   const getProjectMembers = async function (req, res) {
@@ -254,6 +313,28 @@ const userProfileController = function (UserProfile, Project) {
         res.json(profiles);
       },
     );
+  };
+
+  const searchUsersByName = async function (req, res) {
+    // if (!(await checkPermission(req, 'searchUserProfile'))) {
+    //   forbidden(res, 'You are not authorized to search for users');
+    //   return;
+    // }
+    const { name } = req.query;
+
+    const result = await UserProfile.find({
+      $expr: {
+        $regexMatch: {
+          input: { $concat: ['$firstName', ' ', '$lastName'] },
+          regex: name,
+          options: 'i',
+        },
+      },
+    })
+      .limit(10)
+      .select({ firstName: 1, lastName: 1, _id: 1 })
+      .sort({ firstName: 1, lastName: 1 });
+    res.json(result);
   };
 
   const postUserProfile = async function (req, res) {
@@ -381,6 +462,12 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
+    // Handle defaultPassword
+    if (req.body.defaultPassword) {
+      const salt = await bcrypt.genSalt(10);
+      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
+    }
+
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -446,7 +533,7 @@ const userProfileController = function (UserProfile, Project) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(501).send(error);
+      res.status(400).send(error);
     }
   };
 
@@ -492,12 +579,15 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+    const canEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    if (!isRequestorAuthorized && !canManageAdminLinks) {
+    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -517,6 +607,12 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
+      // Prevent modification of defaultPassword
+      if (req.body.defaultPassword && record.defaultPassword) {
+        res.status(403).send('defaultPassword cannot be modified.');
+        return;
+      }
+
       // To keep a copy of the original record if we edit the protected account
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
@@ -524,23 +620,32 @@ const userProfileController = function (UserProfile, Project) {
       }
       // validate userprofile pic
 
-      if (req.body.profilePic) {
-        const results = userHelper.validateProfilePic(req.body.profilePic);
+      // if (req.body.profilePic) {
+      //   const results = userHelper.validateProfilePic(req.body.profilePic);
 
-        if (!results.result) {
-          res.status(400).json(results.errors);
+      //   if (!results.result) {
+      //     res.status(400).json(results.errors);
+      //     return;
+      //   }
+      // }
+
+      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
+      // we need to remove the cache when team code is updated in case of new team code generation
+      if (req.body.teamCode) {
+        const canEditTeamCode =
+          req.body.requestor.role === 'Owner' ||
+          req.body.requestor.role === 'Administrator' ||
+          req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+        if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+          res.status(403).send('You are not authorized to edit team code.');
           return;
         }
-      }
-
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
+        // remove teamCode cache when new team assigned
+        if (req.body.teamCode !== record.teamCode) {
+          cache.removeCache('teamCodes');
+        }
+        record.teamCode = req.body.teamCode;
       }
 
       const originalinfringements = record.infringements ? record.infringements : [];
@@ -567,6 +672,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'isStartDateManuallyModified',
       ];
 
       commonFields.forEach((fieldName) => {
@@ -574,16 +680,6 @@ const userProfileController = function (UserProfile, Project) {
           record[fieldName] = req.body[fieldName];
         }
       });
-
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
-      // we need to remove the cache when team code is updated in case of new team code generation
-      if (req.body.teamCode) {
-        // remove teamCode cache when new team assigned
-        if (req.body.teamCode !== record.teamCode) {
-          cache.removeCache('teamCodes');
-        }
-        record.teamCode = req.body.teamCode;
-      }
 
       record.lastModifiedDate = Date.now();
 
@@ -606,8 +702,12 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+      if (req.body.adminLinks !== undefined) {
         record.adminLinks = req.body.adminLinks;
+      }
+
+      if (req.body.isAcknowledged !== undefined && record.permissions) {
+        record.permissions.isAcknowledged = req.body.isAcknowledged;
       }
 
       if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
@@ -732,7 +832,10 @@ const userProfileController = function (UserProfile, Project) {
           req.body.permissions !== undefined &&
           (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
         ) {
-          record.permissions = req.body.permissions;
+          record.permissions = {
+            isAcknowledged: false, // used to inform the user
+            ...req.body.permissions,
+          };
           await logUserPermissionChangeByAccount(req);
         }
 
@@ -762,8 +865,8 @@ const userProfileController = function (UserProfile, Project) {
       }
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1296,8 +1399,12 @@ const userProfileController = function (UserProfile, Project) {
       logger.logException(err, 'Unexpected error in finding menagement team');
     }
 
-    UserProfile.findById(userId, 'isActive email firstName lastName finalEmailThreeWeeksSent')
-      .then((user) => {
+    UserProfile.findById(
+      userId,
+      'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode',
+    )
+      .then(async (user) => {
+        const wasInactive = !user.isActive;
         user.set({
           isActive: activeStatus,
           reactivationDate: activationDate,
@@ -1305,6 +1412,17 @@ const userProfileController = function (UserProfile, Project) {
           isSet,
           finalEmailThreeWeeksSent: emailThreeWeeksSent,
         });
+
+        // if teamcode is invalid, flag warning
+        if (!activeStatus) {
+          user.teamCodeWarning = false;
+        } else if (wasInactive) {
+          const mismatch = await userHelper.checkTeamCodeMismatch(user);
+          if (mismatch) {
+            user.teamCodeWarning = true;
+          }
+        }
+
         user
           .save()
           .then(() => {
@@ -1413,7 +1531,7 @@ const userProfileController = function (UserProfile, Project) {
 
   const resetPassword = async function (req, res) {
     try {
-      ValidatePassword(req);
+      await ValidatePassword(req);
 
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -1431,11 +1549,6 @@ const userProfileController = function (UserProfile, Project) {
 
       if (!user) {
         res.status(404).send({ error: 'User not found' });
-        return;
-      }
-
-      if (!(await hasPermission(requestor, 'putUserProfileImportantInfo'))) {
-        res.status(403).send('You are not authorized to reset this users password');
         return;
       }
 
@@ -1624,7 +1737,7 @@ const userProfileController = function (UserProfile, Project) {
     }
 
     cache.removeCache(`user-${userId}`);
-    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err, _) => {
+    UserProfile.findByIdAndUpdate(userId, { $set: { isVisible } }, (err) => {
       if (err) {
         return res.status(500).send(`Could not Find user with id ${userId}`);
       }
@@ -1651,6 +1764,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1665,6 +1779,9 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+
+      req.body.blueSquare.reasons = ['other'];
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1681,8 +1798,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1713,7 +1830,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1727,14 +1844,17 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+          }
         }
         return blueSquare;
       });
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1759,7 +1879,6 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -1774,8 +1893,8 @@ const userProfileController = function (UserProfile, Project) {
 
       record
         .save()
-        .then((results) => {
-          userHelper.notifyInfringements(
+        .then(async (results) => {
+          await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
             results.firstName,
@@ -1879,7 +1998,8 @@ const userProfileController = function (UserProfile, Project) {
 
   const removeProfileImage = async (req, res) => {
     try {
-      var user_id = req.body.user_id;
+      /* eslint-disable camelcase */
+      const { user_id } = req.body;
       await UserProfile.updateOne({ _id: user_id }, { $unset: { profilePic: '' } });
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
@@ -1890,7 +2010,7 @@ const userProfileController = function (UserProfile, Project) {
   };
   const updateProfileImageFromWebsite = async (req, res) => {
     try {
-      var user = req.body;
+      const user = req.body;
       await UserProfile.updateOne(
         { _id: user.user_id },
         {
@@ -1957,7 +2077,205 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getAllMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID from requestor object added by middleware
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+
+      const userId = req.body.requestor.requestorId;
+
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+
+      // Get all form responses except for the current user
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $ne: userId }, // Exclude current user
+      }).lean();
+
+      // Get user IDs from form responses
+      const userIds = formResponses.map((response) => response.user_id);
+
+      // Get user profiles to get privacy settings
+      const userProfiles = await UserProfile.find({
+        _id: { $in: userIds },
+      })
+        .select('_id email phoneNumber privacySettings')
+        .lean();
+
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = userProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+
+      // Map data with privacy considerations
+      const membersData = formResponses
+        .map((response) => {
+          const profile = profileMap[response.user_id];
+
+          if (!profile) {
+            return null;
+          }
+
+          let score = 0;
+
+          // Check for skill score in frontend or backend
+          if (response.frontend && response.frontend[skillName] !== undefined) {
+            score = parseInt(response.frontend[skillName], 10) || 0;
+          } else if (response.backend && response.backend[skillName] !== undefined) {
+            score = parseInt(response.backend[skillName], 10) || 0;
+          }
+
+          // Apply privacy settings
+          const email = profile.privacySettings?.email === false ? null : profile.email;
+
+          // Get phone number with privacy consideration
+          let phoneNumber = null;
+          if (profile.privacySettings?.phoneNumber !== false) {
+            if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+              const [firstPhoneNumber] = profile.phoneNumber;
+              phoneNumber = firstPhoneNumber;
+            }
+          }
+
+          return {
+            name: response.userInfo.name,
+            email,
+            phoneNumber,
+            slack: response.userInfo.slack,
+            rating: `${score} / 10`,
+          };
+        })
+        .filter((item) => item !== null);
+
+      // Sort by skill score (highest first)
+      const sortedData = [...membersData].sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+
+      return res.status(200).send(sortedData);
+    } catch (error) {
+      console.error('Error in getAllMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve members',
+        error: error.message,
+      });
+    }
+  };
+
+  const replaceTeamCodeForUsers = async (req, res) => {
+    const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
+
+    // Validate input
+    if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
+      console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
+      return res.status(400).send({
+        error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
+      });
+    }
+
+    try {
+      // Sanitize oldTeamCodes to ensure they are strings
+      const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
+
+      // 1. Find all matching users first
+      const usersToUpdate = await UserProfile.find({ teamCode: { $in: sanitizedOldTeamCodes } });
+
+      if (usersToUpdate.length === 0) {
+        return res.status(404).send({ error: 'No users found with the specified team codes.' });
+      }
+
+      const updatedUsersInfo = await Promise.all(
+        usersToUpdate.map(async (user) => {
+          // if (!user || !user._id || !newTeamCode) {
+          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
+          //   return null;
+          // }
+          // user.teamCode = newTeamCode;
+          // let { teamCodeWarning } = user;
+          let teamCodeWarning = user.teamCodeWarning ?? false;
+
+          if (warningUsers && warningUsers.includes(user._id.toString())) {
+            teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
+          }
+
+          // return {
+          //   updateOne: {
+          //     // filter: { _id: user._id },
+          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
+          //     update: {
+          //       $set: {
+          //         teamCode: newTeamCode,
+          //         // teamCodeWarning: teamCodeWarning ?? false,
+          //         teamCodeWarning,
+          //       },
+          //     },
+          //   },
+          //   userInfo: {
+          //     userId: user._id,
+          //     teamCodeWarning,
+          //   },
+          // };
+          return {
+            userId: user._id,
+            teamCodeWarning,
+          };
+        }),
+      );
+
+      // Filter out null entries
+      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
+      // Then split into bulkOps and result set
+      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
+      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+      // 2. Execute all updates at once
+      // if (bulkOps.length > 0) {
+      //   await UserProfile.bulkWrite(bulkOps);
+      // } else {
+      //   console.warn('Invalid bulkOps detected. Aborting write.');
+      // }
+
+      // ✅ Build the proper bulkWrite payload
+      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+        updateOne: {
+          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
+          update: {
+            $set: {
+              teamCode: newTeamCode,
+              teamCodeWarning,
+            },
+          },
+        },
+      }));
+
+      // // ✅ Log structure
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+
+      if (bulkOps.length > 0) {
+        await UserProfile.bulkWrite(bulkOps);
+      }
+
+      return res.status(200).send({
+        message: 'Team codes updated successfully.',
+        updatedUsers: updatedUsersInfo,
+      });
+    } catch (error) {
+      console.error('Error updating team codes:', error);
+      return res.status(500).send({ error: 'An error occurred while updating team codes.' });
+    }
+  };
+
   return {
+    searchUsersByName,
     postUserProfile,
     getUserProfiles,
     putUserProfile,
@@ -1992,6 +2310,8 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    getAllMembersSkillsAndContact,
+    replaceTeamCodeForUsers,
   };
 };
 

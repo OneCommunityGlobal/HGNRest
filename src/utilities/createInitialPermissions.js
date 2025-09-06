@@ -31,6 +31,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
       'postTeam',
@@ -52,6 +53,7 @@ const permissionsRoles = [
       'changeUserStatus',
       'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
       'toggleInvisibility',
       'addInfringements',
@@ -102,6 +104,8 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+      'accessHgnSkillsDashboard',
+      'manageFAQs',
     ],
   },
   {
@@ -132,6 +136,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'seeUsersInDashboard',
+      'accessHgnSkillsDashboard',
     ],
   },
   {
@@ -194,6 +199,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -216,6 +222,7 @@ const permissionsRoles = [
       'assignProjectToUsers',
       'importTask',
       'postTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       'updateTask',
       'swapTask',
@@ -236,6 +243,7 @@ const permissionsRoles = [
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
@@ -243,6 +251,7 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
+      'reorderJobs',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
@@ -282,6 +291,8 @@ const permissionsRoles = [
       'manageAdminLinks',
       'removeUserFromTask',
       'editHeaderMessage',
+      'accessHgnSkillsDashboard',
+      'manageFAQs',
     ],
   },
 ];
