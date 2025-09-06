@@ -71,16 +71,18 @@ module.exports.dbClearAll = async () => {
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
     for (const key in collections) {
-      const collection = collections[key];
-      try {
-        if (collection && typeof collection.deleteMany === 'function') {
-          const result = await collection.deleteMany({});
-          console.log(`Cleared collection ${key}: ${result.deletedCount} documents`);
-        } else {
-          console.log(`Skipping collection ${key} (not a real collection)`);
+      if (collections.hasOwnProperty(key)) {
+        const collection = collections[key];
+        try {
+          if (collection && typeof collection.deleteMany === 'function') {
+            const result = await collection.deleteMany({});
+            console.log(`Cleared collection ${key}: ${result.deletedCount} documents`);
+          } else {
+            console.log(`Skipping collection ${key} (not a real collection)`);
+          }
+        } catch (error) {
+          console.warn(`Failed to clear collection ${key}:`, error.message);
         }
-      } catch (error) {
-        console.warn(`Failed to clear collection ${key}:`, error.message);
       }
     }
 

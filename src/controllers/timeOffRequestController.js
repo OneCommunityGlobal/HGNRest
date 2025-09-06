@@ -1,4 +1,4 @@
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
@@ -114,7 +114,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         })
         .filter((email) => email !== null);
   
-      ownerAcc.forEach((user) => userEmails.push(user.email));
+      ownerAcc.forEach((owner) => userEmails.push(owner.email));
   
       if (Array.isArray(userEmails) && userEmails.length > 0) {
         await Promise.all(

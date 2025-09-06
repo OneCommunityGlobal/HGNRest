@@ -13,8 +13,8 @@ const {
   // eslint-disable-next-line no-unused-vars
   getFormFormat,
 } = require('./formController')(
-  require('../models/forms.js'),
-  require('../models/formResponse.js'),
+  require('../models/forms'),
+  require('../models/formResponse'),
 );
 const Form = require('../models/forms');
 const FormResponse = require('../models/formResponse');
