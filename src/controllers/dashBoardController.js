@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable quotes */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');

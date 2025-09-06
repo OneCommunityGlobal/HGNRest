@@ -4,6 +4,17 @@ const config = require('../config');
 
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
+    // DO NOT DELETE THIS COMMENT - IT'S FOR TESTING PURPOSE
+    // if (
+    //   req.originalUrl === '/api/email/weekly-summaries/test' &&
+    //   req.method === 'POST'
+    // ) {
+    //   next();
+    //   return;
+    // }
+    // if (req.originalUrl.startsWith('/api/test/test-weekly-summaries')) {
+    //   return next();
+    // }
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
       return;
