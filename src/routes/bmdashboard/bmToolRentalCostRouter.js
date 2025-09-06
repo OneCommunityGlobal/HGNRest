@@ -9,9 +9,12 @@ const router = function (toolRentalUsageCost) {
     .route('/rentals/cost-over-time')
     .get(bmToolsRentalCostController.getRentalsCostOverTime);
   toolRentalCostRouter
-    .route('/tools/cost-breakdown')
+    .route('/tools-rental/cost-breakdown')
     .get(bmToolsRentalCostController.getToolsCostBreakdown);
-  toolRentalCostRouter.route('/tools/projects').get(bmToolsRentalCostController.getUniqueProjects);
+  toolRentalCostRouter
+    .route('/tools-rental/projects')
+    .get(bmToolsRentalCostController.getUniqueProjects);
+
   return toolRentalCostRouter;
 };
 

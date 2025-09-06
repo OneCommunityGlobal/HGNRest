@@ -5,45 +5,36 @@ const bmToolsRentalCostController = function (toolRentalUsageCost) {
     try {
       const { projectId, startDate, endDate } = req.query;
 
-      console.log('Received request with params:', { projectId, startDate, endDate });
-      // Validate project ID format
-      if (!ObjectId.isValid(projectId)) {
+      // Validate project ID format if provided
+      if (projectId && !ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
 
-      // Build date filter based on what's provided
-      let dateFilter = {};
+      // Base query
+      const matchQuery = { isRented: true };
 
-      if (startDate && endDate) {
-        // If both dates are provided, use them as range
-        dateFilter = {
-          date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate),
-          },
-        };
-      } else if (startDate) {
-        // If only start date is provided, use it as lower bound
-        dateFilter = {
-          date: { $gte: new Date(startDate) },
-        };
-      } else if (endDate) {
-        // If only end date is provided, use it as upper bound
-        dateFilter = {
-          date: { $lte: new Date(endDate) },
-        };
+      if (projectId) {
+        matchQuery.projectId = new ObjectId(projectId);
       }
-      // If no dates are provided, don't filter by date at all
 
-      // Query the database for tool availability data
-      const results = await toolRentalUsageCost.aggregate([
-        {
-          $match: {
-            projectId: new ObjectId(projectId),
-            isRented: true, // Only consider rented tools
-            ...dateFilter,
-          },
-        },
+      // Add date filter only if valid dates are provided
+      const hasValidStartDate = startDate && !Number.isNaN(new Date(startDate).getTime());
+      const hasValidEndDate = endDate && !Number.isNaN(new Date(endDate).getTime());
+
+      if (hasValidStartDate && hasValidEndDate) {
+        matchQuery.date = {
+          $gte: new Date(startDate),
+          $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+        };
+      } else if (hasValidStartDate) {
+        matchQuery.date = { $gte: new Date(startDate) };
+      } else if (hasValidEndDate) {
+        matchQuery.date = { $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) };
+      }
+
+      // Aggregate rental costs by date
+      const data = await toolRentalUsageCost.aggregate([
+        { $match: matchQuery },
         {
           $group: {
             _id: '$date',
@@ -60,45 +51,53 @@ const bmToolsRentalCostController = function (toolRentalUsageCost) {
         { $sort: { date: 1 } },
       ]);
 
-      // If no results found, return empty array
-      if (!results || results.length === 0) {
+      // Return empty array if no results
+      if (!data || data.length === 0) {
         return res.json([]);
       }
 
-      return res.json(results);
+      return res.json(data);
     } catch (error) {
       console.error('Error fetching tools rental data:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   };
 
+  // Cost breakdown by owned vs rented tools
   const getToolsCostBreakdown = async (req, res) => {
     try {
       const { startDate, endDate, projectIds } = req.query;
-      const projectList = projectIds.split(','); // ["proj1", "proj2"]
+
+      const matchFilter = {};
+
+      // Handle projectIds if provided
+      if (projectIds) {
+        const projectList = projectIds.split(','); // ["proj1", "proj2"]
+        matchFilter.projectName = { $in: projectList };
+      }
+
+      // Handle dates only if valid
+      const hasValidStartDate = startDate && !Number.isNaN(new Date(startDate).getTime());
+      const hasValidEndDate = endDate && !Number.isNaN(new Date(endDate).getTime());
+
+      if (hasValidStartDate && hasValidEndDate) {
+        matchFilter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      } else if (hasValidStartDate) {
+        matchFilter.date = { $gte: new Date(startDate) };
+      } else if (hasValidEndDate) {
+        matchFilter.date = { $lte: new Date(endDate) };
+      }
 
       const data = await toolRentalUsageCost.aggregate([
-        {
-          $match: {
-            projectName: { $in: projectList },
-            date: {
-              $gte: new Date(startDate),
-              $lte: new Date(endDate),
-            },
-          },
-        },
+        { $match: matchFilter },
         {
           $group: {
             _id: '$projectName',
             ownedToolsCost: {
-              $sum: {
-                $cond: [{ $eq: ['$isRented', false] }, '$cost', 0],
-              },
+              $sum: { $cond: [{ $eq: ['$isRented', false] }, '$cost', 0] },
             },
             rentedToolsCost: {
-              $sum: {
-                $cond: [{ $eq: ['$isRented', true] }, '$cost', 0],
-              },
+              $sum: { $cond: [{ $eq: ['$isRented', true] }, '$cost', 0] },
             },
           },
         },
@@ -114,24 +113,25 @@ const bmToolsRentalCostController = function (toolRentalUsageCost) {
 
       res.json(data);
     } catch (err) {
+      console.error(err);
       res.status(500).json({ error: 'Failed to fetch tools cost breakdown.' });
     }
   };
 
-  // Fetch unique projects
+  // Unique projects
   const getUniqueProjects = async (req, res) => {
     try {
       const projects = await toolRentalUsageCost.aggregate([
         {
           $group: {
-            _id: '$projectId', // group by ObjectId
-            projectName: { $first: '$projectName' }, // keep project name
+            _id: '$projectId',
+            projectName: { $first: '$projectName' },
           },
         },
         {
           $project: {
             _id: 0,
-            projectId: '$_id', // rename _id back to projectId
+            projectId: '$_id',
             projectName: 1,
           },
         },
