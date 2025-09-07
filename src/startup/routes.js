@@ -30,6 +30,7 @@ const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
+const bidoverview_Listing = require('../models/lbdashboard/listings');
 
 // Title
 const title = require('../models/title');
@@ -76,10 +77,8 @@ const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
 
-const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
-const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
-const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
-const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+const bids = require('../models/lbdashboard/bid');
+const bidNotification = require('../models/lbdashboard/bidNotification');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
@@ -235,11 +234,11 @@ const slackRouter = require('../routes/automation/slackRouter');
 //lbdashboard_bidoverview
 
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
-const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
-  bidoverview_Bid,
-  bidoverview_Listing,
-  bidoverview_User,
-  bidoverview_Notification,
+const userBidNotificationRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
+  bids,
+  listings,
+  userProfile,
+  bidNotification,
 );
 
 //commnunity portal
@@ -361,7 +360,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
 
   app.use('/api/lb', bidPropertyRouter);
-  app.use('/api/lb', userBidRouter);
+  // app.use('/api/lb', userBidRouter);
 
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
@@ -381,4 +380,5 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', userBidNotificationRouter);
 };

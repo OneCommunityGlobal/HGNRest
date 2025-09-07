@@ -1,12 +1,20 @@
 const express = require('express');
 
-const routes = (Bid, List, User, Notification) => {
-  const userBidRouter = express.Router();
-  const controller = require('../../controllers/lbdashboard/userBidNotificationController')(Bid, List, User, Notification);
+const route = function (Bid, List, User, Notification) {
+  const router = express.Router();
+  const controller = require('../../controllers/lbdashboard/biddingOverviewController')(
+    Bid,
+    List,
+    User,
+    Notification,
+  );
 
-  userBidRouter.route("/bid/:id").post(controller.placeBid);
+  // Routes
+  router.get('/bidOverview/:listingId', controller.getPropertyDetails);
+  router.post('/bidOverview/bid/:listingId', controller.placeBid);
+  router.get('/bidNotifications/:userId', controller.getNotifications);
 
-  return userBidRouter
-}
+  return router;
+};
 
-module.exports = routes;
+module.exports = route;
