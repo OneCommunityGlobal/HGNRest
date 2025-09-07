@@ -2706,28 +2706,7 @@ const userHelper = function () {
     }
   };
 
-  /**
-   * Force pause all running timers when the week ends
-   * This ensures that no timers continue running across week boundaries
-   * Uses the same WebSocket mechanism as disconnection forced pause
-   */
-  const forcePauseAllRunningTimers = async () => {
-    try {
-      // Get the WebSocket server instance and call its forcePauseAllRunningTimers function
-      // This ensures we use the same WebSocket mechanism as disconnection forced pause
-      const websocketServer = require('../websockets/index')();
-      
-      if (websocketServer && websocketServer.forcePauseAllRunningTimers) {
-        await websocketServer.forcePauseAllRunningTimers();
-      } else {
-        logger.logException('WebSocket server not available for timer cleanup');
-        throw new Error('WebSocket server not available for timer cleanup');
-      }
-    } catch (err) {
-      logger.logException(`Error during timer cleanup: ${err}`);
-      throw err;
-    }
-  };
+  
 
   return {
     changeBadgeCount,
@@ -2752,7 +2731,6 @@ const userHelper = function () {
     getProfileImagesFromWebsite,
     checkTeamCodeMismatch,
     resendBlueSquareEmailsOnlyForLastWeek,
-    forcePauseAllRunningTimers,
   };
 };
 

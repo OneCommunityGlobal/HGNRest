@@ -6,8 +6,10 @@
 /* eslint-disable linebreak-style */
 const WebSocket = require('ws');
 const moment = require('moment');
+const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+const logger = require('../startup/logger');
 
 const {
   insertNewUser,
@@ -135,53 +137,55 @@ export default () => {
   });
 
   /**
-   * Force pause all running timers (for week-end cleanup)
-   * This uses the same WebSocket mechanism as disconnection forced pause
+   * Scheduled forced pause triggers using the same mechanism as disconnect
+   * - Weekly at week end (Sunday 12:01 AM PT)
+   * - Daily at 12:30 PM PT
    */
-  const forcePauseAllRunningTimers = async () => {
-    try {
-      const Timer = require('../models/timer');
-      const logger = require('../startup/logger');
-      
-      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
-      logger.logInfo(`Starting timer cleanup at week end: ${currentFormattedDate}`);
-
-      // Find all timers that are currently started and not paused
-      const runningTimers = await Timer.find({
-        started: true,
-        paused: false
-      });
-
-      logger.logInfo(`Found ${runningTimers.length} running timers to force pause`);
-
-      let pausedCount = 0;
-      let errorCount = 0;
-
-      // Process each running timer using the same WebSocket mechanism
-      for (const timer of runningTimers) {
-        try {
-          // Send forced pause through WebSocket system (same as disconnection)
-          const msg = { action: action.FORCED_PAUSE };
-          await handleMessage(msg, clients, timer.userId);
-          
-          // Broadcast to all connected clients for this user
-          broadcastToSameUser(connections, timer.userId, JSON.stringify({ action: action.FORCED_PAUSE }));
-          
-          pausedCount++;
-          logger.logInfo(`Force paused timer for user: ${timer.userId}`);
-        } catch (error) {
-          errorCount++;
-          logger.logException(`Error force pausing timer for user ${timer.userId}: ${error}`);
+  const scheduleForcedPauses = () => {
+    // Weekly: Sunday 12:01 AM PT
+    cron.schedule('1 0 * * 0', async () => {
+      try {
+        const now = moment().format();
+        logger.logInfo(`[WS] Weekly forced pause trigger at ${now} PT`);
+        for (const [userId, client] of clients.entries()) {
+          try {
+            if (client?.started && !client?.paused) {
+              logger.logInfo(`[WS] Sending forced pause to user ${userId} (weekly)`);
+              await handleMessage({ action: action.FORCED_PAUSE }, clients, userId);
+              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.FORCED_PAUSE }));
+            }
+          } catch (err) {
+            logger.logException(`[WS] Weekly forced pause error for user ${userId}: ${err}`);
+          }
         }
+      } catch (err) {
+        logger.logException(`[WS] Weekly forced pause scheduler error: ${err}`);
       }
+    }, { timezone: 'America/Los_Angeles' });
 
-      logger.logInfo(`Timer cleanup completed. Paused: ${pausedCount}, Errors: ${errorCount}`);
-    } catch (err) {
-      const logger = require('../startup/logger');
-      logger.logException(`Error during timer cleanup: ${err}`);
-      throw err;
-    }
-  };
+    // Daily: 10:05 AM ET
+    cron.schedule('25 16 * * *', async () => {
+      try {
+        const now = moment().format();
+        logger.logInfo(`[WS] Daily 4:20 PM forced pause trigger at ${now} PT`);
+        for (const [userId, client] of clients.entries()) {
+          try {
+            if (client?.started && !client?.paused) {
+              logger.logInfo(`[WS] Sending forced pause to user ${userId} (daily)`);
+              await handleMessage({ action: action.FORCED_PAUSE }, clients, userId);
+              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.FORCED_PAUSE }));
+            }
+          } catch (err) {
+            logger.logException(`[WS] Daily forced pause error for user ${userId}: ${err}`);
+          }
+        }
+      } catch (err) {
+        logger.logException(`[WS] Daily forced pause scheduler error: ${err}`);
+      }
+    }, { timezone: 'America/Los_Angeles' });
+};
 
-  return { path: '/timer-service', handleUpgrade, forcePauseAllRunningTimers };
+  scheduleForcedPauses();
+
+  return { path: '/timer-service', handleUpgrade };
 };
