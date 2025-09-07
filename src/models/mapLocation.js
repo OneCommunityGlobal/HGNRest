@@ -3,64 +3,64 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const capitalizeString = (s) => {
-    if (typeof s !== 'string') {
-        return s;
+  if (typeof s !== 'string') {
+    return s;
+  }
+  const words = s.split(' ');
+  const capitalizedWords = words.map((word) => {
+    if (word.length > 0) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }
-    const words = s.split(' ');
-    const capitalizedWords = words.map((word) => {
-      if (word.length > 0) {
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      }
-        return '';
-    });
-    const capitalizedString = capitalizedWords.join(' ');
-    return capitalizedString;
+    return '';
+  });
+  const capitalizedString = capitalizedWords.join(' ');
+  return capitalizedString;
 };
 
 const mapLocation = new Schema({
-    title: {
+  title: {
+    type: String,
+    default: 'Prior to HGN Data Collection',
+  },
+  firstName: String,
+  lastName: String,
+  jobTitle: String,
+  isActive: {
+    type: Boolean,
+    default: false,
+  },
+  location: {
+    userProvided: {
+      type: String,
+      required: true,
+    },
+    coords: {
+      lat: {
         type: String,
-        default: 'Prior to HGN Data Collection',
+        required: true,
+      },
+      lng: {
+        type: String,
+        required: true,
+      },
     },
-    firstName: String,
-    lastName: String,
-    jobTitle: String,
-    isActive: {
-        type: Boolean,
-        default: false,
+    country: {
+      type: String,
+      required: true,
     },
-    location: {
-        userProvided: {
-            type: String,
-            required: true,
-        },
-        coords: {
-            lat: {
-                type: String,
-                required: true,
-            },
-            lng: {
-                type: String,
-                required: true,
-            },
-        },
-        country: {
-            type: String,
-            required: true,
-        },
-        city: {
-            type: String,
-            default: '',
-        },
+    city: {
+      type: String,
+      default: '',
     },
+  },
 });
 
 mapLocation.pre('save', function (next) {
-    this.firstName = capitalizeString(this.firstName);
-    this.lastName = capitalizeString(this.lastName);
-    this.jobTitle = capitalizeString(this.jobTitle);
-    this.location.userProvided = capitalizeString(this.location.userProvided);
-    next();
+  this.firstName = capitalizeString(this.firstName);
+  this.lastName = capitalizeString(this.lastName);
+  this.jobTitle = capitalizeString(this.jobTitle);
+  this.location.userProvided = capitalizeString(this.location.userProvided);
+  next();
 });
 
 module.exports = mongoose.model('MapLocation', mapLocation, 'maplocations');

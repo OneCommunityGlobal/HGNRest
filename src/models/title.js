@@ -16,8 +16,7 @@ const title = new Schema({
     _id: { type: String },
   },
   shortName: { type: String, require: true },
-  order: {type: Number, default: 0},
-
+  order: { type: Number, default: 0 },
 });
 
 module.exports = mongoose.model('title', title, 'titles');

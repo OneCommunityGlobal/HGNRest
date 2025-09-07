@@ -7,7 +7,7 @@ const youtubeAccountSchema = new mongoose.Schema({
   redirectUri: { type: String, required: true },
   refreshToken: { type: String, required: true },
   channelId: { type: String },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('YoutubeAccount', youtubeAccountSchema); 
+module.exports = mongoose.model('YoutubeAccount', youtubeAccountSchema);

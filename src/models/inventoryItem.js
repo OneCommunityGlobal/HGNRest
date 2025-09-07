@@ -12,14 +12,20 @@ const InventoryItem = new Schema({
       return this.cost / this.quantity;
     },
   },
-  notes: [{
-    quantity: { type: Number },
-    typeOfMovement: { type: String },
-    message: { type: String },
-    modified: { type: Date, required: true, default: Date.now() },
-  }],
+  notes: [
+    {
+      quantity: { type: Number },
+      typeOfMovement: { type: String },
+      message: { type: String },
+      modified: { type: Date, required: true, default: Date.now() },
+    },
+  ],
   created: { type: Date, required: true, default: Date.now() },
-  inventoryItemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'inventoryItemType', required: true },
+  inventoryItemType: {
+    type: mongoose.SchemaTypes.ObjectId,
+    ref: 'inventoryItemType',
+    required: true,
+  },
   wasted: { type: Boolean, required: true, default: false },
   project: { type: Schema.Types.ObjectId, ref: 'project', required: true },
   wbs: { type: Schema.Types.ObjectId, ref: 'wbs' },

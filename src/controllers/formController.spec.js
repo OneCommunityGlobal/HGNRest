@@ -1,17 +1,6 @@
 // test/formController.spec.js
-const {
-  createForm,
-  editFormFormat,
-  deleteFormFormat,
-  checkForResponse,
-  getFormData,
-  addDataToForm,
-  getAllForms,
-  getFormFormat,
-} = require('./formController')(
-  require('../models/forms.js'),
-  require('../models/formResponse.js'),
-);
+const { editFormFormat, deleteFormFormat, checkForResponse, getAllForms } =
+  require('./formController')(require('../models/forms'), require('../models/formResponse'));
 const Form = require('../models/forms');
 const FormResponse = require('../models/formResponse');
 const UserProfile = require('../models/userProfile');
@@ -21,7 +10,8 @@ jest.mock('../models/formResponse');
 jest.mock('../models/userProfile');
 
 describe('Form Controller', () => {
-  let req, res;
+  let req;
+  let res;
 
   beforeEach(() => {
     req = { body: {}, params: {}, query: {} };

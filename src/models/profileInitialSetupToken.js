@@ -11,9 +11,9 @@ const profileInitialSetupTokenSchema = new mongoose.Schema({
     required: true,
   },
   weeklyCommittedHours: {
-      type: Number,
-      required: true,
-      default: 10,
+    type: Number,
+    required: true,
+    default: 10,
   },
   expiration: {
     type: Date,
@@ -37,7 +37,11 @@ const profileInitialSetupTokenSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model('profileInitialSetupToken', profileInitialSetupTokenSchema, 'profileInitialSetupToken');
+module.exports = mongoose.model(
+  'profileInitialSetupToken',
+  profileInitialSetupTokenSchema,
+  'profileInitialSetupToken',
+);
 // Table indexes
 profileInitialSetupTokenSchema.index({ createdDate: -1 }, { token: 1 });
 profileInitialSetupTokenSchema.index({ isSetupCompleted: -1, createdDate: -1 });

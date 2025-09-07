@@ -2,19 +2,19 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 
 const route = function () {
-    const controller = require('../controllers/registrationController')();
+  const controller = require('../controllers/registrationController')();
 
-    const registrationRouter = express.Router();
+  const registrationRouter = express.Router();
 
-    const validate = (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-          return res.status(400).json({ error: errors.array()[0].msg });
-      }
-      next();
+  const validate = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: errors.array()[0].msg });
+    }
+    next();
   };
 
-    registrationRouter
+  registrationRouter
     .route('/register/create')
     .post(
       body('eventId')
@@ -23,10 +23,10 @@ const route = function () {
         .isMongoId()
         .withMessage('Invalid event ID format'),
       validate,
-      controller.createRegistration
+      controller.createRegistration,
     );
 
-    registrationRouter
+  registrationRouter
     .route('/register/cancel')
     .post(
       body('registrationId')
@@ -35,10 +35,10 @@ const route = function () {
         .isMongoId()
         .withMessage('Invalid registration ID format'),
       validate,
-      controller.cancelRegistration
+      controller.cancelRegistration,
     );
 
-    return registrationRouter;
+  return registrationRouter;
 };
 
 module.exports = route;

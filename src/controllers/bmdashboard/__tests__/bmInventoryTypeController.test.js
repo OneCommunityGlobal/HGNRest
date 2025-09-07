@@ -1,5 +1,4 @@
 const bmInventoryTypeController = require('../bmInventoryTypeController');
-const mongoose = require('mongoose');
 
 const mockMatType = {
   find: jest.fn(),

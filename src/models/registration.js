@@ -3,30 +3,32 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const User = require('./userProfile');
 
-
-const registrationSchema = new Schema({
+const registrationSchema = new Schema(
+  {
     userId: {
       type: mongoose.Types.ObjectId,
       ref: User,
-      required: true
+      required: true,
     },
     eventId: {
       type: mongoose.Types.ObjectId,
       ref: 'Event',
-      required: true
+      required: true,
     },
     status: {
       type: String,
       enum: ['confirmed', 'cancelled', 'pending'],
-      default: 'confirmed'
+      default: 'confirmed',
     },
     registrationDate: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
     cancellationDate: {
-      type: Date
+      type: Date,
     },
-  }, { timestamps: true });
-  
-  module.exports = mongoose.model('Registration', registrationSchema);
+  },
+  { timestamps: true },
+);
+
+module.exports = mongoose.model('Registration', registrationSchema);

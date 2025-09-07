@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 
 // Utility to aid in testing
 jest.mock('../utilities/permissions', () => ({
@@ -241,10 +241,7 @@ describe('Unit Tests for taskController.js', () => {
     });
 
     test.each([
-      [
-        { taskName: undefined, isActive: true },
-        'Task Name, Active status are mandatory fields',
-      ],
+      [{ taskName: undefined, isActive: true }, 'Task Name, Active status are mandatory fields'],
       [
         { taskName: 'some task name', isActive: undefined },
         'Task Name, Active status are mandatory fields',
