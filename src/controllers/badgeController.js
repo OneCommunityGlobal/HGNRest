@@ -489,6 +489,8 @@ const badgeController = function (Badge) {
     getBadgeCount,
     putBadgecount,
     resetBadgecount,
+    updateBadgesWithUsers,
+    updateBadgeUsers: updateBadgesWithUsers,
   };
 };
 
