@@ -3,7 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
-//const userHelper = require('../helpers/userHelper')();
+// const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -13,67 +13,67 @@ const badgeController = function (Badge) {
    */
   const cache = cacheClosure();
 
-  const awardBadgesTest = async function (req, res) {
-    await userHelper.awardNewBadges();
-    res.status(200).send('Badges awarded');
-  };
+  // const awardBadgesTest = async function (req, res) {
+  //   await userHelper.awardNewBadges();
+  //   res.status(200).send('Badges awarded');
+  // };
 
-  const updateBadgeUsers = async function (req, res) {
-    console.log('Assigning Users to Badges');
+  // const updateBadgeUsers = async function (req, res) {
+  //   console.log('Assigning Users to Badges');
 
-    try {
-      // First make sure all badges have users array
-      await Badge.updateMany({ users: { $exists: false } }, { $set: { users: [] } });
+  //   try {
+  //     // First make sure all badges have users array
+  //     await Badge.updateMany({ users: { $exists: false } }, { $set: { users: [] } });
 
-      // Get all user profiles with badges
-      const userProfiles = await UserProfile.find({
-        'badgeCollection.0': { $exists: true },
-      }).select('_id badgeCollection');
+  //     // Get all user profiles with badges
+  //     const userProfiles = await UserProfile.find({
+  //       'badgeCollection.0': { $exists: true },
+  //     }).select('_id badgeCollection');
 
-      // Filter out any null badge items and validate badge IDs
-      const updatePromises = userProfiles.map((profile) =>
-        Promise.all(
-          profile.badgeCollection
-            .filter((badgeItem) => badgeItem && badgeItem.badge) // Filter out null items
-            .map((badgeItem) =>
-              Badge.findByIdAndUpdate(badgeItem.badge, {
-                $addToSet: {
-                  users: {
-                    userId: profile._id,
-                  },
-                },
-              }).catch((err) =>
-                console.error(`Error updating badge ${badgeItem.badge}: ${err.message}`),
-              ),
-            ),
-        ),
-      );
+  //     // Filter out any null badge items and validate badge IDs
+  //     const updatePromises = userProfiles.map((profile) =>
+  //       Promise.all(
+  //         profile.badgeCollection
+  //           .filter((badgeItem) => badgeItem && badgeItem.badge) // Filter out null items
+  //           .map((badgeItem) =>
+  //             Badge.findByIdAndUpdate(badgeItem.badge, {
+  //               $addToSet: {
+  //                 users: {
+  //                   userId: profile._id,
+  //                 },
+  //               },
+  //             }).catch((err) =>
+  //               console.error(`Error updating badge ${badgeItem.badge}: ${err.message}`),
+  //             ),
+  //           ),
+  //       ),
+  //     );
 
-      await Promise.all(updatePromises);
+  //     await Promise.all(updatePromises);
 
-      // Clear cache
-      if (cache.hasCache('allBadges')) {
-        cache.removeCache('allBadges');
-      }
+  //     // Clear cache
+  //     if (cache.hasCache('allBadges')) {
+  //       cache.removeCache('allBadges');
+  //     }
 
-      const totalUpdates = userProfiles.reduce(
-        (sum, profile) =>
-          sum + (profile.badgeCollection?.filter((item) => item && item.badge)?.length || 0),
-        0,
-      );
+  //     const totalUpdates = userProfiles.reduce(
+  //       (sum, profile) =>
+  //         sum + (profile.badgeCollection?.filter((item) => item && item.badge)?.length || 0),
+  //       0,
+  //     );
 
-      res.status(200).send({
-        message: `Successfully processed ${totalUpdates} badge-user associations`,
-        processedUsers: userProfiles.length,
-      });
-    } catch (error) {
-      console.error('Full error:', error);
-      res.status(500).send({
-        error: 'Error updating badge users',
-        details: error.message,
-      });
-    }
-  };
+  //     res.status(200).send({
+  //       message: `Successfully processed ${totalUpdates} badge-user associations`,
+  //       processedUsers: userProfiles.length,
+  //     });
+  //   } catch (error) {
+  //     console.error('Full error:', error);
+  //     res.status(500).send({
+  //       error: 'Error updating badge users',
+  //       details: error.message,
+  //     });
+  //   }
+  // };
 
   const updateBadgesWithUsers = async function (req, res) {
     console.log('Updating Badges');
@@ -157,7 +157,7 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport users',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
     )
       .populate({
         path: 'project',
@@ -313,7 +313,7 @@ const badgeController = function (Badge) {
 
       if (result.length > 0) {
         res.status(400).send({
-          error: `Another badge with name ${result[0].badgeName} already exists...`,
+          error: `Another badge with name ${result[0].badgeName} already exists. Sorry, but badge names should be like snowflakes, no two should be the same. Please choose a different name for this badge so it can be proudly unique.`,
         });
         return;
       }
@@ -480,7 +480,7 @@ const badgeController = function (Badge) {
   };
 
   return {
-    //awardBadgesTest,
+    // awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
