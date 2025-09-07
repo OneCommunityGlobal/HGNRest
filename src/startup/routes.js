@@ -76,6 +76,9 @@ const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
 
+// pr reviewers and grading
+const prGrading = require('../models/prdashboard/prReviewers');
+
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
@@ -225,6 +228,9 @@ const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmail
   userProfile,
 );
 
+// PR dashboard
+const weeklyPrGradingRoute = require('../routes/prdashboard/weeklyPrGradingRoute')(prGrading);
+
 // Automations
 const appAccessRouter = require('../routes/automation/appAccessRouter');
 const dropboxRouter = require('../routes/automation/dropboxRouter');
@@ -366,6 +372,9 @@ module.exports = function (app) {
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
+
+  //pr dashboard
+  app.use('/api', weeklyPrGradingRoute);
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
