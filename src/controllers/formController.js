@@ -158,7 +158,7 @@ const formController = function (Form, formResponse) {
     try {
       const { formID, userID } = req.query;
       const result = await formResponse.find({ formID, submittedBy: userID });
-      if (result.length == 0) {
+      if (result.length === 0) {
         return res.status(400).json({ message: 'No records Found' });
       }
       return res.status(200).json({ message: result });
@@ -239,7 +239,7 @@ const formController = function (Form, formResponse) {
 
       const validatedResponses = [];
 
-      for (let i = 0; i < responses.length; i++) {
+      for (let i = 0; i < responses.length; i += 1) {
         const question = formQuestions[i];
         const response = responses[i];
 

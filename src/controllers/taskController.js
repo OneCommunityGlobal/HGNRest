@@ -461,7 +461,7 @@ const taskController = function (Task) {
         // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
-          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0))) + 1
+          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0, 10))) + 1
           : 1;
 
         const baseNum = parentTask.num
@@ -472,7 +472,7 @@ const taskController = function (Task) {
       } else {
         const topTasks = await Task.find({ wbsId, level: 1 });
         const nextTopNum = topTasks.length
-          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
+          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0, 10))) + 1
           : 1;
         num = `${nextTopNum}`;
       }

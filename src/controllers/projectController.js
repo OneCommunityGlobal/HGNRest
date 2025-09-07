@@ -295,7 +295,7 @@ const projectController = function (Project) {
   };
 
   function escapeRegExp(string) {
-    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    return string.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
   }
 
   const searchProjectMembers = async function (req, res) {

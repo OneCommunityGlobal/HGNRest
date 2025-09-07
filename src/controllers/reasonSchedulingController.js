@@ -291,7 +291,6 @@ const patchReason = async (req, res) => {
 
     return res.status(200).json({
       message: 'Reason Updated!',
-      message: 'Reason Updated!',
     });
   } catch (error) {
     return res.status(400).json({
@@ -347,7 +346,12 @@ const deleteReason = async (req, res) => {
         message: 'Document deleted',
       });
     });
-  } catch (error) {}
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Error occurred while deleting reason',
+      error: error.message,
+    });
+  }
 };
 
 module.exports = {

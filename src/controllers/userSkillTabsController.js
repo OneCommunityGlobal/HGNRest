@@ -1,7 +1,7 @@
 // const mongoose = require('mongoose');
 
 const userSkillTabsController = (HgnFormResponses) => {
-  const parseScore = (val) => parseInt(val || '0');
+  const parseScore = (val) => parseInt(val || '0', 10);
 
   const skillMap = {
     frontend: {
