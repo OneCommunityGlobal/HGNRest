@@ -1,4 +1,5 @@
 const YoutubeAccount = require('../models/youtubeAccount');
+
 let testAccounts = [];
 try {
   testAccounts = require('../config/youtubeAccounts.data');
@@ -8,7 +9,7 @@ try {
 
 async function getYoutubeAccountById(id) {
   if (testAccounts.length) {
-    return testAccounts.find(acc => acc.id === id) || null;
+    return testAccounts.find((acc) => acc.id === id) || null;
   }
   return YoutubeAccount.findById(id);
 }
@@ -20,4 +21,4 @@ async function getAllYoutubeAccounts() {
   return YoutubeAccount.find();
 }
 
-module.exports = { getYoutubeAccountById, getAllYoutubeAccounts }; 
+module.exports = { getYoutubeAccountById, getAllYoutubeAccounts };

@@ -9,16 +9,19 @@ async function processScheduledUploads() {
     // Find all pending scheduled upload tasks
     const pendingUploads = await ScheduledYoutubeUpload.find({
       status: 'pending',
-      scheduledTime: { $lte: new Date() }
+      scheduledTime: { $lte: new Date() },
     });
 
+    // eslint-disable-next-line no-restricted-syntax
     for (const upload of pendingUploads) {
       try {
         // Update status to processing
         upload.status = 'processing';
+        // eslint-disable-next-line no-await-in-loop
         await upload.save();
 
         // Get YouTube account info
+        // eslint-disable-next-line no-await-in-loop
         const account = await getYoutubeAccountById(upload.youtubeAccountId);
         if (!account) {
           throw new Error(`YouTube account not found: ${upload.youtubeAccountId}`);
@@ -28,9 +31,10 @@ async function processScheduledUploads() {
         const oauth2Client = new google.auth.OAuth2(
           account.clientId,
           account.clientSecret,
-          account.redirectUri
+          account.redirectUri,
         );
         oauth2Client.setCredentials({ refresh_token: account.refreshToken });
+        // eslint-disable-next-line no-await-in-loop
         await oauth2Client.getAccessToken();
 
         const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
@@ -43,6 +47,7 @@ async function processScheduledUploads() {
         const videoStream = fs.createReadStream(upload.videoPath);
 
         // Upload video to YouTube
+        // eslint-disable-next-line no-await-in-loop
         const response = await youtube.videos.insert({
           part: ['snippet', 'status'],
           requestBody: {
@@ -51,7 +56,7 @@ async function processScheduledUploads() {
               description: upload.description,
               tags: upload.tags,
               defaultLanguage: 'en',
-              defaultAudioLanguage: 'en'
+              defaultAudioLanguage: 'en',
             },
             status: {
               privacyStatus: upload.privacyStatus,
@@ -64,9 +69,11 @@ async function processScheduledUploads() {
 
         // Update status to completed
         upload.status = 'completed';
+        // eslint-disable-next-line no-await-in-loop
         await upload.save();
 
         // Record successful upload in history
+        // eslint-disable-next-line no-await-in-loop
         await YoutubeUploadHistory.create({
           youtubeAccountId: upload.youtubeAccountId,
           title: upload.title,
@@ -75,7 +82,7 @@ async function processScheduledUploads() {
           privacyStatus: upload.privacyStatus,
           videoId: response.data.id,
           status: 'completed',
-          scheduledTime: upload.scheduledTime
+          scheduledTime: upload.scheduledTime,
         });
 
         // Delete temporary file
@@ -88,9 +95,11 @@ async function processScheduledUploads() {
         console.error(`Failed to process scheduled upload:`, error);
         upload.status = 'failed';
         upload.error = error.message;
+        // eslint-disable-next-line no-await-in-loop
         await upload.save();
 
         // Record failed upload in history
+        // eslint-disable-next-line no-await-in-loop
         await YoutubeUploadHistory.create({
           youtubeAccountId: upload.youtubeAccountId,
           title: upload.title,
@@ -99,7 +108,7 @@ async function processScheduledUploads() {
           privacyStatus: upload.privacyStatus,
           status: 'failed',
           error: error.message,
-          scheduledTime: upload.scheduledTime
+          scheduledTime: upload.scheduledTime,
         });
       }
     }
@@ -111,4 +120,4 @@ async function processScheduledUploads() {
 // Check for pending scheduled uploads every minute
 setInterval(processScheduledUploads, 60000);
 
-module.exports = { processScheduledUploads }; 
+module.exports = { processScheduledUploads };

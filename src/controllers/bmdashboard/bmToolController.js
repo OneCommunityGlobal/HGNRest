@@ -163,29 +163,35 @@ const bmToolController = (BuildingTool, ToolType) => {
       return res.status(500).send({ errors, results });
     }
 
+    // eslint-disable-next-line no-restricted-syntax
     for (const type of typesArray) {
-      const toolName = type.toolName;
-      const toolCodes = type.toolCodes;
+      const { toolName } = type;
+      const { toolCodes } = type;
       const codeMap = {};
       toolCodes.forEach((obj) => {
         codeMap[obj.value] = obj.label;
       });
 
       try {
+        // eslint-disable-next-line no-await-in-loop
         const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
         if (!toolTypeDoc) {
           errors.push({ message: `Tool type ${toolName} with id ${type.toolType} was not found.` });
+          // eslint-disable-next-line no-continue
           continue;
         }
         const availableItems = toolTypeDoc.available;
         const usingItems = toolTypeDoc.using;
 
+        // eslint-disable-next-line no-restricted-syntax
         for (const toolItem of type.toolItems) {
+          // eslint-disable-next-line no-await-in-loop
           const buildingToolDoc = await BuildingTool.findOne({
             _id: mongoose.Types.ObjectId(toolItem),
           });
           if (!buildingToolDoc) {
             errors.push({ message: `${toolName} with id ${toolItem} was not found.` });
+            // eslint-disable-next-line no-continue
             continue;
           }
 
@@ -198,6 +204,7 @@ const bmToolController = (BuildingTool, ToolType) => {
               errors.push({
                 message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`,
               });
+              // eslint-disable-next-line no-continue
               continue;
             }
           }
@@ -211,12 +218,13 @@ const bmToolController = (BuildingTool, ToolType) => {
               errors.push({
                 message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`,
               });
+              // eslint-disable-next-line no-continue
               continue;
             }
           }
 
           const newRecord = {
-            date: date,
+            date,
             createdBy: requestor,
             responsibleUser: buildingToolDoc.userResponsible,
             type: action,
@@ -227,6 +235,7 @@ const bmToolController = (BuildingTool, ToolType) => {
           results.push({ message: `${action} successful for ${toolName} ${codeMap[toolItem]}` });
         }
 
+        // eslint-disable-next-line no-await-in-loop
         await toolTypeDoc.save();
       } catch (error) {
         errors.push({ message: `Error for tool type ${type}: ${error.message}` });
@@ -235,9 +244,8 @@ const bmToolController = (BuildingTool, ToolType) => {
 
     if (errors.length > 0) {
       return res.status(404).send({ errors, results });
-    } else {
-      return res.status(200).send({ errors, results });
     }
+    return res.status(200).send({ errors, results });
   };
 
   return {

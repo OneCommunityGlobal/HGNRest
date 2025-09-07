@@ -1,12 +1,11 @@
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
-const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
 
-const bmMProjectController = function (BuildingProject) {
+const bmMProjectController = function (BuildingProjectModel) {
   // TODO: uncomment when executing auth checks
   // const { JWT_SECRET } = config;
 
@@ -16,7 +15,7 @@ const bmMProjectController = function (BuildingProject) {
     // const token = req.headers.authorization;
     // const { userid } = jwt.verify(token, JWT_SECRET);
     try {
-      BuildingProject.aggregate([
+      BuildingProjectModel.aggregate([
         {
           $match: { isActive: true },
         },
@@ -101,7 +100,7 @@ const bmMProjectController = function (BuildingProject) {
     // const { userid } = jwt.verify(token, JWT_SECRET);
     const { projectId } = req.params;
     try {
-      BuildingProject.findById(projectId)
+      BuildingProjectModel.findById(projectId)
         .populate([
           {
             path: 'buildingManager',
@@ -131,62 +130,75 @@ const bmMProjectController = function (BuildingProject) {
     }
   };
 
+  const fetchProjectsNames = async (req, res) => {
+    try {
+      const projects = await BuildingProjectModel.find(
+        { isActive: true }, // only active projects
+        { _id: 1, name: 1 }, // only select id + name
+      );
+
+      const projectNames = projects.map((proj) => ({
+        projectId: proj._id,
+        projectName: proj.name,
+      }));
+
+      res.status(200).json(projectNames);
+    } catch (error) {
+      console.error('Error in fetchProjectNames:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   const fetchProjectMembers = async (req, res) => {
     const { projectId } = req.params;
     try {
-      BuildingProject
-        .findById(projectId)
-        .populate({path: 'buildingManager', select: '_id firstName lastName email'})
+      BuildingProjectModel.findById(projectId)
+        .populate({ path: 'buildingManager', select: '_id firstName lastName email' })
         // .populate({
-        //   path: 'teams', 
+        //   path: 'teams',
         //   select: '_id teamName'
-        // })        
-        .populate(
-          {
-            path: 'members', 
-            populate: [
-              {
-                path: 'user',
-                select: '_id firstName lastName email role teams',      
-              },
-            ]
-          },
-        )
+        // })
+        .populate({
+          path: 'members',
+          populate: [
+            {
+              path: 'user',
+              select: '_id firstName lastName email role teams',
+            },
+          ],
+        })
         .exec()
         .then((project) => {
-          project.members.forEach((member)=> {
+          project.members.forEach((member) => {
             const userId = member.user._id;
             try {
-              Task.find(
-                {
-                  'resources.userID': mongoose.Types.ObjectId(userId),
-                }
-              ).then ((results) => {                
-                // console.log("results", results);       
-                if (results[0]?.taskName)
-                {
-                  const memberTaskName = results[0].taskName;  
+              Task.find({
+                'resources.userID': new mongoose.Types.ObjectId(userId),
+              }).then((results) => {
+                // console.log("results", results);
+                if (results[0]?.taskName) {
+                  const memberTaskName = results[0].taskName;
                   // console.log("memberTaskName: ", memberTaskName);
                   // Not working because of db access latency, maybe need to implement separate signaling to fetch task name
                   // also needs to add 'task' field to insert memberTaskName rather than using teams field
-                  member.user.teams[0] = memberTaskName;   
+                  member.user.teams[0] = memberTaskName;
                   // console.log("member: ", member);
                 }
-              })
-            } catch(error)
-            {console.log("error");}
-
-          })
+              });
+            } catch (error) {
+              console.log('error');
+            }
+          });
           return project;
         })
-        .then(project => res.status(200).send(project))
-        .catch(error => res.status(500).send(error));
+        .then((project) => res.status(200).send(project))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
       res.json(err);
     }
   };
 
-  return { fetchAllProjects, fetchSingleProject, fetchProjectMembers };
+  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames, fetchProjectMembers };
 };
 
 module.exports = bmMProjectController;

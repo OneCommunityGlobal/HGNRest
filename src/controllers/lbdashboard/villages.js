@@ -48,11 +48,18 @@ const villagesController = () => {
       .matches(/^\d+(\.\d+)?%$/)
       .withMessage('Top position must be a percentage value (e.g., "100%" or "48%")'),
 
-    body('properties.*.name')
+    body('properties').optional().isArray().withMessage('Properties must be an array'),
+
+    body('properties.*.unit')
       .optional()
-      .trim()
+      .isInt()
       .notEmpty()
-      .withMessage('Property name cannot be empty'),
+      .withMessage('Property unit must be an integer'),
+
+    body('properties.*.currentBid')
+      .optional()
+      .isInt()
+      .withMessage('Property bidding must be an integer'),
 
     body('properties.*.description').optional().trim(),
 
@@ -61,6 +68,22 @@ const villagesController = () => {
       .trim()
       .isURL()
       .withMessage('Property link must be a valid URL'),
+
+    // Validate villageMapLink (optional URL)
+    body('villageMapLink')
+      .optional()
+      .trim()
+      .isURL()
+      .withMessage('Village map link must be a valid URL'),
+
+    // Validate amenities array and each amenity
+    body('amenities').optional().isArray().withMessage('Amenities must be an array'),
+
+    body('amenities.*')
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage('Each amenity must be a non‑empty string'),
   ];
 
   // Get all villages
@@ -144,6 +167,8 @@ const villagesController = () => {
       if (req.body.imageLink !== undefined) village.imageLink = req.body.imageLink;
       if (req.body.position !== undefined) village.position = req.body.position;
       if (req.body.properties !== undefined) village.properties = req.body.properties;
+      if (req.body.villageMapLink !== undefined) village.villageMapLink = req.body.villageMapLink;
+      if (req.body.amenities !== undefined) village.amenities = req.body.amenities;
 
       const updatedVillage = await village.save();
       res.json(updatedVillage);
