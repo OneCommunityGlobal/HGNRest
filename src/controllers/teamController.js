@@ -135,9 +135,9 @@ const teamcontroller = function (Team) {
         .then(
           res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
         )
-        .catch((errors) => {
+        .catch((catchError) => {
           Logger.logException(error, null, `teamId: ${teamId}`);
-          res.status(400).send(errors);
+          res.status(400).send({ error: catchError });
         });
     });
   };
@@ -150,21 +150,15 @@ const teamcontroller = function (Team) {
 
     const { teamId } = req.params;
 
-    Team.findById(teamId, (error, record) => {
+    Team.findById(teamId, async (error, record) => {
       if (error || record === null) {
         res.status(400).send('No valid records found');
         return;
       }
 
-      // Removed the permission check as the permission check if done in earlier
-      // const canEditTeamCode =
-      //   req.body.requestor.role === 'Owner' ||
-      //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      // if (!canEditTeamCode) {
-      //   res.status(403).send('You are not authorized to edit team code.');
-      //   return;
-      // }
+      // Store the old team code before updating
+      const oldTeamCode = record.teamCode;
+      const newTeamCode = req.body.teamCode;
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
@@ -172,13 +166,28 @@ const teamcontroller = function (Team) {
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
-      record
-        .save()
-        .then((results) => res.status(200).send(results._id))
-        .catch((errors) => {
-          Logger.logException(errors, null, `TeamId: ${teamId} Request:${req.body}`);
-          res.status(400).send(errors);
-        });
+      try {
+        const savedTeam = await record.save();
+
+        // If team code changed, update all user profiles that have the old team code
+        if (oldTeamCode && newTeamCode && oldTeamCode !== newTeamCode) {
+          // Update all user profiles that have the old team code
+          await userProfile.updateMany(
+            { teamCode: oldTeamCode },
+            { $set: { teamCode: newTeamCode } },
+          );
+
+          // Clear cache to ensure fresh data is loaded
+          if (cache.hasCache('teamCodes')) {
+            cache.removeCache('teamCodes');
+          }
+        }
+
+        res.status(200).send(savedTeam);
+      } catch (catchError) {
+        Logger.logException(catchError, null, `TeamId: ${teamId} Request:${req.body}`);
+        res.status(400).send({ error: catchError });
+      }
     });
   };
 
@@ -327,13 +336,15 @@ const teamcontroller = function (Team) {
               .then(() => {
                 res.status(200).send({ result: 'Done' });
               })
-              .catch((saveError) => {
-                res.status(500).send({ error: saveError });
+
+              .catch((catchError) => {
+                res.status(500).send({ error: catchError });
+
               });
           })
-          .catch((errors) => {
-            console.error('Error saving team:', errors);
-            res.status(400).send(errors);
+          .catch((catchError) => {
+            console.error('Error saving team:', catchError);
+            res.status(400).send(catchError);
           });
       });
     } catch (error) {
@@ -398,8 +409,8 @@ const teamcontroller = function (Team) {
       ]);
       cache.setCache(cacheKey, data);
       res.status(200).send(data);
-    } catch (error) {
-      console.log(error);
+    } catch {
+      console.log('Error in getAllTeamMembers');
       res.status(500).send({ message: 'Fetching team members failed' });
     }
   };

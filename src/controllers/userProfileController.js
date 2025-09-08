@@ -240,41 +240,40 @@ const userProfileController = function (UserProfile, Project) {
    */
   const getUserProfileBasicInfo = async function (req, res) {
     const inputUserId = req.query.userId;
-    console.log('before logger')
+    console.log('before logger');
     logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
-    if (inputUserId) 
-    {
-      try 
-      {
+    if (inputUserId) {
+      try {
         const cacheKey = `user_${inputUserId}`;
         const cachedUser = cache.getCache(cacheKey);
         if (cachedUser) {
           return res.status(200).send(JSON.parse(cachedUser));
         }
-        const user = await UserProfile.findById(inputUserId, '_id firstName lastName isActive startDate createdDate endDate');
+        const user = await UserProfile.findById(
+          inputUserId,
+          '_id firstName lastName isActive startDate createdDate endDate',
+        );
         if (!user) {
-          return res.status(404).send({error: "User Not found"});
-          
+          return res.status(404).send({ error: 'User Not found' });
         }
 
         cache.setCache(cacheKey, JSON.stringify(user));
         return res.status(200).send(user);
-        
+      } catch (error) {
+        return res.status(500).send({ error: 'Failed to fetch userProfile' });
       }
-      catch(error) {return res.status(500).send({"error":"Failed to fetch userProfile"});
-        }
-      }
-        
-    
+    }
+
     if (!(await checkPermission(req, 'getUserProfiles'))) {
       forbidden(res, 'You are not authorized to view all users');
       return;
     }
 
-      const userProfiles = await UserProfile.find(
-        {},
-        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
-      ).sort({
+    const userProfiles = await UserProfile.find(
+      {},
+      '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+    )
+      .sort({
         lastName: 1,
       })
       .then((results) => {
@@ -463,6 +462,12 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
+    // Handle defaultPassword
+    if (req.body.defaultPassword) {
+      const salt = await bcrypt.genSalt(10);
+      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
+    }
+
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -574,14 +579,15 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
+    const canEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
+    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -598,6 +604,12 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.findById(userid, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
+        return;
+      }
+
+      // Prevent modification of defaultPassword
+      if (req.body.defaultPassword && record.defaultPassword) {
+        res.status(403).send('defaultPassword cannot be modified.');
         return;
       }
 
@@ -690,7 +702,7 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+      if (req.body.adminLinks !== undefined) {
         record.adminLinks = req.body.adminLinks;
       }
 
