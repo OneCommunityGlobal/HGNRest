@@ -462,6 +462,12 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
+    // Handle defaultPassword
+    if (req.body.defaultPassword) {
+      const salt = await bcrypt.genSalt(10);
+      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
+    }
+
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -573,14 +579,15 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
+    const canEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
+    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -597,6 +604,12 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.findById(userid, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
+        return;
+      }
+
+      // Prevent modification of defaultPassword
+      if (req.body.defaultPassword && record.defaultPassword) {
+        res.status(403).send('defaultPassword cannot be modified.');
         return;
       }
 
@@ -689,7 +702,7 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+      if (req.body.adminLinks !== undefined) {
         record.adminLinks = req.body.adminLinks;
       }
 

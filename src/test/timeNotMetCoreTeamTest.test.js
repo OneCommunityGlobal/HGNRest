@@ -136,7 +136,7 @@ describe('Time Not Met Core Team Test', () => {
 
       // 5. Verify results
       const updatedUser = await UserProfile.findById(user._id);
-      console.log('INFO: User Profile Infringements: ', updatedUser.infringements);
+      // console.log('INFO: User Profile Infringements: ', updatedUser.infringements);
 
       // Should have exactly 1 new infringement (blue square)
       expect(updatedUser.infringements.length).toBe(1);
