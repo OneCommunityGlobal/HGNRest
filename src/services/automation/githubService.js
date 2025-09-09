@@ -5,13 +5,14 @@ const token = process.env.GITHUB_TOKEN;
 const orgName = process.env.GITHUB_ORG_NAME;
 
 const headers = {
-  'Authorization': `token ${token}`,
-  'Accept': 'application/vnd.github.v3+json',
+  Authorization: `token ${token}`,
+  Accept: 'application/vnd.github.v3+json',
 };
 
 const getUserIdUrl = (username) => `https://api.github.com/users/${username}`;
 const sendInvitationUrl = (org) => `https://api.github.com/orgs/${org}/invitations`;
-const removeUserUrl = (org, username) => `https://api.github.com/orgs/${org}/memberships/${username}`;
+const removeUserUrl = (org, username) =>
+  `https://api.github.com/orgs/${org}/memberships/${username}`;
 
 // Service to fetch GitHub user ID by username
 async function getUserId(username) {
@@ -28,7 +29,7 @@ async function getUserId(username) {
 
 // Service to send an invitation to a user to join the organization
 async function sendInvitation(username) {
-  try{
+  try {
     const userId = await getUserId(username);
     const payload = { invitee_id: userId };
     const response = await axios({
@@ -58,7 +59,7 @@ async function removeUser(username) {
 
     if (response.status === 204) {
       return `${username} has been successfully removed from the organization.`;
-    } 
+    }
   } catch (error) {
     throw new Error('Github: Error removing user');
   }

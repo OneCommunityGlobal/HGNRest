@@ -8,9 +8,9 @@ const config = {
   clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
   redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
   refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
-  batchSize: 50,
-  concurrency: 3,
-  rateLimitDelay: 1000,
+  batchSize: 90,
+  concurrency: 1,
+  rateLimitDelay: 2000,
 };
 
 const OAuth2Client = new google.auth.OAuth2(
@@ -38,6 +38,10 @@ const sendEmail = async (mailOptions) => {
 
     if (!token) {
       throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    }
+
+    if (!mailOptions.html || typeof mailOptions.html !== 'string') {
+      throw new Error('Invalid email content');
     }
 
     mailOptions.auth = {
@@ -137,6 +141,12 @@ const emailSender = (
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
+
+    if (!message || typeof message !== 'string') {
+      reject(new Error('Invalid email content'));
+      return;
+    }
+
     for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({

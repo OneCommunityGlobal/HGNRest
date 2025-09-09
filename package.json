@@ -89,6 +89,8 @@
     "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
     "nodemailer": "^6.10.0",
+    "quill": "^2.0.3",
+    "react-quill": "^2.0.0",
     "redis": "^4.2.0",
     "regression": "^2.0.1",
     "sanitize-html": "^2.16.0",

@@ -583,10 +583,6 @@ const userProfileController = function (UserProfile, Project) {
         req.body.requestor.requestorId === userid)
     );
 
-    const canEditTeamCode =
-      req.body.requestor.role === 'Owner' ||
-      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
@@ -632,12 +628,12 @@ const userProfileController = function (UserProfile, Project) {
       // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
       // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
-        const canEditTeamCode =
+        const canEditTeamCodePermission =
           req.body.requestor.role === 'Owner' ||
           req.body.requestor.role === 'Administrator' ||
           req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-        if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
+        if (!canEditTeamCodePermission && record.teamCode !== req.body.teamCode) {
           res.status(403).send('You are not authorized to edit team code.');
           return;
         }
