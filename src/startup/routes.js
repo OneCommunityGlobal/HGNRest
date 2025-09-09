@@ -150,6 +150,7 @@ const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
+const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRouter')();
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -324,6 +325,7 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/api', weeklySummariesFilterRouter);
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
