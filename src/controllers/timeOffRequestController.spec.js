@@ -1,7 +1,8 @@
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(), // Mocking the hasPermission function directly
 }));
-jest.mock('../utilities/emailSender', () => jest.fn());
+jest.mock('../utilities/emailSender', () => jest.fn()); 
+
 
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
@@ -392,7 +393,7 @@ describe('timeOffRequestController.js module', () => {
       mockReqCopy.body.requestor.role = 'Administrator';
       mockReqCopy.body.requestor.permissions.backPermissions = ['manageTimeOffRequests'];
       mockReqCopy.params.id = '123';
-
+    
       const mockData = {
         requestFor: 'testUser123',
         reason: 'Vacation',
@@ -400,18 +401,19 @@ describe('timeOffRequestController.js module', () => {
         endingDate: new Date(2024, 5, 7),
         duration: 1,
       };
-
+    
       jest.spyOn(TimeOffRequest, 'findById').mockResolvedValue(mockData);
       jest.spyOn(TimeOffRequest, 'findByIdAndDelete').mockResolvedValue(mockData);
       hasPermission.mockResolvedValue(true);
-
+    
       const response = await controller.deleteTimeOffRequestById(mockReqCopy, mockRes);
       await flushPromises();
-
+    
       assertResMock(200, mockData, response, mockRes);
-
+    
       expect(emailSender).toHaveBeenCalledTimes(1); // Ensure emailSender is called once
     });
+  
 
     test('Returns 200 on successfully deleting the TimeOffRequest; notifyUser calls emailSender once and notifyAdmins calls emailSender 5 times', async () => {
       const { deleteTimeOffRequestById } = makeSut();
@@ -842,7 +844,7 @@ describe('timeOffRequestController.js module', () => {
         startingDate: new Date(2024, 5, 1),
         reason: 'Vacation',
       };
-
+    
       const mockData = {
         requestFor: 'testUser456',
         reason: 'Vacation',
@@ -850,17 +852,18 @@ describe('timeOffRequestController.js module', () => {
         endingDate: new Date(2024, 5, 7),
         duration: 1,
       };
-
+    
       jest.spyOn(TimeOffRequest.prototype, 'save').mockResolvedValue(mockData);
       hasPermission.mockResolvedValue(true);
-
+    
       const response = await controller.setTimeOffRequest(mockReqCopy, mockRes);
       await flushPromises();
-
+    
       assertResMock(201, mockData, response, mockRes);
-
+    
       expect(emailSender).not.toHaveBeenCalled(); // Ensure emailSender is not called
     });
+
 
     test('Returns 201 if the time-off request is set successfully; emailSender is not called as savedRequest is null', async () => {
       // emailSender is not called as savedRequest is null

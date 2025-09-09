@@ -1,11 +1,13 @@
-const mongoose = require('mongoose');
+
+
+const mongoose = require("mongoose");
 
 const templateSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
+    name: { 
+      type: String, 
       required: true,
-      unique: true,
+      unique: true 
     },
     fields: [
       {
@@ -13,7 +15,7 @@ const templateSchema = new mongoose.Schema(
         questionType: {
           type: String,
           required: true,
-          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date'],
+          enum: ["textbox", "textarea", "checkbox", "radio", "dropdown", "date"],
         },
         visible: { type: Boolean, default: true },
         isRequired: { type: Boolean, default: false },
@@ -22,7 +24,7 @@ const templateSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-module.exports = mongoose.model('Template', templateSchema);
+module.exports = mongoose.model("Template", templateSchema);

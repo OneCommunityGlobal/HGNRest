@@ -44,38 +44,37 @@ module.exports = function (app) {
       return;
     }
 
-    // Get authentication token
-    const authToken = req.header('Authorization');
-    if (!authToken) {
-      res.status(401).send({ error: 'Unauthorized request - No token provided' });
+    if (!req.header('Authorization')) {
+      res.status(401).send({ 'error:': 'Unauthorized request' });
+      return;
+    }
+    const authToken = req.header(config.REQUEST_AUTHKEY);
+
+    let payload = '';
+
+    try {
+      payload = jwt.verify(authToken, config.JWT_SECRET);
+    } catch (error) {
+      res.status(401).send('Invalid token');
+      return;
+    }
+    if (
+      !payload ||
+      !payload.expiryTimestamp ||
+      !payload.userid ||
+      !payload.role ||
+      moment().isAfter(payload.expiryTimestamp)
+    ) {
+      res.status(401).send('Unauthorized request');
       return;
     }
 
-    try {
-      const payload = jwt.verify(authToken, config.JWT_SECRET);
-      
-      if (
-        !payload ||
-        !payload.expiryTimestamp ||
-        !payload.userid ||
-        !payload.role ||
-        moment().isAfter(payload.expiryTimestamp)
-      ) {
-        res.status(401).send({ error: 'Unauthorized request - Invalid token payload' });
-        return;
-      }
+    const requestor = {};
+    requestor.requestorId = payload.userid;
+    requestor.role = payload.role;
+    requestor.permissions = payload.permissions;
 
-      // Add requestor information to request body
-      req.body.requestor = {
-        requestorId: payload.userid,
-        role: payload.role,
-        permissions: payload.permissions
-      };
-      
-      next();
-    } catch (error) {
-      console.error('Token verification error:', error);
-      res.status(401).send({ error: 'Invalid token' });
-    }
+    req.body.requestor = requestor;
+    next();
   });
 };

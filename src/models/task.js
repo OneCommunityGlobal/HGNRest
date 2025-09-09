@@ -52,7 +52,6 @@ const taskschema = new Schema({
   childrenQty: { type: Number, default: 0, required: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
-  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
   whyInfo: { type: String },
   intentInfo: { type: String },
   endstateInfo: { type: String },

@@ -1,3 +1,5 @@
+
+
 const warningsController = require('./warningsController');
 
 const UserProfile = require('../models/userProfile');
@@ -19,6 +21,7 @@ const assertResMock = (statusCode, message, response) => {
   expect(mockRes.send).toHaveBeenCalledWith(message);
   expect(response).toBeUndefined();
 };
+
 
 describe('warnings controller module', () => {
   describe('get warnings to from user profile method', () => {
@@ -118,18 +121,18 @@ describe('warnings controller module', () => {
     test('Ensure postWarningsToUserProfile Returns error 400 if saving the warnings errors', async () => {
       const { postWarningsToUserProfile } = makeSut();
       const errorMessage = 'error occured';
-
+    
       const profile = {
         warnings: [],
         save: jest.fn().mockImplementationOnce(() => {
           throw new Error(errorMessage);
         }),
       };
-
+    
       jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => Promise.resolve(profile));
-
+    
       const res = await postWarningsToUserProfile(mockReq, mockRes);
-
+    
       assertResMock(400, { message: errorMessage }, res);
     });
     test('Ensure postWarningsToUserProfile Returns a 201 if the warnings are saved successfully', async () => {

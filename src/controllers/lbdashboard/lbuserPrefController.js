@@ -4,20 +4,18 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       const { userId, selectedUserId } = req.body;
 
       if (!userId) {
-        return res.status(400).json({ message: 'User ID is required.' });
+        return res.status(400).json({ message: "User ID is required." });
       }
 
-      const preferences = await UserPreferences.findOne({ user: userId }).populate(
-        'users.userNotifyingFor',
-      );
+      const preferences = await UserPreferences.findOne({ user: userId }).populate("users.userNotifyingFor");
 
       if (!preferences) {
-        return res.status(404).json({ message: 'Preferences not found for the user.' });
+        return res.status(404).json({ message: "Preferences not found for the user." });
       }
 
       if (selectedUserId) {
         const selectedUserPref = preferences.users.find(
-          (pref) => pref.userNotifyingFor._id.toString() === selectedUserId,
+          (pref) => pref.userNotifyingFor._id.toString() === selectedUserId
         );
 
         return res.status(200).json(selectedUserPref || { notifyInApp: false, notifyEmail: false });
@@ -25,8 +23,8 @@ const lbUserPrefController = function (UserPreferences, Notification) {
 
       res.status(200).json(preferences);
     } catch (error) {
-      console.error('Error fetching preferences:', error);
-      res.status(500).json({ message: 'Error fetching preferences', error: error.message });
+      console.error("Error fetching preferences:", error);
+      res.status(500).json({ message: "Error fetching preferences", error: error.message });
     }
   };
 
@@ -35,7 +33,7 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       const { userId, selectedUserId, notifyInApp, notifyEmail } = req.body;
 
       if (!userId || !selectedUserId) {
-        return res.status(400).json({ message: 'User ID and Selected User ID are required.' });
+        return res.status(400).json({ message: "User ID and Selected User ID are required." });
       }
 
       const preferences = await UserPreferences.findOne({ user: userId });
@@ -57,7 +55,7 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       }
 
       const userIndex = preferences.users.findIndex(
-        (user) => user.userNotifyingFor.toString() === selectedUserId,
+        (user) => user.userNotifyingFor.toString() === selectedUserId
       );
 
       if (userIndex === -1) {
@@ -74,8 +72,8 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       const updatedPreferences = await preferences.save();
       res.status(200).json(updatedPreferences);
     } catch (error) {
-      console.error('Error updating preferences:', error);
-      res.status(500).json({ message: 'Error updating preferences', error: error.message });
+      console.error("Error updating preferences:", error);
+      res.status(500).json({ message: "Error updating preferences", error: error.message });
     }
   };
 
@@ -84,7 +82,7 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       const { userId, senderId, message } = req.body;
 
       if (!userId || !senderId || !message) {
-        return res.status(400).json({ message: 'User ID, Sender ID, and Message are required.' });
+        return res.status(400).json({ message: "User ID, Sender ID, and Message are required." });
       }
 
       const notification = new Notification({
@@ -95,10 +93,10 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       });
 
       await notification.save();
-      res.status(201).json({ message: 'Notification stored successfully.', notification });
+      res.status(201).json({ message: "Notification stored successfully.", notification });
     } catch (error) {
-      console.error('❌ Error storing notification:', error);
-      res.status(500).json({ message: 'Error storing notification.', error: error.message });
+      console.error("❌ Error storing notification:", error);
+      res.status(500).json({ message: "Error storing notification.", error: error.message });
     }
   };
 
@@ -107,8 +105,8 @@ const lbUserPrefController = function (UserPreferences, Notification) {
       const { userId } = req.params;
 
       if (!userId) {
-        console.error('❌ User ID is missing in the request.');
-        return res.status(400).json({ message: 'User ID is required.' });
+        console.error("❌ User ID is missing in the request.");
+        return res.status(400).json({ message: "User ID is required." });
       }
 
       const notifications = await Notification.find({ recipient: userId, isRead: false })
@@ -117,33 +115,29 @@ const lbUserPrefController = function (UserPreferences, Notification) {
 
       res.status(200).json(notifications);
     } catch (error) {
-      console.error('❌ Error fetching unread notifications:', error);
-      res
-        .status(500)
-        .json({ message: 'Error fetching unread notifications.', error: error.message });
+      console.error("❌ Error fetching unread notifications:", error);
+      res.status(500).json({ message: "Error fetching unread notifications.", error: error.message });
     }
   };
 
   const markNotificationsAsRead = async (req, res) => {
     try {
-      const { notificationIds } = req.body;
+        const { notificationIds } = req.body;
 
-      if (!notificationIds || !Array.isArray(notificationIds)) {
-        return res.status(400).json({ message: 'Invalid notification IDs.' });
-      }
-      const result = await Notification.updateMany(
-        { _id: { $in: notificationIds } },
-        { isRead: true },
-      );
+        if (!notificationIds || !Array.isArray(notificationIds)) {
+            return res.status(400).json({ message: "Invalid notification IDs." });
+        }
+        const result = await Notification.updateMany(
+            { _id: { $in: notificationIds } },
+            { isRead: true }
+        );
 
-      res.status(200).json({ message: 'Notifications marked as read.', result });
+        res.status(200).json({ message: "Notifications marked as read.", result });
     } catch (error) {
-      console.error('❌ Error marking notifications as read:', error);
-      res
-        .status(500)
-        .json({ message: 'Error marking notifications as read.', error: error.message });
+        console.error("❌ Error marking notifications as read:", error);
+        res.status(500).json({ message: "Error marking notifications as read.", error: error.message });
     }
-  };
+};
 
   return {
     getPreferences,
