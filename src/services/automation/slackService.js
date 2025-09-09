@@ -2,7 +2,7 @@ const emailSender = require('../../utilities/emailSender');
 
 // Service function to send a Slack invite email
 const sendSlackInvite = async (recipientEmail) => {
-  const slackWorkspaceUrl = process.env.SLACK_WORKSPACE_URL; 
+  const slackWorkspaceUrl = process.env.SLACK_WORKSPACE_URL;
   if (!slackWorkspaceUrl) {
     throw new Error('Slack workspace URL is not set in the environment variables');
   }

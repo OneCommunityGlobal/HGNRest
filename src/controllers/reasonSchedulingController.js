@@ -5,7 +5,7 @@ const emailSender = require('../utilities/emailSender');
 // no longer in use replaced with timeoff requests
 const postReason = async (req, res) => {
   try {
-    const { userId, requestor, reasonData } = req.body;
+    const { userId, reasonData } = req.body;
 
     const newDate = moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day');
     const currentDate = moment.tz('America/Los_Angeles').startOf('day');
@@ -47,7 +47,10 @@ const postReason = async (req, res) => {
 
     // conditions added to check if timeOffFrom and timeOffTill fields existed
 
-    if (foundUser.hasOwnProperty('timeOffFrom') && foundUser.hasOwnProperty('timeOffTill')) {
+    if (
+      Object.prototype.hasOwnProperty.call(foundUser, 'timeOffFrom') &&
+      Object.prototype.hasOwnProperty.call(foundUser, 'timeOffTill')
+    ) {
       // if currentDate is greater than or equal to the last timeOffTill date then both the fields will be updated
       if (currentDate >= foundUser.timeOffTill) {
         await UserModel.findOneAndUpdate(
@@ -57,7 +60,7 @@ const postReason = async (req, res) => {
               timeOffFrom: currentDate,
               timeOffTill: newDate,
             },
-          }
+          },
         );
       } else {
         await UserModel.findOneAndUpdate(
@@ -66,7 +69,7 @@ const postReason = async (req, res) => {
             $set: {
               timeOffTill: newDate,
             },
-          }
+          },
         );
       }
     } else {
@@ -77,7 +80,7 @@ const postReason = async (req, res) => {
             timeOffFrom: currentDate,
             timeOffTill: newDate,
           },
-        }
+        },
       );
     }
 
@@ -134,7 +137,6 @@ const postReason = async (req, res) => {
 
 const getAllReasons = async (req, res) => {
   try {
-    const { requestor } = req.body;
     const { userId } = req.params;
 
     // error case 1
@@ -171,7 +173,6 @@ const getAllReasons = async (req, res) => {
 
 const getSingleReason = async (req, res) => {
   try {
-    const { requestor } = req.body;
     const { userId } = req.params;
     const { queryDate } = req.query;
 
@@ -218,7 +219,7 @@ const getSingleReason = async (req, res) => {
 
 const patchReason = async (req, res) => {
   try {
-    const { requestor, reasonData } = req.body;
+    const { reasonData } = req.body;
     const { userId } = req.params;
 
     // error case 1
@@ -287,7 +288,6 @@ const patchReason = async (req, res) => {
 
     return res.status(200).json({
       message: 'Reason Updated!',
-      message: 'Reason Updated!',
     });
   } catch (error) {
     return res.status(400).json({
@@ -343,7 +343,12 @@ const deleteReason = async (req, res) => {
         message: 'Document deleted',
       });
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error('Error in deleteReason:', error);
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
 };
 
 module.exports = {

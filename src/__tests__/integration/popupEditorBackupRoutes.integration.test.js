@@ -28,7 +28,7 @@ describe('PopupEditorBackups tests', () => {
       console.log('Testing 401 unauthorized access...');
 
       try {
-        const responses = await Promise.all([
+        await Promise.all([
           agent.post('/api/popupEditorBackup').send(reqBody).expect(401),
           agent.get('/api/popupEditorBackup/randomId').send(reqBody).expect(401),
           agent.put(`/api/popupEditorBackup/randomId`).send(reqBody).expect(401),

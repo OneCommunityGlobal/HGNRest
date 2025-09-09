@@ -1,7 +1,5 @@
 const mongoose = require('mongoose');
 
-let mongoServer = null;
-
 // Simplified MongoDB connection for CI environments
 module.exports.dbConnect = async () => {
   try {
@@ -66,10 +64,10 @@ module.exports.dbClearAll = async () => {
   try {
     console.log('Clearing all MongoDB collections...');
 
-    const collections = mongoose.connection.collections;
+    const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
-    for (const key in collections) {
+    Object.keys(collections).forEach(async (key) => {
       const collection = collections[key];
       try {
         if (collection && typeof collection.deleteMany === 'function') {
@@ -81,7 +79,7 @@ module.exports.dbClearAll = async () => {
       } catch (error) {
         console.warn(`Failed to clear collection ${key}:`, error.message);
       }
-    }
+    });
 
     console.log('All collections cleared successfully');
   } catch (error) {
@@ -93,7 +91,7 @@ module.exports.dbClearCollections = async (...collectionNames) => {
   try {
     console.log(`Clearing specific collections: ${collectionNames.join(', ')}`);
 
-    for (const collectionName of collectionNames) {
+    collectionNames.forEach(async (collectionName) => {
       const collection = mongoose.connection.collections[collectionName];
       if (collection && typeof collection.deleteMany === 'function') {
         try {
@@ -105,7 +103,7 @@ module.exports.dbClearCollections = async (...collectionNames) => {
       } else {
         console.log(`Collection ${collectionName} not found or not a real collection`);
       }
-    }
+    });
   } catch (error) {
     console.error('Error clearing specific collections:', error);
   }

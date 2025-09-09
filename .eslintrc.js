@@ -5,6 +5,9 @@ module.exports = {
     ecmaVersion: 2020,
     sourceType: 'module',
     requireConfigFile: true,
+    ecmaFeatures: {
+      jsx: true,
+    },
     babelOptions: {
       configFile: `${__dirname}/babel.config.js`,
     },

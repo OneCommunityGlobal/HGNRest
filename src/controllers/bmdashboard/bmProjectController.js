@@ -1,12 +1,11 @@
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
-const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
 
-const bmMProjectController = function (BuildingProject) {
+const bmMProjectController = function (BuildingProjectModel) {
   // TODO: uncomment when executing auth checks
   // const { JWT_SECRET } = config;
 
@@ -16,7 +15,7 @@ const bmMProjectController = function (BuildingProject) {
     // const token = req.headers.authorization;
     // const { userid } = jwt.verify(token, JWT_SECRET);
     try {
-      BuildingProject.aggregate([
+      BuildingProjectModel.aggregate([
         {
           $match: { isActive: true },
         },
@@ -101,7 +100,7 @@ const bmMProjectController = function (BuildingProject) {
     // const { userid } = jwt.verify(token, JWT_SECRET);
     const { projectId } = req.params;
     try {
-      BuildingProject.findById(projectId)
+      BuildingProjectModel.findById(projectId)
         .populate([
           {
             path: 'buildingManager',
@@ -133,7 +132,7 @@ const bmMProjectController = function (BuildingProject) {
 
   const fetchProjectsNames = async (req, res) => {
     try {
-      const projects = await BuildingProject.find(
+      const projects = await BuildingProjectModel.find(
         { isActive: true }, // only active projects
         { _id: 1, name: 1 }, // only select id + name
       );
@@ -153,7 +152,7 @@ const bmMProjectController = function (BuildingProject) {
   const fetchProjectMembers = async (req, res) => {
     const { projectId } = req.params;
     try {
-      BuildingProject.findById(projectId)
+      BuildingProjectModel.findById(projectId)
         .populate({ path: 'buildingManager', select: '_id firstName lastName email' })
         // .populate({
         //   path: 'teams',
@@ -174,7 +173,7 @@ const bmMProjectController = function (BuildingProject) {
             const userId = member.user._id;
             try {
               Task.find({
-                'resources.userID': mongoose.Types.ObjectId(userId),
+                'resources.userID': new mongoose.Types.ObjectId(userId),
               }).then((results) => {
                 // console.log("results", results);
                 if (results[0]?.taskName) {
