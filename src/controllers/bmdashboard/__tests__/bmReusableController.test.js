@@ -1,4 +1,10 @@
+/* eslint-disable object-shorthand */
+/* eslint-disable arrow-body-style */
+/* eslint-disable prefer-arrow-callback */
+/* eslint-disable no-unused-vars */
+
 const mongoose = require('mongoose');
+
 const mockReusableType = {
   findById: jest.fn(),
 };

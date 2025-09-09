@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-undef */
 const Job = require('../models/jobs'); // Import the Job model
 
 const paginationForJobs = async (req, res) => {

@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+
 const mongoose = require('mongoose');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');

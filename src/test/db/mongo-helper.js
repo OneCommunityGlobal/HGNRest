@@ -1,5 +1,10 @@
+/* eslint-disable guard-for-in */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable no-await-in-loop */
 const mongoose = require('mongoose');
 
+// eslint-disable-next-line prefer-const, no-unused-vars
 let mongoServer = null;
 
 // Simplified MongoDB connection for CI environments

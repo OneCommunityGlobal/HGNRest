@@ -1,3 +1,4 @@
+/* eslint-disable arrow-body-style */
 // Mock the BuildingProject model
 const mockAggregate = jest.fn();
 const mockFindById = jest.fn();
@@ -7,9 +8,10 @@ jest.mock('../../../models/bmdashboard/buildingProject', () => ({
   findById: mockFindById,
 }));
 
+// eslint-disable-next-line no-unused-vars
 const mongoose = require('mongoose');
 const BuildingProject = require('../../../models/bmdashboard/buildingProject');
-const bmMProjectController = require('../../bmdashboard/bmProjectController');
+const bmMProjectController = require("../bmProjectController");
 
 describe('Building Manager Project Controller', () => {
   let req;

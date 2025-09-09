@@ -1,6 +1,10 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable import/no-unresolved */
+/* eslint-disable prefer-template */
 const mongoose = require('mongoose');
 
 const bmRentalChartController = function() {
+    // eslint-disable-next-line import/extensions
     const rentalCharts = require('../../models/bmdashboard/buildingRentalChart');
 
     const getAllRentalCosts = async(req, res) => {

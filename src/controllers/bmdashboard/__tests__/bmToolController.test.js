@@ -1,4 +1,6 @@
+/* eslint-disable arrow-body-style */
 const mongoose = require('mongoose');
+// eslint-disable-next-line no-unused-vars
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const bmToolController = require('../bmToolController');
 

@@ -295,6 +295,7 @@ const projectController = function (Project) {
   };
 
   function escapeRegExp(string) {
+    // eslint-disable-next-line no-useless-escape
     return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
   }
 

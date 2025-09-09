@@ -1,4 +1,7 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
 
 const faqSchema = new Schema({

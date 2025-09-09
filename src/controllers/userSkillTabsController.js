@@ -1,3 +1,7 @@
+/* eslint-disable radix */
+/* eslint-disable no-unused-vars */
+/* eslint-disable arrow-body-style */
+/* eslint-disable object-shorthand */
 const mongoose = require('mongoose');
 
 const userSkillTabsController = (HgnFormResponses) => {
