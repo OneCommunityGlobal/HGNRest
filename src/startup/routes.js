@@ -260,6 +260,10 @@ const tagRouter = require('../routes/tagRouter')(tag);
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+// commuity portal
+
+const activityRouter = require('../routes/activityRouter');
+
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -381,4 +385,8 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('api', bmIssueRouter);
+  // community portal
+  app.use('/api/activities', activityRouter);
+
 };
