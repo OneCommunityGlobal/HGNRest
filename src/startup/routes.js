@@ -190,6 +190,8 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const youtubeSocialMediaRouter = require('../routes/youtubeSocialMediaRouter')();
+console.log('Registering youtubeSocialMediaRouter on /api');
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
@@ -259,6 +261,7 @@ const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(pro
 const tagRouter = require('../routes/tagRouter')(tag);
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
+const youtubeAccountRouter = require('../routes/youtubeAccountRouter');
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
 module.exports = function (app) {
@@ -375,7 +378,9 @@ module.exports = function (app) {
 
   app.use('/api/financials', bmFinancialRouter);
 
+  app.use('/api', youtubeSocialMediaRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', youtubeAccountRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);

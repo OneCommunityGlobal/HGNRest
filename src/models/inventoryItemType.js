@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-const InventoryItemType = new Schema({ // creates an item, tracks total amount in organization's stock
+const InventoryItemType = new Schema({
+  // creates an item, tracks total amount in organization's stock
   type: { type: String, required: true }, // ie Material, Equipment, Tool
   name: { type: String, required: true },
   description: { type: String, required: true, maxLength: 150 },

@@ -1,5 +1,5 @@
 /* eslint-disable quotes */
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
@@ -11,4 +11,8 @@ const emailSubscriptionSchema = new Schema({
   },
 });
 
-module.exports = mongoose.model("emailSubscriptions", emailSubscriptionSchema, "emailSubscriptions");
+module.exports = mongoose.model(
+  'emailSubscriptions',
+  emailSubscriptionSchema,
+  'emailSubscriptions',
+);

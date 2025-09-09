@@ -44,8 +44,4 @@ const taskNotificationSchema = new Schema({
   },
 });
 
-module.exports = mongoose.model(
-  'taskNotification',
-  taskNotificationSchema,
-  'taskNotifications',
-);
+module.exports = mongoose.model('taskNotification', taskNotificationSchema, 'taskNotifications');

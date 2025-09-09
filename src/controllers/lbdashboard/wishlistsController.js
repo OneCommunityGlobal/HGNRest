@@ -1,94 +1,94 @@
-const wishlistsController = function (wishlist) {
+const WishlistsController = function (Wishlist) {
   const getWishlistById = async (req, res) => {
     try {
-      const wishlistId = req.headers.id;
-      if (!wishlistId) {
+      const WishlistId = req.headers.id;
+      if (!WishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }
-      const wishlistItem = await wishlist.findById(wishlistId); 
-      if (!wishlistItem) {
+      const WishlistItem = await Wishlist.findById(WishlistId);
+      if (!WishlistItem) {
         return res.status(404).json({ message: 'Wishlist not found' });
       }
-      res.status(200).json(wishlistItem);
+      res.status(200).json(WishlistItem);
     } catch (error) {
-      console.error('Error retrieving wishlist:', error); 
-      res.status(500).json({ message: 'Error retrieving wishlist', error: error.message });
+      console.error('Error retrieving Wishlist:', error);
+      res.status(500).json({ message: 'Error retrieving Wishlist', error: error.message });
     }
   };
 
   const createWishlist = async (req, res) => {
     try {
-      const { wishlistListings, addedBy } = req.body;
-      const newWishlist = new wishlist({
-        wishlistListings,
+      const { WishlistListings, addedBy } = req.body;
+      const newWishlist = new Wishlist({
+        WishlistListings,
         addedBy,
       });
       const savedWishlist = await newWishlist.save();
       res.status(201).json(savedWishlist);
     } catch (error) {
-      res.status(500).json({ message: 'Error creating wishlist', error });
+      res.status(500).json({ message: 'Error creating Wishlist', error });
     }
   };
 
   const addListingToWishlist = async (req, res) => {
     try {
-      const wishlistId = req.headers.id; 
-      if (!wishlistId) {
+      const WishlistId = req.headers.id;
+      if (!WishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }
       const { listingId } = req.body;
       if (!listingId) {
         return res.status(400).json({ message: 'Listing ID is required' });
       }
-      const wishlistItem = await wishlist.findById(wishlistId);
-      if (!wishlistItem) {
+      const WishlistItem = await Wishlist.findById(WishlistId);
+      if (!WishlistItem) {
         return res.status(404).json({ message: 'Wishlist not found' });
       }
-      
-      const existingListing = wishlistItem.wishlistListings.find(
-        (id) => id.toString() === listingId.toString()
+
+      const existingListing = WishlistItem.WishlistListings.find(
+        (id) => id.toString() === listingId.toString(),
       );
       if (existingListing) {
-        return res.status(400).json({ message: 'Listing already in wishlist' });
+        return res.status(400).json({ message: 'Listing already in Wishlist' });
       }
-      
-      wishlistItem.wishlistListings.push(listingId);
-      const updatedWishlist = await wishlistItem.save();
+
+      WishlistItem.WishlistListings.push(listingId);
+      const updatedWishlist = await WishlistItem.save();
       res.status(200).json(updatedWishlist);
     } catch (error) {
-      res.status(500).json({ message: 'Error adding listing to wishlist', error });
+      res.status(500).json({ message: 'Error adding listing to Wishlist', error });
     }
   };
 
   const removeListingFromWishlist = async (req, res) => {
     try {
-      const wishlistId = req.headers.id; 
-      if (!wishlistId) {
+      const WishlistId = req.headers.id;
+      if (!WishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }
       const { listingId } = req.body;
       if (!listingId) {
         return res.status(400).json({ message: 'Listing ID is required' });
       }
-      const wishlistItem = await wishlist.findById(wishlistId);
-      if (!wishlistItem) {
+      const WishlistItem = await Wishlist.findById(WishlistId);
+      if (!WishlistItem) {
         return res.status(404).json({ message: 'Wishlist not found' });
       }
-      
-      const listingExists = wishlistItem.wishlistListings.find(
-        (id) => id.toString() === listingId.toString()
+
+      const listingExists = WishlistItem.WishlistListings.find(
+        (id) => id.toString() === listingId.toString(),
       );
       if (!listingExists) {
-        return res.status(404).json({ message: 'Listing not found in wishlist' });
+        return res.status(404).json({ message: 'Listing not found in Wishlist' });
       }
-      
-      wishlistItem.wishlistListings = wishlistItem.wishlistListings.filter(
-        (id) => id.toString() !== listingId.toString()
+
+      WishlistItem.WishlistListings = WishlistItem.WishlistListings.filter(
+        (id) => id.toString() !== listingId.toString(),
       );
-      const updatedWishlist = await wishlistItem.save();
+      const updatedWishlist = await WishlistItem.save();
       res.status(200).json(updatedWishlist);
     } catch (error) {
-      res.status(500).json({ message: 'Error removing listing from wishlist', error });
+      res.status(500).json({ message: 'Error removing listing from Wishlist', error });
     }
   };
 
@@ -98,14 +98,14 @@ const wishlistsController = function (wishlist) {
       if (!userId) {
         return res.status(400).json({ message: 'User ID is required in headers' });
       }
-      const userWishlist = await wishlist.find({ addedBy: userId }); // No populate()
+      const userWishlist = await Wishlist.find({ addedBy: userId }); // No populate()
       if (!userWishlist || userWishlist.length === 0) {
-        return res.status(404).json({ message: 'No wishlist found for this user' });
+        return res.status(404).json({ message: 'No Wishlist found for this user' });
       }
       res.status(200).json(userWishlist);
     } catch (error) {
-      console.error('Error retrieving user wishlist:', error); // Log the error for debugging
-      res.status(500).json({ message: 'Error retrieving user wishlist', error: error.message });
+      console.error('Error retrieving user Wishlist:', error); // Log the error for debugging
+      res.status(500).json({ message: 'Error retrieving user Wishlist', error: error.message });
     }
   };
 
@@ -118,4 +118,4 @@ const wishlistsController = function (wishlist) {
   };
 };
 
-module.exports = wishlistsController;
+module.exports = WishlistsController;
