@@ -8,6 +8,6 @@ module.exports.sentryConfig = {
 };
 
 module.exports.githubConfig = {
-  GITHUB_TOKEN: process.env.GITHUB_TOKEN, // Store GitHub token securely in .env
-  ORG_NAME: process.env.ORG_NAME, // Store GitHub organization name
+  GITHUB_TOKEN: process.env.GITHUB_TOKEN,  // Store GitHub token securely in .env
+  ORG_NAME: process.env.ORG_NAME,          // Store GitHub organization name
 };

@@ -28,7 +28,7 @@ describe('wbsRouter tests', () => {
       console.log('Testing 401 unauthorized access...');
 
       try {
-        await Promise.all([
+        const responses = await Promise.all([
           agent.post('/api/wbs').send(reqBody).expect(401),
           agent.get('/api/wbs/randomId').send(reqBody).expect(401),
           agent.put(`/api/wbs/randomId`).send(reqBody).expect(401),

@@ -39,7 +39,7 @@ describe('mapLocations routes', () => {
       console.log('Testing 401 unauthorized access...');
 
       try {
-        await Promise.all([
+        const responses = await Promise.all([
           agent.post('/api/mapLocations').send(reqBody).expect(401),
           agent.get('/api/mapLocations/randomId').send(reqBody).expect(401),
           agent.put(`/api/mapLocations/randomId`).send(reqBody).expect(401),

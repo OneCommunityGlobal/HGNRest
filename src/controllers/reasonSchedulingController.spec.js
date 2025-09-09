@@ -3,6 +3,7 @@ const { mockReq, mockRes, mockUser } = require('../test');
 const UserModel = require('../models/userProfile');
 const ReasonModel = require('../models/reason');
 
+
 jest.mock('../utilities/emailSender', () => jest.fn());
 const emailSender = require('../utilities/emailSender');
 
@@ -85,7 +86,7 @@ describe('reasonScheduling Controller', () => {
       mockReq.body.reasonData.date = mockDay(0, true); // Past date
       await postReason(mockReq, mockRes);
       await flushPromises();
-
+  
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -136,12 +137,12 @@ describe('reasonScheduling Controller', () => {
         timeOffFrom: mockReq.body.currentDate,
         timeOffTill: mockReq.body.reasonData.date,
       });
-      const mockReasonData = {
+      const mockReason = {
         reason: 'Some Reason',
         userId: mockReq.body.userId,
         date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
       };
-      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(mockReasonData);
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(mockReason);
 
       await postReason(mockReq, mockRes);
       await flushPromises();
@@ -166,10 +167,10 @@ describe('reasonScheduling Controller', () => {
     test.skip('Ensure postReason returns 400 when any error in saving.', async () => {
       jest.spyOn(UserModel, 'findById').mockResolvedValueOnce(mockUser());
       jest.spyOn(ReasonModel.prototype, 'save').mockRejectedValueOnce(new Error('Save failed'));
-
+    
       await postReason(mockReq, mockRes);
       await flushPromises();
-
+    
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -190,10 +191,10 @@ describe('reasonScheduling Controller', () => {
       });
       mockRes.sendStatus = jest.fn();
       emailSender.mockResolvedValueOnce();
-
+    
       await postReason(mockReq, mockRes);
       await flushPromises();
-
+    
       expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
       expect(emailSender).toHaveBeenCalledWith(
         expect.stringContaining(mockUser().email),

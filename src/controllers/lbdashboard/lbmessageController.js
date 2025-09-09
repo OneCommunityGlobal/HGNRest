@@ -4,42 +4,42 @@ const lbMessageController = function (Message, io) {
       const { sender, receiver, content } = req.body;
 
       if (!sender || !receiver || !content) {
-        return res.status(400).json({ message: 'Sender, receiver, and content are required.' });
+        return res.status(400).json({ message: "Sender, receiver, and content are required." });
       }
 
       // Create a new message with "pending" status
-      const message = new Message({ sender, receiver, content, status: 'pending' });
+      const message = new Message({ sender, receiver, content, status: "pending" });
       await message.save();
 
       // Emit the "sent" status to the sender
       if (io) {
-        io.to(sender).emit('MESSAGE_STATUS_UPDATED', {
+        io.to(sender).emit("MESSAGE_STATUS_UPDATED", {
           messageId: message._id,
-          status: 'sent',
+          status: "sent",
         });
 
         // Emit the message to the receiver
-        io.to(receiver).emit('RECEIVE_MESSAGE', {
+        io.to(receiver).emit("RECEIVE_MESSAGE", {
           ...message.toObject(),
-          status: 'delivered',
+          status: "delivered",
         });
       } else {
-        console.error('❌ Socket.IO instance is undefined');
+        console.error("❌ Socket.IO instance is undefined");
       }
 
-      res.status(201).json({ message: 'Message sent successfully', data: message });
+      res.status(201).json({ message: "Message sent successfully", data: message });
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error("Error sending message:", error);
 
       // Emit the "failed" status to the sender
       if (io) {
-        io.to(req.body.sender).emit('MESSAGE_STATUS_UPDATED', {
+        io.to(req.body.sender).emit("MESSAGE_STATUS_UPDATED", {
           messageId: null,
-          status: 'failed',
+          status: "failed",
         });
       }
 
-      res.status(500).json({ message: 'Error sending message', error: error.message });
+      res.status(500).json({ message: "Error sending message", error: error.message });
     }
   };
 
@@ -49,7 +49,7 @@ const lbMessageController = function (Message, io) {
       const contactId = req.headers.contactid || req.query.contactId;
 
       if (!userId || !contactId) {
-        return res.status(400).json({ message: 'User ID and Contact ID are required.' });
+        return res.status(400).json({ message: "User ID and Contact ID are required." });
       }
 
       const messages = await Message.find({
@@ -61,8 +61,8 @@ const lbMessageController = function (Message, io) {
 
       res.status(200).json(messages);
     } catch (error) {
-      console.error('Error fetching conversation:', error);
-      res.status(500).json({ message: 'Error fetching conversation', error: error.message });
+      console.error("Error fetching conversation:", error);
+      res.status(500).json({ message: "Error fetching conversation", error: error.message });
     }
   };
 
@@ -70,33 +70,37 @@ const lbMessageController = function (Message, io) {
     try {
       const { messageId, status } = req.body;
 
-      if (!messageId || typeof status === 'undefined') {
-        return res.status(400).json({ message: 'Message ID and status are invalid.' });
+      if (!messageId || typeof status === "undefined") {
+        return res.status(400).json({ message: "Message ID and status are invalid." });
       }
 
-      const message = await Message.findByIdAndUpdate(messageId, { status }, { new: true });
+      const message = await Message.findByIdAndUpdate(
+        messageId,
+        { status },
+        { new: true }
+      );
 
       if (!message) {
-        return res.status(404).json({ message: 'Message not found' });
+        return res.status(404).json({ message: "Message not found" });
       }
 
       // Emit the updated status to the sender and receiver
-      io.to(message.sender).emit('MESSAGE_STATUS_UPDATED', {
+      io.to(message.sender).emit("MESSAGE_STATUS_UPDATED", {
         messageId: message._id,
         status: message.status,
       });
 
-      if (status === 'read') {
-        io.to(message.receiver).emit('MESSAGE_STATUS_UPDATED', {
+      if (status === "read") {
+        io.to(message.receiver).emit("MESSAGE_STATUS_UPDATED", {
           messageId: message._id,
-          status: 'read',
+          status: "read",
         });
       }
 
       res.status(200).json(message);
     } catch (error) {
-      console.error('Error updating message status:', error);
-      res.status(500).json({ message: 'Error updating message status', error: error.message });
+      console.error("Error updating message status:", error);
+      res.status(500).json({ message: "Error updating message status", error: error.message });
     }
   };
 
@@ -105,18 +109,18 @@ const lbMessageController = function (Message, io) {
       const { userId, contactId } = req.body;
 
       if (!userId || !contactId) {
-        return res.status(400).json({ message: 'User ID and Contact ID are required.' });
+        return res.status(400).json({ message: "User ID and Contact ID are required." });
       }
 
       const updatedMessages = await Message.updateMany(
-        { sender: contactId, receiver: userId, status: { $ne: 'read' } },
-        { $set: { status: 'read' } },
+        { sender: contactId, receiver: userId, status: { $ne: "read" } },
+        { $set: { status: "read" } }
       );
 
-      res.status(200).json({ message: 'Messages marked as read.', updatedMessages });
+      res.status(200).json({ message: "Messages marked as read.", updatedMessages });
     } catch (error) {
-      console.error('Error marking messages as read:', error);
-      res.status(500).json({ message: 'Failed to mark messages as read.' });
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ message: "Failed to mark messages as read." });
     }
   };
 

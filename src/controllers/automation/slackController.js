@@ -19,12 +19,7 @@ async function inviteUser(req, res) {
 
   try {
     await slackService.sendSlackInvite(targetUser.email);
-    await appAccessService.upsertAppAccess(
-      targetUser.targetUserId,
-      'slack',
-      'invited',
-      targetUser.email,
-    );
+    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'slack', 'invited', targetUser.email);
     return res.status(201).json({ message: `Invitation sent successfully to ${targetUser.email}` });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -34,3 +29,4 @@ async function inviteUser(req, res) {
 module.exports = {
   inviteUser,
 };
+

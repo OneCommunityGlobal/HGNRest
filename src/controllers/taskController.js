@@ -8,44 +8,28 @@ const emailSender = require('../utilities/emailSender');
 const followUp = require('../models/followUp');
 
 const taskController = function (Task) {
-  const getTasks = async (req, res) => {
-    const level = parseInt(req.params.level);
-    const { mother } = req.params;
+  const getTasks = (req, res) => {
+    const { level } = req.params;
 
     let query = {
       wbsId: { $in: [req.params.wbsId] },
-      level: level,
+      level: { $in: [level] },
       isActive: { $ne: false },
     };
 
-    // Handle mother parameter
-    if (mother && mother !== 'null' && mother !== '0') {
-      query.mother = mother;
-    } else if (mother === 'null' || mother === '0') {
-      query.mother = null; // Find top-level tasks
+    const { mother } = req.params;
+
+    if (mother !== '0') {
+      query = {
+        wbsId: { $in: [req.params.wbsId] },
+        level: { $in: [level] },
+        mother: { $in: [mother] },
+      };
     }
 
-    try {
-      const results = await Task.find(query);
-      
-      // Add creator information for each task
-      const tasksWithCreator = await Promise.all(
-        results.map(async (task) => {
-          if (task.createdBy) {
-            const creatorName = await taskHelper.getUserProfileFirstAndLastName(task.createdBy);
-            task.creatorName = creatorName !== ' ' ? creatorName : 'Unknown';
-          } else {
-            task.creatorName = 'Unknown';
-          }
-          return task;
-        })
-      );
-
-      res.status(200).send(tasksWithCreator);
-    } catch (error) {
-      console.error('Error in getTasks:', error);
-      res.status(404).send(error);
-    }
+    Task.find(query)
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const getWBSId = (req, res) => {
@@ -432,7 +416,6 @@ const taskController = function (Task) {
         wbsId,
         createdDatetime,
         modifiedDatetime,
-        createdBy: req.body.requestor.requestorId, // Add creator information
       });
 
       _task
@@ -458,10 +441,6 @@ const taskController = function (Task) {
     }
 
     const wbsId = req.params.id;
-    if (!wbsId) {
-      return res.status(400).send({ error: 'WBS ID is required' });
-    }
-
     const task = req.body;
     const createdDatetime = Date.now();
     const modifiedDatetime = Date.now();
@@ -479,10 +458,6 @@ const taskController = function (Task) {
         }
 
         level = parentTask.level + 1;
-        if (level > 4) {
-          return res.status(400).send({ error: 'Maximum task level (4) exceeded.' });
-        }
-
         // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
@@ -495,7 +470,6 @@ const taskController = function (Task) {
           .join('.');
         num = baseNum ? `${baseNum}.${nextIndex}` : `${nextIndex}`;
       } else {
-        // This is a top-level task
         const topTasks = await Task.find({ wbsId, level: 1 });
         const nextTopNum = topTasks.length
           ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
@@ -506,12 +480,10 @@ const taskController = function (Task) {
       const _task = new Task({
         ...task,
         wbsId,
-        num,
+        num, // Assign calculated num
         level,
         createdDatetime,
         modifiedDatetime,
-        createdBy: req.body.requestor.requestorId,
-        mother: parentId || null // Ensure top-level tasks have null mother field
       });
 
       const saveTask = _task.save();
@@ -528,9 +500,7 @@ const taskController = function (Task) {
       });
 
       Promise.all([saveTask, saveWbs, saveProject])
-        .then((results) => {
-          res.status(201).send(results[0]);
-        })
+        .then((results) => res.status(201).send(results[0])) // send task with generated num
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -877,14 +847,6 @@ const taskController = function (Task) {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
 
-      // Fetch creator information if createdBy exists
-      if (task.createdBy) {
-        const creatorName = await taskHelper.getUserProfileFirstAndLastName(task.createdBy);
-        task.creatorName = creatorName !== ' ' ? creatorName : 'Unknown';
-      } else {
-        task.creatorName = 'Unknown';
-      }
-
       return res.status(200).send(task);
     } catch (error) {
       // Generic error message, you can adjust as needed
@@ -973,38 +935,11 @@ const taskController = function (Task) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     try {
       const teamsData = await taskHelper.getTasksForTeams(userId, req.body.requestor);
-
-      const populateCreatorName = (data) =>
-        Promise.all(
-          data.map(async (user) => {
-            const userObj = user.toObject ? user.toObject() : { ...user };
-            if (userObj.tasks && Array.isArray(userObj.tasks)) {
-              userObj.tasks = await Promise.all(
-                userObj.tasks.map(async (task) => {
-                  const taskObj = task.toObject ? task.toObject() : { ...task };
-                  if (taskObj.createdBy) {
-                    const creatorName = await taskHelper.getUserProfileFirstAndLastName(
-                      taskObj.createdBy,
-                    );
-                    taskObj.creatorName = creatorName.trim() ? creatorName.trim() : 'Unknown';
-                  } else {
-                    taskObj.creatorName = 'Unknown';
-                  }
-                  return taskObj;
-                }),
-              );
-            }
-            return userObj;
-          }),
-        );
-
       if (teamsData.length > 0) {
-        const populatedData = await populateCreatorName(teamsData);
-        res.status(200).send(populatedData);
+        res.status(200).send(teamsData);
       } else {
         const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
-        const populatedSingleUserData = await populateCreatorName(singleUserData);
-        res.status(200).send(populatedSingleUserData);
+        res.status(200).send(singleUserData);
       }
     } catch (error) {
       console.log(error);

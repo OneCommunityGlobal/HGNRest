@@ -1,5 +1,6 @@
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
