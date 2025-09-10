@@ -2,13 +2,14 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
+
 const router = express.Router();
 const faqController = require('../controllers/faqController');
 const Role = require('../models/role');
 const UnansweredFAQ = require('../models/unansweredFaqs');
 
 const verifyToken = async (req, res, next) => {
-    const token = req.headers['authorization'];
+    const token = req.headers.authorization;
     if (!token) {
         return res.status(401).json({ message: 'No token provided' });
     }
