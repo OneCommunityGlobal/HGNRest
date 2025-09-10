@@ -6,8 +6,12 @@ module.exports = function () {
 
   const router = express.Router();
 
-  // If you want the list of projects:
   router.get('/weekly-summaries-filters', controller.getFilters);
+  router.post('/weekly-summaries-filters', controller.createFilter);
+  router.get('/weekly-summaries-filters/:id', controller.getFilterById);
+  router.put('/weekly-summaries-filters/:id', controller.replaceFilter);
+  router.patch('/weekly-summaries-filters/:id', controller.updateFilter);
+  router.delete('/weekly-summaries-filters/:id', controller.deleteFilter);
 
   return router;
 };
