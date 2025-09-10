@@ -71,6 +71,20 @@ const activities = [
   },
 ];
 
+const RSVP_TOKENS = new Map();
+const RSVP_VOTES = new Map();
+
+const PUBLIC_API_ORIGIN = process.env.PUBLIC_API_ORIGIN;
+const PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN;
+
+function buildOptionsListHtml(activityId, token, options, tz) {
+  return options.map((o, idx) => {
+    const label = `${formatOptionHuman(o, tz)}`;
+    const voteUrl = `${PUBLIC_API_ORIGIN}/api/communityportal/activities/${activityId}/reschedule/vote?token=${encodeURIComponent(token)}&opt=${idx}`;
+    return `<li>${label} — <a href="${voteUrl}">Select this option</a></li>`;
+  }).join('');
+}
+
 function getActivity(activityId) {
   return activities.find((a) => a._id === activityId);
 }
@@ -145,12 +159,33 @@ exports.rescheduleNotify = async (req, res) => {
     `;
 
     for (const email of toList) {
+      const token = uuidv4();
+      RSVP_TOKENS.set(token, { activityId, email });
+
+      const optionsListHtml = buildOptionsListHtml(activityId, token, options, timezone);
+
+      const html = `
+    <div>
+      <h2>Reschedule Notice: ${activity.title}</h2>
+      <p><strong>Location:</strong> ${activity.location}</p>
+      <p><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
+      ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+      <p>Select any of the new time(s) below (you can click multiple):</p>
+      <ol>${optionsListHtml}</ol>
+      <p>If the links don’t work, open this page to choose: 
+        <a href="${PUBLIC_APP_ORIGIN}/rsvp?token=${encodeURIComponent(token)}&a=${encodeURIComponent(activityId)}">Open RSVP</a>
+      </p>
+      <p>Thank you!</p>
+    </div>
+  `;
+
       await sendEmail({
         to: email,
         subject: `Reschedule notice for “${activity.title}”`,
         html,
       });
     }
+
 
     return res.json({
       message: 'Reschedule notification sent',
