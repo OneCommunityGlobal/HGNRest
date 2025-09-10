@@ -2,17 +2,21 @@
 /* eslint-disable operator-linebreak */
 /* eslint-disable consistent-return */
 /* eslint-disable quotes */
+
 /* eslint-disable linebreak-style */
 const WebSocket = require('ws');
 const moment = require('moment');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+
 const {
   insertNewUser,
   removeConnection,
   broadcastToSameUser,
   hasOtherConn,
 } = require('./TimerService/connectionsHandler');
+
+
 const { getClient, handleMessage, action } = require('./TimerService/clientsHandler');
 
 /**
@@ -23,24 +27,19 @@ const { getClient, handleMessage, action } = require('./TimerService/clientsHand
  */
 const authenticate = (req, res) => {
   const authToken = req.headers?.['sec-websocket-protocol'];
+
+  if (!authToken) {
+    res('401 Unauthorized', null);
+    return;
+  }
+
   let payload = '';
   try {
     payload = jwt.verify(authToken, config.JWT_SECRET);
+    res(null, payload.userid);
   } catch (error) {
     res('401 Unauthorized', null);
   }
-
-  if (
-    !payload ||
-    !payload.expiryTimestamp ||
-    !payload.userid ||
-    !payload.role ||
-    moment().isAfter(payload.expiryTimestamp)
-  ) {
-    res('401 Unauthorized', null);
-  }
-
-  res(null, payload.userid);
 };
 
 /**
@@ -49,13 +48,12 @@ const authenticate = (req, res) => {
  * Then we set the upgrade event listener to the Express Server, authenticate the user and
  * if it is valid, we add the user id to the request and handle the upgrade and emit the connection event.
  */
-export default async (expServer) => {
+export default () => {
   const wss = new WebSocket.Server({
     noServer: true,
-    path: '/timer-service',
   });
 
-  expServer.on('upgrade', (request, socket, head) => {
+  const handleUpgrade = (request, socket, head) => {
     authenticate(request, (err, client) => {
       if (err || !client) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -67,7 +65,7 @@ export default async (expServer) => {
         wss.emit('connection', websocket, request);
       });
     });
-  });
+  };
 
   const clients = new Map(); // { userId: timerInfo }
   const connections = new Map(); // { userId: connections[] }
@@ -100,7 +98,6 @@ export default async (expServer) => {
       }
       const resp = await handleMessage(msg, clients, msg.userId ?? userId);
       broadcastToSameUser(connections, userId, resp);
-      if (msg.userId) broadcastToSameUser(connections, msg.userId, resp);
     });
 
     /**
@@ -137,5 +134,5 @@ export default async (expServer) => {
     clearInterval(interval);
   });
 
-  return wss;
+  return { path: '/timer-service', handleUpgrade };
 };
