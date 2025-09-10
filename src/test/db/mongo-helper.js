@@ -1,3 +1,5 @@
+/* eslint-disable guard-for-in */
+/* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
 
 // Simplified MongoDB connection for CI environments
@@ -67,7 +69,6 @@ module.exports.dbClearAll = async () => {
     const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
-    // eslint-disable-next-line no-restricted-syntax, guard-for-in
     for (const key in collections) {
       const collection = collections[key];
       try {
@@ -92,7 +93,6 @@ module.exports.dbClearCollections = async (...collectionNames) => {
   try {
     console.log(`Clearing specific collections: ${collectionNames.join(', ')}`);
 
-    // eslint-disable-next-line no-restricted-syntax
     for (const collectionName of collectionNames) {
       const collection = mongoose.connection.collections[collectionName];
       if (collection && typeof collection.deleteMany === 'function') {
