@@ -94,13 +94,9 @@ const getJobs = (req, res) => paginationForJobs(req, res, false);
 // Controller to fetch job summaries with pagination, search, filtering, and sorting
 const getJobSummaries = async (req, res) => {
   console.log('getJobSummaries');
-  const { search = '', page = 1, limit = 18, category = '', position = '' } = req.query;
+  const { search = '', category = '', position = '' } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
-    console.log(`pageNumber ${pageNumber}`);
-    console.log(`limitNumber ${limitNumber}`);
     // Build query conditions
     const conditions = [];
     const [allCategories, allPositions] = await Promise.all([
@@ -135,16 +131,11 @@ const getJobSummaries = async (req, res) => {
 
     if (category) conditions.push({ category: { $in: [category] } });
 
-    console.log(allCategories);
-    console.log(allPositions);
     if (allCategories.length) conditions.push({ category: { $in: allCategories } });
     if (allPositions.length) conditions.push({ title: { $in: allPositions } });
-    console.log(conditions);
     // Final query
 
     const query = conditions.length ? { $and: conditions } : {};
-    console.log('query from getJobs');
-    console.log('Final Query:', JSON.stringify(query, null, 2));
 
     // Sorting logic
     const sortCriteria = {
@@ -158,20 +149,11 @@ const getJobSummaries = async (req, res) => {
     const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
       .select('title category location description datePosted featured jobDetailsLink')
-      .sort(sortCriteria)
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+      .sort(sortCriteria);
 
     res.json({
       jobs,
-      pagination: {
-        totalJobs,
-        totalPages: Math.ceil(totalJobs / limitNumber), // Calculate total number of pages
-        currentPage: pageNumber,
-        limit: limitNumber,
-        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
-        hasPreviousPage: pageNumber > 1,
-      },
+      totalJobs,
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch job summaries', details: error.message });
