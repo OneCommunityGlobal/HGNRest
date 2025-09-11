@@ -583,9 +583,10 @@ const userProfileController = function (UserProfile, Project) {
         req.body.requestor.requestorId === userid)
     );
 
-    const canEditTeamCode =
-      req.body.requestor.role === 'Owner' ||
-      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+    // fix linting error
+    // const canEditTeamCode =
+    //   req.body.requestor.role === 'Owner' ||
+    //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
@@ -749,27 +750,60 @@ const userProfileController = function (UserProfile, Project) {
         }
 
         if (req.body.projects !== undefined) {
-          const newProjects = req.body.projects.map((project) => project._id.toString());
+          // Normalize incoming projects to a deduped array of string IDs
+          const normalizeToIdString = (p) => {
+            if (!p) return null;
+            if (typeof p === 'string') return p.trim();
+            if (typeof p === 'object' && p._id) return String(p._id);
+            if (typeof p === 'object' && p.id) return String(p.id);
+            return null;
+          };
 
-          // check if the projects have changed
+          const incomingIdsRaw = Array.isArray(req.body.projects)
+            ? req.body.projects
+            : [req.body.projects];
+          const incomingIdStrings = Array.from(
+            new Set(
+              incomingIdsRaw
+                .map(normalizeToIdString)
+                .filter(Boolean)
+                .map((s) => s.trim()),
+            ),
+          );
+
+          // Validate all incoming IDs are valid ObjectIds
+          const invalidIds = incomingIdStrings.filter((id) => !mongoose.Types.ObjectId.isValid(id));
+          if (invalidIds.length) {
+            return res.status(400).send({
+              error: 'One or more project ids are invalid',
+              invalidProjectIds: invalidIds,
+            });
+          }
+
+          // Existing projects on the record (may be ObjectIds or strings); normalize safely
+          const currentIdStrings = Array.isArray(record.projects)
+            ? record.projects.filter(Boolean).map((id) => String(id))
+            : [];
+
+          // Compare sets to determine if anything actually changed
+          const curSet = new Set(currentIdStrings);
+          const newSet = new Set(incomingIdStrings);
+
           const projectsChanged =
-            !record.projects.every((id) => newProjects.includes(id.toString())) ||
-            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+            currentIdStrings.length !== incomingIdStrings.length ||
+            currentIdStrings.some((id) => !newSet.has(id));
 
           if (projectsChanged) {
-            // store the old projects for comparison
-            const oldProjects = record.projects.map((id) => id.toString());
+            const addedIds = incomingIdStrings.filter((id) => !curSet.has(id));
+            const removedIds = currentIdStrings.filter((id) => !newSet.has(id));
 
-            // update the projects
-            record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
+            // Apply updates to the user record
+            record.projects = incomingIdStrings.map((id) => new mongoose.Types.ObjectId(id));
 
-            const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
-            const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
-
-            const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
-              mongoose.Types.ObjectId(id),
+            // Touch membersModifiedDatetime for changed projects
+            const changedProjectIds = [...addedIds, ...removedIds].map(
+              (id) => new mongoose.Types.ObjectId(id),
             );
-
             if (changedProjectIds.length > 0) {
               const now = new Date();
               Project.updateMany(
