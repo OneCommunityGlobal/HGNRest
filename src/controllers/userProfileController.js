@@ -583,6 +583,11 @@ const userProfileController = function (UserProfile, Project) {
         req.body.requestor.requestorId === userid)
     );
 
+    // eslint-disable-next-line no-unused-vars
+    const requestorCanEditTeamCode =
+      req.body.requestor.role === 'Owner' ||
+      req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
     if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;

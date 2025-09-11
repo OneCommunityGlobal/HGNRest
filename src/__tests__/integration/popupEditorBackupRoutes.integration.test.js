@@ -28,7 +28,8 @@ describe('PopupEditorBackups tests', () => {
       console.log('Testing 401 unauthorized access...');
 
       try {
-        await Promise.all([
+        // eslint-disable-next-line no-unused-vars
+        const responses = await Promise.all([
           agent.post('/api/popupEditorBackup').send(reqBody).expect(401),
           agent.get('/api/popupEditorBackup/randomId').send(reqBody).expect(401),
           agent.put(`/api/popupEditorBackup/randomId`).send(reqBody).expect(401),

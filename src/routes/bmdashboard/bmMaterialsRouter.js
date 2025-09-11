@@ -16,8 +16,6 @@ const routes = function (buildingMaterial) {
 
   materialsRouter.route('/updateMaterialStatus').post(controller.bmupdatePurchaseStatus);
 
-  materialsRouter.route('/updateMaterialStatus').post(controller.bmupdatePurchaseStatus);
-
   materialsRouter.route('/materials/:projectId').get(controller.bmGetMaterialSummaryByProject);
 
   return materialsRouter;
