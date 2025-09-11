@@ -387,6 +387,6 @@ module.exports = function (app) {
   app.use('/api/lb', lbWishlistsRouter);
   app.use('api', bmIssueRouter);
   // community portal
-  app.use('/api/activities', activityRouter);
+  app.use('/api/communityportal/activities', activityRouter);
 
 };

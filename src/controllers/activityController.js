@@ -11,8 +11,8 @@ const config = {
   refreshToken: process.env.TEST_REFRESH_TOKEN,
 };
 
-const PUBLIC_API_ORIGIN = process.env.PUBLIC_API_ORIGIN;
-const PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN;
+const PUBLIC_API_ORIGIN = process.env.PUBLIC_API_ORIGIN || 'http://localhost:4500';
+const PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN || 'http://localhost:5173';
 
 const activities = [
   {
@@ -23,9 +23,9 @@ const activities = [
     organizerId: 'org1',
     location: 'San Francisco, CA 94108',
     participants: [
-      { userId: '1', name: 'Alice', email: 'manvithayeeli@gmail.com' },
-      { userId: '2', name: 'Bob',   email: 'manvithayeeli@gmail.com' },
-      { userId: '3', name: 'Jane',  email: 'manvithayeeli@gmail.com' },
+      { userId: '1', name: 'Alice', email: 'yelimanvitha@gmail.com' },
+      { userId: '2', name: 'Bob', email: 'yelimanvitha@gmail.com' },
+      { userId: '3', name: 'Jane', email: 'yelimanvitha@gmail.com' },
     ],
   },
 ];
@@ -95,13 +95,25 @@ function formatOptionHuman({ dateISO, start, end }, tz) {
 }
 
 const RSVP_TOKENS = new Map();
-const RSVP_VOTES  = new Map();
+const RSVP_VOTES = new Map();
 
 function buildOptionsListHtml(activityId, token, options, tz) {
   return options.map((o, idx) => {
     const label = `${formatOptionHuman(o, tz)}`;
-    const voteUrl = `${PUBLIC_API_ORIGIN}/api/communityportal/activities/${activityId}/reschedule/vote?token=${encodeURIComponent(token)}&opt=${idx}`;
-    return `<li>${label} — <a href="${voteUrl}">Select this option</a></li>`;
+    const voteUrl =
+      `${PUBLIC_API_ORIGIN}/api/communityportal/activities/${activityId}/reschedule/vote` +
+      `?token=${encodeURIComponent(token)}&opt=${idx}`;
+    return `
+      <li style="margin:10px 0; list-style:none;">
+        <a href="${voteUrl}"
+           style="text-decoration:none; color:#1a1a1a; display:inline-flex; align-items:center;">
+          <span style="
+            width:16px;height:16px;border:2px solid #666;border-radius:50%;
+            display:inline-block;margin-right:10px; box-sizing:border-box;"></span>
+          <span>${label}</span>
+        </a>
+      </li>
+    `;
   }).join('');
 }
 
@@ -145,27 +157,37 @@ async function rescheduleNotify(req, res) {
 
       const optionsListHtml = buildOptionsListHtml(activityId, token, options, timezone);
 
-      const html = `
-        <div style="font-family:Arial,sans-serif;line-height:1.45;color:#222;">
-          <h2 style="margin:0 0 8px;">Reschedule Notice: ${activity.title}</h2>
-          <p style="margin:0 0 4px;"><strong>Location:</strong> ${activity.location || 'TBA'}</p>
-          <p style="margin:0 0 12px;"><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
-          ${reason ? `<p style="margin:8px 0 0"><strong>Reason:</strong> ${reason}</p>` : ''}
-          <p style="margin:16px 0 6px;">Select any of the new time(s) below (you can click multiple):</p>
-          <ol style="margin:0 0 16px 20px; padding:0;">${optionsListHtml}</ol>
-          <p>If the links don’t work, open this page to choose:
-            <a href="${PUBLIC_APP_ORIGIN}/rsvp?token=${encodeURIComponent(token)}&a=${encodeURIComponent(activityId)}">Open RSVP</a>
-          </p>
-          <p style="margin:0;">Thank you!</p>
-        </div>
-      `;
+      const rsvpAppUrl =
+        `${PUBLIC_APP_ORIGIN}/rsvp?token=${encodeURIComponent(token)}&a=${encodeURIComponent(activityId)}`;
 
-      await sendEmail({
-        to: email,
-        subject: `Reschedule notice for “${activity.title}”`,
-        html,
-      });
+      const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.45;color:#222;">
+      <h2 style="margin:0 0 8px;">Reschedule Notice: ${activity.title}</h2>
+      <p style="margin:0 0 4px;"><strong>Location:</strong> ${activity.location || 'TBA'}</p>
+      <p style="margin:0 0 12px;"><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
+      ${reason ? `<p style="margin:8px 0 0"><strong>Reason:</strong> ${reason}</p>` : ''}
+
+      <p style="margin:16px 0 6px;">Choose any of the new time(s) below (you can click multiple):</p>
+      <ol style="margin:0 0 16px 20px; padding:0;">${optionsListHtml}</ol>
+
+      <div style="margin:20px 0;">
+        <!-- Primary CTA: opens your app where you can show REAL radio buttons + Submit -->
+        <a href="${rsvpAppUrl}"
+           style="display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;
+                  padding:10px 16px;border-radius:6px;font-weight:600;">
+          Open poll to review & submit
+        </a>
+      </div>
+
+      <p style="color:#555;margin-top:12px;">
+        Tip: If the “Select this option” links don’t work in your email app, use the button above.
+      </p>
+    </div>
+  `;
+
+      await sendEmail({ to: email, subject: `Reschedule notice for “${activity.title}”`, html });
     }
+
 
     return res.json({
       message: 'Reschedule notification sent',
@@ -204,6 +226,17 @@ function voteReschedule(req, res) {
   const key = `${activityId}:${payload.email}`;
   if (!RSVP_VOTES.has(key)) RSVP_VOTES.set(key, new Set());
   RSVP_VOTES.get(key).add(optionIdx);
+
+  res.set('Content-Type', 'text/html').send(`
+    <!doctype html>
+    <html>
+      <head><meta charset="utf-8"><title>Thanks!</title></head>
+      <body style="font-family:Arial;max-width:600px;margin:40px auto;line-height:1.5;">
+        <h2>Thanks! Your selection was recorded.</h2>
+        <p>You can click more than one option in the email if multiple times work for you.</p>
+      </body>
+    </html>
+  `);
 }
 
 

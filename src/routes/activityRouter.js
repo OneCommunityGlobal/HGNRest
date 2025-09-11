@@ -6,7 +6,7 @@ const {
   voteReschedule,
 } = require('../controllers/activityController');
 
-router.post('/communityportal/activities/:activityId/reschedule/notify', rescheduleNotify);
-router.get('/communityportal/activities/:activityId/reschedule/vote', voteReschedule);
+router.post('/:activityId/reschedule/notify', rescheduleNotify);
+router.get('/:activityId/reschedule/vote', voteReschedule);
 
 module.exports = router;
