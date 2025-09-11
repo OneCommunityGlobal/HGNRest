@@ -3,9 +3,6 @@
 /* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
 
-// eslint-disable-next-line no-unused-vars
-let mongoServer = null;
-
 // Simplified MongoDB connection for CI environments
 module.exports.dbConnect = async () => {
   try {
@@ -69,15 +66,14 @@ module.exports.dbDisconnect = async () => {
 module.exports.dbClearAll = async () => {
   try {
     console.log('Clearing all MongoDB collections...');
-    // eslint-disable-next-line prefer-destructuring
-    const collections = mongoose.connection.collections;
+
+    const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
     for (const key in collections) {
       const collection = collections[key];
       try {
         if (collection && typeof collection.deleteMany === 'function') {
-          // eslint-disable-next-line no-await-in-loop
           const result = await collection.deleteMany({});
           console.log(`Cleared collection ${key}: ${result.deletedCount} documents`);
         } else {
