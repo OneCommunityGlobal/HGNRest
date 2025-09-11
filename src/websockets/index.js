@@ -151,8 +151,8 @@ export default () => {
           try {
             if (client?.started && !client?.paused) {
               logger.logInfo(`[WS] Sending forced pause to user ${userId} (weekly)`);
-              await handleMessage({ action: action.FORCED_PAUSE }, clients, userId);
-              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.FORCED_PAUSE }));
+              await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
+              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.WEEK_CLOSE_PAUSE }));
             }
           } catch (err) {
             logger.logException(`[WS] Weekly forced pause error for user ${userId}: ${err}`);
@@ -164,16 +164,16 @@ export default () => {
     }, { timezone: 'America/Los_Angeles' });
 
     // Daily: 10:05 AM ET
-    cron.schedule('25 16 * * *', async () => {
+    cron.schedule('43 15 * * *', async () => {
       try {
         const now = moment().format();
-        logger.logInfo(`[WS] Daily 4:20 PM forced pause trigger at ${now} PT`);
+        logger.logInfo(`[WS] Daily 6:32 PM forced pause trigger at ${now} PT`);
         for (const [userId, client] of clients.entries()) {
           try {
             if (client?.started && !client?.paused) {
               logger.logInfo(`[WS] Sending forced pause to user ${userId} (daily)`);
-              await handleMessage({ action: action.FORCED_PAUSE }, clients, userId);
-              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.FORCED_PAUSE }));
+              await handleMessage({ action: action.SCHEDULED_PAUSE }, clients, userId);
+              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.SCHEDULED_PAUSE }));
             }
           } catch (err) {
             logger.logException(`[WS] Daily forced pause error for user ${userId}: ${err}`);
