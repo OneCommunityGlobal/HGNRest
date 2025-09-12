@@ -70,8 +70,8 @@ module.exports.dbClearAll = async () => {
     const {collections} = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
-    for (const key in collections) {
-      if (collections.hasOwnProperty(key)) {
+    await Promise.all(
+      Object.keys(collections).map(async (key) => {
         const collection = collections[key];
         try {
           if (collection && typeof collection.deleteMany === 'function') {
@@ -83,8 +83,8 @@ module.exports.dbClearAll = async () => {
         } catch (error) {
           console.warn(`Failed to clear collection ${key}:`, error.message);
         }
-      }
-    }
+      })
+    );
 
     console.log('All collections cleared successfully');
   } catch (error) {
@@ -96,19 +96,21 @@ module.exports.dbClearCollections = async (...collectionNames) => {
   try {
     console.log(`Clearing specific collections: ${collectionNames.join(', ')}`);
 
-    for (const collectionName of collectionNames) {
-      const collection = mongoose.connection.collections[collectionName];
-      if (collection && typeof collection.deleteMany === 'function') {
-        try {
-          const result = await collection.deleteMany({});
-          console.log(`Cleared collection ${collectionName}: ${result.deletedCount} documents`);
-        } catch (error) {
-          console.warn(`Failed to clear collection ${collectionName}:`, error.message);
+    await Promise.all(
+      collectionNames.map(async (collectionName) => {
+        const collection = mongoose.connection.collections[collectionName];
+        if (collection && typeof collection.deleteMany === 'function') {
+          try {
+            const result = await collection.deleteMany({});
+            console.log(`Cleared collection ${collectionName}: ${result.deletedCount} documents`);
+          } catch (error) {
+            console.warn(`Failed to clear collection ${collectionName}:`, error.message);
+          }
+        } else {
+          console.log(`Collection ${collectionName} not found or not a real collection`);
         }
-      } else {
-        console.log(`Collection ${collectionName} not found or not a real collection`);
-      }
-    }
+      })
+    );
   } catch (error) {
     console.error('Error clearing specific collections:', error);
   }

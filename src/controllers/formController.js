@@ -1,6 +1,6 @@
 const userprofile = require('../models/userProfile');
 
-const formController = function (Form, formResponse) {
+const formController = function (Form, FormResponse) {
   // creating a new form
   const createForm = async function (req, res) {
     try {
@@ -12,8 +12,8 @@ const formController = function (Form, formResponse) {
       }
 
       // check if form already exists or not
-      const form_temp = await Form.find({ formName });
-      if (form_temp.length > 0) {
+      const formTemp = await Form.find({ formName });
+      if (formTemp.length > 0) {
         return res.status(400).json({ message: 'Form already exists with that name' });
       }
       // Create a new form with the provided structure
@@ -52,8 +52,8 @@ const formController = function (Form, formResponse) {
       }
 
       // Check if user exists and is active
-      const user_temp = await userprofile.findById(userId);
-      if (!user_temp || user_temp.isActive === false) {
+      const userTemp = await userprofile.findById(userId);
+      if (!userTemp || userTemp.isActive === false) {
         return res.status(400).json({ message: 'Invalid or inactive user ID' });
       }
 
@@ -157,7 +157,7 @@ const formController = function (Form, formResponse) {
   const checkForResponse = async function (req, res) {
     try {
       const { formID, userID } = req.query;
-      const result = await formResponse.find({ formID, submittedBy: userID });
+      const result = await FormResponse.find({ formID, submittedBy: userID });
       if (result.length === 0) {
         return res.status(400).json({ message: 'No records Found' });
       }
@@ -182,7 +182,7 @@ const formController = function (Form, formResponse) {
       }
 
       // Fetch all responses associated with the formID
-      const responses = await formResponse.find({ formID });
+      const responses = await FormResponse.find({ formID });
 
       // If no responses found, return a message
       if (responses.length === 0) {
@@ -316,7 +316,7 @@ const formController = function (Form, formResponse) {
       }
 
       // Create and save the valid response
-      const formResp = new formResponse({
+      const formResp = new FormResponse({
         formID,
         responses: validatedResponses,
         submittedBy,
