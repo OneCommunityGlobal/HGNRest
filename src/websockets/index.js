@@ -163,11 +163,11 @@ export default () => {
       }
     }, { timezone: 'America/Los_Angeles' });
 
-    // Daily: 10:05 AM ET
-    cron.schedule('43 15 * * *', async () => {
+    // Daily: 7:07 PM ET
+    cron.schedule('38 12 * * *', async () => {
       try {
         const now = moment().format();
-        logger.logInfo(`[WS] Daily 6:32 PM forced pause trigger at ${now} PT`);
+        logger.logInfo(`[WS] Daily 7:07 PM forced pause trigger at ${now} PT`);
         for (const [userId, client] of clients.entries()) {
           try {
             if (client?.started && !client?.paused) {
