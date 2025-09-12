@@ -6,6 +6,10 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    property_id: {
+      type: String,
+      required: true,
+    },
     message: {
       type: String,
       required: true,
@@ -17,6 +21,12 @@ const notificationSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+module.exports = mongoose.model(
+  'bidoverview_Notification',
+  notificationSchema,
+  'bidoverview_Notifications',
 );
 
 module.exports = mongoose.model(
