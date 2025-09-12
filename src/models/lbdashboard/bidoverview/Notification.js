@@ -15,9 +15,8 @@ const notificationSchema = new mongoose.Schema(
       required: true,
     },
     timestamp: {
-      type: String,
-      required: true,
-      match: /^\d{4}-\d{2}-\d{2}$/, // Ensures the format is like "2025-02-27"
+      type: Date,
+      default: Date.now,
     },
   },
   { timestamps: true },
