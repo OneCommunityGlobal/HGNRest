@@ -79,20 +79,26 @@ const placeBid = async (req, res) => {
     });
     await newBid.save();
 
+    const notifications = [];
+
     // first notifaction - bid placed
-    await Notification.create({
+    const bidPlacedNotification = await Notification.create({
       user_id: userId,
       property_id: propertyId,
       message: `You have successfully placed a bid of ${bidValue} on ${listing.title}.`,
     });
 
+    notifications.push(bidPlacedNotification);
+
     // second notification - highest bid
     if (!highestBid || bidValue > highestBid.bid_amount) {
-      await Notification.create({
+      const highestBidNotification = await Notification.create({
         user_id: userId,
         property_id: propertyId,
         message: `Congratulations! Your bid of ${bidValue} is currently the highest for ${listing.title}.`,
       });
+
+      notifications.push(highestBidNotification);
 
       // third notification - outbid
       if (highestBid && highestBid.user_id.toString() !== userId.toString()) {
@@ -107,6 +113,7 @@ const placeBid = async (req, res) => {
     res.status(201).json({
       message: 'Bid placed successfully',
       bid: newBid,
+      notifications,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
