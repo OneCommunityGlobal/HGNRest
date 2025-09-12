@@ -7,6 +7,7 @@ const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').d
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');
+require('./cronjobs/socialPostScheduler')();
 
 const port = process.env.PORT || 4500;
 

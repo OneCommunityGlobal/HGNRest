@@ -16,6 +16,10 @@ require('./startup/bodyParser')(app);
 require('./startup/middleware')(app);
 require('./startup/routes')(app);
 
+app.set('view engine', 'ejs');
+
+// app.use('/social-media', socialMediaRoutes);
+
 // The error handler must be before any other error middleware and after all controllers
 app.use(Sentry.Handlers.errorHandler());
 
