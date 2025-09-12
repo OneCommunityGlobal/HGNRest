@@ -402,7 +402,7 @@ describe('jobsController', () => {
   });
 
   describe('getJobSummaries', () => {
-    it('should return job summaries with sorting and pagination', async () => {
+    it('should return job summaries with sorting', async () => {
       // Arrange
       const mockJobs = [
         {
@@ -439,6 +439,353 @@ describe('jobsController', () => {
       // Assert
       expect(Job.countDocuments).toHaveBeenCalledWith({});
       expect(Job.find).toHaveBeenCalledWith({});
+      expect(res.json).toHaveBeenCalledWith({
+        jobs: mockJobs,
+        totalJobs: 1,
+      });
+    });
+    /* start  */
+    it('should return job summaries when no query parameters are provided', async () => {
+      // Arrange
+      const mockJobs = [
+        {
+          _id: '1',
+          title: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          category: 'Software & IT',
+          description: 'Test job',
+        },
+        {
+          _id: '2',
+          title: 'Civil Engineer',
+          category: 'Engineering & Technical Design',
+          description: 'Test job 2',
+        },
+      ];
+      // 👇 Mock the distinct calls
+      JobPositionCategory.distinct = jest
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve([])) // categories
+        .mockImplementationOnce(() => Promise.resolve([])); // positions
+
+      Job.countDocuments = jest.fn().mockResolvedValue(2);
+
+      jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+
+      // const limit = jest.fn().mockResolvedValue(mockJobs);
+      // const skip = jest.fn().mockReturnValue({ limit });
+      // const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+
+      const req = {
+        query: {},
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Act
+      await getJobSummaries(req, res);
+
+      // Assert
+      expect(Job.countDocuments).toHaveBeenCalledWith({});
+      expect(Job.find).toHaveBeenCalledWith({});
+      expect(res.json).toHaveBeenCalledWith({
+        jobs: mockJobs,
+        totalJobs: 2,
+      });
+    });
+
+    it('should return filtered job summaries when search and category parameters are provided', async () => {
+      // Arrange
+      const mockJobs = [
+        {
+          _id: '1',
+          title: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          category: 'Software & IT',
+          description: 'Test job',
+        },
+      ];
+      // 👇 Mock the distinct calls
+      JobPositionCategory.distinct = jest
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve([])) // categories
+        .mockImplementationOnce(() => Promise.resolve([])); // positions
+
+      Job.countDocuments = jest.fn().mockResolvedValue(1);
+      // const limit = jest.fn().mockResolvedValue(mockJobs);
+      // const skip = jest.fn().mockReturnValue({ limit });
+      //      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+      const req = {
+        query: {
+          search: 'Full-stack',
+          category: 'Software & IT',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Act
+      await getJobSummaries(req, res);
+
+      // Assert
+      expect(Job.countDocuments).toHaveBeenCalledWith({
+        $and: [
+          {
+            $or: [
+              { title: { $regex: expect.any(RegExp) } },
+              { description: { $regex: expect.any(RegExp) } },
+            ],
+          },
+          {
+            category: { $in: ['Software & IT'] },
+          },
+        ],
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        jobs: mockJobs,
+        totalJobs: 1,
+      });
+    });
+
+    it('should return filtered job summaries when search category and position parameters are provided', async () => {
+      // Arrange
+      const mockJobs = [
+        {
+          _id: '1',
+          title: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          category: 'Software & IT',
+          description: 'Test job',
+        },
+      ];
+      // 👇 Mock the distinct calls
+      JobPositionCategory.distinct = jest
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve([])) // categories
+        .mockImplementationOnce(() => Promise.resolve([])); // positions
+
+      Job.countDocuments = jest.fn().mockResolvedValue(1);
+      // const limit = jest.fn().mockResolvedValue(mockJobs);
+      // const skip = jest.fn().mockReturnValue({ limit });
+      //      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+      const req = {
+        query: {
+          search: 'Full-stack',
+          category: 'Software & IT',
+          position: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          page: '1',
+          limit: '10',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Act
+      await getJobSummaries(req, res);
+
+      // Assert
+      expect(Job.countDocuments).toHaveBeenCalledWith({
+        $and: [
+          {
+            $or: [
+              { title: { $regex: expect.any(RegExp) } },
+              { description: { $regex: expect.any(RegExp) } },
+            ],
+          },
+
+          {
+            title: { $in: ['Experienced MERN Stack Full-stack / Frontend Software Developers'] },
+          },
+          {
+            category: { $in: ['Software & IT'] },
+          },
+        ],
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        jobs: mockJobs,
+        totalJobs: 1,
+      });
+    });
+
+    it('should return filtered job summaries when search parameter is provided', async () => {
+      // Arrange
+      const mockJobs = [
+        {
+          _id: '1',
+          title: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          category: 'Software & IT',
+          description: 'Test job',
+        },
+      ];
+      // 👇 Mock the distinct calls
+      JobPositionCategory.distinct = jest
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve([])) // categories
+        .mockImplementationOnce(() => Promise.resolve([])); // positions
+
+      Job.countDocuments = jest.fn().mockResolvedValue(1);
+      // const limit = jest.fn().mockResolvedValue(mockJobs);
+      // const skip = jest.fn().mockReturnValue({ limit });
+      //      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+      const req = {
+        query: {
+          search: 'Full-stack',
+          page: '1',
+          limit: '10',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Act
+      await getJobSummaries(req, res);
+
+      // Assert
+      expect(Job.countDocuments).toHaveBeenCalledWith({
+        $and: [
+          {
+            $or: [
+              { title: { $regex: expect.any(RegExp) } },
+              { description: { $regex: expect.any(RegExp) } },
+            ],
+          },
+        ],
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        jobs: mockJobs,
+        totalJobs: 1,
+      });
+    });
+
+    it('should return filtered job summaries when category parameter is provided', async () => {
+      // Arrange
+      const mockJobs = [
+        {
+          _id: '1',
+          title: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          category: 'Software & IT',
+          description: 'Test job',
+        },
+      ];
+      // 👇 Mock the distinct calls
+      JobPositionCategory.distinct = jest
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve([])) // categories
+        .mockImplementationOnce(() => Promise.resolve([])); // positions
+
+      Job.countDocuments = jest.fn().mockResolvedValue(1);
+      // const limit = jest.fn().mockResolvedValue(mockJobs);
+      // const skip = jest.fn().mockReturnValue({ limit });
+      //      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+      const req = {
+        query: {
+          category: 'Software & IT',
+          page: '1',
+          limit: '10',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Act
+      await getJobSummaries(req, res);
+
+      // Assert
+      expect(Job.countDocuments).toHaveBeenCalledWith({
+        $and: [
+          {
+            category: { $in: ['Software & IT'] },
+          },
+        ],
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        jobs: mockJobs,
+        totalJobs: 1,
+      });
+    });
+
+    it('should return filtered job summaries when position parameter is provided', async () => {
+      // Arrange
+      const mockJobs = [
+        {
+          _id: '1',
+          title: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+          category: 'Software & IT',
+          description: 'Test job',
+        },
+      ];
+      // 👇 Mock the distinct calls
+      JobPositionCategory.distinct = jest
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve([])) // categories
+        .mockImplementationOnce(() => Promise.resolve([])); // positions
+
+      Job.countDocuments = jest.fn().mockResolvedValue(1);
+      // const limit = jest.fn().mockResolvedValue(mockJobs);
+      // const skip = jest.fn().mockReturnValue({ limit });
+      //      const sort = jest.fn().mockReturnValue({ skip });
+      Job.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          sort: jest.fn().mockResolvedValue(mockJobs),
+        }),
+      });
+      const req = {
+        query: {
+          position: 'Experienced MERN Stack Full-stack / Frontend Software Developers',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Act
+      await getJobSummaries(req, res);
+
+      // Assert
+      expect(Job.countDocuments).toHaveBeenCalledWith({
+        $and: [
+          {
+            title: { $in: ['Experienced MERN Stack Full-stack / Frontend Software Developers'] },
+          },
+        ],
+      });
       expect(res.json).toHaveBeenCalledWith({
         jobs: mockJobs,
         totalJobs: 1,
