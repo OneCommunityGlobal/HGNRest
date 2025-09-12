@@ -1,6 +1,7 @@
 const Listing = require('../../models/lbdashboard/listings');
 const Bid = require('../../models/lbdashboard/bidoverview/Bid');
 const Notification = require('../../models/lbdashboard/bidoverview/Notification');
+const Village = require('../../models/lbdashboard/villages');
 
 /**
  *
@@ -15,16 +16,26 @@ const getBidOverview = async (req, res) => {
     // fetch listing detail
     const listingId = req.params.id;
     const listing = await Listing.findById(listingId);
+
     if (!listing) {
       return res.status(404).json({ message: 'Listing not found' });
+    }
+    // fetching villages amenities
+    let villageAmenities = [];
+    if (listing.village) {
+      const village = await Village.findOne({ name: listing.village });
+      if (village && Array.isArray(village.amenities)) {
+        villageAmenities = village.amenities;
+      }
     }
 
     const listingDetail = {
       id: listing._id,
       title: listing.title,
       description: listing.description,
-      image: listing.image,
-      amenities: listing.amenities,
+      images: listing.images,
+      unitAmenities: listing.amenities,
+      villageAmenities,
       availableFrom: listing.availableFrom,
       availableTo: listing.availableTo,
       bidAmount: listing.price || 0,
