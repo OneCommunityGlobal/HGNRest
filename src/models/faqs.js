@@ -48,13 +48,13 @@ const defaultFAQs = [
 
 const insertDefaultFAQs = async () => {
     try {
-        for (const faq of defaultFAQs) {
+        await Promise.all(defaultFAQs.map(async (faq) => {
             const existingFAQ = await FAQ.findOne({ question: faq.question });
             if (!existingFAQ) {
                 await FAQ.create(faq);
                 console.log(`Inserted FAQ: ${faq.question}`);
             }
-        }
+        }));
     } catch (error) {
         console.error("Error inserting default FAQs:", error);
     }

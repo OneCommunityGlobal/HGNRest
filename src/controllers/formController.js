@@ -73,7 +73,7 @@ const formController = function (Form, FormResponse) {
         let isDifferent = false;
         const newQuestions = [];
 
-        for (const question of formQuestions) {
+        formQuestions.forEach((question) => {
           if (!question.label || typeof question.label !== 'string') {
             return res
               .status(400)
@@ -95,13 +95,13 @@ const formController = function (Form, FormResponse) {
                 });
             }
 
-            for (const option of question.options) {
+            question.options.forEach((option) => {
               if (typeof option !== 'string' || option.trim() === '') {
                 return res
                   .status(400)
                   .json({ message: 'Each option must be a valid non-empty string' });
               }
-            }
+            });
           }
 
           // Check if this question already exists in the database
@@ -115,7 +115,7 @@ const formController = function (Form, FormResponse) {
           }
 
           newQuestions.push(question);
-        }
+        });
 
         // Only update if something actually changed
         if (isDifferent) {

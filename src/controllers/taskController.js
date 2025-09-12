@@ -995,7 +995,7 @@ const taskController = function (Task) {
       console.error("Error fetching membership:", error);
       return []; 
     }
-    for (const member of membership) {
+    membership.forEach((member) => {
       if (
         Array.isArray(member.teams) &&
         Array.isArray(user.teams) &&
@@ -1003,7 +1003,7 @@ const taskController = function (Task) {
       ) {
         recipients.push(member.email);
       }
-    }
+    });
   
     return recipients;
   };
