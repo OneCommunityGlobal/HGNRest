@@ -13,6 +13,9 @@ const config = {
   rateLimitDelay: 1000,
 };
 
+// Check if email sending is enabled
+const sendEmailEnabled = process.env.sendEmail === 'true';
+if (!sendEmailEnabled) console.log('Email sending is DISABLED via env variable.');
 const OAuth2Client = new google.auth.OAuth2(
   config.clientId,
   config.clientSecret,
@@ -29,7 +32,19 @@ const transporter = nodemailer.createTransport({
     clientId: config.clientId,
     clientSecret: config.clientSecret,
   },
+  host: 'smtp.gmail.com',
+  // port: parseInt(process.env.SMTPPort, 10),
+  port: 587,
+  secure: false, // true for port 465
+  // auth: {
+  //   user: process.env.SMTPUser,
+  //   pass: process.env.SMTPPass,
+  // },
 });
+
+// Queue system for batch sending
+const queue = [];
+let isProcessing = false;
 
 const sendEmail = async (mailOptions) => {
   try {
@@ -60,8 +75,8 @@ const sendEmail = async (mailOptions) => {
   }
 };
 
-const queue = [];
-let isProcessing = false;
+// const queue = [];
+// let isProcessing = false;
 
 const processQueue = async () => {
   if (isProcessing || queue.length === 0) return;

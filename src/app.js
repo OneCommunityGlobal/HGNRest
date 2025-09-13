@@ -1,10 +1,18 @@
+require('dotenv').config();
 const express = require('express');
+
 const Sentry = require('@sentry/node');
+// const authenticateUser = require("./startup/middleware");
+const emailRouter = require('./routes/emailRouter')();
 
 const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
 const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
+// const testRoutes = require('./routes/testRoutes');
+
+// app.use('/api/test', testRoutes);
+
 logger.init();
 
 // The request handler must be the first middleware on the app
@@ -23,4 +31,5 @@ app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
 app.use(express.json());
 app.use('/api', experienceRoutes); // Mounts at /api
+app.use('/api/email', emailRouter);
 module.exports = { app, logger };

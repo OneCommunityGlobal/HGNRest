@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-await-in-loop */
 const cron = require('node-cron');
 const UserPreferences = require('../models/lbdashboard/userPreferences');
 const Message = require('../models/lbdashboard/message');
