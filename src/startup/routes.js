@@ -30,6 +30,7 @@ const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
+const popularityTimelineRoutes = require('../routes/popularityTimeline');
 
 // Title
 const title = require('../models/title');
@@ -324,6 +325,8 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/api/popularity', popularityTimelineRoutes);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
