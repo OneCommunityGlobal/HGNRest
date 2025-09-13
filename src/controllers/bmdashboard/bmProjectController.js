@@ -1,6 +1,5 @@
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
-const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
@@ -131,6 +130,25 @@ const bmMProjectController = function (BuildingProject) {
     }
   };
 
+  const fetchProjectsNames = async (req, res) => {
+    try {
+      const projects = await BuildingProject.find(
+        { isActive: true }, // only active projects
+        { _id: 1, name: 1 }, // only select id + name
+      );
+
+      const projectNames = projects.map((proj) => ({
+        projectId: proj._id,
+        projectName: proj.name,
+      }));
+
+      res.status(200).json(projectNames);
+    } catch (error) {
+      console.error('Error in fetchProjectNames:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   const fetchProjectMembers = async (req, res) => {
     const { projectId } = req.params;
     try {
@@ -180,7 +198,7 @@ const bmMProjectController = function (BuildingProject) {
     }
   };
 
-  return { fetchAllProjects, fetchSingleProject, fetchProjectMembers };
+  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames, fetchProjectMembers };
 };
 
 module.exports = bmMProjectController;
