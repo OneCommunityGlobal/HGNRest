@@ -6,7 +6,7 @@ const Task = require('../../models/task');
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
 
-const bmMProjectController = function (BuildingProject) {
+const bmMProjectController = function () {
   // TODO: uncomment when executing auth checks
   // const { JWT_SECRET } = config;
 

@@ -163,9 +163,9 @@ const bmToolController = (BuildingTool, ToolType) => {
       return res.status(500).send({ errors, results });
     }
 
-    for (const type of typesArray) {
-      const toolName = type.toolName;
-      const toolCodes = type.toolCodes;
+    await Promise.all(typesArray.map(async (type) => {
+      const {toolName} = type;
+      const {toolCodes} = type;
       const codeMap = {};
       toolCodes.forEach((obj) => {
         codeMap[obj.value] = obj.label;
@@ -175,18 +175,18 @@ const bmToolController = (BuildingTool, ToolType) => {
         const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
         if (!toolTypeDoc) {
           errors.push({ message: `Tool type ${toolName} with id ${type.toolType} was not found.` });
-          continue;
+          return;
         }
         const availableItems = toolTypeDoc.available;
         const usingItems = toolTypeDoc.using;
 
-        for (const toolItem of type.toolItems) {
+        await Promise.all(type.toolItems.map(async (toolItem) => {
           const buildingToolDoc = await BuildingTool.findOne({
             _id: mongoose.Types.ObjectId(toolItem),
           });
           if (!buildingToolDoc) {
             errors.push({ message: `${toolName} with id ${toolItem} was not found.` });
-            continue;
+            return;
           }
 
           if (action === 'Check Out' && availableItems.length > 0) {
@@ -198,7 +198,7 @@ const bmToolController = (BuildingTool, ToolType) => {
               errors.push({
                 message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`,
               });
-              continue;
+              return;
             }
           }
 
@@ -211,12 +211,12 @@ const bmToolController = (BuildingTool, ToolType) => {
               errors.push({
                 message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`,
               });
-              continue;
+              return;
             }
           }
 
           const newRecord = {
-            date: date,
+            date,
             createdBy: requestor,
             responsibleUser: buildingToolDoc.userResponsible,
             type: action,
@@ -225,19 +225,19 @@ const bmToolController = (BuildingTool, ToolType) => {
           buildingToolDoc.logRecord.push(newRecord);
           buildingToolDoc.save();
           results.push({ message: `${action} successful for ${toolName} ${codeMap[toolItem]}` });
-        }
+        }));
 
         await toolTypeDoc.save();
       } catch (error) {
         errors.push({ message: `Error for tool type ${type}: ${error.message}` });
       }
-    }
+    }));
 
     if (errors.length > 0) {
       return res.status(404).send({ errors, results });
-    } else {
+    } 
       return res.status(200).send({ errors, results });
-    }
+    
   };
 
   return {
