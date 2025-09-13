@@ -1,5 +1,6 @@
 const connectDB = require('../startup/db');
 const userHelper = require('../helpers/userHelper')();
+const { hasPermission } = require('../utilities/permissions');
 
 const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment, userProfile) {
   const getBlueSquareEmailAssignment = async function (req, res) {
@@ -64,7 +65,13 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
   const runManuallyResendWeeklySummaries = async function (req, res) {
     try {
-      console.log(`[Manual Resend] Triggered at ${new Date().toISOString()}`);
+      // Check permission
+      if (!(await hasPermission(req.body.requestor, 'resendBlueSquareAndSummaryEmails'))) {
+        res.status(403).send('You are not authorized to perform this action');
+        return;
+      }
+
+      console.log(`[Manual Weekly Summary Resend] Triggered at ${new Date().toISOString()}`);
 
       // Respond immediately
       res.status(202).json({ message: '🔄 Weekly summaries resend started in background.' });
@@ -87,6 +94,12 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
   const runManualBlueSquareEmailResend = async function (req, res) {
     try {
+      // Check permission
+      if (!(await hasPermission(req.body.requestor, 'resendBlueSquareAndSummaryEmails'))) {
+        res.status(403).send('You are not authorized to perform this action');
+        return;
+      }
+
       console.log('[API Trigger] Manual blue square email resend');
 
       // Respond immediately
