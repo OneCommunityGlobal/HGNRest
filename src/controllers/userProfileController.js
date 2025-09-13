@@ -756,6 +756,7 @@ const userProfileController = function (UserProfile, Project) {
             if (typeof p === 'string') return p.trim();
             if (typeof p === 'object' && p._id) return String(p._id);
             if (typeof p === 'object' && p.id) return String(p.id);
+            if (typeof p === 'object' && p.projectId) return String(p.projectId);
             return null;
           };
 
