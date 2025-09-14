@@ -1,5 +1,4 @@
 const geoIP = require('geoip-lite');
-const { hasPermission } = require('../utilities/permissions');
 
 const analyticsController = function (Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary) {
   
@@ -58,6 +57,11 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
   // Experience breakdown - shows all-time data (roles filtering supported)
   const getExperienceBreakdown = async (req, res) => {
     try {
+      // Check admin/owner permissions
+      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
       const { roles } = req.query;
       const match = {};
 
@@ -231,16 +235,28 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // Get interaction summary (admin only)
+  // Get interaction summary (admin/owner only)
   const getInteractionSummary = async (req, res) => {
     try {
-      // Check admin permissions
-      if (!hasPermission(req.body.requestor, 'seeUserAnalytics')) {
+      // Check admin/owner permissions
+      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
       const { startDate, endDate, summaryType = 'daily' } = req.query;
       const match = { summaryType };
+
+      // Validate date range
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        if (start > end) {
+          return res.status(400).json({
+            error: 'Invalid date range: startDate cannot be after endDate'
+          });
+        }
+      }
 
       // Filter by date range
       if (startDate || endDate) {
@@ -265,11 +281,11 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // Get conversion metrics (admin only)
+  // Get conversion metrics (admin/owner only)
   const getConversionMetrics = async (req, res) => {
     try {
-      // Check admin permissions
-      if (!hasPermission(req.body.requestor, 'seeUserAnalytics')) {
+      // Check admin/owner permissions
+      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
@@ -350,11 +366,11 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
-  // Manual aggregation trigger (admin only) - backup for cron job
+  // Manual aggregation trigger (admin/owner only) - backup for cron job
   const triggerAggregation = async (req, res) => {
     try {
-      // Check admin permissions
-      if (!hasPermission(req.body.requestor, 'seeUserAnalytics')) {
+      // Check admin/owner permissions
+      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
