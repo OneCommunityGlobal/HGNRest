@@ -4,23 +4,18 @@ const Notification = require('../../models/lbdashboard/bidoverview/Notification'
 const Village = require('../../models/lbdashboard/villages');
 
 /**
- *
- * @param {*} req
- * @param {*} res
- *
- * API to get bid overview data which include data from listings and bid collection
- * to be displayed on page
+ * API to get bid overview data
  */
 const getBidOverview = async (req, res) => {
   try {
-    // fetch listing detail
     const listingId = req.params.id;
     const listing = await Listing.findById(listingId);
 
     if (!listing) {
       return res.status(404).json({ message: 'Listing not found' });
     }
-    // fetching villages amenities
+
+    // fetching village amenities
     let villageAmenities = [];
     if (listing.village) {
       const village = await Village.findOne({ name: listing.village });
@@ -40,6 +35,7 @@ const getBidOverview = async (req, res) => {
       availableTo: listing.availableTo,
       bidAmount: listing.price || 0,
     };
+
     res.status(200).json({ listingDetail });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -47,40 +43,36 @@ const getBidOverview = async (req, res) => {
 };
 
 /**
- *
- * @param {*} req
- * @param {*} res
- *
  * API to place bid on a listing
  */
 const placeBid = async (req, res) => {
   try {
     const {
-      userId,
-      propertyId,
+      user_id: userId,
+      property_id: propertyId,
       bid_amount: bidAmount,
       start_date: startDate,
       end_date: endDate,
     } = req.body;
+
     const bidValue = Number(bidAmount);
 
-    // check listing's existence
+    // check listing existence
     const listing = await Listing.findById(propertyId);
     if (!listing) {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    // validating bid amount in comparison to listing price
+    // validate bid amount
     if (bidValue <= listing.price) {
       return res.status(400).json({
         message: `Your bid must be higher than the listed price (${listing.price}).`,
       });
     }
-    const highestBid = await Bid.findOne({
-      property_id: propertyId,
-    }).sort({ bid_amount: -1 });
 
-    // saving new bid
+    const highestBid = await Bid.findOne({ property_id: propertyId }).sort({ bid_amount: -1 });
+
+    // save new bid
     const newBid = new Bid({
       user_id: userId,
       property_id: propertyId,
@@ -92,26 +84,24 @@ const placeBid = async (req, res) => {
 
     const notifications = [];
 
-    // first notifaction - bid placed
+    // notification: bid placed
     const bidPlacedNotification = await Notification.create({
       user_id: userId,
       property_id: propertyId,
       message: `You have successfully placed a bid of ${bidValue} on ${listing.title}.`,
     });
-
     notifications.push(bidPlacedNotification);
 
-    // second notification - highest bid
+    // notification: highest bid
     if (!highestBid || bidValue > highestBid.bid_amount) {
       const highestBidNotification = await Notification.create({
         user_id: userId,
         property_id: propertyId,
         message: `Congratulations! Your bid of ${bidValue} is currently the highest for ${listing.title}.`,
       });
-
       notifications.push(highestBidNotification);
 
-      // third notification - outbid
+      // notification: outbid
       if (highestBid && highestBid.user_id.toString() !== userId.toString()) {
         await Notification.create({
           user_id: highestBid.user_id,
