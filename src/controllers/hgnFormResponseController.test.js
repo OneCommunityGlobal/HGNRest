@@ -28,6 +28,7 @@ describe('HgnFormResponseController', () => {
     mockRes = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
+
     };
 
     // Initialize controller
