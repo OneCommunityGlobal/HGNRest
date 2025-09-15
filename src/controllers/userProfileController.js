@@ -756,7 +756,6 @@ const userProfileController = function (UserProfile, Project) {
             if (typeof p === 'string') return p.trim();
             if (typeof p === 'object' && p._id) return String(p._id);
             if (typeof p === 'object' && p.id) return String(p.id);
-            if (typeof p === 'object' && p.projectId) return String(p.projectId);
             return null;
           };
 
@@ -1708,7 +1707,7 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.find({
       $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
-      .select('firstName lastName isActive')
+      .select('firstName lastName')
       // eslint-disable-next-line consistent-return
       .then((users) => {
         if (users.length === 0) {
