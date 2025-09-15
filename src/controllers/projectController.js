@@ -296,8 +296,8 @@ const projectController = function (Project) {
 
       const results = await userProfile
         .find(
-          { projects: projectId },
-          { firstName: 1, lastName: 1, profilePic: 1, _id: 1, isActive: 1 },
+          { projects: projectId, isActive: true },
+          { firstName: 1, lastName: 1, profilePic: 1, _id: 1 },
         )
         .sort({ firstName: 1, lastName: 1 });
 
