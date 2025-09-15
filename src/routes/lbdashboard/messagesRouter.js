@@ -8,6 +8,7 @@ const {
   searchUserProfilesHandler,
   markMessagesAsRead,
 } = require("../../websockets/lbMessaging/lbMessageHandler");
+
 const routes = function () {
   const messagesRouter = express.Router();
 
