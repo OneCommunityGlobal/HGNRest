@@ -252,6 +252,8 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const templateRouter = require('../routes/templateRouter');
 
+const socialMediaRouter = require('../routes/socialMediaRouter')();
+
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
@@ -260,6 +262,8 @@ const tagRouter = require('../routes/tagRouter')(tag);
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+
+const fbSocialMediaRouter = require('../routes/fbSocialmediaRouter')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -381,4 +385,6 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api', fbSocialMediaRouter);
+  app.use('/api', socialMediaRouter);
 };
