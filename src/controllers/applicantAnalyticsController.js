@@ -2,61 +2,81 @@ const experienceBreakdownController = function (Applicant) {
   const getExperienceBreakdown = async (req, res) => {
     try {
       const { startDate, endDate, roles } = req.query;
-      const match = {};
 
-      // Filter by startDate range
-      if (startDate || endDate) {
-        match.startDate = {};
-        if (startDate) match.startDate.$gte = new Date(startDate);
-        if (endDate) match.startDate.$lte = new Date(endDate);
+      const pipeline = [];
+
+      // Match users whose startDate falls within given range
+      if (startDate && endDate) {
+        pipeline.push({
+          $match: {
+            $expr: {
+              $and: [
+                {
+                  $gte: [{ $dateFromString: { dateString: '$startDate' } }, new Date(startDate)],
+                },
+                {
+                  $lte: [{ $dateFromString: { dateString: '$startDate' } }, new Date(endDate)],
+                },
+              ],
+            },
+          },
+        });
       }
 
-      // Filter by roles
+      // Optional: filter by roles
       if (roles) {
         const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
-        match.roles = { $in: rolesArray };
+        pipeline.push({
+          $match: {
+            roles: { $in: rolesArray },
+          },
+        });
       }
 
-      const breakdown = await Applicant.aggregate([
-        { $match: match },
-        {
-          $addFields: {
-            experienceCategory: {
-              $switch: {
-                branches: [
-                  { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
-                  {
-                    case: {
-                      $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
-                    },
-                    then: '1-3 years',
+      // Add experience category
+      pipeline.push({
+        $addFields: {
+          experienceCategory: {
+            $switch: {
+              branches: [
+                { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
+                {
+                  case: {
+                    $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
                   },
-                  {
-                    case: {
-                      $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
-                    },
-                    then: '3-5 years',
+                  then: '1-3 years',
+                },
+                {
+                  case: {
+                    $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
                   },
-                ],
-                default: '5+ years',
-              },
+                  then: '3-5 years',
+                },
+              ],
+              default: '5+ years',
             },
           },
         },
-        {
-          $group: {
-            _id: '$experienceCategory',
-            count: { $sum: 1 },
-          },
+      });
+
+      // Group by category
+      pipeline.push({
+        $group: {
+          _id: '$experienceCategory',
+          count: { $sum: 1 },
         },
-        {
-          $project: {
-            _id: 0,
-            experience: '$_id',
-            count: 1,
-          },
+      });
+
+      // Final format
+      pipeline.push({
+        $project: {
+          _id: 0,
+          experience: '$_id',
+          count: 1,
         },
-      ]);
+      });
+
+      const breakdown = await Applicant.aggregate(pipeline);
 
       if (!breakdown.length) {
         return res.status(404).json({ message: 'No Data Available' });
@@ -74,10 +94,16 @@ const experienceBreakdownController = function (Applicant) {
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   };
-
-  return {
-    getExperienceBreakdown,
+  const getAllRoles = async (req, res) => {
+    try {
+      const roles = await Applicant.distinct('roles');
+      return res.status(200).json(roles);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
   };
+  return { getExperienceBreakdown, getAllRoles };
 };
 
 module.exports = experienceBreakdownController;
