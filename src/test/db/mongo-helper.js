@@ -1,7 +1,7 @@
+/* eslint-disable prefer-const */
+/* eslint-disable guard-for-in */
+/* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
-
-// eslint-disable-next-line no-unused-vars
-const mongoServer = null;
 
 // Simplified MongoDB connection for CI environments
 module.exports.dbConnect = async () => {
@@ -67,7 +67,7 @@ module.exports.dbClearAll = async () => {
   try {
     console.log('Clearing all MongoDB collections...');
 
-    const {collections} = mongoose.connection;
+    const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
     await Promise.all(

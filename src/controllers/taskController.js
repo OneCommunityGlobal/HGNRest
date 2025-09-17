@@ -734,12 +734,10 @@ const taskController = function (Task) {
       req.body.hoursLogged > 0 &&
       req.body.estimatedHours > 0
     ) {
-      return res
-        .status(400)
-        .send({
-          error:
-            'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
-        });
+      return res.status(400).send({
+        error:
+          'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
+      });
     }
 
     const { taskId } = req.params;
@@ -990,42 +988,37 @@ const taskController = function (Task) {
       membership = await UserProfile.find({
         role: { $in: ['Administrator', 'Manager', 'Mentor'] },
         isActive: true,
-      }).maxTimeMS(5000); 
+      }).maxTimeMS(5000);
     } catch (error) {
-      console.error("Error fetching membership:", error);
-      return []; 
+      console.error('Error fetching membership:', error);
+      return [];
     }
-    membership.forEach((member) => {
-      if (
-        Array.isArray(member.teams) &&
-        Array.isArray(user.teams) &&
-        member.teams.some((team) => user.teams.includes(team))
-      ) {
-        recipients.push(member.email);
-      }
-    });
-  
+    membership
+      .filter(
+        (member) =>
+          Array.isArray(member.teams) &&
+          Array.isArray(user.teams) &&
+          member.teams.some((team) => user.teams.includes(team)),
+      )
+      .forEach((member) => recipients.push(member.email));
     return recipients;
   };
-  
+
   const sendReviewReq = async function (req, res) {
     const { myUserId, name, taskName } = req.body;
     const emailBody = getReviewReqEmailBody(name, taskName);
     try {
       const recipients = await getRecipients(myUserId);
-      console.log("Recipients list:", recipients);
-      console.log("Email subject:", `Review Request from ${name}`);
+      console.log('Recipients list:', recipients);
+      console.log('Email subject:', `Review Request from ${name}`);
       await emailSender(recipients, `Review Request from ${name}`, emailBody, null, null);
       res.status(200).send('Success');
     } catch (err) {
-      console.error("Error in sendReviewReq:", err);
+      console.error('Error in sendReviewReq:', err);
       res.status(500).send('Failed');
     }
-
-   
   };
 
- 
   return {
     postTask,
     getTasks,
