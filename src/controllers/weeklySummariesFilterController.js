@@ -13,6 +13,14 @@ module.exports = () => ({
   createFilter: async (req, res) => {
     try {
       const filter = new WeeklySummariesFilter(req.body);
+
+      if (!filter.filterName) {
+        return res.status(400).json({ error: 'Filter name is required' });
+      }
+
+      if (filter.filterName.length > 7) {
+        return res.status(400).json({ error: 'Filter name must not exceed 7 characters' });
+      }
       const savedFilter = await filter.save();
       res.status(201).json(savedFilter);
     } catch (err) {
