@@ -18,7 +18,6 @@ const {
   hasOtherConn,
 } = require('./TimerService/connectionsHandler');
 
-
 const { getClient, handleMessage, action } = require('./TimerService/clientsHandler');
 
 /**
@@ -143,47 +142,63 @@ export default () => {
    */
   const scheduleForcedPauses = () => {
     // Weekly: Sunday 12:01 AM PT
-    cron.schedule('1 0 * * 0', async () => {
-      try {
-        const now = moment().format();
-        logger.logInfo(`[WS] Weekly forced pause trigger at ${now} PT`);
-        for (const [userId, client] of clients.entries()) {
-          try {
-            if (client?.started && !client?.paused) {
-              logger.logInfo(`[WS] Sending forced pause to user ${userId} (weekly)`);
-              await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
-              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.WEEK_CLOSE_PAUSE }));
+    cron.schedule(
+      '59 23 * * 0',
+      async () => {
+        try {
+          const now = moment().format();
+          logger.logInfo(`[WS] Weekly forced pause trigger at ${now} PT`);
+          for (const [userId, client] of clients.entries()) {
+            try {
+              if (client?.started && !client?.paused) {
+                logger.logInfo(`[WS] Sending forced pause to user ${userId} (weekly)`);
+                await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
+                broadcastToSameUser(
+                  connections,
+                  userId,
+                  JSON.stringify({ action: action.WEEK_CLOSE_PAUSE }),
+                );
+              }
+            } catch (err) {
+              logger.logException(`[WS] Weekly forced pause error for user ${userId}: ${err}`);
             }
-          } catch (err) {
-            logger.logException(`[WS] Weekly forced pause error for user ${userId}: ${err}`);
           }
+        } catch (err) {
+          logger.logException(`[WS] Weekly forced pause scheduler error: ${err}`);
         }
-      } catch (err) {
-        logger.logException(`[WS] Weekly forced pause scheduler error: ${err}`);
-      }
-    }, { timezone: 'America/Los_Angeles' });
+      },
+      { timezone: 'America/Los_Angeles' },
+    );
 
     // Daily: 7:07 PM ET
-    cron.schedule('38 12 * * *', async () => {
-      try {
-        const now = moment().format();
-        logger.logInfo(`[WS] Daily 7:07 PM forced pause trigger at ${now} PT`);
-        for (const [userId, client] of clients.entries()) {
-          try {
-            if (client?.started && !client?.paused) {
-              logger.logInfo(`[WS] Sending forced pause to user ${userId} (daily)`);
-              await handleMessage({ action: action.SCHEDULED_PAUSE }, clients, userId);
-              broadcastToSameUser(connections, userId, JSON.stringify({ action: action.SCHEDULED_PAUSE }));
+    cron.schedule(
+      '58 12 * * *',
+      async () => {
+        try {
+          const now = moment().format();
+          logger.logInfo(`[WS] Daily 7:07 PM forced pause trigger at ${now} PT`);
+          for (const [userId, client] of clients.entries()) {
+            try {
+              if (client?.started && !client?.paused) {
+                logger.logInfo(`[WS] Sending forced pause to user ${userId} (daily)`);
+                await handleMessage({ action: action.SCHEDULED_PAUSE }, clients, userId);
+                broadcastToSameUser(
+                  connections,
+                  userId,
+                  JSON.stringify({ action: action.SCHEDULED_PAUSE }),
+                );
+              }
+            } catch (err) {
+              logger.logException(`[WS] Daily forced pause error for user ${userId}: ${err}`);
             }
-          } catch (err) {
-            logger.logException(`[WS] Daily forced pause error for user ${userId}: ${err}`);
           }
+        } catch (err) {
+          logger.logException(`[WS] Daily forced pause scheduler error: ${err}`);
         }
-      } catch (err) {
-        logger.logException(`[WS] Daily forced pause scheduler error: ${err}`);
-      }
-    }, { timezone: 'America/Los_Angeles' });
-};
+      },
+      { timezone: 'America/Los_Angeles' },
+    );
+  };
 
   scheduleForcedPauses();
 
