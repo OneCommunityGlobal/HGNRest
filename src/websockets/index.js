@@ -141,17 +141,17 @@ export default () => {
    * - Daily at 12:30 PM PT
    */
   const scheduleForcedPauses = () => {
-    // Weekly: Sunday 12:01 AM PT
+    // Weekly: Saturday 11:58 PM PT
     cron.schedule(
-      '59 23 * * 0',
+      '58 23 * * 6',
       async () => {
         try {
           const now = moment().format();
-          logger.logInfo(`[WS] Weekly forced pause trigger at ${now} PT`);
+          logger.logInfo(`[WS] Weekly pause trigger at ${now} PT`);
           for (const [userId, client] of clients.entries()) {
             try {
               if (client?.started && !client?.paused) {
-                logger.logInfo(`[WS] Sending forced pause to user ${userId} (weekly)`);
+                logger.logInfo(`[WS] Sending weekly pause to user ${userId} (weekly)`);
                 await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
                 broadcastToSameUser(
                   connections,
@@ -160,44 +160,82 @@ export default () => {
                 );
               }
             } catch (err) {
-              logger.logException(`[WS] Weekly forced pause error for user ${userId}: ${err}`);
+              logger.logException(`[WS] Weekly pause error for user ${userId}: ${err}`);
             }
           }
         } catch (err) {
-          logger.logException(`[WS] Weekly forced pause scheduler error: ${err}`);
+          logger.logException(`[WS] Weekly pause scheduler error: ${err}`);
         }
       },
       { timezone: 'America/Los_Angeles' },
     );
 
-    // Daily: 7:07 PM ET
-    cron.schedule(
-      '58 12 * * *',
-      async () => {
-        try {
-          const now = moment().format();
-          logger.logInfo(`[WS] Daily 7:07 PM forced pause trigger at ${now} PT`);
-          for (const [userId, client] of clients.entries()) {
-            try {
-              if (client?.started && !client?.paused) {
-                logger.logInfo(`[WS] Sending forced pause to user ${userId} (daily)`);
-                await handleMessage({ action: action.SCHEDULED_PAUSE }, clients, userId);
-                broadcastToSameUser(
-                  connections,
-                  userId,
-                  JSON.stringify({ action: action.SCHEDULED_PAUSE }),
-                );
-              }
-            } catch (err) {
-              logger.logException(`[WS] Daily forced pause error for user ${userId}: ${err}`);
-            }
-          }
-        } catch (err) {
-          logger.logException(`[WS] Daily forced pause scheduler error: ${err}`);
-        }
-      },
-      { timezone: 'America/Los_Angeles' },
-    );
+    // ============================================================================
+    // TESTING WEEK END TIMER BEHAVIOR
+    // ============================================================================
+    // TO TEST: Uncomment the cron.schedule block below (lines 212-238)
+    // CRON FORMAT: 'minute hour day-of-month month day-of-week'
+    //
+    // TESTING EXAMPLES (all times converted to PT for America/Los_Angeles timezone):
+    //
+    // 1. TEST AT SPECIFIC TIMES:
+    //    '0 9 * * *'   = 9:00 AM PT
+    //    '30 12 * * *' = 12:30 PM PT
+    //    '15 17 * * *' = 5:15 PM PT
+    //    '45 23 * * *' = 11:45 PM PT
+    //
+    // 2. TIMEZONE CONVERSION EXAMPLES:
+    //    For Eastern Time (ET) users:
+    //    - 10:00 AM ET = 7:00 AM PT → use '0 7 * * *'
+    //    - 2:00 PM ET = 11:00 AM PT → use '0 11 * * *'
+    //    - 6:00 PM ET = 3:00 PM PT → use '0 15 * * *'
+    //
+    //    For Central Time (CT) users:
+    //    - 10:00 AM CT = 8:00 AM PT → use '0 8 * * *'
+    //    - 2:00 PM CT = 12:00 PM PT → use '0 12 * * *'
+    //    - 6:00 PM CT = 4:00 PM PT → use '0 16 * * *'
+    //
+    //    For Mountain Time (MT) users:
+    //    - 10:00 AM MT = 9:00 AM PT → use '0 9 * * *'
+    //    - 2:00 PM MT = 1:00 PM PT → use '0 13 * * *'
+    //    - 6:00 PM MT = 5:00 PM PT → use '0 17 * * *'
+    //
+    // IMPORTANT NOTES:
+    // - Always keep timezone: 'America/Los_Angeles' (PT/PDT)
+    // - Convert your local time to PT before setting the cron
+    // - Use 24-hour format for hours (0-23)
+    // - Test with a timer running to see the pause effect
+    // - Check server logs for confirmation: "[WS] Daily pause trigger at..."
+    // ============================================================================
+
+    // Uncomment the cron.schedule block below to test
+    // cron.schedule(
+    //   '47 14 * * *', // only modify this line
+    //   async () => {
+    //     try {
+    //       const now = moment().format();
+    //       logger.logInfo(`[WS] Daily pause trigger at ${now} PT`);
+    //       for (const [userId, client] of clients.entries()) {
+    //         try {
+    //           if (client?.started && !client?.paused) {
+    //             logger.logInfo(`[WS] Sending daily pause to user ${userId} (daily)`);
+    //             await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
+    //             broadcastToSameUser(
+    //               connections,
+    //               userId,
+    //               JSON.stringify({ action: action.WEEK_CLOSE_PAUSE }),
+    //             );
+    //           }
+    //         } catch (err) {
+    //           logger.logException(`[WS] Daily pause error for user ${userId}: ${err}`);
+    //         }
+    //       }
+    //     } catch (err) {
+    //       logger.logException(`[WS] Daily pause scheduler error: ${err}`);
+    //     }
+    //   },
+    //   { timezone: 'America/Los_Angeles' },
+    // );
   };
 
   scheduleForcedPauses();
