@@ -371,10 +371,11 @@ const teamcontroller = function (Team) {
         const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
+      // from the frontend in totalReports comp they are sending only array of teamids not any obj so changed team._id to team
       if (
         !Array.isArray(teamIds) ||
         teamIds.length === 0 ||
-        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team._id))
+        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team))
       ) {
         return res.status(400).send({
           error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
@@ -382,7 +383,7 @@ const teamcontroller = function (Team) {
       }
       const data = await Team.aggregate([
         {
-          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team._id)) } },
+          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team)) } },
         },
         { $unwind: '$members' },
         {
