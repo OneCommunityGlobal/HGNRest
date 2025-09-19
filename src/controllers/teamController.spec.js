@@ -81,6 +81,7 @@ describe('teamController', () => {
     });
   });
 
+  // eslint-disable-next-line no-unused-vars
   const sortObject = {
     sort: () => {},
   };

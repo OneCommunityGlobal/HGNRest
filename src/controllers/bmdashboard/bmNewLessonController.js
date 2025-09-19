@@ -15,6 +15,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
   };
   const bmPostLessonList = async (req, res) => {
     try {
+      // eslint-disable-next-line no-unused-vars
       const newLesson = BuildingNewLesson.create(req.body)
         .then((result) => res.status(201).send(result))
         .catch((error) => res.status(500).send(error));
@@ -38,10 +39,13 @@ const bmNewLessonController = function (BuildingNewLesson) {
     }
   };
   const bmEditSingleLesson = async (req, res) => {
+    // eslint-disable-next-line no-unused-vars
     const { requestorId } = req.body.requestor;
+    // eslint-disable-next-line no-unused-vars
     const requestorRole = req.body.requestor.role;
     const { lessonId } = req.params;
     const updateData = req.body;
+    // eslint-disable-next-line no-unused-vars
     const lesson = await BuildingNewLesson.findById(lessonId);
     // Extract only allowed fields (content, tag, relatedProject and title)
     const allowedFields = ['content', 'tags', 'relatedProject', 'title', 'allowedRoles', 'files'];
@@ -75,12 +79,15 @@ const bmNewLessonController = function (BuildingNewLesson) {
     }
   };
   const bmDeleteSingleLesson = async (req, res) => {
+    // eslint-disable-next-line no-unused-vars
     const { requestorId } = req.body.requestor;
+    // eslint-disable-next-line no-unused-vars
     const requestorRole = req.body.requestor.role;
     const { lessonId } = req.params;
     const lesson = await BuildingNewLesson.findById(lessonId);
     const projectId = lesson.relatedProject;
     const project = await buildingProject.findById(projectId);
+    // eslint-disable-next-line no-unused-vars
     const bmId = project.buildingManager;
     // uncomment below for auth
     // logic for auth. If the user who is trying to delete is not the buildingManager or is not an Admin then return
