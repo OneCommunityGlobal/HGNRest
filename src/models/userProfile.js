@@ -290,6 +290,20 @@ const userProfileSchema = new Schema({
   },
 });
 
+function clearUserCache(doc) {
+  try {
+    const cache = require('../utilities/nodeCache')();
+    if (!cache) return;
+
+    cache.removeCache('allusers_v1');
+    if (doc && doc._id) {
+      cache.removeCache(`user_${doc._id.toString()}`);
+    }
+  } catch (error) {
+    console.error('Cache clear failed:', error.message);
+  }
+}
+
 userProfileSchema.pre('save', function (next) {
   const user = this;
   if (!user.isModified('password')) return next();
@@ -304,11 +318,21 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
+userProfileSchema.post('save', (doc) => {
+  clearUserCache(doc);
+});
+userProfileSchema.post('deleteOne', { document: true, query: false }, (doc) => {
+  clearUserCache(doc);
+});
+userProfileSchema.post(['findOneAndUpdate', 'findOneAndDelete'], (doc) => {
+  clearUserCache(doc);
+});
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
 userProfileSchema.index({ projects: 1, firstName: 1 });
 userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
+userProfileSchema.index({ lastName: 1 });
 // Add index for weeklySummaries.dueDate to speed up filtering
 userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
 // Add compound index for isActive and createdDate

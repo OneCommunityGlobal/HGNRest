@@ -240,14 +240,13 @@ const userProfileController = function (UserProfile, Project) {
    */
   const getUserProfileBasicInfo = async function (req, res) {
     const inputUserId = req.query.userId;
-    console.log('before logger');
     logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
     if (inputUserId) {
       try {
         const cacheKey = `user_${inputUserId}`;
         const cachedUser = cache.getCache(cacheKey);
         if (cachedUser) {
-          return res.status(200).send(JSON.parse(cachedUser));
+          return res.status(200).json(JSON.parse(cachedUser));
         }
         const user = await UserProfile.findById(
           inputUserId,
@@ -258,39 +257,47 @@ const userProfileController = function (UserProfile, Project) {
         }
 
         cache.setCache(cacheKey, JSON.stringify(user));
-        return res.status(200).send(user);
+        return res.status(200).json(user);
       } catch (error) {
         return res.status(500).send({ error: 'Failed to fetch userProfile' });
       }
     }
 
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
-    }
-
-    const userProfiles = await UserProfile.find(
-      {},
-      '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
-    )
-      .sort({
+    try {
+      if (!(await checkPermission(req, 'getUserProfiles'))) {
+        forbidden(res, 'You are not authorized to view all users');
+        return;
+      }
+      const ALL_USERS_KEY = 'allusers_v1';
+      const cachedAll = cache.getCache(ALL_USERS_KEY);
+      if (cachedAll) {
+        console.log('cacheee--->');
+        return res.status(200).json(JSON.parse(cachedAll));
+      }
+      const userProfiles = await UserProfile.find(
+        {},
+        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+      ).sort({
         lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
-        }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
-      })
-      .catch((error) => res.status(404).send(error));
-    console.log(userProfiles);
+      });
+
+      if (!userProfiles) {
+        return res.status(500).json({ error: 'User results invalid' });
+      }
+
+      cache.setCache(ALL_USERS_KEY, JSON.stringify(userProfiles));
+      return res.status(200).json(userProfiles);
+    } catch (error) {
+      logger.logException(error, 'getUserProfileBasicInfo error');
+
+      // fallback: serve stale cache if DB query fails
+      const fallback = cache.getCache('allusers_v1');
+      if (fallback) {
+        return res.status(200).json(JSON.parse(fallback));
+      }
+
+      return res.status(500).json({ error: 'Failed to fetch userProfile' });
+    }
   };
 
   const getProjectMembers = async function (req, res) {
