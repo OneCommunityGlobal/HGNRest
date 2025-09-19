@@ -1,8 +1,12 @@
-const FormResponse = require('../models/hgnFormResponse');
-const hgnFormController = require('./hgnFormResponseController');
-
 // Mock the FormResponse model
 jest.mock('../models/hgnFormResponse');
+jest.mock('../utilities/permissions', () => ({
+  hasPermission: jest.fn(),
+}));
+
+const FormResponse = require('../models/hgnFormResponse');
+const hgnFormController = require('./hgnFormResponseController');
+const { hasPermission } = require('../utilities/permissions');
 
 describe('HgnFormResponseController', () => {
   let mockReq;
@@ -12,33 +16,32 @@ describe('HgnFormResponseController', () => {
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
-    
+
     // Setup mock request
     mockReq = {
-      body: {},
       params: {},
-      query: {}
+      body: { requestor: { id: 'tester123' } },
+      query: {},
     };
 
     // Setup mock response
     mockRes = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      json: jest.fn(),
+
     };
 
     // Initialize controller
     controller = hgnFormController();
+    hasPermission.mockResolvedValue(true);
   });
 
-  describe('submitFormResponse', () => {
-    
-
-    
-  });
+  describe('submitFormResponse', () => {});
 
   describe('getAllFormResponses', () => {
     it('should return all form responses successfully', async () => {
       // Arrange
+      mockReq.body.requestor = { id: 'tester123' };
       const mockResponses = [
         {
           _id: '507f1f77bcf86cd799439011',
@@ -47,7 +50,7 @@ describe('HgnFormResponseController', () => {
           frontend: { overall: '8' },
           backend: { overall: '7' },
           followUp: { platform: 'Windows' },
-          user_id: '507f1f77bcf86cd799439011'
+          user_id: '507f1f77bcf86cd799439011',
         },
         {
           _id: '507f1f77bcf86cd799439012',
@@ -56,8 +59,8 @@ describe('HgnFormResponseController', () => {
           frontend: { overall: '9' },
           backend: { overall: '8' },
           followUp: { platform: 'macOS' },
-          user_id: '507f1f77bcf86cd799439012'
-        }
+          user_id: '507f1f77bcf86cd799439012',
+        },
       ];
 
       FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
@@ -71,6 +74,8 @@ describe('HgnFormResponseController', () => {
     });
 
     it('should handle database errors when fetching form responses', async () => {
+      mockReq.body.requestor = { id: 'tester123' }; // pass permission gate
+      hasPermission.mockResolvedValue(true);
       // Arrange
       const error = new Error('Database connection failed');
       FormResponse.find = jest.fn().mockRejectedValue(error);
@@ -81,7 +86,7 @@ describe('HgnFormResponseController', () => {
       // Assert
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Database connection failed'
+        error: 'Database connection failed',
       });
     });
   });
@@ -97,14 +102,14 @@ describe('HgnFormResponseController', () => {
           _id: '507f1f77bcf86cd799439011',
           userInfo: { name: 'John Doe', email: 'john@example.com', slack: 'john_doe' },
           frontend: { React: '8' },
-          backend: { MongoDB: '7' }
+          backend: { MongoDB: '7' },
         },
         {
           _id: '507f1f77bcf86cd799439012',
           userInfo: { name: 'Jane Smith', email: 'jane@example.com', slack: 'jane_smith' },
           frontend: { React: '9' },
-          backend: { MongoDB: '8' }
-        }
+          backend: { MongoDB: '8' },
+        },
       ];
 
       FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
@@ -123,7 +128,7 @@ describe('HgnFormResponseController', () => {
           score: 8.5,
           topSkills: ['React', 'MongoDB'],
           isTeammate: false,
-          privacy: { email: false, slack: false }
+          privacy: { email: false, slack: false },
         },
         {
           _id: '507f1f77bcf86cd799439011',
@@ -133,8 +138,8 @@ describe('HgnFormResponseController', () => {
           score: 7.5,
           topSkills: ['React', 'MongoDB'],
           isTeammate: false,
-          privacy: { email: false, slack: false }
-        }
+          privacy: { email: false, slack: false },
+        },
       ]);
     });
 
@@ -148,7 +153,7 @@ describe('HgnFormResponseController', () => {
       // Assert
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Missing skills query'
+        error: 'Missing skills query',
       });
       expect(FormResponse.find).not.toHaveBeenCalled();
     });
@@ -167,7 +172,7 @@ describe('HgnFormResponseController', () => {
       // Assert
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Failed to calculate ranked responses'
+        error: 'Failed to calculate ranked responses',
       });
     });
   });
