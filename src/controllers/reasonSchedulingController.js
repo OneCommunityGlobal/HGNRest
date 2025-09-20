@@ -58,7 +58,7 @@ const postReason = async (req, res) => {
               timeOffFrom: currentDate,
               timeOffTill: newDate,
             },
-          }
+          },
         );
       } else {
         await UserModel.findOneAndUpdate(
@@ -67,7 +67,7 @@ const postReason = async (req, res) => {
             $set: {
               timeOffTill: newDate,
             },
-          }
+          },
         );
       }
     } else {
@@ -78,7 +78,7 @@ const postReason = async (req, res) => {
             timeOffFrom: currentDate,
             timeOffTill: newDate,
           },
-        }
+        },
       );
     }
 

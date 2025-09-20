@@ -1,7 +1,7 @@
 const wishlistsController = function (Wishlist) {
   const getWishlistById = async (req, res) => {
     try {
-      const wishlistId = req.headers.id;
+      const wishlistId = req.params.id;
       if (!wishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }

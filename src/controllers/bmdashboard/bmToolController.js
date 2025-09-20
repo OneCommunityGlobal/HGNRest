@@ -134,12 +134,14 @@ const bmToolController = (BuildingTool, ToolType) => {
           purchaseRecord: [newPurchaseRecord],
         };
 
+        // eslint-disable-next-line no-await-in-loop
         BuildingTool.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
 
+      // eslint-disable-next-line no-await-in-loop
       BuildingTool.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },
@@ -172,6 +174,7 @@ const bmToolController = (BuildingTool, ToolType) => {
       });
 
       try {
+        // eslint-disable-next-line no-await-in-loop
         const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
         if (!toolTypeDoc) {
           errors.push({ message: `Tool type ${toolName} with id ${type.toolType} was not found.` });
@@ -227,6 +230,7 @@ const bmToolController = (BuildingTool, ToolType) => {
           results.push({ message: `${action} successful for ${toolName} ${codeMap[toolItem]}` });
         }));
 
+        // eslint-disable-next-line no-await-in-loop
         await toolTypeDoc.save();
       } catch (error) {
         errors.push({ message: `Error for tool type ${type}: ${error.message}` });
