@@ -1,6 +1,20 @@
 const moment = require('moment-timezone');
 const PermissionChangeLog = require('../models/permissionChangeLog');
 
+// Helper function finds the latest log related to the permission
+const findLatestRelatedLog = (roleId) => new Promise((resolve, reject) => {
+    PermissionChangeLog.findOne({ roleId })
+      .sort({ logDateTime: -1 })
+      .exec((err, document) => {
+        if (err) {
+          console.error(err);
+          reject(err);
+          return;
+        }
+        resolve(document);
+      });
+  });
+
 // Middleware function
 // Function saves logs to hgnData_dev.permissionChangeLogs collection
 const changedPermissionsLogger = async (req, res, next) => {
@@ -48,17 +62,4 @@ const changedPermissionsLogger = async (req, res, next) => {
      }
 };
 
-// Helper function finds the latest log related to the permission
-const findLatestRelatedLog = (roleId) => new Promise((resolve, reject) => {
-    PermissionChangeLog.findOne({ roleId })
-      .sort({ logDateTime: -1 })
-      .exec((err, document) => {
-        if (err) {
-          console.error(err);
-          reject(err);
-          return;
-        }
-        resolve(document);
-      });
-  });
 module.exports = changedPermissionsLogger;

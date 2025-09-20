@@ -1,6 +1,6 @@
+const bcrypt = require('bcryptjs');
 const forcePwdcontroller = require('./forcePwdController');
 const userProfile = require('../models/userProfile');
-const bcrypt = require('bcryptjs');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
 const makeSut = () => {
