@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 
 const bmRentalChartController = function() {
     const rentalCharts = require('../../models/bmdashboard/buildingRentalChart');
@@ -27,7 +27,7 @@ const bmRentalChartController = function() {
         } catch(err) {
             res.status(500).json({
                 success: false,
-                error: 'Server error ' + err.message
+                error: `Server error ${  err.message}`
             });
         }
     };
