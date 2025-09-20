@@ -796,6 +796,8 @@ const userHelper = function () {
                         )
                         .format('YYYY-MM-DD')
                     : null,
+                  authorFirstName: 'HGN',
+                  authorLastName: 'System',
                 };
 
                 // Only assign blue square and send email if the user IS NOT a new user
