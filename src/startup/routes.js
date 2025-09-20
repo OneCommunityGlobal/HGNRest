@@ -50,6 +50,7 @@ const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
+// const authenticateUser = require('./middleware/authMiddleware');
 const metIssue = require('../models/bmdashboard/metIssue');
 const {
   invTypeBase,
@@ -294,6 +295,12 @@ module.exports = function (app) {
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailRouter);
+  // app.use('/api', (req, res, next) => {
+  // // Skip JWT authentication only for the testing route
+  //   if (req.path === '/email/weekly-summaries/test') return next();
+  //   // All other /api/email routes still need auth
+  //   authenticateUser(req, res, next);
+  // }, emailRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);
