@@ -9,7 +9,7 @@ jest.mock('moment-timezone');
 jest.mock('../../utilities/emailSender', () =>
   jest.fn((email, subject, message, _, __, ___, callback) => {
     callback(null, 'Email sent successfully'); // Simulate successful email sending
-  })
+  }),
 );
 jest.mock('../../utilities/nodeCache', () => () => ({
   getCache: jest.fn().mockReturnValue('[]'),
@@ -265,7 +265,8 @@ describe('profileInitialSetupController', () => {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
       };
-
+      console.log(req);
+      console.log(res);
       mockProfileInitialSetupToken.findOneAndUpdate.mockResolvedValue({
         token: 'test-token',
         email: 'test@example.com',
