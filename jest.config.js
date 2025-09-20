@@ -11,7 +11,7 @@ module.exports = {
   testTimeout: 60000, // 1 minute for CI environments
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
-  transformIgnorePatterns: ['^.+\\.js$'],
+  transformIgnorePatterns: ['^.+\\.js$', '/node_modules/(?!(@img/colour|@azure/core-rest-pipeline|@typespec/ts-http-runtime)/)'],
   transform: {
     '^.+\\.js$': 'babel-jest',
   },

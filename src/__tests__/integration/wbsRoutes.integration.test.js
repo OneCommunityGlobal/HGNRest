@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 const request = require('supertest');
 const { app } = require('../../app');
 
@@ -29,7 +30,7 @@ describe('wbsRouter tests', () => {
 
       try {
         // eslint-disable-next-line no-unused-vars
-        const responses = await Promise.all([
+        await Promise.all([
           agent.post('/api/wbs').send(reqBody).expect(401),
           agent.get('/api/wbs/randomId').send(reqBody).expect(401),
           agent.put(`/api/wbs/randomId`).send(reqBody).expect(401),

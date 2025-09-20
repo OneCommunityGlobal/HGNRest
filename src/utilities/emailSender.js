@@ -118,6 +118,7 @@ const processQueue = async () => {
  * @param {string[]|null} [cc=null] - Optional array of CC (carbon copy) email addresses.
  * @param {string|null} [replyTo=null] - Optional reply-to email address.
  * @param {string[]|null} [emailBccs=null] - Optional array of BCC (blind carbon copy) email addresses.
+ * @param {Object} [opts={}] - Optional settings object.
  *
  * @returns {Promise<string>} A promise that resolves when the email queue has been processed successfully or rejects on error.
  *
@@ -145,8 +146,15 @@ const emailSender = (
   cc = null,
   replyTo = null,
   emailBccs = null,
+  opts = {},
 ) => {
-  if (!process.env.sendEmail || String(process.env.sendEmail).toLowerCase() === 'false') {
+  const type = opts.type || 'general';
+  const isReset = type === 'password_reset';
+
+  if (
+    !process.env.sendEmail ||
+    (String(process.env.sendEmail).toLowerCase() === 'false' && !isReset)
+  ) {
     return Promise.resolve('EMAIL_SENDING_DISABLED');
   }
 

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 
 const userBidNotificationController = (Bid, List, User, Notification) => {
