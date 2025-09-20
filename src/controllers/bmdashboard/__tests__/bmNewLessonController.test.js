@@ -17,14 +17,6 @@ const mockBuildingProject = {
   findById: jest.fn(),
 };
 
-const mockLike = {
-  findOne: jest.fn(),
-  findByIdAndDelete: jest.fn(),
-  prototype: {
-    save: jest.fn(),
-  },
-};
-
 // Mock the Like constructor
 const MockLikeConstructor = jest.fn().mockImplementation((data) => ({
   ...data,

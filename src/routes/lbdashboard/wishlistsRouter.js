@@ -8,7 +8,7 @@ const routes = function (wishlist) {
   wishlistRouter.route('/wishlist').post(controller.createWishlist);
 
   // Route to get a single wishlist by ID
-  wishlistRouter.route('/wishlist').get(controller.getWishlistById);
+  wishlistRouter.route('/wishlist/:id').get(controller.getWishlistById);
 
   // Route to add a listing to a user's wishlist
   wishlistRouter.route('/wishlist/add').post(controller.addListingToWishlist);

@@ -1,17 +1,15 @@
-
-const request = require('supertest');
-const { jwtPayload } = require('../test');
-const { app } = require('../app');
-const {
-  mockReq,
-  createUser,
-  createRole,
-  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
-} = require('../test');
+// const request = require('supertest');
+// const { jwtPayload } = require('../test');
+// const { app } = require('../app');
+// const {
+//   mockReq,
+//   createUser,
+//   createRole,
+//   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
+// } = require('../test');
 // const RolePreset = require('../models/rolePreset');
 
 // const agent = request.agent(app);
-
 
 test.todo('Fix rolePresetTest');
 // TODO: Fix whole file

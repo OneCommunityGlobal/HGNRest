@@ -1,16 +1,15 @@
+// const request = require('supertest');
+// const { jwtPayload } = require('../test');
+// const { app } = require('../app');
+// const {
+//   mockReq,
+//   createUser,
+//   createRole,
+//   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
+// } = require('../test');
+// const PopupEditorBackups = require('../models/popupEditorBackup');
 
-const request = require('supertest');
-const { jwtPayload } = require('../test');
-const { app } = require('../app');
-const {
-  mockReq,
-  createUser,
-  createRole,
-  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
-} = require('../test');
-const PopupEditorBackups = require('../models/popupEditorBackup');
-
-const agent = request.agent(app);
+// const agent = request.agent(app);
 
 // TODO: Fix
 describe('PopupEditorBackups tests', () => {

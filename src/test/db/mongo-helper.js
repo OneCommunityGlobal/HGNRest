@@ -35,6 +35,7 @@ module.exports.dbClearAll = async () => {
   // eslint-disable-next-line no-restricted-syntax, guard-for-in
   for (const key in collections) {
     const collection = collections[key];
+    // eslint-disable-next-line no-await-in-loop
     await collection.deleteMany({});
   }
 };
@@ -44,6 +45,7 @@ module.exports.dbClearCollections = async (...collectionNames) => {
   for (const collectionName of collectionNames) {
     const collection = mongoose.connection.collections[collectionName];
     if (collection) {
+      // eslint-disable-next-line no-await-in-loop
       await collection.deleteMany({});
     }
   }

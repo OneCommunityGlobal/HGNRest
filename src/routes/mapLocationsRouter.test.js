@@ -1,21 +1,19 @@
+// const request = require('supertest');
+// const { jwtPayload } = require('../test');
+// const { app } = require('../app');
+// const {
+//   mockReq,
+//   createUser,
+//   mongoHelper: { dbConnect, dbDisconnect, dbClearAll },
+// } = require('../test');
+// const MapLocation = require('../models/mapLocation');
 
-const request = require('supertest');
-const { jwtPayload } = require('../test');
-const { app } = require('../app');
-const {
-  mockReq,
-  createUser,
-  mongoHelper: { dbConnect, dbDisconnect, dbClearAll },
-} = require('../test');
-const MapLocation = require('../models/mapLocation');
-
-const agent = request.agent(app);
+// const agent = request.agent(app);
 
 // TODO: Fix
 describe('mapLocations tests', () => {
   test.todo('Fix this test suite');
 });
-
 
 // describe('mapLocations routes', () => {
 //   let ownerUser;

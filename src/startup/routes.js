@@ -382,7 +382,7 @@ module.exports = function (app) {
   app.use('/api/financials', bmFinancialRouter);
 
   app.use('/api', registrationRouter);
-  app.use('/api/communityportal', NoShowFollowUpRouter );
+  app.use('/api/communityportal', NoShowFollowUpRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
