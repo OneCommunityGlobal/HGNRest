@@ -16,46 +16,47 @@ function getEmailMessageForForgotPassword(user, ranPwd) {
 
 const forgotPwdController = function (userProfile) {
   const forgotPwd = async function (req, res) {
-    const _email = req.body.email.toLowerCase();
-    const _firstName = req.body.firstName;
-    const _lastName = req.body.lastName;
+    try {
+      const _email = req.body.email.toLowerCase();
+      const _firstName = req.body.firstName;
+      const _lastName = req.body.lastName;
 
-    const user = await userProfile
-      .findOne({
+      const user = await userProfile.findOne({
         email: { $regex: escapeRegex(_email), $options: 'i' },
         firstName: { $regex: escapeRegex(_firstName), $options: 'i' },
         lastName: { $regex: escapeRegex(_lastName), $options: 'i' },
-      })
-      .catch((error) => {
-        res.status(500).send(error);
-        logger.logException(error);
       });
 
-    if (!user) {
-      res.status(400).send({ error: 'No Valid user was found' });
-      return;
-    }
-    const ranPwd = uuidv4().concat('TEMP');
-    user.set({ resetPwd: ranPwd });
-    user
-      .save()
-      .then(() => {
-        emailSender(
+      if (!user) {
+        return res.status(400).send({ error: 'No Valid user was found' });
+      }
+
+      const ranPwd = uuidv4().concat('TEMP');
+      user.set({ resetPwd: ranPwd });
+
+      try {
+        await user.save();
+
+        await emailSender(
           user.email,
           'Account Password change',
           getEmailMessageForForgotPassword(user, ranPwd),
           null,
           null,
         );
-        logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
 
-        res.status(200).send({ message: 'generated new password' });
-      })
-      .catch((error) => {
+        logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
+        return res.status(200).send({ message: 'generated new password' });
+      } catch (error) {
         logger.logException(error);
-        res.status(500).send(error);
-      });
+        return res.status(500).send(error);
+      }
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send(error);
+    }
   };
+
   return { forgotPwd };
 };
 
