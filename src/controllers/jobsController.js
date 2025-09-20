@@ -196,6 +196,7 @@ const createJob = async (req, res) => {
 
     const newJob = new Job({
       title,
+      summary: req.body.summary,
       category,
       description,
       imageUrl,

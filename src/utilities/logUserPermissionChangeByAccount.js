@@ -2,14 +2,12 @@ const moment = require('moment-timezone');
 const UserPermissionChangeLog = require('../models/userPermissionChangeLog');
 const UserProfile = require('../models/userProfile');
 
-// Helper function finds the latest log related to the permission
 const findLatestRelatedLog = (userId) =>
   new Promise((resolve, reject) => {
     UserPermissionChangeLog.findOne({ userId })
       .sort({ logDateTime: -1 })
       .exec((err, document) => {
         if (err) {
-          console.error(err);
           reject(err);
           return;
         }

@@ -125,19 +125,17 @@ const defaultFAQs = [
 ];
 
 const insertDefaultFAQs = async () => {
-  try {
-    await Promise.all(
-      defaultFAQs.map(async (faq) => {
-        const existingFAQ = await FAQ.findOne({ question: faq.question });
-        if (!existingFAQ) {
-          await FAQ.create(faq);
-          console.log(`Inserted FAQ: ${faq.question}`);
-        }
-      }),
-    );
-  } catch (error) {
-    console.error('Error inserting default FAQs:', error);
-  }
+    try {
+        await Promise.all(defaultFAQs.map(async (faq) => {
+            const existingFAQ = await FAQ.findOne({ question: faq.question });
+            if (!existingFAQ) {
+                await FAQ.create(faq);
+                console.log(`Inserted FAQ: ${faq.question}`);
+            }
+        }));
+    } catch (error) {
+        console.error("Error inserting default FAQs:", error);
+    }
 };
 
 // Ensure the FAQs are inserted into the database when the model is first loaded

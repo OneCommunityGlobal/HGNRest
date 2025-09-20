@@ -663,6 +663,9 @@ const dashboardhelper = function () {
       return { message: 'Internal server error' };
     }
   };
+  
+  const getNamesFromProfiles = async (/* req */) => {
+    try {
 
   const getNamesFromProfiles = async () => {
     try {

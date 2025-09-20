@@ -165,7 +165,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const mockPopupEditor = { save: jest.fn().mockResolvedValue({ popupContent: 'content' }) };
       jest
         .spyOn(PopUpEditor, 'findById')
-        .mockImplementationOnce((id, callback) => callback(null, mockPopupEditor));
+        .mockImplementationOnce((reqParam, callback) => callback(null, mockPopupEditor));
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
       const mockReq = {
         body: { popupContent: 'content' },
@@ -185,7 +185,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const mockPopupEditor = { save: jest.fn().mockRejectedValue(err) };
       jest
         .spyOn(PopUpEditor, 'findById')
-        .mockImplementation((id, callback) => callback(null, mockPopupEditor));
+        .mockImplementation((reqParam, callback) => callback(null, mockPopupEditor));
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
       const mockReq = {
         body: { popupContent: 'content' },

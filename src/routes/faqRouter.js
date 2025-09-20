@@ -9,16 +9,13 @@ const Role = require('../models/role');
 // const UnansweredFAQ = require('../models/unansweredFaqs');
 
 const verifyToken = async (req, res, next) => {
-  const token = req.headers.authorization;
-  if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
-  }
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
-    if (!decoded || !decoded.expiryTimestamp || moment().isAfter(decoded.expiryTimestamp)) {
-      return res.status(401).json({ message: 'Token is invalid or expired' });
+    const token = req.headers.authorization;
+    if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
     }
 
+    const decoded = jwt.verify(token, config.JWT_SECRET);
     const role = await Role.findOne({ roleName: decoded.role });
     const rolePermissions = role ? role.permissions : [];
 

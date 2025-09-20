@@ -9,6 +9,11 @@ const descriptions = [
   'Intangible Time Log w/o Reason',
 ];
 
+// Helper functions for sorting
+const getDescriptionKey = (val) => descriptions.indexOf(val);
+
+const sortKeysAlphabetically = (a, b) => getDescriptionKey(a) - getDescriptionKey(b);
+
 // method to see which color is first
 const getColorIndex = (color) => {
   const colorOrder = ['blue', 'yellow', 'red'];
@@ -28,8 +33,6 @@ const sortByColorAndDate = (a, b) => {
 
   return colorComparison;
 };
-
-const sortKeysAlphabetically = (a, b) => a.localeCompare(b);
 
 const filterWarnings = (warnings) => {
   if (!warnings) return [];
@@ -53,14 +56,11 @@ const filterWarnings = (warnings) => {
     warns[keys] = warns[keys].sort(sortByColorAndDate);
   });
 
-  const completedData = [];
-
-  descriptions.forEach((descrip) => {
-    completedData.push({
-      title: descrip,
-      warnings: warns[descrip] ? warns[descrip] : [],
-    });
-  });
+  const completedData = descriptions.map((descrip) => ({
+    title: descrip,
+    warnings: warns[descrip] || [],
+  }));
+  
   return completedData;
 };
 

@@ -273,28 +273,43 @@ const projectController = function (Project) {
   };
 
   const getprojectMembership = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'getProjectMembers'))) {
-      res.status(403).send('You are not authorized to perform this operation');
-      return;
+    try {
+      // GETs usually have no body; prefer req.user populated by your auth middleware.
+      const requestor =
+        (req.user && (req.user._id || req.user.id)) || req.query?.requestor || req.body?.requestor;
+
+      // Allow users who can fetch members OR who can create/update/suggest tasks
+      const canGet =
+        (await helper.hasPermission(requestor, 'getProjectMembers')) ||
+        (await helper.hasPermission(requestor, 'postTask')) ||
+        (await helper.hasPermission(requestor, 'updateTask')) ||
+        (await helper.hasPermission(requestor, 'suggestTask'));
+
+      if (!canGet) {
+        return res.status(403).send('You are not authorized to perform this operation');
+      }
+
+      const { projectId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).send('Invalid request');
+      }
+
+      const results = await userProfile
+        .find(
+          { projects: projectId },
+          { firstName: 1, lastName: 1, profilePic: 1, _id: 1, isActive: 1 },
+        )
+        .sort({ firstName: 1, lastName: 1 });
+
+      return res.status(200).send(results);
+    } catch (error) {
+      logger?.logException?.(error);
+      return res.status(500).send('Error fetching project members');
     }
-    const { projectId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      res.status(400).send('Invalid request');
-      return;
-    }
-    userProfile
-      .find({ projects: projectId, isActive: true }, { firstName: 1, lastName: 1, profilePic: 1 })
-      .then((results) => {
-        console.log(results);
-        res.status(200).send(results);
-      })
-      .catch((error) => {
-        res.status(500).send(error);
-      });
   };
 
-  function escapeRegExp(string) {
-    return string.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  function escapeRegExp(str) {
+    return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
   }
 
   const searchProjectMembers = async function (req, res) {

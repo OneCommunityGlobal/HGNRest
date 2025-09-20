@@ -1,14 +1,21 @@
 // test/formController.spec.js
 const {
-  // createForm,
+  // eslint-disable-next-line no-unused-vars
+  createForm,
   editFormFormat,
   deleteFormFormat,
   checkForResponse,
-  // getFormData,
-  // addDataToForm,
+  // eslint-disable-next-line no-unused-vars
+  getFormData,
+  // eslint-disable-next-line no-unused-vars
+  addDataToForm,
   getAllForms,
-  // getFormFormat,
-} = require('./formController')(require('../models/forms'), require('../models/formResponse'));
+  // eslint-disable-next-line no-unused-vars
+  getFormFormat,
+} = require('./formController')(
+  require('../models/forms'),
+  require('../models/formResponse'),
+);
 const Form = require('../models/forms');
 const FormResponse = require('../models/formResponse');
 const UserProfile = require('../models/userProfile');
@@ -18,8 +25,7 @@ jest.mock('../models/formResponse');
 jest.mock('../models/userProfile');
 
 describe('Form Controller', () => {
-  let req;
-  let res;
+  let req; let res;
 
   beforeEach(() => {
     req = { body: {}, params: {}, query: {} };

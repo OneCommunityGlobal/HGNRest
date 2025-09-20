@@ -1,3 +1,5 @@
+// const mongoose = require('mongoose');
+
 const userSkillTabsController = (HgnFormResponses) => {
   const parseScore = (val) => parseInt(val || '0', 10);
 
@@ -38,8 +40,7 @@ const userSkillTabsController = (HgnFormResponses) => {
     },
   };
 
-  const buildResponse = (data, fields) =>
-    Object.entries(fields).map(([label, [section, key]]) => ({
+  const buildResponse = (data, fields) => Object.entries(fields).map(([label, [section, key]]) => ({
       label,
       score: parseScore(data?.[section]?.[key]),
     }));

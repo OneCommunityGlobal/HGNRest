@@ -1,6 +1,6 @@
 const userprofile = require('../models/userProfile');
 
-const formController = function (Form, formResponse) {
+const formController = function (Form, FormResponse) {
   // creating a new form
   const createForm = async function (req, res) {
     try {
@@ -33,7 +33,7 @@ const formController = function (Form, formResponse) {
         message: 'Form created successfully',
         formID: savedForm.formID,
         id: savedForm._id,
-        formLink: `hostname${formLink}`,
+        formLink: `hostname${  formLink}`,
       });
     } catch (error) {
       console.error('Error creating form:', error);
@@ -73,8 +73,7 @@ const formController = function (Form, formResponse) {
         let isDifferent = false;
         const newQuestions = [];
 
-        for (let i = 0; i < formQuestions.length; i += 1) {
-          const question = formQuestions[i];
+        formQuestions.forEach((question) => {
           if (!question.label || typeof question.label !== 'string') {
             return res
               .status(400)
@@ -94,14 +93,13 @@ const formController = function (Form, formResponse) {
               });
             }
 
-            for (let j = 0; j < question.options.length; j += 1) {
-              const option = question.options[j];
+            question.options.forEach((option) => {
               if (typeof option !== 'string' || option.trim() === '') {
                 return res
                   .status(400)
                   .json({ message: 'Each option must be a valid non-empty string' });
               }
-            }
+            });
           }
 
           // Check if this question already exists in the database
@@ -115,7 +113,7 @@ const formController = function (Form, formResponse) {
           }
 
           newQuestions.push(question);
-        }
+        });
 
         // Only update if something actually changed
         if (isDifferent) {
@@ -157,7 +155,7 @@ const formController = function (Form, formResponse) {
   const checkForResponse = async function (req, res) {
     try {
       const { formID, userID } = req.query;
-      const result = await formResponse.find({ formID, submittedBy: userID });
+      const result = await FormResponse.find({ formID, submittedBy: userID });
       if (result.length === 0) {
         return res.status(400).json({ message: 'No records Found' });
       }
@@ -169,7 +167,7 @@ const formController = function (Form, formResponse) {
 
   const getFormData = async function (req, res) {
     try {
-      const { formID } = req.query;
+      const {formID} = req.query;
       // Check if formID is provided
       if (!formID) {
         return res.status(400).json({ message: 'Form ID is required.' });
@@ -182,7 +180,7 @@ const formController = function (Form, formResponse) {
       }
 
       // Fetch all responses associated with the formID
-      const responses = await formResponse.find({ formID });
+      const responses = await FormResponse.find({ formID });
 
       // If no responses found, return a message
       if (responses.length === 0) {
@@ -306,8 +304,7 @@ const formController = function (Form, formResponse) {
       }
 
       // Create and save the valid response
-      // eslint-disable-next-line new-cap
-      const formResp = new formResponse({
+      const formResp = new FormResponse({
         formID,
         responses: validatedResponses,
         submittedBy,

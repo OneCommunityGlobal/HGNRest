@@ -1,10 +1,6 @@
 const RoleModel = require('../models/role');
 // const UserProfileModel = require('../models/userProfile');
-const {
-  mockReq: mockRequest,
-  mockRes: mockResponse,
-  assertResMock: assertResponseMock,
-} = require('../test');
+const { mockReq: mockRequest, mockRes: mockResponse, assertResMock: assertResponseMock } = require('../test');
 
 jest.mock('../models/role');
 jest.mock('../models/userProfile');
@@ -22,13 +18,14 @@ const mockAuthCheck = (isAuthorized) =>
     .spyOn(authHelper, 'hasPermission')
     .mockImplementationOnce(() => Promise.resolve(isAuthorized));
 
-// const setupCacheMock = (method, value) => {
-//   const cacheService = {
-//     getCache: jest.fn(),
-//     removeCache: jest.fn(),
-//     hasCache: jest.fn(),
-//     setCache: jest.fn(),
-//   };
+// eslint-disable-next-line no-unused-vars
+const setupCacheMock = (method, value) => {
+  const cacheService = {
+    getCache: jest.fn(),
+    removeCache: jest.fn(),
+    hasCache: jest.fn(),
+    setCache: jest.fn(),
+  };
 
 //   const methodSpy = jest.spyOn(cacheService, method).mockReturnValue(value);
 //   cacheManager.mockReturnValue(cacheService);

@@ -1,7 +1,9 @@
 const Websockets = require('ws');
 const jwt = require('jsonwebtoken');
+// const mongoose = require('mongoose');
 const config = require('../../config');
-const { sendMessageHandler } = require('./lbMessageHandler');
+// eslint-disable-next-line no-unused-vars
+const { sendMessageHandler, updateMessageStatusHandler } = require("./lbMessageHandler");
 const Message = require('../../models/lbdashboard/message');
 const Notification = require('../../models/notification');
 const UserProfile = require('../../models/userProfile');
@@ -27,20 +29,6 @@ export default () => {
   const wss = new Websockets.Server({
     noServer: true,
   });
-
-  const handleUpgrade = (request, socket, head) => {
-    authenticate(request, (err, client) => {
-      if (err || !client) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-      request.userId = client;
-      wss.handleUpgrade(request, socket, head, (websocket) => {
-        wss.emit('connection', websocket, request);
-      });
-    });
-  };
 
   const userConnections = new Map();
 
@@ -68,6 +56,20 @@ export default () => {
         }),
       );
     }
+  };
+
+  const handleUpgrade = (request, socket, head) => {
+    authenticate(request, (err, client) => {
+      if (err || !client) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      request.userId = client;
+      wss.handleUpgrade(request, socket, head, (websocket) => {
+        wss.emit('connection', websocket, request);
+      });
+    });
   };
 
   wss.on('connection', (ws, req) => {
@@ -129,7 +131,7 @@ export default () => {
                 }
               }
             }
-            broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
+            broadcastStatusUpdate(savedMessage._id, savedMessage.status);
           } else {
             const userPreference = await UserPreference.findOne({ user: msg.receiver });
             const isSenderInPreference = userPreference?.users.some(

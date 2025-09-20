@@ -32,7 +32,7 @@ const wishlistsController = function (Wishlist) {
 
   const addListingToWishlist = async (req, res) => {
     try {
-      const wishlistId = req.params.id;
+      const wishlistId = req.headers.id;
       if (!wishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }
@@ -62,7 +62,7 @@ const wishlistsController = function (Wishlist) {
 
   const removeListingFromWishlist = async (req, res) => {
     try {
-      const wishlistId = req.params.id;
+      const wishlistId = req.headers.id;
       if (!wishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }

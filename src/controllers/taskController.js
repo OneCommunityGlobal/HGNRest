@@ -728,11 +728,11 @@ const taskController = function (Task) {
     }
 
     if (
-      req.body.hoursBest > 0 &&
-      req.body.hoursWorst > 0 &&
-      req.body.hoursMost > 0 &&
-      req.body.hoursLogged > 0 &&
-      req.body.estimatedHours > 0
+      req.body.hoursBest < 0 &&
+      req.body.hoursWorst < 0 &&
+      req.body.hoursMost < 0 &&
+      req.body.hoursLogged < 0 &&
+      req.body.estimatedHours < 0
     ) {
       return res.status(400).send({
         error:
@@ -993,16 +993,14 @@ const taskController = function (Task) {
       console.error('Error fetching membership:', error);
       return [];
     }
-    membership.forEach((member) => {
-      if (
-        Array.isArray(member.teams) &&
-        Array.isArray(user.teams) &&
-        member.teams.some((team) => user.teams.includes(team))
-      ) {
-        recipients.push(member.email);
-      }
-    });
-
+    membership
+      .filter(
+        (member) =>
+          Array.isArray(member.teams) &&
+          Array.isArray(user.teams) &&
+          member.teams.some((team) => user.teams.includes(team)),
+      )
+      .forEach((member) => recipients.push(member.email));
     return recipients;
   };
 

@@ -1,8 +1,9 @@
-// const overviewReportHelper = require('./overviewReportHelper');
+const overviewReportHelper = require('./overviewReportHelper');
 // const UserProfile = require('../models/userProfile');
 
-// const makeSut = () => {
-//   const { getVolunteerNumberStats } = overviewReportHelper();
+// eslint-disable-next-line no-unused-vars
+const makeSut = () => {
+  const { getVolunteerNumberStats } = overviewReportHelper();
 
 //   return { getVolunteerNumberStats };
 // };

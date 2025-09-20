@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const moment = require('moment');
+// const moment = require('moment');
 const FAQ = require('../models/faqs');
 const UnansweredFAQ = require('../models/unansweredFaqs');
 const config = require('../config');
@@ -8,18 +8,15 @@ const UserProfile = require('../models/userProfile');
 const emailSender = require('../utilities/emailSender');
 
 const verifyToken = async (req) => {
-  console.log('Verifying token...');
-  const token = req.headers.authorization;
-  if (!token) {
-    console.log('No token provided in the request headers.');
-    throw new Error('No token provided');
-  }
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
-    if (!decoded || !decoded.expiryTimestamp || moment().isAfter(decoded.expiryTimestamp)) {
-      throw new Error('Token is invalid or expired');
+    console.log("Verifying token...");
+    const token = req.headers.authorization;
+    if (!token) {
+        console.log("No token provided in the request headers.");
+        throw new Error('No token provided');
     }
 
+    const decoded = jwt.verify(token, config.JWT_SECRET);
     const role = await Role.findOne({ roleName: decoded.role });
     const rolePermissions = role ? role.permissions : [];
 

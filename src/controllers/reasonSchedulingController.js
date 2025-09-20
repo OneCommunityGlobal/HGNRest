@@ -5,7 +5,8 @@ const emailSender = require('../utilities/emailSender');
 // no longer in use replaced with timeoff requests
 const postReason = async (req, res) => {
   try {
-    const { userId, reasonData } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { userId, requestor, reasonData } = req.body;
 
     const newDate = moment.tz(reasonData.date, 'America/Los_Angeles').startOf('day');
     const currentDate = moment.tz('America/Los_Angeles').startOf('day');
@@ -47,10 +48,7 @@ const postReason = async (req, res) => {
 
     // conditions added to check if timeOffFrom and timeOffTill fields existed
 
-    if (
-      Object.prototype.hasOwnProperty.call(foundUser, 'timeOffFrom') &&
-      Object.prototype.hasOwnProperty.call(foundUser, 'timeOffTill')
-    ) {
+    if (Object.prototype.hasOwnProperty.call(foundUser, 'timeOffFrom') && Object.prototype.hasOwnProperty.call(foundUser, 'timeOffTill')) {
       // if currentDate is greater than or equal to the last timeOffTill date then both the fields will be updated
       if (currentDate >= foundUser.timeOffTill) {
         await UserModel.findOneAndUpdate(
@@ -137,7 +135,8 @@ const postReason = async (req, res) => {
 
 const getAllReasons = async (req, res) => {
   try {
-    // const { requestor } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { requestor } = req.body;
     const { userId } = req.params;
 
     // error case 1
@@ -174,7 +173,8 @@ const getAllReasons = async (req, res) => {
 
 const getSingleReason = async (req, res) => {
   try {
-    // const { requestor } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { requestor } = req.body;
     const { userId } = req.params;
     const { queryDate } = req.query;
 
@@ -221,7 +221,8 @@ const getSingleReason = async (req, res) => {
 
 const patchReason = async (req, res) => {
   try {
-    const { reasonData } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { requestor, reasonData } = req.body;
     const { userId } = req.params;
 
     // error case 1
@@ -347,8 +348,8 @@ const deleteReason = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({
-      message: 'Error while deleting document',
-      errorCode: 5,
+      message: 'Error occurred while deleting reason',
+      error: error.message,
     });
   }
 };

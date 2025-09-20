@@ -1,3 +1,5 @@
+// const mongoose = require('mongoose');
+
 const bidPropertyController = (BidProperty) => {
   const fetchProperty = async (req, res) => {
     try {

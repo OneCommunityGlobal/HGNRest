@@ -113,9 +113,9 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
           return null;
         })
         .filter((email) => email !== null);
-
+  
       ownerAcc.forEach((owner) => userEmails.push(owner.email));
-
+  
       if (Array.isArray(userEmails) && userEmails.length > 0) {
         await Promise.all(
           userEmails.map((email) =>
