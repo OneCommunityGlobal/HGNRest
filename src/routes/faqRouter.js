@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const moment = require('moment');
+// const moment = require('moment');
 const config = require('../config');
 
 const router = express.Router();
@@ -12,7 +12,7 @@ const verifyToken = async (req, res, next) => {
   try {
     const token = req.headers.authorization;
     if (!token) {
-        return res.status(401).json({ message: 'No token provided' });
+      return res.status(401).json({ message: 'No token provided' });
     }
 
     const decoded = jwt.verify(token, config.JWT_SECRET);

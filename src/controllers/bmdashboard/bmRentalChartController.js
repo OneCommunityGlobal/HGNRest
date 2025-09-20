@@ -1,5 +1,6 @@
 // const mongoose = require('mongoose');
 
+const bmRentalChartController = function (rentalCharts) {
   const getAllRentalCosts = async (req, res) => {
     try {
       const rentals = await rentalCharts
@@ -29,22 +30,9 @@
     }
   };
 
-            res.status(200).json({
-                success: true,
-                count: transformedRentals.length,
-                data: transformedRentals
-            });
-        } catch(err) {
-            res.status(500).json({
-                success: false,
-                error: `Server error ${  err.message}`
-            });
-        }
-    };
-
-    return {
-        getAllRentalCosts
-    };
+  return {
+    getAllRentalCosts,
+  };
 };
 
 module.exports = bmRentalChartController;
