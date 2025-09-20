@@ -15,6 +15,7 @@ require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
 require('./startup/middleware')(app);
+require('./startup/redis')();
 require('./startup/routes')(app);
 
 // The error handler must be before any other error middleware and after all controllers

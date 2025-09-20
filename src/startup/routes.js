@@ -261,6 +261,12 @@ const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
+// Application Analytics
+const applicationAnalytics = require('../models/applicationAnalytics');
+const applicationAnalyticsRouter = require('../routes/applicationAnalyticsRouter')(
+  applicationAnalytics,
+);
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -324,6 +330,10 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+
+  // Application Analytics
+  app.use('/api/application-analytics', applicationAnalyticsRouter);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
