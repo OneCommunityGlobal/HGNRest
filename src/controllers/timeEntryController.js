@@ -580,7 +580,7 @@ const timeEntrycontroller = function (TimeEntry) {
           // if the time entry is related to a task, update the task hoursLogged
           if (timeEntry.taskId) {
             await updateTaskLoggedHours(
-              timeEntry.taskId,
+              null,
               0,
               timeEntry.taskId,
               timeEntry.totalSeconds,
