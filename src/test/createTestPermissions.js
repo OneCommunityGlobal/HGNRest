@@ -29,6 +29,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
       'postTeam',
@@ -50,6 +51,7 @@ const permissionsRoles = [
       'updateSummaryRequirements',
       'changeUserStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
       'addInfringements',
       'editInfringements',
@@ -186,6 +188,7 @@ const permissionsRoles = [
       'assignProjectToUsers',
       'importTask',
       'postTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       'updateTask',
       'swapTask',
@@ -203,6 +206,7 @@ const permissionsRoles = [
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
@@ -210,6 +214,7 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
+      'reorderJobs',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
