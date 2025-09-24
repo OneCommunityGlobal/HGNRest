@@ -34,6 +34,7 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
+const Timer = require('../models/timer');
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -2705,6 +2706,8 @@ const userHelper = function () {
       logger.logException(err);
     }
   };
+
+  
 
   return {
     changeBadgeCount,
