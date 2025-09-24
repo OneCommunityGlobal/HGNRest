@@ -2309,6 +2309,51 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const setFinalDay = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { date } = req.body;
+
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      const finalDate = new Date(date);
+
+      if (finalDate < user.startDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Final day cannot be before start date',
+          startDate: user.startDate,
+        });
+      }
+
+      user.endDate = finalDate;
+      const updatedUser = await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Final day set successfully',
+        user: {
+          id: updatedUser._id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          endDate: updatedUser.endDate,
+          isActive: updatedUser.isActive,
+        },
+      });
+    } catch (error) {
+      console.error('Error setting final day:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
+    }
+  };
   return {
     searchUsersByName,
     postUserProfile,
@@ -2347,6 +2392,7 @@ const userProfileController = function (UserProfile, Project) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    setFinalDay,
   };
 };
 
