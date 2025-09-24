@@ -191,6 +191,7 @@ const userProfileController = function (UserProfile, Project) {
             endDate: 1,
             timeZone: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
+            infringementCCList: { $ifNull: ['$infringementCCList', []] },
             jobTitle: {
               $cond: {
                 if: { $isArray: '$jobTitle' },
