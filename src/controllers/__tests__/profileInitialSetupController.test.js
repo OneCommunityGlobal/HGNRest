@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
+// const jwt = require('jsonwebtoken');
 const moment = require('moment-timezone');
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const profileInitialSetupController = require('../profileInitialSetupController');
 
 // Mock dependencies
@@ -9,7 +9,7 @@ jest.mock('moment-timezone');
 jest.mock('../../utilities/emailSender', () =>
   jest.fn((email, subject, message, _, __, ___, callback) => {
     callback(null, 'Email sent successfully'); // Simulate successful email sending
-  })
+  }),
 );
 jest.mock('../../utilities/nodeCache', () => () => ({
   getCache: jest.fn().mockReturnValue('[]'),

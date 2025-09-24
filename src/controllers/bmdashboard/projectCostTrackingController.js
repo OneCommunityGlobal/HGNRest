@@ -144,7 +144,9 @@ const projectCostTrackingController = function (ProjectCostTracking) {
             const monthlyGrowth = (finalPredictedValue - lastValue) / 3;
 
             // Generate predictions for the next 3 months with perfect linear growth
-            for (let i = 1; i <= 3; i + 1) {
+            // eslint-disable-next-line no-plusplus
+
+            for (let i = 1; i <= 3; i += 1) {
               const predictedDate = new Date(lastDate);
               predictedDate.setMonth(lastDate.getMonth() + i);
 

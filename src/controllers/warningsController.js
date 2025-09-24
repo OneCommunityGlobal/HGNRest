@@ -226,9 +226,9 @@ const filterWarnings = (
       return acc;
     }, {});
 
-  for (const keys of Object.keys(warns)) {
+  Object.keys(warns).forEach((keys) => {
     warns[keys] = warns[keys].sort(sortByColorAndDate);
-  }
+  });
 
   const completedData = [];
 
