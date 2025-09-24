@@ -13,6 +13,8 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const task = require('../models/task');
+const team = require('../models/team');
 const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
@@ -1041,6 +1043,13 @@ const userProfileController = function (UserProfile, Project) {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
+      // delete user from task-resources
+      await task.updateMany(
+        { 'resources.userID': userId },
+        { $pull: { resources: { userID: userId } } },
+      );
+      // delete user from teams-members
+      await team.updateMany({ 'members.userId': userId }, { $pull: { members: { userId } } });
       res.status(200).send({ message: 'Executed Successfully' });
       auditIfProtectedAccountUpdated(
         req.body.requestor.requestorId,
