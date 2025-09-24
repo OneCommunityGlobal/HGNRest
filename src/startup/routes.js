@@ -268,6 +268,7 @@ const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const applicationRoutes = require('../routes/applications');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -332,6 +333,8 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
 
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/applications', applicationRoutes);
+
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
