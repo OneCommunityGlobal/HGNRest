@@ -121,7 +121,6 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
       // CC person details
       const { email: ccEmail, firstName, lastName, role } = req.body || {};
-      console.log('email', ccEmail, 'firstName', firstName, 'lastName', lastName, 'role', role);
       if (!ccEmail || !firstName || !lastName) {
         return res.status(400).json({ error: 'ccEmail, firstName and lastName are required' });
       }
@@ -168,8 +167,6 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
           { new: true, runValidators: true },
         )
         .select('infringementCCList');
-
-      console.log('Updated infringementCCList:', updated.infringementCCList);
 
       if (!updated) {
         return res.status(404).json({ error: 'Target user not found' });
