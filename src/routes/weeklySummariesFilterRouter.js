@@ -12,6 +12,10 @@ module.exports = function () {
   router.put('/weekly-summaries-filters/:id', controller.replaceFilter);
   router.patch('/weekly-summaries-filters/:id', controller.updateFilter);
   router.delete('/weekly-summaries-filters/:id', controller.deleteFilter);
+  router.post(
+    '/weekly-summaries-filters/replace-teamcode',
+    controller.updateFiltersWithReplacedTeamCode,
+  );
 
   return router;
 };

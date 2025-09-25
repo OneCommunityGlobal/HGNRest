@@ -1,4 +1,5 @@
 const WeeklySummariesFilter = require('../models/weeklySummariesFilter');
+const UserProfile = require('../models/userProfile');
 
 module.exports = () => ({
   getFilters: async (req, res) => {
@@ -80,6 +81,61 @@ module.exports = () => ({
       res.json({ message: 'Filter deleted successfully' });
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  },
+
+  updateFiltersWithReplacedTeamCode: async (req, res) => {
+    const { oldTeamCodes, newTeamCode, filtersToUpdate } = req.body;
+
+    if (!oldTeamCodes || !newTeamCode || !filtersToUpdate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
+
+    try {
+      // 1. Find all users with old team codes
+      const users = await UserProfile.find(
+        { teamCode: { $in: sanitizedOldTeamCodes } },
+        { _id: 1 },
+      );
+
+      const notExtraMembers = users.map((u) => u._id.toString());
+
+      // 2. Find all filters to update
+      const filters = await WeeklySummariesFilter.find({
+        _id: { $in: filtersToUpdate },
+      });
+
+      // 3. Update filters in parallel
+      await Promise.all(
+        filters.map(async (filter) => {
+          // remove old team codes
+          filter.selectedCodes = filter.selectedCodes.filter(
+            (code) => !sanitizedOldTeamCodes.includes(code),
+          );
+
+          // remove old extra members
+          filter.selectedExtraMembers = filter.selectedExtraMembers.filter(
+            (memberId) => !notExtraMembers.includes(memberId.toString()),
+          );
+
+          // add new team code if not already there
+          if (!filter.selectedCodes.includes(newTeamCode)) {
+            filter.selectedCodes.push(newTeamCode);
+          }
+
+          await filter.save();
+        }),
+      );
+
+      res.json({
+        message: 'Filters updated successfully',
+        updatedCount: filters.length,
+      });
+    } catch (err) {
+      console.error('Update failed:', err);
+      res.status(500).json({ error: 'Update failed', details: err.message });
     }
   },
 });
