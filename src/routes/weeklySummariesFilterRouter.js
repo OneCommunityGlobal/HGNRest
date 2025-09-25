@@ -6,14 +6,14 @@ module.exports = function () {
 
   const router = express.Router();
 
-  router.get('/weekly-summaries-filters', controller.getFilters);
-  router.post('/weekly-summaries-filters', controller.createFilter);
-  router.get('/weekly-summaries-filters/:id', controller.getFilterById);
-  router.put('/weekly-summaries-filters/:id', controller.replaceFilter);
-  router.patch('/weekly-summaries-filters/:id', controller.updateFilter);
-  router.delete('/weekly-summaries-filters/:id', controller.deleteFilter);
+  router.get('/weeklySummariesFilters', controller.getFilters);
+  router.post('/weeklySummariesFilters', controller.createFilter);
+  router.get('/weeklySummariesFilters/:id', controller.getFilterById);
+  router.put('/weeklySummariesFilters/:id', controller.replaceFilter);
+  router.patch('/weeklySummariesFilters/:id', controller.updateFilter);
+  router.delete('/weeklySummariesFilters/:id', controller.deleteFilter);
   router.post(
-    '/weekly-summaries-filters/replace-teamcode',
+    '/weeklySummariesFilters/replaceTeamcodes',
     controller.updateFiltersWithReplacedTeamCode,
   );
 

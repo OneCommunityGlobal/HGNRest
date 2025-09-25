@@ -85,13 +85,14 @@ module.exports = () => ({
   },
 
   updateFiltersWithReplacedTeamCode: async (req, res) => {
-    const { oldTeamCodes, newTeamCode, filtersToUpdate } = req.body;
+    const { oldTeamCodes, newTeamCode } = req.body;
 
-    if (!oldTeamCodes || !newTeamCode || !filtersToUpdate) {
+    if (!oldTeamCodes || !newTeamCode) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const sanitizedOldTeamCodes = oldTeamCodes.map((code) => String(code).trim());
+    sanitizedOldTeamCodes.push(String(newTeamCode).trim());
 
     try {
       // 1. Find all users with old team codes
@@ -104,7 +105,7 @@ module.exports = () => ({
 
       // 2. Find all filters to update
       const filters = await WeeklySummariesFilter.find({
-        _id: { $in: filtersToUpdate },
+        selectedCodes: { $in: sanitizedOldTeamCodes },
       });
 
       // 3. Update filters in parallel
