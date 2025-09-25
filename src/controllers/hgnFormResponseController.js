@@ -45,22 +45,20 @@ const hgnFormController = () => {
       const responses = await FormResponse.find();
 
       const scoredUsers = responses.map((user) => {
-        const topSkills = [];
-        const allScores = [];
+        const allSkills = [];
 
-        // Collect scores from frontend & backend, ignore 'overall'
+        // Collect frontend & backend skills (skip overall)
         ['frontend', 'backend'].forEach((section) => {
           Object.entries(user[section] || {}).forEach(([k, v]) => {
             if (k.toLowerCase() === 'overall') return;
             const num = parseFloat(v);
             if (!Number.isNaN(num)) {
-              topSkills.push({ skill: k, score: num });
-              allScores.push(num);
+              allSkills.push({ skill: k, score: num, section });
             }
           });
         });
 
-        // Include general numeric fields
+        // Add general numeric skills
         [
           'combined_frontend_backend',
           'mern_skills',
@@ -69,15 +67,30 @@ const hgnFormController = () => {
         ].forEach((field) => {
           const val = user.general?.[field];
           const num = parseFloat(val);
-          if (!Number.isNaN(num)) allScores.push(num);
+          if (!Number.isNaN(num)) {
+            allSkills.push({ skill: field, score: num, section: 'general' });
+          }
         });
 
-        const avgScore = allScores.length
-          ? allScores.reduce((a, b) => a + b, 0) / allScores.length
+        // Average score across all collected skills
+        const avgScore = allSkills.length
+          ? allSkills.reduce((a, b) => a + b.score, 0) / allSkills.length
           : 0;
 
-        // Sort topSkills descending
-        topSkills.sort((a, b) => b.score - a.score);
+        // Decide which section to use for topSkills
+        let sectionToUse = null;
+        if (skills) {
+          const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
+          const match = allSkills.find((s) => skillList.includes(s.skill.toLowerCase()));
+          if (match) sectionToUse = match.section;
+        }
+
+        // Pick top 4 from chosen section, or global top 4
+        const topSkills = allSkills
+          .filter((s) => (sectionToUse ? s.section === sectionToUse : true))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 4)
+          .map((s) => s.skill);
 
         return {
           _id: user._id,
@@ -85,7 +98,7 @@ const hgnFormController = () => {
           email: user.userInfo?.email,
           slack: user.userInfo?.slack,
           score: Number(avgScore.toFixed(1)),
-          topSkills: topSkills.slice(0, 4).map((s) => s.skill),
+          topSkills,
           preferences: user.general?.preferences || [],
         };
       });
@@ -94,22 +107,21 @@ const hgnFormController = () => {
 
       // Filter by preferences
       if (preferences) {
-        const prefList = preferences.split(',').map((p) => p.trim());
+        const prefList = preferences.split(',').map((p) => p.trim().toLowerCase());
         filteredUsers = filteredUsers.filter((u) =>
-          u.preferences.some((p) => prefList.includes(p)),
+          u.preferences.some((p) => prefList.includes(p.toLowerCase())),
         );
       }
 
-      // Filter by skills (only keep users who have numeric score for at least one skill)
+      // Filter by skills (keep users who actually have the requested skill)
       if (skills) {
-        const skillList = skills.split(',').map((s) => s.trim());
-        filteredUsers = filteredUsers.filter((user) => {
-          const userSkillSet = new Set([...user.topSkills]);
-          return skillList.some((skill) => userSkillSet.has(skill));
-        });
+        const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
+        filteredUsers = filteredUsers.filter((user) =>
+          user.topSkills.some((skill) => skillList.includes(skill.toLowerCase())),
+        );
       }
 
-      // Sort descending by score
+      // Sort by avg score
       filteredUsers.sort((a, b) => b.score - a.score);
 
       res.json(filteredUsers);
