@@ -1,8 +1,8 @@
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
-const userProfileController = require('./userProfileController');
 const userProfile = require('../models/userProfile');
 const projectModel = require('../models/project');
+const userProfileController = require('./userProfileController');
 
 const controller = userProfileController(userProfile, projectModel);
 const { getAllTeamCodeHelper } = controller;

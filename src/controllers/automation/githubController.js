@@ -1,6 +1,6 @@
 const githubService = require('../../services/automation/githubService');
-const { checkAppAccess } = require('./utils');
 const appAccessService = require('../../services/automation/appAccessService');
+const { checkAppAccess } = require('./utils');
 
 async function inviteUser(req, res) {
   const { username, targetUser } = req.body;

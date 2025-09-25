@@ -1,7 +1,7 @@
-const permissionChangeLogController = require('./permissionChangeLogsController');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const UserProfile = require('../models/userProfile');
 const { mockRes, mockReq } = require('../test');
+const permissionChangeLogController = require('./permissionChangeLogsController');
 
 const makeSut = () => {
   const { getPermissionChangeLogs } = permissionChangeLogController(permissionChangeLog);

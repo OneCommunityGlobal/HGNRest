@@ -6,7 +6,6 @@ const ReasonModel = require('../models/reason');
 
 jest.mock('../utilities/emailSender', () => jest.fn());
 const emailSender = require('../utilities/emailSender');
-
 const {
   postReason,
   getAllReasons,
