@@ -339,7 +339,6 @@ const teamcontroller = function (Team) {
 
               .catch((catchError) => {
                 res.status(500).send({ error: catchError });
-
               });
           })
           .catch((catchError) => {

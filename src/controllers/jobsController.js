@@ -24,7 +24,6 @@ const paginationForJobs = async (req, res) => {
           { description: { $regex: new RegExp(searchString, 'i') } },
         ],
       });
-
     } // Case-insensitive search
 
     if (position) conditions.push({ title: { $in: [position] } });
@@ -88,7 +87,6 @@ const getJobSummaries = async (req, res) => {
           { description: { $regex: new RegExp(searchString, 'i') } },
         ],
       });
-
     } // Case-insensitive search
 
     if (position) conditions.push({ title: { $in: [position] } });
