@@ -1,11 +1,11 @@
-const wishlistsController = function (wishlist) {
+const wishlistsController = function (Wishlist) {
   const getWishlistById = async (req, res) => {
     try {
       const wishlistId = req.headers.id;
       if (!wishlistId) {
         return res.status(400).json({ message: 'Wishlist ID is required in headers' });
       }
-      const wishlistItem = await wishlist.findById(wishlistId);
+      const wishlistItem = await Wishlist.findById(wishlistId);
       if (!wishlistItem) {
         return res.status(404).json({ message: 'Wishlist not found' });
       }
@@ -19,8 +19,7 @@ const wishlistsController = function (wishlist) {
   const createWishlist = async (req, res) => {
     try {
       const { wishlistListings, addedBy } = req.body;
-      // eslint-disable-next-line new-cap
-      const newWishlist = new wishlist({
+      const newWishlist = new Wishlist({
         wishlistListings,
         addedBy,
       });
@@ -41,7 +40,7 @@ const wishlistsController = function (wishlist) {
       if (!listingId) {
         return res.status(400).json({ message: 'Listing ID is required' });
       }
-      const wishlistItem = await wishlist.findById(wishlistId);
+      const wishlistItem = await Wishlist.findById(wishlistId);
       if (!wishlistItem) {
         return res.status(404).json({ message: 'Wishlist not found' });
       }
@@ -71,7 +70,7 @@ const wishlistsController = function (wishlist) {
       if (!listingId) {
         return res.status(400).json({ message: 'Listing ID is required' });
       }
-      const wishlistItem = await wishlist.findById(wishlistId);
+      const wishlistItem = await Wishlist.findById(wishlistId);
       if (!wishlistItem) {
         return res.status(404).json({ message: 'Wishlist not found' });
       }
@@ -99,7 +98,7 @@ const wishlistsController = function (wishlist) {
       if (!userId) {
         return res.status(400).json({ message: 'User ID is required in headers' });
       }
-      const userWishlist = await wishlist.find({ addedBy: userId }); // No populate()
+      const userWishlist = await Wishlist.find({ addedBy: userId }); // No populate()
       if (!userWishlist || userWishlist.length === 0) {
         return res.status(404).json({ message: 'No wishlist found for this user' });
       }

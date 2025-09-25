@@ -728,11 +728,11 @@ const taskController = function (Task) {
     }
 
     if (
-      req.body.hoursBest > 0 &&
-      req.body.hoursWorst > 0 &&
-      req.body.hoursMost > 0 &&
-      req.body.hoursLogged > 0 &&
-      req.body.estimatedHours > 0
+      req.body.hoursBest < 0 &&
+      req.body.hoursWorst < 0 &&
+      req.body.hoursMost < 0 &&
+      req.body.hoursLogged < 0 &&
+      req.body.estimatedHours < 0
     ) {
       return res.status(400).send({
         error:
