@@ -8,6 +8,37 @@ module.exports = {
     '!<rootDir>/src/test/**/*.js',
     '!<rootDir>/src/utilities/**/*.js', // need to collect coverage from utilities after all unit tests have been created
   ],
+    // Coverage thresholds - Start light and increase gradually
+  coverageThreshold: {
+    global: {
+      branches: 60,
+      functions: 60,
+      lines: 60,
+      statements: 60
+    },
+    // Per-directory thresholds (optional)
+    './src/controllers/': {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70
+    },
+    './src/services/': {
+      branches: 65,
+      functions: 65,
+      lines: 65,
+      statements: 65
+    }
+  },
+
+  // Coverage reporters - shows in terminal and generates reports
+  coverageReporters: [
+    'text',           // Terminal output
+    'text-summary',   // Brief summary
+    'lcov',          // For CI/CD tools
+    'html',          // HTML report in coverage/ folder
+    'json'           // JSON report for parsing
+  ],
   testTimeout: 60000, // 1 minute for CI environments
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
