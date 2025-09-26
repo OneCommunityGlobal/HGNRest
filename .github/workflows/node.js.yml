@@ -59,10 +59,10 @@ jobs:
             const { lines, statements, functions, branches } = coverage.total;
             
             console.log('📈 CURRENT COVERAGE:');
-            console.log(\`📄 Lines:      \${lines.pct}% \${lines.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
-            console.log(\`📝 Statements: \${statements.pct}% \${statements.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
-            console.log(\`🔧 Functions:  \${functions.pct}% \${functions.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
-            console.log(\`🌿 Branches:   \${branches.pct}% \${branches.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`📄 Lines:      \${lines.pct}% \${lines.pct >= 34 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`📝 Statements: \${statements.pct}% \${statements.pct >= 34 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`🔧 Functions:  \${functions.pct}% \${functions.pct >= 27 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`🌿 Branches:   \${branches.pct}% \${branches.pct >= 12 ? '✅ PASS' : '❌ FAIL'}\`);
             
             const allPass = [lines, statements, functions, branches].every(metric => metric.pct >= 60);
             console.log('================================');

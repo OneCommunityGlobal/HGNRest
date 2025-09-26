@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage --passWithNoTests",
     "test:coverage:watch": "jest --coverage --watch --passWithNoTests",
     "test:coverage:ci": "jest --coverage --watchAll=false --passWithNoTests --verbose",
+    "test:coverage:enforce": "jest --coverage --passWithNoTests --bail",
     "test:threshold": "jest --coverage --passWithNoTests --verbose --bail",
     "test:summary": "jest --coverage --passWithNoTests --verbose --coverageReporters=text-summary",
     "test:verbose": "jest --passWithNoTests --runInBand",
