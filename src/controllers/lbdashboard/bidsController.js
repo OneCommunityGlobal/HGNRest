@@ -115,12 +115,10 @@ const bidsController = function (Bids) {
         return res.status(500).json({ success: false, error: savedBids.error });
       res.status(200).json({ success: true, data: savedBids.data });
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -136,12 +134,10 @@ const bidsController = function (Bids) {
       );
       return res.status(200).json({ success: true, data: results });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -188,12 +184,9 @@ const bidsController = function (Bids) {
       }
       return res.status(200).json({ paypalAccessToken: payPalAccessToken });
     } catch (error) {
-      return res
-        .status(400)
-        .json({
-          Error:
-            error.response?.data?.error || error.message || 'Unknown error getPayPalAccessToken',
-        });
+      return res.status(400).json({
+        Error: error.response?.data?.error || error.message || 'Unknown error getPayPalAccessToken',
+      });
     }
   };
 
@@ -314,12 +307,10 @@ const bidsController = function (Bids) {
       );
       return res.json({ success: true, data: paymentTokensResponse.data });
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -478,12 +469,10 @@ const bidsController = function (Bids) {
 
       return res.status(200).json({ success: true, data: creatOrderC });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error in createOrderl',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error in createOrderl',
+      });
     }
   };
 
@@ -559,12 +548,10 @@ const bidsController = function (Bids) {
 
       return res.status(200).json({ success: true, data: constCreateOrder.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
   async function orderCapturel(req) {
@@ -606,12 +593,10 @@ const bidsController = function (Bids) {
       await postPaymentStatusWithoutCard('PAYMENT.CAPTURE.COMPLETED', req);
       return res.status(200).json({ success: true, data: orderCap.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error orderCapturel',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error orderCapturel',
+      });
     }
   };
 
@@ -653,12 +638,10 @@ const bidsController = function (Bids) {
 
       return res.status(204).json({ success: true, data: voidPymnt.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          Error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        Error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
   const cardValidation = async (req) => {
@@ -766,12 +749,10 @@ const bidsController = function (Bids) {
       }
       return res.status(200).json({ success: true, data: ordAut.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -821,12 +802,10 @@ const bidsController = function (Bids) {
 
       return res.status(200).json({ success: true, data: postAuth.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Not able to authorise',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Not able to authorise',
+      });
     }
   };
 
@@ -889,12 +868,10 @@ const bidsController = function (Bids) {
 
       return res.status(201).json({ success: true, data: postPaymnts?.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -933,12 +910,10 @@ const bidsController = function (Bids) {
 
       return res.status(200).json({ success: true, data: postPaymnts?.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -1075,12 +1050,10 @@ const bidsController = function (Bids) {
 
       return res.status(200).json({ success: true, data: postAuth.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Update Order Error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Update Order Error',
+      });
     }
   };
 
@@ -1149,12 +1122,10 @@ const bidsController = function (Bids) {
 
       return res.status(200).json({ success: true, data: ordChkoutNow.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Error in sending the Email',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Error in sending the Email',
+      });
     }
   };
   const getOrderDetails = async (req, res) => {
@@ -1176,12 +1147,10 @@ const bidsController = function (Bids) {
       );
       return res.status(200).json({ success: true, data: orderDet.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Order Details error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Order Details error',
+      });
     }
   };
 

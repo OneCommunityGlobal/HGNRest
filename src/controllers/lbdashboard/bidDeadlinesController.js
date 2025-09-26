@@ -14,10 +14,8 @@ const bidsDeadlineController = function (BidDeadlines) {
       const inStartDate = parseDate(req.body.startDate);
       const inEndDate = parseDate(req.body.endDate);
 
-
       if (!listingId) {
         return { status: 400, error: 'listingId cannot be empty' };
-        
       }
 
       const listingsExists = await Listings.findOne({ _id: req.body.listingId });
@@ -39,7 +37,10 @@ const bidsDeadlineController = function (BidDeadlines) {
       const savedBidDeadlines = await newBidDeadlines.save();
       return { status: 200, data: savedBidDeadlines };
     } catch (error) {
-      return { status: 500, error: error.response?.data?.error || error.message || "Unknown error"};
+      return {
+        status: 500,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      };
     }
   };
 
@@ -57,27 +58,27 @@ const bidsDeadlineController = function (BidDeadlines) {
 
   const getBidDeadlines = async (req, res) => {
     try {
-      const results = await BidDeadlines.find({ isActive: { $ne: false } })
-        .select('listingId startDate endDate biddingHistory -_id');
-        if (!results) {
+      const results = await BidDeadlines.find({ isActive: { $ne: false } }).select(
+        'listingId startDate endDate biddingHistory -_id',
+      );
+      if (!results) {
         return res.status(404).json({ error: 'Listing not found' });
-        }
-        res.status(200).send(results);
+      }
+      res.status(200).send(results);
+    } catch (error) {
+      console.error('Database query failed:', error); // Better logging
+      res
+        .status(500)
+        .send({ error: error.response?.data?.error || error.message || 'Unknown error' });
     }
-          catch(error)  {
-          console.error('Database query failed:', error); // Better logging
-          res.status(500).send({ error:error.response?.data?.error || error.message || 'Unknown error' });
-        };
-    
   };
   const addBidToHistory = async (modl, listingId, amount, paypalOrderId = null) => {
-   
-    if (!modl  || amount == null) {
+    if (!modl || amount == null) {
       throw new Error('model  and amount are required.');
     }
-if (!paypalOrderId && !listingId) {
-  throw new Error('Either paypalOrderId or listingId is required.');
-}
+    if (!paypalOrderId && !listingId) {
+      throw new Error('Either paypalOrderId or listingId is required.');
+    }
 
     const bidEntry = {
       bidPrice: mongoose.Types.Decimal128.fromString(amount.toString()),
@@ -85,12 +86,12 @@ if (!paypalOrderId && !listingId) {
     };
     // return modl.updateOne({ listingId }, { $push: { biddingHistory: bidEntry } });
 
-    const bidHist = paypalOrderId ? await  modl.updateOne({ paypalOrderId }, { $push: { biddingHistory: bidEntry } }) :
-    await  modl.updateOne({ listingId }, { $push: { biddingHistory: bidEntry } });
-    
-    return {status:200, data:{ matchedCount: bidHist.n,    modifiedCount: bidHist.nModified} };
-    
-   };
+    const bidHist = paypalOrderId
+      ? await modl.updateOne({ paypalOrderId }, { $push: { biddingHistory: bidEntry } })
+      : await modl.updateOne({ listingId }, { $push: { biddingHistory: bidEntry } });
+
+    return { status: 200, data: { matchedCount: bidHist.n, modifiedCount: bidHist.nModified } };
+  };
 
   return {
     getBidDeadlines,
