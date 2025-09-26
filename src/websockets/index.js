@@ -5,7 +5,7 @@
 
 /* eslint-disable linebreak-style */
 const WebSocket = require('ws');
-const moment = require('moment');
+// const moment = require('moment');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 
@@ -15,7 +15,6 @@ const {
   broadcastToSameUser,
   hasOtherConn,
 } = require('./TimerService/connectionsHandler');
-
 
 const { getClient, handleMessage, action } = require('./TimerService/clientsHandler');
 
