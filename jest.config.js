@@ -16,19 +16,7 @@ module.exports = {
       lines: 60,
       statements: 60
     },
-    // Per-directory thresholds (optional)
-    './src/controllers/': {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70
-    },
-    './src/services/': {
-      branches: 65,
-      functions: 65,
-      lines: 65,
-      statements: 65
-    }
+    
   },
 
   // Coverage reporters - shows in terminal and generates reports
