@@ -261,6 +261,8 @@ const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
+const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -381,4 +383,6 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api', promotionDetailsRouter);
 };
