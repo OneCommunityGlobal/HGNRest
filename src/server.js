@@ -6,6 +6,7 @@ const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+require('./cronjobs/pinterestScheduleJob')();
 const websocketRouter = require('./websockets/webSocketRouter');
 
 const port = process.env.PORT || 4500;

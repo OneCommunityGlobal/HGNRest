@@ -260,6 +260,7 @@ const tagRouter = require('../routes/tagRouter')(tag);
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const socialMediaRouter = require('../routes/socialMediaRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -381,4 +382,6 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/social', socialMediaRouter);
+  app.use('api', bmIssueRouter);
 };
