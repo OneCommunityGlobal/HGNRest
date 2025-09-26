@@ -51,7 +51,7 @@ jobs:
       run: |
         echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
         echo "=================================="
-        echo "Minimum Required: 60% for all categories"
+        echo "Minimum Required: Lines: 34%, Statements: 34%, Functions: 27%, Branches: 12%"
         echo "=================================="
         if [ -f coverage/coverage-summary.json ]; then
           node -e "
