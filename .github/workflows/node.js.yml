@@ -10,6 +10,25 @@ on:
     branches: [ development ]
 
 jobs:
+
+  lint:
+    name: Lint Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+        
+    - name: Use Node.js 20.17.0
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.17.0
+        cache: 'npm'
+          
+    - name: Install dependencies
+      run: npm ci
+        
+    - name: Run lint
+      run: npm run lint
   build:
     runs-on: ubuntu-latest
     steps:
@@ -20,8 +39,4 @@ jobs:
         node-version: 20.17.0
         cache: 'npm'
     - run: npm ci
-    - name: Run email sender check
-      run: node src/utilities/debugEmailSender.js
     - run: npm run test
-    
-  
