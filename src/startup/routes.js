@@ -258,6 +258,14 @@ const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(pro
 
 const tagRouter = require('../routes/tagRouter')(tag);
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
+// lbdashboard
+const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
+const bidsRouter = require('../routes/lbdashboard/bidsRouter');
+const paymentsRouter = require('../routes/lbdashboard/paymentsRouter');
+const webhookRouter = require('../routes/lbdashboard/webhookRouter');
+const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRouter');
+const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
+const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
@@ -384,4 +392,15 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api/bm', bmRentalChart);
+  app.use('/api/lb', lbWishlistsRouter);
+  // lb dashboard
+  app.use('/api/lb', bidTermsRouter);
+  app.use('/api/lb', bidsRouter);
+  app.use('/api/lb', paymentsRouter);
+  app.use('/api/lb', webhookRouter);
+  app.use('/api/lb', bidNotificationsRouter);
+  app.use('/api/lb', bidDeadlinesRouter);
+  app.use('/api/lb', SMSRouter);
 };
