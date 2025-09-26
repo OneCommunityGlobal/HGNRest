@@ -1,5 +1,4 @@
 const express = require('express');
-
 const controller = require('../controllers/mostWastedController');
 
 const router = express.Router();
