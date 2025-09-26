@@ -1,7 +1,7 @@
 const moment = require('moment-timezone');
 const redisCacheClosure = require('../utilities/redisCache');
 const { hasPermission } = require('../utilities/permissions');
-const Logger = require('../startup/logger');
+const logger = require('../startup/logger');
 
 const applicationAnalyticsController = function (ApplicationAnalytics) {
   const cache = redisCacheClosure();
@@ -126,7 +126,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
 
       // Check cache first
       if (await cache.hasCache(cacheKey)) {
-        Logger.logInfo('Application analytics cache hit', { cacheKey });
+        logger.logInfo('Application analytics cache hit', { cacheKey });
         return res.status(200).json(await cache.getCache(cacheKey));
       }
 
@@ -194,7 +194,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
       const cacheTTL = filter === 'weekly' ? 300 : 1800; // 5 min for weekly, 30 min for others
       await cache.setCache(cacheKey, response, cacheTTL);
 
-      Logger.logInfo('Application analytics data fetched', {
+      logger.logInfo('Application analytics data fetched', {
         filter: isCustomRange ? 'custom' : filter,
         roles: roles || 'all',
         totalCountries: applications.length,
@@ -203,7 +203,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
 
       return res.status(200).json(response);
     } catch (error) {
-      Logger.logException(error);
+      logger.logException(error);
       return res.status(500).json({
         error: 'Failed to fetch application data',
         details: error.message,
@@ -262,7 +262,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
 
       // Check cache first
       if (await cache.hasCache(cacheKey)) {
-        Logger.logInfo('Application comparison cache hit', { cacheKey });
+        logger.logInfo('Application comparison cache hit', { cacheKey });
         return res.status(200).json(await cache.getCache(cacheKey));
       }
 
@@ -394,7 +394,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
       // Cache the response (cache for 10 minutes)
       await cache.setCache(cacheKey, response, 600);
 
-      Logger.logInfo('Application comparison data fetched', {
+      logger.logInfo('Application comparison data fetched', {
         filter,
         roles: roles || 'all',
         totalCountries: comparison.length,
@@ -403,7 +403,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
 
       return res.status(200).json(response);
     } catch (error) {
-      Logger.logException(error);
+      logger.logException(error);
       return res.status(500).json({
         error: 'Failed to fetch comparison data',
         details: error.message,
@@ -474,7 +474,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
       await cache.removeCachePattern('applications:*');
       await cache.removeCachePattern('comparison:*');
 
-      Logger.logInfo('Application analytics data created', {
+      logger.logInfo('Application analytics data created', {
         country,
         numberOfApplicants,
         role,
@@ -486,7 +486,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
         data: applicationData,
       });
     } catch (error) {
-      Logger.logException(error);
+      logger.logException(error);
       return res.status(500).json({
         error: 'Failed to create application analytics data',
         details: error.message,
@@ -512,7 +512,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
 
       // Check cache first
       if (await cache.hasCache(cacheKey)) {
-        Logger.logInfo('Application roles cache hit', { cacheKey });
+        logger.logInfo('Application roles cache hit', { cacheKey });
         return res.status(200).json(await cache.getCache(cacheKey));
       }
 
@@ -528,14 +528,14 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
       // Cache for 1 hour (roles change infrequently)
       await cache.setCache(cacheKey, response, 3600);
 
-      Logger.logInfo('Application analytics roles fetched', {
+      logger.logInfo('Application analytics roles fetched', {
         totalRoles: roles.length,
         roles,
       });
 
       return res.status(200).json(response);
     } catch (error) {
-      Logger.logException(error);
+      logger.logException(error);
       return res.status(500).json({
         error: 'Failed to fetch available roles',
         details: error.message,
