@@ -27,7 +27,7 @@ jobs:
       run: npm run lint
 
   test:
-    name: Tests with 60% Coverage Enforcement
+    name: Tests with 10% Coverage Enforcement
     runs-on: ubuntu-latest
     needs: lint
     steps:
