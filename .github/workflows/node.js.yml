@@ -27,7 +27,7 @@ jobs:
       run: npm run lint
 
   test:
-    name: Run Tests with Coverage
+    name: Tests with 60% Coverage Enforcement
     runs-on: ubuntu-latest
     needs: lint
     steps:
@@ -43,57 +43,39 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Run tests with coverage
-      run: npm run test:coverage:ci
+    - name: Run tests with coverage enforcement
+      run: npm run test:ci
       
-    - name: Print Coverage Summary
+    - name: Print detailed coverage report
       if: always()
       run: |
-        echo "📊 Coverage Report Summary:"
-        cat coverage/coverage-summary.json | jq -r '
-          .total |
-          "🎯 Overall Coverage:",
-          "  Lines: \(.lines.pct)%",
-          "  Statements: \(.statements.pct)%", 
-          "  Functions: \(.functions.pct)%",
-          "  Branches: \(.branches.pct)%"
-        '
+        echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
+        echo "=================================="
+        echo "Minimum Required: 60% for all categories"
+        echo "=================================="
+        if [ -f coverage/coverage-summary.json ]; then
+          node -e "
+            const coverage = require('./coverage/coverage-summary.json');
+            const { lines, statements, functions, branches } = coverage.total;
+            
+            console.log('📈 CURRENT COVERAGE:');
+            console.log(\`📄 Lines:      \${lines.pct}% \${lines.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`📝 Statements: \${statements.pct}% \${statements.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`🔧 Functions:  \${functions.pct}% \${functions.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`🌿 Branches:   \${branches.pct}% \${branches.pct >= 60 ? '✅ PASS' : '❌ FAIL'}\`);
+            
+            const allPass = [lines, statements, functions, branches].every(metric => metric.pct >= 60);
+            console.log('================================');
+            console.log(\`🎯 OVERALL: \${allPass ? '✅ COVERAGE REQUIREMENTS MET' : '❌ COVERAGE REQUIREMENTS FAILED'}\`);
+            console.log('================================');
+          "
+        else
+          echo "❌ No coverage report generated"
+        fi
         
-    - name: Upload coverage reports
+    - name: Upload coverage report
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-report
+        name: backend-coverage-report
         path: coverage/
-        
-    - name: Comment Coverage on PR
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          const path = './coverage/coverage-summary.json';
-          
-          if (fs.existsSync(path)) {
-            const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));
-            const { lines, statements, functions, branches } = coverage.total;
-            
-            const body = `## 📊 Test Coverage Report
-            
-            | Type | Coverage | Status |
-            |------|----------|---------|
-            | 📄 Lines | ${lines.pct}% | ${lines.pct >= 60 ? '✅' : '❌'} |
-            | 📝 Statements | ${statements.pct}% | ${statements.pct >= 60 ? '✅' : '❌'} |
-            | 🔧 Functions | ${functions.pct}% | ${functions.pct >= 60 ? '✅' : '❌'} |
-            | 🌿 Branches | ${branches.pct}% | ${branches.pct >= 60 ? '✅' : '❌'} |
-            
-            **Minimum Required:** 60% for all categories
-            `;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-          }
