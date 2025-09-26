@@ -267,7 +267,15 @@ const overviewReportHelper = function () {
               $project: { createdDate: 1 },
             },
           ]);
-          startDate = oldestVolunteer.createdDate;
+
+          if (oldestVolunteer) {
+            startDate = oldestVolunteer.createdDate;
+          } else {
+            // fallback: no users found, use earliest reasonable date
+            startDate = new Date(0); // Unix epoch
+          }
+          // fallback: no createdDate found, use earliest reasonable date
+          startDate = oldestVolunteer?.createdDate ?? new Date(0);
           break;
         }
         case '1':
