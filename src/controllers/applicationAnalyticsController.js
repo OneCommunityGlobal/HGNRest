@@ -83,14 +83,10 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
           .json({ error: 'You are not authorized to view application analytics' });
       }
 
-      const { filter = 'monthly', roles } = req.query;
+      const { filter = 'monthly', roles, startDate, endDate } = req.query;
 
-      // Validate filter parameter
-      if (!['weekly', 'monthly', 'yearly'].includes(filter)) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid filter. Must be weekly, monthly, or yearly' });
-      }
+      // Handle custom date range filtering - this is a key frontend requirement
+      const isCustomRange = startDate && endDate;
 
       // Parse roles if provided
       let roleFilter = {};
@@ -105,8 +101,28 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
         }
       }
 
-      // Create cache key
-      const cacheKey = `applications:${filter}:${roles || 'all'}`;
+      let dateFilter;
+      let cacheKey;
+
+      // Handle different date filtering scenarios
+      if (isCustomRange) {
+        // Custom date range handling
+        dateFilter = {
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          type: 'custom',
+        };
+        cacheKey = `applications:custom:${startDate}_${endDate}:${roles || 'all'}`;
+      } else {
+        // Preset filter handling (weekly/monthly/yearly)
+        if (!['weekly', 'monthly', 'yearly'].includes(filter)) {
+          return res
+            .status(400)
+            .json({ error: 'Invalid filter. Must be weekly, monthly, or yearly' });
+        }
+        dateFilter = getDateRange(filter);
+        cacheKey = `applications:${filter}:${roles || 'all'}`;
+      }
 
       // Check cache first
       if (await cache.hasCache(cacheKey)) {
@@ -114,14 +130,11 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
         return res.status(200).json(await cache.getCache(cacheKey));
       }
 
-      // Get date range for current period
-      const { startDate, endDate } = getDateRange(filter);
-
-      // Build query
+      // Build query with correct date filtering
       const query = {
         timestamp: {
-          $gte: startDate,
-          $lte: endDate,
+          $gte: dateFilter.startDate,
+          $lte: dateFilter.endDate,
         },
         ...roleFilter,
       };
@@ -149,15 +162,32 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
         { $sort: { totalApplicants: -1 } },
       ]);
 
+      // Enhance for map visualization - ensure country codes match standard format
+      const enhancedData = applications.map((app) => ({
+        country: app.country.toUpperCase(), // Ensure consistent formatting for map component
+        numberOfApplicants: app.totalApplicants,
+        roles: app.roles,
+        lastUpdated: app.lastUpdated,
+      }));
+
       const response = {
-        data: applications,
+        data: enhancedData,
         period: {
-          filter,
-          startDate,
-          endDate,
+          filter: isCustomRange ? 'custom' : filter,
+          startDate: dateFilter.startDate,
+          endDate: dateFilter.endDate,
+          type: dateFilter.type || filter,
+          supportsComparison: !isCustomRange, // Frontend requirement
         },
-        totalCountries: applications.length,
-        totalApplicants: applications.reduce((sum, app) => sum + app.totalApplicants, 0),
+        summary: {
+          totalCountries: applications.length,
+          totalApplicants: applications.reduce((sum, app) => sum + app.totalApplicants, 0),
+          // Provide metadata for map visualization
+          hasData: applications.length > 0,
+          periodLabel: isCustomRange
+            ? `${dateFilter.startDate.toISOString().split('T')[0]} to ${dateFilter.endDate.toISOString().split('T')[0]}`
+            : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Period`,
+        },
       };
 
       // Cache the response (cache for 5 minutes for current data, longer for historical)
@@ -165,7 +195,7 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
       await cache.setCache(cacheKey, response, cacheTTL);
 
       Logger.logInfo('Application analytics data fetched', {
-        filter,
+        filter: isCustomRange ? 'custom' : filter,
         roles: roles || 'all',
         totalCountries: applications.length,
         totalApplicants: response.totalApplicants,
@@ -194,9 +224,20 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
           .json({ error: 'You are not authorized to view application analytics' });
       }
 
-      const { filter = 'monthly', roles } = req.query;
+      const { filter = 'monthly', roles, startDate, endDate } = req.query;
 
-      // Validate filter parameter
+      // Handle custom date ranges - comparison not supported for custom dates
+      const isCustomRange = startDate && endDate;
+
+      if (isCustomRange) {
+        return res.status(400).json({
+          error:
+            'Comparison not available for custom date ranges. Use preset filters (weekly, monthly, yearly) for comparison features.',
+          details: 'This ensures accuracy of "% more than last week/month/year" calculations',
+        });
+      }
+
+      // Validate filter parameter for preset filters only
       if (!['weekly', 'monthly', 'yearly'].includes(filter)) {
         return res
           .status(400)
@@ -453,10 +494,60 @@ const applicationAnalyticsController = function (ApplicationAnalytics) {
     }
   };
 
+  /**
+   * GET /roles
+   * Get all available roles for filtering (frontend requirement)
+   */
+  const getAvailableRoles = async function (req, res) {
+    try {
+      // Check permissions
+      if (!(await hasPermission(req.body.requestor, 'getApplicationAnalytics'))) {
+        return res
+          .status(403)
+          .json({ error: 'You are not authorized to view application analytics' });
+      }
+
+      // Create cache key
+      const cacheKey = 'application-analytics-roles';
+
+      // Check cache first
+      if (await cache.hasCache(cacheKey)) {
+        Logger.logInfo('Application roles cache hit', { cacheKey });
+        return res.status(200).json(await cache.getCache(cacheKey));
+      }
+
+      // Get all unique roles
+      const roles = await ApplicationAnalytics.distinct('role');
+      roles.sort(); // Sort alphabetically for UI
+
+      const response = {
+        roles,
+        count: roles.length,
+      };
+
+      // Cache for 1 hour (roles change infrequently)
+      await cache.setCache(cacheKey, response, 3600);
+
+      Logger.logInfo('Application analytics roles fetched', {
+        totalRoles: roles.length,
+        roles,
+      });
+
+      return res.status(200).json(response);
+    } catch (error) {
+      Logger.logException(error);
+      return res.status(500).json({
+        error: 'Failed to fetch available roles',
+        details: error.message,
+      });
+    }
+  };
+
   return {
     getApplications,
     getComparison,
     createApplicationData,
+    getAvailableRoles,
   };
 };
 

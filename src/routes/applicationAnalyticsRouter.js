@@ -16,6 +16,10 @@ const routes = function (ApplicationAnalytics) {
   // Create or update application analytics data
   applicationAnalyticsRouter.route('/applications').post(controller.createApplicationData);
 
+  // GET /roles
+  // Get all available roles for multi-select filtering
+  applicationAnalyticsRouter.route('/roles').get(controller.getAvailableRoles);
+
   return applicationAnalyticsRouter;
 };
 

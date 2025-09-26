@@ -16,14 +16,18 @@ All endpoints require authentication and appropriate permissions:
 
 **GET** `/applications`
 
-Fetch application data for the selected time frame with optional role filtering.
+Fetch application data for the selected time frame with optional role filtering. Supports both preset filters and custom date ranges.
 
 #### Query Parameters
 
 | Parameter | Type | Required | Description | Example |
 |-----------|------|----------|-------------|---------|
-| `filter` | string | No | Time period filter (`weekly`, `monthly`, `yearly`) | `monthly` |
+| `filter` | string | No* | Time period filter (`weekly`, `monthly`, `yearly`) | `monthly` |
+| `startDate` | string | No* | Custom start date (ISO format) | `2024-03-01` |
+| `endDate` | string | No* | Custom end date (ISO format) | `2024-05-31` |
 | `roles` | string | No | JSON array of roles to filter by | `["Developer", "Designer"]` |
+
+> *Note: Either use `filter` OR `startDate` + `endDate`. For custom date ranges, hover comparison is disabled.
 
 #### Example Request
 
@@ -217,6 +221,60 @@ The application analytics data is stored with the following schema:
   modifiedDatetime: Date      // When the record was last modified
 }
 ```
+
+### 4. Get Available Roles
+
+**GET** `/roles`
+
+Get all available roles for multi-select filtering in the frontend.
+
+#### Example Request
+
+```bash
+GET /api/application-analytics/roles
+```
+
+#### Example Response
+
+```json
+{
+  "roles": [
+    "Administrator",
+    "Developer", 
+    "Designer",
+    "Project Manager",
+    "Business Analyst"
+  ],
+  "count": 5
+}
+```
+
+## Enhanced Features for Map Visualization
+
+### Custom Date Range Support
+
+When using `startDate` and `endDate` parameters, the response includes:
+
+```json
+{
+  "data": [...],
+  "period": {
+    "filter": "custom",
+    "startDate": "2024-03-01T00:00:00.000Z",
+    "endDate": "2024-05-31T23:59:59.999Z", 
+    "type": "custom",
+    "supportsComparison": false
+  },
+  "summary": {
+    "totalCountries": 15,
+    "totalApplicants": 1250,
+    "hasData": true,
+    "periodLabel": "2024-03-01 to 2024-05-31"
+  }
+}
+```
+
+> **Important**: Custom date ranges automatically disable hover comparison (frontend requirement) to ensure accuracy.
 
 ## Usage Examples
 
