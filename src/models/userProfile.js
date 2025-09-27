@@ -14,6 +14,19 @@ const today = new Date();
 const userProfileSchema = new Schema({
   // Updated filed
   summarySubmissionDates: [{ type: Date }],
+  defaultPassword: {
+    type: String,
+    required: false, // Not required since it's optional
+    validate: {
+      validator(v) {
+        if (!v) return true; // Allow empty values
+        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        return passwordregex.test(v);
+      },
+      message:
+        '{VALUE} is not a valid password! Password should be at least 8 characters long with uppercase, lowercase, and number/special character.',
+    },
+  },
   password: {
     type: String,
     required: true,
@@ -38,7 +51,7 @@ const userProfileSchema = new Schema({
     isAcknowledged: { type: Boolean, default: true },
     frontPermissions: [String],
     backPermissions: [String],
-    removedDefaultPermissions: [String]
+    removedDefaultPermissions: [String],
   },
   firstName: {
     type: String,
@@ -236,7 +249,7 @@ const userProfileSchema = new Schema({
   trophyFollowedUp: { type: Boolean, default: false },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
-  teamCodeWarning: { type: Boolean, default: false},
+  teamCodeWarning: { type: Boolean, default: false },
   teamCode: {
     type: String,
     default: '',
@@ -269,12 +282,21 @@ const userProfileSchema = new Schema({
         fullName: { type: String, required: true },
         rating: { type: Number, min: 1, max: 5 },
         isActive: { type: Boolean, default: false },
-      }
+      },
     ],
     additionalComments: { type: String },
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
-  }
+  },
+  infringementCCList: [
+    {
+      email: { type: String, required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String },
+      role: { type: String },
+      assignedTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+    },
+  ],
 });
 
 userProfileSchema.pre('save', function (next) {
