@@ -1321,6 +1321,129 @@ const overviewReportHelper = function () {
   };
 
   /**
+   * returns mentor counts for the provided date range
+   * mirrors volunteer stats but filters strictly on Mentor role
+   * @param {Date} startDate
+   * @param {Date} endDate
+   * @param {Date} comparisonStartDate
+   * @param {Date} comparisonEndDate
+   */
+  const getMentorNumberStats = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
+    const getMentorData = async (isoStartDate, isoEndDate) => {
+      const data = await UserProfile.aggregate([
+        {
+          $facet: {
+            activeMentors: [
+              {
+                $match: {
+                  isActive: true,
+                  role: 'Mentor',
+                  createdDate: { $lte: isoEndDate },
+                },
+              },
+              { $count: 'count' },
+            ],
+            newMentors: [
+              {
+                $match: {
+                  role: 'Mentor',
+                  createdDate: {
+                    $gte: isoStartDate,
+                    $lte: isoEndDate,
+                  },
+                },
+              },
+              { $count: 'count' },
+            ],
+            deactivatedMentors: [
+              {
+                $match: {
+                  $and: [
+                    { lastModifiedDate: { $gte: isoStartDate } },
+                    { lastModifiedDate: { $lte: isoEndDate } },
+                    { isActive: false },
+                    { role: 'Mentor' },
+                  ],
+                },
+              },
+              { $count: 'count' },
+            ],
+          },
+        },
+      ]);
+
+      const activeMentors = data[0].activeMentors[0]?.count || 0;
+      const newMentors = data[0].newMentors[0]?.count || 0;
+      const deactivatedMentors = data[0].deactivatedMentors[0]?.count || 0;
+      const totalMentors = activeMentors + newMentors + deactivatedMentors;
+
+      return {
+        activeMentors,
+        newMentors,
+        deactivatedMentors,
+        totalMentors,
+      };
+    };
+
+    const {
+      activeMentors: currentActiveMentors,
+      newMentors: currentNewMentors,
+      deactivatedMentors: currentDeactivatedMentors,
+      totalMentors: currentTotalMentors,
+    } = await getMentorData(startDate, endDate);
+
+    const mentorStats = {
+      activeMentors: {
+        count: currentActiveMentors,
+        percentageOutOfTotal: Math.round((currentActiveMentors / currentTotalMentors) * 100) / 100,
+      },
+      newMentors: {
+        count: currentNewMentors,
+        percentageOutOfTotal: Math.round((currentNewMentors / currentTotalMentors) * 100) / 100,
+      },
+      deactivatedMentors: {
+        count: currentDeactivatedMentors,
+        percentageOutOfTotal:
+          Math.round((currentDeactivatedMentors / currentTotalMentors) * 100) / 100,
+      },
+      totalMentors: { count: currentTotalMentors },
+    };
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const {
+        activeMentors: comparisonActiveMentors,
+        newMentors: comparisonNewMentors,
+        deactivatedMentors: comparisonDeactivatedMentors,
+        totalMentors: comparisonTotalMentors,
+      } = await getMentorData(comparisonStartDate, comparisonEndDate);
+
+      mentorStats.activeMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentActiveMentors,
+        comparisonActiveMentors,
+      );
+      mentorStats.newMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentNewMentors,
+        comparisonNewMentors,
+      );
+      mentorStats.deactivatedMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentDeactivatedMentors,
+        comparisonDeactivatedMentors,
+      );
+      mentorStats.totalMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentTotalMentors,
+        comparisonTotalMentors,
+      );
+    }
+
+    return mentorStats;
+  };
+
+  /**
    *
    * @returns The number of teams with 4 or more members.
    */
@@ -2004,6 +2127,7 @@ const overviewReportHelper = function () {
     getAnniversaries,
     getRoleDistributionStats,
     getVolunteerNumberStats,
+    getMentorNumberStats,
     getTasksStats,
     getWorkDistributionStats,
     getTotalHoursWorked,
