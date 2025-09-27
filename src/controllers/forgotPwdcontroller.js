@@ -43,6 +43,9 @@ const forgotPwdController = function (userProfile) {
           getEmailMessageForForgotPassword(user, ranPwd),
           null,
           null,
+          null,
+          null,
+          { type: 'password_reset' },
         );
 
         logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);

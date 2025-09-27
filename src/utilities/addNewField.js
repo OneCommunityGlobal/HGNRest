@@ -81,9 +81,7 @@ const checkNewField = async () => {
 
 const run = function () {
   //   console.log('connect db');
-  const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${
-    process.env.cluster
-  }/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;
+  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
     .connect(uri, {

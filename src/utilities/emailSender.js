@@ -33,10 +33,18 @@ const transporter = nodemailer.createTransport({
 
 const sendEmail = async (mailOptions) => {
   try {
-    const { token } = await OAuth2Client.getAccessToken();
+    const accessTokenResp = await OAuth2Client.getAccessToken();
+    const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+
+    if (!token) {
+      throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    }
 
     mailOptions.auth = {
+      type: 'OAuth2', // include type
       user: config.email,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
       refreshToken: config.refreshToken,
       accessToken: token,
     };
@@ -95,6 +103,7 @@ const processQueue = async () => {
  * @param {string[]|null} [cc=null] - Optional array of CC (carbon copy) email addresses.
  * @param {string|null} [replyTo=null] - Optional reply-to email address.
  * @param {string[]|null} [emailBccs=null] - Optional array of BCC (blind carbon copy) email addresses.
+ * @param {Object} [opts={}] - Optional settings object.
  *
  * @returns {Promise<string>} A promise that resolves when the email queue has been processed successfully or rejects on error.
  *
@@ -122,17 +131,26 @@ const emailSender = (
   cc = null,
   replyTo = null,
   emailBccs = null,
+  opts = {},
 ) => {
-  if (!process.env.sendEmail) return;
+  const type = opts.type || 'general';
+  const isReset = type === 'password_reset';
+
+  if (
+    !process.env.sendEmail ||
+    (String(process.env.sendEmail).toLowerCase() === 'false' && !isReset)
+  ) {
+    return Promise.resolve('EMAIL_SENDING_DISABLED');
+  }
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
-    for (let i = 0; i < recipients.length; i += config.batchSize) {
+    for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
         from: config.email,
-        to: batchRecipients ? batchRecipients.join(',') : [], // <-- use 'to' instead of 'bcc'
-        bcc: emailBccs ? emailBccs.join(',') : [],
+        to: batchRecipients.length ? batchRecipients.join(',') : '',
+        bcc: emailBccs ? emailBccs.join(',') : '',
         subject,
         html: message,
         attachments,
@@ -140,6 +158,7 @@ const emailSender = (
         replyTo,
       });
     }
+
     setImmediate(async () => {
       try {
         await processQueue();
