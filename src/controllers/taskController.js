@@ -463,7 +463,7 @@ const taskController = function (Task) {
         // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
-          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0))) + 1
+          ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0, 10))) + 1
           : 1;
 
         const baseNum = parentTask.num
@@ -474,7 +474,7 @@ const taskController = function (Task) {
       } else {
         const topTasks = await Task.find({ wbsId, level: 1 });
         const nextTopNum = topTasks.length
-          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0))) + 1
+          ? Math.max(...topTasks.map((t) => parseInt(t.num.split('.')[0] || 0, 10))) + 1
           : 1;
         num = `${nextTopNum}`;
       }
@@ -730,18 +730,16 @@ const taskController = function (Task) {
     }
 
     if (
-      req.body.hoursBest > 0 &&
-      req.body.hoursWorst > 0 &&
-      req.body.hoursMost > 0 &&
-      req.body.hoursLogged > 0 &&
-      req.body.estimatedHours > 0
+      req.body.hoursBest < 0 &&
+      req.body.hoursWorst < 0 &&
+      req.body.hoursMost < 0 &&
+      req.body.hoursLogged < 0 &&
+      req.body.estimatedHours < 0
     ) {
-      return res
-        .status(400)
-        .send({
-          error:
-            'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
-        });
+      return res.status(400).send({
+        error:
+          'Hours Best, Hours Worst, Hours Most, Hours Logged and Estimated Hours should be greater than 0',
+      });
     }
 
     const { taskId } = req.params;
@@ -992,42 +990,37 @@ const taskController = function (Task) {
       membership = await UserProfile.find({
         role: { $in: ['Administrator', 'Manager', 'Mentor'] },
         isActive: true,
-      }).maxTimeMS(5000); 
+      }).maxTimeMS(5000);
     } catch (error) {
-      console.error("Error fetching membership:", error);
-      return []; 
+      console.error('Error fetching membership:', error);
+      return [];
     }
-    for (const member of membership) {
-      if (
-        Array.isArray(member.teams) &&
-        Array.isArray(user.teams) &&
-        member.teams.some((team) => user.teams.includes(team))
-      ) {
-        recipients.push(member.email);
-      }
-    }
-  
+    membership
+      .filter(
+        (member) =>
+          Array.isArray(member.teams) &&
+          Array.isArray(user.teams) &&
+          member.teams.some((team) => user.teams.includes(team)),
+      )
+      .forEach((member) => recipients.push(member.email));
     return recipients;
   };
-  
+
   const sendReviewReq = async function (req, res) {
     const { myUserId, name, taskName } = req.body;
     const emailBody = getReviewReqEmailBody(name, taskName);
     try {
       const recipients = await getRecipients(myUserId);
-      console.log("Recipients list:", recipients);
-      console.log("Email subject:", `Review Request from ${name}`);
+      console.log('Recipients list:', recipients);
+      console.log('Email subject:', `Review Request from ${name}`);
       await emailSender(recipients, `Review Request from ${name}`, emailBody, null, null);
       res.status(200).send('Success');
     } catch (err) {
-      console.error("Error in sendReviewReq:", err);
+      console.error('Error in sendReviewReq:', err);
       res.status(500).send('Failed');
     }
-
-   
   };
 
- 
   return {
     postTask,
     getTasks,

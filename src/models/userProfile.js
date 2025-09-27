@@ -254,16 +254,16 @@ const userProfileSchema = new Schema({
       // if (Array.isArray(v)) return [...new Set(v.filter(Boolean))];
       // if (typeof v === 'string' && v.trim()) return [v.trim()];
       // return [];
-      if (Array.isArray(v)) return [...new Set(v.filter(Boolean).map(s => s.trim()))];
+      if (Array.isArray(v)) return [...new Set(v.filter(Boolean).map((s) => s.trim()))];
       if (typeof v === 'string') {
         const parts = v
           .split(',')
-          .map(s => s.trim())
+          .map((s) => s.trim())
           .filter(Boolean);
         return [...new Set(parts)];
       }
       return [];
-    }
+    },
   },
   trophyFollowedUp: { type: Boolean, default: false },
   // filterColor: { type: [String], default: [] },
@@ -308,6 +308,15 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+  infringementCCList: [
+    {
+      email: { type: String, required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String },
+      role: { type: String },
+      assignedTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+    },
+  ],
 });
 
 userProfileSchema.pre('save', function (next) {

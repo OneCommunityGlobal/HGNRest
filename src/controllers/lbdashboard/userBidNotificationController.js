@@ -1,5 +1,4 @@
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 
 const userBidNotificationController = (Bid, List, User, Notification) => {
@@ -9,7 +8,10 @@ const userBidNotificationController = (Bid, List, User, Notification) => {
         body('name').notEmpty().withMessage('Name is required').run(req),
         body('email').isEmail().withMessage('Valid email is required').run(req),
         body('startDate').isISO8601().toDate().withMessage('Valid start date is required').run(req),
-        body('bidAmount').isFloat({ min: 0 }).withMessage('Bid amount must be a positive number').run(req),
+        body('bidAmount')
+          .isFloat({ min: 0 })
+          .withMessage('Bid amount must be a positive number')
+          .run(req),
       ]);
 
       const errors = validationResult(req);
@@ -22,17 +24,15 @@ const userBidNotificationController = (Bid, List, User, Notification) => {
 
       const propertyExists = await List.exists({ _id: propertyId });
 
-
       const user = await User.findOne({ name, email }).select('_id');
       if (!user) {
         return res.status(404).json({ message: 'User not found. Please register first.' });
       }
 
       if (!propertyExists) {
-
         const notification = new Notification({
           user_id: user._id,
-          message: "Property not found",
+          message: 'Property not found',
           timestamp: new Date().toISOString().split('T')[0],
         });
 
@@ -56,13 +56,12 @@ const userBidNotificationController = (Bid, List, User, Notification) => {
       await successNotification.save();
 
       res.status(201).json({ message: 'Bid placed successfully', bid: newBid });
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Error placing bid:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
-  }
+  };
   return { placeBid };
-}
+};
 
 module.exports = userBidNotificationController;

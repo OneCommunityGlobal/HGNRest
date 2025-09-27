@@ -124,6 +124,9 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
         expectedEmailMessage,
         null,
         null,
+        null,
+        null,
+        { type: 'password_reset' },
       );
       assertResMock(200, { message: 'generated new password' }, response, mockRes);
       expect(findOneSpy).toHaveBeenCalledWith({

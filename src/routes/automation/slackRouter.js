@@ -1,5 +1,7 @@
 const express = require('express');
 
+// const slackController = require('../../controllers/automation/slackController');
+
 const router = express.Router();
 const sentryController = require('../../controllers/automation/sentryController');
 
