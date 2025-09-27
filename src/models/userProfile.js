@@ -14,6 +14,19 @@ const today = new Date();
 const userProfileSchema = new Schema({
   // Updated filed
   summarySubmissionDates: [{ type: Date }],
+  defaultPassword: {
+    type: String,
+    required: false, // Not required since it's optional
+    validate: {
+      validator(v) {
+        if (!v) return true; // Allow empty values
+        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        return passwordregex.test(v);
+      },
+      message:
+        '{VALUE} is not a valid password! Password should be at least 8 characters long with uppercase, lowercase, and number/special character.',
+    },
+  },
   password: {
     type: String,
     required: true,
@@ -275,6 +288,15 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+  infringementCCList: [
+    {
+      email: { type: String, required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String },
+      role: { type: String },
+      assignedTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+    },
+  ],
 });
 
 userProfileSchema.pre('save', function (next) {

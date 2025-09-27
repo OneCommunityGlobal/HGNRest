@@ -11,7 +11,7 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
-        $unwind: '$members',
+        $unwind: { path: '$members', preserveNullAndEmptyArrays: true },
       },
       {
         $lookup: {
@@ -22,17 +22,16 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $unwind: '$userProfile',
-      },
-      {
-        $match: {
-          isActive: true,
+        $unwind: {
+          path: '$userProfile',
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
           _id: {
             teamId: '$_id',
+            // Keep the raw value that worked in Compass
             teamCode: '$userProfile.teamCode',
           },
           count: { $sum: 1 },
@@ -52,12 +51,12 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $sort: { count: -1 }, // Sort by the most frequent teamCode
+        $sort: { count: -1 },
       },
       {
         $group: {
           _id: '$_id.teamId',
-          teamCode: { $first: '$_id.teamCode' }, // Get the most frequent teamCode
+          teamCode: { $first: '$_id.teamCode' },
           teamName: { $first: '$teamName' },
           members: { $first: '$members' },
           createdDatetime: { $first: '$createdDatetime' },
@@ -66,16 +65,19 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $sort: { teamName: 1 }, // Sort teams by name
+        $sort: { teamName: 1 },
       },
     ])
-      .then((results) => res.status(200).send(results))
+      .then((results) => {
+        // The API now sends an ARRAY, which is what the frontend expects.
+        res.status(200).send(results);
+      })
       .catch((error) => {
+        console.error('Aggregation failed unexpectedly:', error);
         Logger.logException(error);
-        res.status(404).send(error);
+        res.status(500).send(error);
       });
   };
-
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
@@ -133,9 +135,9 @@ const teamcontroller = function (Team) {
         .then(
           res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
         )
-        .catch((errors) => {
+        .catch((catchError) => {
           Logger.logException(error, null, `teamId: ${teamId}`);
-          res.status(400).send(errors);
+          res.status(400).send({ error: catchError });
         });
     });
   };
@@ -148,21 +150,15 @@ const teamcontroller = function (Team) {
 
     const { teamId } = req.params;
 
-    Team.findById(teamId, (error, record) => {
+    Team.findById(teamId, async (error, record) => {
       if (error || record === null) {
         res.status(400).send('No valid records found');
         return;
       }
 
-      // Removed the permission check as the permission check if done in earlier
-      // const canEditTeamCode =
-      //   req.body.requestor.role === 'Owner' ||
-      //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      // if (!canEditTeamCode) {
-      //   res.status(403).send('You are not authorized to edit team code.');
-      //   return;
-      // }
+      // Store the old team code before updating
+      const oldTeamCode = record.teamCode;
+      const newTeamCode = req.body.teamCode;
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
@@ -170,13 +166,28 @@ const teamcontroller = function (Team) {
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
-      record
-        .save()
-        .then((results) => res.status(200).send(results._id))
-        .catch((errors) => {
-          Logger.logException(errors, null, `TeamId: ${teamId} Request:${req.body}`);
-          res.status(400).send(errors);
-        });
+      try {
+        const savedTeam = await record.save();
+
+        // If team code changed, update all user profiles that have the old team code
+        if (oldTeamCode && newTeamCode && oldTeamCode !== newTeamCode) {
+          // Update all user profiles that have the old team code
+          await userProfile.updateMany(
+            { teamCode: oldTeamCode },
+            { $set: { teamCode: newTeamCode } },
+          );
+
+          // Clear cache to ensure fresh data is loaded
+          if (cache.hasCache('teamCodes')) {
+            cache.removeCache('teamCodes');
+          }
+        }
+
+        res.status(200).send(savedTeam);
+      } catch (catchError) {
+        Logger.logException(catchError, null, `TeamId: ${teamId} Request:${req.body}`);
+        res.status(400).send({ error: catchError });
+      }
     });
   };
 
@@ -296,7 +307,7 @@ const teamcontroller = function (Team) {
 
         team
           .save()
-          .then((updatedTeam) => {
+          .then(() => {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
@@ -325,13 +336,14 @@ const teamcontroller = function (Team) {
               .then(() => {
                 res.status(200).send({ result: 'Done' });
               })
-              .catch((error) => {
-                res.status(500).send({ error });
+
+              .catch((catchError) => {
+                res.status(500).send({ error: catchError });
               });
           })
-          .catch((errors) => {
-            console.error('Error saving team:', errors);
-            res.status(400).send(errors);
+          .catch((catchError) => {
+            console.error('Error saving team:', catchError);
+            res.status(400).send(catchError);
           });
       });
     } catch (error) {
@@ -348,7 +360,7 @@ const teamcontroller = function (Team) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => {
+      .catch(() => {
         // logger.logException(`Fetch team code failed: ${error}`);
         res.status(500).send('Fetch team code failed.');
       });
@@ -359,7 +371,7 @@ const teamcontroller = function (Team) {
       const teamIds = req.body;
       const cacheKey = 'teamMembersCache';
       if (cache.hasCache(cacheKey)) {
-        let data = cache.getCache('teamMembersCache');
+        const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
       if (
@@ -367,13 +379,11 @@ const teamcontroller = function (Team) {
         teamIds.length === 0 ||
         !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team._id))
       ) {
-        return res
-          .status(400)
-          .send({
-            error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
-          });
+        return res.status(400).send({
+          error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
+        });
       }
-      let data = await Team.aggregate([
+      const data = await Team.aggregate([
         {
           $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team._id)) } },
         },
@@ -398,8 +408,8 @@ const teamcontroller = function (Team) {
       ]);
       cache.setCache(cacheKey, data);
       res.status(200).send(data);
-    } catch (error) {
-      console.log(error);
+    } catch {
+      console.log('Error in getAllTeamMembers');
       res.status(500).send({ message: 'Fetching team members failed' });
     }
   };
