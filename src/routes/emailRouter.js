@@ -1,4 +1,6 @@
 const express = require('express');
+// adding a quick endpoint which i can call locally
+// const userHelper = require('../helpers/userHelper')();
 const {
   sendEmail,
   sendEmailToAll,
@@ -11,19 +13,37 @@ const {
 const routes = function () {
   const emailRouter = express.Router();
 
-  emailRouter.route('/send-emails')
-    .post(sendEmail);
-  emailRouter.route('/broadcast-emails')
-    .post(sendEmailToAll);
+  emailRouter.route('/send-emails').post(sendEmail);
+  emailRouter.route('/broadcast-emails').post(sendEmailToAll);
 
-  emailRouter.route('/update-email-subscriptions')
-    .post(updateEmailSubscriptions);
-  emailRouter.route('/add-non-hgn-email-subscription')
-    .post(addNonHgnEmailSubscription);
-  emailRouter.route('/confirm-non-hgn-email-subscription')
-    .post(confirmNonHgnEmailSubscription);
-  emailRouter.route('/remove-non-hgn-email-subscription')
-    .post(removeNonHgnEmailSubscription);
+  emailRouter.route('/update-email-subscriptions').post(updateEmailSubscriptions);
+  emailRouter.route('/add-non-hgn-email-subscription').post(addNonHgnEmailSubscription);
+  emailRouter.route('/confirm-non-hgn-email-subscription').post(confirmNonHgnEmailSubscription);
+  emailRouter.route('/remove-non-hgn-email-subscription').post(removeNonHgnEmailSubscription);
+
+  // new route to test weekly summaries of active users,
+  // emailRouter.route('/weekly-summaries/test').post(async (req, res) => {
+  // try {
+  //   const { testerEmail, weekIndex = 1, dryRun = true } = req.body || {};
+  //   if (!testerEmail) return res.status(400).send('testerEmail is required');
+
+  //   console.log('Running weekly summaries test with:', { testerEmail, weekIndex, dryRun });
+
+  //   const result = await userHelper.emailWeeklySummariesForAllUsersTest({ testerEmail: 'taariqmansurie@gmail.com', weekIndex, dryRun });
+
+  //   console.log('Result:', result);
+
+  //   res.status(200).json({ ok: true, ...result });
+  // } catch (e) {//
+  //   console.error('Weekly summaries test failed:', e);
+  //   res.status(500).json({
+  //     ok: false,
+  //     errorMessage: e?.message || 'Unknown error',
+  //     stack: e?.stack
+  //   });
+  // }
+  // });
+
   return emailRouter;
 };
 

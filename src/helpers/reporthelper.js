@@ -36,7 +36,8 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        // $match: { isActive: { $in: [true, false] } },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -157,6 +158,12 @@ const reporthelper = function () {
         },
       },
     ]);
+
+    console.log('📩 WeeklySummaries raw count:', results.length);
+    console.log(
+      '⚠️ Any inactive slipping through?',
+      results.filter((r) => !r.isActive).map((r) => r.email),
+    );
 
     // Logic too difficult to do using aggregation.
     results.forEach((result) => {
