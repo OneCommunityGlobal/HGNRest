@@ -3,7 +3,7 @@ const PromotionDetail = require('../models/promotionDetail');
 const promotionDetails = async (req, res) => {
   try {
     const { reviewerId } = req.params;
-    // Assuming there's a PromotionDetail model to fetch promotion details
+
     const promotionDetail = await PromotionDetail.findOne({ reviewerId }).lean();
     if (!promotionDetail) {
       return res.status(404).json({ error: 'Promotion details not found' });
