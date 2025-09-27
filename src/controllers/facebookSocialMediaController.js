@@ -110,6 +110,7 @@ const facebookController = function () {
   }
 
   async function scheduleFbPost(req, res) {
+    console.log('reached scheduleFbPost backend');
     const { textContent, urlSrcs, base64Srcs } = await extractTextAndImgUrl(req.body.EmailContent);
     const scheduledDate = req.body.ScheduleDate;
     const scheduledTime = req.body.ScheduleTime;
@@ -120,6 +121,7 @@ const facebookController = function () {
         .json({ error: 'Missing required parameters: scheduledDate or scheduledTime' });
     }
 
+    console.log('reached scheduleFbPost backend _1');
     const platform = 'facebook';
     const newScheduledFbPost = new ScheduledPost({
       textContent,
@@ -130,11 +132,11 @@ const facebookController = function () {
       platform,
       status: 'scheduled',
     });
-
+    console.log('reached scheduleFbPost backend _2');
     newScheduledFbPost
       .save()
       .then((scheduledFbPost) => {
-        //console.log('scheduledFbPost saved:', scheduledFbPost);
+        console.log('scheduledFbPost saved:', scheduledFbPost);
         res.status(200).json({ success: true, scheduledFbPost });
       })
       .catch((error) => {

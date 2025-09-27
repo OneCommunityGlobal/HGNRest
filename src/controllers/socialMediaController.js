@@ -1,18 +1,13 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 const fetch = require('node-fetch');
-// eslint-disable-next-line import/no-extraneous-dependencies
 const cheerio = require('cheerio');
-// eslint-disable-next-line import/no-extraneous-dependencies
 const { TwitterApi } = require('twitter-api-v2');
 const ScheduledPost = require('../models/scheduledPostSchema');
 
 function extractTextAndImgUrl(htmlString) {
   const $ = cheerio.load(htmlString);
-
   const textContent = $.root().text().replace(/\s+/g, ' ').trim();
   const urlSrcs = [];
   const base64Srcs = [];
-
   $('img').each((i, img) => {
     const src = $(img).attr('src');
     if (src) {
@@ -23,7 +18,6 @@ function extractTextAndImgUrl(htmlString) {
       }
     }
   });
-
   return { textContent, urlSrcs, base64Srcs };
 }
 
@@ -81,21 +75,14 @@ async function postToTwitter(content, image) {
 }
 
 async function getTwitterAccessToken(req, res) {
-  console.log('gTAT');
-  console.log('Twitter Client ID:', process.env.REACT_APP_TWITTER_CLIENT_ID);
-  console.log('Twitter Client Secret:', process.env.REACT_APP_TWITTER_CLIENT_SECRET);
-
   const twitterOAuth = new TwitterApi({
     clientId: process.env.REACT_APP_TWITTER_CLIENT_ID,
     clientSecret: process.env.REACT_APP_TWITTER_CLIENT_SECRET,
   });
-
   const { code, state, codeVerifier } = req.body;
-
   if (!code || !state || !codeVerifier) {
     return res.status(400).json({ error: 'Missing required parameters' });
   }
-
   try {
     twitterOAuth
       .loginWithOAuth2({ code, codeVerifier, redirectUri: 'http://localhost:4500/announcements' })
@@ -119,20 +106,14 @@ async function getTwitterAccessToken(req, res) {
 }
 
 async function scheduleTweet(req, res) {
-  console.log('Request body:', req.body);
   const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
   const scheduledDate = req.body.ScheduleDate;
   const scheduledTime = req.body.ScheduleTime;
-  console.log('Content for scheduleTweet', textContent);
-  console.log('scheduledDate', scheduledDate);
-  console.log('scheduledTime', scheduledTime);
-
   if (!scheduledDate || !scheduledTime) {
     return res
       .status(400)
       .json({ error: 'Missing required parameters: scheduledDate or scheduledTime' });
   }
-
   const platform = 'twitter';
   const newScheduledTweet = new ScheduledPost({
     textContent,
@@ -147,7 +128,6 @@ async function scheduleTweet(req, res) {
   newScheduledTweet
     .save()
     .then((scheduledTweet) => {
-      console.log('scheduledTweet saved:', scheduledTweet);
       res.status(200).json({ success: true, scheduledTweet });
     })
     .catch((error) => {
@@ -157,7 +137,6 @@ async function scheduleTweet(req, res) {
 }
 
 async function createTweet(req, res) {
-  console.log('createTweet call');
   const TwitterClient = new TwitterApi({
     appKey: process.env.REACT_APP_TWITTER_APP_KEY,
     appSecret: process.env.REACT_APP_TWITTER_APP_SECRET,
@@ -172,7 +151,6 @@ async function createTweet(req, res) {
     let mediaIds = [];
     // src type is url
     if (urlSrcs && urlSrcs.length > 0) {
-      console.log('Uploading URL media...');
       const urlMediaIds = await Promise.all(
         urlSrcs.map(async (imageUrl) => {
           try {
@@ -185,12 +163,10 @@ async function createTweet(req, res) {
         }),
       );
       mediaIds = mediaIds.concat(urlMediaIds.filter((id) => id !== null));
-      console.log('URL media uploaded, IDs:', mediaIds);
     }
 
     // src type is base64
     if (base64Srcs && base64Srcs.length > 0) {
-      console.log('Uploading base64 media...');
       const base64MediaIds = await Promise.all(
         base64Srcs.map(async (imgSrc) => {
           try {
@@ -236,12 +212,10 @@ async function createTweet(req, res) {
 }
 
 async function getPosts(req, res) {
-  //console.log('getPosts call');
   try {
     const posts = await ScheduledPost.find({}).select(
       'textContent urlSrcs scheduledDate scheduledTime platform createdAt base64Srcs',
     );
-    //console.log(posts);
     res.status(200).json({ success: true, posts });
   } catch (error) {
     console.error('[Backend] Database error: ', error);
@@ -250,9 +224,6 @@ async function getPosts(req, res) {
 }
 
 async function deletePosts(req, res) {
-  console.log('Request URL:', req.originalUrl);
-  console.log('Request Method:', req.method);
-  console.log('deletePosts call');
   const { _id } = req.body;
 
   if (!_id) {
@@ -274,20 +245,16 @@ async function deletePosts(req, res) {
 }
 
 async function updatePosts(req, res) {
-  console.log('updatePosts call');
   const { _id, textContent, urlSrcs, scheduledDate, scheduledTime, platform } = req.body;
-
   if (!_id) {
     return res.status(400).json({ error: 'Missing required parameter: _id' });
   }
-
   try {
     const updatedPost = await ScheduledPost.findOneAndUpdate(
       { _id },
       { textContent, urlSrcs, scheduledDate, scheduledTime, platform },
       { new: true },
     );
-
     if (!updatedPost) {
       return res.status(404).json({ error: 'Post not found' });
     }
