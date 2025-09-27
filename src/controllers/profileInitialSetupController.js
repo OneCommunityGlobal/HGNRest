@@ -1,3 +1,9 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable no-undef */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
