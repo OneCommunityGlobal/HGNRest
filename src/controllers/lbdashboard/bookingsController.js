@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const paypal = require('@paypal/checkout-server-sdk');
+const paypal = require('@paypal/paypal-server-sdk');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
