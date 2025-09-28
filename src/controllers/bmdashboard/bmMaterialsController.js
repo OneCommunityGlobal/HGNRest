@@ -47,18 +47,6 @@ const bmMaterialsController = function (BuildingMaterial) {
     } = req.body;
 
     try {
-      // check if requestor has permission to make purchase request
-      //! Note: this code is disabled until permissions are added
-      // TODO: uncomment this code to execute auth check
-      // const { buildingManager: bmId } = await buildingProject.findById(projectId, 'buildingManager').exec();
-      // if (bmId !== requestorId) {
-      //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
-      //   return;
-      // }
-
-      // check if the material is already being used in the project
-      // if no, add a new document to the collection
-      // if yes, update the existing document
       const newPurchaseRecord = {
         quantity,
         priority,
@@ -247,20 +235,24 @@ const bmMaterialsController = function (BuildingMaterial) {
         $set: { 'purchaseRecord.$.status': status },
       };
       if (status === 'Approved') {
-        // Only apply $inc if status is Approved
         updateObject.$inc = { stockBought: quantity };
       }
 
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
         { 'purchaseRecord._id': purchaseId },
         updateObject,
-        { new: true }, // Important: returns the document *after* update
+        { new: true },
       );
-      
+
       if (!updatedMaterial) {
-        // This might happen if the document was deleted or modified externally
         return res.status(500).send('Failed to apply purchase status update to material.');
       }
+
+      res.status(200).send(updatedMaterial);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
 
   return {
     bmMaterialsList,
