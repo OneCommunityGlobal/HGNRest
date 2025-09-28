@@ -47,6 +47,18 @@ const bmMaterialsController = function (BuildingMaterial) {
     } = req.body;
 
     try {
+      // check if requestor has permission to make purchase request
+      //! Note: this code is disabled until permissions are added
+      // TODO: uncomment this code to execute auth check
+      // const { buildingManager: bmId } = await buildingProject.findById(projectId, 'buildingManager').exec();
+      // if (bmId !== requestorId) {
+      //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
+      //   return;
+      // }
+
+      // check if the material is already being used in the project
+      // if no, add a new document to the collection
+      // if yes, update the existing document
       const newPurchaseRecord = {
         quantity,
         priority,
