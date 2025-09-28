@@ -9,6 +9,9 @@ require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
+
+// Email batch system is initialized automatically when needed
+
 const websocketRouter = require('./websockets/webSocketRouter');
 
 const port = process.env.PORT || 4500;

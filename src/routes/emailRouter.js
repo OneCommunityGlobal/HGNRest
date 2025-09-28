@@ -11,19 +11,13 @@ const {
 const routes = function () {
   const emailRouter = express.Router();
 
-  emailRouter.route('/send-emails')
-    .post(sendEmail);
-  emailRouter.route('/broadcast-emails')
-    .post(sendEmailToAll);
+  emailRouter.route('/send-emails').post(sendEmail);
+  emailRouter.route('/broadcast-emails').post(sendEmailToAll);
 
-  emailRouter.route('/update-email-subscriptions')
-    .post(updateEmailSubscriptions);
-  emailRouter.route('/add-non-hgn-email-subscription')
-    .post(addNonHgnEmailSubscription);
-  emailRouter.route('/confirm-non-hgn-email-subscription')
-    .post(confirmNonHgnEmailSubscription);
-  emailRouter.route('/remove-non-hgn-email-subscription')
-    .post(removeNonHgnEmailSubscription);
+  emailRouter.route('/update-email-subscriptions').post(updateEmailSubscriptions);
+  emailRouter.route('/add-non-hgn-email-subscription').post(addNonHgnEmailSubscription);
+  emailRouter.route('/confirm-non-hgn-email-subscription').post(confirmNonHgnEmailSubscription);
+  emailRouter.route('/remove-non-hgn-email-subscription').post(removeNonHgnEmailSubscription);
   return emailRouter;
 };
 
