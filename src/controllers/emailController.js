@@ -79,8 +79,28 @@ const sendEmail = async (req, res) => {
     const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
 
     try {
-      await emailSender(to, subject, processedHtml, attachments);
-      res.status(200).send(`Email sent successfully to ${to}`);
+      // Convert to array if it's a string
+      const recipientsArray = Array.isArray(to) ? to : [to];
+
+      if (recipientsArray.length === 1) {
+        // Single recipient - use TO field
+        await emailSender(to, subject, processedHtml, attachments);
+      } else {
+        // Multiple recipients - use BCC to hide recipient list
+        // Send to self (sender) as primary recipient, then BCC all actual recipients
+        const senderEmail = req.body.fromEmail || 'updates@onecommunityglobal.org';
+        await emailSender(
+          senderEmail,
+          subject,
+          processedHtml,
+          attachments,
+          null,
+          null,
+          recipientsArray,
+        );
+      }
+
+      res.status(200).send(`Email sent successfully to ${recipientsArray.length} recipient(s)`);
     } catch (emailError) {
       console.error('Error sending email:', emailError);
       res.status(500).send('Error sending email');
