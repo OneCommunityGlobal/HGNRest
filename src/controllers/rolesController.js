@@ -76,24 +76,44 @@ const rolesController = function (Role) {
     }
 
     const { roleId } = req.params;
+
     try {
       const role = await Role.findById(roleId);
-      await role.remove();
-      await UserProfile.updateMany({ role: role.roleName }, { role: 'Volunteer' });
+      if (!role) {
+        return res.status(404).send({ error: 'Role not found' });
+      }
+      const roleToDelete = role.roleName;
+      await role.deleteOne();
+
+      const updateResult = await UserProfile.updateMany(
+        { role: roleToDelete },
+        { $set: { role: 'Volunteer' } },
+      );
+
+      console.log(
+        `Updated ${updateResult.modifiedCount} users from role "${roleToDelete}" to "Volunteer"`,
+      );
 
       if (cache.hasCache('allusers')) {
         const allUserData = JSON.parse(cache.getCache('allusers'));
-        allUserData.forEach((user) => {
-          if (user.role === role.roleName) {
+
+        const updatedUsers = allUserData.map((user) => {
+          if (user.role === roleToDelete) {
             user.role = 'Volunteer';
             cache.removeCache(`user-${user._id}`);
           }
+          return user;
         });
-        cache.setCache('allusers', JSON.stringify(allUserData));
+
+        cache.setCache('allusers', JSON.stringify(updatedUsers));
       }
-      res.status(200).send({ message: 'Deleted role' });
+
+      return res.status(200).send({
+        message: `Deleted role "${roleToDelete}" and reassigned affected users to Volunteer`,
+      });
     } catch (error) {
-      res.status(400).send({ error });
+      console.error('Error deleting role:', error);
+      return res.status(500).send({ error: 'Failed to delete role' });
     }
   };
 
