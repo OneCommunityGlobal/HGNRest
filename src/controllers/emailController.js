@@ -28,8 +28,10 @@ const handleContentToNonOC = (htmlContent, email) =>
         </head>
         <body>
           ${htmlContent}
-          <p> Thank you for subscribing to our email updates!</p>
-          <p> If you would like to unsubscribe, please click <a href="${frontEndUrl}/email-unsubscribe?email=${email}">here</a></p>
+          <p style="text-align: center; margin-top: 20px; font-size: 12px; color: #666;">
+            If you would like to unsubscribe from these emails, please click 
+            <a href="${frontEndUrl}/email-unsubscribe?email=${email}" style="color: #0066cc; text-decoration: underline;">here</a>
+          </p>
         </body>
       </html>`;
 
@@ -76,13 +78,13 @@ const sendEmail = async (req, res) => {
 
     const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
 
-    await emailSender(to, subject, processedHtml, attachments)
-      .then(() => {
-        res.status(200).send(`Email sent successfully to ${to}`);
-      })
-      .catch(() => {
-        res.status(500).send('Error sending email');
-      });
+    try {
+      await emailSender(to, subject, processedHtml, attachments);
+      res.status(200).send(`Email sent successfully to ${to}`);
+    } catch (emailError) {
+      console.error('Error sending email:', emailError);
+      res.status(500).send('Error sending email');
+    }
   } catch (error) {
     return res.status(500).send('Error sending email');
   }
@@ -102,35 +104,43 @@ const sendEmailToAll = async (req, res) => {
 
     const { html: processedHtml, attachments } = extractImagesAndCreateAttachments(html);
 
+    // HGN Users logic
     const users = await userProfile.find({
-      firstName: '',
+      firstName: { $ne: '' },
       email: { $ne: null },
       isActive: true,
       emailSubscriptions: true,
     });
-    if (users.length === 0) {
-      return res.status(404).send('No users found');
-    }
 
-    const recipientEmails = users.map((user) => user.email);
-    console.log('# sendEmailToAll to', recipientEmails.join(','));
-    if (recipientEmails.length === 0) {
-      throw new Error('No recipients defined');
+    if (users.length > 0) {
+      const recipientEmails = users.map((user) => user.email);
+      console.log('# sendEmailToAll to HGN users:', recipientEmails.length);
+      const emailContentToOCmembers = handleContentToOC(processedHtml);
+      await Promise.all(
+        recipientEmails.map((email) =>
+          emailSender(email, subject, emailContentToOCmembers, attachments),
+        ),
+      );
+    } else {
+      console.log('# sendEmailToAll: No HGN users found with email subscriptions');
     }
-    const emailContentToOCmembers = handleContentToOC(processedHtml);
-    await Promise.all(
-      recipientEmails.map((email) =>
-        emailSender(email, subject, emailContentToOCmembers, attachments),
-      ),
-    );
-    const emailSubscribers = await EmailSubcriptionList.find({ email: { $exists: true, $ne: '' } });
+    const emailSubscribers = await EmailSubcriptionList.find({
+      email: { $exists: true, $ne: '' },
+      isConfirmed: true,
+      emailSubscriptions: true,
+    });
     console.log('# sendEmailToAll emailSubscribers', emailSubscribers.length);
-    await Promise.all(
-      emailSubscribers.map(({ email }) => {
-        const emailContentToNonOCmembers = handleContentToNonOC(processedHtml, email);
-        return emailSender(email, subject, emailContentToNonOCmembers, attachments);
-      }),
-    );
+
+    if (emailSubscribers.length > 0) {
+      await Promise.all(
+        emailSubscribers.map(({ email }) => {
+          const emailContentToNonOCmembers = handleContentToNonOC(processedHtml, email);
+          return emailSender(email, subject, emailContentToNonOCmembers, attachments);
+        }),
+      );
+    } else {
+      console.log('# sendEmailToAll: No confirmed email subscribers found');
+    }
     return res.status(200).send('Email sent successfully');
   } catch (error) {
     console.error('Error sending email:', error);
@@ -166,26 +176,38 @@ const addNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).send('Email already exists');
     }
 
-    // Save to DB immediately
-    const newEmailList = new EmailSubcriptionList({ email });
+    // Save to DB immediately with confirmation pending
+    const newEmailList = new EmailSubcriptionList({
+      email,
+      isConfirmed: false,
+      emailSubscriptions: true,
+    });
     await newEmailList.save();
 
     // Optional: Still send confirmation email
     const payload = { email };
-    const token = jwt.sign(payload, jwtSecret, { expiresIn: 360 });
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: '360' });
     const emailContent = `
       <!DOCTYPE html>
       <html>
         <head><meta charset="utf-8"></head>
         <body>
           <p>Thank you for subscribing to our email updates!</p>
-          <p><a href="${frontEndUrl}/email-subscribe?token=${token}">Click here to confirm your email</a></p>
+          <p><a href="${frontEndUrl}/subscribe?token=${token}">Click here to confirm your email</a></p>
         </body>
       </html>
     `;
 
-    emailSender(email, 'HGN Email Subscription', emailContent);
-    return res.status(200).send('Email subscribed successfully');
+    try {
+      await emailSender(email, 'HGN Email Subscription', emailContent);
+      return res.status(200).send('Email subscribed successfully');
+    } catch (emailError) {
+      console.error('Error sending confirmation email:', emailError);
+      // Still return success since the subscription was saved to DB
+      return res
+        .status(200)
+        .send('Email subscribed successfully (confirmation email failed to send)');
+    }
   } catch (error) {
     console.error('Error adding email subscription:', error);
     res.status(500).send('Error adding email subscription');
@@ -210,15 +232,29 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).send('Invalid token');
     }
     try {
-      const newEmailList = new EmailSubcriptionList({ email });
-      await newEmailList.save();
+      // Update existing subscription to confirmed, or create new one
+      const existingSubscription = await EmailSubcriptionList.findOne({ email });
+      if (existingSubscription) {
+        existingSubscription.isConfirmed = true;
+        existingSubscription.confirmedAt = new Date();
+        existingSubscription.emailSubscriptions = true;
+        await existingSubscription.save();
+      } else {
+        const newEmailList = new EmailSubcriptionList({
+          email,
+          isConfirmed: true,
+          confirmedAt: new Date(),
+          emailSubscriptions: true,
+        });
+        await newEmailList.save();
+      }
     } catch (error) {
       if (error.code === 11000) {
         return res.status(200).send('Email already exists');
       }
     }
     // console.log('email', email);
-    return res.status(200).send('Email subsribed successfully');
+    return res.status(200).send('Email subscribed successfully');
   } catch (error) {
     console.error('Error updating email subscriptions:', error);
     return res.status(500).send('Error updating email subscriptions');
@@ -234,7 +270,7 @@ const removeNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).send('Email is required');
     }
 
-    // Try to delete the email
+    // Try to delete the email subscription completely
     const deletedEntry = await EmailSubcriptionList.findOneAndDelete({
       email: { $eq: email },
     });
@@ -244,7 +280,7 @@ const removeNonHgnEmailSubscription = async (req, res) => {
       return res.status(404).send('Email not found or already unsubscribed');
     }
 
-    return res.status(200).send('Email unsubscribed successfully');
+    return res.status(200).send('Email unsubscribed and removed from subscription list');
   } catch (error) {
     return res.status(500).send('Server error while unsubscribing');
   }
