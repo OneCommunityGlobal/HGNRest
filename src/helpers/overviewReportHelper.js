@@ -1217,7 +1217,20 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   isActive: true,
+                  role: { $ne: 'Mentor' },
                   createdDate: { $lte: isoEndDate },
+                },
+              },
+              { $count: 'count' },
+            ],
+            mentors: [
+              {
+                $match: {
+                  isActive: true,
+                  role: 'Mentor',
+                  createdDate: {
+                    $lte: isoEndDate,
+                  },
                 },
               },
               { $count: 'count' },
@@ -1250,12 +1263,14 @@ const overviewReportHelper = function () {
       ]);
 
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
+      const mentors = data[0].mentors[0]?.count || 0;
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
-      const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
+      const totalVolunteers = activeVolunteers + mentors + newVolunteers + deactivatedVolunteers;
 
       return {
         activeVolunteers,
+        mentors,
         newVolunteers,
         deactivatedVolunteers,
         totalVolunteers,
@@ -1265,6 +1280,7 @@ const overviewReportHelper = function () {
     // Get data for the current time range
     const {
       activeVolunteers: currentActiveVolunteers,
+      mentors: currentMentors,
       newVolunteers: currentNewVolunteers,
       deactivatedVolunteers: currentDeactivatedVolunteers,
       totalVolunteers: currentTotalVolunteers,
@@ -1274,17 +1290,30 @@ const overviewReportHelper = function () {
       activeVolunteers: {
         count: currentActiveVolunteers,
         percentageOutOfTotal:
-          Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
+          currentTotalVolunteers > 0
+            ? Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100
+            : 0,
+      },
+      mentors: {
+        count: currentMentors,
+        percentageOutOfTotal:
+          currentTotalVolunteers > 0
+            ? Math.round((currentMentors / currentTotalVolunteers) * 100) / 100
+            : 0,
       },
       newVolunteers: {
         count: currentNewVolunteers,
         percentageOutOfTotal:
-          Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+          currentTotalVolunteers > 0
+            ? Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100
+            : 0,
       },
       deactivatedVolunteers: {
         count: currentDeactivatedVolunteers,
         percentageOutOfTotal:
-          Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
+          currentTotalVolunteers > 0
+            ? Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100
+            : 0,
       },
       totalVolunteers: { count: currentTotalVolunteers },
     };
@@ -1293,6 +1322,7 @@ const overviewReportHelper = function () {
     if (comparisonStartDate && comparisonEndDate) {
       const {
         activeVolunteers: comparisonActiveVolunteers,
+        mentors: comparisonMentors,
         newVolunteers: comparisonNewVolunteers,
         deactivatedVolunteers: comparisonDeactivatedVolunteers,
         totalVolunteers: comparisonTotalVolunteers,
@@ -1302,6 +1332,10 @@ const overviewReportHelper = function () {
       res.activeVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentActiveVolunteers,
         comparisonActiveVolunteers,
+      );
+      res.mentors.comparisonPercentage = calculateGrowthPercentage(
+        currentMentors,
+        comparisonMentors,
       );
       res.newVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentNewVolunteers,
