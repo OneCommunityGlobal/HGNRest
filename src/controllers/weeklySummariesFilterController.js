@@ -1,5 +1,23 @@
 const WeeklySummariesFilter = require('../models/weeklySummariesFilter');
 const UserProfile = require('../models/userProfile');
+const { hasPermission } = require('../utilities/permissions');
+
+const hasManageFilterPermission = async function (req) {
+  const requestor = await UserProfile.findById(req.body.requestor.requestorId)
+    .select('firstName lastName email role')
+    .exec();
+
+  if (!requestor) {
+    return false;
+  }
+  if (requestor.role === 'Owner' || requestor.role === 'Administrator') {
+    return true;
+  }
+  if (await hasPermission(requestor, 'manageSummariesFilters')) {
+    return true;
+  }
+  return false;
+};
 
 module.exports = () => ({
   getFilters: async (req, res) => {
@@ -13,6 +31,11 @@ module.exports = () => ({
 
   createFilter: async (req, res) => {
     try {
+      if (!(await hasManageFilterPermission(req))) {
+        return res
+          .status(401)
+          .json({ error: 'You do not have permission to perform this action.' });
+      }
       const filter = new WeeklySummariesFilter(req.body);
 
       if (!filter.filterName) {
@@ -43,6 +66,11 @@ module.exports = () => ({
 
   replaceFilter: async (req, res) => {
     try {
+      if (!(await hasManageFilterPermission(req))) {
+        return res
+          .status(401)
+          .json({ error: 'You do not have permission to perform this action.' });
+      }
       const updatedFilter = await WeeklySummariesFilter.findByIdAndUpdate(req.params.id, req.body, {
         new: true,
         runValidators: true,
@@ -58,6 +86,11 @@ module.exports = () => ({
 
   updateFilter: async (req, res) => {
     try {
+      if (!(await hasManageFilterPermission(req))) {
+        return res
+          .status(401)
+          .json({ error: 'You do not have permission to perform this action.' });
+      }
       const updatedFilter = await WeeklySummariesFilter.findByIdAndUpdate(
         req.params.id,
         { $set: req.body }, // only update provided fields
@@ -74,6 +107,11 @@ module.exports = () => ({
 
   deleteFilter: async (req, res) => {
     try {
+      if (!(await hasManageFilterPermission(req))) {
+        return res
+          .status(401)
+          .json({ error: 'You do not have permission to perform this action.' });
+      }
       const deleted = await WeeklySummariesFilter.findByIdAndDelete(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: 'Filter not found' });
@@ -90,6 +128,7 @@ module.exports = () => ({
     if (!oldTeamCode || !newTeamCode || !userId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
     try {
       // Remove member that is selected extra members in filter that have newTeamCode
       const filters = await WeeklySummariesFilter.find({
