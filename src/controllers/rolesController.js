@@ -1,9 +1,9 @@
 const UserProfile = require('../models/userProfile');
-const cacheClosure = require('../utilities/nodeCache');
+// const cacheClosure = require('../utilities/nodeCache');
 const { hasPermission } = require('../utilities/permissions');
 
 const rolesController = function (Role) {
-  const cache = cacheClosure();
+  // const cache = cacheClosure();
   const getAllRoles = function (req, res) {
     Role.find({})
       .then((results) => res.status(200).send(results))
@@ -71,8 +71,7 @@ const rolesController = function (Role) {
 
   const deleteRoleById = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'deleteRole'))) {
-      res.status(403).send('You are not authorized to delete roles.');
-      return;
+      return res.status(403).send('You are not authorized to delete roles.');
     }
 
     const { roleId } = req.params;
@@ -82,31 +81,10 @@ const rolesController = function (Role) {
       if (!role) {
         return res.status(404).send({ error: 'Role not found' });
       }
+
       const roleToDelete = role.roleName;
-      await role.deleteOne();
-
-      const updateResult = await UserProfile.updateMany(
-        { role: roleToDelete },
-        { $set: { role: 'Volunteer' } },
-      );
-
-      console.log(
-        `Updated ${updateResult.modifiedCount} users from role "${roleToDelete}" to "Volunteer"`,
-      );
-
-      if (cache.hasCache('allusers')) {
-        const allUserData = JSON.parse(cache.getCache('allusers'));
-
-        const updatedUsers = allUserData.map((user) => {
-          if (user.role === roleToDelete) {
-            user.role = 'Volunteer';
-            cache.removeCache(`user-${user._id}`);
-          }
-          return user;
-        });
-
-        cache.setCache('allusers', JSON.stringify(updatedUsers));
-      }
+      await Role.deleteOne({ _id: roleId });
+      await UserProfile.updateMany({ role: roleToDelete }, { $set: { role: 'Volunteer' } });
 
       return res.status(200).send({
         message: `Deleted role "${roleToDelete}" and reassigned affected users to Volunteer`,
