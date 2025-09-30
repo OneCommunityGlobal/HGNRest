@@ -75,6 +75,7 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
+const toolRentalUsageCost = require('../models/bmdashboard/bmToolRentalCost');
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -180,6 +181,9 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 );
 
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const bmToolRentalCostRouter = require('../routes/bmdashboard/bmToolRentalCostRouter')(
+  toolRentalUsageCost,
+);
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
@@ -374,6 +378,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm', bmToolRentalCostRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
