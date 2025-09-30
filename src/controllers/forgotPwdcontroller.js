@@ -37,12 +37,15 @@ const forgotPwdController = function (userProfile) {
       try {
         await user.save();
 
-        await emailSender.sendEmail(
+        await emailSender(
           user.email,
           'Account Password change',
           getEmailMessageForForgotPassword(user, ranPwd),
           null,
           null,
+          null,
+          null,
+          { type: 'password_reset' },
         );
 
         logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
