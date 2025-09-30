@@ -84,6 +84,38 @@ module.exports = () => ({
     }
   },
 
+  updateFilterWithIndividualCodeChange: async (req, res) => {
+    const { oldTeamCode, newTeamCode, userId } = req.body;
+
+    if (!oldTeamCode || !newTeamCode || !userId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    try {
+      // Remove member that is selected extra members in filter that have newTeamCode
+      const filters = await WeeklySummariesFilter.find({
+        selectedExtraMembers: userId,
+        selectedCodes: newTeamCode,
+      });
+
+      await Promise.all(
+        filters.map(async (filter) => {
+          filter.selectedExtraMembers = filter.selectedExtraMembers.filter(
+            (memberId) => memberId !== userId,
+          );
+          await filter.save();
+        }),
+      );
+
+      res.json({
+        message: 'Filters updated successfully',
+        updatedCount: filters.length,
+      });
+    } catch (err) {
+      console.error('Update failed:', err);
+      res.status(500).json({ error: 'Update failed', details: err.message });
+    }
+  },
+
   updateFiltersWithReplacedTeamCode: async (req, res) => {
     const { oldTeamCodes, newTeamCode } = req.body;
 

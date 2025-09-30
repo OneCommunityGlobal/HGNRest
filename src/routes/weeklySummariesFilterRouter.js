@@ -16,6 +16,10 @@ module.exports = function () {
     '/weeklySummariesFilters/replaceTeamcodes',
     controller.updateFiltersWithReplacedTeamCode,
   );
+  router.post(
+    '/weeklySummariesFilters/replaceIndividualTeamcodes',
+    controller.updateFilterWithIndividualCodeChange,
+  );
 
   return router;
 };
