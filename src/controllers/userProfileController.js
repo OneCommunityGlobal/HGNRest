@@ -191,6 +191,7 @@ const userProfileController = function (UserProfile, Project) {
             endDate: 1,
             timeZone: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
+            infringementCCList: { $ifNull: ['$infringementCCList', []] },
             jobTitle: {
               $cond: {
                 if: { $isArray: '$jobTitle' },
@@ -579,14 +580,16 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
+        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
+    // fix linting error
+    // const canEditTeamCode =
+    //   req.body.requestor.role === 'Owner' ||
+    //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
+    if (!isRequestorAuthorized) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -701,7 +704,7 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
+      if (req.body.adminLinks !== undefined) {
         record.adminLinks = req.body.adminLinks;
       }
 
@@ -748,27 +751,61 @@ const userProfileController = function (UserProfile, Project) {
         }
 
         if (req.body.projects !== undefined) {
-          const newProjects = req.body.projects.map((project) => project._id.toString());
+          // Normalize incoming projects to a deduped array of string IDs
+          const normalizeToIdString = (p) => {
+            if (!p) return null;
+            if (typeof p === 'string') return p.trim();
+            if (typeof p === 'object' && p._id) return String(p._id);
+            if (typeof p === 'object' && p.id) return String(p.id);
+            if (typeof p === 'object' && p.projectId) return String(p.projectId);
+            return null;
+          };
 
-          // check if the projects have changed
+          const incomingIdsRaw = Array.isArray(req.body.projects)
+            ? req.body.projects
+            : [req.body.projects];
+          const incomingIdStrings = Array.from(
+            new Set(
+              incomingIdsRaw
+                .map(normalizeToIdString)
+                .filter(Boolean)
+                .map((s) => s.trim()),
+            ),
+          );
+
+          // Validate all incoming IDs are valid ObjectIds
+          const invalidIds = incomingIdStrings.filter((id) => !mongoose.Types.ObjectId.isValid(id));
+          if (invalidIds.length) {
+            return res.status(400).send({
+              error: 'One or more project ids are invalid',
+              invalidProjectIds: invalidIds,
+            });
+          }
+
+          // Existing projects on the record (may be ObjectIds or strings); normalize safely
+          const currentIdStrings = Array.isArray(record.projects)
+            ? record.projects.filter(Boolean).map((id) => String(id))
+            : [];
+
+          // Compare sets to determine if anything actually changed
+          const curSet = new Set(currentIdStrings);
+          const newSet = new Set(incomingIdStrings);
+
           const projectsChanged =
-            !record.projects.every((id) => newProjects.includes(id.toString())) ||
-            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+            currentIdStrings.length !== incomingIdStrings.length ||
+            currentIdStrings.some((id) => !newSet.has(id));
 
           if (projectsChanged) {
-            // store the old projects for comparison
-            const oldProjects = record.projects.map((id) => id.toString());
+            const addedIds = incomingIdStrings.filter((id) => !curSet.has(id));
+            const removedIds = currentIdStrings.filter((id) => !newSet.has(id));
 
-            // update the projects
-            record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
+            // Apply updates to the user record
+            record.projects = incomingIdStrings.map((id) => new mongoose.Types.ObjectId(id));
 
-            const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
-            const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
-
-            const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
-              mongoose.Types.ObjectId(id),
+            // Touch membersModifiedDatetime for changed projects
+            const changedProjectIds = [...addedIds, ...removedIds].map(
+              (id) => new mongoose.Types.ObjectId(id),
             );
-
             if (changedProjectIds.length > 0) {
               const now = new Date();
               Project.updateMany(
@@ -1672,7 +1709,7 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.find({
       $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
-      .select('firstName lastName')
+      .select('firstName lastName isActive')
       // eslint-disable-next-line consistent-return
       .then((users) => {
         if (users.length === 0) {
@@ -1795,6 +1832,8 @@ const userProfileController = function (UserProfile, Project) {
       const originalinfringements = record?.infringements ?? [];
       record.infringements = originalinfringements.concat(req.body.blueSquare);
 
+      const ccList = (record?.infringementCCList ?? []).map((cc) => cc.email);
+
       record
         .save()
         .then(async (results) => {
@@ -1808,6 +1847,7 @@ const userProfileController = function (UserProfile, Project) {
             results.startDate,
             results.jobTitle[0],
             results.weeklycommittedHours,
+            ccList,
           );
           res.status(200).json({
             _id: record._id,

@@ -56,13 +56,13 @@ describe('TitleController', () => {
     // Setup mocks
     const Project = require('../models/project');
     Project.findOne = mockProject.findOne;
-    
+
     const cacheClosure = require('../utilities/nodeCache');
     cacheClosure.mockReturnValue(mockCache);
-    
+
     const userProfileController = require('./userProfileController');
     userProfileController.mockReturnValue(mockUserProfileController);
-    
+
     const userProfile = require('../models/userProfile');
     userProfile.updateMany = mockUserProfile.updateMany;
 
@@ -136,7 +136,7 @@ describe('TitleController', () => {
         teamAssiged: mockReq.body.teamAssiged,
         save: jest.fn(),
       }));
-      
+
       const testController = titleController(MockTitleConstructor);
 
       await testController.postTitle(mockReq, mockRes);
@@ -166,7 +166,7 @@ describe('TitleController', () => {
         teamAssiged: mockReq.body.teamAssiged,
         save: jest.fn(),
       }));
-      
+
       const testController = titleController(MockTitleConstructor);
 
       await testController.postTitle(mockReq, mockRes);
@@ -196,7 +196,7 @@ describe('TitleController', () => {
         teamAssiged: mockReq.body.teamAssiged,
         save: jest.fn(),
       }));
-      
+
       const testController = titleController(MockTitleConstructor);
 
       await testController.postTitle(mockReq, mockRes);
@@ -226,7 +226,7 @@ describe('TitleController', () => {
         teamAssiged: mockReq.body.teamAssiged,
         save: jest.fn(),
       }));
-      
+
       const testController = titleController(MockTitleConstructor);
 
       await testController.postTitle(mockReq, mockRes);
@@ -256,7 +256,7 @@ describe('TitleController', () => {
         teamAssiged: mockReq.body.teamAssiged,
         save: jest.fn(),
       }));
-      
+
       const testController = titleController(MockTitleConstructor);
 
       await testController.postTitle(mockReq, mockRes);
@@ -450,4 +450,4 @@ describe('TitleController', () => {
       });
     });
   });
-}); 
+});
