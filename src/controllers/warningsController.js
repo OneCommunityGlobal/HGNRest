@@ -60,7 +60,7 @@ const filterWarnings = (warnings) => {
     title: descrip,
     warnings: warns[descrip] || [],
   }));
-  
+
   return completedData;
 };
 

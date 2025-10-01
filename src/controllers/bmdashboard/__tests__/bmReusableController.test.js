@@ -48,7 +48,7 @@ describe('bmReusableController', () => {
     // Don't create circular references in the mock
     const thenFn = function (/* callback */) {
       return {
-        catch (/* errorCallback */) {
+        catch(/* errorCallback */) {
           // This is just a placeholder that will be overridden in tests
         },
       };
@@ -58,11 +58,14 @@ describe('bmReusableController', () => {
 
     // Mock constructor behavior separately
     const originalModule = jest.requireActual('../bmReusableController');
-    jest.spyOn(global, 'Function').mockImplementation(() => function MockConstructor(data) {
-        this.save = jest.fn().mockResolvedValue({});
-        Object.assign(this, data);
-        return this;
-      });
+    jest.spyOn(global, 'Function').mockImplementation(
+      () =>
+        function MockConstructor(data) {
+          this.save = jest.fn().mockResolvedValue({});
+          Object.assign(this, data);
+          return this;
+        },
+    );
 
     // We need to mock the constructor function
     const mockConstructor = function (data) {
@@ -74,13 +77,17 @@ describe('bmReusableController', () => {
     };
 
     // Replace the normal require with a function that injects our mock
-    jest.doMock('../bmReusableController', () => function (BuildingReusable) {
-        // Return the original controller with our modified constructor
-        if (!BuildingReusable) {
-          BuildingReusable = mockConstructor;
-        }
-        return originalModule(BuildingReusable);
-      });
+    jest.doMock(
+      '../bmReusableController',
+      () =>
+        function (BuildingReusable) {
+          // Return the original controller with our modified constructor
+          if (!BuildingReusable) {
+            BuildingReusable = mockConstructor;
+          }
+          return originalModule(BuildingReusable);
+        },
+    );
 
     bmReusableController = require('../bmReusableController')(BuildingReusableMock);
 
@@ -290,10 +297,10 @@ describe('bmReusableController', () => {
       const error = new Error('Update failed');
       BuildingReusableMock.updateOne.mockReturnValue({
         then: jest.fn().mockImplementation((/* callback */) => ({
-            catch: jest.fn().mockImplementation((errCallback) => {
-              errCallback(error);
-            }),
-          })),
+          catch: jest.fn().mockImplementation((errCallback) => {
+            errCallback(error);
+          }),
+        })),
       });
 
       // Execute
