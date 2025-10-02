@@ -13,7 +13,7 @@ const questionnaireAnalyticsController = function () {
       }
 
       const skillPaths = Object.entries(skills).flatMap(([domain, list]) =>
-        list.map((skill) => `$${domain}.${skill}`)
+        list.map((skill) => `$${domain}.${skill}`),
       );
 
       const profile = await userProfile.findById(requestor.requestorId).lean();
@@ -38,10 +38,7 @@ const questionnaireAnalyticsController = function () {
             isSameTeam: {
               $cond: {
                 if: {
-                  $and: [
-                    { $isArray: '$profile.teams' },
-                    { $gt: [{ $size: '$profile.teams' }, 0] },
-                  ],
+                  $and: [{ $isArray: '$profile.teams' }, { $gt: [{ $size: '$profile.teams' }, 0] }],
                 },
                 then: {
                   $gt: [
@@ -105,7 +102,7 @@ const questionnaireAnalyticsController = function () {
             avg_score: 1,
             isSameTeam: 1,
           },
-        }
+        },
       );
 
       const users = await FormResponse.aggregate(basePipeline);
@@ -122,4 +119,3 @@ const questionnaireAnalyticsController = function () {
 };
 
 module.exports = questionnaireAnalyticsController;
-
