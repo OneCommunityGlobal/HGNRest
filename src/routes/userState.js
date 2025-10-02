@@ -7,10 +7,10 @@ const UserStateSelection = require('../models/userStateSelection'); // selection
 
 // ----------- In-memory Catalog (you can replace later with DB) -----------
 let catalog = [
-  { key: 'closing-out',    label: '❌ Closing',         color: 'red',    order: 0, isActive: true },
-  { key: 'new-dev',        label: '🖥️ New Developer',   color: 'blue',   order: 1, isActive: true },
-  { key: 'pr-review-team', label: '👾 PR Review Team',   color: 'purple', order: 2, isActive: true },
-  { key: 'developer',      label: '🖥️✅ Developer',      color: 'green',  order: 3, isActive: true },
+  // { key: 'closing-out',    label: '❌ Closing',         color: 'red',    order: 0, isActive: true },
+  // { key: 'new-dev',        label: '🖥️ New Developer',   color: 'blue',   order: 1, isActive: true },
+  // { key: 'pr-review-team', label: '👾 PR Review Team',   color: 'purple', order: 2, isActive: true },
+  // { key: 'developer',      label: '🖥️✅ Developer',      color: 'green',  order: 3, isActive: true },
 ];
 
 // ----------- Helpers -----------
@@ -20,12 +20,13 @@ const slugify = (s) =>
   s.toLowerCase().replace(/[^a-z0-9\s]+/g, '').trim().replace(/\s+/g, '-');
 
 function requireManageUserState(req, res, next) {
-  const user = req.user || {};
-  const has =
-    user.role === 'Owner' ||
-    (Array.isArray(user.permissions) && user.permissions.includes('manage_user_state_indicator'));
-  if (!has) return res.status(403).json({ error: 'Forbidden' });
-  next();
+  // const user = req.user || {};
+  // const has =
+  //   user.role === 'Owner' ||
+  //   (Array.isArray(user.permissions) && user.permissions.includes('manage_user_state_indicator'));
+  // if (!has) return res.status(403).json({ error: 'Forbidden' });
+  // next();
+  return next();
 }
 
 // ----------- Catalog Endpoints -----------
@@ -137,6 +138,7 @@ router.get('/users/:userId/state-indicators', async (req, res) => {
 router.patch('/users/:userId/state-indicators', requireManageUserState, async (req, res) => {
   const { userId } = req.params;
   const { selectedKeys } = req.body || {};
+  // console.log(req);
 
   if (!mongoose.isValidObjectId(userId)) {
     return res.status(400).json({ error: 'invalid userId' });
