@@ -1797,7 +1797,6 @@ const overviewReportHelper = function () {
       { $sort: { code: 1 } },
     ]).allowDiskUse(true);
 
-    // If the frontend expects plain strings:
     // return results.map(r => r.code);
 
     return results; // [{ code: 'Zn2CODE', activeCount: 5 }, ...]
@@ -2034,6 +2033,7 @@ const overviewReportHelper = function () {
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
     getTeamsWithActiveMembers,
+    getCurrentTeamCodes,
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
     getTotalSummariesSubmitted,
