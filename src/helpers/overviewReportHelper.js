@@ -504,6 +504,7 @@ const overviewReportHelper = function () {
             firstName: 1,
             lastName: 1,
             email: 1,
+            createdDate: 1,
             profilePic: { $ifNull: ['$profilePic', null] },
           },
         },
