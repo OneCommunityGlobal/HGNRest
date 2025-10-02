@@ -1832,6 +1832,8 @@ const userProfileController = function (UserProfile, Project) {
       const originalinfringements = record?.infringements ?? [];
       record.infringements = originalinfringements.concat(req.body.blueSquare);
 
+      const ccList = (record?.infringementCCList ?? []).map((cc) => cc.email);
+
       record
         .save()
         .then(async (results) => {
@@ -1845,6 +1847,7 @@ const userProfileController = function (UserProfile, Project) {
             results.startDate,
             results.jobTitle[0],
             results.weeklycommittedHours,
+            ccList,
           );
           res.status(200).json({
             _id: record._id,
