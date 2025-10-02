@@ -75,6 +75,7 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const tag = require('../models/tag');
+const educationTask = require('../models/educationTask');
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -261,6 +262,7 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
+const educationTaskRouter = require('../routes/educationTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
@@ -335,6 +337,7 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api/education-tasks', educationTaskRouter);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
