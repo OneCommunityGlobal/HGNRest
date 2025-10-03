@@ -1,9 +1,9 @@
 
 
-const warningsController = require('./warningsController');
 
 const UserProfile = require('../models/userProfile');
 const { mockReq, mockRes } = require('../test');
+const warningsController = require('./warningsController');
 
 const makeSut = () => {
   const { getWarningsByUserId, postWarningsToUserProfile, deleteUsersWarnings } =
