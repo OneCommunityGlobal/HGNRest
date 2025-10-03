@@ -1328,6 +1328,17 @@ const overviewReportHelper = function () {
    * Aggregates total number of hours worked across all volunteers within the specified date range
    */
   async function getTotalHoursWorked(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    // Validate date parameters
+    const validation = validateDateParameters(
+      startDate,
+      endDate,
+      comparisonStartDate,
+      comparisonEndDate,
+    );
+    if (!validation.isValid) {
+      return { error: validation.error };
+    }
+
     if (!comparisonStartDate && !comparisonEndDate) {
       const data = await TimeEntries.aggregate([
         {
@@ -1352,7 +1363,7 @@ const overviewReportHelper = function () {
         },
       ]);
 
-      return { current: data[0].totalHours };
+      return { current: data[0]?.totalHours || 0 };
     }
     const data = await TimeEntries.aggregate([
       {

@@ -183,7 +183,7 @@ const reportsController = function () {
         ),
       ]);
 
-      // Check for validation errors in pie chart functions
+      // Check for validation errors in functions that use date parameters
       if (volunteerHoursStats && volunteerHoursStats.error) {
         console.log('Date validation error in volunteerHoursStats:', volunteerHoursStats.error);
         return res.status(400).json({
@@ -196,6 +196,14 @@ const reportsController = function () {
         console.log('Date validation error in workDistributionStats:', workDistributionStats.error);
         return res.status(400).json({
           msg: workDistributionStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
+      if (totalHoursWorked && totalHoursWorked.error) {
+        console.log('Date validation error in totalHoursWorked:', totalHoursWorked.error);
+        return res.status(400).json({
+          msg: totalHoursWorked.error,
           error: 'Invalid date parameters',
         });
       }
