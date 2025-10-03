@@ -46,6 +46,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       // User Profile
+      'accessPRTeamDashboard',
       'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
@@ -191,6 +192,7 @@ const permissionsRoles = [
   {
     roleName: 'Owner',
     permissions: [
+      'accessPRTeamDashboard',
       'postRole',
       'deleteRole',
       'putRole',
