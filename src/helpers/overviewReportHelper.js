@@ -21,6 +21,88 @@ function calculateGrowthPercentage(current, prev) {
   return Math.round(percentage * 100) / 100;
 }
 
+/**
+ * Validates date parameters for pie chart functions
+ * @param {string|Date} startDate - Start date to validate
+ * @param {string|Date} endDate - End date to validate
+ * @param {string|Date} comparisonStartDate - Comparison start date (optional)
+ * @param {string|Date} comparisonEndDate - Comparison end date (optional)
+ * @returns {Object} - { isValid: boolean, error: string|null }
+ */
+function validateDateParameters(
+  startDate,
+  endDate,
+  comparisonStartDate = null,
+  comparisonEndDate = null,
+) {
+  // Check if dates are provided
+  if (!startDate || !endDate) {
+    return {
+      isValid: false,
+      error: 'Start date and end date are required',
+    };
+  }
+
+  // Validate start date
+  const startMoment = moment(startDate);
+  if (!startMoment.isValid()) {
+    return {
+      isValid: false,
+      error: `Invalid start date format: ${startDate}. Please use a valid date format (YYYY-MM-DD, ISO string, or Date object)`,
+    };
+  }
+
+  // Validate end date
+  const endMoment = moment(endDate);
+  if (!endMoment.isValid()) {
+    return {
+      isValid: false,
+      error: `Invalid end date format: ${endDate}. Please use a valid date format (YYYY-MM-DD, ISO string, or Date object)`,
+    };
+  }
+
+  // Check if start date is after end date
+  if (startMoment.isAfter(endMoment)) {
+    return {
+      isValid: false,
+      error: `Start date (${startDate}) cannot be after end date (${endDate})`,
+    };
+  }
+
+  // Validate comparison dates if provided
+  if (comparisonStartDate && comparisonEndDate) {
+    const comparisonStartMoment = moment(comparisonStartDate);
+    if (!comparisonStartMoment.isValid()) {
+      return {
+        isValid: false,
+        error: `Invalid comparison start date format: ${comparisonStartDate}. Please use a valid date format (YYYY-MM-DD, ISO string, or Date object)`,
+      };
+    }
+
+    const comparisonEndMoment = moment(comparisonEndDate);
+    if (!comparisonEndMoment.isValid()) {
+      return {
+        isValid: false,
+        error: `Invalid comparison end date format: ${comparisonEndDate}. Please use a valid date format (YYYY-MM-DD, ISO string, or Date object)`,
+      };
+    }
+
+    if (comparisonStartMoment.isAfter(comparisonEndMoment)) {
+      return {
+        isValid: false,
+        error: `Comparison start date (${comparisonStartDate}) cannot be after comparison end date (${comparisonEndDate})`,
+      };
+    }
+  } else if (comparisonStartDate || comparisonEndDate) {
+    return {
+      isValid: false,
+      error: 'Both comparison start date and comparison end date must be provided together',
+    };
+  }
+
+  return { isValid: true, error: null };
+}
+
 const overviewReportHelper = function () {
   /*
    * Get volunteers completed assigned hours.
@@ -814,6 +896,12 @@ const overviewReportHelper = function () {
    * Food, Energy, Housing, Stewardship, Society, Economics and Other
    */
   async function getWorkDistributionStats(startDate, endDate) {
+    // Validate date parameters
+    const validation = validateDateParameters(startDate, endDate);
+    if (!validation.isValid) {
+      return { error: validation.error };
+    }
+
     return Project.aggregate([
       {
         $lookup: {
@@ -1114,6 +1202,17 @@ const overviewReportHelper = function () {
    * - Buckets: 10, 20, 30, 40, 40+
    */
   async function getHoursStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    // Validate date parameters
+    const validation = validateDateParameters(
+      startDate,
+      endDate,
+      comparisonStartDate,
+      comparisonEndDate,
+    );
+    if (!validation.isValid) {
+      return { error: validation.error };
+    }
+
     // Get all active users with their time entries
     const usersWithTimeEntries = await UserProfile.aggregate([
       {
@@ -1588,6 +1687,17 @@ const overviewReportHelper = function () {
    * @param {*} endDate
    */
   async function getVolunteerHoursStats(startDate, endDate, lastWeekStartDate, lastWeekEndDate) {
+    // Validate date parameters
+    const currentWeekValidation = validateDateParameters(startDate, endDate);
+    if (!currentWeekValidation.isValid) {
+      return { error: currentWeekValidation.error };
+    }
+
+    const lastWeekValidation = validateDateParameters(lastWeekStartDate, lastWeekEndDate);
+    if (!lastWeekValidation.isValid) {
+      return { error: lastWeekValidation.error };
+    }
+
     const currentWeekStats = await getUserHoursData(startDate, endDate);
     const lastWeekStats = await getUserHoursData(lastWeekStartDate, lastWeekEndDate);
 
