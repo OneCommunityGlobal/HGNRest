@@ -400,9 +400,9 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
-  app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
-  app.use('/api/lb', lbWishlistsRouter);
+  // app.use('/api', projectMaterialRouter);
+  // app.use('/api/bm', bmRentalChart);
+  // app.use('/api/lb', lbWishlistsRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
   app.use('/api/lb', bidsRouter);
