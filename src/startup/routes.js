@@ -150,6 +150,7 @@ const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
+const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRouter')();
 
 const jobAnalyticsRoutes = require('../routes/jobAnalytics');
 
@@ -183,7 +184,6 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
-
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -339,6 +339,7 @@ module.exports = function (app) {
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/api', weeklySummariesFilterRouter);
   app.use('/applications', applicationRoutes);
 
   // bm dashboard
