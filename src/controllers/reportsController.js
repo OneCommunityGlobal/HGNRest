@@ -73,16 +73,65 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
 
-    let isoComparisonStartDate;
-    let isoComparisonEndDate;
+    // Validate date format and validity
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
-    if (comparisonStartDate && comparisonEndDate) {
-      isoComparisonStartDate = new Date(comparisonStartDate);
-      isoComparisonEndDate = new Date(comparisonEndDate);
+    if (!dateRegex.test(startDate)) {
+      return res.status(400).send({
+        msg: 'Invalid startDate format. Please use YYYY-MM-DD format',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    if (!dateRegex.test(endDate)) {
+      return res.status(400).send({
+        msg: 'Invalid endDate format. Please use YYYY-MM-DD format',
+        error: 'Invalid date parameters',
+      });
     }
 
     const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
     const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+
+    // Check if dates are valid
+    if (Number.isNaN(isoStartDate.getTime())) {
+      return res.status(400).send({
+        msg: 'Invalid startDate. Please provide a valid date',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    if (Number.isNaN(isoEndDate.getTime())) {
+      return res.status(400).send({
+        msg: 'Invalid endDate. Please provide a valid date',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    let isoComparisonStartDate;
+    let isoComparisonEndDate;
+
+    if (comparisonStartDate && comparisonEndDate) {
+      if (!dateRegex.test(comparisonStartDate) || !dateRegex.test(comparisonEndDate)) {
+        return res.status(400).send({
+          msg: 'Invalid comparison date format. Please use YYYY-MM-DD format',
+          error: 'Invalid date parameters',
+        });
+      }
+
+      isoComparisonStartDate = new Date(comparisonStartDate);
+      isoComparisonEndDate = new Date(comparisonEndDate);
+
+      if (
+        Number.isNaN(isoComparisonStartDate.getTime()) ||
+        Number.isNaN(isoComparisonEndDate.getTime())
+      ) {
+        return res.status(400).send({
+          msg: 'Invalid comparison dates. Please provide valid dates',
+          error: 'Invalid date parameters',
+        });
+      }
+    }
 
     try {
       const [
