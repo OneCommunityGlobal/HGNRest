@@ -194,7 +194,10 @@ const getCategories = async (req, res) => {
 };
 const getPositions = async (req, res) => {
   try {
-    const positions = await JobPositionCategory.distinct('position', {});
+    const categoryIn = req?.query?.category || '';
+    const filterCategory = categoryIn ? { category: categoryIn } : {};
+
+    const positions = await JobPositionCategory.distinct('position', filterCategory);
 
     // Sort categories alphabetically
     positions.sort((a, b) => a.localeCompare(b));
