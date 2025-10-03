@@ -1,11 +1,8 @@
-// routes/userState.js
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 
-const UserStateSelection = require('../models/userStateSelection'); // selections: [{ key, assignedAt }]
-
-// ----------- In-memory Catalog (you can replace later with DB) -----------
+const UserStateSelection = require('../models/userStateSelection'); 
 let catalog = [
   // { key: 'closing-out',    label: '❌ Closing',         color: 'red',    order: 0, isActive: true },
   // { key: 'new-dev',        label: '🖥️ New Developer',   color: 'blue',   order: 1, isActive: true },
@@ -13,7 +10,6 @@ let catalog = [
   // { key: 'developer',      label: '🖥️✅ Developer',      color: 'green',  order: 3, isActive: true },
 ];
 
-// ----------- Helpers -----------
 const byKey = () => Object.fromEntries(catalog.map(o => [o.key, o]));
 const sortByOrder = arr => arr.slice().sort((a, b) => a.order - b.order);
 const slugify = (s) =>
@@ -29,7 +25,6 @@ function requireManageUserState(req, res, next) {
   return next();
 }
 
-// ----------- Catalog Endpoints -----------
 router.get('/catalog', (req, res) => {
   const active = sortByOrder(catalog.filter(c => c.isActive));
   res.json({ items: active });
@@ -100,12 +95,8 @@ router.patch('/catalog/:key', requireManageUserState, (req, res) => {
   res.json({ item });
 });
 
-// ----------- User Selections (Persisted) -----------
-// Return selections with dates
 router.get('/users/:userId/state-indicators', async (req, res) => {
   const { userId } = req.params;
-
-  // sanity check for ObjectId
   if (!mongoose.isValidObjectId(userId)) {
     return res.status(400).json({ error: 'invalid userId' });
   }
@@ -116,15 +107,12 @@ router.get('/users/:userId/state-indicators', async (req, res) => {
     return res.json({ userId, selections: [] });
   }
 
-  // Backward-compat: if legacy stateIndicators exists, infer a date
   if (!doc.selections?.length && Array.isArray(doc.stateIndicators) && doc.stateIndicators.length) {
     const inferredDate = doc.updatedAt || doc.createdAt || new Date();
     const selections = doc.stateIndicators.map(k => ({ key: k, assignedAt: inferredDate }));
-    // Optionally: do not persist here; just return. First PATCH will migrate.
     return res.json({ userId, selections });
   }
 
-  // Sort by catalog order (nice to have)
   const order = sortByOrder(catalog).map(c => c.key);
   const orderMap = new Map(order.map((k, i) => [k, i]));
   const selectionsSorted = (doc.selections || []).slice().sort(
@@ -134,7 +122,6 @@ router.get('/users/:userId/state-indicators', async (req, res) => {
   res.json({ userId, selections: selectionsSorted });
 });
 
-// Update selections; keep assignedAt for existing, set now for new
 router.patch('/users/:userId/state-indicators', requireManageUserState, async (req, res) => {
   const { userId } = req.params;
   const { selectedKeys } = req.body || {};
@@ -147,7 +134,6 @@ router.patch('/users/:userId/state-indicators', requireManageUserState, async (r
     return res.status(400).json({ error: 'selectedKeys must be array' });
   }
 
-  // validate against active catalog
   const activeMap = byKey();
   const set = new Set();
   for (const k of selectedKeys) {
@@ -157,21 +143,18 @@ router.patch('/users/:userId/state-indicators', requireManageUserState, async (r
     set.add(k);
   }
 
-  // keep catalog display order
   const normalizedKeys = sortByOrder(catalog).map(c => c.key).filter(k => set.has(k));
 
   if (normalizedKeys.length > 10) {
     return res.status(400).json({ error: 'too many selections (max 10)' });
   }
 
-  // fetch existing to preserve dates
   const existing = await UserStateSelection.findOne({ userId });
 
   let existingDates = new Map();
   if (existing?.selections?.length) {
     for (const s of existing.selections) existingDates.set(s.key, s.assignedAt);
   } else if (Array.isArray(existing?.stateIndicators)) {
-    // backward compat: infer timestamps
     const inferred = existing.updatedAt || existing.createdAt || new Date();
     for (const k of existing.stateIndicators) existingDates.set(k, inferred);
   }
