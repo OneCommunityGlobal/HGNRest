@@ -182,6 +182,24 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
       ]);
+
+      // Check for validation errors in pie chart functions
+      if (volunteerHoursStats && volunteerHoursStats.error) {
+        console.log('Date validation error in volunteerHoursStats:', volunteerHoursStats.error);
+        return res.status(400).json({
+          msg: volunteerHoursStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
+      if (workDistributionStats && workDistributionStats.error) {
+        console.log('Date validation error in workDistributionStats:', workDistributionStats.error);
+        return res.status(400).json({
+          msg: workDistributionStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
       res.status(200).send({
         volunteerNumberStats,
         volunteerHoursStats,
@@ -356,10 +374,20 @@ const reportsController = function () {
         lastWeekStartDate,
         lastWeekEndDate,
       );
+
+      // Check if the helper function returned an error
+      if (volunteerHoursStats && volunteerHoursStats.error) {
+        console.log('Date validation error:', volunteerHoursStats.error);
+        return res.status(400).json({
+          msg: volunteerHoursStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
       res.status(200).json(volunteerHoursStats);
     } catch (error) {
       console.log(error);
-      res.status(404).send(error);
+      res.status(500).json({ msg: 'Error occurred while fetching data. Please try again!' });
     }
   };
 
