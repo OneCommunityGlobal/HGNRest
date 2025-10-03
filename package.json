@@ -58,7 +58,9 @@
     "@babel/plugin-transform-runtime": "^7.10.1",
     "@babel/preset-env": "^7.10.2",
     "@babel/runtime": "^7.10.2",
+
     "@paypal/paypal-server-sdk": "^0.6.0",
+
     "@sentry/integrations": "^7.110.0",
     "@sentry/node": "^7.120.3",
     "@types/node-fetch": "^2.6.12",
