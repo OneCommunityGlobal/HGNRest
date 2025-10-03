@@ -73,7 +73,7 @@ const overviewReportHelper = function () {
                 $group: {
                   _id: '$_id',
                   personId: { $first: '$_id' },
-                  totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+                  totalSeconds: { $sum: { $ifNull: ['$timeEntries.totalSeconds', 0] } }, // Sum seconds from timeEntries, handle null as 0
                   weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
                 },
               },
@@ -135,7 +135,7 @@ const overviewReportHelper = function () {
                 $group: {
                   _id: '$_id',
                   personId: { $first: '$_id' },
-                  totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+                  totalSeconds: { $sum: { $ifNull: ['$timeEntries.totalSeconds', 0] } }, // Sum seconds from timeEntries, handle null as 0
                   weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
                 },
               },
@@ -208,7 +208,7 @@ const overviewReportHelper = function () {
         $group: {
           _id: '$_id',
           personId: { $first: '$_id' },
-          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
+          totalSeconds: { $sum: { $ifNull: ['$timeEntries.totalSeconds', 0] } }, // Sum seconds from timeEntries, handle null as 0
           weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
         },
       },
@@ -684,7 +684,7 @@ const overviewReportHelper = function () {
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalBlueSquares[0].totalBlueSquares,
+      count: currTotalBlueSquares[0]?.totalBlueSquares || 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
@@ -694,8 +694,8 @@ const overviewReportHelper = function () {
       );
 
       formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
-        currTotalBlueSquares[0].totalBlueSquares,
-        comparisonTotalBlueSquares[0].totalBlueSquares,
+        currTotalBlueSquares[0]?.totalBlueSquares || 0,
+        comparisonTotalBlueSquares[0]?.totalBlueSquares || 0,
       );
     }
 
@@ -1005,9 +1005,12 @@ const overviewReportHelper = function () {
   //   return hoursStats;
   // }
 
-  // Updated
-  async function getHoursStats(startDate, endDate) {
-    const hoursStats = await UserProfile.aggregate([
+  /**
+   * Helper function to get user-level hours data for internal use
+   * This is used by getVolunteerHoursStats for percentage calculations
+   */
+  async function getUserHoursData(startDate, endDate) {
+    return UserProfile.aggregate([
       {
         $match: {
           isActive: true,
@@ -1015,16 +1018,16 @@ const overviewReportHelper = function () {
       },
       {
         $lookup: {
-          from: 'timeEntries', // The collection to join
-          localField: '_id', // Field from the userProfile collection
-          foreignField: 'personId', // Field from the timeEntries collection
-          as: 'timeEntries', // The array field that will contain the joined documents
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntries',
         },
       },
       {
         $unwind: {
           path: '$timeEntries',
-          preserveNullAndEmptyArrays: true, // Preserve users with no time entries
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
@@ -1044,63 +1047,180 @@ const overviewReportHelper = function () {
         $group: {
           _id: '$_id',
           personId: { $first: '$_id' },
-          totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
-          weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
+          totalSeconds: { $sum: { $ifNull: ['$timeEntries.totalSeconds', 0] } },
+          weeklycommittedHours: { $first: `$weeklycommittedHours` },
         },
       },
       {
         $project: {
-          totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
-          weeklycommittedHours: 1, // make sure we include it in the end result
+          totalHours: { $divide: ['$totalSeconds', 3600] },
+          weeklycommittedHours: 1,
         },
       },
       {
-        $bucket: {
-          groupBy: '$totalHours',
-          boundaries: [10, 20, 30, 35, 40],
-          default: 40,
-          output: {
-            count: { $sum: 1 },
+        $match: {
+          totalHours: { $gt: 0 },
+        },
+      },
+    ]);
+  }
+
+  /**
+   * Helper function to check if a week should be counted based on the 4+ days rule
+   * @param {Date} weekStart - Start of the week (Sunday)
+   * @param {Date} weekEnd - End of the week (Saturday)
+   * @param {Date} startDate - Start date of the report period
+   * @param {Date} endDate - End date of the report period
+   * @param {Date} currentWeekStart - Start of current week
+   * @returns {boolean} - True if the week should be counted
+   */
+  function shouldCountWeek(weekStart, weekEnd, startDate, endDate, currentWeekStart) {
+    // If this is the current week, always count it
+    if (moment(weekStart).isSame(currentWeekStart, 'day')) {
+      return true;
+    }
+
+    // Calculate the overlap between the week and the date range
+    const overlapStart = moment.max(moment(weekStart), moment(startDate));
+    const overlapEnd = moment.min(moment(weekEnd), moment(endDate));
+
+    // Calculate days in the overlap (inclusive)
+    const daysInRange = overlapEnd.diff(overlapStart, 'days') + 1;
+
+    // Count the week if there are 4 or more days
+    return daysInRange >= 4;
+  }
+
+  /**
+   * Helper function to assign a user's weekly average to a bucket
+   * @param {number} weeklyAverage - The user's weekly average hours
+   * @returns {string} - The bucket label
+   */
+  function assignToBucket(weeklyAverage) {
+    if (weeklyAverage <= 10) return '10';
+    if (weeklyAverage <= 20) return '20';
+    if (weeklyAverage <= 30) return '30';
+    if (weeklyAverage <= 40) return '40';
+    return '40+';
+  }
+
+  /**
+   * Get volunteer hours distribution stats based on weekly averages
+   * Requirements:
+   * - Calculate weekly average only for weeks where user logged time
+   * - Week is Sunday to Saturday
+   * - Count week only if 4+ days in range (exception: current week always counts)
+   * - Round user's average to upper bucket limit
+   * - Buckets: 10, 20, 30, 40, 40+
+   */
+  async function getHoursStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+    // Get all active users with their time entries
+    const usersWithTimeEntries = await UserProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntries',
+        },
+      },
+      {
+        $match: {
+          'timeEntries.0': { $exists: true }, // Only users with at least one time entry
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          timeEntries: {
+            $filter: {
+              input: '$timeEntries',
+              as: 'entry',
+              cond: {
+                $and: [
+                  {
+                    $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
+                  },
+                  {
+                    $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
+                  },
+                ],
+              },
+            },
           },
         },
       },
     ]);
 
-    // Change category labels using if conditions
-    hoursStats.forEach((stat) => {
-      if (stat._id === 10) {
-        stat._id = '10-19.99';
-      } else if (stat._id === 20) {
-        stat._id = '20-29.99';
-      } else if (stat._id === 30) {
-        stat._id = '30-34.99';
-      } else if (stat._id === 35) {
-        stat._id = '35-39.99';
-      } else if (stat._id === 40) {
-        stat._id = '40+';
+    // Calculate current week start for comparison
+    const currentWeekStart = moment().tz('America/Los_Angeles').startOf('week');
+    const reportStartDate = moment(startDate);
+    const reportEndDate = moment(endDate);
+
+    // Process each user to calculate their weekly average
+    const userBuckets = [];
+
+    for (const user of usersWithTimeEntries) {
+      if (!user.timeEntries || user.timeEntries.length === 0) {
+        continue; // Skip users with no time entries in the date range
       }
-    });
 
-    // Ensure each specific range label has a value, even if zero
-    if (!hoursStats.find((x) => x._id === '10-19.99')) {
-      hoursStats.push({ _id: '10-19.99', count: 0 });
-    }
-    if (!hoursStats.find((x) => x._id === '20-29.99')) {
-      hoursStats.push({ _id: '20-29.99', count: 0 });
-    }
-    if (!hoursStats.find((x) => x._id === '30-34.99')) {
-      hoursStats.push({ _id: '30-34.99', count: 0 });
-    }
-    if (!hoursStats.find((x) => x._id === '35-39.99')) {
-      hoursStats.push({ _id: '35-39.99', count: 0 });
-    }
-    if (!hoursStats.find((x) => x._id === '40+')) {
-      hoursStats.push({ _id: '40+', count: 0 });
+      // Group time entries by week
+      const weeklyHours = {};
+
+      for (const entry of user.timeEntries) {
+        const entryDate = moment(entry.dateOfWork);
+        const weekStart = entryDate.clone().startOf('week'); // Sunday
+        const weekEnd = entryDate.clone().endOf('week'); // Saturday
+        const weekKey = weekStart.format('YYYY-MM-DD');
+
+        // Check if this week should be counted based on the 4+ days rule
+        if (shouldCountWeek(weekStart, weekEnd, reportStartDate, reportEndDate, currentWeekStart)) {
+          if (!weeklyHours[weekKey]) {
+            weeklyHours[weekKey] = 0;
+          }
+          weeklyHours[weekKey] += (entry.totalSeconds || 0) / 3600; // Convert to hours
+        }
+      }
+
+      // Calculate the weekly average (only for weeks with logged time)
+      const weeksWithTime = Object.keys(weeklyHours);
+      if (weeksWithTime.length > 0) {
+        const totalHours = weeksWithTime.reduce((sum, week) => sum + weeklyHours[week], 0);
+        const weeklyAverage = totalHours / weeksWithTime.length;
+
+        // Assign to bucket
+        const bucket = assignToBucket(weeklyAverage);
+        userBuckets.push(bucket);
+      }
     }
 
-    // Sort the result to maintain consistent order (optional)
-    const order = ['10-19.99', '20-29.99', '30-34.99', '35-39.99', '40+'];
-    hoursStats.sort((a, b) => order.indexOf(a._id) - order.indexOf(b._id));
+    // Count users in each bucket
+    const bucketCounts = {
+      10: 0,
+      20: 0,
+      30: 0,
+      40: 0,
+      '40+': 0,
+    };
+
+    for (const bucket of userBuckets) {
+      bucketCounts[bucket]++;
+    }
+
+    // Format as expected output
+    const hoursStats = [
+      { _id: '10', count: bucketCounts['10'] },
+      { _id: '20', count: bucketCounts['20'] },
+      { _id: '30', count: bucketCounts['30'] },
+      { _id: '40', count: bucketCounts['40'] },
+      { _id: '40+', count: bucketCounts['40+'] },
+    ];
 
     return hoursStats;
   }
@@ -1468,8 +1588,8 @@ const overviewReportHelper = function () {
    * @param {*} endDate
    */
   async function getVolunteerHoursStats(startDate, endDate, lastWeekStartDate, lastWeekEndDate) {
-    const currentWeekStats = await getHoursStats(startDate, endDate);
-    const lastWeekStats = await getHoursStats(lastWeekStartDate, lastWeekEndDate);
+    const currentWeekStats = await getUserHoursData(startDate, endDate);
+    const lastWeekStats = await getUserHoursData(lastWeekStartDate, lastWeekEndDate);
 
     const volunteerHoursStats = {
       numberOfUsers: currentWeekStats.length,
