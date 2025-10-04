@@ -1,16 +1,14 @@
 const express = require('express');
 
-const routes = function () { 
+const routes = function () {
+  const controller = require('../../controllers/CommunityPortal/noShowFollowUpController')();
 
-    const controller = require('../../controllers/CommunityPortal/noShowFollowUpController')();
-    
-    const noShowRouter = express.Router();
+  const noShowRouter = express.Router();
 
-    noShowRouter.route('/sendFollowUpEmailAll').get(controller.sendFollowUpEmailAll);
-    noShowRouter.route('/sendFollowUpEmail').post(controller.sendFollowUpEmail);
+  noShowRouter.route('/sendFollowUpEmailAll').post(controller.sendFollowUpEmailAll);
+  noShowRouter.route('/sendFollowUpEmail').post(controller.sendFollowUpEmail);
 
-    return noShowRouter;
-
-}
+  return noShowRouter;
+};
 
 module.exports = routes;
