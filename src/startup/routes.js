@@ -185,7 +185,6 @@ const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRout
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
-
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
@@ -275,6 +274,8 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+
+const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -402,9 +403,8 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
-  app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
-  app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api', promotionDetailsRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
   app.use('/api/lb', bidsRouter);
