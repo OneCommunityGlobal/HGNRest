@@ -16,7 +16,6 @@ const {
   hasOtherConn,
 } = require('./TimerService/connectionsHandler');
 
-
 const { getClient, handleMessage, action } = require('./TimerService/clientsHandler');
 
 /**
