@@ -18,8 +18,9 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const savedFilter = require('../models/savedFilter');
 
-const hgnFormResponses = require('../models/hgnFormResponses');
+const hgnFormResponses = require('../models/hgnFormResponse');
 
 const listings = require('../models/lbdashboard/listings');
 const village = require('../models/lbdashboard/villages');
@@ -30,6 +31,8 @@ const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
 
+const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -39,6 +42,7 @@ const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const projectStatusRouter = require('../routes/projectStatusRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
+const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
@@ -125,10 +129,7 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
-const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(
-  hgnFormResponses,
-  userProfile,
-);
+const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
 
 const faqRouter = require('../routes/faqRouter');
 
@@ -154,6 +155,9 @@ const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
+
+const jobAnalyticsRoutes = require('../routes/jobAnalytics');
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -181,8 +185,10 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 );
 
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
+const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -223,6 +229,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   blueSquareEmailAssignment,
   userProfile,
 );
+// PR Analytics
+const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(PRReviewInsights);
 
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
@@ -248,6 +256,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
+const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
@@ -260,8 +269,18 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
+const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
+// lbdashboard
+const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
+const bidsRouter = require('../routes/lbdashboard/bidsRouter');
+const paymentsRouter = require('../routes/lbdashboard/paymentsRouter');
+const webhookRouter = require('../routes/lbdashboard/webhookRouter');
+const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRouter');
+const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
+const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const applicationRoutes = require('../routes/applications');
 
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
@@ -312,6 +331,7 @@ module.exports = function (app) {
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
+  app.use('/api', savedFilterRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/issues', bmIssuesRouter);
@@ -319,16 +339,17 @@ module.exports = function (app) {
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
+  app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
-
-  app.use('/api', templateRouter);
 
   app.use('/api', templateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
 
+  app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/applications', applicationRoutes);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
@@ -366,11 +387,14 @@ module.exports = function (app) {
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
 
+  app.use('/api/labor-cost', bmPaidLaborCostRouter);
+
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
 
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
+  app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
@@ -386,7 +410,18 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  // PR Analytics
+  app.use('/api', prInsightsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  // lb dashboard
+  app.use('/api/lb', bidTermsRouter);
+  app.use('/api/lb', bidsRouter);
+  app.use('/api/lb', paymentsRouter);
+  app.use('/api/lb', webhookRouter);
+  app.use('/api/lb', bidNotificationsRouter);
+  app.use('/api/lb', bidDeadlinesRouter);
+  app.use('/api/lb', SMSRouter);
 };
