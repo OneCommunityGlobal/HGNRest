@@ -2211,6 +2211,38 @@ const userHelper = function () {
       });
   };
 
+  const getTangibleHoursReportedLastWeekByUserId = function (personId) {
+    const userId = mongoose.Types.ObjectId(personId);
+
+    const pdtstart = moment()
+      .tz('America/Los_Angeles')
+      .startOf('week')
+      .subtract(1, 'week')
+      .format('YYYY-MM-DD');
+    const pdtend = moment()
+      .tz('America/Los_Angeles')
+      .endOf('week')
+      .subtract(1, 'week')
+      .format('YYYY-MM-DD');
+
+    return timeEntries
+      .find(
+        {
+          personId: userId,
+          dateOfWork: { $gte: pdtstart, $lte: pdtend },
+          isTangible: true,
+        },
+        'totalSeconds',
+      )
+      .then((results) => {
+        const totalTangibleWeeklySeconds = results.reduce(
+          (acc, { totalSeconds }) => acc + totalSeconds,
+          0,
+        );
+        return (totalTangibleWeeklySeconds / 3600).toFixed(2);
+      });
+  };
+
   const sendDeactivateEmailBody = function (
     firstName,
     lastName,
@@ -2647,14 +2679,9 @@ const userHelper = function () {
         );
         if (!infringement) continue;
 
-        // Fetch weekly logs for this user
-        const timeLogs = await TimeLog.find({
-          userId: user._id,
-          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
-        });
-
-        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
-        const hoursLogged = totalSeconds / 3600;
+        // Get tangible hours logged for last week using timeEntries collection
+        const hoursLogged = parseFloat(await getTangibleHoursReportedLastWeekByUserId(user._id));
+        console.log('hoursLogged', hoursLogged);
         const weeklycommittedHours = user.weeklyComittedHours || 0;
         const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
 
@@ -2730,6 +2757,7 @@ const userHelper = function () {
     awardNewBadges,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
+    getTangibleHoursReportedLastWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
