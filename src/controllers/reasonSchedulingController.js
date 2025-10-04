@@ -48,7 +48,10 @@ const postReason = async (req, res) => {
 
     // conditions added to check if timeOffFrom and timeOffTill fields existed
 
-    if (Object.prototype.hasOwnProperty.call(foundUser, 'timeOffFrom') && Object.prototype.hasOwnProperty.call(foundUser, 'timeOffTill')) {
+    if (
+      Object.prototype.hasOwnProperty.call(foundUser, 'timeOffFrom') &&
+      Object.prototype.hasOwnProperty.call(foundUser, 'timeOffTill')
+    ) {
       // if currentDate is greater than or equal to the last timeOffTill date then both the fields will be updated
       if (currentDate >= foundUser.timeOffTill) {
         await UserModel.findOneAndUpdate(

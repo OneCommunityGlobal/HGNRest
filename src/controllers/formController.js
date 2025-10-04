@@ -33,7 +33,7 @@ const formController = function (Form, FormResponse) {
         message: 'Form created successfully',
         formID: savedForm.formID,
         id: savedForm._id,
-        formLink: `hostname${  formLink}`,
+        formLink: `hostname${formLink}`,
       });
     } catch (error) {
       console.error('Error creating form:', error);
@@ -167,7 +167,7 @@ const formController = function (Form, FormResponse) {
 
   const getFormData = async function (req, res) {
     try {
-      const {formID} = req.query;
+      const { formID } = req.query;
       // Check if formID is provided
       if (!formID) {
         return res.status(400).json({ message: 'Form ID is required.' });

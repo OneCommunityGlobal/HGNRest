@@ -1,6 +1,6 @@
 // src/routes/templateRouter.js
-const express = require("express");
-const templateController = require("../controllers/templateController");
+const express = require('express');
+const templateController = require('../controllers/templateController');
 
 const router = express.Router();
 

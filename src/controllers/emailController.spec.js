@@ -100,21 +100,21 @@ describe('confirmNonHgnEmailSubscription function', () => {
   test('should return 400 if token is not provided', async () => {
     const { confirmNonHgnEmailSubscription } = makeSut();
 
-    const mockReqLocal = { body: {} };
-    const response = await confirmNonHgnEmailSubscription(mockReqLocal, mockRes);
+    const emptyReq = { body: {} };
+    const response = await confirmNonHgnEmailSubscription(emptyReq, mockRes);
 
     assertResMock(400, 'Invalid token', response, mockRes);
   });
 
   test('should return 401 if token is invalid', async () => {
     const { confirmNonHgnEmailSubscription } = makeSut();
-    const mockReqLocal = { body: { token: 'invalidToken' } };
+    const tokenReq = { body: { token: 'invalidToken' } };
 
     jwt.verify.mockImplementation(() => {
       throw new Error('Token is not valid');
     });
 
-    await confirmNonHgnEmailSubscription(mockReqLocal, mockRes);
+    await confirmNonHgnEmailSubscription(tokenReq, mockRes);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({
@@ -122,17 +122,7 @@ describe('confirmNonHgnEmailSubscription function', () => {
     });
   });
 
-  test('should return 400 if token is missing from payload', async () => {
-    const { confirmNonHgnEmailSubscription } = makeSut();
-    const emptyReq = { body: {} };
-
-    await confirmNonHgnEmailSubscription(emptyReq, mockRes);
-
-    expect(mockRes.status).toHaveBeenCalledWith(400);
-    expect(mockRes.send).toHaveBeenCalledWith('Invalid token');
-  });
-
-  test('should return 400 if token payload is invalid', async () => {
+  test('should return 400 if email is missing from payload', async () => {
     const { confirmNonHgnEmailSubscription } = makeSut();
     const validTokenReq = { body: { token: 'validToken' } };
 

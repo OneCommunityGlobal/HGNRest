@@ -1,6 +1,8 @@
 // const mongoose = require('mongoose');
 
-const bmRentalChartController = function (rentalCharts) {
+const bmRentalChartController = function () {
+  const rentalCharts = require('../../models/bmdashboard/buildingRentalChart');
+
   const getAllRentalCosts = async (req, res) => {
     try {
       const rentals = await rentalCharts

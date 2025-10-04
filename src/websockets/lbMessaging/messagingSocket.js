@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 // const mongoose = require('mongoose');
 const config = require('../../config');
 // eslint-disable-next-line no-unused-vars
-const { sendMessageHandler, updateMessageStatusHandler } = require("./lbMessageHandler");
+const { sendMessageHandler, updateMessageStatusHandler } = require('./lbMessageHandler');
 const Message = require('../../models/lbdashboard/message');
 const Notification = require('../../models/notification');
 const UserProfile = require('../../models/userProfile');
@@ -30,34 +30,6 @@ export default () => {
     noServer: true,
   });
 
-  const userConnections = new Map();
-
-  const broadcastStatusUpdate = async (messageId, status) => {
-    const message = await Message.findByIdAndUpdate(messageId, { status }, { new: true });
-
-    if (!message) return;
-
-    const senderSocket = userConnections.get(message.sender)?.socket;
-    if (senderSocket && senderSocket.readyState === Websockets.OPEN) {
-      senderSocket.send(
-        JSON.stringify({
-          action: 'MESSAGE_STATUS_UPDATED',
-          payload: { messageId: message._id, status },
-        }),
-      );
-    }
-
-    const receiverSocket = userConnections.get(message.receiver)?.socket;
-    if (receiverSocket && receiverSocket.readyState === Websockets.OPEN) {
-      receiverSocket.send(
-        JSON.stringify({
-          action: 'MESSAGE_STATUS_UPDATED',
-          payload: { messageId: message._id, status },
-        }),
-      );
-    }
-  };
-
   const handleUpgrade = (request, socket, head) => {
     authenticate(request, (err, client) => {
       if (err || !client) {
@@ -72,9 +44,84 @@ export default () => {
     });
   };
 
+  // Store multiple connections per user: { userId: [{ socket, isActive, inChatWith }] }
+  const userConnections = new Map();
+
+  // Helper functions for connection management
+  const addUserConnection = (userId, ws) => {
+    if (!userConnections.has(userId)) {
+      userConnections.set(userId, []);
+    }
+    userConnections.get(userId).push({ socket: ws, isActive: true, inChatWith: null });
+  };
+
+  const removeUserConnection = (userId, ws) => {
+    const connections = userConnections.get(userId);
+    if (!connections) return;
+
+    const connectionIndex = connections.findIndex((conn) => conn.socket === ws);
+    if (connectionIndex !== -1) {
+      connections.splice(connectionIndex, 1);
+      if (connections.length === 0) {
+        userConnections.delete(userId);
+      }
+    }
+  };
+
+  const getActiveConnections = (userId) => {
+    const connections = userConnections.get(userId);
+    if (!connections) return [];
+
+    // Filter out closed connections
+    const activeConnections = connections.filter(
+      (conn) => conn.socket && conn.socket.readyState === Websockets.OPEN,
+    );
+
+    // Update the connections array if any were filtered out
+    if (activeConnections.length !== connections.length) {
+      userConnections.set(userId, activeConnections);
+      if (activeConnections.length === 0) {
+        userConnections.delete(userId);
+      }
+    }
+
+    return activeConnections;
+  };
+
+  const broadcastToUser = (userId, message) => {
+    const activeConnections = getActiveConnections(userId);
+    activeConnections.forEach((conn) => {
+      try {
+        if (conn.socket.readyState === Websockets.OPEN) {
+          conn.socket.send(JSON.stringify(message));
+        }
+      } catch (error) {
+        console.error('Failed to send message to user:', error);
+      }
+    });
+  };
+
+  const broadcastStatusUpdate = async (messageId, status /* userId */) => {
+    const message = await Message.findByIdAndUpdate(messageId, { status }, { new: true });
+
+    if (!message) return;
+
+    // Broadcast to sender
+    broadcastToUser(message.sender, {
+      action: 'MESSAGE_STATUS_UPDATED',
+      payload: { messageId: message._id, status },
+    });
+
+    // Broadcast to receiver
+    broadcastToUser(message.receiver, {
+      action: 'MESSAGE_STATUS_UPDATED',
+      payload: { messageId: message._id, status },
+    });
+  };
+
   wss.on('connection', (ws, req) => {
     const { userId } = req;
-    userConnections.set(userId, { socket: ws, isActive: true, inChatWith: null });
+    addUserConnection(userId, ws);
 
     ws.on('message', async (data) => {
       const msg = JSON.parse(data.toString());
@@ -83,56 +130,53 @@ export default () => {
         try {
           const savedMessage = await sendMessageHandler(msg, userId);
 
-          const senderState = userConnections.get(userId);
-          if (senderState?.socket?.readyState === Websockets.OPEN) {
-            senderState.socket.send(
-              JSON.stringify({
-                action: 'RECEIVE_MESSAGE',
-                payload: savedMessage,
-              }),
-            );
-          }
+          // Send confirmation to sender
+          broadcastToUser(userId, {
+            action: 'RECEIVE_MESSAGE',
+            payload: savedMessage,
+          });
+
           const senderProfile = await UserProfile.findById(userId).select('firstName lastName');
           const senderName = `${senderProfile.firstName} ${senderProfile.lastName}`;
 
-          const receiverState = userConnections.get(msg.receiver);
-          if (receiverState) {
-            if (receiverState.inChatWith === userId) {
+          // Check if receiver has active connections
+          const receiverConnections = getActiveConnections(msg.receiver);
+          if (receiverConnections.length > 0) {
+            // Determine message status based on receiver's state
+            const isReceiverInChat = receiverConnections.some((conn) => conn.inChatWith === userId);
+            const isReceiverActive = receiverConnections.some((conn) => conn.isActive);
+
+            if (isReceiverInChat) {
               savedMessage.status = 'read';
-            } else if (receiverState.isActive) {
+            } else if (isReceiverActive) {
               savedMessage.status = 'delivered';
             } else {
               savedMessage.status = 'sent';
             }
             await savedMessage.save();
 
-            if (receiverState.socket?.readyState === Websockets.OPEN) {
-              receiverState.socket.send(
-                JSON.stringify({
-                  action: 'RECEIVE_MESSAGE',
-                  payload: savedMessage,
-                }),
+            // Send message to all receiver connections
+            broadcastToUser(msg.receiver, {
+              action: 'RECEIVE_MESSAGE',
+              payload: savedMessage,
+            });
+
+            // Send notification if receiver is active but not in chat with sender
+            if (isReceiverActive && !isReceiverInChat) {
+              const userPreference = await UserPreference.findOne({ user: msg.receiver });
+              const isSenderInPreference = userPreference?.users.some(
+                (pref) => pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
               );
 
-              if (receiverState.isActive && receiverState.inChatWith !== userId) {
-                const userPreference = await UserPreference.findOne({ user: msg.receiver });
-                const isSenderInPreference = userPreference?.users.some(
-                  (pref) =>
-                    pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
-                );
-
-                if (isSenderInPreference) {
-                  receiverState.socket.send(
-                    JSON.stringify({
-                      action: 'NEW_NOTIFICATION',
-                      payload: `You got a message from ${senderName}`,
-                    }),
-                  );
-                }
+              if (isSenderInPreference) {
+                broadcastToUser(msg.receiver, {
+                  action: 'NEW_NOTIFICATION',
+                  payload: `You got a message from ${senderName}`,
+                });
               }
             }
-            broadcastStatusUpdate(savedMessage._id, savedMessage.status);
           } else {
+            // Receiver is offline, create notification
             const userPreference = await UserPreference.findOne({ user: msg.receiver });
             const isSenderInPreference = userPreference?.users.some(
               (pref) => pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
@@ -147,6 +191,8 @@ export default () => {
               await notification.save();
             }
           }
+
+          broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
         } catch (error) {
           console.error('❌ Error sending message:', error);
           ws.send(
@@ -157,11 +203,12 @@ export default () => {
           );
         }
       } else if (msg.action === 'UPDATE_CHAT_STATE') {
-        const userState = userConnections.get(userId);
-        if (userState) {
-          userState.isActive = msg.isActive;
-          userState.inChatWith = msg.inChatWith || null;
-        }
+        // Update chat state for all connections of this user
+        const connections = getActiveConnections(userId);
+        connections.forEach((conn) => {
+          conn.isActive = msg.isActive;
+          conn.inChatWith = msg.inChatWith || null;
+        });
       } else if (msg.action === 'MARK_MESSAGES_AS_READ') {
         try {
           const { contactId } = msg;
@@ -169,20 +216,17 @@ export default () => {
             throw new Error('Contact ID is required to mark messages as read.');
           }
 
-          await Message.updateMany(
+          // eslint-disable-next-line no-unused-vars
+          const updatedMessages = await Message.updateMany(
             { sender: contactId, receiver: userId, status: { $ne: 'read' } },
             { $set: { status: 'read' } },
           );
 
-          const senderSocket = userConnections.get(contactId)?.socket;
-          if (senderSocket && senderSocket.readyState === Websockets.OPEN) {
-            senderSocket.send(
-              JSON.stringify({
-                action: 'MESSAGE_STATUS_UPDATED',
-                payload: { contactId, status: 'read' },
-              }),
-            );
-          }
+          // Notify sender about read status
+          broadcastToUser(contactId, {
+            action: 'MESSAGE_STATUS_UPDATED',
+            payload: { contactId, status: 'read' },
+          });
         } catch (error) {
           console.error('❌ Error marking messages as read:', error);
         }
@@ -190,7 +234,7 @@ export default () => {
     });
 
     ws.on('close', () => {
-      userConnections.delete(userId);
+      removeUserConnection(userId, ws);
     });
   });
 

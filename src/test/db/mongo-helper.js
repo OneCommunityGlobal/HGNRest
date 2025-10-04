@@ -83,7 +83,7 @@ module.exports.dbClearAll = async () => {
         } catch (error) {
           console.warn(`Failed to clear collection ${key}:`, error.message);
         }
-      })
+      }),
     );
 
     console.log('All collections cleared successfully');
@@ -109,7 +109,7 @@ module.exports.dbClearCollections = async (...collectionNames) => {
         } else {
           console.log(`Collection ${collectionName} not found or not a real collection`);
         }
-      })
+      }),
     );
   } catch (error) {
     console.error('Error clearing specific collections:', error);

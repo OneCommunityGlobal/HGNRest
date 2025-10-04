@@ -141,7 +141,9 @@ describe('reasonScheduling Controller', () => {
         userId: mockReq.body.userId,
         date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
       };
-      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(mockFoundReasonData);
+      const mockFoundReason = jest
+        .spyOn(ReasonModel, 'findOne')
+        .mockResolvedValue(mockFoundReasonData);
 
       await postReason(mockReq, mockRes);
       await flushPromises();

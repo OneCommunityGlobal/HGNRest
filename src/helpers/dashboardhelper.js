@@ -664,7 +664,7 @@ const dashboardhelper = function () {
     }
   };
 
-  const getNamesFromProfiles = async () => {
+  const getNamesFromProfiles = async (/* req */) => {
     try {
       const users = await userProfile.find(
         {}, // no filter, fetch all
