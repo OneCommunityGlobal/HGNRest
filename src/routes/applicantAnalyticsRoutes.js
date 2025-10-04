@@ -7,8 +7,9 @@ const AnonymousApplication = require('../models/anonymousApplication');
 const AnalyticsSummary = require('../models/analyticsSummary');
 const analyticsController = require('../controllers/applicantAnalyticsController');
 
-const { 
+const {
   getExperienceBreakdown,
+  getAllRoles,
   trackInteraction,
   trackApplication,
   getInteractionSummary,
@@ -16,8 +17,8 @@ const {
   triggerAggregation
 } = analyticsController(Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary);
 
-
 router.get('/experience-breakdown', getExperienceBreakdown);
+router.get('/experience-roles', getAllRoles);
 
 // public - no auth required
 router.post('/track-interaction', trackInteraction);

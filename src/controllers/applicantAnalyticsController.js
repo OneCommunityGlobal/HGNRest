@@ -63,54 +63,62 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
       }
 
       const { roles } = req.query;
-      const match = {};
+      const pipeline = [];
 
       // Filter by roles only
       if (roles) {
         const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
-        match.roles = { $in: rolesArray };
+        pipeline.push({
+          $match: {
+            roles: { $in: rolesArray },
+          },
+        });
       }
-      
-      const breakdown = await Applicant.aggregate([
-        { $match: match },
-        {
-          $addFields: {
-            experienceCategory: {
-              $switch: {
-                branches: [
-                  { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
-                  {
-                    case: {
-                      $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
-                    },
-                    then: '1-3 years',
+
+      // Add experience category
+      pipeline.push({
+        $addFields: {
+          experienceCategory: {
+            $switch: {
+              branches: [
+                { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
+                {
+                  case: {
+                    $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
                   },
-                  {
-                    case: {
-                      $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
-                    },
-                    then: '3-5 years',
+                  then: '1-3 years',
+                },
+                {
+                  case: {
+                    $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
                   },
-                ],
-                default: '5+ years',
-              },
+                  then: '3-5 years',
+                },
+              ],
+              default: '5+ years',
             },
           },
         },
-        {
-          $group: {
-            _id: '$experienceCategory',
-            count: { $sum: 1 },
-          },
+      });
+
+      // Group by category
+      pipeline.push({
+        $group: {
+          _id: '$experienceCategory',
+          count: { $sum: 1 },
         },
-        {
-          $project: {
-            _id: 0,
-            experience: '$_id',
-            count: 1,
-          },
+      });
+
+      // Final format
+      pipeline.push({
+        $project: {
+          _id: 0,
+          experience: '$_id',
+          count: 1,
         },
-      ]);
+      });
+
+      const breakdown = await Applicant.aggregate(pipeline);
 
       if (!breakdown.length) {
         return res.status(404).json({ message: 'No Data Available' });
@@ -143,8 +151,8 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
       // Validate required fields
       if (!sessionId || !interactionType || !targetId || !targetTitle) {
-        return res.status(400).json({ 
-          error: 'Missing required fields: sessionId, interactionType, targetId, targetTitle' 
+        return res.status(400).json({
+          error: 'Missing required fields: sessionId, interactionType, targetId, targetTitle'
         });
       }
 
@@ -170,9 +178,9 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
       await interaction.save();
 
-      return res.status(201).json({ 
-        success: true, 
-        message: 'Interaction tracked successfully' 
+      return res.status(201).json({
+        success: true,
+        message: 'Interaction tracked successfully'
       });
 
     } catch (error) {
@@ -196,8 +204,8 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
       // Validate required fields
       if (!sessionId || !jobId || !jobTitle) {
-        return res.status(400).json({ 
-          error: 'Missing required fields: sessionId, jobId, jobTitle' 
+        return res.status(400).json({
+          error: 'Missing required fields: sessionId, jobId, jobTitle'
         });
       }
 
@@ -224,9 +232,9 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
       await application.save();
 
-      return res.status(201).json({ 
-        success: true, 
-        message: 'Application tracked successfully' 
+      return res.status(201).json({
+        success: true,
+        message: 'Application tracked successfully'
       });
 
     } catch (error) {
@@ -343,7 +351,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
       const interactionData = interactions[0] || { totalSessions: 0, totalInteractions: 0 };
       const applicationData = applications[0] || { totalApplications: 0, avgConversionTime: 0 };
 
-      const conversionRate = interactionData.totalSessions > 0 
+      const conversionRate = interactionData.totalSessions > 0
         ? ((applicationData.totalApplications / interactionData.totalSessions) * 100).toFixed(2)
         : 0;
 
@@ -386,13 +394,13 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
           summariesCount: summaries.length
         });
       }
-      
+
       // Generate for yesterday (or today if specified)
       const targetDate = req.query.date ? new Date(req.query.date) : new Date();
       if (!req.query.date) {
         targetDate.setDate(targetDate.getDate() - 1); // Default to yesterday
       }
-      
+
       const summary = await generateDailySummary(targetDate);
       return res.status(200).json({
         message: 'Daily summary generated successfully',
@@ -406,13 +414,24 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
+  const getAllRoles = async (req, res) => {
+    try {
+      const roles = await Applicant.distinct('roles');
+      return res.status(200).json(roles);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   return {
     getExperienceBreakdown,
+    getAllRoles,
     trackInteraction,
     trackApplication,
     getInteractionSummary,
     getConversionMetrics,
-    triggerAggregation,  
+    triggerAggregation,
   };
 };
 

@@ -2,8 +2,35 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
 
+const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
+
+const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
+
+const { webhookTest } = webhookController(Bids);
+
+const paypalAuthMiddleware = (req, res, next) => {
+  const authHeader = req.header('Paypal-Auth-Algo');
+  console.log('Paypal-Auth-Algo:', authHeader);
+  if (!authHeader) {
+    return res.status(501).json({ error: 'Missing PayPal-Auth-Algo header' });
+  }
+  next();
+};
+
+/* Socket.IO middleware
+function socketMiddleware(socket, next) {
+  const { token } = socket.handshake.auth;
+
+  if (token === 'secret123') {
+    return next();
+  }
+  return next(new Error('Invalid token'));
+}
+*/
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
+    const openPaths = ['/api/lb/myWebhooks'];
+
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
       return;
@@ -54,6 +81,11 @@ module.exports = function (app) {
       return;
     }
 
+    // Skip auth check for PayPal webhook route
+
+    if (openPaths.includes(req.path)) {
+      return next(); // Allow PayPal requests through
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
@@ -87,4 +119,6 @@ module.exports = function (app) {
     req.body.requestor = requestor;
     next();
   });
+  // Apply PayPal middleware only to specific route
+  app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };
