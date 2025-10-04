@@ -39,6 +39,8 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
+const projectStatusRouter = require('../routes/projectStatusRouter');
+
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
@@ -281,6 +283,8 @@ const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatio
 const applicationRoutes = require('../routes/applications');
 
 module.exports = function (app) {
+  app.use('/api/project-status', projectStatusRouter);
+
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
