@@ -1299,6 +1299,7 @@ const userHelper = function () {
         emailAddress,
         // Don't change this is to BCC!
         combinedBCCList,
+        { type: 'blue_square_assignment' },
       );
     });
   };
