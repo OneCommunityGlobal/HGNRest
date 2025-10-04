@@ -85,7 +85,7 @@ describe('Notification controller Unit Tests', () => {
     test('Ensures getUnreadUserNotifications returns error 403 if userId does not match requestorId', async () => {
       const { getUnreadUserNotifications } = makeSut();
       const errorMsg = { error: 'Unauthorized request' };
-      mockReq.body.requestor.requestorId =  'differentUserId'
+      mockReq.body.requestor.requestorId = 'differentUserId';
       const response = await getUnreadUserNotifications(mockReq, mockRes);
       assertResMock(403, errorMsg, response, mockRes);
     });
@@ -114,7 +114,7 @@ describe('Notification controller Unit Tests', () => {
     test('Ensures getSentNotifications returns error 403 if requestor role is neither Administrator or Owner', async () => {
       const { getSentNotifications } = makeSut();
       const errorMsg = { error: 'Unauthorized request' };
-      mockReq.body.requestor.role = 'randomRole'
+      mockReq.body.requestor.role = 'randomRole';
       const response = await getSentNotifications(mockReq, mockRes);
       assertResMock(403, errorMsg, response, mockRes);
     });
@@ -140,7 +140,7 @@ describe('Notification controller Unit Tests', () => {
     test('Ensures createUserNotification returns error 403 when requestor role is not Admin or Owner', async () => {
       const { createUserNotification } = makeSut();
       const errorMsg = { error: 'Unauthorized request' };
-      mockReq.body.requestor.role = 'randomRole'
+      mockReq.body.requestor.role = 'randomRole';
       mockReq.requestor = {
         requestorId: '65cf6c3706d8ac105827bb2e',
       };
