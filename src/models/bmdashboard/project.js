@@ -2,12 +2,15 @@ const mongoose = require('mongoose');
 
 const projectSchema = new mongoose.Schema(
   {
-    name: String,
-    status: { type: String, enum: ['active', 'completed', 'delayed'] },
-    start_date: Date,
-    completion_date: Date,
+    name: { type: String, required: true },
+    status: { type: String, enum: ['active', 'completed', 'delayed'], required: true },
+    start_date: { type: Date },
+    completion_date: { type: Date },
   },
   { timestamps: true },
 );
+
+projectSchema.index({ status: 1 });
+projectSchema.index({ start_date: 1 });
 
 module.exports = mongoose.model('Project', projectSchema);
